@@ -1,5 +1,6 @@
 ---
 name: ceo
+model: claude-opus-4-6
 description: >
   Business objective definition, success criteria, ROI alignment,
   strategic risk identification, and final approve/reject/revise
