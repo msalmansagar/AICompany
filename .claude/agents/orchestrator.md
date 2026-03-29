@@ -17,6 +17,16 @@ to specialist agents using the Task tool.
 Read .claude/constitution.md before every engagement.
 Update projects/state.yml after every phase completion.
 
+## Model routing
+
+| Model | Use for |
+|---|---|
+| `claude-opus-4-6` | CEO (phases 1 & 7), Architect (phase 3), Auditor (phase 6) — complex reasoning, high-stakes decisions |
+| `claude-sonnet-4-6` | All other agents — development work, BA, QA, middleware, frontend, backend, mobile, devops |
+
+Opus agents have `model: claude-opus-4-6` in their frontmatter and are invoked automatically
+at the correct model tier. Do not override model selection unless explicitly instructed.
+
 ## Agents available
 
 | Agent            | Responsibility                                                    |

@@ -2,5 +2,39 @@
   "defaultAgent": "orchestrator",
   "env": {
     "CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-4-6"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/block-no-verify.js"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/post-edit-typecheck.js"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/session-end.js"
+          }
+        ]
+      }
+    ]
   }
 }
