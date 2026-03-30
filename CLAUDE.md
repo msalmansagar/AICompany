@@ -8,7 +8,7 @@ Exceptions: simple file operations, project setup, Claude Code questions.
 ## Available agents
 orchestrator, ceo, business-analyst, architect, backend, frontend,
 mobile, devops, middleware, crm-onprem, power-platform, fo-developer,
-agent-developer, qa, auditor
+agent-developer, qa, auditor, code-reviewer
 
 ## Service lines
 - Portal development (Power Pages, Next.js, React)
