@@ -1,14 +1,18 @@
 # Maqsad AI — Full-Stack Enterprise Software Company
 
-## Default behavior
+## Default behavior — always route through the orchestrator
 When the user types any instruction, delegate to @orchestrator.
-Do not respond directly for business or technical problems.
+The orchestrator enforces the mandatory sequence:
+BA → CEO BRD approval → GitHub research → Architecture →
+Technical build → Code review → QA → Audit → CEO final decision.
+
+No step may be skipped. The BRD is the entry gate for all
+new features. Nothing gets designed or built without it.
 Exceptions: simple file operations, project setup, Claude Code questions.
 
 ## Available agents
-orchestrator, ceo, business-analyst, architect, backend, frontend,
-mobile, devops, middleware, crm-onprem, power-platform, fo-developer,
-agent-developer, qa, auditor, code-reviewer, github-researcher
+orchestrator, ba, ceo, architect, backend, frontend, middleware,
+crm-developer, github-researcher, code-reviewer, qa, auditor
 
 ## Service lines
 - Portal development (Power Pages, Next.js, React)
