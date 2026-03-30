@@ -173,6 +173,16 @@ Update checkbox status as each phase completes.
 
 6. Read .claude/constitution.md before Phase 3.
 
+7. Read .claude/rules/common.md before every Phase 4 build task
+   and include it as context for all code-producing agents.
+
+8. After any agent produces code, automatically call the
+   code-reviewer agent to validate clean code compliance before
+   accepting the output. If the reviewer flags CRITICAL violations,
+   send the code back to the originating agent with the specific
+   violations listed. Do not pass non-compliant code forward.
+   Only pass code that receives PASS or PASS WITH WARNINGS.
+
 ## Output section headers
 
 [CEO] [Business Analyst] [Architect] [Backend] [Frontend] [Mobile]
