@@ -8,7 +8,7 @@ Exceptions: simple file operations, project setup, Claude Code questions.
 ## Available agents
 orchestrator, ceo, business-analyst, architect, backend, frontend,
 mobile, devops, middleware, crm-onprem, power-platform, fo-developer,
-agent-developer, qa, auditor, code-reviewer
+agent-developer, qa, auditor, code-reviewer, github-researcher
 
 ## Service lines
 - Portal development (Power Pages, Next.js, React)
@@ -96,6 +96,13 @@ These are non-negotiable. No agent may skip or abbreviate them.
 - Test names: MethodName_Scenario_ExpectedResult
 - No logic in tests — one assert per test where possible
 - Tests must be fast, isolated, repeatable, self-validating
+
+### Dependency adoption
+Before building any new component, the github-researcher agent
+must verify whether a battle-tested open source library exists
+with 1000+ stars. Adopt over build whenever license and
+technical fit allow. Document the adoption decision in
+projects/<name>/dependencies.md with repo URL, version, and rationale.
 
 ## State tracking
 Active project status: projects/state.yml

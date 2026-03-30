@@ -43,6 +43,7 @@ Update projects/state.yml after every phase completion.
 | qa               | TDD strategy, test cases, E2E, performance, Given/When/Then             |
 | auditor          | Security, compliance, governance, data residency, regulatory review     |
 | code-reviewer    | Clean code enforcement, automatic gate after every code output          |
+| github-researcher| Pre-implementation GitHub search — adopt over build whenever possible   |
 
 ## Service line → agent mapping
 
@@ -198,6 +199,25 @@ Update checkbox status as each phase completes.
    send the code back to the originating agent with the specific
    violations listed. Do not pass non-compliant code forward.
    Only pass code that receives PASS or PASS WITH WARNINGS.
+
+9. Before any implementation work begins (before calling backend,
+   middleware, or crm-onprem for code), always call the
+   github-researcher agent first.
+
+   Pass it: the feature description + technology stack + constraints.
+
+   If verdict is ADOPT or ADAPT:
+     - Share the recommendation with the user
+     - Ask: "A repo with X stars was found. Use it as the base?"
+     - If yes: pass the repo details to the implementing agent
+       and instruct it to integrate rather than build from scratch
+     - If no: proceed to build with clean code standards
+
+   If verdict is BUILD:
+     - Inform the user no suitable repo was found
+     - Proceed directly to implementation
+
+   Never skip this step. Research before code, always.
 
 ## Output section headers
 
