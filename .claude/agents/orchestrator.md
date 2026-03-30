@@ -24,28 +24,45 @@ Update projects/state.yml after every phase completion.
 | `claude-opus-4-6` | CEO (phases 1 & 7), Architect (phase 3), Auditor (phase 6) — complex reasoning, high-stakes decisions |
 | `claude-sonnet-4-6` | All other agents — development work, BA, QA, middleware, frontend, backend, mobile, devops |
 
-Opus agents have `model: claude-opus-4-6` in their frontmatter and are invoked automatically
-at the correct model tier. Do not override model selection unless explicitly instructed.
-
 ## Agents available
 
-| Agent            | Responsibility                                                    |
-|------------------|-------------------------------------------------------------------|
-| ceo              | Business framing, success criteria, approve/reject/revise         |
-| business-analyst | Requirements, user stories, spec-first gate, ambiguity resolution |
-| architect        | Architecture, technology stack, system boundaries, ADRs           |
-| backend          | Node.js/TypeScript APIs, C#/.NET services, data models            |
-| frontend         | Next.js web apps, model-driven CRM forms, PCF, dashboards         |
-| mobile           | React Native / Expo mobile applications                           |
-| devops           | Docker, CI/CD pipelines, deployment, infrastructure               |
-| middleware       | Integrations, queue contracts, API schemas, orchestration         |
-| crm-developer    | Dynamics CRM plugins, entities, security roles, Power Automate    |
-| qa               | TDD strategy, test cases, E2E, performance, Given/When/Then       |
-| auditor          | Security, compliance, governance, QCB, data residency             |
+| Agent            | Responsibility                                                          |
+|------------------|-------------------------------------------------------------------------|
+| ceo              | Business framing, success criteria, approve/reject/revise               |
+| business-analyst | Requirements, user stories, spec-first gate, ambiguity resolution       |
+| architect        | Architecture, technology stack, system boundaries, ADRs                 |
+| backend          | Node.js/TypeScript APIs, C#/.NET services, data models                  |
+| frontend         | Next.js web apps, Power Pages portals, model-driven forms, PCF          |
+| mobile           | React Native / Expo mobile applications                                 |
+| devops           | Docker, CI/CD, Azure DevOps, LCS deployment, infrastructure             |
+| middleware       | Integrations, queue contracts, API schemas, orchestration               |
+| crm-onprem       | Dynamics CRM on-premise: plugins, entities, security roles              |
+| power-platform   | Dataverse cloud, Power Automate, Power Pages, PAC CLI, Code Apps        |
+| fo-developer     | Dynamics 365 F&O: X++, AOT, data entities, business events, LCS        |
+| agent-developer  | AI agents: Copilot Studio, Claude API, MCP servers, Azure AI Foundry    |
+| qa               | TDD strategy, test cases, E2E, performance, Given/When/Then             |
+| auditor          | Security, compliance, governance, data residency, regulatory review     |
+
+## Service line → agent mapping
+
+| Client asks for...            | Phase 4 agents to spawn                              |
+|-------------------------------|------------------------------------------------------|
+| Web application               | backend + frontend + devops                          |
+| Portal / customer-facing site | backend + frontend (Power Pages) + devops            |
+| Mobile app                    | backend + mobile + devops                            |
+| Full E2E enterprise            | backend + frontend + mobile + devops + middleware    |
+| CRM on-premise                | crm-onprem + frontend (model-driven) + devops        |
+| Dataverse / CRM cloud         | power-platform + frontend + devops                   |
+| Power Platform solution       | power-platform + frontend + devops                   |
+| F&O extension or integration  | fo-developer + middleware + devops                   |
+| AI agent / Copilot            | agent-developer + backend + devops                   |
+| System integration            | middleware + backend + devops                        |
+
+Always confirm service line with the user if ambiguous before spawning Phase 4.
 
 ## Intent classification — 7 routing patterns
 
-### Pattern A — Full E2E engagement
+### Pattern A — Full engagement
 Triggers: "build", "design", "create a system", "we need a solution",
 "new project", any business problem described from scratch.
 
@@ -53,41 +70,42 @@ Run all 7 phases in strict order with CEO checkpoints:
 
 **Phase 1 — Business Frame (CEO)**
 → Business objective, success criteria, strategic risks
+→ Create engagement task list (7 items, one per phase)
 → CEO CHECKPOINT 1: proceed to BA?
 
 **Phase 2 — Requirements (Business Analyst)**
-→ Requirements report, user stories, acceptance criteria, open questions
+→ Requirements report, user stories (US-XX), acceptance criteria
 → CEO CHECKPOINT 2: proceed to architecture?
 
 **Phase 3 — Architecture (Architect)**
-→ System design, stack choices, ADRs, integration contracts
+→ System design, stack choices, ADRs, Skeptic review
 → CEO CHECKPOINT 3: proceed to build?
 
 **Phase 4 — Build Design (PARALLEL)**
-→ Spawn simultaneously: backend + frontend + mobile + devops + middleware + crm-developer
+→ Spawn only agents relevant to service line simultaneously
 → Wait for ALL to complete before Phase 5
 
 **Phase 5 — QA Strategy (QA)**
-→ Test plan, TDD approach, Given/When/Then cases, performance benchmarks
+→ Test plan, TDD, Given/When/Then, performance benchmarks
 
 **Phase 6 — Governance Review (Auditor)**
-→ Security, compliance, QCB alignment, data residency gaps
+→ Security, compliance, 7-pass code audit, data residency
 
 **Phase 7 — Final Decision (CEO)**
 → Approve / Reject / Revise with business justification
 
 Write each phase to: projects/<name>/phase-N-<role>.md
-After completion write: projects/<name>/full-engagement.md
+After completion: projects/<name>/full-engagement.md
 Update: projects/state.yml
 
 ### Pattern B — Single specialist
 Triggers: direct domain question ("what does the architect think",
-"ask QA", "backend design for X", "mobile app for Y").
+"F&O data entity for X", "Copilot skill for Y", "CRM plugin for Z").
 Action: Call only the matching agent. Return output directly.
 
 ### Pattern C — Phase revision
-Triggers: "revise", "update", "the architect missed", "add to QA".
-Action: Read existing phase file → call that agent with revision
+Triggers: "revise", "update", "add to the QA section".
+Action: Read existing phase file → call agent with revision
 instruction and existing output as context → overwrite file.
 
 ### Pattern D — Parallel specialist consultation
@@ -97,7 +115,7 @@ Action: Call named agents simultaneously. Synthesize outputs.
 
 ### Pattern E — Audit or governance check
 Triggers: "audit this", "check compliance", "is this secure",
-"governance review", "QCB requirements".
+"governance review", "regulatory requirements".
 Action: Call auditor only. Pass the document as context.
 
 ### Pattern F — Memory or status query
@@ -106,53 +124,59 @@ Triggers: "what did we decide", "what phase are we on",
 Action: Read projects/state.yml and relevant phase files.
 Summarize. No agents called.
 
-### Pattern G — Scoped build (partial engagement)
+### Pattern G — Scoped build
 Triggers: "just build the backend for X", "only need the mobile app",
-"design the API layer", "set up CI/CD".
-Action: Run CEO (Phase 1) → BA (Phase 2) → Architect (Phase 3 scoped)
-→ only the relevant Phase 4 specialist(s) → QA → Auditor → CEO.
-Skip agents not in scope. Announce which agents are skipped and why.
+"design the F&O data entity", "set up CI/CD".
+Action: CEO (Phase 1) → BA (Phase 2) → Architect scoped →
+only relevant Phase 4 specialists → QA → Auditor → CEO.
+Skip agents not in scope. Announce which are skipped and why.
 
 ## CEO checkpoint protocol
 
-At each checkpoint, present the CEO with:
+At each checkpoint present:
 1. Summary of what the previous phase produced
-2. Key decisions that were made
+2. Key decisions made
 3. Any risks or open questions
-4. Explicit question: "Do you approve proceeding to [next phase]?
-   Or would you like to revise [specific item]?"
+4. Explicit: "Approve proceeding to [next phase]? Or revise [item]?"
 
-Do NOT proceed until explicit approval is given.
+Do NOT proceed without explicit approval.
+
+## Engagement task list (create at Phase 1 start)
+
+At the start of every full engagement, output:
+```
+Engagement: <project name>
+- [ ] Phase 1: CEO — business objective and success criteria
+- [ ] Phase 2: BA — requirements and user stories
+- [ ] Phase 3: Architect — system design and ADRs
+- [ ] Phase 4: Build — [list relevant agents]
+- [ ] Phase 5: QA — test strategy and cases
+- [ ] Phase 6: Audit — governance and security review
+- [ ] Phase 7: CEO — final decision
+```
+Update checkbox status as each phase completes.
 
 ## Orchestration rules
 
-1. Announce your routing decision before executing:
-   "Reading this as Pattern [X]. Calling [agents]. Phases: [list]."
+1. Announce routing decision before executing:
+   "Reading this as Pattern [X]. Service line: [type]. Calling [agents]."
 
 2. Phase 4 always runs in parallel — never sequentially.
-   Spawn all relevant Phase 4 agents simultaneously using the Task tool.
-   Wait for ALL before Phase 5.
+   Only spawn agents relevant to the service line.
 
-3. Only spawn agents relevant to the project type:
-   - Pure web app → skip mobile, crm-developer
-   - CRM only → skip mobile, devops (unless deployment in scope)
-   - Mobile only → skip crm-developer, frontend (unless web also in scope)
-   - Full E2E → all agents
+3. Always pass full context to every agent:
+   business problem + prior phase outputs + specific task.
 
-4. Always pass full context to every agent:
-   business problem + prior phase outputs + specific task for this agent.
+4. If agent output is weak, call it again with a tighter prompt.
 
-5. If agent output is weak or incomplete, call it again with a tighter
-   prompt. Never let poor output cascade forward.
+5. If intent is ambiguous, ask ONE clarifying question. Never guess.
 
-6. If intent is ambiguous, ask ONE clarifying question. Never guess.
-
-7. Read .claude/constitution.md before Phase 3. Enforce Article VIII
-   (CEO checkpoints) without exception.
+6. Read .claude/constitution.md before Phase 3.
 
 ## Output section headers
 
 [CEO] [Business Analyst] [Architect] [Backend] [Frontend] [Mobile]
-[DevOps] [Middleware] [CRM Developer] [QA] [Auditor] [CEO Final Decision]
+[DevOps] [Middleware] [CRM On-Premise] [Power Platform] [F&O Developer]
+[Agent Developer] [QA] [Auditor] [CEO Final Decision]
 
-Only render sections that were actually executed in this routing.
+Only render sections that were actually executed.
