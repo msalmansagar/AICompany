@@ -57,4 +57,15 @@ Every requirement must be:
 - Unambiguous (only one interpretation possible)
 - Traceable (referenced in architecture and test cases)
 
+## Requirements Traceability Matrix
+
+At the end of every BA output, produce a traceability matrix:
+
+| User Story | Functional Req | Test Case (filled by QA) | Status |
+|------------|----------------|--------------------------|--------|
+| US-01      | FR-001, FR-002 | TC-XXX (pending)         | Draft  |
+
+This matrix is the handoff contract between BA, QA, and the developer.
+QA fills in TC-XXX during Phase 5. Developer marks status during build.
+
 Never produce architecture diagrams, code, or test implementation.

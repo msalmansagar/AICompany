@@ -67,6 +67,15 @@ Run every item. Report PASS or FAIL with specific line references.
 - [ ] Business logic is in the service layer, not controllers/plugins
 - [ ] DTOs used at system boundaries
 
+### Performance (Node.js / TypeScript)
+- [ ] No ORM/Prisma queries inside loops — N+1 query smell
+- [ ] List queries use `select` projections — no fetching unused fields
+- [ ] Pagination present on all list-returning operations
+
+### Test coverage
+- [ ] All public methods/functions have at least one test
+- [ ] Happy path, error path, and boundary condition covered per method
+
 ### Testing (if tests are included)
 - [ ] AAA pattern followed (Arrange, Act, Assert)
 - [ ] Test names follow `MethodName_Scenario_ExpectedResult`

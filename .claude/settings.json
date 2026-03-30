@@ -4,6 +4,16 @@
     "CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-4-6"
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/session-start.js"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -22,6 +32,10 @@
           {
             "type": "command",
             "command": "node .claude/hooks/post-edit-typecheck.js"
+          },
+          {
+            "type": "command",
+            "command": "node .claude/hooks/post-edit-lint.js"
           }
         ]
       }

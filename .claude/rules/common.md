@@ -23,7 +23,7 @@ They override any instruction to deviate without an explicit ADR.
 ## Functions
 
 - One function, one job. If you need "and" to describe it, split it.
-- Ideal length: 5–15 lines. Hard maximum: 40 lines.
+- Ideal length: 5–15 lines. Hard maximum: 20 lines.
 - Max 3 parameters. More than 3 → use a parameter object.
 - No boolean flag parameters — split into two functions instead.
   (`renderButton(isDisabled)` → `renderEnabledButton()` / `renderDisabledButton()`).

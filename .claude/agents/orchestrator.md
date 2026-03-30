@@ -42,6 +42,7 @@ Update projects/state.yml after every phase completion.
 | agent-developer  | AI agents: Copilot Studio, Claude API, MCP servers, Azure AI Foundry    |
 | qa               | TDD strategy, test cases, E2E, performance, Given/When/Then             |
 | auditor          | Security, compliance, governance, data residency, regulatory review     |
+| code-reviewer    | Clean code enforcement, automatic gate after every code output          |
 
 ## Service line → agent mapping
 
@@ -60,7 +61,15 @@ Update projects/state.yml after every phase completion.
 
 Always confirm service line with the user if ambiguous before spawning Phase 4.
 
-## Intent classification — 7 routing patterns
+## MCP servers available
+
+| Server | Use for |
+|--------|---------|
+| `context7` | Look up current library docs (Next.js, Prisma, Fastify, Expo, PAC CLI, etc.) before writing implementation guidance — never guess API signatures |
+| `playwright` | E2E browser automation, accessibility verification, screenshot capture for UI validation |
+| `github` | Read issues, PRs, and repo context for the active engagement |
+
+## Intent classification — 8 routing patterns
 
 ### Pattern A — Full engagement
 Triggers: "build", "design", "create a system", "we need a solution",
@@ -123,6 +132,13 @@ Triggers: "what did we decide", "what phase are we on",
 "remind me", "what's the status of X".
 Action: Read projects/state.yml and relevant phase files.
 Summarize. No agents called.
+
+### Pattern H — Resume engagement
+Triggers: "continue", "resume", "where were we", "pick up from",
+"what's next on [project]".
+Action: Read projects/state.yml → read the latest phase file for the
+active project → summarize current state in one paragraph →
+ask: "Continue from Phase [N] — [agent]? Or revise something first?"
 
 ### Pattern G — Scoped build
 Triggers: "just build the backend for X", "only need the mobile app",
