@@ -66,3 +66,67 @@ Control name, bound property, input parameters, output events.
 
 Write C# plugin code samples when implementation detail is needed.
 Always specify full plugin registration attributes.
+
+## Plugin execution pipeline reference
+
+Plugins execute in this order for a given message:
+1. **PreValidation** (Stage 10) — Before platform validation. Runs outside
+   the database transaction. Use for input validation and early rejection.
+   Throw `InvalidPluginExecutionException` to block with a user-facing message.
+2. **PreOperation** (Stage 20) — After validation, before core operation,
+   inside the database transaction. Use to modify the target entity before
+   it is written. Changes to InputParameters reflect in the saved record.
+3. **PostOperation** (Stage 40) — After the core operation, inside the
+   transaction (sync) or outside (async). Use for cascading logic,
+   notifications, and queue handoff.
+
+**Synchronous vs Asynchronous:**
+- Sync plugins block the user operation and run in the transaction.
+  Must complete in under 2 minutes. Use only for validation and
+  pre-write modifications.
+- Async plugins run after the transaction commits, in a background job.
+  Use for anything that touches external systems or takes time.
+  Always prefer async for PostOperation business logic.
+
+**Entity images:**
+Register pre/post images instead of making additional Retrieve calls.
+- Pre-image: fields as they were BEFORE the operation
+- Post-image: fields as they are AFTER the operation
+- Always declare filtering attributes to avoid unnecessary plugin execution
+
+**Common patterns:**
+- **Auto-numbering**: PreOperation on Create, generate sequence from
+  config entity, set on Target. Use a shared variable to pass to PostOperation.
+- **Validation**: PreValidation on Create/Update, throw
+  `InvalidPluginExecutionException` with a clear message if rule fails.
+- **Audit trail**: Async PostOperation on Create/Update/Delete,
+  create append-only audit entity record. Never update or delete audit records.
+- **Queue handoff**: Async PostOperation, write minimal message
+  (record ID only) to service bus or custom queue entity. Service picks up
+  and does the heavy work. This is the only safe pattern for >2s operations.
+- **Cascading updates**: Async PostOperation, use `IOrganizationService`
+  to update related records. Always check for infinite loop conditions.
+
+**Error handling:**
+- Only `InvalidPluginExecutionException` shows a message to the user
+- All other exceptions show "Business Process Error" — unhelpful
+- Always log to `ITracingService` before throwing
+- Never swallow exceptions silently
+- For async plugins, errors are logged to System Jobs — always check there
+
+**Static variables are prohibited:**
+Plugin instances are cached and reused. Static variables persist
+across executions from different users. Use `IExecutionContext.SharedVariables`
+for pipeline-scoped state between PreOperation and PostOperation.
+
+## Permanent design decisions (cannot be changed after creation)
+
+These decisions are irreversible once the solution is deployed:
+- **Column data type** — cannot be changed (e.g., text → number)
+- **Table logical name** — schema name is permanent
+- **Table ownership type** — UserOwned vs OrganizationOwned is permanent
+- **Primary key** — always a GUID, auto-generated, never override
+- **Publisher prefix** — changing prefix requires new solution
+
+Design these correctly the first time. Flag any uncertainty before
+recommending a schema to the build team.

@@ -78,3 +78,47 @@ Each with: gap description, risk if unaddressed, remediation.
 Cleared / Not Cleared + conditions that must be met.
 
 Flag every gap — over-flagging is better than missing a risk.
+
+## Code Audit (when implementation is in scope)
+
+Run all 7 passes without skipping. Every finding must include:
+- `file:line` citation — no generalised statements
+- Severity: **CRITICAL** / **WARNING** / **PRUNE** / **INFO**
+- Concrete remediation step (not "fix this")
+- Confidence level
+
+**Pass 1 — Wiring**
+Validate end-to-end connectivity: every input has a handler, every
+handler writes output, every integration point has a receiver.
+Find: orphaned event handlers, unconnected queue producers/consumers,
+API endpoints with no callers, form fields with no data binding.
+
+**Pass 2 — Error Handling**
+All failures must be visible and traceable.
+Find: empty catch blocks, swallowed exceptions, missing DLQ alerts,
+async operations with no rejection handler, silent null returns.
+
+**Pass 3 — Completeness**
+Every feature must be fully implemented — no placeholders.
+Find: TODO/FIXME/HACK comments, hardcoded "coming soon" values,
+stub functions that always return empty, partially wired UI actions.
+
+**Pass 4 — Dead Code**
+Find: unused functions/classes/variables, unreachable branches,
+commented-out code blocks, imported modules never referenced,
+CRM entities with no plugin or form referencing them.
+
+**Pass 5 — Bloat**
+Find: files exceeding 400 lines (800 absolute max), functions doing
+more than one thing, duplicated logic across files, over-abstracted
+utilities used in only one place.
+
+**Pass 6 — Hardcoding**
+Find: GUIDs in code, magic numbers, environment URLs, threshold
+values, sector strings, rate values — anything that should be
+loaded from configuration at runtime.
+
+**Pass 7 — Security**
+Find: secrets or credentials in source, SQL string concatenation,
+missing input validation at API boundaries, service accounts with
+broad access, `console.log` with sensitive data, `eval()` usage.
