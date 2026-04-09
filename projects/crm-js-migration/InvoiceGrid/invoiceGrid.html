@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<!--
+    invoiceGrid.html
+    Invoice Entry Grid — Web Resource
+    Compatible: CRM On-Prem v9.1 (IE Mode), UCI, Dataverse Power Platform
+
+    URL params expected:
+      parentId   — GUID of the qdb_payment_authorization_ticket record
+      etn        — entity logical name (qdb_payment_authorization_ticket)
+      design     — "legacy" | "uci" (default: "uci")
+
+    Dependencies (same folder or CRM WebResources path):
+      invoiceGrid.css
+      formIntegration.js
+      invoiceGrid.js
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Invoice Entry Grid</title>
+    <link rel="stylesheet" href="invoiceGrid.css" />
+</head>
+<body>
+
+    <!-- ── Toolbar ─────────────────────────────────────────────────────────── -->
+    <div id="toolbar" class="toolbar">
+        <button id="btnAddRow" class="btn btn-primary" type="button">+ Add Line</button>
+        <button id="btnSave"   class="btn btn-success" type="button">Save Invoice</button>
+        <span   id="statusMsg" class="status-msg" role="status" aria-live="polite"></span>
+        <span   id="loadingIndicator" class="loading-indicator" style="display:none;" aria-label="Loading">&#9696; Loading&hellip;</span>
+    </div>
+
+    <!-- ── Invoice Header ──────────────────────────────────────────────────── -->
+    <section id="headerSection" class="card" aria-label="Invoice Header">
+        <h2 class="card-title">Invoice Header</h2>
+
+        <div class="form-row">
+            <div class="form-group col-4">
+                <label for="invoiceNo" class="field-label required">Invoice No.</label>
+                <input id="invoiceNo"
+                       name="invoiceNo"
+                       type="text"
+                       class="field-input"
+                       maxlength="100"
+                       autocomplete="off"
+                       aria-required="true"
+                       placeholder="e.g. INV-2024-0001" />
+                <span id="invoiceNoError" class="field-error" role="alert" style="display:none;"></span>
+            </div>
+
+            <div class="form-group col-3">
+                <label for="invoiceDate" class="field-label required">Invoice Date</label>
+                <input id="invoiceDate"
+                       name="invoiceDate"
+                       type="date"
+                       class="field-input"
+                       aria-required="true" />
+                <span id="invoiceDateError" class="field-error" role="alert" style="display:none;"></span>
+            </div>
+
+            <div class="form-group col-3">
+                <label for="invoiceAmount" class="field-label">Invoice Amount</label>
+                <input id="invoiceAmount"
+                       name="invoiceAmount"
+                       type="number"
+                       class="field-input text-right"
+                       min="0"
+                       step="0.01"
+                       placeholder="0.00"
+                       readonly />
+                <span class="field-hint">Auto-calculated from lines</span>
+            </div>
+
+            <div class="form-group col-3">
+                <label for="disbursementAmount" class="field-label">Disbursement Amount</label>
+                <input id="disbursementAmount"
+                       name="disbursementAmount"
+                       type="number"
+                       class="field-input text-right"
+                       min="0"
+                       step="0.01"
+                       placeholder="0.00" />
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Line Items Grid ─────────────────────────────────────────────────── -->
+    <section id="linesSection" class="card" aria-label="Invoice Line Items">
+        <h2 class="card-title">Line Items</h2>
+
+        <div class="table-wrapper">
+            <table id="lineTable" class="grid-table" aria-label="Invoice line items">
+                <thead>
+                    <tr class="grid-header-row">
+                        <th class="col-seq"    scope="col">#</th>
+                        <th class="col-hscode" scope="col">HS Code</th>
+                        <th class="col-desc"   scope="col">Goods Description</th>
+                        <th class="col-qty"    scope="col">Qty</th>
+                        <th class="col-uom"    scope="col">UOM</th>
+                        <th class="col-price"  scope="col">Unit Price</th>
+                        <th class="col-total"  scope="col">Line Total</th>
+                        <th class="col-action" scope="col"><span class="sr-only">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody id="lineTableBody">
+                    <!-- rows injected by invoiceGrid.js -->
+                </tbody>
+                <tfoot>
+                    <tr id="footerRow" class="grid-footer-row">
+                        <td colspan="5" class="footer-label">Grand Total</td>
+                        <td class="footer-unit-total" id="footerUnitTotal"></td>
+                        <td class="footer-total text-right" id="footerLineTotal">0.00</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- HS Code lookup dropdown — absolutely positioned by JS -->
+        <div id="hsCodeDropdown" class="hscode-dropdown" style="display:none;" role="listbox" aria-label="HS Code suggestions">
+            <!-- options injected by invoiceGrid.js -->
+        </div>
+    </section>
+
+    <!-- ── Row template (hidden, cloned by JS) ─────────────────────────────── -->
+    <template id="rowTemplate">
+        <tr class="grid-row" data-row-index="">
+            <td class="col-seq cell-seq"></td>
+
+            <td class="col-hscode">
+                <div class="hscode-wrapper">
+                    <input type="text"
+                           class="field-input hscode-input"
+                           maxlength="20"
+                           autocomplete="off"
+                           aria-label="HS Code"
+                           aria-autocomplete="list"
+                           aria-haspopup="listbox"
+                           placeholder="Type to search…" />
+                    <input type="hidden" class="hscode-id" />
+                </div>
+            </td>
+
+            <td class="col-desc">
+                <input type="text"
+                       class="field-input desc-input"
+                       maxlength="500"
+                       aria-label="Goods description" />
+            </td>
+
+            <td class="col-qty">
+                <input type="number"
+                       class="field-input qty-input text-right"
+                       min="0"
+                       step="1"
+                       value="0"
+                       aria-label="Quantity" />
+            </td>
+
+            <td class="col-uom">
+                <select class="field-input uom-select" aria-label="Unit of measurement">
+                    <option value="">--</option>
+                    <option value="KG">KG</option>
+                    <option value="MT">MT</option>
+                    <option value="PCS">PCS</option>
+                    <option value="L">L</option>
+                    <option value="M">M</option>
+                    <option value="M2">M2</option>
+                    <option value="M3">M3</option>
+                    <option value="SET">SET</option>
+                    <option value="UNIT">UNIT</option>
+                    <option value="CARTON">CARTON</option>
+                </select>
+            </td>
+
+            <td class="col-price">
+                <input type="number"
+                       class="field-input price-input text-right"
+                       min="0"
+                       step="0.01"
+                       value="0.00"
+                       aria-label="Unit price" />
+            </td>
+
+            <td class="col-total text-right cell-line-total">0.00</td>
+
+            <td class="col-action">
+                <button type="button" class="btn-delete" aria-label="Delete row">&#10005;</button>
+            </td>
+        </tr>
+    </template>
+
+    <!-- ── Scripts (order matters: data layer first, then UI) ──────────────── -->
+    <script src="formIntegration.js"></script>
+    <script src="invoiceGrid.js"></script>
+
+</body>
+</html>

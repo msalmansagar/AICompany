@@ -1,0 +1,518 @@
+/*
+ * invoiceGrid.css
+ * Invoice Entry Grid — Web Resource Styles
+ * Compatible: IE Mode (Edge Chromium), UCI, Dataverse
+ *
+ * Rules:
+ *   - No CSS custom properties (--var) — IE does not support them
+ *   - No CSS Grid layout — IE partial support only
+ *   - Flexbox used for layout (IE 11 supports it with -ms- prefixes where needed)
+ *   - No clamp(), min(), max() — IE unsupported
+ *   - Colours hard-coded from Dynamics CRM Fluent palette
+ */
+
+/* ── Reset & Base ────────────────────────────────────────────────────────── */
+
+*, *:before, *:after {
+    -webkit-box-sizing: border-box;
+       -moz-box-sizing: border-box;
+            box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html, body {
+    height: 100%;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    color: #201f1e;
+    background-color: #faf9f8;
+    overflow-x: hidden;
+}
+
+/* ── Screen-reader only ──────────────────────────────────────────────────── */
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────────── */
+
+.toolbar {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+        -ms-flex-align: center;
+            align-items: center;
+    padding: 8px 16px;
+    background-color: #f3f2f1;
+    border-bottom: 1px solid #edebe9;
+    gap: 8px;
+}
+
+/* IE 11 does not support gap on flex; use margin instead */
+.toolbar > * + * {
+    margin-left: 8px;
+}
+
+.status-msg {
+    font-size: 12px;
+    color: #107c10;
+    -webkit-box-flex: 1;
+        -ms-flex: 1;
+            flex: 1;
+    padding-left: 8px;
+}
+
+.status-msg.error {
+    color: #a4262c;
+}
+
+.loading-indicator {
+    font-size: 12px;
+    color: #605e5c;
+    font-style: italic;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btn {
+    display: inline-block;
+    padding: 5px 16px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 20px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
+}
+
+.btn:focus {
+    outline: 2px solid #005a9e;
+    outline-offset: 1px;
+}
+
+.btn-primary {
+    background-color: #0078d4;
+    color: #ffffff;
+    border-color: #0078d4;
+}
+
+.btn-primary:hover {
+    background-color: #106ebe;
+    border-color: #106ebe;
+}
+
+.btn-primary:active {
+    background-color: #005a9e;
+    border-color: #005a9e;
+}
+
+.btn-success {
+    background-color: #107c10;
+    color: #ffffff;
+    border-color: #107c10;
+}
+
+.btn-success:hover {
+    background-color: #0b6a0b;
+    border-color: #0b6a0b;
+}
+
+.btn-success:active {
+    background-color: #094509;
+    border-color: #094509;
+}
+
+.btn-delete {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    font-size: 12px;
+    line-height: 24px;
+    text-align: center;
+    border: none;
+    border-radius: 2px;
+    background-color: transparent;
+    color: #a4262c;
+    cursor: pointer;
+}
+
+.btn-delete:hover {
+    background-color: #fde7e9;
+}
+
+.btn-delete:focus {
+    outline: 2px solid #a4262c;
+    outline-offset: 1px;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+.card {
+    margin: 12px 16px;
+    padding: 16px;
+    background-color: #ffffff;
+    border: 1px solid #edebe9;
+    border-radius: 2px;
+    -webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #201f1e;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #edebe9;
+}
+
+/* ── Form layout ─────────────────────────────────────────────────────────── */
+
+.form-row {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-wrap: wrap;
+        flex-wrap: wrap;
+    margin-left: -8px;
+    margin-right: -8px;
+}
+
+.form-group {
+    padding: 0 8px 12px;
+}
+
+/* Column fractions (12-col grid emulation) */
+.col-3  { width: 25%; }
+.col-4  { width: 33.3333%; }
+.col-6  { width: 50%; }
+.col-12 { width: 100%; }
+
+/* ── Field components ────────────────────────────────────────────────────── */
+
+.field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #605e5c;
+    margin-bottom: 4px;
+}
+
+.field-label.required:after {
+    content: " *";
+    color: #a4262c;
+}
+
+.field-input {
+    display: block;
+    width: 100%;
+    height: 30px;
+    padding: 4px 8px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    color: #201f1e;
+    background-color: #ffffff;
+    border: 1px solid #8a8886;
+    border-radius: 2px;
+    -webkit-appearance: none;
+       -moz-appearance: none;
+            appearance: none;
+    -webkit-transition: border-color 0.1s;
+            transition: border-color 0.1s;
+}
+
+.field-input:hover {
+    border-color: #323130;
+}
+
+.field-input:focus {
+    outline: none;
+    border-color: #0078d4;
+    -webkit-box-shadow: inset 0 0 0 1px #0078d4;
+            box-shadow: inset 0 0 0 1px #0078d4;
+}
+
+.field-input[readonly],
+.field-input:read-only {
+    background-color: #f3f2f1;
+    color: #605e5c;
+    border-color: #edebe9;
+}
+
+.field-input.invalid {
+    border-color: #a4262c;
+}
+
+.field-input.invalid:focus {
+    border-color: #a4262c;
+    -webkit-box-shadow: inset 0 0 0 1px #a4262c;
+            box-shadow: inset 0 0 0 1px #a4262c;
+}
+
+select.field-input {
+    padding-right: 24px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23605e5c'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+.field-error {
+    display: block;
+    font-size: 11px;
+    color: #a4262c;
+    margin-top: 3px;
+}
+
+.field-hint {
+    display: block;
+    font-size: 11px;
+    color: #8a8886;
+    margin-top: 3px;
+}
+
+.text-right {
+    text-align: right;
+}
+
+/* ── HS Code autocomplete dropdown ───────────────────────────────────────── */
+
+.hscode-wrapper {
+    position: relative;
+}
+
+.hscode-dropdown {
+    position: absolute;
+    z-index: 9999;
+    background-color: #ffffff;
+    border: 1px solid #8a8886;
+    border-top: none;
+    border-radius: 0 0 2px 2px;
+    -webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+    max-height: 200px;
+    overflow-y: auto;
+    min-width: 260px;
+}
+
+.hscode-option {
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f2f1;
+    font-size: 13px;
+}
+
+.hscode-option:last-child {
+    border-bottom: none;
+}
+
+.hscode-option:hover,
+.hscode-option.focused {
+    background-color: #deecf9;
+}
+
+.hscode-option .hscode-code {
+    font-weight: 600;
+    color: #0078d4;
+}
+
+.hscode-option .hscode-desc {
+    font-size: 11px;
+    color: #605e5c;
+    margin-top: 2px;
+}
+
+.hscode-no-results {
+    padding: 8px 10px;
+    color: #605e5c;
+    font-style: italic;
+    font-size: 12px;
+}
+
+/* ── Data grid ───────────────────────────────────────────────────────────── */
+
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+}
+
+.grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 13px;
+}
+
+/* Column widths */
+.col-seq    { width: 40px; }
+.col-hscode { width: 140px; }
+.col-desc   { width: auto; }
+.col-qty    { width: 90px; }
+.col-uom    { width: 100px; }
+.col-price  { width: 120px; }
+.col-total  { width: 130px; }
+.col-action { width: 40px; }
+
+/* Header */
+.grid-header-row th {
+    padding: 8px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffffff;
+    background-color: #0078d4;
+    text-align: left;
+    border-right: 1px solid #106ebe;
+    white-space: nowrap;
+}
+
+.grid-header-row th:last-child {
+    border-right: none;
+}
+
+/* Data rows */
+.grid-row td {
+    padding: 3px 4px;
+    vertical-align: middle;
+    border-bottom: 1px solid #edebe9;
+    border-right: 1px solid #f3f2f1;
+}
+
+.grid-row td:last-child {
+    border-right: none;
+}
+
+.grid-row:nth-child(even) td {
+    background-color: #faf9f8;
+}
+
+.grid-row:hover td {
+    background-color: #deecf9;
+}
+
+.cell-seq {
+    text-align: center;
+    color: #605e5c;
+    font-size: 11px;
+}
+
+.cell-line-total {
+    font-weight: 600;
+    padding-right: 8px;
+    color: #201f1e;
+}
+
+/* Override field-input inside grid to look flush */
+.grid-row .field-input {
+    height: 26px;
+    padding: 2px 6px;
+    font-size: 12px;
+    border-color: transparent;
+    background-color: transparent;
+}
+
+.grid-row .field-input:hover,
+.grid-row .field-input:focus {
+    border-color: #0078d4;
+    background-color: #ffffff;
+}
+
+.grid-row select.field-input {
+    height: 26px;
+    font-size: 12px;
+}
+
+/* Footer totals row */
+.grid-footer-row td {
+    padding: 8px 6px;
+    background-color: #f3f2f1;
+    border-top: 2px solid #edebe9;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.footer-label {
+    text-align: right;
+    color: #605e5c;
+    padding-right: 16px;
+}
+
+.footer-total {
+    color: #201f1e;
+    font-size: 14px;
+    padding-right: 8px;
+}
+
+/* ── Design modes ────────────────────────────────────────────────────────── */
+
+/* UCI / Dataverse design — default, already applied above */
+
+/* Legacy (on-prem pre-UCI) — slightly denser, no shadows */
+body.design-legacy .card {
+    border-radius: 0;
+    -webkit-box-shadow: none;
+            box-shadow: none;
+    margin: 8px 0;
+    border-left: none;
+    border-right: none;
+}
+
+body.design-legacy .toolbar {
+    background-color: #eff6fc;
+    border-bottom: 2px solid #0078d4;
+}
+
+body.design-legacy .grid-header-row th {
+    background-color: #106ebe;
+}
+
+body.design-legacy .btn {
+    border-radius: 0;
+}
+
+body.design-legacy .field-input {
+    border-radius: 0;
+}
+
+/* ── Disabled / loading state ────────────────────────────────────────────── */
+
+body.is-saving .btn,
+body.is-saving .field-input {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+/* ── Responsive narrow viewport ──────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+    .col-3,
+    .col-4 {
+        width: 50%;
+    }
+
+    .col-6 {
+        width: 100%;
+    }
+
+    .grid-table {
+        font-size: 11px;
+    }
+}
