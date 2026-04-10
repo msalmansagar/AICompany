@@ -56,9 +56,9 @@ InvoiceGrid.Config = {
 
     /** HS Code master: qdb_hscodemaster */
     hsCode: {
-        entitySetName:    'qdb_hscodemastersers',
+        entitySetName:    'qdb_hscodemasters',
         entityLogicalName:'qdb_hscodemaster',
-        primaryIdField:   'qdb_hscodemastersid',
+        primaryIdField:   'qdb_hscodemasterid',
         fieldName:        'qdb_name',
         fieldDescription: 'qdb_description'
     }
