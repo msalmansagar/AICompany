@@ -40,12 +40,10 @@ InvoiceGrid.Config = {
         fieldInvoiceAmount:       'qdb_invoice_amount',
         fieldDisbursementAmount:  'qdb_disbursement_amount',
         /*
-         * fieldDisbursementRequest — set to the logical name of the lookup field
-         * once you have confirmed the target entity type.
-         * Set to null to skip this binding (safe default — avoids 400 Bad Request
-         * when the target entity does not match qdb_payment_authorization_ticket).
+         * fieldDisbursementRequest — lookup on the invoice header that links back
+         * to the parent qdb_payment_authorization_ticket record.
          */
-        fieldDisbursementRequest: null
+        fieldDisbursementRequest: 'qdb_disbursement_request'
     },
 
     /**
