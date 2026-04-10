@@ -69,9 +69,17 @@
                     </div>
                     <div class="form-group col-3">
                         <label class="field-label required">Invoice Date</label>
+                        <!--
+                            type="date" shows a date picker in UCI/modern browsers.
+                            In IE Mode it degrades to a text field — the placeholder
+                            guides the user. normaliseDateToIso() in formIntegration.js
+                            handles YYYY-MM-DD, M/D/YYYY and DD/MM/YYYY formats.
+                        -->
                         <input type="date"
                                class="field-input invoice-date"
-                               aria-required="true" />
+                               aria-required="true"
+                               placeholder="DD/MM/YYYY" />
+                        <span class="field-hint">Format: DD/MM/YYYY in IE Mode</span>
                         <span class="field-error" role="alert" style="display:none;"></span>
                     </div>
                     <div class="form-group col-3">

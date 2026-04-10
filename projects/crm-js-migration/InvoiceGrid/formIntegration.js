@@ -435,12 +435,15 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
 
         /*
          * qdb_invoicedate is a Date and Time field.
-         * Dataverse Web API rejects bare 'YYYY-MM-DD' — must be full ISO 8601.
-         * The HTML date input returns 'YYYY-MM-DD', so we append midnight UTC.
+         * Dataverse Web API requires full ISO 8601 (e.g. 2026-01-15T00:00:00Z).
+         *
+         * In IE Mode, <input type="date"> degrades to a plain text field, so the
+         * user may type M/D/YYYY, DD/MM/YYYY, or YYYY-MM-DD.
+         * normaliseDateToIso() handles all three formats.
          */
-        if (invoiceData.invoiceDate) {
-            body[Config.invoiceHeader.fieldInvoiceDate] =
-                invoiceData.invoiceDate + 'T00:00:00Z';
+        var isoDate = normaliseDateToIso(invoiceData.invoiceDate);
+        if (isoDate) {
+            body[Config.invoiceHeader.fieldInvoiceDate] = isoDate;
         }
 
         body[Config.invoiceHeader.fieldInvoiceAmount]      = invoiceData.invoiceAmount      || 0;
@@ -605,6 +608,68 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
         }
 
         return existing.join(',');
+    }
+
+    /**
+     * Converts a user-supplied date string to a full ISO 8601 UTC string
+     * required by Dataverse Date and Time fields (Edm.DateTimeOffset).
+     *
+     * Handles formats produced by different browsers and locales:
+     *   YYYY-MM-DD   — HTML date input in modern browsers / UCI
+     *   M/D/YYYY     — IE Mode text fallback, US locale
+     *   MM/DD/YYYY   — IE Mode text fallback, US locale zero-padded
+     *   DD/MM/YYYY   — IE Mode text fallback, non-US locale
+     *   DD-MM-YYYY   — hyphen separator variant
+     *
+     * Returns null if the string cannot be parsed, allowing the caller
+     * to skip the field rather than send an invalid value.
+     *
+     * @param {string} dateStr  Raw date string from the form input
+     * @returns {string|null}   ISO 8601 string e.g. "2026-01-15T00:00:00Z"
+     */
+    function normaliseDateToIso(dateStr) {
+        if (!dateStr || !dateStr.trim()) { return null; }
+
+        var s = dateStr.trim();
+        var y, m, d;
+
+        /* YYYY-MM-DD (standard HTML date input value) */
+        var isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (isoMatch) {
+            y = isoMatch[1]; m = isoMatch[2]; d = isoMatch[3];
+            return y + '-' + m + '-' + d + 'T00:00:00Z';
+        }
+
+        /* M/D/YYYY or MM/DD/YYYY (US locale — IE Mode most common) */
+        var usMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (usMatch) {
+            m = usMatch[1].length === 1 ? '0' + usMatch[1] : usMatch[1];
+            d = usMatch[2].length === 1 ? '0' + usMatch[2] : usMatch[2];
+            y = usMatch[3];
+            return y + '-' + m + '-' + d + 'T00:00:00Z';
+        }
+
+        /* DD-MM-YYYY or D-M-YYYY (hyphen, non-US) */
+        var dmyHyphen = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+        if (dmyHyphen) {
+            d = dmyHyphen[1].length === 1 ? '0' + dmyHyphen[1] : dmyHyphen[1];
+            m = dmyHyphen[2].length === 1 ? '0' + dmyHyphen[2] : dmyHyphen[2];
+            y = dmyHyphen[3];
+            return y + '-' + m + '-' + d + 'T00:00:00Z';
+        }
+
+        /* Last resort — let the JS Date parser try (not reliable in IE for all locales) */
+        var parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) {
+            var py = parsed.getUTCFullYear();
+            var pm = parsed.getUTCMonth() + 1;
+            var pd = parsed.getUTCDate();
+            return py + '-' +
+                   (pm < 10 ? '0' + pm : '' + pm) + '-' +
+                   (pd < 10 ? '0' + pd : '' + pd) + 'T00:00:00Z';
+        }
+
+        return null;
     }
 
 }(InvoiceGrid.Config, InvoiceGrid.CrmApi));
