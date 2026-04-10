@@ -561,6 +561,7 @@
 
     /**
      * Empties and rebuilds the shared dropdown below the active input.
+     * Always appends an "Add new HS Code" trigger at the bottom.
      * @param {Array}            results  HS Code records from CRM
      * @param {HTMLInputElement} input
      * @param {HTMLElement}      row
@@ -570,6 +571,7 @@
         var nameField = Config.hsCode.fieldName;
         var descField = Config.hsCode.fieldDescription;
         var idField   = Config.hsCode.primaryIdField;
+        var term      = input.value.trim();
 
         /* Clear */
         while (dropdown.firstChild) {
@@ -590,10 +592,134 @@
             }
         }
 
+        /* Always offer "Add new HS Code" at the bottom */
+        var separator      = document.createElement('div');
+        separator.className = 'hscode-dropdown-separator';
+        dropdown.appendChild(separator);
+
+        var createTrigger      = document.createElement('div');
+        createTrigger.className = 'hscode-create-trigger';
+        createTrigger.textContent = term
+            ? '+ Add "' + term + '" as new HS Code'
+            : '+ Add new HS Code';
+
+        (function (capturedTerm) {
+            createTrigger.onclick = function (evt) {
+                evt.stopPropagation();
+                showCreateHsCodeForm(capturedTerm, input, row);
+            };
+        }(term));
+
+        dropdown.appendChild(createTrigger);
+
         positionDropdown(input);
         dropdown.style.display = 'block';
         _activeHsInput = input;
         _activeHsRow   = row;
+    }
+
+    /**
+     * Replaces the dropdown content with an inline "Create new HS Code" form.
+     * On submit, POSTs the new record and auto-selects it in the row.
+     * @param {string}           prefillName  Pre-fills the HS Code name input
+     * @param {HTMLInputElement} input
+     * @param {HTMLElement}      row
+     */
+    function showCreateHsCodeForm(prefillName, input, row) {
+        var dropdown = _dom.hsCodeDropdown;
+
+        while (dropdown.firstChild) {
+            dropdown.removeChild(dropdown.firstChild);
+        }
+
+        var form          = document.createElement('div');
+        form.className    = 'hscode-create-form';
+
+        var title         = document.createElement('div');
+        title.className   = 'hscode-create-title';
+        title.textContent = 'Add New HS Code';
+
+        var nameInput         = document.createElement('input');
+        nameInput.type        = 'text';
+        nameInput.className   = 'hscode-create-input';
+        nameInput.placeholder = 'HS Code *';
+        nameInput.value       = prefillName || '';
+        nameInput.maxLength   = 100;
+
+        var nameError         = document.createElement('span');
+        nameError.className   = 'hscode-create-error';
+        nameError.style.display = 'none';
+        nameError.textContent = 'HS Code is required.';
+
+        var descInput         = document.createElement('input');
+        descInput.type        = 'text';
+        descInput.className   = 'hscode-create-input';
+        descInput.placeholder = 'Description';
+        descInput.maxLength   = 500;
+
+        var btnCreate         = document.createElement('button');
+        btnCreate.type        = 'button';
+        btnCreate.className   = 'btn btn-primary hscode-create-btn';
+        btnCreate.textContent = 'Create & Select';
+
+        var btnCancel         = document.createElement('button');
+        btnCancel.type        = 'button';
+        btnCancel.className   = 'btn btn-secondary hscode-create-btn';
+        btnCancel.textContent = 'Cancel';
+
+        var actions         = document.createElement('div');
+        actions.className   = 'hscode-create-actions';
+        actions.appendChild(btnCreate);
+        actions.appendChild(btnCancel);
+
+        form.appendChild(title);
+        form.appendChild(nameInput);
+        form.appendChild(nameError);
+        form.appendChild(descInput);
+        form.appendChild(actions);
+        dropdown.appendChild(form);
+
+        btnCreate.onclick = function (evt) {
+            evt.stopPropagation();
+            var nameVal = nameInput.value.trim();
+            if (!nameVal) {
+                nameError.style.display = 'block';
+                nameInput.focus();
+                return;
+            }
+            nameError.style.display = 'none';
+            btnCreate.disabled      = true;
+            btnCreate.textContent   = 'Creating\u2026';
+
+            DataService.createHsCode(nameVal, descInput.value.trim(), function (record, error) {
+                btnCreate.disabled    = false;
+                btnCreate.textContent = 'Create & Select';
+
+                if (error) {
+                    showStatus('Failed to create HS Code: ' + error, true);
+                    return;
+                }
+
+                selectHsCode(
+                    record,
+                    Config.hsCode.fieldName,
+                    Config.hsCode.fieldDescription,
+                    Config.hsCode.primaryIdField,
+                    input,
+                    row
+                );
+            });
+        };
+
+        btnCancel.onclick = function (evt) {
+            evt.stopPropagation();
+            closeHsDropdown();
+        };
+
+        /* Stop clicks inside the form from bubbling to document (closing dropdown) */
+        form.onclick = function (evt) { evt.stopPropagation(); };
+
+        nameInput.focus();
     }
 
     /**

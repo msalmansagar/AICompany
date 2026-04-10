@@ -32,13 +32,29 @@ InvoiceGrid.Config = {
 
     /** Invoice Header: qdb_other_facility_disbursement_details */
     invoiceHeader: {
-        entitySetName:           'qdb_other_facility_disbursement_detailses',
-        entityLogicalName:       'qdb_other_facility_disbursement_details',
-        primaryIdField:          'qdb_other_facility_disbursement_detailsid',
-        fieldInvoiceNo:          'qdb_invoice_no',
-        fieldInvoiceDate:        'qdb_invoicedate',
-        fieldInvoiceAmount:      'qdb_invoice_amount',
-        fieldDisbursementAmount: 'qdb_disbursement_amount'
+        entitySetName:            'qdb_other_facility_disbursement_detailses',
+        entityLogicalName:        'qdb_other_facility_disbursement_details',
+        primaryIdField:           'qdb_other_facility_disbursement_detailsid',
+        fieldInvoiceNo:           'qdb_invoice_no',
+        fieldInvoiceDate:         'qdb_invoicedate',
+        fieldInvoiceAmount:       'qdb_invoice_amount',
+        fieldDisbursementAmount:  'qdb_disbursement_amount',
+        fieldDisbursementRequest: 'qdb_disbursement_request'  /* lookup to parent ticket */
+    },
+
+    /**
+     * qdb_unitofmeasurement Option Set integer values.
+     * Use these as <select> option values — Dataverse rejects string labels.
+     */
+    uomOptionSet: {
+        Ton:        100000000,
+        Kilogram:   100000001,
+        Liter:      100000002,
+        Bags:       100000003,
+        Box:        100000004,
+        CubicMeter: 100000005,
+        Meter:      100000006,
+        Units:      100000007
     },
 
     /** Invoice Line: db_disbursementinvoiceproducts */
@@ -309,9 +325,39 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
         );
     }
 
+    /**
+     * Creates a new HS Code master record and returns it as a lookup-ready object.
+     * Called when the user selects "Add new HS Code" from the lookup dropdown.
+     * @param {string}   name         HS Code value (e.g. "8471.30")
+     * @param {string}   description  Goods description text
+     * @param {Function} callback     Called with (record|null, errorMessage|null)
+     */
+    function createHsCode(name, description, callback) {
+        var body = {};
+        body[Config.hsCode.fieldName]        = name;
+        body[Config.hsCode.fieldDescription] = description || '';
+
+        Api.createRecord(
+            Config.hsCode.entitySetName,
+            body,
+            function (createdId) {
+                /* Build a record object matching what searchHsCodes returns */
+                var record = {};
+                record[Config.hsCode.primaryIdField]  = createdId;
+                record[Config.hsCode.fieldName]        = name;
+                record[Config.hsCode.fieldDescription] = description || '';
+                callback(record, null);
+            },
+            function (status, message) {
+                callback(null, message);
+            }
+        );
+    }
+
     return {
         saveAllInvoices: saveAllInvoices,
-        searchHsCodes:   searchHsCodes
+        searchHsCodes:   searchHsCodes,
+        createHsCode:    createHsCode
     };
 
     /* ── Private ──────────────────────────────────────────────────────────── */
@@ -332,7 +378,7 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
 
         var invoiceData = invoicesData[index];
 
-        createInvoiceHeader(invoiceData, function (headerId, headerError) {
+        createInvoiceHeader(invoiceData, parentId, function (headerId, headerError) {
             if (headerError) {
                 callback('Invoice ' + (index + 1) + ' header: ' + headerError);
                 return;
@@ -356,14 +402,21 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
     /**
      * Creates the qdb_other_facility_disbursement_details record.
      * @param {Object}   invoiceData
+     * @param {string}   parentId    GUID of parent qdb_payment_authorization_ticket
      * @param {Function} callback    Called with (headerId|null, errorMessage|null)
      */
-    function createInvoiceHeader(invoiceData, callback) {
+    function createInvoiceHeader(invoiceData, parentId, callback) {
         var body = {};
         body[Config.invoiceHeader.fieldInvoiceNo]          = invoiceData.invoiceNo;
         body[Config.invoiceHeader.fieldInvoiceDate]        = invoiceData.invoiceDate;
         body[Config.invoiceHeader.fieldInvoiceAmount]      = invoiceData.invoiceAmount;
         body[Config.invoiceHeader.fieldDisbursementAmount] = invoiceData.disbursementAmount;
+
+        /* Link invoice header back to the parent disbursement request ticket */
+        if (parentId) {
+            body[Config.invoiceHeader.fieldDisbursementRequest + '@odata.bind'] =
+                '/' + Config.parent.entitySetName + '(' + parentId + ')';
+        }
 
         Api.createRecord(
             Config.invoiceHeader.entitySetName,
@@ -428,7 +481,10 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
 
         body[Config.invoiceLine.fieldDescription] = line.description || '';
         body[Config.invoiceLine.fieldQuantity]     = line.quantity    || 0;
-        body[Config.invoiceLine.fieldUom]          = line.uom         || '';
+        /* UOM is an Option Set — must be sent as integer, not string label */
+        if (line.uom !== '' && line.uom !== null && line.uom !== undefined) {
+            body[Config.invoiceLine.fieldUom] = parseInt(line.uom, 10);
+        }
         body[Config.invoiceLine.fieldUnitPrice]    = line.unitPrice   || 0;
 
         return body;
