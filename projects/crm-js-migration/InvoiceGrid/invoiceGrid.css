@@ -1,14 +1,14 @@
 /*
- * invoiceGrid.css
+ * invoiceGrid.css  v2
  * Invoice Entry Grid — Web Resource Styles
  * Compatible: IE Mode (Edge Chromium), UCI, Dataverse
  *
  * Rules:
  *   - No CSS custom properties (--var) — IE does not support them
  *   - No CSS Grid layout — IE partial support only
- *   - Flexbox used for layout (IE 11 supports it with -ms- prefixes where needed)
- *   - No clamp(), min(), max() — IE unsupported
- *   - Colours hard-coded from Dynamics CRM Fluent palette
+ *   - Flexbox with -webkit-/-ms- prefixes for IE 11
+ *   - Colours hard-coded from Dynamics 365 Fluent/UCI palette
+ *   - Sort indicators and resize handles follow Power Apps grid conventions
  */
 
 /* ── Reset & Base ────────────────────────────────────────────────────────── */
@@ -27,7 +27,6 @@ html, body {
     font-size: 13px;
     color: #201f1e;
     background-color: #faf9f8;
-    overflow-x: hidden;
 }
 
 /* ── Screen-reader only ──────────────────────────────────────────────────── */
@@ -44,6 +43,9 @@ html, body {
     border: 0;
 }
 
+.text-center { text-align: center; }
+.text-right  { text-align: right;  }
+
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 
 .toolbar {
@@ -56,13 +58,9 @@ html, body {
     padding: 8px 16px;
     background-color: #f3f2f1;
     border-bottom: 1px solid #edebe9;
-    gap: 8px;
 }
 
-/* IE 11 does not support gap on flex; use margin instead */
-.toolbar > * + * {
-    margin-left: 8px;
-}
+.toolbar > * + * { margin-left: 8px; }
 
 .status-msg {
     font-size: 12px;
@@ -73,9 +71,7 @@ html, body {
     padding-left: 8px;
 }
 
-.status-msg.error {
-    color: #a4262c;
-}
+.status-msg.is-error { color: #a4262c; }
 
 .loading-indicator {
     font-size: 12px;
@@ -95,7 +91,6 @@ html, body {
     border: 1px solid transparent;
     border-radius: 2px;
     cursor: pointer;
-    text-decoration: none;
     white-space: nowrap;
     -webkit-user-select: none;
        -moz-user-select: none;
@@ -108,81 +103,144 @@ html, body {
     outline-offset: 1px;
 }
 
+.btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .btn-primary {
     background-color: #0078d4;
     color: #ffffff;
     border-color: #0078d4;
 }
-
-.btn-primary:hover {
-    background-color: #106ebe;
-    border-color: #106ebe;
-}
-
-.btn-primary:active {
-    background-color: #005a9e;
-    border-color: #005a9e;
-}
+.btn-primary:hover  { background-color: #106ebe; border-color: #106ebe; }
+.btn-primary:active { background-color: #005a9e; border-color: #005a9e; }
 
 .btn-success {
     background-color: #107c10;
     color: #ffffff;
     border-color: #107c10;
 }
+.btn-success:hover  { background-color: #0b6a0b; border-color: #0b6a0b; }
+.btn-success:active { background-color: #094509; border-color: #094509; }
 
-.btn-success:hover {
-    background-color: #0b6a0b;
-    border-color: #0b6a0b;
+.btn-secondary {
+    background-color: #ffffff;
+    color: #0078d4;
+    border-color: #0078d4;
+}
+.btn-secondary:hover  { background-color: #deecf9; }
+.btn-secondary:active { background-color: #c7e0f4; }
+
+/* ── Invoice accordion panels ────────────────────────────────────────────── */
+
+.invoices-container {
+    padding: 8px 16px 16px;
 }
 
-.btn-success:active {
-    background-color: #094509;
-    border-color: #094509;
-}
-
-.btn-delete {
-    display: inline-block;
-    width: 24px;
-    height: 24px;
-    padding: 0;
-    font-size: 12px;
-    line-height: 24px;
-    text-align: center;
-    border: none;
+.invoice-panel {
+    background-color: #ffffff;
+    border: 1px solid #edebe9;
     border-radius: 2px;
-    background-color: transparent;
-    color: #a4262c;
+    margin-bottom: 12px;
+    -webkit-box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Accordion header bar */
+.invoice-panel-header {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+        -ms-flex-align: center;
+            align-items: center;
+    padding: 0 12px;
+    height: 42px;
+    background-color: #f3f2f1;
+    border-bottom: 1px solid #edebe9;
     cursor: pointer;
 }
 
-.btn-delete:hover {
-    background-color: #fde7e9;
+.invoice-panel-header:hover {
+    background-color: #edebe9;
 }
 
-.btn-delete:focus {
+.panel-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 6px 4px 2px;
+    font-size: 12px;
+    color: #605e5c;
+    line-height: 1;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
+}
+
+.panel-toggle:focus {
+    outline: 2px solid #0078d4;
+    outline-offset: 1px;
+}
+
+.toggle-arrow {
+    display: inline-block;
+    -webkit-transition: -webkit-transform 0.15s;
+            transition: transform 0.15s;
+}
+
+/* Collapsed state */
+.invoice-panel.is-collapsed .toggle-arrow {
+    -webkit-transform: rotate(-90deg);
+            transform: rotate(-90deg);
+}
+
+.invoice-panel.is-collapsed .invoice-panel-body {
+    display: none;
+}
+
+.panel-title {
+    -webkit-box-flex: 1;
+        -ms-flex: 1;
+            flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: #201f1e;
+    padding: 0 8px;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
+}
+
+.btn-remove-panel {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    color: #a4262c;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-remove-panel:hover {
+    background-color: #fde7e9;
+    border-color: #a4262c;
+}
+
+.btn-remove-panel:focus {
     outline: 2px solid #a4262c;
     outline-offset: 1px;
 }
 
-/* ── Cards ───────────────────────────────────────────────────────────────── */
-
-.card {
-    margin: 12px 16px;
+/* Accordion body */
+.invoice-panel-body {
     padding: 16px;
-    background-color: #ffffff;
-    border: 1px solid #edebe9;
-    border-radius: 2px;
-    -webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
-.card-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: #201f1e;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #edebe9;
 }
 
 /* ── Form layout ─────────────────────────────────────────────────────────── */
@@ -201,7 +259,6 @@ html, body {
     padding: 0 8px 12px;
 }
 
-/* Column fractions (12-col grid emulation) */
 .col-3  { width: 25%; }
 .col-4  { width: 33.3333%; }
 .col-6  { width: 50%; }
@@ -233,16 +290,14 @@ html, body {
     background-color: #ffffff;
     border: 1px solid #8a8886;
     border-radius: 2px;
+    -webkit-transition: border-color 0.1s;
+            transition: border-color 0.1s;
     -webkit-appearance: none;
        -moz-appearance: none;
             appearance: none;
-    -webkit-transition: border-color 0.1s;
-            transition: border-color 0.1s;
 }
 
-.field-input:hover {
-    border-color: #323130;
-}
+.field-input:hover  { border-color: #323130; }
 
 .field-input:focus {
     outline: none;
@@ -251,32 +306,24 @@ html, body {
             box-shadow: inset 0 0 0 1px #0078d4;
 }
 
-.field-input[readonly],
-.field-input:read-only {
+.field-input[readonly] {
     background-color: #f3f2f1;
     color: #605e5c;
     border-color: #edebe9;
 }
 
-.field-input.invalid {
+.field-input[readonly]:hover  { border-color: #edebe9; }
+.field-input[readonly]:focus  { border-color: #edebe9; -webkit-box-shadow: none; box-shadow: none; }
+
+.field-input.is-invalid {
     border-color: #a4262c;
 }
-
-.field-input.invalid:focus {
-    border-color: #a4262c;
+.field-input.is-invalid:focus {
     -webkit-box-shadow: inset 0 0 0 1px #a4262c;
             box-shadow: inset 0 0 0 1px #a4262c;
 }
 
-select.field-input {
-    padding-right: 24px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23605e5c'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-}
-
 .field-error {
-    display: block;
     font-size: 11px;
     color: #a4262c;
     margin-top: 3px;
@@ -289,62 +336,132 @@ select.field-input {
     margin-top: 3px;
 }
 
-.text-right {
-    text-align: right;
+/* ── Grid toolbar ────────────────────────────────────────────────────────── */
+
+.grid-toolbar {
+    margin-bottom: 8px;
 }
 
-/* ── HS Code autocomplete dropdown ───────────────────────────────────────── */
+/* ── HS Code lookup control ──────────────────────────────────────────────── */
 
-.hscode-wrapper {
-    position: relative;
+.lookup-control {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: stretch;
+        -ms-flex-align: stretch;
+            align-items: stretch;
+    width: 100%;
 }
 
-.hscode-dropdown {
-    position: absolute;
-    z-index: 9999;
+.lookup-text-input {
+    -webkit-box-flex: 1;
+        -ms-flex: 1;
+            flex: 1;
+    min-width: 0;
+    height: 26px;
+    padding: 2px 6px;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 12px;
+    color: #201f1e;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px 0 0 2px;
+    -webkit-transition: border-color 0.1s, background-color 0.1s;
+            transition: border-color 0.1s, background-color 0.1s;
+}
+
+.lookup-text-input:hover,
+.lookup-text-input:focus {
+    outline: none;
     background-color: #ffffff;
-    border: 1px solid #8a8886;
-    border-top: none;
-    border-radius: 0 0 2px 2px;
-    -webkit-box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-    max-height: 200px;
-    overflow-y: auto;
-    min-width: 260px;
+    border-color: #0078d4;
+    -webkit-box-shadow: inset 0 0 0 1px #0078d4;
+            box-shadow: inset 0 0 0 1px #0078d4;
 }
 
-.hscode-option {
-    padding: 6px 10px;
-    cursor: pointer;
-    border-bottom: 1px solid #f3f2f1;
-    font-size: 13px;
-}
-
-.hscode-option:last-child {
-    border-bottom: none;
-}
-
-.hscode-option:hover,
-.hscode-option.focused {
-    background-color: #deecf9;
-}
-
-.hscode-option .hscode-code {
+.lookup-text-input.has-value {
     font-weight: 600;
     color: #0078d4;
 }
 
-.hscode-option .hscode-desc {
+.lookup-btn {
+    -ms-flex-negative: 0;
+        flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 24px;
+    text-align: center;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-left: none;
+    border-radius: 0 2px 2px 0;
+    cursor: pointer;
+    color: #605e5c;
+}
+
+.lookup-btn:hover {
+    background-color: #deecf9;
+    border-color: #0078d4;
+    color: #0078d4;
+}
+
+.lookup-btn:focus {
+    outline: 2px solid #0078d4;
+    outline-offset: -1px;
+}
+
+.lookup-search-btn { border-radius: 0 2px 2px 0; }
+.lookup-clear-btn  { color: #a4262c; border-radius: 0; }
+.lookup-clear-btn:hover { background-color: #fde7e9; border-color: #a4262c; color: #a4262c; }
+
+/* ── HS Code dropdown ────────────────────────────────────────────────────── */
+
+.hscode-dropdown {
+    position: fixed;
+    z-index: 9999;
+    background-color: #ffffff;
+    border: 1px solid #0078d4;
+    border-radius: 0 0 2px 2px;
+    -webkit-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 220px;
+    overflow-y: auto;
+    min-width: 280px;
+}
+
+.hscode-option {
+    padding: 7px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f2f1;
+}
+
+.hscode-option:last-child { border-bottom: none; }
+
+.hscode-option:hover,
+.hscode-option.is-focused {
+    background-color: #deecf9;
+}
+
+.hscode-option-code {
+    font-weight: 600;
+    font-size: 13px;
+    color: #0078d4;
+}
+
+.hscode-option-desc {
     font-size: 11px;
     color: #605e5c;
-    margin-top: 2px;
+    margin-top: 1px;
 }
 
 .hscode-no-results {
-    padding: 8px 10px;
+    padding: 10px 12px;
+    font-size: 12px;
     color: #605e5c;
     font-style: italic;
-    font-size: 12px;
 }
 
 /* ── Data grid ───────────────────────────────────────────────────────────── */
@@ -352,101 +469,183 @@ select.field-input {
 .table-wrapper {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    position: relative;
+    border: 1px solid #edebe9;
+    border-radius: 2px;
 }
 
 .grid-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 13px;
+    font-size: 12px;
 }
 
-/* Column widths */
-.col-seq    { width: 40px; }
-.col-hscode { width: 140px; }
-.col-desc   { width: auto; }
-.col-qty    { width: 90px; }
-.col-uom    { width: 100px; }
-.col-price  { width: 120px; }
-.col-total  { width: 130px; }
-.col-action { width: 40px; }
+/* ── Column header ───────────────────────────────────────────────────────── */
 
-/* Header */
 .grid-header-row th {
-    padding: 8px 6px;
+    position: relative;
+    padding: 0;
+    height: 36px;
+    background-color: #0078d4;
+    color: #ffffff;
     font-size: 12px;
     font-weight: 600;
-    color: #ffffff;
-    background-color: #0078d4;
     text-align: left;
     border-right: 1px solid #106ebe;
     white-space: nowrap;
+    overflow: hidden;
 }
 
-.grid-header-row th:last-child {
-    border-right: none;
+.grid-header-row th:last-child { border-right: none; }
+
+/* th inner layout — label + sort indicator aligned */
+.th-label {
+    display: inline-block;
+    padding: 0 8px;
+    line-height: 36px;
+    vertical-align: middle;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
 }
 
-/* Data rows */
+/* Sortable headers */
+.th-sortable {
+    cursor: pointer;
+}
+
+.th-sortable:hover {
+    background-color: #106ebe;
+}
+
+/* Sort indicator (▲ / ▼ / empty) */
+.sort-indicator {
+    display: inline-block;
+    width: 14px;
+    font-size: 9px;
+    vertical-align: middle;
+    color: #deecf9;
+}
+
+.sort-indicator.sort-asc:after  { content: " \25B2"; } /* ▲ */
+.sort-indicator.sort-desc:after { content: " \25BC"; } /* ▼ */
+
+/* Non-sortable header */
+.th-nosort {
+    cursor: default;
+    text-align: center;
+    padding: 0 4px;
+    line-height: 36px;
+    font-size: 12px;
+    font-weight: 600;
+    -webkit-user-select: none;
+       -moz-user-select: none;
+        -ms-user-select: none;
+            user-select: none;
+}
+
+/* Column resize handle — right edge drag zone */
+.col-resize-handle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+}
+
+.col-resize-handle:hover {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Grid rows ───────────────────────────────────────────────────────────── */
+
 .grid-row td {
-    padding: 3px 4px;
+    padding: 2px 3px;
     vertical-align: middle;
     border-bottom: 1px solid #edebe9;
     border-right: 1px solid #f3f2f1;
+    height: 34px;
 }
 
-.grid-row td:last-child {
-    border-right: none;
-}
+.grid-row td:last-child { border-right: none; }
 
-.grid-row:nth-child(even) td {
-    background-color: #faf9f8;
-}
+.grid-row:nth-child(even) td { background-color: #faf9f8; }
 
-.grid-row:hover td {
-    background-color: #deecf9;
-}
+.grid-row:hover td { background-color: #deecf9; }
 
 .cell-seq {
-    text-align: center;
-    color: #605e5c;
     font-size: 11px;
+    color: #605e5c;
+    text-align: center;
 }
 
 .cell-line-total {
     font-weight: 600;
-    padding-right: 8px;
     color: #201f1e;
+    padding-right: 10px;
 }
 
-/* Override field-input inside grid to look flush */
-.grid-row .field-input {
+/* Grid cell inputs — flush, borderless until focused */
+.grid-row .lookup-text-input,
+.grid-row .field-input.cell-input {
     height: 26px;
     padding: 2px 6px;
     font-size: 12px;
+}
+
+.grid-row .field-input.cell-input {
     border-color: transparent;
     background-color: transparent;
 }
 
-.grid-row .field-input:hover,
-.grid-row .field-input:focus {
+.grid-row .field-input.cell-input:hover,
+.grid-row .field-input.cell-input:focus {
     border-color: #0078d4;
     background-color: #ffffff;
 }
 
-.grid-row select.field-input {
-    height: 26px;
-    font-size: 12px;
+/* Description cell — read-only styling */
+.desc-input {
+    border-color: transparent !important;
+    background-color: transparent !important;
+    color: #605e5c;
+    font-style: italic;
 }
 
-/* Footer totals row */
+/* Delete row button */
+.btn-delete-row {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: 11px;
+    line-height: 22px;
+    text-align: center;
+    border: none;
+    border-radius: 2px;
+    background-color: transparent;
+    color: #a4262c;
+    cursor: pointer;
+}
+
+.btn-delete-row:hover { background-color: #fde7e9; }
+
+.btn-delete-row:focus {
+    outline: 2px solid #a4262c;
+    outline-offset: 1px;
+}
+
+/* ── Grid footer ─────────────────────────────────────────────────────────── */
+
 .grid-footer-row td {
     padding: 8px 6px;
     background-color: #f3f2f1;
     border-top: 2px solid #edebe9;
-    font-weight: 600;
     font-size: 13px;
+    font-weight: 600;
 }
 
 .footer-label {
@@ -456,63 +655,51 @@ select.field-input {
 }
 
 .footer-total {
-    color: #201f1e;
     font-size: 14px;
-    padding-right: 8px;
+    color: #201f1e;
+    padding-right: 10px;
 }
 
 /* ── Design modes ────────────────────────────────────────────────────────── */
 
-/* UCI / Dataverse design — default, already applied above */
-
-/* Legacy (on-prem pre-UCI) — slightly denser, no shadows */
-body.design-legacy .card {
+/* Legacy on-prem — denser, no shadows, no border-radius */
+body.design-legacy .invoice-panel {
     border-radius: 0;
     -webkit-box-shadow: none;
             box-shadow: none;
-    margin: 8px 0;
+    margin-bottom: 8px;
     border-left: none;
     border-right: none;
 }
 
-body.design-legacy .toolbar {
+body.design-legacy .invoice-panel-header {
     background-color: #eff6fc;
     border-bottom: 2px solid #0078d4;
 }
 
-body.design-legacy .grid-header-row th {
-    background-color: #106ebe;
-}
-
-body.design-legacy .btn {
+body.design-legacy .btn,
+body.design-legacy .field-input,
+body.design-legacy .lookup-text-input {
     border-radius: 0;
 }
 
-body.design-legacy .field-input {
+body.design-legacy .table-wrapper {
     border-radius: 0;
 }
 
-/* ── Disabled / loading state ────────────────────────────────────────────── */
-
+/* Saving state — disable all interaction */
 body.is-saving .btn,
-body.is-saving .field-input {
+body.is-saving .field-input,
+body.is-saving .lookup-text-input,
+body.is-saving .lookup-btn {
     pointer-events: none;
-    opacity: 0.7;
+    opacity: 0.6;
 }
 
-/* ── Responsive narrow viewport ──────────────────────────────────────────── */
+/* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
-    .col-3,
-    .col-4 {
-        width: 50%;
-    }
-
-    .col-6 {
-        width: 100%;
-    }
-
-    .grid-table {
-        font-size: 11px;
-    }
+    .col-3, .col-4 { width: 50%; }
+    .col-6 { width: 100%; }
+    .invoices-container { padding: 8px; }
 }
