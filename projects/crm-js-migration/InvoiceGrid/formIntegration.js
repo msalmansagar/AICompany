@@ -39,7 +39,13 @@ InvoiceGrid.Config = {
         fieldInvoiceDate:         'qdb_invoicedate',
         fieldInvoiceAmount:       'qdb_invoice_amount',
         fieldDisbursementAmount:  'qdb_disbursement_amount',
-        fieldDisbursementRequest: 'qdb_disbursement_request'  /* lookup to parent ticket */
+        /*
+         * fieldDisbursementRequest — set to the logical name of the lookup field
+         * once you have confirmed the target entity type.
+         * Set to null to skip this binding (safe default — avoids 400 Bad Request
+         * when the target entity does not match qdb_payment_authorization_ticket).
+         */
+        fieldDisbursementRequest: null
     },
 
     /**
@@ -513,11 +519,19 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
     function buildLineBody(line, headerId, parentId) {
         var body = {};
 
+        /* Link line → invoice header */
         body[Config.invoiceLine.fieldInvoice + '@odata.bind'] =
             '/' + Config.invoiceHeader.entitySetName + '(' + headerId + ')';
 
-        body[Config.invoiceLine.fieldRequest + '@odata.bind'] =
-            '/' + Config.parent.entitySetName + '(' + parentId + ')';
+        /*
+         * Link line → parent disbursement request ticket.
+         * If qdb_disbursementrequest targets a different entity on your org,
+         * set Config.invoiceLine.fieldRequest to null to skip this binding.
+         */
+        if (Config.invoiceLine.fieldRequest && parentId) {
+            body[Config.invoiceLine.fieldRequest + '@odata.bind'] =
+                '/' + Config.parent.entitySetName + '(' + parentId + ')';
+        }
 
         if (line.hsCodeId) {
             body[Config.invoiceLine.fieldHsCode + '@odata.bind'] =
