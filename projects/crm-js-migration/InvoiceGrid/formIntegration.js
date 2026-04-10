@@ -213,17 +213,40 @@ InvoiceGrid.CrmApi = (function (Config) {
 
     /**
      * POST — create a new record.
+     *
+     * Strategy: do NOT send Prefer: return=representation.
+     * Standard POST returns 204 No Content + OData-EntityId header.
+     * Sending Prefer: return=representation returns 201 + full body, but on
+     * several CRM on-prem versions the OData-EntityId header is suppressed
+     * in that path — causing "Created but no ID returned".
+     *
+     * Fallback: if OData-EntityId is absent, try to read the primary key from
+     * the JSON response body (handles Dataverse cloud 201 responses).
+     *
      * @param {string}   entitySet
      * @param {Object}   body
-     * @param {Function} onSuccess  Called with (createdId: string, responseBody)
-     * @param {Function} onFailure  Called with (statusCode, message)
+     * @param {string}   [primaryIdField]  Optional PK field name for body fallback
+     * @param {Function} onSuccess         Called with (createdId: string, responseBody)
+     * @param {Function} onFailure         Called with (statusCode, message)
      */
-    function createRecord(entitySet, body, onSuccess, onFailure) {
+    function createRecord(entitySet, body, primaryIdField, onSuccess, onFailure) {
+        /* Support legacy 4-arg call: createRecord(set, body, onSuccess, onFailure) */
+        if (typeof primaryIdField === 'function') {
+            onFailure      = onSuccess;
+            onSuccess      = primaryIdField;
+            primaryIdField = null;
+        }
+
         var headers = buildHeaders();
-        headers['Prefer'] = 'return=representation';
 
         executeXhr('POST', buildUrl(entitySet), headers, body, function (response, xhr) {
             var id = extractCreatedId(xhr);
+
+            /* Fallback: read PK from response body (Dataverse cloud 201 path) */
+            if (!id && primaryIdField && response && response[primaryIdField]) {
+                id = response[primaryIdField];
+            }
+
             onSuccess(id, response);
         }, onFailure);
     }
@@ -340,6 +363,7 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
         Api.createRecord(
             Config.hsCode.entitySetName,
             body,
+            Config.hsCode.primaryIdField,
             function (createdId) {
                 /* Build a record object matching what searchHsCodes returns */
                 var record = {};
@@ -421,6 +445,7 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
         Api.createRecord(
             Config.invoiceHeader.entitySetName,
             body,
+            Config.invoiceHeader.primaryIdField,
             function (headerId) {
                 if (!headerId) { callback(null, 'Created but no ID returned.'); return; }
                 callback(headerId, null);
@@ -452,6 +477,7 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
         Api.createRecord(
             Config.invoiceLine.entitySetName,
             body,
+            null,
             function () { saveNextLine(lines, index + 1, headerId, parentId, callback); },
             function (status, message) { callback('Line ' + (index + 1) + ': ' + message); }
         );
