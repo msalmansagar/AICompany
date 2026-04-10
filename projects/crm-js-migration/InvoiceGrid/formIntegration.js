@@ -431,13 +431,29 @@ InvoiceGrid.InvoiceDataService = (function (Config, Api) {
      */
     function createInvoiceHeader(invoiceData, parentId, callback) {
         var body = {};
-        body[Config.invoiceHeader.fieldInvoiceNo]          = invoiceData.invoiceNo;
-        body[Config.invoiceHeader.fieldInvoiceDate]        = invoiceData.invoiceDate;
-        body[Config.invoiceHeader.fieldInvoiceAmount]      = invoiceData.invoiceAmount;
-        body[Config.invoiceHeader.fieldDisbursementAmount] = invoiceData.disbursementAmount;
+        body[Config.invoiceHeader.fieldInvoiceNo] = invoiceData.invoiceNo;
 
-        /* Link invoice header back to the parent disbursement request ticket */
-        if (parentId) {
+        /*
+         * qdb_invoicedate is a Date and Time field.
+         * Dataverse Web API rejects bare 'YYYY-MM-DD' — must be full ISO 8601.
+         * The HTML date input returns 'YYYY-MM-DD', so we append midnight UTC.
+         */
+        if (invoiceData.invoiceDate) {
+            body[Config.invoiceHeader.fieldInvoiceDate] =
+                invoiceData.invoiceDate + 'T00:00:00Z';
+        }
+
+        body[Config.invoiceHeader.fieldInvoiceAmount]      = invoiceData.invoiceAmount      || 0;
+        body[Config.invoiceHeader.fieldDisbursementAmount] = invoiceData.disbursementAmount || 0;
+
+        /*
+         * Link header to parent ticket via qdb_disbursement_request.
+         * IMPORTANT: This binding assumes qdb_disbursement_request is a lookup
+         * that targets qdb_payment_authorization_ticket. If your org has it
+         * pointing to a different entity, remove this block and set the lookup
+         * manually in CRM instead.
+         */
+        if (parentId && Config.invoiceHeader.fieldDisbursementRequest) {
             body[Config.invoiceHeader.fieldDisbursementRequest + '@odata.bind'] =
                 '/' + Config.parent.entitySetName + '(' + parentId + ')';
         }
