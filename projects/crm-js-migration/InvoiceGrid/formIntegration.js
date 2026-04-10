@@ -43,7 +43,7 @@ InvoiceGrid.Config = {
          * fieldDisbursementRequest — lookup on the invoice header that links back
          * to the parent qdb_payment_authorization_ticket record.
          */
-        fieldDisbursementRequest: 'qdb_disbursement_request'
+        fieldDisbursementRequest: 'qdb_disbursementrequest'
     },
 
     /**
