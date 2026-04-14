@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest>
+  <control
+    namespace="Maqsad"
+    constructor="EmailEditorControl"
+    version="1.0.0"
+    display-name-key="EmailEditor_Display_Key"
+    description-key="EmailEditor_Desc_Key"
+    control-type="virtual">
+
+    <!-- Bound field — stores the raw Handlebars-subset template string -->
+    <property
+      name="templateValue"
+      display-name-key="TemplateValue_Display"
+      description-key="TemplateValue_Desc"
+      of-type="Multiple"
+      usage="bound"
+      required="true" />
+
+    <!-- Root entity drives the metadata tree for the field picker popup -->
+    <property
+      name="rootEntityLogicalName"
+      display-name-key="RootEntity_Display"
+      description-key="RootEntity_Desc"
+      of-type="SingleLine.Text"
+      usage="input"
+      required="true" />
+
+    <!-- Optional: sample record GUID shown in the preview pane -->
+    <property
+      name="sampleRecordId"
+      display-name-key="SampleRecord_Display"
+      description-key="SampleRecord_Desc"
+      of-type="SingleLine.Text"
+      usage="input"
+      required="false" />
+
+    <!-- Max drill-down depth in the field picker popup (default 3) -->
+    <property
+      name="maxRelationshipDepth"
+      display-name-key="MaxDepth_Display"
+      description-key="MaxDepth_Desc"
+      of-type="Whole.None"
+      usage="input"
+      required="false" />
+
+    <resources>
+      <code path="index.ts" order="1" />
+      <resx path="strings/EmailEditorControl.1033.resx" version="1.0.0" />
+    </resources>
+
+    <feature-usage>
+      <uses-feature name="WebAPI" required="true" />
+      <uses-feature name="Utility" required="false" />
+    </feature-usage>
+  </control>
+</manifest>

@@ -2,7 +2,16 @@
 # Updated by orchestrator after every phase completion
 # Phases: inception | ba | architecture | build | qa | audit | delivered
 
-projects: []
+projects:
+  - name: email-editor-pcf
+    type: crm
+    phase: build
+    started: 2026-04-14
+    last_updated: 2026-04-14
+    last_agent: architect + backend
+    ceo_approved_phases: []
+    output_dir: projects/email-editor-pcf/
+    status: in_progress
 
 # Example entry:
 # projects:
