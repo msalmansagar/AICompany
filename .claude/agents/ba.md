@@ -89,36 +89,43 @@ Status:         DRAFT — Pending CEO Approval
 
 8. USER STORIES
    Format: As a [role], I want to [action] so that [benefit]
-   Acceptance criteria for each story:
-     Given [context] When [action] Then [expected outcome]
+   Each story must include:
+   - ID: US-XX
+   - Priority: Must Have / Should Have / Could Have
+   - Acceptance criteria: Given [context] When [action] Then [expected outcome]
    Minimum one story per stakeholder group.
 
-9. INTEGRATION DEPENDENCIES
-   List every external system this feature touches.
-   | System     | Integration type  | Data exchanged | Direction |
-   Include CRM entities, queues, APIs, external portals.
+9. DATA REQUIREMENTS
+   Key entities, estimated volumes, retention period,
+   sensitivity classification (public / internal / confidential / restricted).
+   | Entity | Volume | Retention | Sensitivity |
 
-10. ASSUMPTIONS
+11. INTEGRATION DEPENDENCIES
+    List every external system this feature touches.
+    | System     | Integration type  | Data exchanged | Direction |
+    Include CRM entities, queues, APIs, external portals.
+
+12. ASSUMPTIONS
     Numbered list of assumptions made during requirements gathering.
     Each assumption that proves false may change the requirements.
 
-11. CONSTRAINTS
+13. CONSTRAINTS
     Technical, regulatory, timeline, or budget constraints that
     limit the solution space. Be specific.
 
-12. RISKS AND OPEN QUESTIONS
+14. RISKS AND OPEN QUESTIONS
     | Risk / Question | Impact | Owner | Resolution needed by |
     List anything unresolved that could affect delivery.
 
-13. GLOSSARY
+15. GLOSSARY
     Define all domain-specific terms used in this document.
 
-14. REQUIREMENTS TRACEABILITY MATRIX
+16. REQUIREMENTS TRACEABILITY MATRIX
     | User Story | Functional Req     | Test Case (QA fills) | Status |
     |------------|--------------------|----------------------|--------|
     | US-01      | FR-001, FR-002     | TC-XXX (pending)     | Draft  |
 
-15. APPROVAL
+17. APPROVAL
     | Role          | Name              | Decision  | Date |
     |---------------|-------------------|-----------|------|
     | CEO           | Pending           | PENDING   |      |
