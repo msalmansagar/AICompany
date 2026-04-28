@@ -5,6 +5,21 @@ Format: newest first. Update this file whenever a new repo is adopted.
 
 ---
 
+## 2. Tamoura/Claude-Code-creates-the-SW-company
+
+| Field | Detail |
+|---|---|
+| **Repo** | https://github.com/Tamoura/Claude-Code-creates-the-SW-company |
+| **License** | Proprietary (ConnectSW) |
+| **Adopted** | 2026-04-28 |
+| **Adopted by** | msalmansagar |
+| **Purpose** | Inspiration and reference architecture for Maqsad AI's agent-company structure |
+| **What we took** | README structure, agent grouping pattern, quality gate concept, product portfolio table format, CEO-command section, repository layout documentation style |
+| **What we did NOT take** | Code, spec-kit tooling, proprietary workflows — structural inspiration only |
+| **Notes** | ConnectSW runs 18 agents, 14 products, 60+ components. Maqsad AI adapts this pattern for enterprise Microsoft/Dynamics 365 + cloud-native service lines. |
+
+---
+
 ## 1. juliusbrussee/caveman
 
 | Field | Detail |
