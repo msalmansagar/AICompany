@@ -13,6 +13,17 @@ projects:
     output_dir: projects/email-editor-pcf/
     status: in_progress
 
+  - name: crm-workflow-designer
+    type: crm
+    phase: ba
+    started: 2026-04-29
+    last_updated: 2026-04-29
+    last_agent: ba
+    ceo_approved_phases: []
+    output_dir: projects/crm-workflow-designer/
+    status: in_progress
+    notes: BRD complete, awaiting CEO approval. 3 HIGH risks require resolution before build.
+
 # Example entry:
 # projects:
 #   - name: insurance-calc-engine
