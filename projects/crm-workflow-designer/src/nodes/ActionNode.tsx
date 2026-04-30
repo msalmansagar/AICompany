@@ -4,11 +4,11 @@ import { useWorkflowStore } from '../store/workflowStore';
 import { NodeShell } from './NodeShell';
 
 const ACTION_COLORS: Record<string, string> = {
-  updateField: '#2563eb',
+  updateField:  '#2563eb',
   createRecord: '#0d9488',
-  sendEmail:   '#7c3aed',
-  assign:      '#4f46e5',
-  wait:        '#64748b',
+  sendEmail:    '#7c3aed',
+  assign:       '#4f46e5',
+  wait:         '#64748b',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -19,18 +19,25 @@ const ACTION_LABELS: Record<string, string> = {
   wait:         'Wait / Delay',
 };
 
-export function ActionNode({ data, selected }: NodeProps) {
+export function ActionNode({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as ActionNodeData;
-  const viewMode = useWorkflowStore((s) => s.viewMode);
+  const { viewMode, deleteNode } = useWorkflowStore((s) => ({ viewMode: s.viewMode, deleteNode: s.deleteNode }));
   const subtype = 'actionType' in nodeData ? nodeData.actionType : 'updateField';
   const color = ACTION_COLORS[subtype] ?? '#64748b';
-  const name = ACTION_LABELS[subtype] ?? subtype;
-  const subtitle = getSubtitle(nodeData);
+  const defaultName = ACTION_LABELS[subtype] ?? subtype;
 
   return (
     <div style={{ position: 'relative' }}>
       <Handle type="target" position={Position.Left} style={handleStyle(color)} isConnectable={!viewMode} />
-      <NodeShell borderColor={color} name={name} subtitle={subtitle} selected={selected} />
+      <NodeShell
+        borderColor={color}
+        name={(data.nodeName as string) || defaultName}
+        subtitle={getSubtitle(nodeData)}
+        selected={selected}
+        nodeId={id}
+        onDelete={deleteNode}
+        viewMode={viewMode}
+      />
       <Handle type="source" position={Position.Right} style={handleStyle(color)} isConnectable={!viewMode} />
       <Handle type="source" position={Position.Bottom} style={handleStyle(color)} isConnectable={!viewMode} />
     </div>
@@ -49,11 +56,5 @@ function getSubtitle(data: ActionNodeData): string {
 }
 
 function handleStyle(color: string): React.CSSProperties {
-  return {
-    width: 10,
-    height: 10,
-    background: '#fff',
-    border: `2px solid ${color}`,
-    borderRadius: '50%',
-  };
+  return { width: 10, height: 10, background: '#fff', border: `2px solid ${color}`, borderRadius: '50%' };
 }

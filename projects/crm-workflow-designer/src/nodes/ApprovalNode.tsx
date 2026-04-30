@@ -5,9 +5,9 @@ import { NodeShell } from './NodeShell';
 
 const COLOR = '#b45309';
 
-export function ApprovalNode({ data, selected }: NodeProps) {
+export function ApprovalNode({ id, data, selected }: NodeProps) {
   const nodeData = data as unknown as ApprovalNodeData;
-  const viewMode = useWorkflowStore((s) => s.viewMode);
+  const { viewMode, deleteNode } = useWorkflowStore((s) => ({ viewMode: s.viewMode, deleteNode: s.deleteNode }));
   const subtitle = nodeData.assignToName
     ? `${nodeData.assignToType ?? 'user'}: ${nodeData.assignToName}`
     : 'Assignee not set';
@@ -17,9 +17,12 @@ export function ApprovalNode({ data, selected }: NodeProps) {
       <Handle type="target" position={Position.Left} style={handleStyle} isConnectable={!viewMode} />
       <NodeShell
         borderColor={COLOR}
-        name="Approval"
+        name={(data.nodeName as string) || 'Approval'}
         subtitle={subtitle}
         selected={selected}
+        nodeId={id}
+        onDelete={deleteNode}
+        viewMode={viewMode}
       />
       <Handle type="source" position={Position.Right} style={handleStyle} isConnectable={!viewMode} />
       <Handle type="source" position={Position.Bottom} style={handleStyle} isConnectable={!viewMode} />
@@ -28,9 +31,5 @@ export function ApprovalNode({ data, selected }: NodeProps) {
 }
 
 const handleStyle: React.CSSProperties = {
-  width: 10,
-  height: 10,
-  background: '#fff',
-  border: `2px solid ${COLOR}`,
-  borderRadius: '50%',
+  width: 10, height: 10, background: '#fff', border: `2px solid ${COLOR}`, borderRadius: '50%',
 };

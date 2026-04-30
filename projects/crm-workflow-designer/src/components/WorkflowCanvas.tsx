@@ -12,7 +12,7 @@ import {
   type Node,
   type DefaultEdgeOptions,
 } from '@xyflow/react';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
 import { nodeTypes } from '../nodes/nodeTypes';
 import { NodeConfigPanel } from '../panels/NodeConfigPanel';
@@ -38,7 +38,7 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 };
 
 export function WorkflowCanvas() {
-  const { storeNodes, storeEdges, setStoreNodes, setStoreEdges, setSelectedNodeId, viewMode } =
+  const { storeNodes, storeEdges, setStoreNodes, setStoreEdges, setSelectedNodeId, viewMode, selectedNodeId } =
     useWorkflowStore((s) => ({
       storeNodes: s.nodes,
       storeEdges: s.edges,
@@ -46,7 +46,14 @@ export function WorkflowCanvas() {
       setStoreEdges: s.setEdges,
       setSelectedNodeId: s.setSelectedNodeId,
       viewMode: s.viewMode,
+      selectedNodeId: s.selectedNodeId,
     }));
+
+  const panelOpen = !!selectedNodeId;
+  const flowStyle = useMemo<React.CSSProperties>(
+    () => ({ width: panelOpen ? 'calc(100% - 360px)' : '100%', height: '100%' }),
+    [panelOpen]
+  );
 
   const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
@@ -77,6 +84,7 @@ export function WorkflowCanvas() {
   return (
     <div style={canvasWrapper}>
       <ReactFlow
+        style={flowStyle}
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}

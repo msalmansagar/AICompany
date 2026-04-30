@@ -13,6 +13,7 @@ interface WorkflowStore {
   setNodes: (nodes: RfNode[]) => void;
   setEdges: (edges: Edge[]) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  deleteNode: (id: string) => void;
 
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
@@ -46,6 +47,13 @@ export const useWorkflowStore = create<WorkflowStore>()(
         nodes: state.nodes.map((n) =>
           n.id === id ? { ...n, data: { ...n.data, ...data } } : n
         ),
+        dirtyFlag: true,
+      })),
+    deleteNode: (id) =>
+      set((state) => ({
+        nodes: state.nodes.filter((n) => n.id !== id),
+        edges: state.edges.filter((e) => e.source !== id && e.target !== id),
+        selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
         dirtyFlag: true,
       })),
 
