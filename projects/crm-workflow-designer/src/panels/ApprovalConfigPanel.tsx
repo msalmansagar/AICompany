@@ -1,3 +1,4 @@
+import { useReactFlow } from '@xyflow/react';
 import type { ApprovalNodeData } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { field, label, select, input } from './panelStyles';
@@ -7,14 +8,14 @@ interface ApprovalConfigPanelProps {
 }
 
 export function ApprovalConfigPanel({ nodeId }: ApprovalConfigPanelProps) {
-  const { nodes, updateNodeData, viewMode } = useWorkflowStore((s) => ({
-    nodes: s.nodes,
+  const { updateNodeData, viewMode } = useWorkflowStore((s) => ({
     updateNodeData: s.updateNodeData,
     viewMode: s.viewMode,
   }));
 
-  const node = nodes.find((n) => n.id === nodeId);
-  const data = (node?.data ?? {}) as Partial<ApprovalNodeData>;
+  const { getNode } = useReactFlow();
+  const node = getNode(nodeId);
+  const data = (node?.data ?? {}) as unknown as Partial<ApprovalNodeData>;
 
   function update(patch: Partial<ApprovalNodeData>) {
     updateNodeData(nodeId, patch as Record<string, unknown>);

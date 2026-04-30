@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { useWorkflowStore } from '../store/workflowStore';
 import { TriggerConfigPanel } from './TriggerConfigPanel';
 import { ConditionConfigPanel } from './ConditionConfigPanel';
@@ -26,10 +27,9 @@ const TABS: Tab[] = ['General', 'On Entering', 'Assignment', 'On Exiting', 'Docs
 
 export function NodeConfigPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('General');
-  const { selectedNodeId, nodes, viewMode, updateNodeData, deleteNode, setSelectedNodeId, dirtyFlag } =
+  const { selectedNodeId, viewMode, updateNodeData, deleteNode, setSelectedNodeId, dirtyFlag } =
     useWorkflowStore((s) => ({
       selectedNodeId: s.selectedNodeId,
-      nodes: s.nodes,
       viewMode: s.viewMode,
       updateNodeData: s.updateNodeData,
       deleteNode: s.deleteNode,
@@ -37,8 +37,10 @@ export function NodeConfigPanel() {
       dirtyFlag: s.dirtyFlag,
     }));
 
+  const { getNode } = useReactFlow();
+
   if (!selectedNodeId) return null;
-  const node = nodes.find((n) => n.id === selectedNodeId);
+  const node = getNode(selectedNodeId);
   if (!node) return null;
 
   const nodeType = node.type ?? 'action';

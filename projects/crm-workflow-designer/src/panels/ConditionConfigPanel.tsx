@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import type { ConditionNodeData, CompareOperator } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { MetadataService } from '../services/MetadataService';
@@ -25,15 +26,15 @@ const OPERATORS: Array<{ value: CompareOperator; label: string }> = [
 const NO_VALUE_OPERATORS: CompareOperator[] = ['null', 'notnull'];
 
 export function ConditionConfigPanel({ nodeId }: ConditionConfigPanelProps) {
-  const { nodes, updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
-    nodes: s.nodes,
+  const { updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
     updateNodeData: s.updateNodeData,
     crmContext: s.crmContext,
     viewMode: s.viewMode,
   }));
 
-  const node = nodes.find((n) => n.id === nodeId);
-  const data = (node?.data ?? {}) as Partial<ConditionNodeData>;
+  const { getNode } = useReactFlow();
+  const node = getNode(nodeId);
+  const data = (node?.data ?? {}) as unknown as Partial<ConditionNodeData>;
 
   const [selectedEntity, setSelectedEntity] = useState('');
   const [attributes, setAttributes] = useState<Array<{ logicalName: string; displayName: string }>>([]);

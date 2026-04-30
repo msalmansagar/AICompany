@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import type { TriggerNodeData } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { MetadataService } from '../services/MetadataService';
@@ -10,15 +11,15 @@ interface TriggerConfigPanelProps {
 }
 
 export function TriggerConfigPanel({ nodeId }: TriggerConfigPanelProps) {
-  const { nodes, updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
-    nodes: s.nodes,
+  const { updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
     updateNodeData: s.updateNodeData,
     crmContext: s.crmContext,
     viewMode: s.viewMode,
   }));
 
-  const node = nodes.find((n) => n.id === nodeId);
-  const data = (node?.data ?? {}) as Partial<TriggerNodeData>;
+  const { getNode } = useReactFlow();
+  const node = getNode(nodeId);
+  const data = (node?.data ?? {}) as unknown as Partial<TriggerNodeData>;
 
   const [attributes, setAttributes] = useState<Array<{ logicalName: string; displayName: string }>>([]);
 

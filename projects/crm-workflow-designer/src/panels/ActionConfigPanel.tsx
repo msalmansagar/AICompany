@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import type { ActionNodeData } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { MetadataService } from '../services/MetadataService';
@@ -10,14 +11,14 @@ interface ActionConfigPanelProps {
 }
 
 export function ActionConfigPanel({ nodeId }: ActionConfigPanelProps) {
-  const { nodes, updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
-    nodes: s.nodes,
+  const { updateNodeData, crmContext, viewMode } = useWorkflowStore((s) => ({
     updateNodeData: s.updateNodeData,
     crmContext: s.crmContext,
     viewMode: s.viewMode,
   }));
 
-  const node = nodes.find((n) => n.id === nodeId);
+  const { getNode } = useReactFlow();
+  const node = getNode(nodeId);
   const data = (node?.data ?? { actionType: 'updateField' }) as unknown as ActionNodeData;
   const actionType = 'actionType' in data ? data.actionType : 'updateField';
 

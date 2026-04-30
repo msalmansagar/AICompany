@@ -3,17 +3,22 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmContext, EntityMetadata } from '../types/CrmTypes';
 
-// React Flow requires data to extend Record<string,unknown>.
-// We use unparameterised Node here and cast to our typed interfaces at read points.
 type RfNode = Node;
 
 interface WorkflowStore {
-  nodes: RfNode[];
-  edges: Edge[];
-  setNodes: (nodes: RfNode[]) => void;
-  setEdges: (edges: Edge[]) => void;
+  // pending load — set when a workflow is loaded from CRM, consumed once by WorkflowCanvas
+  pendingLoad: { nodes: RfNode[]; edges: Edge[] } | null;
+  setPendingLoad: (payload: { nodes: RfNode[]; edges: Edge[] } | null) => void;
+
+  // node data patches — applied to RF nodes via updateNodeData
+  nodeDataPatches: Record<string, Record<string, unknown>>;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  clearNodeDataPatch: (id: string) => void;
+
+  // node deletion queue — consumed by WorkflowCanvas
+  pendingDelete: string | null;
   deleteNode: (id: string) => void;
+  clearPendingDelete: () => void;
 
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
@@ -38,24 +43,33 @@ interface WorkflowStore {
 
 export const useWorkflowStore = create<WorkflowStore>()(
   subscribeWithSelector((set) => ({
-    nodes: [],
-    edges: [],
-    setNodes: (nodes) => set({ nodes, dirtyFlag: true }),
-    setEdges: (edges) => set({ edges, dirtyFlag: true }),
+    pendingLoad: null,
+    setPendingLoad: (payload) => set({ pendingLoad: payload, dirtyFlag: false }),
+
+    nodeDataPatches: {},
     updateNodeData: (id, data) =>
       set((state) => ({
-        nodes: state.nodes.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, ...data } } : n
-        ),
+        nodeDataPatches: {
+          ...state.nodeDataPatches,
+          [id]: { ...(state.nodeDataPatches[id] ?? {}), ...data },
+        },
         dirtyFlag: true,
       })),
+    clearNodeDataPatch: (id) =>
+      set((state) => {
+        const patches = { ...state.nodeDataPatches };
+        delete patches[id];
+        return { nodeDataPatches: patches };
+      }),
+
+    pendingDelete: null,
     deleteNode: (id) =>
       set((state) => ({
-        nodes: state.nodes.filter((n) => n.id !== id),
-        edges: state.edges.filter((e) => e.source !== id && e.target !== id),
+        pendingDelete: id,
         selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
         dirtyFlag: true,
       })),
+    clearPendingDelete: () => set({ pendingDelete: null }),
 
     selectedNodeId: null,
     setSelectedNodeId: (id) => set({ selectedNodeId: id }),
