@@ -8,6 +8,7 @@ import {
   addEdge,
   type Connection,
   type Edge,
+  type Node,
 } from '@xyflow/react';
 import { useCallback, useEffect } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
@@ -15,8 +16,6 @@ import { nodeTypes } from '../nodes/nodeTypes';
 import { NodeConfigPanel } from '../panels/NodeConfigPanel';
 import { Toolbar } from './Toolbar';
 import { ValidationToast } from './ValidationToast';
-import type { NodeData } from '../types/WorkflowTypes';
-import type { Node } from '@xyflow/react';
 
 export function WorkflowCanvas() {
   const { storeNodes, storeEdges, setStoreNodes, setStoreEdges, setSelectedNodeId, viewMode } =
@@ -29,26 +28,16 @@ export function WorkflowCanvas() {
       viewMode: s.viewMode,
     }));
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(storeNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(storeNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(storeEdges);
 
-  // Sync React Flow local state ← Zustand (on load)
-  useEffect(() => {
-    setNodes(storeNodes);
-  }, [storeNodes, setNodes]);
+  // Sync Zustand → React Flow (on load / external update)
+  useEffect(() => { setNodes(storeNodes); }, [storeNodes, setNodes]);
+  useEffect(() => { setEdges(storeEdges); }, [storeEdges, setEdges]);
 
-  useEffect(() => {
-    setEdges(storeEdges);
-  }, [storeEdges, setEdges]);
-
-  // Sync React Flow local state → Zustand (on change)
-  useEffect(() => {
-    setStoreNodes(nodes);
-  }, [nodes, setStoreNodes]);
-
-  useEffect(() => {
-    setStoreEdges(edges);
-  }, [edges, setStoreEdges]);
+  // Sync React Flow → Zustand (on canvas interaction)
+  useEffect(() => { setStoreNodes(nodes); }, [nodes, setStoreNodes]);
+  useEffect(() => { setStoreEdges(edges); }, [edges, setStoreEdges]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -60,12 +49,10 @@ export function WorkflowCanvas() {
 
   function onEdgeDoubleClick(_: React.MouseEvent, edge: Edge) {
     if (viewMode) return;
-    const currentLabel = edge.label as string | undefined;
     const labels: Array<'true' | 'false' | undefined> = [undefined, 'true', 'false'];
-    const nextIndex = (labels.indexOf(currentLabel as 'true' | 'false' | undefined) + 1) % labels.length;
-    setEdges((eds) =>
-      eds.map((e) => (e.id === edge.id ? { ...e, label: labels[nextIndex] } : e))
-    );
+    const current = edge.label as 'true' | 'false' | undefined;
+    const next = labels[(labels.indexOf(current) + 1) % labels.length];
+    setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, label: next } : e)));
   }
 
   return (
@@ -77,7 +64,7 @@ export function WorkflowCanvas() {
         onNodesChange={viewMode ? undefined : onNodesChange}
         onEdgesChange={viewMode ? undefined : onEdgesChange}
         onConnect={onConnect}
-        onNodeClick={(_, node) => setSelectedNodeId(node.id)}
+        onNodeClick={(_: React.MouseEvent, node: Node) => setSelectedNodeId(node.id)}
         onPaneClick={() => setSelectedNodeId(null)}
         onEdgeDoubleClick={onEdgeDoubleClick}
         fitView

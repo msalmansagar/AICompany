@@ -3,7 +3,7 @@ import type { TriggerNodeData } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { NodeShell } from './NodeShell';
 
-export function TriggerNode({ id, data, selected }: NodeProps) {
+export function TriggerNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as TriggerNodeData;
   const viewMode = useWorkflowStore((s) => s.viewMode);
 

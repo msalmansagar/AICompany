@@ -31,7 +31,7 @@ export function TriggerConfigPanel({ nodeId }: TriggerConfigPanelProps) {
   }, [data.entity, crmContext]);
 
   function update(patch: Partial<TriggerNodeData>) {
-    updateNodeData(nodeId, patch);
+    updateNodeData(nodeId, patch as Record<string, unknown>);
   }
 
   return (

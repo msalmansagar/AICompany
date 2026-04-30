@@ -1,10 +1,7 @@
 import type { Node, Edge } from '@xyflow/react';
-import type { WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeData } from '../types/WorkflowTypes';
+import type { WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType } from '../types/WorkflowTypes';
 
-export function serialize(
-  nodes: Node<NodeData>[],
-  edges: Edge[]
-): WorkflowDefinition {
+export function serialize(nodes: Node[], edges: Edge[]): WorkflowDefinition {
   return {
     version: '1.0',
     nodes: nodes.map(serializeNode),
@@ -13,7 +10,7 @@ export function serialize(
 }
 
 export function deserialize(definition: WorkflowDefinition): {
-  nodes: Node<NodeData>[];
+  nodes: Node[];
   edges: Edge[];
 } {
   return {
@@ -22,21 +19,21 @@ export function deserialize(definition: WorkflowDefinition): {
   };
 }
 
-function serializeNode(node: Node<NodeData>): WorkflowNode {
+function serializeNode(node: Node): WorkflowNode {
   return {
     id: node.id,
-    type: node.type as WorkflowNode['type'],
+    type: (node.type ?? 'end') as NodeType,
     position: node.position,
-    data: node.data,
+    data: node.data as WorkflowNode['data'],
   };
 }
 
-function deserializeNode(node: WorkflowNode): Node<NodeData> {
+function deserializeNode(node: WorkflowNode): Node {
   return {
     id: node.id,
     type: node.type,
     position: node.position,
-    data: node.data,
+    data: node.data as Record<string, unknown>,
   };
 }
 

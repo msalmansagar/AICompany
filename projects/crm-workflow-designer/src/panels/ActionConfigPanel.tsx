@@ -18,7 +18,7 @@ export function ActionConfigPanel({ nodeId }: ActionConfigPanelProps) {
   }));
 
   const node = nodes.find((n) => n.id === nodeId);
-  const data = (node?.data ?? { actionType: 'updateField' }) as ActionNodeData;
+  const data = (node?.data ?? { actionType: 'updateField' }) as unknown as ActionNodeData;
   const actionType = 'actionType' in data ? data.actionType : 'updateField';
 
   const [attributes, setAttributes] = useState<Array<{ logicalName: string; displayName: string }>>([]);

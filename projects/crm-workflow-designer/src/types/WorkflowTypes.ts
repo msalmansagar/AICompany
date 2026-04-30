@@ -85,9 +85,12 @@ export interface ApprovalNodeData {
   rejectedValue: string;
 }
 
+// NodeData used in business logic and serialisation.
+// React Flow state uses Node (unparameterised, data: Record<string,unknown>)
+// and casts to these types at read points.
 export type NodeData =
   | TriggerNodeData
   | ConditionNodeData
   | ActionNodeData
   | ApprovalNodeData
-  | Record<string, never>;
+  | Record<string, unknown>;

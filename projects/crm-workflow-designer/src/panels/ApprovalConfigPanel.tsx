@@ -17,7 +17,7 @@ export function ApprovalConfigPanel({ nodeId }: ApprovalConfigPanelProps) {
   const data = (node?.data ?? {}) as Partial<ApprovalNodeData>;
 
   function update(patch: Partial<ApprovalNodeData>) {
-    updateNodeData(nodeId, patch);
+    updateNodeData(nodeId, patch as Record<string, unknown>);
   }
 
   return (

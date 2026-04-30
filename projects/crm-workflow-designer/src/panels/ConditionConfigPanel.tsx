@@ -47,7 +47,7 @@ export function ConditionConfigPanel({ nodeId }: ConditionConfigPanelProps) {
   }, [selectedEntity, crmContext]);
 
   function update(patch: Partial<ConditionNodeData>) {
-    updateNodeData(nodeId, patch);
+    updateNodeData(nodeId, patch as Record<string, unknown>);
   }
 
   const showValue = data.operator && !NO_VALUE_OPERATORS.includes(data.operator);

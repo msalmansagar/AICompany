@@ -1,15 +1,18 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { Node, Edge } from '@xyflow/react';
-import type { NodeData } from '../types/WorkflowTypes';
 import type { CrmContext, EntityMetadata } from '../types/CrmTypes';
 
+// React Flow requires data to extend Record<string,unknown>.
+// We use unparameterised Node here and cast to our typed interfaces at read points.
+type RfNode = Node;
+
 interface WorkflowStore {
-  nodes: Node<NodeData>[];
+  nodes: RfNode[];
   edges: Edge[];
-  setNodes: (nodes: Node<NodeData>[]) => void;
+  setNodes: (nodes: RfNode[]) => void;
   setEdges: (edges: Edge[]) => void;
-  updateNodeData: (id: string, data: Partial<NodeData>) => void;
+  updateNodeData: (id: string, data: Record<string, unknown>) => void;
 
   selectedNodeId: string | null;
   setSelectedNodeId: (id: string | null) => void;
@@ -41,7 +44,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
     updateNodeData: (id, data) =>
       set((state) => ({
         nodes: state.nodes.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, ...data } as NodeData } : n
+          n.id === id ? { ...n, data: { ...n.data, ...data } } : n
         ),
         dirtyFlag: true,
       })),
