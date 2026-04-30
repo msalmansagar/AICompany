@@ -3,45 +3,76 @@ import type { ConditionNodeData } from '../types/WorkflowTypes';
 import { useWorkflowStore } from '../store/workflowStore';
 import { NodeShell } from './NodeShell';
 
+const COLOR = '#d97706';
+
 export function ConditionNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as ConditionNodeData;
   const viewMode = useWorkflowStore((s) => s.viewMode);
+  const subtitle = nodeData.field
+    ? `${nodeData.field} ${nodeData.operator ?? ''} ${nodeData.value ?? ''}`.trim()
+    : 'No condition set';
 
   return (
-    <NodeShell color="#d97706" badge="CONDITION" selected={selected}>
-      <Handle type="target" position={Position.Top} isConnectable={!viewMode} />
-      <div style={label}>{nodeData.field || 'No field'}</div>
-      <div style={sub}>{nodeData.operator} {nodeData.value ?? ''}</div>
+    <div style={{ position: 'relative' }}>
+      <Handle type="target" position={Position.Left} style={handleStyle(COLOR)} isConnectable={!viewMode} />
+      <NodeShell
+        borderColor={COLOR}
+        name="Condition"
+        subtitle={subtitle}
+        selected={selected}
+      >
+        <div style={branches}>
+          <span style={trueTag}>True ↓</span>
+          <span style={falseTag}>False ↓</span>
+        </div>
+      </NodeShell>
       <Handle
         type="source"
         position={Position.Bottom}
         id="true"
-        style={{ left: '30%' }}
+        style={{ ...handleStyle(COLOR), left: '30%' }}
         isConnectable={!viewMode}
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="false"
-        style={{ left: '70%' }}
+        style={{ ...handleStyle(COLOR), left: '70%' }}
         isConnectable={!viewMode}
       />
-      <div style={branchLabels}>
-        <span style={trueLabel}>T</span>
-        <span style={falseLabel}>F</span>
-      </div>
-    </NodeShell>
+      <Handle type="source" position={Position.Right} style={handleStyle(COLOR)} isConnectable={!viewMode} />
+    </div>
   );
 }
 
-const label: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#1e293b' };
-const sub: React.CSSProperties = { fontSize: 11, color: '#64748b', marginTop: 2 };
-const branchLabels: React.CSSProperties = {
+function handleStyle(color: string): React.CSSProperties {
+  return {
+    width: 10,
+    height: 10,
+    background: '#fff',
+    border: `2px solid ${color}`,
+    borderRadius: '50%',
+  };
+}
+
+const branches: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between',
-  marginTop: 8,
-  paddingTop: 4,
+  marginTop: 6,
+  paddingTop: 5,
   borderTop: '1px solid #f1f5f9',
 };
-const trueLabel: React.CSSProperties = { fontSize: 10, color: '#16a34a', fontWeight: 700 };
-const falseLabel: React.CSSProperties = { fontSize: 10, color: '#dc2626', fontWeight: 700 };
+
+const trueTag: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  color: '#16a34a',
+  letterSpacing: 0.3,
+};
+
+const falseTag: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  color: '#dc2626',
+  letterSpacing: 0.3,
+};
