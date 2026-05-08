@@ -51,7 +51,18 @@ export function WorkflowCanvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Consume pending load (from CRM) — one-shot, no loop
+  // Seed a Start (trigger) node on first mount
+  useEffect(() => {
+    setNodes([{
+      id: crypto.randomUUID(),
+      type: 'trigger' as const,
+      position: { x: 120, y: 200 },
+      data: { nodeName: 'Start' },
+    }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Consume pending load (from CRM) — one-shot, overrides seed
   useEffect(() => {
     if (!pendingLoad) return;
     setNodes(pendingLoad.nodes);
@@ -72,6 +83,42 @@ export function WorkflowCanvas() {
     );
     ids.forEach(clearNodeDataPatch);
   }, [nodeDataPatches, setNodes, clearNodeDataPatch]);
+
+  // Auto-add End node and wire edges when any node is marked as Terminating Stage
+  useEffect(() => {
+    if (viewMode) return;
+    const terminatingNodes = nodes.filter((n) => n.data.terminatingStage);
+    if (terminatingNodes.length === 0) return;
+
+    const endNode = nodes.find((n) => n.type === 'end');
+    if (!endNode) {
+      const maxX = Math.max(...nodes.map((n) => n.position.x), 0);
+      const avgY = Math.round(nodes.reduce((s, n) => s + n.position.y, 0) / nodes.length);
+      setNodes((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          type: 'end' as const,
+          position: { x: maxX + 240, y: avgY },
+          data: { nodeName: 'End' },
+        },
+      ]);
+      return; // next render will wire the edge once endNode is committed
+    }
+
+    const unconnected = terminatingNodes.filter(
+      (n) => !edges.some((e) => e.source === n.id && e.target === endNode.id)
+    );
+    if (unconnected.length === 0) return;
+
+    setEdges((prev) => {
+      let updated = prev;
+      for (const n of unconnected) {
+        updated = addEdge({ id: crypto.randomUUID(), source: n.id, target: endNode.id }, updated);
+      }
+      return updated;
+    });
+  }, [nodes, edges, viewMode, setNodes, setEdges]);
 
   // Consume pending node deletion
   useEffect(() => {
