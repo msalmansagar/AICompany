@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { TokenLexer } from '../src/token/TokenLexer';
 import { TokenParser } from '../src/token/TokenParser';
-import { AstNode, EachNode, IfNode, MustacheNode, TextNode } from '../src/token/TokenTypes';
+import { EachNode, IfNode, MustacheNode, TextNode } from '../src/token/TokenTypes';
 
 function parse(source: string) {
   const lexer = new TokenLexer();

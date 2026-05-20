@@ -20,7 +20,6 @@ export class EmailEditorControl
   implements ComponentFramework.ReactControl<IInputs, IOutputs> {
 
   private notifyOutputChanged!: () => void;
-  private context!: ComponentFramework.Context<IInputs>;
   private currentValue: string = '';
   private metadataService!: MetadataService;
   private logger!: Logger;
@@ -31,7 +30,6 @@ export class EmailEditorControl
     notifyOutputChanged: () => void,
     _state: ComponentFramework.Dictionary
   ): void {
-    this.context = context;
     this.notifyOutputChanged = notifyOutputChanged;
     this.currentValue = context.parameters.templateValue.raw ?? '';
 
@@ -57,8 +55,6 @@ export class EmailEditorControl
   public updateView(
     context: ComponentFramework.Context<IInputs>
   ): React.ReactElement {
-    this.context = context;
-
     const incoming = context.parameters.templateValue.raw ?? '';
     if (incoming !== this.currentValue) {
       this.currentValue = incoming;

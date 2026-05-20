@@ -36,13 +36,14 @@ export class TokenLexer {
     let pos = 0;
 
     while (pos < source.length) {
-      // Block tags must be matched before generic {{
+      // Block tags and mustache openers are matched in text mode.
+      // Everything else outside {{ }} is plain TEXT.
       if (this.matchesAt(source, pos, '{{#each')) {
         tokens.push({ kind: 'BLOCK_EACH', value: '{{#each', position: pos });
-        pos += 7;
+        pos = this.lexInsideMustache(source, pos + 7, tokens);
       } else if (this.matchesAt(source, pos, '{{#if')) {
         tokens.push({ kind: 'BLOCK_IF', value: '{{#if', position: pos });
-        pos += 5;
+        pos = this.lexInsideMustache(source, pos + 5, tokens);
       } else if (this.matchesAt(source, pos, '{{else}}')) {
         tokens.push({ kind: 'BLOCK_ELSE', value: '{{else}}', position: pos });
         pos += 8;
@@ -54,19 +55,50 @@ export class TokenLexer {
         pos += 7;
       } else if (this.matchesAt(source, pos, '{{')) {
         tokens.push({ kind: 'OPEN_MUSTACHE', value: '{{', position: pos });
-        pos += 2;
-      } else if (this.matchesAt(source, pos, '}}')) {
+        pos = this.lexInsideMustache(source, pos + 2, tokens);
+      } else {
+        // Text mode: accumulate everything until the next {{ (or end of input).
+        const start = pos;
+        while (pos < source.length && !this.matchesAt(source, pos, '{{')) {
+          pos += 1;
+        }
+        if (pos > start) {
+          tokens.push({ kind: 'TEXT', value: source.slice(start, pos), position: start });
+        }
+      }
+    }
+
+    tokens.push({ kind: 'EOF', value: '', position: pos });
+    return tokens;
+  }
+
+  /**
+   * Lexes fine-grained tokens from inside a {{ … }} expression.
+   * Skips whitespace, emits IDENTIFIER / DOT / PIPE / etc., then
+   * emits CLOSE_MUSTACHE on }} and returns the new position.
+   */
+  private lexInsideMustache(source: string, pos: number, tokens: LexToken[]): number {
+    while (pos < source.length) {
+      // Whitespace is insignificant inside mustaches
+      if (/\s/.test(source[pos])) {
+        pos++;
+        continue;
+      }
+
+      if (this.matchesAt(source, pos, '}}')) {
         tokens.push({ kind: 'CLOSE_MUSTACHE', value: '}}', position: pos });
-        pos += 2;
-      } else if (source[pos] === '|') {
+        return pos + 2;
+      }
+
+      if (source[pos] === '|') {
         tokens.push({ kind: 'PIPE', value: '|', position: pos });
-        pos += 1;
+        pos++;
       } else if (source[pos] === '.') {
         tokens.push({ kind: 'DOT', value: '.', position: pos });
-        pos += 1;
+        pos++;
       } else if (source[pos] === ':') {
         tokens.push({ kind: 'COLON', value: ':', position: pos });
-        pos += 1;
+        pos++;
       } else if (this.isCompareOpStart(source, pos)) {
         const { value, length } = this.readCompareOp(source, pos);
         tokens.push({ kind: 'COMPARE_OP', value, position: pos });
@@ -81,23 +113,14 @@ export class TokenLexer {
         pos += length;
       } else if (this.isIdentStart(source[pos])) {
         const { value, length } = this.readIdentifier(source, pos);
-        const kind = this.classifyIdentifier(value);
-        tokens.push({ kind, value, position: pos });
+        tokens.push({ kind: this.classifyIdentifier(value), value, position: pos });
         pos += length;
       } else {
-        // Accumulate plain text until we hit {{ or end
-        const start = pos;
-        while (pos < source.length && !this.matchesAt(source, pos, '{{')) {
-          pos += 1;
-        }
-        if (pos > start) {
-          tokens.push({ kind: 'TEXT', value: source.slice(start, pos), position: start });
-        }
+        pos++; // skip unrecognised character inside mustache
       }
     }
-
-    tokens.push({ kind: 'EOF', value: '', position: pos });
-    return tokens;
+    // Reached end of input without closing }} — emit no CLOSE_MUSTACHE
+    return pos;
   }
 
   private matchesAt(source: string, pos: number, needle: string): boolean {

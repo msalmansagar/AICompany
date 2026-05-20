@@ -46,7 +46,7 @@
 
     <resources>
       <code path="index.ts" order="1" />
-      <resx path="strings/EmailEditorControl.1033.resx" version="1.0.0" />
+      <resx path="EmailEditorControl.1033.resx" version="1.0.0" />
     </resources>
 
     <feature-usage>
