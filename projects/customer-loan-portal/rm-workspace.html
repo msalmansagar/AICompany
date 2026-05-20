@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QDB CRM — RM Workspace (Dynamics CRM On-Premise)</title>
+<style>
+  :root {
+    --crm-blue: #0078d4;
+    --crm-blue-dark: #005a9e;
+    --crm-blue-light: #eff6fc;
+    --crm-header: #1b1b1b;
+    --crm-ribbon: #f5f5f5;
+    --crm-ribbon-border: #d1d1d1;
+    --crm-sidebar: #fafafa;
+    --crm-body: #ffffff;
+    --crm-border: #e1e1e1;
+    --crm-text: #201f1e;
+    --crm-text-light: #605e5c;
+    --crm-text-muted: #8a8886;
+    --crm-hover: #f3f2f1;
+    --crm-selected: #edebe9;
+    --success: #107c10;
+    --warning: #797673;
+    --danger: #a4262c;
+    --radius: 2px;
+    --shadow: 0 1.6px 3.6px 0 rgba(0,0,0,.132), 0 0.3px 0.9px 0 rgba(0,0,0,.108);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', -apple-system, sans-serif; font-size: 13px; background: #f0f0f0; color: var(--crm-text); }
+
+  /* ── CRM CHROME ── */
+  .crm-header { background: var(--crm-blue); height: 40px; display: flex; align-items: center; padding: 0 12px; gap: 12px; color: white; position: sticky; top: 0; z-index: 200; }
+  .crm-header-logo { font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .crm-header-logo-mark { background: white; color: var(--crm-blue); width: 24px; height: 24px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12px; }
+  .crm-header-spacer { flex: 1; }
+  .crm-header-user { font-size: 12px; display: flex; align-items: center; gap: 8px; }
+  .crm-header-avatar { width: 28px; height: 28px; background: rgba(255,255,255,0.25); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 11px; }
+  .crm-sitemap { background: #1b1b1b; height: 36px; display: flex; align-items: center; padding: 0 8px; gap: 2px; }
+  .crm-sitemap-item { color: rgba(255,255,255,0.8); font-size: 13px; padding: 6px 12px; border-radius: 2px; cursor: pointer; }
+  .crm-sitemap-item:hover, .crm-sitemap-item.active { color: white; background: rgba(255,255,255,0.15); }
+
+  /* ── RIBBON ── */
+  .ribbon { background: var(--crm-ribbon); border-bottom: 1px solid var(--crm-ribbon-border); padding: 4px 8px; display: flex; align-items: flex-end; gap: 2px; flex-wrap: wrap; }
+  .ribbon-group { display: flex; flex-direction: column; border-right: 1px solid var(--crm-ribbon-border); padding: 2px 10px 0 4px; margin-right: 2px; }
+  .ribbon-group-label { font-size: 10px; color: var(--crm-text-muted); text-align: center; margin-top: 2px; }
+  .ribbon-group-btns { display: flex; gap: 2px; }
+  .ribbon-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 8px; border-radius: var(--radius); cursor: pointer; border: 1px solid transparent; font-size: 11px; color: var(--crm-text); min-width: 48px; }
+  .ribbon-btn:hover { background: var(--crm-selected); border-color: var(--crm-border); }
+  .ribbon-btn.primary { color: var(--crm-blue); font-weight: 600; }
+  .ribbon-btn.danger { color: var(--danger); }
+  .ribbon-btn .rb-icon { font-size: 18px; }
+  .ribbon-btn-sm { flex-direction: row; gap: 4px; min-width: unset; padding: 5px 10px; }
+
+  /* ── BREADCRUMB ── */
+  .breadcrumb { background: white; padding: 6px 16px; border-bottom: 1px solid var(--crm-border); font-size: 12px; color: var(--crm-text-light); display: flex; align-items: center; gap: 6px; }
+  .breadcrumb-link { color: var(--crm-blue); cursor: pointer; }
+  .breadcrumb-link:hover { text-decoration: underline; }
+
+  /* ── MAIN LAYOUT ── */
+  .crm-body { display: flex; height: calc(100vh - 76px - 36px); }
+  .crm-content { flex: 1; overflow-y: auto; }
+
+  /* ── FORM HEADER ── */
+  .form-header { background: white; border-bottom: 1px solid var(--crm-border); padding: 12px 16px; display: flex; align-items: flex-start; gap: 16px; }
+  .form-header-icon { width: 48px; height: 48px; background: var(--crm-blue); border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: white; flex-shrink: 0; }
+  .form-header-title { font-size: 18px; font-weight: 600; color: var(--crm-text); }
+  .form-header-sub { font-size: 12px; color: var(--crm-text-light); margin-top: 2px; }
+  .form-header-badges { display: flex; gap: 6px; margin-top: 6px; }
+  .form-header-spacer { flex: 1; }
+  .form-header-meta { text-align: right; font-size: 12px; color: var(--crm-text-muted); }
+
+  /* ── BPF STAGE BAR ── */
+  .bpf { background: white; border-bottom: 1px solid var(--crm-border); padding: 0 16px; display: flex; align-items: stretch; overflow-x: auto; }
+  .bpf-stage { display: flex; align-items: center; padding: 10px 16px 10px 28px; font-size: 12px; font-weight: 500; color: var(--crm-text-light); cursor: pointer; position: relative; white-space: nowrap; clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%); margin-right: -1px; background: var(--crm-hover); }
+  .bpf-stage:first-child { clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%); padding-left: 16px; }
+  .bpf-stage.done { background: #ddf2dd; color: var(--success); }
+  .bpf-stage.active { background: var(--crm-blue); color: white; font-weight: 600; }
+  .bpf-stage.future { background: var(--crm-hover); color: var(--crm-text-muted); }
+
+  /* ── TABS ── */
+  .tab-bar { background: white; border-bottom: 1px solid var(--crm-border); display: flex; padding: 0 16px; }
+  .tab { padding: 10px 16px; font-size: 13px; color: var(--crm-text-light); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab:hover { color: var(--crm-text); background: var(--crm-hover); }
+  .tab.active { color: var(--crm-blue); border-bottom-color: var(--crm-blue); font-weight: 600; }
+
+  /* ── TAB CONTENT ── */
+  .tab-content { display: none; padding: 16px; }
+  .tab-content.active { display: block; }
+
+  /* ── SECTION ── */
+  .crm-section { background: white; border: 1px solid var(--crm-border); border-radius: var(--radius); margin-bottom: 12px; }
+  .crm-section-header { padding: 8px 12px; background: #f5f5f5; border-bottom: 1px solid var(--crm-border); font-weight: 600; font-size: 13px; color: var(--crm-text); display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .crm-section-body { padding: 12px; }
+
+  /* ── FIELD ROWS ── */
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .field { padding: 5px 10px; }
+  .field-label { font-size: 11px; color: var(--crm-text-muted); margin-bottom: 2px; }
+  .field-value { font-size: 13px; color: var(--crm-text); font-weight: 500; }
+  .field-value.link { color: var(--crm-blue); cursor: pointer; }
+  .field-value.link:hover { text-decoration: underline; }
+
+  /* ── SUBGRID ── */
+  .subgrid { background: white; border: 1px solid var(--crm-border); }
+  .subgrid-header { background: #f5f5f5; padding: 6px 10px; border-bottom: 1px solid var(--crm-border); display: flex; align-items: center; justify-content: space-between; }
+  .subgrid-title { font-weight: 600; font-size: 12px; color: var(--crm-text); }
+  .subgrid-actions { display: flex; gap: 4px; }
+  .sg-btn { background: none; border: 1px solid var(--crm-border); border-radius: var(--radius); padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--crm-text); }
+  .sg-btn:hover { background: var(--crm-hover); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 6px 10px; font-size: 11px; font-weight: 600; color: var(--crm-text-muted); background: #faf9f8; border-bottom: 1px solid var(--crm-border); }
+  td { padding: 7px 10px; border-bottom: 1px solid #f3f2f1; font-size: 12px; color: var(--crm-text); }
+  tr:hover td { background: var(--crm-hover); }
+  tr:last-child td { border-bottom: none; }
+  .td-link { color: var(--crm-blue); cursor: pointer; }
+
+  /* ── BADGES ── */
+  .badge { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .badge-sub { background: #eff6fc; color: #0078d4; }
+  .badge-rm { background: #fff4ce; color: #7a5700; }
+  .badge-credit { background: #f0e6ff; color: #6500a8; }
+  .badge-approve { background: #ddf2dd; color: #107c10; }
+  .badge-reject { background: #fde7e9; color: #a4262c; }
+  .badge-merged { background: #e1dfdd; color: #3b3a39; }
+
+  /* ── CUSTOMER 360 PANEL ── */
+  .c360 { background: white; border: 1px solid var(--crm-border); padding: 14px; margin-bottom: 12px; }
+  .c360-header { font-weight: 600; font-size: 14px; margin-bottom: 12px; color: var(--crm-text); }
+  .c360-kpi { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .c360-kpi-item { background: var(--crm-blue-light); border-radius: 3px; padding: 10px 12px; }
+  .c360-kpi-label { font-size: 11px; color: var(--crm-blue); font-weight: 500; }
+  .c360-kpi-value { font-size: 18px; font-weight: 700; color: var(--crm-blue-dark); }
+
+  /* ── TIMELINE ── */
+  .tl { padding: 4px 0; }
+  .tl-item { display: flex; gap: 10px; padding-bottom: 14px; }
+  .tl-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--crm-border); background: white; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+  .tl-dot.crm { background: var(--crm-blue); border-color: var(--crm-blue); color: white; }
+  .tl-dot.sys { background: #faf9f8; border-color: var(--crm-border); color: var(--crm-text-muted); }
+  .tl-body { flex: 1; padding-top: 2px; }
+  .tl-actor { font-weight: 600; font-size: 12px; }
+  .tl-action { font-size: 12px; color: var(--crm-text-light); }
+  .tl-time { font-size: 11px; color: var(--crm-text-muted); }
+
+  /* ── MODAL OVERLAY ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 500; display: none; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 820px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal-header { background: var(--crm-blue); color: white; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { cursor: pointer; font-size: 20px; opacity: 0.8; }
+  .modal-close:hover { opacity: 1; }
+  .modal-body { padding: 20px; }
+  .modal-footer { padding: 14px 20px; border-top: 1px solid var(--crm-border); display: flex; gap: 8px; justify-content: flex-end; background: #faf9f8; }
+
+  /* ── WIZARD STEPS ── */
+  .wiz-steps { display: flex; gap: 0; border-bottom: 1px solid var(--crm-border); margin-bottom: 20px; }
+  .wiz-step { padding: 10px 20px; font-size: 12px; font-weight: 500; color: var(--crm-text-muted); border-bottom: 2px solid transparent; cursor: pointer; }
+  .wiz-step.active { color: var(--crm-blue); border-bottom-color: var(--crm-blue); }
+  .wiz-step.done { color: var(--success); }
+
+  /* ── APP COMPARISON ── */
+  .app-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .app-card { border: 2px solid var(--crm-border); border-radius: 3px; padding: 12px; cursor: pointer; }
+  .app-card.master { border-color: var(--crm-blue); background: var(--crm-blue-light); }
+  .app-card-ref { font-weight: 600; font-size: 13px; color: var(--crm-text); }
+  .app-card-meta { font-size: 11px; color: var(--crm-text-muted); margin-top: 4px; }
+
+  /* ── SPLIT SELECTOR ── */
+  .split-facility { border: 1px solid var(--crm-border); border-radius: 3px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+  .split-facility.selected { border-color: var(--crm-blue); background: var(--crm-blue-light); }
+  .split-check { width: 16px; height: 16px; border: 2px solid var(--crm-border); border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; cursor: pointer; }
+  .split-facility.selected .split-check { background: var(--crm-blue); border-color: var(--crm-blue); color: white; }
+
+  /* ── QUICK VIEW ── */
+  .quick-view { background: white; border: 1px solid var(--crm-border); padding: 14px; }
+
+  /* ── BUTTONS ── */
+  .btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; border: 1px solid var(--crm-border); cursor: pointer; background: white; color: var(--crm-text); }
+  .btn:hover { background: var(--crm-hover); }
+  .btn-primary { background: var(--crm-blue); color: white; border-color: var(--crm-blue); }
+  .btn-primary:hover { background: var(--crm-blue-dark); }
+  .btn-danger { background: var(--danger); color: white; border-color: var(--danger); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-success { background: var(--success); color: white; border-color: var(--success); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #f3f2f1; }
+  ::-webkit-scrollbar-thumb { background: #c8c6c4; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- CRM CHROME -->
+<div class="crm-header">
+  <div class="crm-header-logo">
+    <div class="crm-header-logo-mark">Q</div>
+    QDB Dynamics CRM
+  </div>
+  <div class="crm-header-spacer"></div>
+  <div class="crm-header-user">
+    <span style="font-size:18px;cursor:pointer;" title="Search">🔍</span>
+    <span style="font-size:18px;cursor:pointer;" title="Settings">⚙️</span>
+    <div class="crm-header-avatar">AK</div>
+    Ahmed Al-Kuwari · RM
+  </div>
+</div>
+
+<div class="crm-sitemap">
+  <div class="crm-sitemap-item">Home</div>
+  <div class="crm-sitemap-item active">Loan Applications</div>
+  <div class="crm-sitemap-item">Customers</div>
+  <div class="crm-sitemap-item">Facilities</div>
+  <div class="crm-sitemap-item">Reports</div>
+</div>
+
+<!-- RIBBON -->
+<div class="ribbon">
+  <div class="ribbon-group">
+    <div class="ribbon-group-btns">
+      <div class="ribbon-btn primary" onclick="alert('Saving...')"><div class="rb-icon">💾</div>Save</div>
+      <div class="ribbon-btn" onclick="alert('Refreshing...')"><div class="rb-icon">🔄</div>Refresh</div>
+      <div class="ribbon-btn" onclick="alert('Deleting...')"><div class="rb-icon">🗑️</div>Delete</div>
+    </div>
+    <div class="ribbon-group-label">Record</div>
+  </div>
+  <div class="ribbon-group">
+    <div class="ribbon-group-btns">
+      <div class="ribbon-btn primary" onclick="openModal('merge-modal')"><div class="rb-icon">🔗</div>Merge Apps</div>
+      <div class="ribbon-btn primary" onclick="openModal('split-modal')"><div class="rb-icon">✂️</div>Split / Branch</div>
+    </div>
+    <div class="ribbon-group-label">Application Actions</div>
+  </div>
+  <div class="ribbon-group">
+    <div class="ribbon-group-btns">
+      <div class="ribbon-btn" onclick="changeStage('credit')"><div class="rb-icon">📤</div>Submit to Credit</div>
+      <div class="ribbon-btn" onclick="alert('Returning to customer...')"><div class="rb-icon">↩️</div>Return to Customer</div>
+      <div class="ribbon-btn" onclick="alert('Requesting more info...')"><div class="rb-icon">❓</div>Request Info</div>
+    </div>
+    <div class="ribbon-group-label">Workflow</div>
+  </div>
+  <div class="ribbon-group">
+    <div class="ribbon-group-btns">
+      <div class="ribbon-btn danger" onclick="alert('Cancelling application...')"><div class="rb-icon">🚫</div>Cancel</div>
+    </div>
+    <div class="ribbon-group-label">Other</div>
+  </div>
+</div>
+
+<!-- BREADCRUMB -->
+<div class="breadcrumb">
+  <span class="breadcrumb-link">Loan Applications</span>
+  <span>›</span>
+  <span>APP-20260501-0042</span>
+  <span>›</span>
+  <span style="color:var(--crm-text);">Al-Rashid Industries LLC — Renewal + Limit Increase</span>
+</div>
+
+<!-- BPF STAGE BAR -->
+<div class="bpf" id="bpf-bar">
+  <div class="bpf-stage done">✓ Submitted</div>
+  <div class="bpf-stage done">✓ RM Review</div>
+  <div class="bpf-stage active" id="bpf-credit">Credit Review</div>
+  <div class="bpf-stage future">Approval</div>
+  <div class="bpf-stage future">Completed</div>
+</div>
+
+<!-- MAIN CRM BODY -->
+<div class="crm-body">
+  <div class="crm-content">
+
+    <!-- FORM HEADER -->
+    <div class="form-header">
+      <div class="form-header-icon">📋</div>
+      <div>
+        <div class="form-header-title">APP-20260501-0042</div>
+        <div class="form-header-sub">Al-Rashid Industries LLC · CIF: QDB-C-004821</div>
+        <div class="form-header-badges">
+          <span class="badge badge-credit">Credit Review</span>
+          <span class="badge badge-sub">Standard Priority</span>
+        </div>
+      </div>
+      <div class="form-header-spacer"></div>
+      <div class="form-header-meta">
+        <div>Submitted: 01 May 2026</div>
+        <div>Owner: Ahmed Al-Kuwari</div>
+        <div>Modified: 03 May 2026</div>
+      </div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tab-bar">
+      <div class="tab active" onclick="showTab('summary')">Summary</div>
+      <div class="tab" onclick="showTab('facilities')">Facilities & Request Types</div>
+      <div class="tab" onclick="showTab('documents')">Documents</div>
+      <div class="tab" onclick="showTab('exposure')">Customer Exposure</div>
+      <div class="tab" onclick="showTab('history')">Merge / Split History</div>
+      <div class="tab" onclick="showTab('approvals')">Approvals</div>
+      <div class="tab" onclick="showTab('audit')">Audit Timeline</div>
+    </div>
+
+    <!-- TAB: SUMMARY -->
+    <div id="tab-summary" class="tab-content active">
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;">
+        <div>
+          <!-- Customer 360 -->
+          <div class="c360">
+            <div class="c360-header">👤 Customer 360 — Al-Rashid Industries LLC</div>
+            <div class="c360-kpi">
+              <div class="c360-kpi-item"><div class="c360-kpi-label">Total Exposure</div><div class="c360-kpi-value">QAR 85M</div></div>
+              <div class="c360-kpi-item"><div class="c360-kpi-label">Active Facilities</div><div class="c360-kpi-value">4</div></div>
+              <div class="c360-kpi-item"><div class="c360-kpi-label">Relationship Since</div><div class="c360-kpi-value">2018</div></div>
+            </div>
+            <div class="field-row">
+              <div class="field"><div class="field-label">Customer Name</div><div class="field-value link">Al-Rashid Industries LLC</div></div>
+              <div class="field"><div class="field-label">CIF Number</div><div class="field-value">QDB-C-004821</div></div>
+              <div class="field"><div class="field-label">Segment</div><div class="field-value">Corporate — Large</div></div>
+              <div class="field"><div class="field-label">Industry</div><div class="field-value">Manufacturing & Construction</div></div>
+              <div class="field"><div class="field-label">Contact Person</div><div class="field-value">Khalid Al-Rashid (CEO)</div></div>
+              <div class="field"><div class="field-label">Rating (Internal)</div><div class="field-value">BB+ / Acceptable Risk</div></div>
+            </div>
+          </div>
+
+          <!-- Application Summary -->
+          <div class="crm-section">
+            <div class="crm-section-header" onclick="toggleSection('app-summary')">Application Details <span>▾</span></div>
+            <div class="crm-section-body" id="app-summary">
+              <div class="field-row">
+                <div class="field"><div class="field-label">Reference Number</div><div class="field-value link">APP-20260501-0042</div></div>
+                <div class="field"><div class="field-label">Submitted Date</div><div class="field-value">01 May 2026</div></div>
+                <div class="field"><div class="field-label">Total Facilities</div><div class="field-value">2</div></div>
+                <div class="field"><div class="field-label">Total Amount Requested</div><div class="field-value">QAR 65,000,000</div></div>
+                <div class="field"><div class="field-label">Merge/Split Type</div><div class="field-value">None</div></div>
+                <div class="field"><div class="field-label">Workflow Stage</div><div class="field-value">Credit Review</div></div>
+                <div class="field"><div class="field-label">Assigned RM</div><div class="field-value link">Ahmed Al-Kuwari</div></div>
+                <div class="field"><div class="field-label">Priority</div><div class="field-value">Standard</div></div>
+              </div>
+              <div class="field" style="padding:5px 10px;">
+                <div class="field-label">Customer Remarks</div>
+                <div class="field-value" style="font-style:italic;color:var(--crm-text-light);">"Business expansion — new plant in Al Wakra. Requires additional working capital and renewal of existing term loan and LC facility."</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right panel: Quick notifications -->
+        <div>
+          <div class="crm-section" style="margin-bottom:12px;">
+            <div class="crm-section-header">Risk Indicators</div>
+            <div class="crm-section-body" style="font-size:12px;">
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f2f1;"><span>Overdue Instalments</span><span style="color:var(--success);font-weight:600;">None</span></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f2f1;"><span>Expiring Facilities</span><span style="color:#d97706;font-weight:600;">1 (Jun 2025)</span></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f3f2f1;"><span>Pending Applications</span><span>1</span></div>
+              <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>Credit Score</span><span style="color:var(--success);font-weight:600;">BB+ Acceptable</span></div>
+            </div>
+          </div>
+          <div class="crm-section">
+            <div class="crm-section-header">Previous Applications</div>
+            <div class="crm-section-body" style="font-size:12px;padding:8px;">
+              <div style="padding:6px 0;border-bottom:1px solid #f3f2f1;">
+                <div class="td-link">APP-20260415-0031</div>
+                <div style="color:var(--crm-text-muted);">15 Apr 2026 · <span class="badge badge-approve">Approved</span></div>
+              </div>
+              <div style="padding:6px 0;">
+                <div class="td-link">APP-20260310-0019</div>
+                <div style="color:var(--crm-text-muted);">10 Mar 2026 · <span class="badge badge-approve">Approved</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: FACILITIES & REQUEST TYPES -->
+    <div id="tab-facilities" class="tab-content">
+      <div class="subgrid" style="margin-bottom:12px;">
+        <div class="subgrid-header">
+          <div class="subgrid-title">Application Facilities (2)</div>
+          <div class="subgrid-actions"><button class="sg-btn">+ Add Facility</button><button class="sg-btn">Refresh</button></div>
+        </div>
+        <table>
+          <thead><tr><th>Facility Name</th><th>Type</th><th>Current Limit</th><th>Requested Amount</th><th>Tenor</th><th>Expiry</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="td-link">Term Loan — FAC-001</td>
+              <td>Term Loan</td>
+              <td>QAR 25,000,000</td>
+              <td>QAR 35,000,000</td>
+              <td>60 months</td>
+              <td>Dec 2025</td>
+            </tr>
+            <tr>
+              <td class="td-link">LC Facility — FAC-003</td>
+              <td>Letter of Credit</td>
+              <td>QAR 30,000,000</td>
+              <td>QAR 30,000,000</td>
+              <td>12 months</td>
+              <td>Jun 2025 ⚠️</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subgrid">
+        <div class="subgrid-header">
+          <div class="subgrid-title">Request Types (3)</div>
+          <div class="subgrid-actions"><button class="sg-btn">+ Add Request Type</button></div>
+        </div>
+        <table>
+          <thead><tr><th>Facility</th><th>Request Type</th><th>Amount Requested</th><th>Status</th><th>Conflict</th><th>RM Notes</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="td-link">Term Loan — FAC-001</td>
+              <td><strong>Renewal</strong></td>
+              <td>QAR 35,000,000</td>
+              <td><span class="badge badge-credit">In Review</span></td>
+              <td>—</td>
+              <td>Renewal justified. Business expansion.</td>
+            </tr>
+            <tr>
+              <td class="td-link">Term Loan — FAC-001</td>
+              <td><strong>Limit Increase</strong></td>
+              <td>QAR 10,000,000</td>
+              <td><span class="badge badge-credit">In Review</span></td>
+              <td>—</td>
+              <td>New plant capex requirement.</td>
+            </tr>
+            <tr>
+              <td class="td-link">LC Facility — FAC-003</td>
+              <td><strong>Renewal</strong></td>
+              <td>QAR 30,000,000</td>
+              <td><span class="badge badge-credit">In Review</span></td>
+              <td>—</td>
+              <td>Expiring Jun 2025. Renewal required.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: DOCUMENTS -->
+    <div id="tab-documents" class="tab-content">
+      <div class="subgrid">
+        <div class="subgrid-header">
+          <div class="subgrid-title">Application Documents (3)</div>
+          <div class="subgrid-actions"><button class="sg-btn">Download All</button><button class="sg-btn">Request Document</button></div>
+        </div>
+        <table>
+          <thead><tr><th>Document Name</th><th>Type</th><th>Uploaded By</th><th>Date</th><th>Size</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="td-link">AlRashid_FinancialStatements_FY2025.pdf</td>
+              <td>Financial Statements</td>
+              <td>Portal (Customer)</td>
+              <td>01 May 2026</td>
+              <td>2.4 MB</td>
+              <td><span class="badge badge-approve">Verified</span></td>
+              <td><button class="sg-btn">View</button></td>
+            </tr>
+            <tr>
+              <td class="td-link">Board_Resolution_May2026.pdf</td>
+              <td>Board Resolution</td>
+              <td>Portal (Customer)</td>
+              <td>01 May 2026</td>
+              <td>0.8 MB</td>
+              <td><span class="badge badge-approve">Verified</span></td>
+              <td><button class="sg-btn">View</button></td>
+            </tr>
+            <tr>
+              <td class="td-link">BankStatements_Jan-Jun2026.pdf</td>
+              <td>Bank Statements</td>
+              <td>Portal (Customer)</td>
+              <td>02 May 2026</td>
+              <td>1.2 MB</td>
+              <td><span class="badge badge-rm">Requested</span></td>
+              <td><button class="sg-btn">View</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: EXPOSURE -->
+    <div id="tab-exposure" class="tab-content">
+      <div class="c360" style="border:1px solid var(--crm-border);">
+        <div class="c360-header">Current Credit Exposure — Al-Rashid Industries LLC</div>
+        <div class="c360-kpi" style="grid-template-columns:repeat(4,1fr);">
+          <div class="c360-kpi-item"><div class="c360-kpi-label">Total Approved Limits</div><div class="c360-kpi-value">QAR 85M</div></div>
+          <div class="c360-kpi-item"><div class="c360-kpi-label">Total Outstanding</div><div class="c360-kpi-value">QAR 50.6M</div></div>
+          <div class="c360-kpi-item"><div class="c360-kpi-label">Utilisation</div><div class="c360-kpi-value">59.5%</div></div>
+          <div class="c360-kpi-item"><div class="c360-kpi-label">Contingent Exposure</div><div class="c360-kpi-value">QAR 22.1M</div></div>
+        </div>
+        <table>
+          <thead><tr><th>Facility</th><th>Type</th><th>Approved Limit</th><th>Outstanding</th><th>Utilisation</th><th>Expiry</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td class="td-link">FAC-001 — Term Loan</td><td>Term Loan</td><td>QAR 25M</td><td>QAR 18.5M</td><td>74%</td><td>Dec 2025</td><td><span class="badge badge-approve">Active</span></td></tr>
+            <tr><td class="td-link">FAC-002 — Overdraft</td><td>Overdraft</td><td>QAR 10M</td><td>QAR 4.2M</td><td>42%</td><td>Mar 2026</td><td><span class="badge badge-approve">Active</span></td></tr>
+            <tr><td class="td-link">FAC-003 — LC Facility</td><td>Letter of Credit</td><td>QAR 30M</td><td>QAR 22.1M</td><td>74%</td><td>Jun 2025 ⚠️</td><td><span class="badge badge-rm">Expiring</span></td></tr>
+            <tr><td class="td-link">FAC-004 — LG Facility</td><td>Letter of Guarantee</td><td>QAR 20M</td><td>QAR 5.8M</td><td>29%</td><td>Sep 2026</td><td><span class="badge badge-approve">Active</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: MERGE/SPLIT HISTORY -->
+    <div id="tab-history" class="tab-content">
+      <div style="color:var(--crm-text-muted);font-size:13px;padding:20px;text-align:center;">No merge or split operations have been performed on this application.</div>
+      <div style="text-align:center;margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="openModal('merge-modal')">Merge Applications</button>
+        <button class="btn btn-sm" style="margin-left:8px;" onclick="openModal('split-modal')">Split / Branch</button>
+      </div>
+    </div>
+
+    <!-- TAB: APPROVALS -->
+    <div id="tab-approvals" class="tab-content">
+      <div class="subgrid">
+        <div class="subgrid-header"><div class="subgrid-title">Approval Decisions</div></div>
+        <table>
+          <thead><tr><th>Stage</th><th>Decided By</th><th>Decision</th><th>Date</th><th>Conditions / Notes</th></tr></thead>
+          <tbody>
+            <tr><td>RM Review</td><td>Ahmed Al-Kuwari</td><td><span class="badge badge-approve">Approved — Submit to Credit</span></td><td>01 May 2026</td><td>All documents in order. Financials strong.</td></tr>
+            <tr><td>Credit Review</td><td colspan="4" style="color:var(--crm-text-muted);font-style:italic;">Pending — awaiting Credit Analyst decision</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: AUDIT TIMELINE -->
+    <div id="tab-audit" class="tab-content">
+      <div class="crm-section">
+        <div class="crm-section-header">Audit Trail — All Events</div>
+        <div class="crm-section-body">
+          <div class="tl">
+            <div class="tl-item"><div class="tl-dot crm">P</div><div class="tl-body"><div class="tl-actor">Portal (System)</div><div class="tl-action">Application submitted by customer. Status changed: Draft → Submitted. Reference assigned: APP-20260501-0042</div><div class="tl-time">01 May 2026, 09:14 AM · Correlation: c7f3-4a21</div></div></div>
+            <div class="tl-item"><div class="tl-dot crm">B</div><div class="tl-body"><div class="tl-actor">BMP Module (System)</div><div class="tl-action">Workflow initiated. RM review task created and assigned to Ahmed Al-Kuwari. Customer notification sent.</div><div class="tl-time">01 May 2026, 09:14 AM</div></div></div>
+            <div class="tl-item"><div class="tl-dot crm">A</div><div class="tl-body"><div class="tl-actor">Ahmed Al-Kuwari (RM)</div><div class="tl-action">Application claimed. Status: Submitted → RM Review. Document verification started.</div><div class="tl-time">01 May 2026, 10:30 AM</div></div></div>
+            <div class="tl-item"><div class="tl-dot crm">A</div><div class="tl-body"><div class="tl-actor">Ahmed Al-Kuwari (RM)</div><div class="tl-action">RM review completed. All facilities verified. RM notes added per request type. Application submitted to Credit.</div><div class="tl-time">01 May 2026, 02:30 PM</div></div></div>
+            <div class="tl-item"><div class="tl-dot crm">B</div><div class="tl-body"><div class="tl-actor">BMP Module (System)</div><div class="tl-action">Stage advanced: RM Review → Credit Review. Credit Analyst task created. Customer notified.</div><div class="tl-time">01 May 2026, 02:31 PM</div></div></div>
+            <div class="tl-item"><div class="tl-dot sys">S</div><div class="tl-body"><div class="tl-actor">Sara Al-Mohannadi (Credit Analyst)</div><div class="tl-action">Credit assessment started. Additional document requested: Bank Statements (6 months).</div><div class="tl-time">03 May 2026, 10:00 AM</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: MERGE WIZARD                       -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="merge-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔗 Merge Applications Wizard</div>
+      <div class="modal-close" onclick="closeModal('merge-modal')">×</div>
+    </div>
+    <div class="modal-body">
+      <div class="wiz-steps">
+        <div class="wiz-step active" id="mwiz-1">1. Select Applications</div>
+        <div class="wiz-step" id="mwiz-2">2. Choose Master</div>
+        <div class="wiz-step" id="mwiz-3">3. Validate & Confirm</div>
+      </div>
+
+      <div id="mwiz-step1">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Select applications to merge with APP-20260501-0042</div>
+        <div style="font-size:12px;color:var(--crm-text-muted);margin-bottom:14px;">Only applications for the same customer in Submitted or RM Review status are shown.</div>
+
+        <table style="margin-bottom:16px;">
+          <thead><tr><th style="width:32px;"><input type="checkbox" /></th><th>Reference</th><th>Submitted</th><th>Status</th><th>Facilities</th><th>Total Amount</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox" id="merge-chk-1" checked /></td>
+              <td class="td-link">APP-20260428-0048</td>
+              <td>28 Apr 2026</td>
+              <td><span class="badge badge-sub">Submitted</span></td>
+              <td>1 (Rescheduling — FAC-002)</td>
+              <td>QAR 10,000,000</td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" id="merge-chk-2" /></td>
+              <td class="td-link">APP-20260430-0051</td>
+              <td>30 Apr 2026</td>
+              <td><span class="badge badge-rm">RM Review</span></td>
+              <td>1 (Extension of Drawdown — FAC-004)</td>
+              <td>QAR 20,000,000</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="background:#fff4ce;border:1px solid #f0d070;border-radius:3px;padding:10px;font-size:12px;color:#7a5700;">
+          ⚠️ Validation: APP-20260428-0048 shares customer QDB-C-004821. No duplicate facility-request combinations detected. Eligible for merge.
+        </div>
+      </div>
+
+      <div id="mwiz-step2" style="display:none;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Select the master application. All facilities will be consolidated under this record.</div>
+        <div class="app-compare">
+          <div class="app-card master" onclick="selectMaster(this)">
+            <div style="font-size:11px;color:var(--crm-blue);font-weight:700;margin-bottom:6px;">★ MASTER (Current)</div>
+            <div class="app-card-ref">APP-20260501-0042</div>
+            <div class="app-card-meta">Submitted: 01 May 2026 · 2 facilities · QAR 65M</div>
+            <div class="app-card-meta" style="margin-top:4px;">FAC-001: Renewal + Limit Increase, FAC-003: Renewal</div>
+          </div>
+          <div class="app-card" onclick="selectMaster(this)">
+            <div class="app-card-ref">APP-20260428-0048</div>
+            <div class="app-card-meta">Submitted: 28 Apr 2026 · 1 facility · QAR 10M</div>
+            <div class="app-card-meta" style="margin-top:4px;">FAC-002: Rescheduling</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Merge Notes</label>
+          <textarea style="width:100%;border:1px solid var(--crm-border);border-radius:2px;padding:8px;font-size:12px;height:70px;" placeholder="Reason for merging...">Customer requested consolidation of all Q2 2026 facility requests into a single submission for credit review.</textarea>
+        </div>
+      </div>
+
+      <div id="mwiz-step3" style="display:none;">
+        <div style="background:#ddf2dd;border:1px solid #a3d9a3;border-radius:3px;padding:12px;margin-bottom:14px;font-size:12px;color:#107c10;">
+          ✅ <strong>Validation Passed.</strong> All eligibility checks cleared. Ready to merge.
+        </div>
+        <table style="margin-bottom:14px;">
+          <thead><tr><th>Check</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Same Customer</td><td style="color:var(--success);">✓ QDB-C-004821</td></tr>
+            <tr><td>Status Eligibility</td><td style="color:var(--success);">✓ All in Submitted / RM Review</td></tr>
+            <tr><td>No Duplicate Facility + Request Type</td><td style="color:var(--success);">✓ No conflicts</td></tr>
+            <tr><td>No Active Non-Reversible Workflow</td><td style="color:var(--success);">✓ No blocking tasks</td></tr>
+          </tbody>
+        </table>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Merge Summary</div>
+        <div style="font-size:12px;color:var(--crm-text-light);">
+          Master: <strong>APP-20260501-0042</strong> · Source: <strong>APP-20260428-0048</strong><br/>
+          After merge: 3 facilities, QAR 75,000,000 total · Source application will be marked <em>Merged</em>.
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('merge-modal')">Cancel</button>
+      <button class="btn" id="merge-back-btn" style="display:none;" onclick="mergeWizBack()">← Back</button>
+      <button class="btn btn-primary" id="merge-next-btn" onclick="mergeWizNext()">Next →</button>
+      <button class="btn btn-success" id="merge-confirm-btn" style="display:none;" onclick="confirmMerge()">✓ Confirm Merge</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- MODAL: SPLIT WIZARD                       -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="split-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">✂️ Split / Branch Application Wizard</div>
+      <div class="modal-close" onclick="closeModal('split-modal')">×</div>
+    </div>
+    <div class="modal-body">
+      <div class="wiz-steps">
+        <div class="wiz-step active" id="swiz-1">1. Select Items to Split</div>
+        <div class="wiz-step" id="swiz-2">2. Validate & Confirm</div>
+      </div>
+
+      <div id="swiz-step1">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Select facilities / request types to move to a new child application</div>
+        <div style="font-size:12px;color:var(--crm-text-muted);margin-bottom:14px;">At least one item must remain in the original application. The child application will be created as a branch with a new reference number.</div>
+
+        <div class="split-facility selected" id="sf-1" onclick="toggleSplit('sf-1')">
+          <div class="split-check">✓</div>
+          <div>
+            <div style="font-weight:600;font-size:13px;">Term Loan — FAC-001</div>
+            <div style="font-size:12px;color:var(--crm-text-muted);">Renewal + Limit Increase · QAR 35,000,000</div>
+          </div>
+        </div>
+        <div class="split-facility" id="sf-2" onclick="toggleSplit('sf-2')">
+          <div class="split-check"></div>
+          <div>
+            <div style="font-weight:600;font-size:13px;">LC Facility — FAC-003</div>
+            <div style="font-size:12px;color:var(--crm-text-muted);">Renewal · QAR 30,000,000</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px;background:#eff6fc;border-radius:3px;font-size:12px;color:var(--crm-blue);">
+          ℹ️ <strong>FAC-001</strong> will move to child application. <strong>FAC-003</strong> will remain in APP-20260501-0042.
+        </div>
+        <div style="margin-top:12px;">
+          <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px;">Split Reason <span style="color:red;">*</span></label>
+          <textarea style="width:100%;border:1px solid var(--crm-border);border-radius:2px;padding:8px;font-size:12px;height:70px;" placeholder="Reason for splitting...">Term loan renewal and limit increase require separate credit assessment due to capital expenditure nature vs. trade finance (LC) operations. Splitting for faster LC renewal processing.</textarea>
+        </div>
+      </div>
+
+      <div id="swiz-step2" style="display:none;">
+        <div style="background:#ddf2dd;border:1px solid #a3d9a3;border-radius:3px;padding:12px;margin-bottom:14px;font-size:12px;color:#107c10;">
+          ✅ <strong>Validation Passed.</strong> Split operation is eligible to proceed.
+        </div>
+        <table style="margin-bottom:14px;">
+          <thead><tr><th>Check</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td>Application Status Eligible</td><td style="color:var(--success);">✓ RM Review (eligible)</td></tr>
+            <tr><td>At Least 1 Item Remains in Parent</td><td style="color:var(--success);">✓ FAC-003 remains</td></tr>
+            <tr><td>No Non-Reversible Workflow Tasks on Selected</td><td style="color:var(--success);">✓ No blocking tasks</td></tr>
+            <tr><td>User Has Split Privilege</td><td style="color:var(--success);">✓ maq_CanMergeSplit</td></tr>
+          </tbody>
+        </table>
+        <div style="border:1px solid var(--crm-border);border-radius:3px;padding:14px;">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;">What will be created:</div>
+          <div class="app-compare">
+            <div style="border:1px solid var(--crm-border);border-radius:3px;padding:12px;">
+              <div style="font-size:11px;color:var(--crm-text-muted);margin-bottom:4px;">PARENT (Unchanged)</div>
+              <div style="font-weight:600;">APP-20260501-0042</div>
+              <div style="font-size:12px;color:var(--crm-text-muted);margin-top:4px;">Retains: FAC-003 (Renewal) · QAR 30M</div>
+            </div>
+            <div style="border:2px solid var(--crm-blue);border-radius:3px;padding:12px;background:var(--crm-blue-light);">
+              <div style="font-size:11px;color:var(--crm-blue);font-weight:700;margin-bottom:4px;">NEW CHILD APPLICATION</div>
+              <div style="font-weight:600;color:var(--crm-blue);">APP-20260501-0042-B1</div>
+              <div style="font-size:12px;color:var(--crm-text-muted);margin-top:4px;">Contains: FAC-001 (Renewal + Limit Increase) · QAR 35M</div>
+              <div style="font-size:12px;color:var(--crm-text-muted);">Status: Submitted (workflow restarts)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('split-modal')">Cancel</button>
+      <button class="btn" id="split-back-btn" style="display:none;" onclick="splitWizBack()">← Back</button>
+      <button class="btn btn-primary" id="split-next-btn" onclick="splitWizNext()">Validate →</button>
+      <button class="btn btn-success" id="split-confirm-btn" style="display:none;" onclick="confirmSplit()">✓ Confirm Split</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── TAB NAVIGATION ──
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── SECTION TOGGLE ──
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? '' : '';
+}
+
+// ── MODAL ──
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── MERGE WIZARD ──
+let mergeStep = 1;
+function mergeWizNext() {
+  if (mergeStep === 1) {
+    mergeStep = 2;
+    document.getElementById('mwiz-step1').style.display = 'none';
+    document.getElementById('mwiz-step2').style.display = '';
+    document.getElementById('mwiz-1').className = 'wiz-step done';
+    document.getElementById('mwiz-2').className = 'wiz-step active';
+    document.getElementById('merge-back-btn').style.display = '';
+    document.getElementById('merge-next-btn').textContent = 'Next →';
+  } else if (mergeStep === 2) {
+    mergeStep = 3;
+    document.getElementById('mwiz-step2').style.display = 'none';
+    document.getElementById('mwiz-step3').style.display = '';
+    document.getElementById('mwiz-2').className = 'wiz-step done';
+    document.getElementById('mwiz-3').className = 'wiz-step active';
+    document.getElementById('merge-next-btn').style.display = 'none';
+    document.getElementById('merge-confirm-btn').style.display = '';
+  }
+}
+function mergeWizBack() {
+  if (mergeStep === 2) {
+    mergeStep = 1;
+    document.getElementById('mwiz-step1').style.display = '';
+    document.getElementById('mwiz-step2').style.display = 'none';
+    document.getElementById('mwiz-1').className = 'wiz-step active';
+    document.getElementById('mwiz-2').className = 'wiz-step';
+    document.getElementById('merge-back-btn').style.display = 'none';
+    document.getElementById('merge-next-btn').style.display = '';
+  } else if (mergeStep === 3) {
+    mergeStep = 2;
+    document.getElementById('mwiz-step2').style.display = '';
+    document.getElementById('mwiz-step3').style.display = 'none';
+    document.getElementById('mwiz-2').className = 'wiz-step active';
+    document.getElementById('mwiz-3').className = 'wiz-step';
+    document.getElementById('merge-next-btn').style.display = '';
+    document.getElementById('merge-confirm-btn').style.display = 'none';
+  }
+}
+function selectMaster(el) {
+  document.querySelectorAll('.app-card').forEach(c => c.classList.remove('master'));
+  el.classList.add('master');
+  el.insertAdjacentHTML('afterbegin', '<div style="font-size:11px;color:var(--crm-blue);font-weight:700;margin-bottom:6px;">★ MASTER (Selected)</div>');
+}
+function confirmMerge() {
+  closeModal('merge-modal');
+  mergeStep = 1;
+  // reset wizard
+  document.getElementById('mwiz-step1').style.display = '';
+  document.getElementById('mwiz-step2').style.display = 'none';
+  document.getElementById('mwiz-step3').style.display = 'none';
+  document.getElementById('mwiz-1').className = 'wiz-step active';
+  document.getElementById('mwiz-2').className = 'wiz-step';
+  document.getElementById('mwiz-3').className = 'wiz-step';
+  document.getElementById('merge-back-btn').style.display = 'none';
+  document.getElementById('merge-next-btn').style.display = '';
+  document.getElementById('merge-confirm-btn').style.display = 'none';
+  // Show success notification
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;top:80px;right:24px;background:#107c10;color:white;padding:12px 20px;border-radius:4px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+  bar.textContent = '✓ Applications merged successfully. APP-20260428-0048 marked as Merged.';
+  document.body.appendChild(bar);
+  setTimeout(() => bar.remove(), 4000);
+}
+
+// ── SPLIT WIZARD ──
+let splitStep = 1;
+function splitWizNext() {
+  splitStep = 2;
+  document.getElementById('swiz-step1').style.display = 'none';
+  document.getElementById('swiz-step2').style.display = '';
+  document.getElementById('swiz-1').className = 'wiz-step done';
+  document.getElementById('swiz-2').className = 'wiz-step active';
+  document.getElementById('split-back-btn').style.display = '';
+  document.getElementById('split-next-btn').style.display = 'none';
+  document.getElementById('split-confirm-btn').style.display = '';
+}
+function splitWizBack() {
+  splitStep = 1;
+  document.getElementById('swiz-step1').style.display = '';
+  document.getElementById('swiz-step2').style.display = 'none';
+  document.getElementById('swiz-1').className = 'wiz-step active';
+  document.getElementById('swiz-2').className = 'wiz-step';
+  document.getElementById('split-back-btn').style.display = 'none';
+  document.getElementById('split-next-btn').style.display = '';
+  document.getElementById('split-confirm-btn').style.display = 'none';
+}
+function toggleSplit(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('selected');
+  const chk = el.querySelector('.split-check');
+  chk.textContent = el.classList.contains('selected') ? '✓' : '';
+}
+function confirmSplit() {
+  closeModal('split-modal');
+  splitStep = 1;
+  document.getElementById('swiz-step1').style.display = '';
+  document.getElementById('swiz-step2').style.display = 'none';
+  document.getElementById('swiz-1').className = 'wiz-step active';
+  document.getElementById('swiz-2').className = 'wiz-step';
+  document.getElementById('split-back-btn').style.display = 'none';
+  document.getElementById('split-next-btn').style.display = '';
+  document.getElementById('split-confirm-btn').style.display = 'none';
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;top:80px;right:24px;background:#107c10;color:white;padding:12px 20px;border-radius:4px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+  bar.textContent = '✓ Application split. New branch APP-20260501-0042-B1 created and submitted for review.';
+  document.body.appendChild(bar);
+  setTimeout(() => bar.remove(), 4000);
+}
+
+// ── STAGE CHANGE ──
+function changeStage(stage) {
+  if (stage === 'credit') {
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;top:80px;right:24px;background:#107c10;color:white;padding:12px 20px;border-radius:4px;font-size:13px;font-weight:600;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+    bar.textContent = '✓ Application submitted to Credit team. BMP workflow task created.';
+    document.body.appendChild(bar);
+    setTimeout(() => bar.remove(), 4000);
+  }
+}
+</script>
+</body>
+</html>

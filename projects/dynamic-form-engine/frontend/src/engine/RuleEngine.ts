@@ -1,0 +1,243 @@
+import { Engine, ConditionProperties, Event } from 'json-rules-engine';
+import type {
+  BusinessRule,
+  FormFieldValues,
+  RuleEvaluationResult,
+  RuleCondition,
+  BusinessRuleAction,
+  OptionValue,
+} from '@dfe/shared';
+
+const OPERATOR_MAP: Record<string, string> = {
+  equals: 'equal',
+  notEquals: 'notEqual',
+  greaterThan: 'greaterThan',
+  greaterThanOrEqual: 'greaterThanOrEqualTo',
+  lessThan: 'lessThan',
+  lessThanOrEqual: 'lessThanOrEqualTo',
+  contains: 'contains',
+  inList: 'in',
+  notInList: 'notIn',
+};
+
+interface RuleEvent {
+  type: string;
+  params: {
+    action: BusinessRuleAction;
+    targetFieldId?: string;
+    targetSectionId?: string;
+    targetTabId?: string;
+    actionValue?: string;
+  };
+}
+
+function buildEmptyResult(): RuleEvaluationResult {
+  return {
+    fieldVisibility: {},
+    sectionVisibility: {},
+    tabVisibility: {},
+    fieldRequired: {},
+    fieldReadonly: {},
+    fieldValues: {},
+    filteredOptions: {},
+  };
+}
+
+export class RuleEngine {
+  /**
+   * Evaluates all active business rules against the current field values and
+   * returns the computed visibility, required, readonly, and value states.
+   */
+  async evaluate(
+    rules: BusinessRule[],
+    fieldValues: FormFieldValues,
+  ): Promise<RuleEvaluationResult> {
+    const activeRules = rules.filter((rule) => rule.isActive);
+
+    if (activeRules.length === 0) {
+      return buildEmptyResult();
+    }
+
+    const engine = new Engine();
+
+    activeRules.forEach((rule) => {
+      const conditions = this.buildConditions(rule);
+      const event = this.buildEvent(rule);
+
+      engine.addRule({
+        conditions,
+        event,
+        priority: rule.priority,
+      });
+    });
+
+    const facts = this.buildFacts(fieldValues);
+    const { events } = await engine.run(facts);
+
+    return this.mapEventsToResult(events as RuleEvent[]);
+  }
+
+  private buildConditions(
+    rule: BusinessRule,
+  ): { all: ConditionProperties[] } | { any: ConditionProperties[] } {
+    const mapped = rule.conditions.map((condition) =>
+      this.convertCondition(condition),
+    );
+
+    if (rule.conditionsLogic === 'AND') {
+      return { all: mapped };
+    }
+
+    return { any: mapped };
+  }
+
+  private convertCondition(condition: RuleCondition): ConditionProperties {
+    if (condition.operator === 'isEmpty') {
+      return {
+        fact: condition.fieldId,
+        operator: 'equal',
+        value: null,
+      } as ConditionProperties;
+    }
+
+    if (condition.operator === 'isNotEmpty') {
+      return {
+        fact: condition.fieldId,
+        operator: 'notEqual',
+        value: null,
+      } as ConditionProperties;
+    }
+
+    const engineOperator = OPERATOR_MAP[condition.operator];
+
+    if (!engineOperator) {
+      throw new Error(
+        `Unsupported condition operator: ${condition.operator}`,
+      );
+    }
+
+    return {
+      fact: condition.fieldId,
+      operator: engineOperator,
+      value: condition.value ?? null,
+    } as ConditionProperties;
+  }
+
+  private buildEvent(rule: BusinessRule): Event {
+    const params: RuleEvent['params'] = {
+      action: rule.action,
+      targetFieldId: rule.targetFieldId,
+      targetSectionId: rule.targetSectionId,
+      targetTabId: rule.targetTabId,
+      actionValue: rule.actionValue,
+    };
+
+    return {
+      type: rule.id,
+      params,
+    };
+  }
+
+  private buildFacts(fieldValues: FormFieldValues): Record<string, unknown> {
+    // json-rules-engine requires non-undefined fact values
+    const facts: Record<string, unknown> = {};
+
+    for (const [key, value] of Object.entries(fieldValues)) {
+      facts[key] = value ?? null;
+    }
+
+    return facts;
+  }
+
+  private mapEventsToResult(events: RuleEvent[]): RuleEvaluationResult {
+    const result = buildEmptyResult();
+
+    for (const event of events) {
+      const { action, targetFieldId, targetSectionId, targetTabId, actionValue } =
+        event.params;
+
+      switch (action) {
+        case 'showField':
+          if (targetFieldId) result.fieldVisibility[targetFieldId] = true;
+          break;
+
+        case 'hideField':
+          if (targetFieldId) result.fieldVisibility[targetFieldId] = false;
+          break;
+
+        case 'showSection':
+          if (targetSectionId) result.sectionVisibility[targetSectionId] = true;
+          break;
+
+        case 'hideSection':
+          if (targetSectionId) result.sectionVisibility[targetSectionId] = false;
+          break;
+
+        case 'showTab':
+          if (targetTabId) result.tabVisibility[targetTabId] = true;
+          break;
+
+        case 'hideTab':
+          if (targetTabId) result.tabVisibility[targetTabId] = false;
+          break;
+
+        case 'makeRequired':
+          if (targetFieldId) result.fieldRequired[targetFieldId] = true;
+          break;
+
+        case 'makeOptional':
+          if (targetFieldId) result.fieldRequired[targetFieldId] = false;
+          break;
+
+        case 'makeReadonly':
+          if (targetFieldId) result.fieldReadonly[targetFieldId] = true;
+          break;
+
+        case 'makeEditable':
+          if (targetFieldId) result.fieldReadonly[targetFieldId] = false;
+          break;
+
+        case 'setValue':
+          if (targetFieldId) result.fieldValues[targetFieldId] = actionValue ?? '';
+          break;
+
+        case 'clearValue':
+          if (targetFieldId) result.fieldValues[targetFieldId] = null;
+          break;
+
+        case 'calculateValue':
+          // Phase 2: expression evaluation — store raw expression for now
+          if (targetFieldId) result.fieldValues[targetFieldId] = actionValue ?? null;
+          break;
+
+        case 'filterOptions':
+          if (targetFieldId && actionValue) {
+            result.filteredOptions[targetFieldId] = this.parseFilteredOptions(actionValue);
+          }
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    return result;
+  }
+
+  private parseFilteredOptions(optionsJson: string): OptionValue[] {
+    try {
+      const parsed: unknown = JSON.parse(optionsJson);
+
+      if (Array.isArray(parsed)) {
+        return parsed as OptionValue[];
+      }
+
+      return [];
+    } catch {
+      return [];
+    }
+  }
+}
+
+// Singleton for use throughout the app
+export const ruleEngine = new RuleEngine();

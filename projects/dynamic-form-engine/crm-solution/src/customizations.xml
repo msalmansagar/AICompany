@@ -1,0 +1,2230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml version="9.2.24.10353" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Entities>
+
+    <!-- ============================================================ -->
+    <!-- 1. dfe_formdefinition                                        -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Form Definition" OwnershipType="UserOwned" BaseTableName="dfe_formdefinition">dfe_formdefinition</Name>
+      <EntityInfo>
+        <entity Name="dfe_formdefinition">
+          <LocalizedNames>
+            <LocalizedName description="Form Definition" languagecode="1033"/>
+          </LocalizedNames>
+          <LocalizedCollectionNames>
+            <LocalizedCollectionName description="Form Definitions" languagecode="1033"/>
+          </LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_formcode">
+              <Type>nvarchar</Type>
+              <MaxLength>100</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames>
+                <LocalizedName description="Form Code" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_title">
+              <Type>nvarchar</Type>
+              <MaxLength>300</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Title" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_description">
+              <Type>ntext</Type>
+              <MaxLength>2000</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Description" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_status">
+              <Type>picklist</Type>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_status_dfe_formdefinition" localizedName="Status">
+                <options>
+                  <option value="1"><Labels><Label description="Draft" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="Active" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="Inactive" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="Archived" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames>
+                <LocalizedName description="Status" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_versionnumber">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Version Number" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_allowsavedraft">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Allow Save Draft" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_draftexpirydays">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Draft Expiry Days" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_confirmationmessage">
+              <Type>ntext</Type>
+              <MaxLength>4000</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Confirmation Message" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_confirmationrecordrefattribute">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Confirmation Record Ref Attribute" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_powerautomateflowid">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Power Automate Flow ID" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_accessgroupid">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Access Group ID" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0010001-0000-0000-0000-000000000001}</formid>
+            <Name>Form Definition Main Form</Name>
+            <ObjectTypeCode>dfe_formdefinition</ObjectTypeCode>
+            <IsDefault>1</IsDefault>
+            <form>
+              <tabs>
+                <tab name="tab_general" id="{T0010001-0000-0000-0000-000000000001}" IsUserDefined="0">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <columns>
+                    <column width="100%">
+                      <sections>
+                        <section name="section_main" id="{S0010001-0000-0000-0000-000000000001}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                          <labels><label description="General" languagecode="1033"/></labels>
+                          <rows>
+                            <row><cell id="{C0010001-0001-0000-0000-000000000001}" showlabel="true"><labels><label description="Form Code" languagecode="1033"/></labels><control id="dfe_formcode" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_formcode" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0002-0000-0000-000000000001}" showlabel="true"><labels><label description="Title" languagecode="1033"/></labels><control id="dfe_title" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_title" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0003-0000-0000-000000000001}" showlabel="true"><labels><label description="Description" languagecode="1033"/></labels><control id="dfe_description" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_description" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0004-0000-0000-000000000001}" showlabel="true"><labels><label description="Status" languagecode="1033"/></labels><control id="dfe_status" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_status" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0005-0000-0000-000000000001}" showlabel="true"><labels><label description="Version Number" languagecode="1033"/></labels><control id="dfe_versionnumber" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_versionnumber" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0006-0000-0000-000000000001}" showlabel="true"><labels><label description="Allow Save Draft" languagecode="1033"/></labels><control id="dfe_allowsavedraft" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_allowsavedraft" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0007-0000-0000-000000000001}" showlabel="true"><labels><label description="Draft Expiry Days" languagecode="1033"/></labels><control id="dfe_draftexpirydays" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_draftexpirydays" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0008-0000-0000-000000000001}" showlabel="true"><labels><label description="Confirmation Message" languagecode="1033"/></labels><control id="dfe_confirmationmessage" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_confirmationmessage" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0009-0000-0000-000000000001}" showlabel="true"><labels><label description="Confirmation Record Ref Attribute" languagecode="1033"/></labels><control id="dfe_confirmationrecordrefattribute" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_confirmationrecordrefattribute" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0010-0000-0000-000000000001}" showlabel="true"><labels><label description="Power Automate Flow ID" languagecode="1033"/></labels><control id="dfe_powerautomateflowid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_powerautomateflowid" disabled="false"/></cell></row>
+                            <row><cell id="{C0010001-0011-0000-0000-000000000001}" showlabel="true"><labels><label description="Access Group ID" languagecode="1033"/></labels><control id="dfe_accessgroupid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_accessgroupid" disabled="false"/></cell></row>
+                          </rows>
+                        </section>
+                      </sections>
+                    </column>
+                  </columns>
+                </tab>
+              </tabs>
+            </form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0010001-0000-0000-0000-000000000001}</savedqueryid>
+          <Name>Active Form Definitions</Name>
+          <Description>All active form definitions</Description>
+          <IsDefault>1</IsDefault>
+          <IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_formdefinition</ReturnedTypeCode>
+          <QueryType>0</QueryType>
+          <fetchxml>
+            <fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+              <entity name="dfe_formdefinition">
+                <attribute name="dfe_formcode"/>
+                <attribute name="dfe_title"/>
+                <attribute name="dfe_status"/>
+                <attribute name="dfe_versionnumber"/>
+                <attribute name="dfe_allowsavedraft"/>
+                <order attribute="dfe_formcode" descending="false"/>
+                <filter type="and">
+                  <condition attribute="statecode" operator="eq" value="0"/>
+                </filter>
+              </entity>
+            </fetch>
+          </fetchxml>
+          <layoutxml>
+            <grid name="resultset" object="dfe_formdefinition" jump="dfe_formcode" select="1" icon="1" preview="1">
+              <row name="result" id="dfe_formdefinitionid">
+                <cell name="dfe_formcode" width="150"/>
+                <cell name="dfe_title" width="250"/>
+                <cell name="dfe_status" width="100"/>
+                <cell name="dfe_versionnumber" width="80"/>
+                <cell name="dfe_allowsavedraft" width="100"/>
+              </row>
+            </grid>
+          </layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/>
+      <WebResources/>
+      <Relationships/>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 2. dfe_tab                                                    -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Tab" OwnershipType="UserOwned" BaseTableName="dfe_tab">dfe_tab</Name>
+      <EntityInfo>
+        <entity Name="dfe_tab">
+          <LocalizedNames>
+            <LocalizedName description="Tab" languagecode="1033"/>
+          </LocalizedNames>
+          <LocalizedCollectionNames>
+            <LocalizedCollectionName description="Tabs" languagecode="1033"/>
+          </LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_label">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames>
+                <LocalizedName description="Label" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_iconname">
+              <Type>nvarchar</Type>
+              <MaxLength>100</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Icon Name" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayorder">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Display Order" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isvisible">
+              <Type>bit</Type>
+              <DefaultValue>1</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Visible" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_requiresprevioustabcomplete">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Requires Previous Tab Complete" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionid">
+              <Type>lookup</Type>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_formdefinition</targets>
+              <LocalizedNames>
+                <LocalizedName description="Form Definition" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0020001-0000-0000-0000-000000000002}</formid>
+            <Name>Tab Main Form</Name>
+            <ObjectTypeCode>dfe_tab</ObjectTypeCode>
+            <IsDefault>1</IsDefault>
+            <form>
+              <tabs>
+                <tab name="tab_general" id="{T0020001-0000-0000-0000-000000000002}" IsUserDefined="0">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <columns>
+                    <column width="100%">
+                      <sections>
+                        <section name="section_main" id="{S0020001-0000-0000-0000-000000000002}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                          <labels><label description="General" languagecode="1033"/></labels>
+                          <rows>
+                            <row><cell id="{C0020001-0001-0000-0000-000000000002}" showlabel="true"><labels><label description="Label" languagecode="1033"/></labels><control id="dfe_label" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_label" disabled="false"/></cell></row>
+                            <row><cell id="{C0020001-0002-0000-0000-000000000002}" showlabel="true"><labels><label description="Form Definition" languagecode="1033"/></labels><control id="dfe_formdefinitionid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_formdefinitionid" disabled="false"/></cell></row>
+                            <row><cell id="{C0020001-0003-0000-0000-000000000002}" showlabel="true"><labels><label description="Display Order" languagecode="1033"/></labels><control id="dfe_displayorder" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_displayorder" disabled="false"/></cell></row>
+                            <row><cell id="{C0020001-0004-0000-0000-000000000002}" showlabel="true"><labels><label description="Icon Name" languagecode="1033"/></labels><control id="dfe_iconname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_iconname" disabled="false"/></cell></row>
+                            <row><cell id="{C0020001-0005-0000-0000-000000000002}" showlabel="true"><labels><label description="Is Visible" languagecode="1033"/></labels><control id="dfe_isvisible" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isvisible" disabled="false"/></cell></row>
+                            <row><cell id="{C0020001-0006-0000-0000-000000000002}" showlabel="true"><labels><label description="Requires Previous Tab Complete" languagecode="1033"/></labels><control id="dfe_requiresprevioustabcomplete" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_requiresprevioustabcomplete" disabled="false"/></cell></row>
+                          </rows>
+                        </section>
+                      </sections>
+                    </column>
+                  </columns>
+                </tab>
+              </tabs>
+            </form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0020001-0000-0000-0000-000000000002}</savedqueryid>
+          <Name>Active Tabs</Name>
+          <Description>All active tabs</Description>
+          <IsDefault>1</IsDefault>
+          <IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_tab</ReturnedTypeCode>
+          <QueryType>0</QueryType>
+          <fetchxml>
+            <fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+              <entity name="dfe_tab">
+                <attribute name="dfe_label"/>
+                <attribute name="dfe_displayorder"/>
+                <attribute name="dfe_isvisible"/>
+                <attribute name="dfe_formdefinitionid"/>
+                <order attribute="dfe_displayorder" descending="false"/>
+                <filter type="and">
+                  <condition attribute="statecode" operator="eq" value="0"/>
+                </filter>
+              </entity>
+            </fetch>
+          </fetchxml>
+          <layoutxml>
+            <grid name="resultset" object="dfe_tab" jump="dfe_label" select="1" icon="1" preview="1">
+              <row name="result" id="dfe_tabid">
+                <cell name="dfe_label" width="200"/>
+                <cell name="dfe_formdefinitionid" width="200"/>
+                <cell name="dfe_displayorder" width="80"/>
+                <cell name="dfe_isvisible" width="80"/>
+              </row>
+            </grid>
+          </layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/>
+      <WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_formdefinition_dfe_tab">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType>
+          <IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_tab</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_formdefinitionid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_formdefinition</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign>
+          <CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent>
+          <CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 3. dfe_section                                               -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Section" OwnershipType="UserOwned" BaseTableName="dfe_section">dfe_section</Name>
+      <EntityInfo>
+        <entity Name="dfe_section">
+          <LocalizedNames>
+            <LocalizedName description="Section" languagecode="1033"/>
+          </LocalizedNames>
+          <LocalizedCollectionNames>
+            <LocalizedCollectionName description="Sections" languagecode="1033"/>
+          </LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_label">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames>
+                <LocalizedName description="Label" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_description">
+              <Type>ntext</Type>
+              <MaxLength>1000</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Description" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayorder">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Display Order" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_columns">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Columns" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_iscollapsible">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Collapsible" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_iscollapsedbydefault">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Collapsed By Default" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isvisible">
+              <Type>bit</Type>
+              <DefaultValue>1</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Visible" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_tabid">
+              <Type>lookup</Type>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_tab</targets>
+              <LocalizedNames>
+                <LocalizedName description="Tab" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0030001-0000-0000-0000-000000000003}</formid>
+            <Name>Section Main Form</Name>
+            <ObjectTypeCode>dfe_section</ObjectTypeCode>
+            <IsDefault>1</IsDefault>
+            <form>
+              <tabs>
+                <tab name="tab_general" id="{T0030001-0000-0000-0000-000000000003}" IsUserDefined="0">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <columns>
+                    <column width="100%">
+                      <sections>
+                        <section name="section_main" id="{S0030001-0000-0000-0000-000000000003}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                          <labels><label description="General" languagecode="1033"/></labels>
+                          <rows>
+                            <row><cell id="{C0030001-0001-0000-0000-000000000003}" showlabel="true"><labels><label description="Label" languagecode="1033"/></labels><control id="dfe_label" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_label" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0002-0000-0000-000000000003}" showlabel="true"><labels><label description="Tab" languagecode="1033"/></labels><control id="dfe_tabid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_tabid" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0003-0000-0000-000000000003}" showlabel="true"><labels><label description="Description" languagecode="1033"/></labels><control id="dfe_description" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_description" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0004-0000-0000-000000000003}" showlabel="true"><labels><label description="Display Order" languagecode="1033"/></labels><control id="dfe_displayorder" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_displayorder" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0005-0000-0000-000000000003}" showlabel="true"><labels><label description="Columns" languagecode="1033"/></labels><control id="dfe_columns" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_columns" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0006-0000-0000-000000000003}" showlabel="true"><labels><label description="Is Collapsible" languagecode="1033"/></labels><control id="dfe_iscollapsible" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_iscollapsible" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0007-0000-0000-000000000003}" showlabel="true"><labels><label description="Is Collapsed By Default" languagecode="1033"/></labels><control id="dfe_iscollapsedbydefault" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_iscollapsedbydefault" disabled="false"/></cell></row>
+                            <row><cell id="{C0030001-0008-0000-0000-000000000003}" showlabel="true"><labels><label description="Is Visible" languagecode="1033"/></labels><control id="dfe_isvisible" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isvisible" disabled="false"/></cell></row>
+                          </rows>
+                        </section>
+                      </sections>
+                    </column>
+                  </columns>
+                </tab>
+              </tabs>
+            </form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0030001-0000-0000-0000-000000000003}</savedqueryid>
+          <Name>Active Sections</Name>
+          <Description>All active sections</Description>
+          <IsDefault>1</IsDefault>
+          <IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_section</ReturnedTypeCode>
+          <QueryType>0</QueryType>
+          <fetchxml>
+            <fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+              <entity name="dfe_section">
+                <attribute name="dfe_label"/>
+                <attribute name="dfe_displayorder"/>
+                <attribute name="dfe_columns"/>
+                <attribute name="dfe_isvisible"/>
+                <attribute name="dfe_tabid"/>
+                <order attribute="dfe_displayorder" descending="false"/>
+                <filter type="and">
+                  <condition attribute="statecode" operator="eq" value="0"/>
+                </filter>
+              </entity>
+            </fetch>
+          </fetchxml>
+          <layoutxml>
+            <grid name="resultset" object="dfe_section" jump="dfe_label" select="1" icon="1" preview="1">
+              <row name="result" id="dfe_sectionid">
+                <cell name="dfe_label" width="200"/>
+                <cell name="dfe_tabid" width="200"/>
+                <cell name="dfe_displayorder" width="80"/>
+                <cell name="dfe_columns" width="80"/>
+                <cell name="dfe_isvisible" width="80"/>
+              </row>
+            </grid>
+          </layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/>
+      <WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_tab_dfe_section">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType>
+          <IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_section</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_tabid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_tab</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign>
+          <CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent>
+          <CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 4. dfe_field                                                  -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Field" OwnershipType="UserOwned" BaseTableName="dfe_field">dfe_field</Name>
+      <EntityInfo>
+        <entity Name="dfe_field">
+          <LocalizedNames>
+            <LocalizedName description="Field" languagecode="1033"/>
+          </LocalizedNames>
+          <LocalizedCollectionNames>
+            <LocalizedCollectionName description="Fields" languagecode="1033"/>
+          </LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_label">
+              <Type>nvarchar</Type>
+              <MaxLength>300</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames>
+                <LocalizedName description="Label" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_schemaname">
+              <Type>nvarchar</Type>
+              <MaxLength>200</MaxLength>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Schema Name" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldtype">
+              <Type>picklist</Type>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_fieldtype_dfe_field" localizedName="Field Type">
+                <options>
+                  <option value="1"><Labels><Label description="text" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="textarea" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="number" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="date" languagecode="1033"/></Labels></option>
+                  <option value="5"><Labels><Label description="datetime" languagecode="1033"/></Labels></option>
+                  <option value="6"><Labels><Label description="dropdown" languagecode="1033"/></Labels></option>
+                  <option value="7"><Labels><Label description="multiselect" languagecode="1033"/></Labels></option>
+                  <option value="8"><Labels><Label description="lookup" languagecode="1033"/></Labels></option>
+                  <option value="9"><Labels><Label description="checkbox" languagecode="1033"/></Labels></option>
+                  <option value="10"><Labels><Label description="radio" languagecode="1033"/></Labels></option>
+                  <option value="11"><Labels><Label description="currency" languagecode="1033"/></Labels></option>
+                  <option value="12"><Labels><Label description="decimal" languagecode="1033"/></Labels></option>
+                  <option value="13"><Labels><Label description="email" languagecode="1033"/></Labels></option>
+                  <option value="14"><Labels><Label description="phone" languagecode="1033"/></Labels></option>
+                  <option value="15"><Labels><Label description="file" languagecode="1033"/></Labels></option>
+                  <option value="16"><Labels><Label description="repeatingGrid" languagecode="1033"/></Labels></option>
+                  <option value="17"><Labels><Label description="richText" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames>
+                <LocalizedName description="Field Type" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_placeholder">
+              <Type>nvarchar</Type>
+              <MaxLength>300</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Placeholder" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_tooltip">
+              <Type>nvarchar</Type>
+              <MaxLength>500</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Tooltip" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_defaultvalue">
+              <Type>ntext</Type>
+              <MaxLength>2000</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Default Value" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayorder">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Display Order" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_columnspan">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Column Span" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isrequired">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Required" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isreadonly">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Read Only" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_ishidden">
+              <Type>bit</Type>
+              <DefaultValue>0</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Hidden" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isvisible">
+              <Type>bit</Type>
+              <DefaultValue>1</DefaultValue>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Is Visible" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_currencycode">
+              <Type>nvarchar</Type>
+              <MaxLength>10</MaxLength>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Currency Code" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_decimalplaces">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Decimal Places" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxrows">
+              <Type>int</Type>
+              <MinValue>-2147483648</MinValue>
+              <MaxValue>2147483647</MaxValue>
+              <RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames>
+                <LocalizedName description="Max Rows" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_sectionid">
+              <Type>lookup</Type>
+              <RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_section</targets>
+              <LocalizedNames>
+                <LocalizedName description="Section" languagecode="1033"/>
+              </LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0040001-0000-0000-0000-000000000004}</formid>
+            <Name>Field Main Form</Name>
+            <ObjectTypeCode>dfe_field</ObjectTypeCode>
+            <IsDefault>1</IsDefault>
+            <form>
+              <tabs>
+                <tab name="tab_general" id="{T0040001-0000-0000-0000-000000000004}" IsUserDefined="0">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <columns>
+                    <column width="100%">
+                      <sections>
+                        <section name="section_main" id="{S0040001-0000-0000-0000-000000000004}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                          <labels><label description="General" languagecode="1033"/></labels>
+                          <rows>
+                            <row><cell id="{C0040001-0001-0000-0000-000000000004}" showlabel="true"><labels><label description="Label" languagecode="1033"/></labels><control id="dfe_label" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_label" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0002-0000-0000-000000000004}" showlabel="true"><labels><label description="Schema Name" languagecode="1033"/></labels><control id="dfe_schemaname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_schemaname" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0003-0000-0000-000000000004}" showlabel="true"><labels><label description="Field Type" languagecode="1033"/></labels><control id="dfe_fieldtype" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_fieldtype" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0004-0000-0000-000000000004}" showlabel="true"><labels><label description="Section" languagecode="1033"/></labels><control id="dfe_sectionid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_sectionid" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0005-0000-0000-000000000004}" showlabel="true"><labels><label description="Display Order" languagecode="1033"/></labels><control id="dfe_displayorder" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_displayorder" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0006-0000-0000-000000000004}" showlabel="true"><labels><label description="Column Span" languagecode="1033"/></labels><control id="dfe_columnspan" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_columnspan" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0007-0000-0000-000000000004}" showlabel="true"><labels><label description="Placeholder" languagecode="1033"/></labels><control id="dfe_placeholder" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_placeholder" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0008-0000-0000-000000000004}" showlabel="true"><labels><label description="Tooltip" languagecode="1033"/></labels><control id="dfe_tooltip" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_tooltip" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0009-0000-0000-000000000004}" showlabel="true"><labels><label description="Default Value" languagecode="1033"/></labels><control id="dfe_defaultvalue" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_defaultvalue" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0010-0000-0000-000000000004}" showlabel="true"><labels><label description="Is Required" languagecode="1033"/></labels><control id="dfe_isrequired" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isrequired" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0011-0000-0000-000000000004}" showlabel="true"><labels><label description="Is Read Only" languagecode="1033"/></labels><control id="dfe_isreadonly" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isreadonly" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0012-0000-0000-000000000004}" showlabel="true"><labels><label description="Is Hidden" languagecode="1033"/></labels><control id="dfe_ishidden" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_ishidden" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0013-0000-0000-000000000004}" showlabel="true"><labels><label description="Is Visible" languagecode="1033"/></labels><control id="dfe_isvisible" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isvisible" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0014-0000-0000-000000000004}" showlabel="true"><labels><label description="Currency Code" languagecode="1033"/></labels><control id="dfe_currencycode" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_currencycode" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0015-0000-0000-000000000004}" showlabel="true"><labels><label description="Decimal Places" languagecode="1033"/></labels><control id="dfe_decimalplaces" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_decimalplaces" disabled="false"/></cell></row>
+                            <row><cell id="{C0040001-0016-0000-0000-000000000004}" showlabel="true"><labels><label description="Max Rows" languagecode="1033"/></labels><control id="dfe_maxrows" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxrows" disabled="false"/></cell></row>
+                          </rows>
+                        </section>
+                      </sections>
+                    </column>
+                  </columns>
+                </tab>
+              </tabs>
+            </form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0040001-0000-0000-0000-000000000004}</savedqueryid>
+          <Name>Active Fields</Name>
+          <Description>All active fields</Description>
+          <IsDefault>1</IsDefault>
+          <IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_field</ReturnedTypeCode>
+          <QueryType>0</QueryType>
+          <fetchxml>
+            <fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+              <entity name="dfe_field">
+                <attribute name="dfe_label"/>
+                <attribute name="dfe_schemaname"/>
+                <attribute name="dfe_fieldtype"/>
+                <attribute name="dfe_displayorder"/>
+                <attribute name="dfe_sectionid"/>
+                <order attribute="dfe_displayorder" descending="false"/>
+                <filter type="and">
+                  <condition attribute="statecode" operator="eq" value="0"/>
+                </filter>
+              </entity>
+            </fetch>
+          </fetchxml>
+          <layoutxml>
+            <grid name="resultset" object="dfe_field" jump="dfe_label" select="1" icon="1" preview="1">
+              <row name="result" id="dfe_fieldid">
+                <cell name="dfe_label" width="250"/>
+                <cell name="dfe_schemaname" width="200"/>
+                <cell name="dfe_fieldtype" width="120"/>
+                <cell name="dfe_sectionid" width="200"/>
+                <cell name="dfe_displayorder" width="80"/>
+              </row>
+            </grid>
+          </layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/>
+      <WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_section_dfe_field">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType>
+          <IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_field</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_sectionid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_section</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign>
+          <CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent>
+          <CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+
+    <!-- ============================================================ -->
+    <!-- 5. dfe_option                                                 -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Option" OwnershipType="UserOwned" BaseTableName="dfe_option">dfe_option</Name>
+      <EntityInfo>
+        <entity Name="dfe_option">
+          <LocalizedNames><LocalizedName description="Option" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Options" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_label">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Label" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_value">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayorder">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Display Order" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isdefault">
+              <Type>bit</Type><DefaultValue>0</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Default" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_parentoptionvalue">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Parent Option Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isactive">
+              <Type>bit</Type><DefaultValue>1</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Active" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_field</targets>
+              <LocalizedNames><LocalizedName description="Field" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0050001-0000-0000-0000-000000000005}</formid>
+            <Name>Option Main Form</Name>
+            <ObjectTypeCode>dfe_option</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0050001-0000-0000-0000-000000000005}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0050001-0000-0000-0000-000000000005}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0050001-0001-0000-0000-000000000005}" showlabel="true"><labels><label description="Label" languagecode="1033"/></labels><control id="dfe_label" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_label" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0002-0000-0000-000000000005}" showlabel="true"><labels><label description="Value" languagecode="1033"/></labels><control id="dfe_value" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_value" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0003-0000-0000-000000000005}" showlabel="true"><labels><label description="Field" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0004-0000-0000-000000000005}" showlabel="true"><labels><label description="Display Order" languagecode="1033"/></labels><control id="dfe_displayorder" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_displayorder" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0005-0000-0000-000000000005}" showlabel="true"><labels><label description="Is Default" languagecode="1033"/></labels><control id="dfe_isdefault" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isdefault" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0006-0000-0000-000000000005}" showlabel="true"><labels><label description="Is Active" languagecode="1033"/></labels><control id="dfe_isactive" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isactive" disabled="false"/></cell></row>
+                    <row><cell id="{C0050001-0007-0000-0000-000000000005}" showlabel="true"><labels><label description="Parent Option Value" languagecode="1033"/></labels><control id="dfe_parentoptionvalue" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_parentoptionvalue" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0050001-0000-0000-0000-000000000005}</savedqueryid>
+          <Name>Active Options</Name><Description>All active options</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_option</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_option">
+              <attribute name="dfe_label"/><attribute name="dfe_value"/>
+              <attribute name="dfe_displayorder"/><attribute name="dfe_isdefault"/>
+              <attribute name="dfe_isactive"/><attribute name="dfe_fieldid"/>
+              <order attribute="dfe_displayorder" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_option" jump="dfe_label" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_optionid">
+              <cell name="dfe_label" width="200"/><cell name="dfe_value" width="150"/>
+              <cell name="dfe_fieldid" width="200"/><cell name="dfe_displayorder" width="80"/>
+              <cell name="dfe_isdefault" width="80"/><cell name="dfe_isactive" width="80"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_field_dfe_option">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_option</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_fieldid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_field</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 6. dfe_validationrule                                         -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Validation Rule" OwnershipType="UserOwned" BaseTableName="dfe_validationrule">dfe_validationrule</Name>
+      <EntityInfo>
+        <entity Name="dfe_validationrule">
+          <LocalizedNames><LocalizedName description="Validation Rule" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Validation Rules" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_ruletype">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_ruletype_dfe_validationrule" localizedName="Rule Type">
+                <options>
+                  <option value="1"><Labels><Label description="required" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="minLength" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="maxLength" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="minValue" languagecode="1033"/></Labels></option>
+                  <option value="5"><Labels><Label description="maxValue" languagecode="1033"/></Labels></option>
+                  <option value="6"><Labels><Label description="regex" languagecode="1033"/></Labels></option>
+                  <option value="7"><Labels><Label description="email" languagecode="1033"/></Labels></option>
+                  <option value="8"><Labels><Label description="phone" languagecode="1033"/></Labels></option>
+                  <option value="9"><Labels><Label description="dateBefore" languagecode="1033"/></Labels></option>
+                  <option value="10"><Labels><Label description="dateAfter" languagecode="1033"/></Labels></option>
+                  <option value="11"><Labels><Label description="crossField" languagecode="1033"/></Labels></option>
+                  <option value="12"><Labels><Label description="customExpression" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Rule Type" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_errormessage">
+              <Type>nvarchar</Type><MaxLength>500</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Error Message" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_minlength">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Min Length" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxlength">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Max Length" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_minvalue">
+              <Type>decimal</Type><Precision>10</Precision><MinValue>-100000000000</MinValue><MaxValue>100000000000</MaxValue><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Min Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxvalue">
+              <Type>decimal</Type><Precision>10</Precision><MinValue>-100000000000</MinValue><MaxValue>100000000000</MaxValue><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Max Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_regexpattern">
+              <Type>nvarchar</Type><MaxLength>500</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Regex Pattern" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_comparetofieldid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Compare To Field ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_comparetovalue">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Compare To Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_customexpression">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Custom Expression" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isactive">
+              <Type>bit</Type><DefaultValue>1</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Active" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_priority">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Priority" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_field</targets>
+              <LocalizedNames><LocalizedName description="Field" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0060001-0000-0000-0000-000000000006}</formid>
+            <Name>Validation Rule Main Form</Name>
+            <ObjectTypeCode>dfe_validationrule</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0060001-0000-0000-0000-000000000006}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0060001-0000-0000-0000-000000000006}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0060001-0001-0000-0000-000000000006}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0002-0000-0000-000000000006}" showlabel="true"><labels><label description="Rule Type" languagecode="1033"/></labels><control id="dfe_ruletype" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_ruletype" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0003-0000-0000-000000000006}" showlabel="true"><labels><label description="Error Message" languagecode="1033"/></labels><control id="dfe_errormessage" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_errormessage" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0004-0000-0000-000000000006}" showlabel="true"><labels><label description="Field" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0005-0000-0000-000000000006}" showlabel="true"><labels><label description="Priority" languagecode="1033"/></labels><control id="dfe_priority" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_priority" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0006-0000-0000-000000000006}" showlabel="true"><labels><label description="Is Active" languagecode="1033"/></labels><control id="dfe_isactive" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isactive" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0007-0000-0000-000000000006}" showlabel="true"><labels><label description="Min Length" languagecode="1033"/></labels><control id="dfe_minlength" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_minlength" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0008-0000-0000-000000000006}" showlabel="true"><labels><label description="Max Length" languagecode="1033"/></labels><control id="dfe_maxlength" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxlength" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0009-0000-0000-000000000006}" showlabel="true"><labels><label description="Min Value" languagecode="1033"/></labels><control id="dfe_minvalue" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_minvalue" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0010-0000-0000-000000000006}" showlabel="true"><labels><label description="Max Value" languagecode="1033"/></labels><control id="dfe_maxvalue" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxvalue" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0011-0000-0000-000000000006}" showlabel="true"><labels><label description="Regex Pattern" languagecode="1033"/></labels><control id="dfe_regexpattern" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_regexpattern" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0012-0000-0000-000000000006}" showlabel="true"><labels><label description="Compare To Field ID" languagecode="1033"/></labels><control id="dfe_comparetofieldid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_comparetofieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0013-0000-0000-000000000006}" showlabel="true"><labels><label description="Compare To Value" languagecode="1033"/></labels><control id="dfe_comparetovalue" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_comparetovalue" disabled="false"/></cell></row>
+                    <row><cell id="{C0060001-0014-0000-0000-000000000006}" showlabel="true"><labels><label description="Custom Expression" languagecode="1033"/></labels><control id="dfe_customexpression" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_customexpression" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0060001-0000-0000-0000-000000000006}</savedqueryid>
+          <Name>Active Validation Rules</Name><Description>All active validation rules</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_validationrule</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_validationrule">
+              <attribute name="dfe_name"/><attribute name="dfe_ruletype"/>
+              <attribute name="dfe_errormessage"/><attribute name="dfe_priority"/>
+              <attribute name="dfe_isactive"/><attribute name="dfe_fieldid"/>
+              <order attribute="dfe_priority" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_validationrule" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_validationruleid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_ruletype" width="120"/>
+              <cell name="dfe_errormessage" width="250"/><cell name="dfe_fieldid" width="200"/>
+              <cell name="dfe_priority" width="80"/><cell name="dfe_isactive" width="80"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_field_dfe_validationrule">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_validationrule</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_fieldid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_field</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 7. dfe_businessrule                                           -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Business Rule" OwnershipType="UserOwned" BaseTableName="dfe_businessrule">dfe_businessrule</Name>
+      <EntityInfo>
+        <entity Name="dfe_businessrule">
+          <LocalizedNames><LocalizedName description="Business Rule" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Business Rules" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_description">
+              <Type>ntext</Type><MaxLength>1000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Description" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_conditionslogic">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_conditionslogic_dfe_businessrule" localizedName="Conditions Logic">
+                <options>
+                  <option value="1"><Labels><Label description="AND" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="OR" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Conditions Logic" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_action">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_action_dfe_businessrule" localizedName="Action">
+                <options>
+                  <option value="1"><Labels><Label description="showField" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="hideField" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="showSection" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="hideSection" languagecode="1033"/></Labels></option>
+                  <option value="5"><Labels><Label description="showTab" languagecode="1033"/></Labels></option>
+                  <option value="6"><Labels><Label description="hideTab" languagecode="1033"/></Labels></option>
+                  <option value="7"><Labels><Label description="makeRequired" languagecode="1033"/></Labels></option>
+                  <option value="8"><Labels><Label description="makeOptional" languagecode="1033"/></Labels></option>
+                  <option value="9"><Labels><Label description="makeReadonly" languagecode="1033"/></Labels></option>
+                  <option value="10"><Labels><Label description="makeEditable" languagecode="1033"/></Labels></option>
+                  <option value="11"><Labels><Label description="setValue" languagecode="1033"/></Labels></option>
+                  <option value="12"><Labels><Label description="clearValue" languagecode="1033"/></Labels></option>
+                  <option value="13"><Labels><Label description="calculateValue" languagecode="1033"/></Labels></option>
+                  <option value="14"><Labels><Label description="filterOptions" languagecode="1033"/></Labels></option>
+                  <option value="15"><Labels><Label description="filterLookup" languagecode="1033"/></Labels></option>
+                  <option value="16"><Labels><Label description="validateField" languagecode="1033"/></Labels></option>
+                  <option value="17"><Labels><Label description="validateForm" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Action" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_targetfieldid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Target Field ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_targetsectionid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Target Section ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_targettabid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Target Tab ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_actionvalue">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Action Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_priority">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Priority" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isactive">
+              <Type>bit</Type><DefaultValue>1</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Active" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_triggerfieldid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_field</targets>
+              <LocalizedNames><LocalizedName description="Trigger Field" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0070001-0000-0000-0000-000000000007}</formid>
+            <Name>Business Rule Main Form</Name>
+            <ObjectTypeCode>dfe_businessrule</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0070001-0000-0000-0000-000000000007}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0070001-0000-0000-0000-000000000007}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0070001-0001-0000-0000-000000000007}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0002-0000-0000-000000000007}" showlabel="true"><labels><label description="Trigger Field" languagecode="1033"/></labels><control id="dfe_triggerfieldid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_triggerfieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0003-0000-0000-000000000007}" showlabel="true"><labels><label description="Conditions Logic" languagecode="1033"/></labels><control id="dfe_conditionslogic" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_conditionslogic" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0004-0000-0000-000000000007}" showlabel="true"><labels><label description="Action" languagecode="1033"/></labels><control id="dfe_action" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_action" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0005-0000-0000-000000000007}" showlabel="true"><labels><label description="Priority" languagecode="1033"/></labels><control id="dfe_priority" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_priority" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0006-0000-0000-000000000007}" showlabel="true"><labels><label description="Is Active" languagecode="1033"/></labels><control id="dfe_isactive" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isactive" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0007-0000-0000-000000000007}" showlabel="true"><labels><label description="Description" languagecode="1033"/></labels><control id="dfe_description" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_description" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0008-0000-0000-000000000007}" showlabel="true"><labels><label description="Target Field ID" languagecode="1033"/></labels><control id="dfe_targetfieldid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_targetfieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0009-0000-0000-000000000007}" showlabel="true"><labels><label description="Target Section ID" languagecode="1033"/></labels><control id="dfe_targetsectionid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_targetsectionid" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0010-0000-0000-000000000007}" showlabel="true"><labels><label description="Target Tab ID" languagecode="1033"/></labels><control id="dfe_targettabid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_targettabid" disabled="false"/></cell></row>
+                    <row><cell id="{C0070001-0011-0000-0000-000000000007}" showlabel="true"><labels><label description="Action Value" languagecode="1033"/></labels><control id="dfe_actionvalue" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_actionvalue" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0070001-0000-0000-0000-000000000007}</savedqueryid>
+          <Name>Active Business Rules</Name><Description>All active business rules</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_businessrule</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_businessrule">
+              <attribute name="dfe_name"/><attribute name="dfe_action"/>
+              <attribute name="dfe_conditionslogic"/><attribute name="dfe_priority"/>
+              <attribute name="dfe_isactive"/><attribute name="dfe_triggerfieldid"/>
+              <order attribute="dfe_priority" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_businessrule" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_businessruleid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_action" width="150"/>
+              <cell name="dfe_conditionslogic" width="100"/><cell name="dfe_triggerfieldid" width="200"/>
+              <cell name="dfe_priority" width="80"/><cell name="dfe_isactive" width="80"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_field_dfe_businessrule_trigger">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_businessrule</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_triggerfieldid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_field</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 8. dfe_rulecondition                                          -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Rule Condition" OwnershipType="UserOwned" BaseTableName="dfe_rulecondition">dfe_rulecondition</Name>
+      <EntityInfo>
+        <entity Name="dfe_rulecondition">
+          <LocalizedNames><LocalizedName description="Rule Condition" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Rule Conditions" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Field ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_operator">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_operator_dfe_rulecondition" localizedName="Operator">
+                <options>
+                  <option value="1"><Labels><Label description="equals" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="notEquals" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="isEmpty" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="isNotEmpty" languagecode="1033"/></Labels></option>
+                  <option value="5"><Labels><Label description="greaterThan" languagecode="1033"/></Labels></option>
+                  <option value="6"><Labels><Label description="lessThan" languagecode="1033"/></Labels></option>
+                  <option value="7"><Labels><Label description="greaterThanOrEqual" languagecode="1033"/></Labels></option>
+                  <option value="8"><Labels><Label description="lessThanOrEqual" languagecode="1033"/></Labels></option>
+                  <option value="9"><Labels><Label description="contains" languagecode="1033"/></Labels></option>
+                  <option value="10"><Labels><Label description="inList" languagecode="1033"/></Labels></option>
+                  <option value="11"><Labels><Label description="notInList" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Operator" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_value">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Value" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_logicaloperator">
+              <Type>picklist</Type><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_logicaloperator_dfe_rulecondition" localizedName="Logical Operator">
+                <options>
+                  <option value="1"><Labels><Label description="AND" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="OR" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Logical Operator" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayorder">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Display Order" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_businessruleid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_businessrule</targets>
+              <LocalizedNames><LocalizedName description="Business Rule" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0080001-0000-0000-0000-000000000008}</formid>
+            <Name>Rule Condition Main Form</Name>
+            <ObjectTypeCode>dfe_rulecondition</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0080001-0000-0000-0000-000000000008}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0080001-0000-0000-0000-000000000008}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0080001-0001-0000-0000-000000000008}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0002-0000-0000-000000000008}" showlabel="true"><labels><label description="Business Rule" languagecode="1033"/></labels><control id="dfe_businessruleid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_businessruleid" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0003-0000-0000-000000000008}" showlabel="true"><labels><label description="Field ID" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0004-0000-0000-000000000008}" showlabel="true"><labels><label description="Operator" languagecode="1033"/></labels><control id="dfe_operator" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_operator" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0005-0000-0000-000000000008}" showlabel="true"><labels><label description="Value" languagecode="1033"/></labels><control id="dfe_value" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_value" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0006-0000-0000-000000000008}" showlabel="true"><labels><label description="Logical Operator" languagecode="1033"/></labels><control id="dfe_logicaloperator" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_logicaloperator" disabled="false"/></cell></row>
+                    <row><cell id="{C0080001-0007-0000-0000-000000000008}" showlabel="true"><labels><label description="Display Order" languagecode="1033"/></labels><control id="dfe_displayorder" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_displayorder" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0080001-0000-0000-0000-000000000008}</savedqueryid>
+          <Name>Active Rule Conditions</Name><Description>All active rule conditions</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_rulecondition</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_rulecondition">
+              <attribute name="dfe_name"/><attribute name="dfe_fieldid"/>
+              <attribute name="dfe_operator"/><attribute name="dfe_displayorder"/>
+              <attribute name="dfe_businessruleid"/>
+              <order attribute="dfe_displayorder" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_rulecondition" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_ruleconditionid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_businessruleid" width="200"/>
+              <cell name="dfe_fieldid" width="150"/><cell name="dfe_operator" width="120"/>
+              <cell name="dfe_displayorder" width="80"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_businessrule_dfe_rulecondition">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_rulecondition</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_businessruleid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_businessrule</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 9. dfe_lookupconfig                                           -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Lookup Config" OwnershipType="UserOwned" BaseTableName="dfe_lookupconfig">dfe_lookupconfig</Name>
+      <EntityInfo>
+        <entity Name="dfe_lookupconfig">
+          <LocalizedNames><LocalizedName description="Lookup Config" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Lookup Configs" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_entitylogicalname">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Entity Logical Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_displayattribute">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Display Attribute" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_valueattribute">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Value Attribute" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_filterexpression">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Filter Expression" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_searchminchars">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Search Min Chars" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxresults">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Max Results" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_dependsonfieldid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Depends On Field ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_dependsonfiltertemplate">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Depends On Filter Template" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_field</targets>
+              <LocalizedNames><LocalizedName description="Field" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0090001-0000-0000-0000-000000000009}</formid>
+            <Name>Lookup Config Main Form</Name>
+            <ObjectTypeCode>dfe_lookupconfig</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0090001-0000-0000-0000-000000000009}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0090001-0000-0000-0000-000000000009}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0090001-0001-0000-0000-000000000009}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0002-0000-0000-000000000009}" showlabel="true"><labels><label description="Field" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0003-0000-0000-000000000009}" showlabel="true"><labels><label description="Entity Logical Name" languagecode="1033"/></labels><control id="dfe_entitylogicalname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_entitylogicalname" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0004-0000-0000-000000000009}" showlabel="true"><labels><label description="Display Attribute" languagecode="1033"/></labels><control id="dfe_displayattribute" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_displayattribute" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0005-0000-0000-000000000009}" showlabel="true"><labels><label description="Value Attribute" languagecode="1033"/></labels><control id="dfe_valueattribute" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_valueattribute" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0006-0000-0000-000000000009}" showlabel="true"><labels><label description="Search Min Chars" languagecode="1033"/></labels><control id="dfe_searchminchars" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_searchminchars" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0007-0000-0000-000000000009}" showlabel="true"><labels><label description="Max Results" languagecode="1033"/></labels><control id="dfe_maxresults" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxresults" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0008-0000-0000-000000000009}" showlabel="true"><labels><label description="Filter Expression" languagecode="1033"/></labels><control id="dfe_filterexpression" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_filterexpression" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0009-0000-0000-000000000009}" showlabel="true"><labels><label description="Depends On Field ID" languagecode="1033"/></labels><control id="dfe_dependsonfieldid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_dependsonfieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0090001-0010-0000-0000-000000000009}" showlabel="true"><labels><label description="Depends On Filter Template" languagecode="1033"/></labels><control id="dfe_dependsonfiltertemplate" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_dependsonfiltertemplate" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0090001-0000-0000-0000-000000000009}</savedqueryid>
+          <Name>Active Lookup Configs</Name><Description>All active lookup configs</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_lookupconfig</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_lookupconfig">
+              <attribute name="dfe_name"/><attribute name="dfe_entitylogicalname"/>
+              <attribute name="dfe_displayattribute"/><attribute name="dfe_fieldid"/>
+              <order attribute="dfe_name" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_lookupconfig" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_lookupconfigid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_entitylogicalname" width="200"/>
+              <cell name="dfe_displayattribute" width="150"/><cell name="dfe_fieldid" width="200"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_field_dfe_lookupconfig">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_lookupconfig</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_fieldid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_field</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+
+    <!-- ============================================================ -->
+    <!-- 10. dfe_fileuploadconfig                                      -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="File Upload Config" OwnershipType="UserOwned" BaseTableName="dfe_fileuploadconfig">dfe_fileuploadconfig</Name>
+      <EntityInfo>
+        <entity Name="dfe_fileuploadconfig">
+          <LocalizedNames><LocalizedName description="File Upload Config" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="File Upload Configs" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_allowedmimetypes">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Allowed MIME Types" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxfilesizebytes">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Max File Size Bytes" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_destination">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_destination_dfe_fileuploadconfig" localizedName="Destination">
+                <options>
+                  <option value="1"><Labels><Label description="crmNotes" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="sharePoint" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Destination" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_sharepointlibraryurl">
+              <Type>nvarchar</Type><MaxLength>500</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="SharePoint Library URL" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_sharepointfolderpath">
+              <Type>nvarchar</Type><MaxLength>500</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="SharePoint Folder Path" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_maxfiles">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Max Files" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_field</targets>
+              <LocalizedNames><LocalizedName description="Field" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0100001-0000-0000-0000-000000000010}</formid>
+            <Name>File Upload Config Main Form</Name>
+            <ObjectTypeCode>dfe_fileuploadconfig</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0100001-0000-0000-0000-000000000010}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0100001-0000-0000-0000-000000000010}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0100001-0001-0000-0000-000000000010}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0002-0000-0000-000000000010}" showlabel="true"><labels><label description="Field" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0003-0000-0000-000000000010}" showlabel="true"><labels><label description="Allowed MIME Types" languagecode="1033"/></labels><control id="dfe_allowedmimetypes" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_allowedmimetypes" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0004-0000-0000-000000000010}" showlabel="true"><labels><label description="Max File Size Bytes" languagecode="1033"/></labels><control id="dfe_maxfilesizebytes" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxfilesizebytes" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0005-0000-0000-000000000010}" showlabel="true"><labels><label description="Max Files" languagecode="1033"/></labels><control id="dfe_maxfiles" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_maxfiles" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0006-0000-0000-000000000010}" showlabel="true"><labels><label description="Destination" languagecode="1033"/></labels><control id="dfe_destination" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_destination" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0007-0000-0000-000000000010}" showlabel="true"><labels><label description="SharePoint Library URL" languagecode="1033"/></labels><control id="dfe_sharepointlibraryurl" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_sharepointlibraryurl" disabled="false"/></cell></row>
+                    <row><cell id="{C0100001-0008-0000-0000-000000000010}" showlabel="true"><labels><label description="SharePoint Folder Path" languagecode="1033"/></labels><control id="dfe_sharepointfolderpath" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_sharepointfolderpath" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0100001-0000-0000-0000-000000000010}</savedqueryid>
+          <Name>Active File Upload Configs</Name><Description>All active file upload configs</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_fileuploadconfig</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_fileuploadconfig">
+              <attribute name="dfe_name"/><attribute name="dfe_destination"/>
+              <attribute name="dfe_maxfilesizebytes"/><attribute name="dfe_maxfiles"/>
+              <attribute name="dfe_fieldid"/>
+              <order attribute="dfe_name" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_fileuploadconfig" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_fileuploadconfigid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_destination" width="120"/>
+              <cell name="dfe_maxfilesizebytes" width="120"/><cell name="dfe_maxfiles" width="80"/>
+              <cell name="dfe_fieldid" width="200"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_field_dfe_fileuploadconfig">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_fileuploadconfig</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_fieldid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_field</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 11. dfe_submissionmapping                                     -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Submission Mapping" OwnershipType="UserOwned" BaseTableName="dfe_submissionmapping">dfe_submissionmapping</Name>
+      <EntityInfo>
+        <entity Name="dfe_submissionmapping">
+          <LocalizedNames><LocalizedName description="Submission Mapping" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Submission Mappings" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_fieldid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Field ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_targetentitylogicalname">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Target Entity Logical Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_targetattributelogicalname">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Target Attribute Logical Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_ismappedtochildentity">
+              <Type>bit</Type><DefaultValue>0</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Mapped To Child Entity" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_childentityrelationshipname">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Child Entity Relationship Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_transformexpression">
+              <Type>ntext</Type><MaxLength>2000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Transform Expression" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_isactive">
+              <Type>bit</Type><DefaultValue>1</DefaultValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Is Active" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_formdefinition</targets>
+              <LocalizedNames><LocalizedName description="Form Definition" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0110001-0000-0000-0000-000000000011}</formid>
+            <Name>Submission Mapping Main Form</Name>
+            <ObjectTypeCode>dfe_submissionmapping</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0110001-0000-0000-0000-000000000011}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0110001-0000-0000-0000-000000000011}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0110001-0001-0000-0000-000000000011}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0002-0000-0000-000000000011}" showlabel="true"><labels><label description="Form Definition" languagecode="1033"/></labels><control id="dfe_formdefinitionid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_formdefinitionid" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0003-0000-0000-000000000011}" showlabel="true"><labels><label description="Field ID" languagecode="1033"/></labels><control id="dfe_fieldid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_fieldid" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0004-0000-0000-000000000011}" showlabel="true"><labels><label description="Target Entity Logical Name" languagecode="1033"/></labels><control id="dfe_targetentitylogicalname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_targetentitylogicalname" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0005-0000-0000-000000000011}" showlabel="true"><labels><label description="Target Attribute Logical Name" languagecode="1033"/></labels><control id="dfe_targetattributelogicalname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_targetattributelogicalname" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0006-0000-0000-000000000011}" showlabel="true"><labels><label description="Is Mapped To Child Entity" languagecode="1033"/></labels><control id="dfe_ismappedtochildentity" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_ismappedtochildentity" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0007-0000-0000-000000000011}" showlabel="true"><labels><label description="Child Entity Relationship Name" languagecode="1033"/></labels><control id="dfe_childentityrelationshipname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_childentityrelationshipname" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0008-0000-0000-000000000011}" showlabel="true"><labels><label description="Transform Expression" languagecode="1033"/></labels><control id="dfe_transformexpression" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_transformexpression" disabled="false"/></cell></row>
+                    <row><cell id="{C0110001-0009-0000-0000-000000000011}" showlabel="true"><labels><label description="Is Active" languagecode="1033"/></labels><control id="dfe_isactive" classid="{67FAC785-CD58-4f9f-ABB3-4B7DDC6ED5ED}" datafieldname="dfe_isactive" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0110001-0000-0000-0000-000000000011}</savedqueryid>
+          <Name>Active Submission Mappings</Name><Description>All active submission mappings</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_submissionmapping</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_submissionmapping">
+              <attribute name="dfe_name"/><attribute name="dfe_fieldid"/>
+              <attribute name="dfe_targetentitylogicalname"/><attribute name="dfe_targetattributelogicalname"/>
+              <attribute name="dfe_isactive"/><attribute name="dfe_formdefinitionid"/>
+              <order attribute="dfe_name" descending="false"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_submissionmapping" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_submissionmappingid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_formdefinitionid" width="200"/>
+              <cell name="dfe_targetentitylogicalname" width="200"/><cell name="dfe_targetattributelogicalname" width="200"/>
+              <cell name="dfe_isactive" width="80"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_formdefinition_dfe_submissionmapping">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_submissionmapping</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_formdefinitionid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_formdefinition</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>Cascade</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 12. dfe_formdraft                                             -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Form Draft" OwnershipType="UserOwned" BaseTableName="dfe_formdraft">dfe_formdraft</Name>
+      <EntityInfo>
+        <entity Name="dfe_formdraft">
+          <LocalizedNames><LocalizedName description="Form Draft" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Form Drafts" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formcode">
+              <Type>nvarchar</Type><MaxLength>100</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Form Code" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userdisplayname">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User Display Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdata">
+              <Type>ntext</Type><MaxLength>1048576</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Form Data" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_currenttabindex">
+              <Type>int</Type><MinValue>-2147483648</MinValue><MaxValue>2147483647</MaxValue><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Current Tab Index" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_savedat">
+              <Type>datetime</Type><Format>DateAndTime</Format><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Saved At" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_expiresat">
+              <Type>datetime</Type><Format>DateAndTime</Format><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Expires At" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionid">
+              <Type>lookup</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_formdefinition</targets>
+              <LocalizedNames><LocalizedName description="Form Definition" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0120001-0000-0000-0000-000000000012}</formid>
+            <Name>Form Draft Main Form</Name>
+            <ObjectTypeCode>dfe_formdraft</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0120001-0000-0000-0000-000000000012}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0120001-0000-0000-0000-000000000012}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0120001-0001-0000-0000-000000000012}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0002-0000-0000-000000000012}" showlabel="true"><labels><label description="Form Code" languagecode="1033"/></labels><control id="dfe_formcode" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_formcode" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0003-0000-0000-000000000012}" showlabel="true"><labels><label description="Form Definition" languagecode="1033"/></labels><control id="dfe_formdefinitionid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_formdefinitionid" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0004-0000-0000-000000000012}" showlabel="true"><labels><label description="User ID" languagecode="1033"/></labels><control id="dfe_userid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userid" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0005-0000-0000-000000000012}" showlabel="true"><labels><label description="User Display Name" languagecode="1033"/></labels><control id="dfe_userdisplayname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userdisplayname" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0006-0000-0000-000000000012}" showlabel="true"><labels><label description="Current Tab Index" languagecode="1033"/></labels><control id="dfe_currenttabindex" classid="{C6D124CA-7EDA-4a60-AEA9-7FB8478AAB62}" datafieldname="dfe_currenttabindex" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0007-0000-0000-000000000012}" showlabel="true"><labels><label description="Saved At" languagecode="1033"/></labels><control id="dfe_savedat" classid="{5B773807-9FB2-42db-97C3-7A91672E522E}" datafieldname="dfe_savedat" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0008-0000-0000-000000000012}" showlabel="true"><labels><label description="Expires At" languagecode="1033"/></labels><control id="dfe_expiresat" classid="{5B773807-9FB2-42db-97C3-7A91672E522E}" datafieldname="dfe_expiresat" disabled="false"/></cell></row>
+                    <row><cell id="{C0120001-0009-0000-0000-000000000012}" showlabel="true"><labels><label description="Form Data" languagecode="1033"/></labels><control id="dfe_formdata" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_formdata" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0120001-0000-0000-0000-000000000012}</savedqueryid>
+          <Name>Active Form Drafts</Name><Description>All active form drafts</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_formdraft</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_formdraft">
+              <attribute name="dfe_name"/><attribute name="dfe_formcode"/>
+              <attribute name="dfe_userid"/><attribute name="dfe_userdisplayname"/>
+              <attribute name="dfe_savedat"/><attribute name="dfe_expiresat"/>
+              <attribute name="dfe_formdefinitionid"/>
+              <order attribute="dfe_savedat" descending="true"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_formdraft" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_formdraftid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_formcode" width="120"/>
+              <cell name="dfe_userdisplayname" width="200"/><cell name="dfe_savedat" width="150"/>
+              <cell name="dfe_expiresat" width="150"/><cell name="dfe_formdefinitionid" width="200"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_formdefinition_dfe_formdraft">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_formdraft</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_formdefinitionid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_formdefinition</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>RemoveLink</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 13. dfe_submissionlog                                         -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Submission Log" OwnershipType="UserOwned" BaseTableName="dfe_submissionlog">dfe_submissionlog</Name>
+      <EntityInfo>
+        <entity Name="dfe_submissionlog">
+          <LocalizedNames><LocalizedName description="Submission Log" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Submission Logs" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formcode">
+              <Type>nvarchar</Type><MaxLength>100</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Form Code" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userdisplayname">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User Display Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_submittedat">
+              <Type>datetime</Type><Format>DateAndTime</Format><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Submitted At" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_parentrecordid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Parent Record ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_parententitylogicalname">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Parent Entity Logical Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_status">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_status_dfe_submissionlog" localizedName="Status">
+                <options>
+                  <option value="1"><Labels><Label description="success" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="failed" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="partial" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Status" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_errordetails">
+              <Type>ntext</Type><MaxLength>4000</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Error Details" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionid">
+              <Type>lookup</Type><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <targets>dfe_formdefinition</targets>
+              <LocalizedNames><LocalizedName description="Form Definition" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0130001-0000-0000-0000-000000000013}</formid>
+            <Name>Submission Log Main Form</Name>
+            <ObjectTypeCode>dfe_submissionlog</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0130001-0000-0000-0000-000000000013}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0130001-0000-0000-0000-000000000013}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0130001-0001-0000-0000-000000000013}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0002-0000-0000-000000000013}" showlabel="true"><labels><label description="Form Code" languagecode="1033"/></labels><control id="dfe_formcode" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_formcode" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0003-0000-0000-000000000013}" showlabel="true"><labels><label description="Form Definition" languagecode="1033"/></labels><control id="dfe_formdefinitionid" classid="{270BD3DB-D9AF-4782-9025-509E298DEC0A}" datafieldname="dfe_formdefinitionid" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0004-0000-0000-000000000013}" showlabel="true"><labels><label description="User ID" languagecode="1033"/></labels><control id="dfe_userid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userid" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0005-0000-0000-000000000013}" showlabel="true"><labels><label description="User Display Name" languagecode="1033"/></labels><control id="dfe_userdisplayname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userdisplayname" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0006-0000-0000-000000000013}" showlabel="true"><labels><label description="Submitted At" languagecode="1033"/></labels><control id="dfe_submittedat" classid="{5B773807-9FB2-42db-97C3-7A91672E522E}" datafieldname="dfe_submittedat" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0007-0000-0000-000000000013}" showlabel="true"><labels><label description="Status" languagecode="1033"/></labels><control id="dfe_status" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_status" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0008-0000-0000-000000000013}" showlabel="true"><labels><label description="Parent Record ID" languagecode="1033"/></labels><control id="dfe_parentrecordid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_parentrecordid" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0009-0000-0000-000000000013}" showlabel="true"><labels><label description="Parent Entity Logical Name" languagecode="1033"/></labels><control id="dfe_parententitylogicalname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_parententitylogicalname" disabled="false"/></cell></row>
+                    <row><cell id="{C0130001-0010-0000-0000-000000000013}" showlabel="true"><labels><label description="Error Details" languagecode="1033"/></labels><control id="dfe_errordetails" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_errordetails" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0130001-0000-0000-0000-000000000013}</savedqueryid>
+          <Name>Active Submission Logs</Name><Description>All active submission logs</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_submissionlog</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_submissionlog">
+              <attribute name="dfe_name"/><attribute name="dfe_formcode"/>
+              <attribute name="dfe_userdisplayname"/><attribute name="dfe_submittedat"/>
+              <attribute name="dfe_status"/><attribute name="dfe_formdefinitionid"/>
+              <order attribute="dfe_submittedat" descending="true"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_submissionlog" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_submissionlogid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_formcode" width="120"/>
+              <cell name="dfe_userdisplayname" width="200"/><cell name="dfe_submittedat" width="150"/>
+              <cell name="dfe_status" width="100"/><cell name="dfe_formdefinitionid" width="200"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships>
+        <EntityRelationship Name="dfe_formdefinition_dfe_submissionlog">
+          <EntityRelationshipType>ManyToOne</EntityRelationshipType><IsCustomizable>1</IsCustomizable>
+          <ReferencingEntityName>dfe_submissionlog</ReferencingEntityName>
+          <ReferencingAttributeName>dfe_formdefinitionid</ReferencingAttributeName>
+          <ReferencedEntityName>dfe_formdefinition</ReferencedEntityName>
+          <CascadeAssign>NoCascade</CascadeAssign><CascadeDelete>RemoveLink</CascadeDelete>
+          <CascadeReparent>NoCascade</CascadeReparent><CascadeShare>NoCascade</CascadeShare>
+          <CascadeUnshare>NoCascade</CascadeUnshare>
+        </EntityRelationship>
+      </Relationships>
+    </Entity>
+
+    <!-- ============================================================ -->
+    <!-- 14. dfe_auditlog  (NO lookup to dfe_formdefinition)           -->
+    <!-- ============================================================ -->
+    <Entity>
+      <Name LocalizedName="Audit Log" OwnershipType="UserOwned" BaseTableName="dfe_auditlog">dfe_auditlog</Name>
+      <EntityInfo>
+        <entity Name="dfe_auditlog">
+          <LocalizedNames><LocalizedName description="Audit Log" languagecode="1033"/></LocalizedNames>
+          <LocalizedCollectionNames><LocalizedCollectionName description="Audit Logs" languagecode="1033"/></LocalizedCollectionNames>
+          <Descriptions/>
+          <attributes>
+            <attribute PhysicalName="dfe_name">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <IsPrimaryName>1</IsPrimaryName>
+              <LocalizedNames><LocalizedName description="Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_eventtype">
+              <Type>picklist</Type><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <optionset Name="dfe_eventtype_dfe_auditlog" localizedName="Event Type">
+                <options>
+                  <option value="1"><Labels><Label description="userAuthenticated" languagecode="1033"/></Labels></option>
+                  <option value="2"><Labels><Label description="formOpened" languagecode="1033"/></Labels></option>
+                  <option value="3"><Labels><Label description="draftSaved" languagecode="1033"/></Labels></option>
+                  <option value="4"><Labels><Label description="draftResumed" languagecode="1033"/></Labels></option>
+                  <option value="5"><Labels><Label description="draftDiscarded" languagecode="1033"/></Labels></option>
+                  <option value="6"><Labels><Label description="formSubmitted" languagecode="1033"/></Labels></option>
+                  <option value="7"><Labels><Label description="formSubmissionFailed" languagecode="1033"/></Labels></option>
+                  <option value="8"><Labels><Label description="documentUploaded" languagecode="1033"/></Labels></option>
+                  <option value="9"><Labels><Label description="adminConfigChanged" languagecode="1033"/></Labels></option>
+                </options>
+              </optionset>
+              <LocalizedNames><LocalizedName description="Event Type" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionid_text">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Form Definition ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_formdefinitionname">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Form Definition Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_userdisplayname">
+              <Type>nvarchar</Type><MaxLength>300</MaxLength><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="User Display Name" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_timestamputc">
+              <Type>datetime</Type><Format>DateAndTime</Format><RequiredLevel>Required</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Timestamp UTC" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_recordid">
+              <Type>nvarchar</Type><MaxLength>200</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Record ID" languagecode="1033"/></LocalizedNames>
+            </attribute>
+            <attribute PhysicalName="dfe_changeddata">
+              <Type>ntext</Type><MaxLength>1048576</MaxLength><RequiredLevel>None</RequiredLevel>
+              <DisplayMask>ValidForAdvancedFind|ValidForForm|ValidForGrid</DisplayMask>
+              <LocalizedNames><LocalizedName description="Changed Data" languagecode="1033"/></LocalizedNames>
+            </attribute>
+          </attributes>
+        </entity>
+      </EntityInfo>
+      <FormXml>
+        <forms type="main">
+          <systemform>
+            <formid>{F0140001-0000-0000-0000-000000000014}</formid>
+            <Name>Audit Log Main Form</Name>
+            <ObjectTypeCode>dfe_auditlog</ObjectTypeCode><IsDefault>1</IsDefault>
+            <form><tabs><tab name="tab_general" id="{T0140001-0000-0000-0000-000000000014}" IsUserDefined="0">
+              <labels><label description="General" languagecode="1033"/></labels>
+              <columns><column width="100%"><sections>
+                <section name="section_main" id="{S0140001-0000-0000-0000-000000000014}" IsUserDefined="0" layout="varwidth" showlabel="false" showbar="false">
+                  <labels><label description="General" languagecode="1033"/></labels>
+                  <rows>
+                    <row><cell id="{C0140001-0001-0000-0000-000000000014}" showlabel="true"><labels><label description="Name" languagecode="1033"/></labels><control id="dfe_name" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_name" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0002-0000-0000-000000000014}" showlabel="true"><labels><label description="Event Type" languagecode="1033"/></labels><control id="dfe_eventtype" classid="{3EF39988-22BB-4f0b-BBBE-64B5A3748AEE}" datafieldname="dfe_eventtype" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0003-0000-0000-000000000014}" showlabel="true"><labels><label description="User ID" languagecode="1033"/></labels><control id="dfe_userid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userid" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0004-0000-0000-000000000014}" showlabel="true"><labels><label description="User Display Name" languagecode="1033"/></labels><control id="dfe_userdisplayname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_userdisplayname" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0005-0000-0000-000000000014}" showlabel="true"><labels><label description="Timestamp UTC" languagecode="1033"/></labels><control id="dfe_timestamputc" classid="{5B773807-9FB2-42db-97C3-7A91672E522E}" datafieldname="dfe_timestamputc" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0006-0000-0000-000000000014}" showlabel="true"><labels><label description="Form Definition ID" languagecode="1033"/></labels><control id="dfe_formdefinitionid_text" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_formdefinitionid_text" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0007-0000-0000-000000000014}" showlabel="true"><labels><label description="Form Definition Name" languagecode="1033"/></labels><control id="dfe_formdefinitionname" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_formdefinitionname" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0008-0000-0000-000000000014}" showlabel="true"><labels><label description="Record ID" languagecode="1033"/></labels><control id="dfe_recordid" classid="{4273EDBD-AC1D-40d3-9FB2-095C621B552D}" datafieldname="dfe_recordid" disabled="false"/></cell></row>
+                    <row><cell id="{C0140001-0009-0000-0000-000000000014}" showlabel="true"><labels><label description="Changed Data" languagecode="1033"/></labels><control id="dfe_changeddata" classid="{E0DECE4B-6FC8-4a8f-A065-082708572369}" datafieldname="dfe_changeddata" disabled="false"/></cell></row>
+                  </rows>
+                </section>
+              </sections></column></columns>
+            </tab></tabs></form>
+          </systemform>
+        </forms>
+      </FormXml>
+      <SavedQueries>
+        <savedquery>
+          <savedqueryid>{Q0140001-0000-0000-0000-000000000014}</savedqueryid>
+          <Name>Active Audit Logs</Name><Description>All active audit log entries</Description>
+          <IsDefault>1</IsDefault><IsQuickFindQuery>0</IsQuickFindQuery>
+          <ReturnedTypeCode>dfe_auditlog</ReturnedTypeCode><QueryType>0</QueryType>
+          <fetchxml><fetch version="1.0" output-format="xml-platform" mapping="logical" distinct="false">
+            <entity name="dfe_auditlog">
+              <attribute name="dfe_name"/><attribute name="dfe_eventtype"/>
+              <attribute name="dfe_userdisplayname"/><attribute name="dfe_timestamputc"/>
+              <attribute name="dfe_formdefinitionname"/><attribute name="dfe_recordid"/>
+              <order attribute="dfe_timestamputc" descending="true"/>
+              <filter type="and"><condition attribute="statecode" operator="eq" value="0"/></filter>
+            </entity>
+          </fetch></fetchxml>
+          <layoutxml><grid name="resultset" object="dfe_auditlog" jump="dfe_name" select="1" icon="1" preview="1">
+            <row name="result" id="dfe_auditlogid">
+              <cell name="dfe_name" width="200"/><cell name="dfe_eventtype" width="150"/>
+              <cell name="dfe_userdisplayname" width="200"/><cell name="dfe_timestamputc" width="150"/>
+              <cell name="dfe_formdefinitionname" width="200"/><cell name="dfe_recordid" width="150"/>
+            </row>
+          </grid></layoutxml>
+        </savedquery>
+      </SavedQueries>
+      <Visualizations/><WebResources/>
+      <Relationships/>
+    </Entity>
+
+  </Entities>
+  <Roles/>
+  <Workflows/>
+  <FieldSecurityProfiles/>
+  <Templates/>
+  <EntityMaps/>
+  <EntityRelationships/>
+  <OrganizationSettings/>
+  <optionsets/>
+  <CustomControls/>
+  <SolutionPluginAssemblies/>
+  <SolutionComponentDefinitions/>
+</ImportExportXml>

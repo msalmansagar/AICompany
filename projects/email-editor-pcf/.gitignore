@@ -1,0 +1,13 @@
+# MSBuild / NuGet
+bin/
+obj/
+*.user
+packages/
+
+# PCF build output
+EmailEditorControl/out/
+EmailEditorControl/node_modules/
+EmailEditorControl/generated/
+
+# PAC auth profiles (never commit)
+.pac/

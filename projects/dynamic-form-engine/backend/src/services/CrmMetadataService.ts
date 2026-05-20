@@ -1,0 +1,634 @@
+import { LRUCache } from 'lru-cache';
+import type {
+  FormDefinition,
+  FormSummary,
+  TabDefinition,
+  SectionDefinition,
+  FieldDefinition,
+  ValidationRule,
+  BusinessRule,
+  RuleCondition,
+  OptionValue,
+  LookupConfig,
+  SubmissionMapping,
+  FormVersion,
+  FieldType,
+  ValidationRuleType,
+  BusinessRuleAction,
+  ConditionOperator,
+  LogicalOperator,
+} from '@dfe/shared';
+import { CrmBaseService } from './CrmBaseService.js';
+import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
+import { config } from '../config/env.js';
+import type { CrmAuthService } from './CrmAuthService.js';
+
+const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+
+interface ODataCollection<T> {
+  value: T[];
+}
+
+export class CrmMetadataService extends CrmBaseService {
+  constructor(
+    authService: CrmAuthService,
+    private readonly cache: LRUCache<string, FormDefinition>,
+  ) {
+    super(authService);
+  }
+
+  async getFormDefinition(formCode: string): Promise<FormDefinition> {
+    if (!SAFE_FORM_CODE_PATTERN.test(formCode)) {
+      throw new ValidationError(`Invalid form code: '${formCode}'`);
+    }
+
+    const cached = this.cache.get(formCode);
+    if (cached) return cached;
+
+    const form = await this.fetchAndAssembleForm(formCode);
+    this.cache.set(formCode, form);
+    return form;
+  }
+
+  async listForms(): Promise<FormSummary[]> {
+    const response = await this.crmFetch<ODataCollection<RawFormDefinition>>(
+      `/qdb_form_definitions?$filter=statecode eq 0 and qdb_status eq 100000001` +
+      `&$select=qdb_form_definitionid,qdb_form_code,qdb_title,qdb_description,qdb_status,qdb_version,modifiedon` +
+      `&$orderby=qdb_title asc`,
+    );
+    return response.value.map((raw) => this.mapFormSummary(raw));
+  }
+
+  async getFormVersions(formCode: string): Promise<FormVersion[]> {
+    const formDef = await this.getFormDefinition(formCode);
+    const response = await this.crmFetch<ODataCollection<RawVersion>>(
+      `/qdb_form_versions?$filter=_qdb_form_definition_id_value eq '${formDef.id}'&$orderby=qdb_version_number desc`,
+    );
+    return response.value.map((v) => this.mapVersion(v));
+  }
+
+  invalidateCache(formCode: string): void {
+    this.cache.delete(formCode);
+  }
+
+  private async fetchAndAssembleForm(formCode: string): Promise<FormDefinition> {
+    const response = await this.crmFetch<ODataCollection<RawFormDefinition>>(
+      `/qdb_form_definitions?$filter=qdb_form_code eq '${formCode}' and statecode eq 0&$top=1`,
+    );
+
+    const raw = response.value[0];
+    if (!raw) throw new FormNotFoundError(formCode);
+    if (raw.qdb_status !== 100000001) throw new FormInactiveError(formCode);
+
+    const formId = raw.qdb_form_definitionid;
+
+    const [tabs, submissionMappings] = await Promise.all([
+      this.fetchTabsWithChildren(formId),
+      this.fetchSubmissionMappings(formId),
+    ]);
+
+    return {
+      id: formId,
+      formCode: raw.qdb_form_code,
+      title: raw.qdb_title,
+      description: raw.qdb_description,
+      status: this.mapFormStatus(raw.qdb_status),
+      version: raw.qdb_version ?? 1,
+      allowSaveDraft: raw.qdb_allow_save_draft ?? true,
+      draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
+      powerAutomateFlowId: raw.qdb_power_automate_flow_id,
+      confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
+      confirmationRecordRefAttribute: raw.qdb_confirmation_record_ref_attribute,
+      accessGroupId: raw.qdb_access_group_id,
+      submissionMappings,
+      tabs,
+      createdAt: raw.createdon,
+      modifiedAt: raw.modifiedon,
+    };
+  }
+
+  private async fetchTabsWithChildren(formId: string): Promise<TabDefinition[]> {
+    const response = await this.crmFetch<ODataCollection<RawTab>>(
+      `/qdb_form_tabs?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0&$orderby=qdb_display_order asc`,
+    );
+
+    const tabs = response.value;
+    if (tabs.length === 0) return [];
+
+    const tabIds = tabs.map((t) => t.qdb_form_tabid);
+    const sections = await this.fetchSectionsWithChildren(tabIds, formId);
+
+    const sectionsByTab = new Map<string, SectionDefinition[]>();
+    for (const section of sections) {
+      const existing = sectionsByTab.get(section.tabId) ?? [];
+      existing.push(section);
+      sectionsByTab.set(section.tabId, existing);
+    }
+
+    return tabs.map((tab) => ({
+      id: tab.qdb_form_tabid,
+      formDefinitionId: formId,
+      label: tab.qdb_label,
+      iconName: tab.qdb_icon_name,
+      displayOrder: tab.qdb_display_order,
+      isVisible: tab.qdb_is_visible ?? true,
+      requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
+      sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
+    }));
+  }
+
+  private async fetchSectionsWithChildren(tabIds: string[], formId: string): Promise<SectionDefinition[]> {
+    const filter = tabIds.map((id) => `_qdb_form_tab_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawSection>>(
+      `/qdb_form_sections?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
+    );
+
+    const sections = response.value;
+    if (sections.length === 0) return [];
+
+    const sectionIds = sections.map((s) => s.qdb_form_sectionid);
+    const fields = await this.fetchFieldsWithMetadata(sectionIds, formId);
+
+    const fieldsBySection = new Map<string, FieldDefinition[]>();
+    for (const field of fields) {
+      const existing = fieldsBySection.get(field.sectionId) ?? [];
+      existing.push(field);
+      fieldsBySection.set(field.sectionId, existing);
+    }
+
+    return sections.map((section) => ({
+      id: section.qdb_form_sectionid,
+      tabId: section._qdb_form_tab_id_value,
+      label: section.qdb_label,
+      description: section.qdb_description,
+      displayOrder: section.qdb_display_order,
+      columns: this.mapColumns(section.qdb_columns),
+      isCollapsible: section.qdb_is_collapsible ?? false,
+      isCollapsedByDefault: section.qdb_is_collapsed_by_default ?? false,
+      isVisible: section.qdb_is_visible ?? true,
+      fields: fieldsBySection.get(section.qdb_form_sectionid) ?? [],
+    }));
+  }
+
+  private async fetchFieldsWithMetadata(sectionIds: string[], formId: string): Promise<FieldDefinition[]> {
+    const filter = sectionIds.map((id) => `_qdb_form_section_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawField>>(
+      `/qdb_form_fields?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
+    );
+
+    const fields = response.value;
+    if (fields.length === 0) return [];
+
+    const fieldIds = fields.map((f) => f.qdb_form_fieldid);
+
+    // Map field GUID → schema name so business rule conditions can resolve to schema names
+    const fieldGuidToSchema = new Map<string, string>(
+      fields.map((f) => [f.qdb_form_fieldid, f.qdb_schema_name]),
+    );
+
+    const [optionsMap, validationMap, lookupMap, businessRulesMap] = await Promise.all([
+      this.fetchOptions(fieldIds),
+      this.fetchValidationRules(fieldIds),
+      this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
+      this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
+    ]);
+
+    return fields.map((field) => ({
+      id: field.qdb_form_fieldid,
+      sectionId: field._qdb_form_section_id_value,
+      fieldType: this.mapFieldType(field.qdb_field_type),
+      schemaName: field.qdb_schema_name,
+      label: field.qdb_label,
+      placeholder: field.qdb_placeholder,
+      tooltip: field.qdb_tooltip,
+      defaultValue: field.qdb_default_value,
+      displayOrder: field.qdb_display_order,
+      columnSpan: this.mapColumnSpan(field.qdb_column_span),
+      isRequired: field.qdb_is_required ?? false,
+      isReadonly: field.qdb_is_readonly ?? false,
+      isHidden: field.qdb_is_hidden ?? false,
+      isVisible: !field.qdb_is_hidden,
+      options: optionsMap.get(field.qdb_form_fieldid),
+      lookupConfig: lookupMap.get(field.qdb_form_fieldid),
+      currencyCode: field.qdb_currency_code,
+      decimalPlaces: field.qdb_decimal_places,
+      maxRows: field.qdb_max_rows,
+      validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
+      businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
+    }));
+  }
+
+  private async fetchOptions(fieldIds: string[]): Promise<Map<string, OptionValue[]>> {
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawOption>>(
+      `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+    );
+
+    const map = new Map<string, OptionValue[]>();
+    for (const opt of response.value) {
+      const fieldId = opt._qdb_form_field_id_value;
+      const existing = map.get(fieldId) ?? [];
+      existing.push({
+        value: opt.qdb_value,
+        label: opt.qdb_label,
+        displayOrder: opt.qdb_display_order,
+        isDefault: opt.qdb_is_default ?? false,
+        parentOptionValue: opt.qdb_parent_option_value,
+        isActive: opt.qdb_is_active ?? true,
+      });
+      map.set(fieldId, existing);
+    }
+
+    return map;
+  }
+
+  private async fetchValidationRules(fieldIds: string[]): Promise<Map<string, ValidationRule[]>> {
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawValidationRule>>(
+      `/qdb_form_validation_rules?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_priority asc`,
+    );
+
+    const map = new Map<string, ValidationRule[]>();
+    for (const rule of response.value) {
+      const fieldId = rule._qdb_form_field_id_value;
+      const existing = map.get(fieldId) ?? [];
+      existing.push({
+        id: rule.qdb_form_validation_ruleid,
+        fieldId,
+        ruleType: this.mapRuleType(rule.qdb_rule_type),
+        errorMessage: rule.qdb_error_message,
+        minLength: rule.qdb_min_length,
+        maxLength: rule.qdb_max_length,
+        minValue: rule.qdb_min_value,
+        maxValue: rule.qdb_max_value,
+        regexPattern: rule.qdb_regex_pattern,
+        compareToFieldId: rule._qdb_compare_to_field_id_value,
+        compareToValue: rule.qdb_compare_to_value,
+        isActive: true,
+        priority: rule.qdb_priority ?? 100,
+      });
+      map.set(fieldId, existing);
+    }
+
+    return map;
+  }
+
+  private async fetchLookupConfigs(
+    fieldIds: string[],
+    fieldGuidToSchema: Map<string, string>,
+  ): Promise<Map<string, LookupConfig>> {
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawLookupConfig>>(
+      `/qdb_form_lookup_configs?$filter=(${filter})`,
+    );
+
+    const map = new Map<string, LookupConfig>();
+    for (const lc of response.value) {
+      // Resolve the dependsOn field GUID to its schema name so the frontend can key
+      // into fieldValues (which is indexed by schema name, not Dataverse record GUID).
+      const dependsOnFieldId = lc._qdb_depends_on_field_id_value
+        ? (fieldGuidToSchema.get(lc._qdb_depends_on_field_id_value) ?? lc._qdb_depends_on_field_id_value)
+        : undefined;
+
+      map.set(lc._qdb_form_field_id_value, {
+        id: lc.qdb_form_lookup_configid,
+        entityLogicalName: lc.qdb_entity_logical_name,
+        displayAttribute: lc.qdb_display_attribute,
+        valueAttribute: lc.qdb_value_attribute ?? 'id',
+        filterExpression: lc.qdb_filter_expression,
+        searchMinChars: lc.qdb_search_min_chars ?? 3,
+        maxResults: lc.qdb_max_results ?? 10,
+        dependsOnFieldId,
+        dependsOnFilterTemplate: lc.qdb_depends_on_filter_template,
+      });
+    }
+
+    return map;
+  }
+
+  // Business rules are stored at form-definition level (not field level) in this schema.
+  // Conditions live in qdb_conditions_json as a JSON array.
+  // Trigger field is identified from the first condition's fieldId (a Dataverse record GUID).
+  private async fetchBusinessRules(
+    formId: string,
+    fieldIds: string[],
+    fieldGuidToSchema: Map<string, string>,
+  ): Promise<Map<string, BusinessRule[]>> {
+    const response = await this.crmFetch<ODataCollection<RawBusinessRule>>(
+      `/qdb_form_business_rules?$filter=_qdb_form_definition_id_value eq '${formId}' and qdb_is_active eq true&$orderby=qdb_priority asc`,
+    );
+
+    const fieldIdSet = new Set(fieldIds);
+    const map = new Map<string, BusinessRule[]>();
+
+    for (const rule of response.value) {
+      const triggerGuid = this.extractTriggerFieldGuid(rule.qdb_conditions_json);
+      if (!triggerGuid || !fieldIdSet.has(triggerGuid)) continue;
+
+      const existing = map.get(triggerGuid) ?? [];
+      existing.push({
+        id: rule.qdb_form_business_ruleid,
+        name: rule.qdb_name,
+        description: rule.qdb_description,
+        conditions: this.parseConditionsJson(rule.qdb_conditions_json, fieldGuidToSchema),
+        conditionsLogic: this.mapLogicalOperator(rule.qdb_conditions_logic),
+        action: this.mapAction(rule.qdb_action),
+        targetFieldId: rule._qdb_target_field_id_value,
+        targetSectionId: rule._qdb_target_section_id_value,
+        targetTabId: rule._qdb_target_tab_id_value,
+        actionValue: rule.qdb_action_value,
+        priority: rule.qdb_priority ?? 100,
+        isActive: true,
+      });
+      map.set(triggerGuid, existing);
+    }
+
+    return map;
+  }
+
+  private extractTriggerFieldGuid(conditionsJson: string | undefined): string | undefined {
+    if (!conditionsJson) return undefined;
+    try {
+      const parsed = JSON.parse(conditionsJson) as Array<{ fieldId?: string }>;
+      return parsed[0]?.fieldId;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Parses conditions from JSON, resolving field GUIDs to schema names so the
+  // RuleEngine can evaluate conditions against form data keyed by schema name.
+  private parseConditionsJson(
+    conditionsJson: string | undefined,
+    fieldGuidToSchema: Map<string, string>,
+  ): RuleCondition[] {
+    if (!conditionsJson) return [];
+    try {
+      const parsed = JSON.parse(conditionsJson) as Array<{
+        fieldId: string;
+        operator: string;
+        value?: string;
+        logicalOperator?: string;
+      }>;
+      return parsed.map((c) => ({
+        fieldId: fieldGuidToSchema.get(c.fieldId) ?? c.fieldId,
+        operator: c.operator as ConditionOperator,
+        value: c.value !== undefined ? this.parseConditionValue(c.value) : undefined,
+        logicalOperator: (c.logicalOperator as LogicalOperator) ?? undefined,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private parseConditionValue(raw: string): string | number | boolean | string[] {
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    const num = Number(raw);
+    if (!isNaN(num) && raw.trim() !== '') return num;
+    if (raw.startsWith('[')) {
+      try { return JSON.parse(raw) as string[]; } catch { /* fall through */ }
+    }
+    return raw;
+  }
+
+  private async fetchSubmissionMappings(formId: string): Promise<SubmissionMapping[]> {
+    const response = await this.crmFetch<ODataCollection<RawSubmissionMapping>>(
+      `/qdb_form_submission_mappings?$filter=_qdb_form_definition_id_value eq '${formId}' and qdb_is_active eq true`,
+    );
+
+    return response.value.map((m) => ({
+      id: m.qdb_form_submission_mappingid,
+      formDefinitionId: formId,
+      fieldId: m._qdb_form_field_id_value,
+      targetEntityLogicalName: m.qdb_target_entity_logical_name,
+      targetAttributeLogicalName: m.qdb_target_attribute_logical_name,
+      isMappedToChildEntity: m.qdb_is_child_entity ?? false,
+      childEntityRelationshipName: m.qdb_child_entity_relationship_name,
+      transformExpression: m.qdb_transform_expression,
+      isActive: true,
+    }));
+  }
+
+  // ── Picklist code mappers ─────────────────────────────────────────────────────
+
+  private mapFieldType(code: number): FieldType {
+    const map: Record<number, FieldType> = {
+      100000001: 'text',          100000002: 'textarea',   100000003: 'number',
+      100000004: 'date',          100000005: 'datetime',   100000006: 'dropdown',
+      100000007: 'multiselect',   100000008: 'lookup',     100000009: 'checkbox',
+      100000010: 'radio',         100000011: 'currency',   100000012: 'decimal',
+      100000013: 'email',         100000014: 'phone',      100000015: 'file',
+      100000016: 'repeatingGrid', 100000017: 'richText',
+    };
+    return map[code] ?? 'text';
+  }
+
+  private mapFormStatus(code: number): 'draft' | 'active' | 'inactive' | 'archived' {
+    const map: Record<number, 'draft' | 'active' | 'inactive' | 'archived'> = {
+      100000000: 'draft', 100000001: 'active', 100000002: 'inactive', 100000003: 'archived',
+    };
+    return map[code] ?? 'inactive';
+  }
+
+  private mapRuleType(code: number): ValidationRuleType {
+    const map: Record<number, ValidationRuleType> = {
+      100000001: 'required',   100000002: 'minLength', 100000003: 'maxLength',
+      100000004: 'minValue',   100000005: 'maxValue',  100000006: 'regex',
+      100000007: 'email',      100000008: 'phone',     100000009: 'dateBefore',
+      100000010: 'dateAfter',  100000011: 'crossField',
+    };
+    return map[code] ?? 'required';
+  }
+
+  private mapAction(code: number): BusinessRuleAction {
+    const map: Record<number, BusinessRuleAction> = {
+      100000001: 'showField',      100000002: 'hideField',
+      100000003: 'showSection',    100000004: 'hideSection',
+      100000005: 'showTab',        100000006: 'hideTab',
+      100000007: 'makeRequired',   100000008: 'makeOptional',
+      100000009: 'makeReadonly',   100000010: 'makeEditable',
+      100000011: 'setValue',       100000012: 'clearValue',
+      100000013: 'calculateValue', 100000014: 'filterOptions',
+      100000015: 'filterLookup',
+    };
+    return map[code] ?? 'showField';
+  }
+
+  private mapLogicalOperator(code: number | undefined): LogicalOperator {
+    return code === 100000001 ? 'OR' : 'AND';
+  }
+
+  private mapColumns(code: number | undefined): 1 | 2 | 3 | 4 {
+    const map: Record<number, 1 | 2 | 3 | 4> = {
+      100000001: 1, 100000002: 2, 100000003: 3, 100000004: 4,
+    };
+    return (code !== undefined ? map[code] : undefined) ?? 2;
+  }
+
+  private mapColumnSpan(code: number | undefined): 1 | 2 | 3 | 4 {
+    const map: Record<number, 1 | 2 | 3 | 4> = {
+      100000001: 1, 100000002: 2, 100000003: 3, 100000004: 4,
+    };
+    return (code !== undefined ? map[code] : undefined) ?? 1;
+  }
+
+  private mapFormSummary(raw: RawFormDefinition): FormSummary {
+    return {
+      id: raw.qdb_form_definitionid,
+      formCode: raw.qdb_form_code,
+      title: raw.qdb_title,
+      description: raw.qdb_description,
+      status: this.mapFormStatus(raw.qdb_status),
+      version: raw.qdb_version ?? 1,
+      modifiedAt: raw.modifiedon,
+    };
+  }
+
+  private mapVersion(raw: RawVersion): FormVersion {
+    return {
+      id: raw.qdb_form_versionid,
+      formDefinitionId: raw._qdb_form_definition_id_value,
+      versionNumber: raw.qdb_version_number,
+      publishedAt: raw.qdb_published_at,
+      publishedBy: raw.qdb_published_by,
+      changeNotes: raw.qdb_change_notes,
+      isCurrentVersion: raw.qdb_is_current_version ?? false,
+    };
+  }
+}
+
+// ── Raw Dataverse response types ──────────────────────────────────────────────
+// PK names follow Dataverse convention: {entityLogicalName}id  (no underscore before id)
+// Lookup expanded values follow OData convention: _{attributeName}_value
+
+interface RawFormDefinition {
+  qdb_form_definitionid: string;
+  qdb_form_code: string;
+  qdb_title: string;
+  qdb_description?: string;
+  qdb_status: number;
+  qdb_version?: number;
+  qdb_allow_save_draft?: boolean;
+  qdb_draft_expiry_days?: number;
+  qdb_power_automate_flow_id?: string;
+  qdb_confirmation_message?: string;
+  qdb_confirmation_record_ref_attribute?: string;
+  qdb_access_group_id?: string;
+  createdon: string;
+  modifiedon: string;
+}
+
+interface RawTab {
+  qdb_form_tabid: string;
+  qdb_label: string;
+  qdb_icon_name?: string;
+  qdb_display_order: number;
+  qdb_is_visible?: boolean;
+  qdb_requires_previous_tab_complete?: boolean;
+}
+
+interface RawSection {
+  qdb_form_sectionid: string;
+  _qdb_form_tab_id_value: string;
+  qdb_label: string;
+  qdb_description?: string;
+  qdb_display_order: number;
+  qdb_columns?: number;
+  qdb_is_collapsible?: boolean;
+  qdb_is_collapsed_by_default?: boolean;
+  qdb_is_visible?: boolean;
+}
+
+interface RawField {
+  qdb_form_fieldid: string;
+  _qdb_form_section_id_value: string;
+  qdb_field_type: number;
+  qdb_schema_name: string;
+  qdb_label: string;
+  qdb_placeholder?: string;
+  qdb_tooltip?: string;
+  qdb_default_value?: string;
+  qdb_display_order: number;
+  qdb_column_span?: number;
+  qdb_is_required?: boolean;
+  qdb_is_readonly?: boolean;
+  qdb_is_hidden?: boolean;
+  qdb_currency_code?: string;
+  qdb_decimal_places?: number;
+  qdb_max_rows?: number;
+}
+
+interface RawOption {
+  _qdb_form_field_id_value: string;
+  qdb_value: string;
+  qdb_label: string;
+  qdb_display_order: number;
+  qdb_is_default?: boolean;
+  qdb_parent_option_value?: string;
+  qdb_is_active?: boolean;
+}
+
+interface RawValidationRule {
+  qdb_form_validation_ruleid: string;
+  _qdb_form_field_id_value: string;
+  qdb_rule_type: number;
+  qdb_error_message: string;
+  qdb_min_length?: number;
+  qdb_max_length?: number;
+  qdb_min_value?: number;
+  qdb_max_value?: number;
+  qdb_regex_pattern?: string;
+  _qdb_compare_to_field_id_value?: string;
+  qdb_compare_to_value?: string;
+  qdb_priority?: number;
+}
+
+interface RawLookupConfig {
+  qdb_form_lookup_configid: string;
+  _qdb_form_field_id_value: string;
+  qdb_entity_logical_name: string;
+  qdb_display_attribute: string;
+  qdb_value_attribute?: string;
+  qdb_filter_expression?: string;
+  qdb_search_min_chars?: number;
+  qdb_max_results?: number;
+  _qdb_depends_on_field_id_value?: string;
+  qdb_depends_on_filter_template?: string;
+}
+
+interface RawSubmissionMapping {
+  qdb_form_submission_mappingid: string;
+  _qdb_form_field_id_value: string;
+  qdb_target_entity_logical_name: string;
+  qdb_target_attribute_logical_name: string;
+  qdb_is_child_entity?: boolean;
+  qdb_child_entity_relationship_name?: string;
+  qdb_transform_expression?: string;
+}
+
+interface RawVersion {
+  qdb_form_versionid: string;
+  _qdb_form_definition_id_value: string;
+  qdb_version_number: number;
+  qdb_published_at: string;
+  qdb_published_by: string;
+  qdb_change_notes?: string;
+  qdb_is_current_version?: boolean;
+}
+
+interface RawBusinessRule {
+  qdb_form_business_ruleid: string;
+  qdb_name: string;
+  qdb_description?: string;
+  qdb_conditions_json?: string;
+  qdb_conditions_logic?: number;
+  qdb_action: number;
+  _qdb_form_definition_id_value?: string;
+  _qdb_target_field_id_value?: string;
+  _qdb_target_section_id_value?: string;
+  _qdb_target_tab_id_value?: string;
+  qdb_action_value?: string;
+  qdb_priority?: number;
+  qdb_is_active?: boolean;
+}
