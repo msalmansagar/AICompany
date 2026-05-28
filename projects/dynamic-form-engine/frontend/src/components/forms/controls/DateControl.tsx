@@ -32,6 +32,7 @@ export function DateControl({
       aria-describedby={errorId}
       aria-invalid={!!errorId}
       appearance="outline"
+      style={{ width: '100%' }}
     />
   );
 }

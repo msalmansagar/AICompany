@@ -51,7 +51,7 @@ export default function FormDetailScreen() {
       await submitForm(form.formCode, values, token);
       Alert.alert(
         'Application Submitted',
-        `Your ${form.displayName} has been submitted successfully. You will receive a confirmation shortly.`,
+        form.confirmationMessage || `Your ${form.displayName} has been submitted successfully. You will receive a confirmation shortly.`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
       if (__DEV__) console.log('[FormSubmit]', form.formCode, values);

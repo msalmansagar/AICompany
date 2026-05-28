@@ -31,6 +31,7 @@ export function TextInputControl({
       aria-describedby={errorId}
       aria-invalid={!!errorId}
       appearance="outline"
+      style={{ width: '100%' }}
     />
   );
 }

@@ -64,6 +64,14 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false
               <Text style={styles.backButtonText}>Back</Text>
             </Pressable>
           )}
+          {form.allowSaveDraft && onSaveDraft && (
+            <Pressable
+              style={styles.draftButton}
+              onPress={() => void onSaveDraft(getValues(), activeTabIndex)}
+            >
+              <Text style={styles.draftButtonText}>Save Draft</Text>
+            </Pressable>
+          )}
           {isLastTab ? (
             <Pressable
               style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
@@ -124,6 +132,8 @@ const styles = StyleSheet.create({
   backButtonText: { color: '#0078d4', fontSize: 16, fontWeight: '600' },
   nextButton: { flex: 1, backgroundColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   nextButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  draftButton: { borderWidth: 1, borderColor: '#0078d4', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
+  draftButtonText: { color: '#0078d4', fontSize: 15, fontWeight: '600' },
   submitButton: { flex: 1, backgroundColor: '#2e7d32', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   buttonDisabled: { opacity: 0.6 },

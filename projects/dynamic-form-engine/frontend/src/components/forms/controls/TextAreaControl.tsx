@@ -32,6 +32,7 @@ export function TextAreaControl({
       aria-invalid={!!errorId}
       resize="vertical"
       appearance="outline"
+      style={{ width: '100%' }}
     />
   );
 }

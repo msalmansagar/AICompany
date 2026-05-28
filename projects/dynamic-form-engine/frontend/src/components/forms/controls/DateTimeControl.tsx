@@ -8,6 +8,7 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalS,
     alignItems: 'center',
+    width: '100%',
   },
   dateInput: {
     flex: '2 1 0',
@@ -56,6 +57,7 @@ export function DateTimeControl({
           aria-invalid={!!errorId}
           aria-label={`${field.label} date`}
           appearance="outline"
+          style={{ width: '100%' }}
         />
       </div>
       <div className={styles.timeInput}>
@@ -67,6 +69,7 @@ export function DateTimeControl({
           disabled={isReadonly}
           aria-label={`${field.label} time`}
           appearance="outline"
+          style={{ width: '100%' }}
         />
       </div>
     </div>

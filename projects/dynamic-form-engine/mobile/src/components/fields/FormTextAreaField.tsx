@@ -10,32 +10,47 @@ interface Props {
   control: Control<Record<string, unknown>>;
 }
 
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+}
+
 export function FormTextAreaField({ field, control }: Props) {
+  const isRichText = field.fieldType === 'richtext';
+
   return (
     <Controller
       name={field.fieldKey}
       control={control}
       rules={buildValidationRules(field)}
-      render={({ field: { value, onChange, onBlur }, fieldState: { error } }) => (
-        <View style={fieldStyles.container}>
-          <Text style={fieldStyles.label}>
-            {field.displayLabel}
-            {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
-          </Text>
-          <TextInput
-            style={[fieldStyles.input, styles.textArea, error && fieldStyles.inputError]}
-            value={typeof value === 'string' ? value : ''}
-            onChangeText={onChange}
-            onBlur={onBlur}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-            placeholder={`Enter ${field.displayLabel.toLowerCase()}`}
-            placeholderTextColor="#999"
-          />
-          {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}
-        </View>
-      )}
+      render={({ field: { value, onChange, onBlur }, fieldState: { error } }) => {
+        const rawValue = typeof value === 'string' ? value : '';
+        const displayValue = isRichText ? stripHtml(rawValue) : rawValue;
+
+        function handleChange(text: string): void {
+          onChange(isRichText ? `<p>${text}</p>` : text);
+        }
+
+        return (
+          <View style={fieldStyles.container}>
+            <Text style={fieldStyles.label}>
+              {field.displayLabel}
+              {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
+            </Text>
+            <TextInput
+              style={[fieldStyles.input, styles.textArea, error && fieldStyles.inputError]}
+              value={displayValue}
+              onChangeText={handleChange}
+              onBlur={onBlur}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholder={`Enter ${field.displayLabel.toLowerCase()}`}
+              placeholderTextColor="#999"
+            />
+            {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}
+          </View>
+        );
+      }}
     />
   );
 }

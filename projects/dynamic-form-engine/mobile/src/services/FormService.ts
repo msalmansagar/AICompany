@@ -211,6 +211,8 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     displayName: backend.title,
     description: backend.description ?? '',
     version: backend.version,
+    allowSaveDraft: backend.allowSaveDraft,
+    confirmationMessage: backend.confirmationMessage,
     tabs: backend.tabs.map(mapTabDefinition),
     businessRules: [],
     submissionMappings: backend.submissionMappings.map((m) => ({

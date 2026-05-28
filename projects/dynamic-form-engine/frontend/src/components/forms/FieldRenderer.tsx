@@ -34,6 +34,7 @@ const useStyles = makeStyles({
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalXS,
+    width: '100%',
   },
   labelRow: {
     display: 'flex',
@@ -71,6 +72,11 @@ const useStyles = makeStyles({
     display: 'flex',
     alignItems: 'center',
     gap: tokens.spacingHorizontalXS,
+    width: '100%',
+  },
+  controlFill: {
+    flex: 1,
+    minWidth: 0,
   },
 });
 
@@ -166,7 +172,9 @@ export function FieldRenderer({
           <DynamicIcon iconName={fieldDesign.iconPrefix} size={16} />
         )}
 
-        <FieldControl controlProps={controlProps} />
+        <div className={isFloating ? undefined : styles.controlFill}>
+          <FieldControl controlProps={controlProps} />
+        </div>
 
         {fieldDesign?.iconSuffix && (
           <DynamicIcon iconName={fieldDesign.iconSuffix} size={16} />

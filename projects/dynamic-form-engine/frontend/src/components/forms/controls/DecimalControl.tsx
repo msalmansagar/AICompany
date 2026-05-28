@@ -54,6 +54,7 @@ export function DecimalControl({
       max={maxRule?.maxValue}
       step={Math.pow(10, -precision)}
       appearance="outline"
+      style={{ width: '100%' }}
     />
   );
 }

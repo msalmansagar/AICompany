@@ -68,6 +68,8 @@ export interface FormDefinition {
   displayName: string;
   description: string;
   version: number;
+  allowSaveDraft: boolean;
+  confirmationMessage: string;
   tabs: TabDefinition[];
   businessRules: BusinessRule[];
   submissionMappings: SubmissionMapping[];

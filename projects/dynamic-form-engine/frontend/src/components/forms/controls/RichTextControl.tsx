@@ -2,7 +2,6 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import {
   makeStyles,
-  shorthands,
   tokens,
   Divider,
   Toolbar,
@@ -23,7 +22,7 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     overflow: 'hidden',
     ':focus-within': {
-      ...shorthands.borderColor(tokens.colorBrandStroke1),
+      borderColor: tokens.colorBrandStroke1,
       outlineStyle: 'solid',
       outlineWidth: '2px',
       outlineColor: tokens.colorBrandStroke1,

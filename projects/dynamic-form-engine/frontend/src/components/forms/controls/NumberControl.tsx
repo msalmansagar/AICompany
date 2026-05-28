@@ -56,6 +56,7 @@ export function NumberControl({
       max={maxRule?.maxValue}
       contentBefore={prefix ? <span>{prefix}</span> : undefined}
       appearance="outline"
+      style={{ width: '100%' }}
     />
   );
 }
