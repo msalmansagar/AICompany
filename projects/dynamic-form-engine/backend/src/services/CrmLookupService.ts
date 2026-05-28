@@ -14,12 +14,19 @@ export class CrmLookupService extends CrmBaseService {
   async searchLookup(params: {
     entityLogicalName: string;
     displayAttribute: string;
-    valueAttribute: string;
+    valueAttribute?: string;
     searchTerm: string;
     filterExpression?: string;
     maxResults: number;
   }): Promise<LookupResult[]> {
-    const { entityLogicalName, displayAttribute, valueAttribute, searchTerm, filterExpression, maxResults } = params;
+    const {
+      entityLogicalName,
+      displayAttribute,
+      searchTerm,
+      filterExpression,
+      maxResults,
+    } = params;
+    const valueAttribute = params.valueAttribute ?? `${entityLogicalName}id`;
 
     const filters: string[] = [
       `statecode eq 0`,

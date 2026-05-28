@@ -7,7 +7,7 @@ import type { ApiResponse, LookupResult } from '@dfe/shared';
 const querySchema = z.object({
   search: z.string().min(1),
   displayAttribute: z.string().min(1),
-  valueAttribute: z.string().default('id'),
+  valueAttribute: z.string().optional(),
   filter: z.string().optional(),
   max: z.coerce.number().min(1).max(50).default(10),
 });
@@ -25,7 +25,7 @@ export function createLookupsRouter(lookupService: CrmLookupService): Router {
       valueAttribute: query.valueAttribute,
       searchTerm: query.search,
       filterExpression: query.filter,
-      maxResults: query.max,
+      maxResults: query.max ?? 10,
     });
 
     const response: ApiResponse<LookupResult[]> = { success: true, data: results };

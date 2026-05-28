@@ -294,7 +294,7 @@ export class CrmMetadataService extends CrmBaseService {
         id: lc.qdb_form_lookup_configid,
         entityLogicalName: lc.qdb_entity_logical_name,
         displayAttribute: lc.qdb_display_attribute,
-        valueAttribute: lc.qdb_value_attribute ?? 'id',
+        valueAttribute: lc.qdb_value_attribute ?? `${lc.qdb_entity_logical_name}id`,
         filterExpression: lc.qdb_filter_expression,
         searchMinChars: lc.qdb_search_min_chars ?? 3,
         maxResults: lc.qdb_max_results ?? 10,
