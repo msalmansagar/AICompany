@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "QDB Forms",
+    "slug": "qdb-forms",
+    "version": "1.0.0",
+    "scheme": "qdbforms",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.qdb.formengine",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "QDB Forms needs camera access to capture document photos for your application.",
+        "NSPhotoLibraryUsageDescription": "QDB Forms needs photo library access to upload existing documents.",
+        "NSPhotoLibraryAddUsageDescription": "QDB Forms needs permission to save photos."
+      }
+    },
+    "android": {
+      "package": "com.qdb.formengine",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-document-picker",
+      "@react-native-community/datetimepicker",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://192.168.1.14:4000",
+      "msalClientId": "a2cd767a-ade7-4d04-a797-b1a45c584a02",
+      "backendAppClientId": "1d51784e-6701-4016-bce6-aa2d1c8ca6c2",
+      "azureAdTenantId": "d79e793c-f6de-4204-8508-7980a63df957",
+      "webPortalUrl": "https://placeholder.example.com",
+      "logLevel": "info",
+      "eas": {
+        "projectId": "REPLACE_WITH_EAS_PROJECT_ID"
+      }
+    }
+  }
+}

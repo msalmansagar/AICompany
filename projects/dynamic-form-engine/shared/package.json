@@ -1,12 +1,16 @@
 {
-  "name": "@dfe/shared",
+  "name": "@qdb/form-engine-shared",
   "version": "1.0.0",
-  "description": "Shared TypeScript types for Dynamic Form Engine",
-  "main": "dist/types/index.js",
-  "types": "dist/types/index.d.ts",
+  "description": "Shared TypeScript types and engines for Dynamic Form Engine",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "json-rules-engine": "^6.4.2",
+    "zod": "^3.22.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0"
