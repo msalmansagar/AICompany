@@ -53,9 +53,10 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   const tabs = [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
+  // fieldKey → display label, for human-readable error messages
   const fieldKeyToLabel = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const tab of form.tabs) {
+    for (const tab of tabs) {
       for (const section of tab.sections) {
         for (const field of section.fields) {
           map[field.fieldKey] = field.displayLabel;
@@ -63,7 +64,20 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
       }
     }
     return map;
-  }, [form]);
+  }, [tabs]);
+
+  // fieldKey → sorted tab index, so we can jump to the first tab with errors
+  const fieldKeyToTabIndex = useMemo(() => {
+    const map: Record<string, number> = {};
+    tabs.forEach((tab, index) => {
+      for (const section of tab.sections) {
+        for (const field of section.fields) {
+          map[field.fieldKey] = index;
+        }
+      }
+    });
+    return map;
+  }, [tabs]);
 
   const defaultValues = useMemo(() => buildDefaultValues(form), [form]);
 
@@ -79,13 +93,27 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   }
 
   function handleInvalidSubmit(errors: FieldErrors<Record<string, unknown>>): void {
-    const failedLabels = Object.keys(errors)
+    const errorKeys = Object.keys(errors);
+
+    // Navigate to the earliest tab that has a failing field so the user can see it
+    const firstErrorTabIndex = errorKeys
+      .map((key) => fieldKeyToTabIndex[key] ?? activeTabIndex)
+      .sort((a, b) => a - b)[0] ?? activeTabIndex;
+
+    if (firstErrorTabIndex !== activeTabIndex) {
+      setActiveTabIndex(firstErrorTabIndex);
+    }
+
+    const failedLabels = errorKeys
       .map((key) => fieldKeyToLabel[key] ?? key)
       .slice(0, 5);
     const detail = failedLabels.length > 0
       ? `\n\n${failedLabels.map((l) => `• ${l}`).join('\n')}`
       : '';
-    Alert.alert('Validation Error', `Please fill in all required fields before submitting.${detail}`);
+    Alert.alert(
+      'Validation Error',
+      `Please fill in all required fields before submitting.${detail}`,
+    );
   }
 
   function handleReset(): void {
