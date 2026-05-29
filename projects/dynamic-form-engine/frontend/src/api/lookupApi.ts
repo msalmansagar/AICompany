@@ -2,7 +2,7 @@ import type { LookupResult } from '@dfe/shared';
 import apiClient from './apiClient';
 
 export interface LookupSearchParams {
-  search: string;
+  search?: string;
   displayAttribute: string;
   valueAttribute?: string;
   filter?: string;

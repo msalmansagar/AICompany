@@ -75,6 +75,23 @@ export type UploadDestination = 'crmNotes' | 'sharePoint';
 
 export type FormStatus = 'draft' | 'active' | 'inactive' | 'archived';
 
+// ── Form button ───────────────────────────────────────────────
+
+export type ButtonAction = 'submit' | 'saveDraft' | 'cancel' | 'reset';
+
+export interface FormButton {
+  id: string;
+  formDefinitionId: string;
+  label: string;
+  action: ButtonAction;
+  displayOrder: number;
+  isVisible: boolean;
+  isPrimary: boolean;
+  confirmationRequired: boolean;
+  confirmationMessage?: string;
+  isActive: boolean;
+}
+
 export interface FormSummary {
   id: string;
   formCode: string;
@@ -270,6 +287,7 @@ export interface FormDefinition {
   confirmationRecordRefAttribute?: string; // CRM attribute to show as ref number
   accessGroupId?: string;          // Azure AD group ID for form-level access
   submissionMappings: SubmissionMapping[];
+  buttons: FormButton[];
   tabs: TabDefinition[];
   createdAt: string;
   modifiedAt: string;

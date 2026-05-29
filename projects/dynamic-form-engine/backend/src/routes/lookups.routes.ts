@@ -4,8 +4,9 @@ import { z } from 'zod';
 import type { CrmLookupService } from '../services/CrmLookupService.js';
 import type { ApiResponse, LookupResult } from '@dfe/shared';
 
+// search is optional — omit to return initial records, provide to filter
 const querySchema = z.object({
-  search: z.string().min(1),
+  search: z.string().optional(),
   displayAttribute: z.string().min(1),
   valueAttribute: z.string().optional(),
   filter: z.string().optional(),
@@ -25,7 +26,7 @@ export function createLookupsRouter(lookupService: CrmLookupService): Router {
       valueAttribute: query.valueAttribute,
       searchTerm: query.search,
       filterExpression: query.filter,
-      maxResults: query.max ?? 10,
+      maxResults: query.max,
     });
 
     const response: ApiResponse<LookupResult[]> = { success: true, data: results };

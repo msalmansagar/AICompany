@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useForm } from 'react-hook-form';
-import type { FormDefinition, SectionDefinition, TabDefinition } from '@qdb/form-engine-shared';
+import type { FormButton, FormDefinition, SectionDefinition, TabDefinition } from '@qdb/form-engine-shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 
 interface Props {
@@ -64,24 +64,14 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false
               <Text style={styles.backButtonText}>Back</Text>
             </Pressable>
           )}
-          {form.allowSaveDraft && onSaveDraft && (
-            <Pressable
-              style={styles.draftButton}
-              onPress={() => void onSaveDraft(getValues(), activeTabIndex)}
-            >
-              <Text style={styles.draftButtonText}>Save Draft</Text>
-            </Pressable>
-          )}
           {isLastTab ? (
-            <Pressable
-              style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
-              disabled={isSubmitting}
-              onPress={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
-            >
-              <Text style={styles.submitButtonText}>
-                {isSubmitting ? 'Submitting…' : 'Submit Application'}
-              </Text>
-            </Pressable>
+            <ActionButtons
+              form={form}
+              isSubmitting={isSubmitting}
+              isDirty={true}
+              onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
+              onSaveDraft={onSaveDraft ? () => void onSaveDraft(getValues(), activeTabIndex) : undefined}
+            />
           ) : (
             <Pressable style={styles.nextButton} onPress={handleNext}>
               <Text style={styles.nextButtonText}>Next</Text>
@@ -90,6 +80,68 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+interface ActionButtonsProps {
+  form: FormDefinition;
+  isSubmitting: boolean;
+  isDirty: boolean;
+  onSubmit: () => void;
+  onSaveDraft?: () => void;
+}
+
+const DEFAULT_MOBILE_BUTTONS: FormButton[] = [
+  {
+    buttonId: '__submit__',
+    label: 'Submit Application',
+    action: 'submit',
+    displayOrder: 10,
+    isVisible: true,
+    isPrimary: true,
+    confirmationRequired: false,
+  },
+];
+
+function ActionButtons({ form, isSubmitting, isDirty, onSubmit, onSaveDraft }: ActionButtonsProps) {
+  const buttons = (form.buttons ?? [])
+    .filter((b) => b.isVisible)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const activeButtons = buttons.length > 0 ? buttons : DEFAULT_MOBILE_BUTTONS;
+
+  return (
+    <>
+      {activeButtons.map((button) => {
+        if (button.action === 'submit') {
+          return (
+            <Pressable
+              key={button.buttonId}
+              style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
+              disabled={isSubmitting}
+              onPress={onSubmit}
+            >
+              <Text style={styles.submitButtonText}>
+                {isSubmitting ? 'Submitting…' : button.label}
+              </Text>
+            </Pressable>
+          );
+        }
+        if (button.action === 'saveDraft' && onSaveDraft) {
+          return (
+            <Pressable
+              key={button.buttonId}
+              style={[styles.draftButton, (!isDirty || isSubmitting) && styles.buttonDisabled]}
+              disabled={!isDirty || isSubmitting}
+              onPress={onSaveDraft}
+            >
+              <Text style={styles.draftButtonText}>{button.label}</Text>
+            </Pressable>
+          );
+        }
+        return null;
+      })}
+    </>
   );
 }
 

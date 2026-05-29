@@ -13,11 +13,9 @@ import { ResponsiveEngine } from '../../contexts/ResponsiveContext';
 import { ThemeProvider } from '../../theme/ThemeProvider';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
-import { SaveDraftButton } from './SaveDraftButton';
-import { SubmitButton } from './SubmitButton';
+import { FormActionBar } from './FormActionBar';
 import { FormConfirmation } from './FormConfirmation';
 import { ThemeSwitcher, readStoredThemePreference } from './ThemeSwitcher';
-import { StickyActionBar } from './StickyActionBar';
 import { LIGHT_THEME, DARK_THEME } from '../../theme/themes';
 import type { DesignPayload } from '@dfe/shared';
 
@@ -244,14 +242,7 @@ function FormRendererInner() {
               )}
             </div>
 
-            {isStickyBar ? (
-              <StickyActionBar />
-            ) : (
-              <div className={styles.actionBar}>
-                {formDefinition.allowSaveDraft && <SaveDraftButton />}
-                <SubmitButton />
-              </div>
-            )}
+            <FormActionBar sticky={isStickyBar} />
           </main>
         </DesignContext.Provider>
       </ThemeProvider>

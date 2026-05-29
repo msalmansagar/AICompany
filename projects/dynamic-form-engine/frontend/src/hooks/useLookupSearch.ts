@@ -18,6 +18,7 @@ export interface UseLookupSearchResult {
   isSearching: boolean;
   searchError: string | null;
   search: (query: string) => void;
+  loadInitial: () => void;
   clearResults: () => void;
 }
 
@@ -36,6 +37,35 @@ export function useLookupSearch({
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortController = useRef<AbortController | null>(null);
 
+  const fetchResults = useCallback(
+    async (query?: string): Promise<void> => {
+      abortController.current?.abort();
+      abortController.current = new AbortController();
+
+      setIsSearching(true);
+      setSearchError(null);
+
+      try {
+        const response = await lookupApi.search(entityName, {
+          search: query,
+          displayAttribute,
+          valueAttribute,
+          max: maxResults,
+          filter: filterExpression,
+        }, abortController.current.signal);
+        const data = (response as unknown as { data: LookupResult[] }).data;
+        setResults(data ?? []);
+      } catch (error) {
+        if ((error as { name?: string }).name === 'CanceledError') return;
+        setSearchError(error instanceof Error ? error.message : 'Search failed');
+        setResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression],
+  );
+
   const search = useCallback(
     (query: string) => {
       if (debounceTimer.current) {
@@ -47,39 +77,19 @@ export function useLookupSearch({
         return;
       }
 
-      debounceTimer.current = setTimeout(async () => {
-        abortController.current?.abort();
-        abortController.current = new AbortController();
-
-        setIsSearching(true);
-        setSearchError(null);
-
-        try {
-          const response = await lookupApi.search(entityName, {
-            search: query,
-            displayAttribute,
-            valueAttribute,
-            max: maxResults,
-            filter: filterExpression,
-          }, abortController.current.signal);
-          const data = (response as unknown as { data: LookupResult[] }).data;
-          setResults(data ?? []);
-        } catch (error) {
-          if ((error as { name?: string }).name === 'CanceledError') return;
-          setSearchError(error instanceof Error ? error.message : 'Search failed');
-          setResults([]);
-        } finally {
-          setIsSearching(false);
-        }
-      }, debounceMs);
+      debounceTimer.current = setTimeout(() => void fetchResults(query), debounceMs);
     },
-    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, debounceMs],
+    [fetchResults, debounceMs],
   );
+
+  const loadInitial = useCallback(() => {
+    void fetchResults(undefined);
+  }, [fetchResults]);
 
   const clearResults = useCallback(() => {
     setResults([]);
     setSearchError(null);
   }, []);
 
-  return { results, isSearching, searchError, search, clearResults };
+  return { results, isSearching, searchError, search, loadInitial, clearResults };
 }

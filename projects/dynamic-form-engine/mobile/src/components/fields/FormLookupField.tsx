@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -57,26 +58,24 @@ export function FormLookupField({ field, control }: Props) {
   const { isDevBypass } = useDevBypass();
   const config = parseLookupConfig(field.lookupEntity);
 
+  const [open, setOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<LookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(
-    async (query: string, onChange: (v: unknown) => void): Promise<void> => {
-      if (!config || query.length < config.searchMin) {
-        setResults([]);
-        return;
-      }
+  const fetchResults = useCallback(
+    async (query?: string): Promise<void> => {
+      if (!config) return;
       setIsSearching(true);
       try {
         const token = isDevBypass || !account ? '' : await acquireToken();
         const params = new URLSearchParams({
-          search: query,
           displayAttribute: config.displayAttr,
           valueAttribute: config.valueAttr,
           max: String(config.maxResults),
         });
+        if (query) params.set('search', query);
         const data = await apiGet<LookupResult[]>(
           `/api/lookups/${config.entity}?${params.toString()}`,
           token
@@ -88,31 +87,30 @@ export function FormLookupField({ field, control }: Props) {
         setIsSearching(false);
       }
     },
-    [config, isDevBypass, account, acquireToken]
+    [config, isDevBypass, account, acquireToken],
   );
 
-  function handleTextChange(
-    text: string,
-    onChange: (v: unknown) => void
-  ): void {
-    setSearchText(text);
-    if (!text) {
-      onChange(null);
-      setResults([]);
-      return;
-    }
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => void search(text, onChange), 300);
+  function openSheet(): void {
+    setSearchText('');
+    setOpen(true);
+    void fetchResults();
   }
 
-  function selectResult(
-    result: LookupResult,
-    onChange: (v: unknown) => void
-  ): void {
-    const value: LookupValue = { id: result.id, displayName: result.displayName };
-    onChange(value);
-    setSearchText(result.displayName);
+  function closeSheet(): void {
+    setOpen(false);
+    setSearchText('');
     setResults([]);
+  }
+
+  function handleSearchChange(text: string): void {
+    setSearchText(text);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (!text) {
+      void fetchResults();
+      return;
+    }
+    if (!config || text.length < config.searchMin) return;
+    debounceTimer.current = setTimeout(() => void fetchResults(text), 300);
   }
 
   return (
@@ -121,12 +119,15 @@ export function FormLookupField({ field, control }: Props) {
       control={control}
       rules={buildValidationRules(field)}
       render={({ field: { value, onChange }, fieldState: { error } }) => {
-        const selectedName =
-          value && typeof value === 'object' && 'displayName' in value
-            ? (value as LookupValue).displayName
-            : undefined;
+        const currentValue =
+          value && typeof value === 'object' && 'id' in value
+            ? (value as LookupValue)
+            : null;
 
-        const inputText = selectedName ?? searchText;
+        function selectResult(result: LookupResult): void {
+          onChange({ id: result.id, displayName: result.displayName } satisfies LookupValue);
+          closeSheet();
+        }
 
         return (
           <View style={fieldStyles.container}>
@@ -135,40 +136,84 @@ export function FormLookupField({ field, control }: Props) {
               {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
-            <View style={[styles.inputRow, error && styles.inputRowError]}>
-              <TextInput
-                style={styles.input}
-                value={inputText}
-                onChangeText={(text) => handleTextChange(text, onChange)}
-                placeholder={`Search ${field.displayLabel.toLowerCase()}…`}
-                placeholderTextColor="#999"
-                autoCorrect={false}
-                autoCapitalize="none"
-              />
-              {isSearching && (
-                <ActivityIndicator size="small" color="#0078d4" style={styles.spinner} />
+            <Pressable
+              style={[fieldStyles.input, styles.trigger, error && fieldStyles.inputError]}
+              onPress={openSheet}
+            >
+              <Text style={currentValue ? styles.selectedText : styles.placeholder} numberOfLines={1}>
+                {currentValue
+                  ? currentValue.displayName
+                  : `Select ${field.displayLabel.toLowerCase()}`}
+              </Text>
+              {currentValue ? (
+                <Pressable
+                  style={styles.clearBtn}
+                  onPress={() => onChange(null)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.clearBtnText}>✕</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.chevron}>›</Text>
               )}
-            </View>
+            </Pressable>
 
-            {results.length > 0 && (
-              <View style={styles.dropdown}>
+            {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}
+
+            <Modal visible={open} transparent animationType="slide" onRequestClose={closeSheet}>
+              <Pressable style={styles.backdrop} onPress={closeSheet} />
+              <View style={styles.sheet}>
+                <View style={styles.sheetHeader}>
+                  <Text style={styles.sheetTitle}>{field.displayLabel}</Text>
+                  <Pressable onPress={closeSheet}>
+                    <Text style={styles.closeButton}>Done</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.searchRow}>
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchText}
+                    onChangeText={handleSearchChange}
+                    placeholder="Search..."
+                    placeholderTextColor="#999"
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {isSearching && (
+                    <ActivityIndicator size="small" color="#0078d4" style={styles.searchSpinner} />
+                  )}
+                </View>
+
+                {!isSearching && results.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>
+                      {searchText ? 'No results found' : 'No records available'}
+                    </Text>
+                  </View>
+                )}
+
                 <FlatList
                   data={results}
                   keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      style={styles.resultRow}
-                      onPress={() => selectResult(item, onChange)}
-                    >
-                      <Text style={styles.resultText}>{item.displayName}</Text>
-                    </Pressable>
-                  )}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => {
+                    const isSelected = currentValue?.id === item.id;
+                    return (
+                      <Pressable
+                        style={[styles.option, isSelected && styles.optionSelected]}
+                        onPress={() => selectResult(item)}
+                      >
+                        <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
+                          {item.displayName}
+                        </Text>
+                        {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                      </Pressable>
+                    );
+                  }}
                 />
               </View>
-            )}
-
-            {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}
+            </Modal>
           </View>
         );
       }}
@@ -177,36 +222,63 @@ export function FormLookupField({ field, control }: Props) {
 }
 
 const styles = StyleSheet.create({
-  inputRow: {
+  trigger: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectedText: { fontSize: 15, color: '#1a1a2e', flex: 1 },
+  placeholder: { fontSize: 15, color: '#999', flex: 1 },
+  chevron: { fontSize: 18, color: '#666', transform: [{ rotate: '90deg' }], marginLeft: 8 },
+  clearBtn: { marginLeft: 8, padding: 2 },
+  clearBtnText: { fontSize: 14, color: '#999', fontWeight: '600' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: '70%',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  sheetTitle: { fontSize: 16, fontWeight: '600', color: '#1a1a2e' },
+  closeButton: { fontSize: 15, color: '#0078d4', fontWeight: '600' },
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    margin: 12,
+    paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: '#e0e0e0',
     borderRadius: 8,
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
+    backgroundColor: '#f9f9f9',
   },
-  inputRowError: { borderColor: '#d32f2f' },
-  input: { flex: 1, paddingVertical: 10, fontSize: 15, color: '#1a1a2e' },
-  spinner: { marginLeft: 8 },
-  dropdown: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    marginTop: 2,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: '#1a1a2e',
   },
-  resultRow: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+  searchSpinner: { marginLeft: 8 },
+  emptyState: { paddingVertical: 32, alignItems: 'center' },
+  emptyText: { fontSize: 14, color: '#999' },
+  option: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  resultText: { fontSize: 14, color: '#1a1a2e' },
+  optionSelected: { backgroundColor: '#f0f7ff' },
+  optionText: { fontSize: 15, color: '#1a1a2e', flex: 1 },
+  optionTextSelected: { color: '#0078d4', fontWeight: '600' },
+  checkmark: { color: '#0078d4', fontSize: 16, marginLeft: 8 },
 });

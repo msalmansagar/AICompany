@@ -35,6 +35,7 @@ export interface FormContextValue {
   updateFieldValue: (fieldId: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: () => Promise<void>;
+  resetForm: () => void;
 }
 
 const EMPTY_RULE_STATE: RuleEvaluationResult = {
@@ -213,6 +214,15 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     setIsDirty(false);
   }, [formDefinition, currentUser, draftId, fieldValues, activeTabIndex, formCode]);
 
+  // ── Reset form ────────────────────────────────────────────────
+  const resetForm = useCallback(() => {
+    if (!formDefinition) return;
+    setFieldValues(buildInitialValues(formDefinition));
+    setValidationErrors({});
+    setIsDirty(false);
+    setActiveTabIndex(0);
+  }, [formDefinition]);
+
   // ── Submit form ───────────────────────────────────────────────
   const submitForm = useCallback(async () => {
     if (!formDefinition) return;
@@ -266,6 +276,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     updateFieldValue,
     saveDraft,
     submitForm,
+    resetForm,
   };
 
   return (

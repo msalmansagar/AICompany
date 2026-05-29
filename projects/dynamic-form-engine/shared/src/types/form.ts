@@ -50,6 +50,19 @@ export interface TabDefinition {
   sections: SectionDefinition[];
 }
 
+export type ButtonAction = 'submit' | 'saveDraft' | 'cancel' | 'reset';
+
+export interface FormButton {
+  buttonId: string;
+  label: string;
+  action: ButtonAction;
+  displayOrder: number;
+  isVisible: boolean;
+  isPrimary: boolean;
+  confirmationRequired: boolean;
+  confirmationMessage?: string;
+}
+
 export interface BusinessRule {
   ruleId: string;
   conditions: unknown;
@@ -71,6 +84,7 @@ export interface FormDefinition {
   allowSaveDraft: boolean;
   confirmationMessage: string;
   tabs: TabDefinition[];
+  buttons: FormButton[];
   businessRules: BusinessRule[];
   submissionMappings: SubmissionMapping[];
 }

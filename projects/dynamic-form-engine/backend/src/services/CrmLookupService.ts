@@ -15,7 +15,7 @@ export class CrmLookupService extends CrmBaseService {
     entityLogicalName: string;
     displayAttribute: string;
     valueAttribute?: string;
-    searchTerm: string;
+    searchTerm?: string;
     filterExpression?: string;
     maxResults: number;
   }): Promise<LookupResult[]> {
@@ -28,10 +28,11 @@ export class CrmLookupService extends CrmBaseService {
     } = params;
     const valueAttribute = params.valueAttribute ?? `${entityLogicalName}id`;
 
-    const filters: string[] = [
-      `statecode eq 0`,
-      `contains(${displayAttribute},'${searchTerm.replace(/'/g, "''")}')`,
-    ];
+    const filters: string[] = ['statecode eq 0'];
+
+    if (searchTerm) {
+      filters.push(`contains(${displayAttribute},'${searchTerm.replace(/'/g, "''")}')`);
+    }
 
     if (filterExpression) {
       filters.push(filterExpression);

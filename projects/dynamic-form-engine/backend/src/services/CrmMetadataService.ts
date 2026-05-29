@@ -2,6 +2,8 @@ import { LRUCache } from 'lru-cache';
 import type {
   FormDefinition,
   FormSummary,
+  FormButton,
+  ButtonAction,
   TabDefinition,
   SectionDefinition,
   FieldDefinition,
@@ -82,9 +84,10 @@ export class CrmMetadataService extends CrmBaseService {
 
     const formId = raw.qdb_form_definitionid;
 
-    const [tabs, submissionMappings] = await Promise.all([
+    const [tabs, submissionMappings, buttons] = await Promise.all([
       this.fetchTabsWithChildren(formId),
       this.fetchSubmissionMappings(formId),
+      this.fetchFormButtons(formId),
     ]);
 
     return {
@@ -101,6 +104,7 @@ export class CrmMetadataService extends CrmBaseService {
       confirmationRecordRefAttribute: raw.qdb_confirmation_record_ref_attribute,
       accessGroupId: raw.qdb_access_group_id,
       submissionMappings,
+      buttons,
       tabs,
       createdAt: raw.createdon,
       modifiedAt: raw.modifiedon,
@@ -392,6 +396,35 @@ export class CrmMetadataService extends CrmBaseService {
     return raw;
   }
 
+  private async fetchFormButtons(formId: string): Promise<FormButton[]> {
+    const response = await this.crmFetch<ODataCollection<RawFormButton>>(
+      `/qdb_form_buttons?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0 and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+    );
+
+    return response.value.map((b) => ({
+      id: b.qdb_form_buttonid,
+      formDefinitionId: formId,
+      label: b.qdb_label,
+      action: this.mapButtonAction(b.qdb_action),
+      displayOrder: b.qdb_display_order,
+      isVisible: b.qdb_is_visible ?? true,
+      isPrimary: b.qdb_is_primary ?? false,
+      confirmationRequired: b.qdb_confirmation_required ?? false,
+      confirmationMessage: b.qdb_confirmation_message,
+      isActive: true,
+    }));
+  }
+
+  private mapButtonAction(code: number): ButtonAction {
+    const map: Record<number, ButtonAction> = {
+      100000001: 'submit',
+      100000002: 'saveDraft',
+      100000003: 'cancel',
+      100000004: 'reset',
+    };
+    return map[code] ?? 'submit';
+  }
+
   private async fetchSubmissionMappings(formId: string): Promise<SubmissionMapping[]> {
     const response = await this.crmFetch<ODataCollection<RawSubmissionMapping>>(
       `/qdb_form_submission_mappings?$filter=_qdb_form_definition_id_value eq '${formId}' and qdb_is_active eq true`,
@@ -615,6 +648,17 @@ interface RawVersion {
   qdb_published_by: string;
   qdb_change_notes?: string;
   qdb_is_current_version?: boolean;
+}
+
+interface RawFormButton {
+  qdb_form_buttonid: string;
+  qdb_label: string;
+  qdb_action: number;
+  qdb_display_order: number;
+  qdb_is_visible?: boolean;
+  qdb_is_primary?: boolean;
+  qdb_confirmation_required?: boolean;
+  qdb_confirmation_message?: string;
 }
 
 interface RawBusinessRule {
