@@ -3,7 +3,7 @@ import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native
 import { Controller, type Control } from 'react-hook-form';
 import type { FieldDefinition, OptionValue } from '@qdb/form-engine-shared';
 import { fieldStyles } from './fieldStyles';
-import { buildValidationRules } from '../../utils/buildValidationRules';
+import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
 interface Props {
   field: FieldDefinition;
@@ -31,7 +31,7 @@ export function FormDropdownField({ field, control }: Props) {
           <View style={fieldStyles.container}>
             <Text style={fieldStyles.label}>
               {field.displayLabel}
-              {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
+              {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
             <Pressable
               style={[fieldStyles.input, styles.trigger, error && fieldStyles.inputError]}

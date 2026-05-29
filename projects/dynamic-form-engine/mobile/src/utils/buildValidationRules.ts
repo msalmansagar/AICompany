@@ -7,12 +7,31 @@ type ValidateFn = (v: unknown) => true | string;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[\d\s\-()+]{7,20}$/;
 
+export function isFieldRequired(field: FieldDefinition): boolean {
+  return (
+    field.isRequiredDefault ||
+    field.validationRules.some((r) => r.ruleType === 'required')
+  );
+}
+
 export function buildValidationRules(field: FieldDefinition): Rules {
   const rules: Rules = {};
   const validators: Record<string, ValidateFn> = {};
 
-  if (field.isRequiredDefault) {
-    rules.required = `${field.displayLabel} is required`;
+  // Required: check both the field flag and any explicit required validation rule.
+  // Using a custom validate (not built-in required) so we control exactly what "empty"
+  // means for each field type — e.g. a required checkbox must be true, not just truthy.
+  const explicitRequiredRule = field.validationRules.find((r) => r.ruleType === 'required');
+  const isRequired = field.isRequiredDefault || explicitRequiredRule !== undefined;
+
+  if (isRequired) {
+    const message = explicitRequiredRule?.errorMessage ?? `${field.displayLabel} is required`;
+    validators.required = (v) => {
+      if (v === undefined || v === null || v === '') return message;
+      if (Array.isArray(v) && v.length === 0) return message;
+      if (field.fieldType === 'checkbox' && v === false) return message;
+      return true;
+    };
   }
 
   for (const rule of field.validationRules) {
@@ -20,8 +39,7 @@ export function buildValidationRules(field: FieldDefinition): Rules {
 
     switch (ruleType) {
       case 'required':
-        rules.required = errorMessage;
-        break;
+        break; // handled above
 
       case 'minLength': {
         const min = params.minLength as number | undefined;

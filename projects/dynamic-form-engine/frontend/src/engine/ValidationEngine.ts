@@ -40,9 +40,18 @@ export class ValidationEngine {
   ): string[] {
     const errors: string[] = [];
 
+    // isRequired is the Dataverse flag. If no explicit required validation rule
+    // exists, enforce it here so the form cannot be submitted with the field empty.
+    const hasExplicitRequiredRule = field.validationRules.some(
+      (r) => r.ruleType === 'required' && r.isActive,
+    );
+    if (field.isRequired && !hasExplicitRequiredRule) {
+      const error = this.validateRequired(value, `${field.label} is required`);
+      if (error) errors.push(error);
+    }
+
     for (const rule of field.validationRules.filter((r) => r.isActive)) {
       const error = this.evaluateRule(rule, value, allValues);
-
       if (error) errors.push(error);
     }
 

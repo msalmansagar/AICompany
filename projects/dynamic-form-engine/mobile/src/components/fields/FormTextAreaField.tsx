@@ -3,7 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
 import type { FieldDefinition } from '@qdb/form-engine-shared';
 import { fieldStyles } from './fieldStyles';
-import { buildValidationRules } from '../../utils/buildValidationRules';
+import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
 interface Props {
   field: FieldDefinition;
@@ -34,7 +34,7 @@ export function FormTextAreaField({ field, control }: Props) {
           <View style={fieldStyles.container}>
             <Text style={fieldStyles.label}>
               {field.displayLabel}
-              {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
+              {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
             <TextInput
               style={[fieldStyles.input, styles.textArea, error && fieldStyles.inputError]}

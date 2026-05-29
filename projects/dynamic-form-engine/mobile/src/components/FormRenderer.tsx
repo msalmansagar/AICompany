@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useForm } from 'react-hook-form';
-import type { FormButton, FormDefinition, SectionDefinition, TabDefinition } from '@qdb/form-engine-shared';
+import { useForm, type FieldErrors } from 'react-hook-form';
+import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/form-engine-shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 
 interface Props {
@@ -10,6 +10,33 @@ interface Props {
   onSaveDraft?: (values: Record<string, unknown>, tabIndex: number) => void | Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
+}
+
+function buildDefaultValues(form: FormDefinition): Record<string, unknown> {
+  const defaults: Record<string, unknown> = {};
+  for (const tab of form.tabs) {
+    for (const section of tab.sections) {
+      for (const field of section.fields) {
+        defaults[field.fieldKey] = fieldTypeDefault(field);
+      }
+    }
+  }
+  return defaults;
+}
+
+function fieldTypeDefault(field: FieldDefinition): unknown {
+  switch (field.fieldType) {
+    case 'text':
+    case 'email':
+    case 'phone':
+    case 'textarea':
+    case 'richtext':
+      return '';
+    case 'checkbox':
+      return false;
+    default:
+      return null;
+  }
 }
 
 const DEFAULT_BUTTON: FormButton = {
@@ -26,7 +53,24 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   const tabs = [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
-  const { control, handleSubmit, getValues, reset } = useForm<Record<string, unknown>>({ mode: 'onBlur' });
+  const fieldKeyToLabel = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const tab of form.tabs) {
+      for (const section of tab.sections) {
+        for (const field of section.fields) {
+          map[field.fieldKey] = field.displayLabel;
+        }
+      }
+    }
+    return map;
+  }, [form]);
+
+  const defaultValues = useMemo(() => buildDefaultValues(form), [form]);
+
+  const { control, handleSubmit, getValues, reset } = useForm<Record<string, unknown>>({
+    mode: 'onBlur',
+    defaultValues,
+  });
 
   const activeTab = tabs[activeTabIndex];
 
@@ -34,8 +78,14 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
     void onSubmit(values);
   }
 
-  function handleInvalidSubmit(): void {
-    Alert.alert('Validation Error', 'Please fill in all required fields before submitting.');
+  function handleInvalidSubmit(errors: FieldErrors<Record<string, unknown>>): void {
+    const failedLabels = Object.keys(errors)
+      .map((key) => fieldKeyToLabel[key] ?? key)
+      .slice(0, 5);
+    const detail = failedLabels.length > 0
+      ? `\n\n${failedLabels.map((l) => `• ${l}`).join('\n')}`
+      : '';
+    Alert.alert('Validation Error', `Please fill in all required fields before submitting.${detail}`);
   }
 
   function handleReset(): void {

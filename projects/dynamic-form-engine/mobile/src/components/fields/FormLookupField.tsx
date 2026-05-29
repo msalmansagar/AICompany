@@ -15,7 +15,7 @@ import { fieldStyles } from './fieldStyles';
 import { apiGet } from '../../services/apiClient';
 import { useMsal } from '../../auth/MsalProvider';
 import { useDevBypass } from '../../context/DevBypassContext';
-import { buildValidationRules } from '../../utils/buildValidationRules';
+import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
 interface LookupResult {
   id: string;
@@ -133,7 +133,7 @@ export function FormLookupField({ field, control }: Props) {
           <View style={fieldStyles.container}>
             <Text style={fieldStyles.label}>
               {field.displayLabel}
-              {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
+              {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
             <Pressable

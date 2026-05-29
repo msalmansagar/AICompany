@@ -4,7 +4,7 @@ import { Controller, type Control } from 'react-hook-form';
 import * as DocumentPicker from 'expo-document-picker';
 import type { FieldDefinition } from '@qdb/form-engine-shared';
 import { fieldStyles } from './fieldStyles';
-import { buildValidationRules } from '../../utils/buildValidationRules';
+import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
 interface PickedFile {
   uri: string;
@@ -52,7 +52,7 @@ export function FormFileField({ field, control }: Props) {
           <View style={fieldStyles.container}>
             <Text style={fieldStyles.label}>
               {field.displayLabel}
-              {field.isRequiredDefault && <Text style={fieldStyles.required}> *</Text>}
+              {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
             {picked ? (
