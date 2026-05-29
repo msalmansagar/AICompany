@@ -103,6 +103,7 @@ export default function FormDetailScreen() {
       form={form}
       onSubmit={handleSubmit}
       onSaveDraft={handleSaveDraft}
+      onCancel={() => router.back()}
       isSubmitting={isSubmitting}
     />
   );

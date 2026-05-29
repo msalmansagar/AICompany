@@ -2,6 +2,8 @@ import { apiGet, apiPost } from './apiClient';
 import type {
   FormListItem,
   FormDefinition,
+  FormButton,
+  ButtonAction,
   TabDefinition,
   SectionDefinition,
   FieldDefinition,
@@ -108,6 +110,19 @@ interface BackendSubmissionMapping {
   isMappedToChildEntity: boolean;
 }
 
+interface BackendFormButton {
+  id: string;
+  formDefinitionId: string;
+  label: string;
+  action: string;
+  displayOrder: number;
+  isVisible: boolean;
+  isPrimary: boolean;
+  confirmationRequired: boolean;
+  confirmationMessage?: string;
+  isActive: boolean;
+}
+
 interface BackendFormDefinition {
   id: string;
   formCode: string;
@@ -117,6 +132,7 @@ interface BackendFormDefinition {
   version: number;
   allowSaveDraft: boolean;
   confirmationMessage: string;
+  buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
   tabs: BackendTabDefinition[];
 }
@@ -204,6 +220,19 @@ function mapTabDefinition(tab: BackendTabDefinition): TabDefinition {
   };
 }
 
+function mapFormButton(btn: BackendFormButton): FormButton {
+  return {
+    buttonId: btn.id,
+    label: btn.label,
+    action: btn.action as ButtonAction,
+    displayOrder: btn.displayOrder,
+    isVisible: btn.isVisible,
+    isPrimary: btn.isPrimary,
+    confirmationRequired: btn.confirmationRequired,
+    confirmationMessage: btn.confirmationMessage,
+  };
+}
+
 function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
   return {
     formId: backend.id,
@@ -213,6 +242,7 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     version: backend.version,
     allowSaveDraft: backend.allowSaveDraft,
     confirmationMessage: backend.confirmationMessage,
+    buttons: (backend.buttons ?? []).map(mapFormButton),
     tabs: backend.tabs.map(mapTabDefinition),
     businessRules: [],
     submissionMappings: backend.submissionMappings.map((m) => ({

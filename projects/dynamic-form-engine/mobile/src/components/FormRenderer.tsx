@@ -8,14 +8,25 @@ interface Props {
   form: FormDefinition;
   onSubmit: (values: Record<string, unknown>) => void | Promise<void>;
   onSaveDraft?: (values: Record<string, unknown>, tabIndex: number) => void | Promise<void>;
+  onCancel?: () => void;
   isSubmitting?: boolean;
 }
 
-export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false }: Props) {
+const DEFAULT_BUTTON: FormButton = {
+  buttonId: '__submit__',
+  label: 'Submit',
+  action: 'submit',
+  displayOrder: 0,
+  isVisible: true,
+  isPrimary: true,
+  confirmationRequired: false,
+};
+
+export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitting = false }: Props) {
   const tabs = [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
-  const { control, handleSubmit, getValues } = useForm<Record<string, unknown>>({ mode: 'onBlur' });
+  const { control, handleSubmit, getValues, reset } = useForm<Record<string, unknown>>({ mode: 'onBlur' });
 
   const activeTab = tabs[activeTabIndex];
 
@@ -27,15 +38,15 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false
     Alert.alert('Validation Error', 'Please fill in all required fields before submitting.');
   }
 
-  function handleNext(): void {
-    const nextIndex = activeTabIndex + 1;
-    if (onSaveDraft) {
-      void onSaveDraft(getValues(), activeTabIndex);
-    }
-    setActiveTabIndex(nextIndex);
+  function handleReset(): void {
+    reset();
   }
 
-  const isLastTab = activeTabIndex === tabs.length - 1;
+  const visibleButtons = (form.buttons ?? [])
+    .filter((b) => b.isVisible)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  const buttons = visibleButtons.length > 0 ? visibleButtons : [DEFAULT_BUTTON];
 
   return (
     <View style={styles.container}>
@@ -55,97 +66,90 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, isSubmitting = false
         </ScrollView>
       )}
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentInner}
+        showsVerticalScrollIndicator={false}
+      >
         {activeTab && <TabContent tab={activeTab} control={control} />}
 
         <View style={styles.actions}>
-          {activeTabIndex > 0 && (
-            <Pressable style={styles.backButton} onPress={() => setActiveTabIndex(activeTabIndex - 1)}>
-              <Text style={styles.backButtonText}>Back</Text>
-            </Pressable>
-          )}
-          {isLastTab ? (
-            <ActionButtons
-              form={form}
+          {buttons.map((button) => (
+            <FormButtonItem
+              key={button.buttonId}
+              button={button}
               isSubmitting={isSubmitting}
-              isDirty={true}
               onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
               onSaveDraft={onSaveDraft ? () => void onSaveDraft(getValues(), activeTabIndex) : undefined}
+              onCancel={onCancel}
+              onReset={handleReset}
             />
-          ) : (
-            <Pressable style={styles.nextButton} onPress={handleNext}>
-              <Text style={styles.nextButtonText}>Next</Text>
-            </Pressable>
-          )}
+          ))}
         </View>
       </ScrollView>
     </View>
   );
 }
 
-interface ActionButtonsProps {
-  form: FormDefinition;
+interface FormButtonItemProps {
+  button: FormButton;
   isSubmitting: boolean;
-  isDirty: boolean;
   onSubmit: () => void;
   onSaveDraft?: () => void;
+  onCancel?: () => void;
+  onReset: () => void;
 }
 
-const DEFAULT_MOBILE_BUTTONS: FormButton[] = [
-  {
-    buttonId: '__submit__',
-    label: 'Submit Application',
-    action: 'submit',
-    displayOrder: 10,
-    isVisible: true,
-    isPrimary: true,
-    confirmationRequired: false,
-  },
-];
+function FormButtonItem({ button, isSubmitting, onSubmit, onSaveDraft, onCancel, onReset }: FormButtonItemProps) {
+  function handlePress(): void {
+    if (button.confirmationRequired) {
+      Alert.alert(
+        button.label,
+        button.confirmationMessage ?? 'Are you sure? Any unsaved changes will be lost.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Confirm', onPress: () => executeAction() },
+        ],
+      );
+    } else {
+      executeAction();
+    }
+  }
 
-function ActionButtons({ form, isSubmitting, isDirty, onSubmit, onSaveDraft }: ActionButtonsProps) {
-  const buttons = (form.buttons ?? [])
-    .filter((b) => b.isVisible)
-    .sort((a, b) => a.displayOrder - b.displayOrder);
+  function executeAction(): void {
+    if (button.action === 'submit') onSubmit();
+    else if (button.action === 'saveDraft') onSaveDraft?.();
+    else if (button.action === 'cancel') onCancel?.();
+    else if (button.action === 'reset') onReset();
+  }
 
-  const activeButtons = buttons.length > 0 ? buttons : DEFAULT_MOBILE_BUTTONS;
+  const isPrimary = button.isPrimary;
+  const isDisabled = isSubmitting || (button.action === 'saveDraft' && !onSaveDraft);
+
+  const containerStyle = [
+    isPrimary ? styles.primaryButton : styles.secondaryButton,
+    isDisabled && styles.buttonDisabled,
+    !isPrimary && { flex: undefined as number | undefined },
+  ];
+
+  const textStyle = isPrimary ? styles.primaryButtonText : styles.secondaryButtonText;
 
   return (
-    <>
-      {activeButtons.map((button) => {
-        if (button.action === 'submit') {
-          return (
-            <Pressable
-              key={button.buttonId}
-              style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
-              disabled={isSubmitting}
-              onPress={onSubmit}
-            >
-              <Text style={styles.submitButtonText}>
-                {isSubmitting ? 'Submitting…' : button.label}
-              </Text>
-            </Pressable>
-          );
-        }
-        if (button.action === 'saveDraft' && onSaveDraft) {
-          return (
-            <Pressable
-              key={button.buttonId}
-              style={[styles.draftButton, (!isDirty || isSubmitting) && styles.buttonDisabled]}
-              disabled={!isDirty || isSubmitting}
-              onPress={onSaveDraft}
-            >
-              <Text style={styles.draftButtonText}>{button.label}</Text>
-            </Pressable>
-          );
-        }
-        return null;
-      })}
-    </>
+    <Pressable style={containerStyle} disabled={isDisabled} onPress={handlePress}>
+      <Text style={textStyle}>
+        {isSubmitting && button.action === 'submit' ? 'Submitting…' : button.label}
+      </Text>
+    </Pressable>
   );
 }
 
-function TabContent({ tab, control }: { tab: TabDefinition; control: ReturnType<typeof useForm<Record<string, unknown>>>['control'] }) {
+function TabContent({
+  tab,
+  control,
+}: {
+  tab: TabDefinition;
+  control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
+}) {
   const sections = [...tab.sections].sort((a, b) => a.displayOrder - b.displayOrder);
   return (
     <>
@@ -156,8 +160,16 @@ function TabContent({ tab, control }: { tab: TabDefinition; control: ReturnType<
   );
 }
 
-function SectionContent({ section, control }: { section: SectionDefinition; control: ReturnType<typeof useForm<Record<string, unknown>>>['control'] }) {
-  const fields = [...section.fields].sort((a, b) => a.displayOrder - b.displayOrder).filter((f) => f.isVisibleDefault);
+function SectionContent({
+  section,
+  control,
+}: {
+  section: SectionDefinition;
+  control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
+}) {
+  const fields = [...section.fields]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .filter((f) => f.isVisibleDefault);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
@@ -179,14 +191,10 @@ const styles = StyleSheet.create({
   contentInner: { padding: 16, paddingBottom: 40 },
   section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  backButton: { flex: 1, borderWidth: 1, borderColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
-  backButtonText: { color: '#0078d4', fontSize: 16, fontWeight: '600' },
-  nextButton: { flex: 1, backgroundColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
-  nextButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  draftButton: { borderWidth: 1, borderColor: '#0078d4', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 14, alignItems: 'center' },
-  draftButtonText: { color: '#0078d4', fontSize: 15, fontWeight: '600' },
-  submitButton: { flex: 1, backgroundColor: '#2e7d32', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
-  submitButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  buttonDisabled: { opacity: 0.6 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
+  primaryButton: { flex: 1, backgroundColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
+  primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  secondaryButton: { borderWidth: 1, borderColor: '#0078d4', borderRadius: 8, paddingHorizontal: 20, paddingVertical: 14, alignItems: 'center' },
+  secondaryButtonText: { color: '#0078d4', fontSize: 15, fontWeight: '600' },
+  buttonDisabled: { opacity: 0.5 },
 });
