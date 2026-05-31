@@ -1,7 +1,7 @@
-// RED — failing until StyleEngine is implemented
+﻿// RED â€” failing until StyleEngine is implemented
 import { describe, it, expect } from 'vitest';
 import { StyleEngine } from './StyleEngine';
-import type { DesignPayload } from '@dfe/shared';
+import type { DesignPayload } from '@qdb/shared';
 import { LIGHT_THEME } from './themes';
 
 function makePayload(

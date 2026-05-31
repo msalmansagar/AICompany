@@ -1,4 +1,17 @@
-import { apiGet, apiPost } from './apiClient';
+﻿import { apiGet, apiPost } from './apiClient';
+import { isOnline } from './NetworkMonitor';
+import {
+  cacheFormList,
+  getCachedFormList,
+  cacheFormDefinition,
+  getCachedFormDefinition,
+} from './OfflineCache';
+import {
+  enqueueSubmission,
+  getAllPending,
+  removePending,
+  type PendingSubmission,
+} from './PendingSubmissionQueue';
 import type {
   FormListItem,
   FormDefinition,
@@ -10,9 +23,9 @@ import type {
   ValidationRule,
   OptionValue,
   FieldType,
-} from '@qdb/form-engine-shared';
+} from '@qdb/shared';
 
-// ── Backend response shapes (as returned by @dfe/shared) ──────
+// ── Backend response shapes (as returned by @qdb/shared) ──────
 
 interface BackendFormSummary {
   id: string;
@@ -137,7 +150,7 @@ interface BackendFormDefinition {
   tabs: BackendTabDefinition[];
 }
 
-// ── Type normalization ────────────────────────────────────────
+// â”€â”€ Type normalization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FIELD_TYPE_MAP: Record<string, FieldType> = {
   richText: 'richtext',
@@ -148,7 +161,7 @@ function normalizeFieldType(raw: string): FieldType {
   return (FIELD_TYPE_MAP[raw] ?? raw) as FieldType;
 }
 
-// ── Mapping functions ─────────────────────────────────────────
+// â”€â”€ Mapping functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function mapOptionValue(opt: BackendOptionValue): OptionValue {
   return { value: opt.value, label: opt.label, displayOrder: opt.displayOrder };
@@ -265,45 +278,120 @@ function mapFormSummaryToListItem(summary: BackendFormSummary): FormListItem {
   };
 }
 
+// ── Errors ────────────────────────────────────────────────────
+
+export class OfflineError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OfflineError';
+  }
+}
+
+// ── Sync result ────────────────────────────────────────────────
+
+export interface SyncResult {
+  submitted: number;
+  failed: number;
+  pending: PendingSubmission[];
+}
+
 // ── Public API ────────────────────────────────────────────────
 
-export async function listForms(accessToken: string): Promise<FormListItem[]> {
-  const summaries = await apiGet<BackendFormSummary[]>('/api/forms', accessToken);
-  return summaries.map(mapFormSummaryToListItem);
+export async function listForms(accessToken: string, locale?: string): Promise<FormListItem[]> {
+  const online = await isOnline();
+
+  if (!online) {
+    const cached = await getCachedFormList();
+    if (cached) return cached;
+    throw new OfflineError('No cached form list — connect to network first');
+  }
+
+  const summaries = await apiGet<BackendFormSummary[]>('/api/forms', accessToken, { locale });
+  const items = summaries.map(mapFormSummaryToListItem);
+  await cacheFormList(items);
+  return items;
 }
 
 export async function getFormDefinition(
   formCode: string,
-  accessToken: string
+  accessToken: string,
+  locale?: string,
 ): Promise<FormDefinition> {
+  const online = await isOnline();
+
+  if (!online) {
+    const cached = await getCachedFormDefinition(formCode);
+    if (cached) return cached;
+    throw new OfflineError(`No cached definition for form '${formCode}' — connect to network first`);
+  }
+
   const backend = await apiGet<BackendFormDefinition>(
     `/api/forms/${formCode}/metadata`,
-    accessToken
+    accessToken,
+    { locale },
   );
-  return mapFormDefinition(backend);
+  const def = mapFormDefinition(backend);
+  await cacheFormDefinition(formCode, def);
+  return def;
 }
 
 export async function submitForm(
   formCode: string,
   formData: Record<string, unknown>,
-  accessToken: string
-): Promise<void> {
+  accessToken: string,
+): Promise<'submitted' | 'queued'> {
+  const online = await isOnline();
+
+  if (!online) {
+    await enqueueSubmission(formCode, formData);
+    return 'queued';
+  }
+
   await apiPost<{ formData: Record<string, unknown> }, unknown>(
     `/api/forms/${formCode}/submit`,
     { formData },
-    accessToken
+    accessToken,
   );
+  return 'submitted';
 }
 
 export async function saveDraft(
   formCode: string,
   formData: Record<string, unknown>,
   currentTabIndex: number,
-  accessToken: string
+  accessToken: string,
 ): Promise<void> {
   await apiPost<{ formData: Record<string, unknown>; currentTabIndex: number }, unknown>(
     `/api/forms/${formCode}/draft`,
     { formData, currentTabIndex },
-    accessToken
+    accessToken,
   );
+}
+
+export async function syncPendingSubmissions(accessToken: string): Promise<SyncResult> {
+  const pending = await getAllPending();
+  let submitted = 0;
+  let failed = 0;
+
+  for (const item of pending) {
+    try {
+      await apiPost<{ formData: Record<string, unknown> }, unknown>(
+        `/api/forms/${item.formCode}/submit`,
+        { formData: item.formData },
+        accessToken,
+      );
+      await removePending(item.id);
+      submitted++;
+    } catch {
+      failed++;
+    }
+  }
+
+  const remaining = await getAllPending();
+  return { submitted, failed, pending: remaining };
+}
+
+export async function getPendingSubmissionCount(): Promise<number> {
+  const pending = await getAllPending();
+  return pending.length;
 }

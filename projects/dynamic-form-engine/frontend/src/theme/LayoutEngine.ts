@@ -1,7 +1,7 @@
-// Pure utility — no React imports, no side effects.
+﻿// Pure utility â€” no React imports, no side effects.
 // Builds CSS grid templates from FormDesign + LayoutGrid records.
 import type { CSSProperties } from 'react';
-import type { FormDesign, LayoutGrid, LayoutType } from '@dfe/shared';
+import type { FormDesign, LayoutGrid, LayoutType } from '@qdb/shared';
 import type { Breakpoint } from '../contexts/ResponsiveContext';
 
 export interface GridTemplate {
@@ -12,7 +12,7 @@ export interface GridTemplate {
 const COLUMN_COUNT_BY_LAYOUT: Record<LayoutType, number> = {
   SingleColumn: 1,
   TwoColumn: 2,
-  Grid: 12, // full-grid — field spans drive the layout
+  Grid: 12, // full-grid â€” field spans drive the layout
   Stepper: 1,
   Wizard: 1,
   Accordion: 1,

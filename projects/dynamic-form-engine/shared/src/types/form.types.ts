@@ -21,7 +21,8 @@ export type FieldType =
   | 'phone'
   | 'file'
   | 'repeatingGrid'
-  | 'richText';
+  | 'richText'
+  | 'custom';
 
 export type ValidationRuleType =
   | 'required'
@@ -142,7 +143,8 @@ export interface ValidationRule {
   regexPattern?: string;
   compareToFieldId?: string;       // for crossField
   compareToValue?: string;         // for dateBefore / dateAfter with fixed date
-  customExpression?: string;       // Phase 2 — safe DSL expression
+  customExpression?: string;       // safe DSL expression evaluated by ExpressionEngine
+  ruleTemplateId?: string;         // optional link to shared qdb_rule_template record
   isActive: boolean;
   priority: number;
 }
@@ -226,6 +228,7 @@ export interface FieldDefinition {
   currencyCode?: string;           // currency fields
   decimalPlaces?: number;          // decimal / currency fields
   maxRows?: number;                // repeatingGrid
+  componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
   validationRules: ValidationRule[];
   businessRules: BusinessRule[];   // rules where this field is the trigger

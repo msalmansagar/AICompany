@@ -4,7 +4,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@qdb/form-engine-shared": ["../shared/src/index.ts"],
+      "@qdb/shared": ["../shared/src/index.ts"],
       "zod": ["./node_modules/zod/index.d.ts"],
       "json-rules-engine": ["./node_modules/json-rules-engine/types/index.d.ts"]
     }

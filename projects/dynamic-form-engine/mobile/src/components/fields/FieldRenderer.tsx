@@ -1,15 +1,18 @@
 import React from 'react';
 import { Text } from 'react-native';
 import type { Control } from 'react-hook-form';
-import type { FieldDefinition } from '@qdb/form-engine-shared';
+import type { FieldDefinition } from '@qdb/shared';
 import { FormTextField } from './FormTextField';
 import { FormTextAreaField } from './FormTextAreaField';
+import { FormRichTextField } from './FormRichTextField';
+import { FormNumericField } from './FormNumericField';
 import { FormDateField } from './FormDateField';
 import { FormDropdownField } from './FormDropdownField';
 import { FormCheckboxField } from './FormCheckboxField';
 import { FormRadioField } from './FormRadioField';
 import { FormLookupField } from './FormLookupField';
 import { FormFileField } from './FormFileField';
+import { FormRepeatingGridField } from './FormRepeatingGridField';
 
 interface Props {
   field: FieldDefinition;
@@ -25,13 +28,14 @@ export function FieldRenderer({ field, control }: Props) {
     case 'phone':
       return <FormTextField field={field} control={control} keyboardType="phone-pad" />;
     case 'number':
-      return <FormTextField field={field} control={control} keyboardType="numeric" />;
+      return <FormNumericField field={field} control={control} />;
     case 'currency':
     case 'decimal':
-      return <FormTextField field={field} control={control} keyboardType="decimal-pad" />;
+      return <FormNumericField field={field} control={control} />;
     case 'textarea':
-    case 'richtext':
       return <FormTextAreaField field={field} control={control} />;
+    case 'richtext':
+      return <FormRichTextField field={field} control={control} />;
     case 'date':
     case 'datetime':
       return <FormDateField field={field} control={control} />;
@@ -46,7 +50,13 @@ export function FieldRenderer({ field, control }: Props) {
       return <FormLookupField field={field} control={control} />;
     case 'file':
       return <FormFileField field={field} control={control} />;
+    case 'grid':
+      return <FormRepeatingGridField field={field} control={control} />;
     default:
-      return <Text style={{ color: '#999', fontSize: 13 }}>Unsupported field type: {field.fieldType}</Text>;
+      return (
+        <Text style={{ color: '#999', fontSize: 13 }}>
+          Unsupported field type: {field.fieldType}
+        </Text>
+      );
   }
 }

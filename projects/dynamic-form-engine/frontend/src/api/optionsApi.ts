@@ -1,4 +1,4 @@
-import type { OptionValue } from '@dfe/shared';
+﻿import type { OptionValue } from '@qdb/shared';
 import apiClient from './apiClient';
 
 export const optionsApi = {

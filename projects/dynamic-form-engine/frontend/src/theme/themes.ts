@@ -1,4 +1,4 @@
-import type { ThemeDefinition } from '@dfe/shared';
+﻿import type { ThemeDefinition } from '@qdb/shared';
 
 export const LIGHT_THEME: ThemeDefinition = {
   id: 'default-light',

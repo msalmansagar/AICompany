@@ -12,7 +12,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useMsal } from '../../src/auth/MsalProvider';
 import { useDevBypass } from '../../src/context/DevBypassContext';
 import { listForms } from '../../src/services/FormService';
-import type { FormListItem } from '@qdb/form-engine-shared';
+import type { FormListItem } from '@qdb/shared';
 
 export default function FormsListScreen() {
   const router = useRouter();

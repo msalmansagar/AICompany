@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useForm, type FieldErrors } from 'react-hook-form';
-import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/form-engine-shared';
+import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 
 interface Props {
@@ -53,7 +53,7 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   const tabs = [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
 
-  // fieldKey → display label, for human-readable error messages
+  // fieldKey â†’ display label, for human-readable error messages
   const fieldKeyToLabel = useMemo(() => {
     const map: Record<string, string> = {};
     for (const tab of tabs) {
@@ -66,7 +66,7 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
     return map;
   }, [tabs]);
 
-  // fieldKey → sorted tab index, so we can jump to the first tab with errors
+  // fieldKey â†’ sorted tab index, so we can jump to the first tab with errors
   const fieldKeyToTabIndex = useMemo(() => {
     const map: Record<string, number> = {};
     tabs.forEach((tab, index) => {
@@ -108,7 +108,7 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
       .map((key) => fieldKeyToLabel[key] ?? key)
       .slice(0, 5);
     const detail = failedLabels.length > 0
-      ? `\n\n${failedLabels.map((l) => `• ${l}`).join('\n')}`
+      ? `\n\n${failedLabels.map((l) => `â€¢ ${l}`).join('\n')}`
       : '';
     Alert.alert(
       'Validation Error',
@@ -215,7 +215,7 @@ function FormButtonItem({ button, isSubmitting, onSubmit, onSaveDraft, onCancel,
   return (
     <Pressable style={containerStyle} disabled={isDisabled} onPress={handlePress}>
       <Text style={textStyle}>
-        {isSubmitting && button.action === 'submit' ? 'Submitting…' : button.label}
+        {isSubmitting && button.action === 'submit' ? 'Submittingâ€¦' : button.label}
       </Text>
     </Pressable>
   );

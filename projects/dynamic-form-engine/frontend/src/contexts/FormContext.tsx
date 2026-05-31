@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   createContext,
   useCallback,
   useContext,
@@ -12,7 +12,7 @@ import type {
   FormFieldValues,
   RuleEvaluationResult,
   DraftSubmission,
-} from '@dfe/shared';
+} from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
@@ -78,7 +78,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Load form metadata and initial data ──────────────────────
+  // â”€â”€ Load form metadata and initial data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     let cancelled = false;
 
@@ -126,7 +126,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     };
   }, [formCode, recordId]);
 
-  // ── Debounced rule evaluation ─────────────────────────────────
+  // â”€â”€ Debounced rule evaluation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (!formDefinition) return;
 
@@ -169,7 +169,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     };
   }, [fieldValues, formDefinition]);
 
-  // ── Field value update ────────────────────────────────────────
+  // â”€â”€ Field value update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const updateFieldValue = useCallback((fieldId: string, value: unknown) => {
     setFieldValues((prev) => ({ ...prev, [fieldId]: value }));
     setIsDirty(true);
@@ -184,7 +184,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     });
   }, []);
 
-  // ── Save draft ────────────────────────────────────────────────
+  // â”€â”€ Save draft â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const saveDraft = useCallback(async () => {
     if (!formDefinition || !currentUser) return;
 
@@ -214,7 +214,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     setIsDirty(false);
   }, [formDefinition, currentUser, draftId, fieldValues, activeTabIndex, formCode]);
 
-  // ── Reset form ────────────────────────────────────────────────
+  // â”€â”€ Reset form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const resetForm = useCallback(() => {
     if (!formDefinition) return;
     setFieldValues(buildInitialValues(formDefinition));
@@ -223,7 +223,7 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     setActiveTabIndex(0);
   }, [formDefinition]);
 
-  // ── Submit form ───────────────────────────────────────────────
+  // â”€â”€ Submit form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const submitForm = useCallback(async () => {
     if (!formDefinition) return;
 
@@ -238,6 +238,10 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
 
     if (Object.keys(errors).length > 0) {
       setValidationErrors(errors);
+      const firstErrorTabIndex = findFirstErrorTabIndex(formDefinition, errors);
+      if (firstErrorTabIndex !== null) {
+        setActiveTabIndex(firstErrorTabIndex);
+      }
       return;
     }
 
@@ -296,7 +300,7 @@ export function useFormContext(): FormContextValue {
   return context;
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
   const values: FormFieldValues = {};
@@ -344,6 +348,24 @@ function computeVisibleFieldIds(
   }
 
   return visible;
+}
+
+function findFirstErrorTabIndex(
+  formDefinition: FormDefinition,
+  errors: Record<string, string[]>,
+): number | null {
+  const sortedTabs = [...formDefinition.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
+
+  for (let i = 0; i < sortedTabs.length; i++) {
+    const tab = sortedTabs[i];
+    for (const section of tab.sections) {
+      for (const field of section.fields) {
+        if (errors[field.id]) return i;
+      }
+    }
+  }
+
+  return null;
 }
 
 function stripHiddenFieldValues(

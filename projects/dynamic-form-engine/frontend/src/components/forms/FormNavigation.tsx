@@ -1,4 +1,4 @@
-import {
+﻿import {
   TabList,
   Tab,
   makeStyles,
@@ -6,7 +6,7 @@ import {
   Badge,
 } from '@fluentui/react-components';
 import { CheckmarkCircle20Filled } from '@fluentui/react-icons';
-import type { TabDefinition } from '@dfe/shared';
+import type { TabDefinition } from '@qdb/shared';
 import { useFormContext } from '../../contexts/FormContext';
 
 const useStyles = makeStyles({

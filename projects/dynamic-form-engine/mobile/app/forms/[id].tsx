@@ -5,7 +5,7 @@ import { useMsal } from '../../src/auth/MsalProvider';
 import { useDevBypass } from '../../src/context/DevBypassContext';
 import { getFormDefinition, submitForm, saveDraft } from '../../src/services/FormService';
 import { FormRenderer } from '../../src/components/FormRenderer';
-import type { FormDefinition } from '@qdb/form-engine-shared';
+import type { FormDefinition } from '@qdb/shared';
 
 export default function FormDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

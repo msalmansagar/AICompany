@@ -1,5 +1,5 @@
-import { makeStyles, tokens } from '@fluentui/react-components';
-import type { TabDefinition } from '@dfe/shared';
+﻿import { makeStyles, tokens } from '@fluentui/react-components';
+import type { TabDefinition } from '@qdb/shared';
 import { SectionRenderer } from './SectionRenderer';
 import { useFormContext } from '../../contexts/FormContext';
 

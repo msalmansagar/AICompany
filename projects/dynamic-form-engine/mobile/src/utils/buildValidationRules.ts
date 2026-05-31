@@ -1,4 +1,4 @@
-import type { FieldDefinition } from '@qdb/form-engine-shared';
+﻿import type { FieldDefinition } from '@qdb/shared';
 import type { RegisterOptions } from 'react-hook-form';
 
 type Rules = RegisterOptions<Record<string, unknown>, string>;
@@ -20,7 +20,7 @@ export function buildValidationRules(field: FieldDefinition): Rules {
 
   // Required: check both the field flag and any explicit required validation rule.
   // Using a custom validate (not built-in required) so we control exactly what "empty"
-  // means for each field type — e.g. a required checkbox must be true, not just truthy.
+  // means for each field type â€” e.g. a required checkbox must be true, not just truthy.
   const explicitRequiredRule = field.validationRules.find((r) => r.ruleType === 'required');
   const isRequired = field.isRequiredDefault || explicitRequiredRule !== undefined;
 

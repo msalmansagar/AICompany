@@ -1,4 +1,4 @@
-import type { LookupResult } from '@dfe/shared';
+﻿import type { LookupResult } from '@qdb/shared';
 import apiClient from './apiClient';
 
 export interface LookupSearchParams {

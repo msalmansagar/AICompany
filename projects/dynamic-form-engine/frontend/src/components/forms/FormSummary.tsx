@@ -1,4 +1,4 @@
-import {
+﻿import {
   Card,
   CardHeader,
   makeStyles,
@@ -7,7 +7,7 @@ import {
   Badge,
 } from '@fluentui/react-components';
 import { useFormContext } from '../../contexts/FormContext';
-import type { FieldDefinition } from '@dfe/shared';
+import type { FieldDefinition } from '@qdb/shared';
 
 const useStyles = makeStyles({
   wrapper: {

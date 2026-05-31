@@ -1,4 +1,4 @@
-import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@dfe/shared';
+﻿import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { CrmApiError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -55,13 +55,13 @@ export class CrmSubmissionService extends CrmBaseService {
         createdRecords.push({ entity: childEntity, id: childId });
       }
 
-      // Mark parent record as complete. Non-fatal — only works if the target entity
+      // Mark parent record as complete. Non-fatal â€” only works if the target entity
       // has the qdb_submission_status attribute (true for all qdb_* entities).
       await this.crmFetch(`/${parentEntityName}s(${parentRecordId})`, {
         method: 'PATCH',
         body: JSON.stringify({ qdb_submission_status: 'submitted' }),
       }).catch((error) =>
-        logger.warn({ error, parentRecordId, parentEntityName }, 'Could not set qdb_submission_status — skipping'),
+        logger.warn({ error, parentRecordId, parentEntityName }, 'Could not set qdb_submission_status â€” skipping'),
       );
 
       // Fire-and-forget: trigger Power Automate if configured
@@ -124,7 +124,7 @@ export class CrmSubmissionService extends CrmBaseService {
       const value = record[refAttribute];
       if (typeof value === 'string' && value.trim()) return value;
     } catch (error) {
-      logger.warn({ error, recordId }, 'Could not fetch reference number attribute — using record ID prefix');
+      logger.warn({ error, recordId }, 'Could not fetch reference number attribute â€” using record ID prefix');
     }
 
     return recordId.substring(0, 8).toUpperCase();

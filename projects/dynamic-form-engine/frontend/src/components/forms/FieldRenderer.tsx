@@ -1,4 +1,4 @@
-import { useId, useMemo, type CSSProperties } from 'react';
+﻿import { useId, useMemo, type CSSProperties } from 'react';
 import {
   Label,
   makeStyles,
@@ -6,7 +6,7 @@ import {
   Text,
   Tooltip,
 } from '@fluentui/react-components';
-import type { FieldDefinition } from '@dfe/shared';
+import type { FieldDefinition } from '@qdb/shared';
 import { useDesignContext } from '../../contexts/DesignContext';
 import { StyleEngine } from '../../theme/StyleEngine';
 import { ComponentStyleResolver } from '../../theme/ComponentStyleResolver';
@@ -28,6 +28,7 @@ import { FileUploadControl } from './controls/FileUploadControl';
 import { RepeatingGridControl } from './controls/RepeatingGridControl';
 import { RichTextControl } from './controls/RichTextControl';
 import { DynamicIcon } from './DynamicIcon';
+import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
 const useStyles = makeStyles({
   fieldWrapper: {
@@ -53,7 +54,7 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     cursor: 'help',
   },
-  // Floating label layout — the input grows to fill the container
+  // Floating label layout â€” the input grows to fill the container
   // and the label is positioned absolutely above the input.
   floatingWrapper: {
     position: 'relative',
@@ -88,7 +89,7 @@ export interface FieldRendererProps {
   error?: string;
 }
 
-// FieldRenderer is NOT wrapped in React.memo — conflicts with RHF Controller subscriptions.
+// FieldRenderer is NOT wrapped in React.memo â€” conflicts with RHF Controller subscriptions.
 export function FieldRenderer({
   field,
   isVisible,
@@ -244,6 +245,14 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
       return <RepeatingGridControl {...controlProps} />;
     case 'richText':
       return <RichTextControl {...controlProps} />;
+    case 'custom': {
+      const key = field.componentKey ?? '';
+      const CustomComponent = ComponentRegistry.resolve(key);
+      if (!CustomComponent) {
+        return <Text>Custom component '{key}' is not registered</Text>;
+      }
+      return <CustomComponent {...controlProps} />;
+    }
     default:
       return (
         <Text>

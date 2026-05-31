@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+﻿import React, { useEffect, useMemo } from 'react';
 import {
   FluentProvider,
   createLightTheme,
@@ -6,9 +6,9 @@ import {
   type BrandVariants,
   type Theme,
 } from '@fluentui/react-components';
-import type { ThemeDefinition } from '@dfe/shared';
+import type { ThemeDefinition } from '@qdb/shared';
 
-// ── Hex-to-RGB helper ───────────────────────────────────────
+// â”€â”€ Hex-to-RGB helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const cleaned = hex.replace('#', '');
@@ -31,7 +31,7 @@ function rgbToHex(r: number, g: number, b: number): string {
   );
 }
 
-// ── Brand palette builder ───────────────────────────────────
+// â”€â”€ Brand palette builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Generates 16 shades (10..160) required by BrandVariants
 // from a single primary hex color using luminance shifts.
 
@@ -79,7 +79,7 @@ function buildBrandVariants(primaryColor: string): BrandVariants {
   return result as BrandVariants;
 }
 
-// ── CSS custom property injector ────────────────────────────
+// â”€â”€ CSS custom property injector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Writes all design tokens onto document.documentElement so
 // non-Fluent elements (e.g. custom CSS, SectionRenderer divs)
 // can consume them via var(--qdb-*).
@@ -113,7 +113,7 @@ function injectCssCustomProperties(theme: ThemeDefinition): void {
   }
 }
 
-// ── Dynamic font loader ─────────────────────────────────────
+// â”€â”€ Dynamic font loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Injects a <link> element only when the fontUrl changes.
 // Reuses the existing element when the URL is unchanged.
 
@@ -135,7 +135,7 @@ function loadFont(fontUrl: string | undefined): void {
   document.head.appendChild(link);
 }
 
-// ── Fluent UI theme builder ─────────────────────────────────
+// â”€â”€ Fluent UI theme builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildFluentTheme(theme: ThemeDefinition): Theme {
   const brandVariants = buildBrandVariants(theme.primaryColor);
@@ -144,7 +144,7 @@ function buildFluentTheme(theme: ThemeDefinition): Theme {
     : createLightTheme(brandVariants);
 }
 
-// ── ThemeProvider ───────────────────────────────────────────
+// â”€â”€ ThemeProvider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Two nested FluentProviders:
 // - Outer: global brand tokens derived from the workspace ThemeDefinition
 // - Inner (optional): form-level overrides when the form has a distinct theme
@@ -182,8 +182,8 @@ function ThemeProviderInner({
   );
 }
 
-// No custom comparator — React.memo uses default shallow equality so children
+// No custom comparator â€” React.memo uses default shallow equality so children
 // propagate correctly when form state (e.g. activeTabIndex) changes.
 // The Fluent theme objects are stable via useMemo inside, so FluentProvider
-// does not re-render on every keystroke — only when the theme itself changes.
+// does not re-render on every keystroke â€” only when the theme itself changes.
 export const ThemeProvider = React.memo(ThemeProviderInner);

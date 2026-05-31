@@ -1,4 +1,4 @@
-import type { AuditLogEntry } from '@dfe/shared';
+﻿import type { AuditLogEntry } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
@@ -8,7 +8,7 @@ export class CrmAuditService extends CrmBaseService {
     super(authService);
   }
 
-  // Append-only — never UPDATE or DELETE audit records
+  // Append-only â€” never UPDATE or DELETE audit records
   async writeAuditEntry(entry: Omit<AuditLogEntry, 'id'>): Promise<void> {
     try {
       await this.crmFetch('/qdb_form_audit_logs', {
@@ -27,7 +27,7 @@ export class CrmAuditService extends CrmBaseService {
         }),
       });
     } catch (error) {
-      // Audit failures must never propagate — log and continue
+      // Audit failures must never propagate â€” log and continue
       logger.error({ error, entry }, 'Failed to write audit log entry');
     }
   }

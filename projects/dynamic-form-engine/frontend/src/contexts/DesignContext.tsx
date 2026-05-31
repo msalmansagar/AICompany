@@ -1,8 +1,8 @@
-import { createContext, useContext } from 'react';
-import type { DesignPayload } from '@dfe/shared';
+﻿import { createContext, useContext } from 'react';
+import type { DesignPayload } from '@qdb/shared';
 import { LIGHT_THEME } from '../theme/themes';
 
-// ── Default payload ──────────────────────────────────────────
+// â”€â”€ Default payload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Matches DEFAULT_LIGHT_THEME from backend. Used as a safe fallback
 // when no DesignPayload is provided (e.g. in tests or on first render).
 

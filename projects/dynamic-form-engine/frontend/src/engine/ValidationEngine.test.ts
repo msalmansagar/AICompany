@@ -1,7 +1,7 @@
-// RED — failing until ValidationEngine is wired correctly
+﻿// RED â€” failing until ValidationEngine is wired correctly
 import { describe, it, expect } from 'vitest';
 import { ValidationEngine } from './ValidationEngine';
-import type { FieldDefinition, FormDefinition } from '@dfe/shared';
+import type { FieldDefinition, FormDefinition } from '@qdb/shared';
 
 function makeField(overrides: Partial<FieldDefinition>): FieldDefinition {
   return {

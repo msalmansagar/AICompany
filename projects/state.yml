@@ -7,17 +7,25 @@ projects:
     type: web
     phase: delivered
     started: 2026-05-06
-    last_updated: 2026-05-09
-    last_agent: ceo (phase-7)
+    last_updated: 2026-05-25
+    last_agent: ceo (mobile-phase-6)
     ceo_approved_phases: [ba, architecture, build, qa, audit, delivered]
     output_dir: projects/dynamic-form-engine/
     status: approved_with_conditions
     notes: >
-      APPROVED WITH CONDITIONS. 10 Sprint 1 blockers must be resolved before UAT.
+      WEB: APPROVED WITH CONDITIONS. 10 Sprint 1 blockers must be resolved before UAT.
       Critical: data residency (West Europe → Qatar North), business rules hardcoded to [],
       file upload non-functional (multer not registered), CORS wildcard fallback.
       Two external gates required: QDB written confirmation on Azure AD tenant type and
       Qatar North Dataverse environment provisioning.
+      MOBILE EXTENSION: APPROVED WITH CONDITIONS (2026-05-25). React Native + Expo managed
+      workflow app rendering same Dataverse-backed forms on iOS 16+ / Android 13+.
+      10 UAT blockers (MUATC-001 through MUATC-010) + 6 production gates (MPROD-001 through
+      MPROD-006) must be resolved before respective milestones. CONFIRMED BUG: MCODE-S-01 —
+      MSAL scope targets wrong client ID, app is completely non-functional as built, HTTP 401
+      on every API call. GATE-A (tenant type) and GATE-B (Qatar/UAE North Dataverse) inherited
+      from web engagement and block mobile UAT environment provisioning. Mobile output dir:
+      projects/dynamic-form-engine/mobile/
 
   - name: customer-loan-portal
     type: web

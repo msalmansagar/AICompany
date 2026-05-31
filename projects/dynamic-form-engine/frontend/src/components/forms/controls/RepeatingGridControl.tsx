@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -15,7 +15,7 @@ import {
   AddCircleRegular,
   DeleteRegular,
 } from '@fluentui/react-icons';
-import type { FieldDefinition } from '@dfe/shared';
+import type { FieldDefinition } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
 

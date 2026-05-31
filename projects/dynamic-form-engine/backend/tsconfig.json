@@ -14,7 +14,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "paths": {
-      "@dfe/shared": ["../shared/dist/types/index"]
+      "@qdb/shared": ["../shared/src/server"]
     }
   },
   "include": ["src"],

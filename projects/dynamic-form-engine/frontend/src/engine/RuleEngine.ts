@@ -1,4 +1,4 @@
-import { Engine, ConditionProperties, Event } from 'json-rules-engine';
+﻿import { Engine, ConditionProperties, Event } from 'json-rules-engine';
 import type {
   BusinessRule,
   FormFieldValues,
@@ -6,7 +6,8 @@ import type {
   RuleCondition,
   BusinessRuleAction,
   OptionValue,
-} from '@dfe/shared';
+} from '@qdb/shared';
+import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
 const OPERATOR_MAP: Record<string, string> = {
   equals: 'equal',
@@ -29,6 +30,18 @@ interface RuleEvent {
     targetTabId?: string;
     actionValue?: string;
   };
+}
+
+function buildExpressionContext(values: FormFieldValues): ExpressionContext {
+  const ctx: ExpressionContext = {};
+  for (const [key, val] of Object.entries(values)) {
+    if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+      ctx[key] = val;
+    } else {
+      ctx[key] = null;
+    }
+  }
+  return ctx;
 }
 
 function buildEmptyResult(): RuleEvaluationResult {
@@ -74,7 +87,7 @@ export class RuleEngine {
     const facts = this.buildFacts(fieldValues);
     const { events } = await engine.run(facts);
 
-    return this.mapEventsToResult(events as RuleEvent[]);
+    return this.mapEventsToResult(events as RuleEvent[], fieldValues);
   }
 
   private buildConditions(
@@ -149,7 +162,7 @@ export class RuleEngine {
     return facts;
   }
 
-  private mapEventsToResult(events: RuleEvent[]): RuleEvaluationResult {
+  private mapEventsToResult(events: RuleEvent[], fieldValues: FormFieldValues): RuleEvaluationResult {
     const result = buildEmptyResult();
 
     for (const event of events) {
@@ -206,8 +219,14 @@ export class RuleEngine {
           break;
 
         case 'calculateValue':
-          // Phase 2: expression evaluation — store raw expression for now
-          if (targetFieldId) result.fieldValues[targetFieldId] = actionValue ?? null;
+          if (targetFieldId && actionValue) {
+            const ctx = buildExpressionContext(fieldValues);
+            try {
+              result.fieldValues[targetFieldId] = ExpressionEngine.evaluate(actionValue, ctx);
+            } catch {
+              result.fieldValues[targetFieldId] = null;
+            }
+          }
           break;
 
         case 'filterOptions':

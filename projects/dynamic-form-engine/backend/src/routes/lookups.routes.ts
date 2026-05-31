@@ -1,10 +1,10 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { CrmLookupService } from '../services/CrmLookupService.js';
-import type { ApiResponse, LookupResult } from '@dfe/shared';
+import type { ApiResponse, LookupResult } from '@qdb/shared';
 
-// search is optional — omit to return initial records, provide to filter
+// search is optional â€” omit to return initial records, provide to filter
 const querySchema = z.object({
   search: z.string().optional(),
   displayAttribute: z.string().min(1),

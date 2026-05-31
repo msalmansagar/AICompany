@@ -1,5 +1,5 @@
-import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import type { ApiResponse } from '@dfe/shared';
+﻿import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import type { ApiResponse } from '@qdb/shared';
 import { acquireBearerToken } from '../auth/tokenService';
 
 const apiClient = axios.create({

@@ -1,19 +1,21 @@
 {
-  "name": "@dfe/backend",
+  "name": "@qdb/api",
   "version": "1.0.0",
-  "description": "Dynamic Form Engine — Backend API",
+  "description": "QDB Form Platform — Backend API",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "lint": "eslint src --ext .ts"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "clean": "rimraf dist"
   },
   "dependencies": {
     "@azure/identity": "^4.3.0",
     "@azure/storage-blob": "^12.24.0",
-    "@dfe/shared": "file:../shared",
+    "@qdb/shared": "*",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -51,7 +53,7 @@
       ".ts"
     ],
     "moduleNameMapper": {
-      "^@dfe/shared$": "<rootDir>/../shared/src/types/index.ts",
+      "^@qdb/shared$": "<rootDir>/../shared/src/types/index.ts",
       "^(\\.{1,2}/.+)\\.js$": "$1"
     }
   }

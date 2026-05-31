@@ -1,7 +1,7 @@
-// Pure utility — no React imports, no side effects.
+﻿// Pure utility â€” no React imports, no side effects.
 // Resolves design tokens from a DesignPayload into CSSProperties objects.
 import type { CSSProperties } from 'react';
-import type { DesignPayload, FieldWidthType } from '@dfe/shared';
+import type { DesignPayload, FieldWidthType } from '@qdb/shared';
 
 export interface ResolvedFieldStyle {
   containerStyle: CSSProperties;

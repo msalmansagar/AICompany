@@ -1,4 +1,4 @@
-import 'express-async-errors';
+﻿import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,6 +19,9 @@ import { CrmSubmissionService } from './services/CrmSubmissionService.js';
 import { CrmMetadataService } from './services/CrmMetadataService.js';
 import { CrmFileService } from './services/CrmFileService.js';
 import { CrmDesignService } from './services/CrmDesignService.js';
+import { CrmFormCloneService } from './services/CrmFormCloneService.js';
+import { CrmDesignerProxyService } from './services/CrmDesignerProxyService.js';
+import { AccessPolicyService } from './services/AccessPolicyService.js';
 import { CssSanitiserService } from './utils/cssSanitiser.js';
 import {
   MockMetadataService,
@@ -35,10 +38,11 @@ import { createOptionsRouter } from './routes/options.routes.js';
 import { createFilesRouter } from './routes/files.routes.js';
 import { createThemesRouter, createFormDesignRouter, createDesignCacheRouter } from './routes/design.routes.js';
 import { createAdminRouter } from './routes/admin.routes.js';
-import type { FormDefinition, DesignPayload, ThemeDefinition } from '@dfe/shared';
+import { createDesignerProxyRouter } from './routes/designer-proxy.routes.js';
+import type { FormDefinition, DesignPayload, ThemeDefinition } from '@qdb/shared';
 
-// ── Service wiring ─────────────────────────────────────────────
-// TTL=0 means no caching (every request hits Dataverse — useful for local dev).
+// â”€â”€ Service wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// TTL=0 means no caching (every request hits Dataverse â€” useful for local dev).
 const metadataCache = new LRUCache<string, FormDefinition>(
   config.METADATA_CACHE_TTL_SECONDS > 0
     ? { max: 500, ttl: config.METADATA_CACHE_TTL_SECONDS * 1000 }
@@ -53,7 +57,14 @@ const designCache = new LRUCache<string, DesignPayload | ThemeDefinition[]>(
     : { max: 1,   ttl: 1 },
 );
 
+const policyCache = new LRUCache<string, string[]>(
+  config.METADATA_CACHE_TTL_SECONDS > 0
+    ? { max: 1000, ttl: config.METADATA_CACHE_TTL_SECONDS * 1000 }
+    : { max: 1,    ttl: 1 },
+);
+
 const authService = new CrmAuthService();
+const policyService = config.MOCK_CRM ? null : new AccessPolicyService(authService, policyCache);
 const cssSanitiser = new CssSanitiserService();
 
 // When MOCK_CRM=true, swap all CRM services for in-memory mocks.
@@ -86,7 +97,12 @@ const designService = config.MOCK_CRM
   ? (new MockDesignService() as unknown as CrmDesignService)
   : new CrmDesignService(authService, designCache, cssSanitiser);
 
-// ── Express app ────────────────────────────────────────────────
+const cloneService = new CrmFormCloneService(authService);
+const designerProxyService = config.MOCK_CRM
+  ? null
+  : new CrmDesignerProxyService(authService);
+
+// â”€â”€ Express app â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const app = express();
 
 app.use(helmet());
@@ -96,24 +112,27 @@ app.use(pinoHttp({ logger }));
 app.use(correlationMiddleware);
 app.use(inputSanitiserMiddleware);
 
-// ── Public routes ──────────────────────────────────────────────
+// â”€â”€ Public routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use('/api/health', healthRouter);
 
-// ── Authenticated routes ───────────────────────────────────────
+// â”€â”€ Authenticated routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use('/api', authMiddleware);
 app.use('/api/lookups', createLookupsRouter(lookupService));
-app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService));
+app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService));
 app.use('/api/options', createOptionsRouter(metadataService));
 app.use('/api/files', createFilesRouter(fileService));
 app.use('/api/themes', createThemesRouter(designService));
 app.use('/api/form-design', createFormDesignRouter(designService));
 app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
 app.use('/api/admin', createAdminRouter(metadataService, designService));
+if (designerProxyService) {
+  app.use('/api/designer/records', createDesignerProxyRouter(designerProxyService));
+}
 
-// ── Error handler (must be last) ──────────────────────────────
+// â”€â”€ Error handler (must be last) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use(errorMiddleware);
 
-// ── Start server ───────────────────────────────────────────────
+// â”€â”€ Start server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.listen(config.PORT, () => {
   logger.info(
     { port: config.PORT, env: config.NODE_ENV, mockCrm: config.MOCK_CRM },
@@ -121,4 +140,4 @@ app.listen(config.PORT, () => {
   );
 });
 
-export { app, metadataCache, designCache, authService, auditService, dataService, lookupService, submissionService, metadataService, fileService, designService };
+export { app, metadataCache, designCache, policyCache, authService, auditService, dataService, lookupService, submissionService, metadataService, fileService, designService, cloneService, designerProxyService, policyService };

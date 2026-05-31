@@ -1,7 +1,7 @@
-// Pure utility — no React imports, no side effects.
+﻿// Pure utility â€” no React imports, no side effects.
 // Maps FieldDesign + ThemeDefinition to Fluent UI component props.
 import type { CSSProperties } from 'react';
-import type { FieldDesign, ThemeDefinition, InputStyleType } from '@dfe/shared';
+import type { FieldDesign, ThemeDefinition, InputStyleType } from '@qdb/shared';
 
 export interface ResolvedComponentProps {
   appearance: 'outline' | 'filled-darker' | 'underline';

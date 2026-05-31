@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+﻿import { useCallback, useState } from 'react';
 import {
   Button,
   Dialog,
@@ -23,7 +23,7 @@ import {
 } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
-import type { FormButton, ButtonAction } from '@dfe/shared';
+import type { FormButton, ButtonAction } from '@qdb/shared';
 
 interface FormActionBarProps {
   sticky?: boolean;
@@ -194,9 +194,9 @@ function FormButtonItem({
           disabled={isSubmitting}
           onClick={onSubmit}
           aria-busy={isSubmitting}
-          aria-label={isSubmitting ? 'Submitting…' : button.label}
+          aria-label={isSubmitting ? 'Submittingâ€¦' : button.label}
         >
-          {isSubmitting ? 'Submitting…' : button.label}
+          {isSubmitting ? 'Submittingâ€¦' : button.label}
         </Button>
         {errorCount > 0 && !isSubmitting && (
           <Badge
@@ -227,7 +227,7 @@ function FormButtonItem({
         onClick={onSaveDraft}
         aria-label={button.label}
       >
-        {isSaving ? 'Saving…' : isSaved ? 'Saved' : button.label}
+        {isSaving ? 'Savingâ€¦' : isSaved ? 'Saved' : button.label}
       </Button>
     );
   }

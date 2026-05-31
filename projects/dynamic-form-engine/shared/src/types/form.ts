@@ -31,8 +31,10 @@ export interface FieldDefinition {
   lookupEntity?: string;
   maxFileSize?: number;
   allowedMimeTypes?: string[];
+  allowCamera?: boolean;
   decimalPlaces?: number;
   currencySymbol?: string;
+  childFields?: FieldDefinition[];
 }
 
 export interface SectionDefinition {

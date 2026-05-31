@@ -1,12 +1,14 @@
 {
-  "name": "@qdb/form-engine-shared",
+  "name": "@qdb/shared",
   "version": "1.0.0",
   "description": "Shared TypeScript types and engines for Dynamic Form Engine",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
   },
   "dependencies": {
     "json-rules-engine": "^6.4.2",

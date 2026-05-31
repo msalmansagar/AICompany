@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+﻿import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
-import type { FieldDefinition } from '@qdb/form-engine-shared';
+import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { apiGet } from '../../services/apiClient';
 import { useMsal } from '../../auth/MsalProvider';
@@ -151,10 +151,10 @@ export function FormLookupField({ field, control }: Props) {
                   onPress={() => onChange(null)}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.clearBtnText}>✕</Text>
+                  <Text style={styles.clearBtnText}>âœ•</Text>
                 </Pressable>
               ) : (
-                <Text style={styles.chevron}>›</Text>
+                <Text style={styles.chevron}>â€º</Text>
               )}
             </Pressable>
 
@@ -207,7 +207,7 @@ export function FormLookupField({ field, control }: Props) {
                         <Text style={[styles.optionText, isSelected && styles.optionTextSelected]}>
                           {item.displayName}
                         </Text>
-                        {isSelected && <Text style={styles.checkmark}>✓</Text>}
+                        {isSelected && <Text style={styles.checkmark}>âœ“</Text>}
                       </Pressable>
                     );
                   }}

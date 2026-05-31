@@ -99,21 +99,30 @@ async function postRecord(
     );
   }
 
-  // Dataverse returns the created record when Prefer: return=representation is set.
-  // The primary key is in the @odata.etag and also in the record itself.
-  const record = (await response.json()) as Record<string, unknown>;
-  const primaryKeyField = `${entitySetName.slice(0, -1).replace(/s$/, '')}_id`;
+  // Dataverse primary key convention: entity set name minus trailing 's' + 'id'
+  // e.g. qdb_form_definitions → qdb_form_definitionid
+  const record = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const primaryKeyField = `${entitySetName.slice(0, -1)}id`;
 
-  // Extract the ID from the OData-EntityId response header as a fallback.
-  const entityIdHeader = response.headers.get('OData-EntityId') ?? '';
-  const guidFromHeader = entityIdHeader.match(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
-  )?.[0];
+  // Fallback 1: primary key field in the body (Prefer: return=representation)
+  let id = record[primaryKeyField] as string | undefined;
 
-  const id =
-    (record[primaryKeyField] as string | undefined) ??
-    guidFromHeader ??
-    '';
+  // Fallback 2: @odata.id in the body contains the entity URL with the GUID
+  if (!id) {
+    const odataId = record['@odata.id'] as string | undefined;
+    id = odataId?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)?.[0];
+  }
+
+  // Fallback 3: OData-EntityId / Location response header (set on 204 No Content)
+  if (!id) {
+    const headerVal =
+      response.headers.get('OData-EntityId') ??
+      response.headers.get('Location') ??
+      '';
+    id = headerVal.match(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    )?.[0];
+  }
 
   if (!id) {
     throw new Error(`Could not extract ID from POST ${entitySetName} response`);

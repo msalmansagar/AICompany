@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import type { LookupResult } from '@dfe/shared';
+﻿import { useCallback, useRef, useState } from 'react';
+import type { LookupResult } from '@qdb/shared';
 import { lookupApi } from '../api/lookupApi';
 
 const DEFAULT_DEBOUNCE_MS = 300;

@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from 'react';
+﻿import React, { memo, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import {
   Card,
@@ -11,7 +11,7 @@ import {
   ChevronDown20Regular,
   ChevronUp20Regular,
 } from '@fluentui/react-icons';
-import type { SectionDefinition } from '@dfe/shared';
+import type { SectionDefinition } from '@qdb/shared';
 import { FieldRenderer } from './FieldRenderer';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
@@ -230,12 +230,8 @@ function SectionRendererInner({ section, isVisible }: SectionRendererProps) {
   );
 }
 
-// Memo comparator: only re-render when sectionId or relevant design slice changes.
-function areSectionPropsEqual(
-  prev: SectionRendererProps,
-  next: SectionRendererProps,
-): boolean {
-  return prev.section.id === next.section.id && prev.isVisible === next.isVisible;
-}
-
-export const SectionRenderer = memo(SectionRendererInner, areSectionPropsEqual);
+// Default shallow prop comparison — no custom comparator.
+// A custom comparator that checks only section.id + isVisible would silently skip
+// re-renders when new props are added, and context changes (ruleState, validationErrors)
+// already trigger re-renders independently of memo.
+export const SectionRenderer = memo(SectionRendererInner);

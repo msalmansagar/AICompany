@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Input,
   Spinner,
@@ -6,7 +6,7 @@ import {
   mergeClasses,
   tokens,
 } from '@fluentui/react-components';
-import type { LookupResult } from '@dfe/shared';
+import type { LookupResult } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import type { ControlProps } from '../FieldRenderer';
@@ -266,7 +266,7 @@ export function LookupControl({
               aria-label="Clear selection"
               tabIndex={-1}
             >
-              ✕
+              âœ•
             </button>
           ) : undefined
         }
@@ -309,7 +309,7 @@ export function LookupControl({
                   onClick={() => handleSelect(result)}
                 >
                   {result.displayName}
-                  {isSelected && <span className={styles.checkmark}>✓</span>}
+                  {isSelected && <span className={styles.checkmark}>âœ“</span>}
                 </button>
               );
             })}

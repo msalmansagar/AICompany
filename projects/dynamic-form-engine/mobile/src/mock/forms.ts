@@ -1,4 +1,4 @@
-import type { FormDefinition, FormListItem } from '@qdb/form-engine-shared';
+﻿import type { FormDefinition, FormListItem } from '@qdb/shared';
 
 export const MOCK_FORM_LIST: FormListItem[] = [
   {

@@ -1,10 +1,10 @@
-// RED — failing until FieldRenderer renders correctly with all sub-controls
+﻿// RED â€” failing until FieldRenderer renders correctly with all sub-controls
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { FieldRenderer } from './FieldRenderer';
-import type { FieldDefinition } from '@dfe/shared';
+import type { FieldDefinition } from '@qdb/shared';
 
 vi.mock('../../contexts/FormContext', () => ({
   useFormContext: () => ({

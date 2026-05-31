@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LRUCache } from 'lru-cache';
 import { CrmDesignService } from './CrmDesignService.js';
 import { CssSanitiserService } from '../utils/cssSanitiser.js';
 import { ValidationError } from '../utils/errors.js';
-import type { DesignPayload, ThemeDefinition } from '@dfe/shared';
+import type { DesignPayload, ThemeDefinition } from '@qdb/shared';
 
 vi.mock('../config/env.js', () => ({
   config: {
@@ -55,7 +55,7 @@ function buildFormDesignResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
-// Spy on the protected crmFetch method via unknown cast —
+// Spy on the protected crmFetch method via unknown cast â€”
 // private method access is required for unit testing without integration harness.
 function spyCrmFetch(
   service: CrmDesignService,
@@ -72,7 +72,7 @@ describe('CrmDesignService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cache = buildCache();
-    // LRUCache is covariant on its value type in practice — the cast is safe here
+    // LRUCache is covariant on its value type in practice â€” the cast is safe here
     // because the test cache and service cache share the same union value type.
     service = new CrmDesignService(
       mockAuthService as unknown as ConstructorParameters<typeof CrmDesignService>[0],
@@ -81,7 +81,7 @@ describe('CrmDesignService', () => {
     );
   });
 
-  // ── getDesignPayload — happy path ─────────────────────────────────────────
+  // â”€â”€ getDesignPayload â€” happy path â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getDesignPayload_validFormCode_returnsDefaultLightThemeWhenNoThemeInDataverse', async () => {
     const fetchSpy = spyCrmFetch(service, async (path) => {
@@ -130,7 +130,7 @@ describe('CrmDesignService', () => {
     await service.getDesignPayload('cached-form', 'form-def-001');
     await service.getDesignPayload('cached-form', 'form-def-001');
 
-    // The second call is served from the LRU cache — crmFetch should only
+    // The second call is served from the LRU cache â€” crmFetch should only
     // run for the first call's qdb_form_designs query.
     const formDesignCallCount = fetchSpy.mock.calls
       .filter(([path]) => (path as string).includes('qdb_form_designs'))
@@ -138,7 +138,7 @@ describe('CrmDesignService', () => {
     expect(formDesignCallCount).toBe(1);
   });
 
-  // ── getDesignPayload — validation failure ─────────────────────────────────
+  // â”€â”€ getDesignPayload â€” validation failure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getDesignPayload_invalidFormCode_throwsValidationError', async () => {
     await expect(
@@ -152,7 +152,7 @@ describe('CrmDesignService', () => {
     ).rejects.toThrow(ValidationError);
   });
 
-  // ── Design payload structure ───────────────────────────────────────────────
+  // â”€â”€ Design payload structure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getDesignPayload_withSectionDesigns_populatesSectionDesignsMap', async () => {
     spyCrmFetch(service, async (path) => {
@@ -191,7 +191,7 @@ describe('CrmDesignService', () => {
     expect(result.sectionDesigns).toEqual({});
   });
 
-  // ── getAllThemes ───────────────────────────────────────────────────────────
+  // â”€â”€ getAllThemes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getAllThemes_returnsThemeList', async () => {
     spyCrmFetch(service, async () => ({
@@ -210,7 +210,7 @@ describe('CrmDesignService', () => {
     expect(themes[0].themeCode).toBe('corporate');
   });
 
-  // ── invalidateCache ───────────────────────────────────────────────────────
+  // â”€â”€ invalidateCache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('invalidateCache_removesFormEntryFromCache', async () => {
     spyCrmFetch(service, async () => ({ value: [] }));
@@ -233,7 +233,7 @@ describe('CrmDesignService', () => {
     expect(cache.size).toBe(0);
   });
 
-  // ── getDefaultPayload ─────────────────────────────────────────────────────
+  // â”€â”€ getDefaultPayload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getDefaultPayload_returnsDefaultLightThemeWithEmptyDesigns', () => {
     const payload = service.getDefaultPayload();
@@ -244,7 +244,7 @@ describe('CrmDesignService', () => {
     expect(payload.layoutGrid).toEqual([]);
   });
 
-  // ── CSS sanitisation ───────────────────────────────────────────────────────
+  // â”€â”€ CSS sanitisation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   it('getDesignPayload_withCustomCss_callsCssSanitiser', async () => {
     spyCrmFetch(service, async (path) => {

@@ -1,7 +1,7 @@
-// RED — failing until LayoutEngine is implemented
+﻿// RED â€” failing until LayoutEngine is implemented
 import { describe, it, expect } from 'vitest';
 import { LayoutEngine } from './LayoutEngine';
-import type { FormDesign, LayoutGrid } from '@dfe/shared';
+import type { FormDesign, LayoutGrid } from '@qdb/shared';
 
 function makeFormDesign(
   layoutType: FormDesign['layoutType'] = 'SingleColumn',

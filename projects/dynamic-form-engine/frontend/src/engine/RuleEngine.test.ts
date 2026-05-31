@@ -1,7 +1,7 @@
-// RED — failing until RuleEngine is wired correctly
+﻿// RED â€” failing until RuleEngine is wired correctly
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RuleEngine } from './RuleEngine';
-import type { BusinessRule, FormFieldValues } from '@dfe/shared';
+import type { BusinessRule, FormFieldValues } from '@qdb/shared';
 
 describe('RuleEngine', () => {
   let engine: RuleEngine;

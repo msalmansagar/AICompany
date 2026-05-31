@@ -1,5 +1,5 @@
 {
-  "name": "@dfe/frontend",
+  "name": "@qdb/portal",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,12 +10,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist"
   },
   "dependencies": {
     "@azure/msal-browser": "^3.28.0",
     "@azure/msal-react": "^2.1.0",
-    "@dfe/shared": "file:../shared",
+    "@qdb/shared": "*",
     "@fluentui/react-components": "^9.56.3",
     "@fluentui/react-icons": "^2.0.264",
     "react-use-wizard": "^3.0.0",

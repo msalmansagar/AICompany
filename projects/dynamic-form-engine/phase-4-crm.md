@@ -1536,6 +1536,423 @@ qdb_form_submission_log.qdb_status
   100000001 = Failed
   100000002 = Partial
 
+
+
+══════════════════════════════════════════════════════════════════
+SPRINT 3 + SPRINT 4 SCHEMA AMENDMENTS
+Version 1.1 — 2026-05-30
+══════════════════════════════════════════════════════════════════
+
+These additions were introduced after the Phase 4 baseline was approved.
+They are deployed via scripts/migrate-sprint3-sprint4.ts, not the seed script.
+
+
+──────────────────────────────────────────────────────────────────
+AMENDMENTS TO TABLE 4 — qdb_form_field
+──────────────────────────────────────────────────────────────────
+
+New Field
+  qdb_component_key
+    Type        : Single Line of Text (maxlength 250)
+    Required    : Optional
+    Description : ComponentRegistry key used when qdb_field_type = custom
+                  (100000018). The backend passes this through to the frontend,
+                  which resolves the key to a registered React component at
+                  runtime via ComponentRegistry.resolve(key).
+                  Ignored for all other field types.
+
+Updated Option Set — qdb_field_type
+  New option added (Sprint 3):
+    custom = 100000018
+      Description : Renders a developer-registered component instead of a
+                    built-in control. The component key is stored in
+                    qdb_component_key. Allows form designers to embed custom
+                    UI without modifying the portal source.
+
+
+──────────────────────────────────────────────────────────────────
+AMENDMENTS TO TABLE 5 — qdb_form_validation_rule
+──────────────────────────────────────────────────────────────────
+
+New Fields
+  qdb_custom_expression
+    Type        : Multiple Lines of Text (maxlength 4000)
+    Required    : Optional
+    Description : DSL expression evaluated by ExpressionEngine when
+                  qdb_rule_type = customExpression (100000012). Field values
+                  are referenced as {fieldSchemaName} in the expression.
+                  Examples:
+                    {amount} > 1000 && {customerType} == 'corporate'
+                    len(trim({address})) >= 10
+                  Rule-level value always overrides the template expression.
+
+  qdb_rule_template_id
+    Type        : Lookup → qdb_rule_template
+    Required    : Optional
+    Description : Optional reference to a reusable rule template (TABLE 13).
+                  At runtime, CrmMetadataService merges template values into
+                  the rule; any non-null rule-level values take precedence over
+                  template values. This allows a single template to be reused
+                  across many fields while still allowing per-field overrides.
+                  Cascade on template delete: RemoveLink (rule survives,
+                  lookup is nulled).
+
+Updated Option Set — qdb_rule_type
+  New option added (Sprint 3):
+    customExpression = 100000012
+      Description : Evaluates qdb_custom_expression (or the template expression)
+                    using ExpressionEngine. Rule passes when the expression
+                    evaluates to true. Rule fails (shows qdb_error_message) when
+                    the expression evaluates to false. Exceptions are silently
+                    treated as pass to avoid blocking user submission on bad DSL.
+
+Updated Business Constraints
+  - When qdb_rule_type = customExpression, qdb_custom_expression (or the
+    template's qdb_custom_expression) must be populated. Backend validates.
+  - qdb_rule_template_id may reference a template whose qdb_rule_type differs
+    from the rule's own qdb_rule_type only when qdb_rule_type is null — in that
+    case the template's rule_type governs. When both are populated they must
+    match. Backend validates before write.
+
+
+══════════════════════════════════════════════════════════════════
+TABLE 13 — qdb_rule_template
+══════════════════════════════════════════════════════════════════
+
+Display Name  : Rule Template
+Schema Name   : qdb_rule_template
+Plural Name   : Rule Templates
+Ownership     : OrganizationOwned
+Introduced    : Sprint 3
+
+Purpose
+  Reusable validation rule definition that can be referenced by multiple
+  qdb_form_validation_rule records via qdb_rule_template_id. At API
+  request time, CrmMetadataService.mergeRuleWithTemplate() combines template
+  defaults with rule-level overrides (rule-level always wins). This allows
+  an organisation-wide constraint such as "phone numbers must match QAR format"
+  to be defined once and applied to hundreds of fields without duplication.
+
+Fields
+──────────────────────────────────────────────────────────────────
+  qdb_rule_templateid
+    Type        : Unique Identifier (Primary Key)
+    Required    : System
+
+  qdb_name
+    Type        : Single Line of Text (maxlength 250)
+    Required    : Business Required
+    Description : Unique human-readable name. Convention:
+                  "Constraint description" e.g. "Max 100 chars for address",
+                  "QAR phone format", "Positive number only".
+
+  qdb_rule_type
+    Type        : Option Set (local — same codes as qdb_form_validation_rule)
+    Required    : Business Required
+    Options     :
+      required            = 100000001
+      minLength           = 100000002
+      maxLength           = 100000003
+      minValue            = 100000004
+      maxValue            = 100000005
+      regex               = 100000006
+      email               = 100000007
+      phone               = 100000008
+      dateBefore          = 100000009
+      dateAfter           = 100000010
+      crossField          = 100000011
+      customExpression    = 100000012
+    Description : Determines which parameter fields are relevant and how the
+                  backend merges this template with the referencing rule.
+
+  qdb_error_message
+    Type        : Single Line of Text (maxlength 500)
+    Required    : Business Required
+    Description : Default user-facing message. Overridden by the individual
+                  rule's qdb_error_message when non-empty.
+
+  qdb_min_length
+    Type        : Whole Number
+    Required    : Optional
+    Description : Used when qdb_rule_type = minLength.
+
+  qdb_max_length
+    Type        : Whole Number
+    Required    : Optional
+    Description : Used when qdb_rule_type = maxLength.
+
+  qdb_min_value
+    Type        : Decimal (precision 10)
+    Required    : Optional
+    Description : Used when qdb_rule_type = minValue.
+
+  qdb_max_value
+    Type        : Decimal (precision 10)
+    Required    : Optional
+    Description : Used when qdb_rule_type = maxValue.
+
+  qdb_regex_pattern
+    Type        : Single Line of Text (maxlength 1000)
+    Required    : Optional
+    Description : ECMAScript-compatible regex without slashes.
+                  Used when qdb_rule_type = regex.
+
+  qdb_custom_expression
+    Type        : Multiple Lines of Text (maxlength 4000)
+    Required    : Optional
+    Description : DSL expression. Used when qdb_rule_type = customExpression.
+
+Relationships
+──────────────────────────────────────────────────────────────────
+  One-to-Many → qdb_form_validation_rule (via qdb_rule_template_id)
+                Cascade on delete: RemoveLink
+                (deleting the template nulls the lookup on referring rules)
+
+Business Constraints
+──────────────────────────────────────────────────────────────────
+  - qdb_name must be unique across all templates. Enforced at backend service
+    layer (no alternate key — duplicates produce ambiguous merge results).
+  - Exactly one parameter column must be populated per the rule_type. Backend
+    validates before write.
+  - Templates are shared across forms. Changing a template's parameters
+    immediately affects every rule that references it — no versioning.
+    Form designers should duplicate a template rather than modifying a
+    shared one mid-deployment.
+
+
+══════════════════════════════════════════════════════════════════
+TABLE 14 — qdb_fieldlabel
+══════════════════════════════════════════════════════════════════
+
+Display Name  : Field Label
+Schema Name   : qdb_fieldlabel
+Plural Name   : Field Labels
+Ownership     : OrganizationOwned
+Introduced    : Sprint 4
+
+Purpose
+  Stores per-locale overrides for a field's visible text (label, placeholder,
+  tooltip). When the metadata API receives an Accept-Language header, it calls
+  CrmMetadataService.fetchLocalizedLabels() and applies any matching overrides
+  via applyLocalizedLabels() before returning the FormDefinition. Fields
+  without a matching qdb_fieldlabel record retain their default English values.
+
+  Supports right-to-left rendering for Arabic (the mobile app applies RTL
+  layout when locale = 'ar' via LocaleContext.isRtl).
+
+Fields
+──────────────────────────────────────────────────────────────────
+  qdb_fieldlabelid
+    Type        : Unique Identifier (Primary Key)
+    Required    : System
+
+  qdb_form_field_id
+    Type        : Lookup → qdb_form_field
+    Required    : Business Required
+    Description : The field whose label this record overrides.
+                  Cascade delete — deleting a field deletes all its labels.
+
+  qdb_name
+    Type        : Single Line of Text (maxlength 350)
+    Required    : Business Required
+    Description : Reference name. Convention: "{fieldSchemaName} ({locale})"
+                  e.g. "fullName (ar)", "facilityAmount (fr)".
+
+  qdb_locale
+    Type        : Single Line of Text (maxlength 20)
+    Required    : Business Required
+    Description : BCP 47 locale tag. Examples: ar, ar-SA, fr, fr-FR.
+                  The API matches on exact tag first, then falls back to
+                  the two-character language prefix (ar-SA → ar).
+
+  qdb_label
+    Type        : Single Line of Text (maxlength 250)
+    Required    : Optional
+    Description : Translated field label. When present, replaces
+                  qdb_form_field.qdb_label for requests in this locale.
+
+  qdb_placeholder
+    Type        : Single Line of Text (maxlength 250)
+    Required    : Optional
+    Description : Translated placeholder. When present, replaces
+                  qdb_form_field.qdb_placeholder.
+
+  qdb_tooltip
+    Type        : Single Line of Text (maxlength 500)
+    Required    : Optional
+    Description : Translated tooltip / help text. When present, replaces
+                  qdb_form_field.qdb_tooltip.
+
+Relationships
+──────────────────────────────────────────────────────────────────
+  Many-to-One → qdb_form_field (via qdb_form_field_id, cascade delete)
+
+Alternate Key / Uniqueness
+──────────────────────────────────────────────────────────────────
+  Recommended unique constraint: (qdb_form_field_id, qdb_locale)
+  Dataverse alternate keys do not support lookup attributes directly.
+  Uniqueness is enforced at the backend design service layer before write.
+
+Indexes
+──────────────────────────────────────────────────────────────────
+  Single: qdb_locale (all label lookups filter by locale first)
+  Single: qdb_form_field_id (joining to field records)
+
+Business Constraints
+──────────────────────────────────────────────────────────────────
+  - One record per (field, locale) combination. Backend enforces.
+  - At least one of qdb_label, qdb_placeholder, or qdb_tooltip must be
+    populated. An empty override record is meaningless. Backend validates.
+  - qdb_locale values should be consistent across a form's fieldlabel records.
+    Mixing "ar" and "ar-SA" within the same form causes partial translations.
+
+
+══════════════════════════════════════════════════════════════════
+TABLE 15 — qdb_form_access_policy
+══════════════════════════════════════════════════════════════════
+
+Display Name  : Form Access Policy
+Schema Name   : qdb_form_access_policy
+Plural Name   : Form Access Policies
+Ownership     : OrganizationOwned
+Introduced    : Sprint 4
+
+Purpose
+  Implements fine-grained, role-based access control for form operations.
+  Each record grants one Azure AD app role the right to perform one
+  access type (view / submit / draft) on one form definition.
+
+  If no policies exist for a form + access type combination, access is
+  OPEN to all authenticated users (no-policy = open access, matching
+  the pre-Sprint-4 behaviour for backward compatibility).
+
+  When policies DO exist, a user must hold at least one of the allowed
+  roles in their JWT roles[] claim to proceed. AccessPolicyService
+  evaluates this and throws ForbiddenError on failure.
+
+  Policies are cached in an LRU cache (same TTL as metadata) and
+  invalidated via AccessPolicyService.invalidatePolicies(formId).
+
+Fields
+──────────────────────────────────────────────────────────────────
+  qdb_form_access_policyid
+    Type        : Unique Identifier (Primary Key)
+    Required    : System
+
+  qdb_form_definition_id
+    Type        : Lookup → qdb_form_definition
+    Required    : Business Required
+    Description : The form this policy applies to.
+                  Cascade delete — deleting a form deletes all its policies.
+
+  qdb_name
+    Type        : Single Line of Text (maxlength 350)
+    Required    : Business Required
+    Description : Reference name. Convention:
+                  "{formCode} — {roleId} — {accessType}"
+                  e.g. "loan-application — LoanOfficer — submit"
+
+  qdb_role_id
+    Type        : Single Line of Text (maxlength 250)
+    Required    : Business Required
+    Description : Azure AD app role name exactly as it appears in the roles[]
+                  claim of the user's JWT. Case-sensitive.
+                  Examples: "LoanOfficer", "BranchManager", "ComplianceAuditor"
+
+  qdb_access_type
+    Type        : Option Set (local)
+    Required    : Business Required
+    Options     :
+      view   = 100000001  (GET metadata, GET data/:recordId, GET versions,
+                           POST validate, POST clone)
+      submit = 100000002  (POST submit)
+      draft  = 100000003  (POST draft)
+    Description : The operation this policy permits.
+
+Relationships
+──────────────────────────────────────────────────────────────────
+  Many-to-One → qdb_form_definition (via qdb_form_definition_id, cascade delete)
+
+Indexes
+──────────────────────────────────────────────────────────────────
+  Composite: (qdb_form_definition_id, qdb_access_type)
+    — All policy queries filter both columns in every request.
+
+Business Constraints
+──────────────────────────────────────────────────────────────────
+  - One record per (form, role, access_type). Duplicates are harmless but
+    wasteful — the service uses ANY(role in allowedRoles). Backend validates.
+  - qdb_role_id must match an app role defined in the Azure AD App Registration
+    manifest. Backend does not validate this — a mismatched role silently
+    creates a policy that no user's token will ever satisfy.
+  - Empty policy list for a (form, access_type) = open access. This is the
+    correct way to make a form publicly accessible (no policies = no restriction).
+    Adding even one policy for an access_type switches it to allowlist mode.
+
+
+──────────────────────────────────────────────────────────────────
+UPDATED ENTITY RELATIONSHIP OVERVIEW (Sprint additions)
+──────────────────────────────────────────────────────────────────
+
+New relationships added in Sprint 3 + Sprint 4:
+
+qdb_rule_template
+  1:N  qdb_form_validation_rule  (via qdb_rule_template_id, RemoveLink on delete)
+
+qdb_form_field (additions)
+  1:N  qdb_fieldlabel            (via qdb_form_field_id, cascade delete)
+
+qdb_form_definition (additions)
+  1:N  qdb_form_access_policy    (via qdb_form_definition_id, cascade delete)
+
+
+──────────────────────────────────────────────────────────────────
+UPDATED SECURITY MODEL (Sprint additions)
+──────────────────────────────────────────────────────────────────
+
+Security Role : QDB Form Engine — Configuration Author
+  Additional privileges needed for new tables:
+  qdb_rule_template        : Create, Read, Write, Delete
+  qdb_fieldlabel           : Create, Read, Write, Delete
+  qdb_form_access_policy   : Create, Read, Write, Delete
+
+Security Role : QDB Form Engine — Backend API Service Account
+  Additional privileges needed for new tables:
+  qdb_rule_template        : Read
+  qdb_fieldlabel           : Read
+  qdb_form_access_policy   : Read
+
+
+──────────────────────────────────────────────────────────────────
+UPDATED OPTION SET VALUE MAPPING REFERENCE (Sprint additions)
+──────────────────────────────────────────────────────────────────
+
+qdb_form_field.qdb_field_type (addition)
+  100000018 = custom          ← Sprint 3
+
+qdb_form_validation_rule.qdb_rule_type (addition)
+  100000012 = customExpression  ← Sprint 3
+
+qdb_rule_template.qdb_rule_type (new table)
+  100000001 = required
+  100000002 = minLength
+  100000003 = maxLength
+  100000004 = minValue
+  100000005 = maxValue
+  100000006 = regex
+  100000007 = email
+  100000008 = phone
+  100000009 = dateBefore
+  100000010 = dateAfter
+  100000011 = crossField
+  100000012 = customExpression
+
+qdb_form_access_policy.qdb_access_type (new table)
+  100000001 = view
+  100000002 = submit
+  100000003 = draft
+
+
 ═══════════════════════════════════════════════════════════════════
 END OF DOCUMENT
 ═══════════════════════════════════════════════════════════════════

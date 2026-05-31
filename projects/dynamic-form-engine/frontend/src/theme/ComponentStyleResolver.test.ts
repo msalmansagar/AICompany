@@ -1,7 +1,7 @@
-// RED — failing until ComponentStyleResolver is implemented
+﻿// RED â€” failing until ComponentStyleResolver is implemented
 import { describe, it, expect } from 'vitest';
 import { ComponentStyleResolver } from './ComponentStyleResolver';
-import type { FieldDesign } from '@dfe/shared';
+import type { FieldDesign } from '@qdb/shared';
 import { LIGHT_THEME } from './themes';
 
 function makeFieldDesign(

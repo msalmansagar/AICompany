@@ -1,17 +1,18 @@
-import { z, ZodTypeAny } from 'zod';
+﻿import { z, ZodTypeAny } from 'zod';
 import type {
   FieldDefinition,
   ValidationRule,
   FormDefinition,
   FormFieldValues,
-} from '@dfe/shared';
+} from '@qdb/shared';
+import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
 type ZodShape = Record<string, ZodTypeAny>;
 
 export class ValidationEngine {
   /**
    * Generates a Zod schema from FieldDefinition validation rules.
-   * Only includes fields that are currently visible — hidden fields are excluded
+   * Only includes fields that are currently visible â€” hidden fields are excluded
    * so they cannot fail validation and block submission.
    */
   buildZodSchema(
@@ -60,7 +61,7 @@ export class ValidationEngine {
 
   /**
    * Validates all visible fields in a form and returns a map of
-   * fieldId → error messages for fields that failed validation.
+   * fieldId â†’ error messages for fields that failed validation.
    */
   validateForm(
     formDefinition: FormDefinition,
@@ -241,6 +242,9 @@ export class ValidationEngine {
       case 'crossField':
         return this.validateCrossField(value, rule, allValues);
 
+      case 'customExpression':
+        return this.validateCustomExpression(value, rule, allValues);
+
       default:
         return null;
     }
@@ -348,6 +352,35 @@ export class ValidationEngine {
     const compareValue = allValues[rule.compareToFieldId];
 
     return value === compareValue ? null : rule.errorMessage;
+  }
+
+  private validateCustomExpression(
+    _value: unknown,
+    rule: ValidationRule,
+    allValues: FormFieldValues,
+  ): string | null {
+    if (!rule.customExpression) return null;
+
+    try {
+      const ctx = this.buildExpressionContext(allValues);
+      return ExpressionEngine.evaluateBoolean(rule.customExpression, ctx)
+        ? null
+        : rule.errorMessage;
+    } catch {
+      return null;
+    }
+  }
+
+  private buildExpressionContext(values: FormFieldValues): ExpressionContext {
+    const ctx: ExpressionContext = {};
+    for (const [key, val] of Object.entries(values)) {
+      if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        ctx[key] = val;
+      } else {
+        ctx[key] = null;
+      }
+    }
+    return ctx;
   }
 
   private collectAllFields(formDefinition: FormDefinition): FieldDefinition[] {

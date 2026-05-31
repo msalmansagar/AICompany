@@ -1,5 +1,5 @@
-import { ForbiddenError } from '../utils/errors.js';
-import type { FormDefinition } from '@dfe/shared';
+﻿import { ForbiddenError } from '../utils/errors.js';
+import type { FormDefinition } from '@qdb/shared';
 import type { JwtPayload } from '../utils/correlation.js';
 import { config } from '../config/env.js';
 

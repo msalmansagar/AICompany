@@ -1,13 +1,14 @@
-import type {
+﻿import type {
   FormDefinition,
+  FormSummary,
   DraftSubmission,
   LookupResult,
   OptionValue,
   DesignPayload,
   ThemeDefinition,
-} from '@dfe/shared';
+} from '@qdb/shared';
 
-// ── Sample Loan Application form definition ───────────────────
+// â”€â”€ Sample Loan Application form definition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Used when MOCK_CRM=true. Covers all 17 field types.
 
 export const MOCK_LOAN_APPLICATION: FormDefinition = {
@@ -525,7 +526,7 @@ export const MOCK_LOAN_APPLICATION: FormDefinition = {
   modifiedAt: '2026-05-08T00:00:00Z',
 };
 
-// ── Mock implementations ───────────────────────────────────────
+// â”€â”€ Mock implementations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export class MockMetadataService {
   async getFormDefinition(_formCode: string): Promise<FormDefinition> {
@@ -542,6 +543,20 @@ export class MockMetadataService {
         publishedBy: 'Admin',
         changeNotes: 'Initial version',
         isCurrentVersion: true,
+      },
+    ];
+  }
+
+  async listForms(_filter?: { search?: string; status?: string }): Promise<FormSummary[]> {
+    return [
+      {
+        id: MOCK_LOAN_APPLICATION.id,
+        formCode: MOCK_LOAN_APPLICATION.formCode,
+        title: MOCK_LOAN_APPLICATION.title,
+        description: MOCK_LOAN_APPLICATION.description,
+        status: MOCK_LOAN_APPLICATION.status,
+        version: MOCK_LOAN_APPLICATION.version,
+        modifiedAt: new Date().toISOString(),
       },
     ];
   }

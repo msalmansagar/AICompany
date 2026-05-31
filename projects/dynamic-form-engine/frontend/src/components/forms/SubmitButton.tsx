@@ -1,4 +1,4 @@
-import {
+﻿import {
   Button,
   Spinner,
   Badge,
@@ -7,7 +7,7 @@ import {
 import { SendRegular } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
-import type { ButtonStyleType } from '@dfe/shared';
+import type { ButtonStyleType } from '@qdb/shared';
 
 const BUTTON_APPEARANCE_MAP: Record<ButtonStyleType, 'primary' | 'outline' | 'transparent'> = {
   Primary: 'primary',
@@ -60,7 +60,7 @@ export function SubmitButton() {
           isSubmitting
             ? 'Submitting form...'
             : errorCount > 0
-              ? `Submit form — ${errorCount} validation error${errorCount > 1 ? 's' : ''}`
+              ? `Submit form â€” ${errorCount} validation error${errorCount > 1 ? 's' : ''}`
               : 'Submit form'
         }
         aria-busy={isSubmitting}

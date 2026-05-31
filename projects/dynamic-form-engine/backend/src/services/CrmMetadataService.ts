@@ -1,4 +1,4 @@
-import { LRUCache } from 'lru-cache';
+﻿import { LRUCache } from 'lru-cache';
 import type {
   FormDefinition,
   FormSummary,
@@ -19,7 +19,7 @@ import type {
   BusinessRuleAction,
   ConditionOperator,
   LogicalOperator,
-} from '@dfe/shared';
+} from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
 import { config } from '../config/env.js';
@@ -32,6 +32,8 @@ interface ODataCollection<T> {
 }
 
 export class CrmMetadataService extends CrmBaseService {
+  private readonly cacheKeysByFormCode = new Map<string, Set<string>>();
+
   constructor(
     authService: CrmAuthService,
     private readonly cache: LRUCache<string, FormDefinition>,
@@ -39,26 +41,54 @@ export class CrmMetadataService extends CrmBaseService {
     super(authService);
   }
 
-  async getFormDefinition(formCode: string): Promise<FormDefinition> {
+  async getFormDefinition(formCode: string, locale?: string): Promise<FormDefinition> {
     if (!SAFE_FORM_CODE_PATTERN.test(formCode)) {
       throw new ValidationError(`Invalid form code: '${formCode}'`);
     }
 
-    const cached = this.cache.get(formCode);
+    const cacheKey = locale ? `${formCode}:${locale}` : formCode;
+    const cached = this.cache.get(cacheKey);
     if (cached) return cached;
 
-    const form = await this.fetchAndAssembleForm(formCode);
-    this.cache.set(formCode, form);
+    const form = await this.fetchAndAssembleForm(formCode, locale);
+    this.cache.set(cacheKey, form);
+
+    const keys = this.cacheKeysByFormCode.get(formCode) ?? new Set();
+    keys.add(cacheKey);
+    this.cacheKeysByFormCode.set(formCode, keys);
+
     return form;
   }
 
-  async listForms(): Promise<FormSummary[]> {
+  async listForms(filter?: { search?: string; status?: string }): Promise<FormSummary[]> {
+    const conditions: string[] = ['statecode eq 0'];
+
+    const statusCode = this.mapFormStatusToCode(filter?.status ?? 'active');
+    if (statusCode !== undefined) {
+      conditions.push(`qdb_status eq ${statusCode}`);
+    }
+
+    if (filter?.search) {
+      const safe = filter.search.replace(/'/g, "''");
+      conditions.push(`(contains(qdb_title, '${safe}') or contains(qdb_form_code, '${safe}'))`);
+    }
+
     const response = await this.crmFetch<ODataCollection<RawFormDefinition>>(
-      `/qdb_form_definitions?$filter=statecode eq 0 and qdb_status eq 100000001` +
+      `/qdb_form_definitions?$filter=${conditions.join(' and ')}` +
       `&$select=qdb_form_definitionid,qdb_form_code,qdb_title,qdb_description,qdb_status,qdb_version,modifiedon` +
       `&$orderby=qdb_title asc`,
     );
     return response.value.map((raw) => this.mapFormSummary(raw));
+  }
+
+  private mapFormStatusToCode(status: string): number | undefined {
+    const map: Record<string, number> = {
+      draft: 100000000,
+      active: 100000001,
+      inactive: 100000002,
+      archived: 100000003,
+    };
+    return map[status];
   }
 
   async getFormVersions(formCode: string): Promise<FormVersion[]> {
@@ -70,10 +100,14 @@ export class CrmMetadataService extends CrmBaseService {
   }
 
   invalidateCache(formCode: string): void {
-    this.cache.delete(formCode);
+    const keys = this.cacheKeysByFormCode.get(formCode) ?? new Set();
+    for (const key of keys) {
+      this.cache.delete(key);
+    }
+    this.cacheKeysByFormCode.delete(formCode);
   }
 
-  private async fetchAndAssembleForm(formCode: string): Promise<FormDefinition> {
+  private async fetchAndAssembleForm(formCode: string, locale?: string): Promise<FormDefinition> {
     const response = await this.crmFetch<ODataCollection<RawFormDefinition>>(
       `/qdb_form_definitions?$filter=qdb_form_code eq '${formCode}' and statecode eq 0&$top=1`,
     );
@@ -85,7 +119,7 @@ export class CrmMetadataService extends CrmBaseService {
     const formId = raw.qdb_form_definitionid;
 
     const [tabs, submissionMappings, buttons] = await Promise.all([
-      this.fetchTabsWithChildren(formId),
+      this.fetchTabsWithChildren(formId, locale),
       this.fetchSubmissionMappings(formId),
       this.fetchFormButtons(formId),
     ]);
@@ -111,7 +145,7 @@ export class CrmMetadataService extends CrmBaseService {
     };
   }
 
-  private async fetchTabsWithChildren(formId: string): Promise<TabDefinition[]> {
+  private async fetchTabsWithChildren(formId: string, locale?: string): Promise<TabDefinition[]> {
     const response = await this.crmFetch<ODataCollection<RawTab>>(
       `/qdb_form_tabs?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0&$orderby=qdb_display_order asc`,
     );
@@ -120,7 +154,7 @@ export class CrmMetadataService extends CrmBaseService {
     if (tabs.length === 0) return [];
 
     const tabIds = tabs.map((t) => t.qdb_form_tabid);
-    const sections = await this.fetchSectionsWithChildren(tabIds, formId);
+    const sections = await this.fetchSectionsWithChildren(tabIds, formId, locale);
 
     const sectionsByTab = new Map<string, SectionDefinition[]>();
     for (const section of sections) {
@@ -141,7 +175,7 @@ export class CrmMetadataService extends CrmBaseService {
     }));
   }
 
-  private async fetchSectionsWithChildren(tabIds: string[], formId: string): Promise<SectionDefinition[]> {
+  private async fetchSectionsWithChildren(tabIds: string[], formId: string, locale?: string): Promise<SectionDefinition[]> {
     const filter = tabIds.map((id) => `_qdb_form_tab_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawSection>>(
       `/qdb_form_sections?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
@@ -151,7 +185,7 @@ export class CrmMetadataService extends CrmBaseService {
     if (sections.length === 0) return [];
 
     const sectionIds = sections.map((s) => s.qdb_form_sectionid);
-    const fields = await this.fetchFieldsWithMetadata(sectionIds, formId);
+    const fields = await this.fetchFieldsWithMetadata(sectionIds, formId, locale);
 
     const fieldsBySection = new Map<string, FieldDefinition[]>();
     for (const field of fields) {
@@ -174,7 +208,7 @@ export class CrmMetadataService extends CrmBaseService {
     }));
   }
 
-  private async fetchFieldsWithMetadata(sectionIds: string[], formId: string): Promise<FieldDefinition[]> {
+  private async fetchFieldsWithMetadata(sectionIds: string[], formId: string, locale?: string): Promise<FieldDefinition[]> {
     const filter = sectionIds.map((id) => `_qdb_form_section_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawField>>(
       `/qdb_form_fields?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
@@ -185,7 +219,7 @@ export class CrmMetadataService extends CrmBaseService {
 
     const fieldIds = fields.map((f) => f.qdb_form_fieldid);
 
-    // Map field GUID → schema name so business rule conditions can resolve to schema names
+    // Map field GUID â†’ schema name so business rule conditions can resolve to schema names
     const fieldGuidToSchema = new Map<string, string>(
       fields.map((f) => [f.qdb_form_fieldid, f.qdb_schema_name]),
     );
@@ -197,7 +231,7 @@ export class CrmMetadataService extends CrmBaseService {
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
     ]);
 
-    return fields.map((field) => ({
+    const definitions = fields.map((field) => ({
       id: field.qdb_form_fieldid,
       sectionId: field._qdb_form_section_id_value,
       fieldType: this.mapFieldType(field.qdb_field_type),
@@ -217,9 +251,17 @@ export class CrmMetadataService extends CrmBaseService {
       currencyCode: field.qdb_currency_code,
       decimalPlaces: field.qdb_decimal_places,
       maxRows: field.qdb_max_rows,
+      componentKey: field.qdb_component_key,
       validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
     }));
+
+    if (locale) {
+      const labelMap = await this.fetchLocalizedLabels(fieldIds, locale);
+      return this.applyLocalizedLabels(definitions, labelMap);
+    }
+
+    return definitions;
   }
 
   private async fetchOptions(fieldIds: string[]): Promise<Map<string, OptionValue[]>> {
@@ -252,29 +294,89 @@ export class CrmMetadataService extends CrmBaseService {
       `/qdb_form_validation_rules?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_priority asc`,
     );
 
+    const templateIds = [
+      ...new Set(
+        response.value
+          .map((r) => r._qdb_rule_template_id_value)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const templateMap = await this.fetchRuleTemplates(templateIds);
+
     const map = new Map<string, ValidationRule[]>();
     for (const rule of response.value) {
       const fieldId = rule._qdb_form_field_id_value;
+      const template = rule._qdb_rule_template_id_value
+        ? templateMap.get(rule._qdb_rule_template_id_value)
+        : undefined;
       const existing = map.get(fieldId) ?? [];
-      existing.push({
-        id: rule.qdb_form_validation_ruleid,
-        fieldId,
-        ruleType: this.mapRuleType(rule.qdb_rule_type),
-        errorMessage: rule.qdb_error_message,
-        minLength: rule.qdb_min_length,
-        maxLength: rule.qdb_max_length,
-        minValue: rule.qdb_min_value,
-        maxValue: rule.qdb_max_value,
-        regexPattern: rule.qdb_regex_pattern,
-        compareToFieldId: rule._qdb_compare_to_field_id_value,
-        compareToValue: rule.qdb_compare_to_value,
-        isActive: true,
-        priority: rule.qdb_priority ?? 100,
-      });
+      existing.push(this.mergeRuleWithTemplate(rule, template));
       map.set(fieldId, existing);
     }
 
     return map;
+  }
+
+  private async fetchRuleTemplates(ids: string[]): Promise<Map<string, RawRuleTemplate>> {
+    if (ids.length === 0) return new Map();
+
+    const filter = ids.map((id) => `qdb_rule_templateid eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawRuleTemplate>>(
+      `/qdb_rule_templates?$filter=(${filter})`,
+    );
+
+    return new Map(response.value.map((t) => [t.qdb_rule_templateid, t]));
+  }
+
+  private mergeRuleWithTemplate(
+    rule: RawValidationRule,
+    template?: RawRuleTemplate,
+  ): ValidationRule {
+    return {
+      id: rule.qdb_form_validation_ruleid,
+      fieldId: rule._qdb_form_field_id_value,
+      ruleType: this.mapRuleType(template?.qdb_rule_type ?? rule.qdb_rule_type),
+      errorMessage: rule.qdb_error_message || (template?.qdb_error_message ?? ''),
+      minLength: rule.qdb_min_length ?? template?.qdb_min_length,
+      maxLength: rule.qdb_max_length ?? template?.qdb_max_length,
+      minValue: rule.qdb_min_value ?? template?.qdb_min_value,
+      maxValue: rule.qdb_max_value ?? template?.qdb_max_value,
+      regexPattern: rule.qdb_regex_pattern ?? template?.qdb_regex_pattern,
+      compareToFieldId: rule._qdb_compare_to_field_id_value,
+      compareToValue: rule.qdb_compare_to_value,
+      customExpression: rule.qdb_custom_expression ?? template?.qdb_custom_expression,
+      ruleTemplateId: rule._qdb_rule_template_id_value,
+      isActive: true,
+      priority: rule.qdb_priority ?? 100,
+    };
+  }
+
+  private async fetchLocalizedLabels(
+    fieldIds: string[],
+    locale: string,
+  ): Promise<Map<string, RawFieldLabel>> {
+    const safeLocale = locale.replace(/'/g, "''");
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawFieldLabel>>(
+      `/qdb_fieldlabels?$filter=(${filter}) and qdb_locale eq '${safeLocale}'`,
+    );
+    return new Map(response.value.map((l) => [l._qdb_form_field_id_value, l]));
+  }
+
+  private applyLocalizedLabels(
+    fields: FieldDefinition[],
+    labelMap: Map<string, RawFieldLabel>,
+  ): FieldDefinition[] {
+    return fields.map((field) => {
+      const override = labelMap.get(field.id);
+      if (!override) return field;
+      return {
+        ...field,
+        ...(override.qdb_label ? { label: override.qdb_label } : {}),
+        ...(override.qdb_placeholder ? { placeholder: override.qdb_placeholder } : {}),
+        ...(override.qdb_tooltip ? { tooltip: override.qdb_tooltip } : {}),
+      };
+    });
   }
 
   private async fetchLookupConfigs(
@@ -443,7 +545,7 @@ export class CrmMetadataService extends CrmBaseService {
     }));
   }
 
-  // ── Picklist code mappers ─────────────────────────────────────────────────────
+  // â”€â”€ Picklist code mappers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private mapFieldType(code: number): FieldType {
     const map: Record<number, FieldType> = {
@@ -452,7 +554,7 @@ export class CrmMetadataService extends CrmBaseService {
       100000007: 'multiselect',   100000008: 'lookup',     100000009: 'checkbox',
       100000010: 'radio',         100000011: 'currency',   100000012: 'decimal',
       100000013: 'email',         100000014: 'phone',      100000015: 'file',
-      100000016: 'repeatingGrid', 100000017: 'richText',
+      100000016: 'repeatingGrid', 100000017: 'richText',   100000018: 'custom',
     };
     return map[code] ?? 'text';
   }
@@ -466,10 +568,10 @@ export class CrmMetadataService extends CrmBaseService {
 
   private mapRuleType(code: number): ValidationRuleType {
     const map: Record<number, ValidationRuleType> = {
-      100000001: 'required',   100000002: 'minLength', 100000003: 'maxLength',
-      100000004: 'minValue',   100000005: 'maxValue',  100000006: 'regex',
-      100000007: 'email',      100000008: 'phone',     100000009: 'dateBefore',
-      100000010: 'dateAfter',  100000011: 'crossField',
+      100000001: 'required',          100000002: 'minLength',       100000003: 'maxLength',
+      100000004: 'minValue',          100000005: 'maxValue',        100000006: 'regex',
+      100000007: 'email',             100000008: 'phone',           100000009: 'dateBefore',
+      100000010: 'dateAfter',         100000011: 'crossField',      100000012: 'customExpression',
     };
     return map[code] ?? 'required';
   }
@@ -531,7 +633,7 @@ export class CrmMetadataService extends CrmBaseService {
   }
 }
 
-// ── Raw Dataverse response types ──────────────────────────────────────────────
+// â”€â”€ Raw Dataverse response types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PK names follow Dataverse convention: {entityLogicalName}id  (no underscore before id)
 // Lookup expanded values follow OData convention: _{attributeName}_value
 
@@ -590,6 +692,7 @@ interface RawField {
   qdb_currency_code?: string;
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
+  qdb_component_key?: string;
 }
 
 interface RawOption {
@@ -614,6 +717,8 @@ interface RawValidationRule {
   qdb_regex_pattern?: string;
   _qdb_compare_to_field_id_value?: string;
   qdb_compare_to_value?: string;
+  qdb_custom_expression?: string;
+  _qdb_rule_template_id_value?: string;
   qdb_priority?: number;
 }
 
@@ -661,6 +766,18 @@ interface RawFormButton {
   qdb_confirmation_message?: string;
 }
 
+interface RawRuleTemplate {
+  qdb_rule_templateid: string;
+  qdb_rule_type: number;
+  qdb_error_message: string;
+  qdb_min_length?: number;
+  qdb_max_length?: number;
+  qdb_min_value?: number;
+  qdb_max_value?: number;
+  qdb_regex_pattern?: string;
+  qdb_custom_expression?: string;
+}
+
 interface RawBusinessRule {
   qdb_form_business_ruleid: string;
   qdb_name: string;
@@ -675,4 +792,13 @@ interface RawBusinessRule {
   qdb_action_value?: string;
   qdb_priority?: number;
   qdb_is_active?: boolean;
+}
+
+interface RawFieldLabel {
+  qdb_fieldlabelid: string;
+  _qdb_form_field_id_value: string;
+  qdb_locale: string;
+  qdb_label?: string;
+  qdb_placeholder?: string;
+  qdb_tooltip?: string;
 }

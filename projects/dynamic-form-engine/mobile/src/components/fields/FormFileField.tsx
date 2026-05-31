@@ -1,8 +1,9 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
 import * as DocumentPicker from 'expo-document-picker';
-import type { FieldDefinition } from '@qdb/form-engine-shared';
+import * as ImagePicker from 'expo-image-picker';
+import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
@@ -19,6 +20,8 @@ interface Props {
 }
 
 export function FormFileField({ field, control }: Props) {
+  const [cameraPermissionRequested, setCameraPermissionRequested] = useState(false);
+
   return (
     <Controller
       name={field.fieldKey}
@@ -27,7 +30,7 @@ export function FormFileField({ field, control }: Props) {
       render={({ field: { value, onChange }, fieldState: { error } }) => {
         const picked = value as PickedFile | null | undefined;
 
-        async function pickFile(): Promise<void> {
+        async function pickFromFiles(): Promise<void> {
           const result = await DocumentPicker.getDocumentAsync({
             type: field.allowedMimeTypes?.length ? field.allowedMimeTypes : ['*/*'],
             copyToCacheDirectory: true,
@@ -41,6 +44,54 @@ export function FormFileField({ field, control }: Props) {
               size: asset.size ?? undefined,
               mimeType: asset.mimeType ?? undefined,
             } satisfies PickedFile);
+          }
+        }
+
+        async function pickFromCamera(): Promise<void> {
+          if (!cameraPermissionRequested) {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            setCameraPermissionRequested(true);
+            if (status !== 'granted') {
+              Alert.alert('Permission required', 'Camera access is needed to take a photo.');
+              return;
+            }
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            quality: 0.85,
+            allowsEditing: false,
+          });
+          if (!result.canceled && result.assets[0]) {
+            const asset = result.assets[0];
+            const filename = asset.uri.split('/').pop() ?? 'photo.jpg';
+            onChange({
+              uri: asset.uri,
+              name: filename,
+              size: asset.fileSize ?? undefined,
+              mimeType: asset.mimeType ?? 'image/jpeg',
+            } satisfies PickedFile);
+          }
+        }
+
+        function openPicker(): void {
+          if (!field.allowCamera) {
+            void pickFromFiles();
+            return;
+          }
+          if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+              { options: ['Cancel', 'Take Photo', 'Choose File'], cancelButtonIndex: 0 },
+              (index) => {
+                if (index === 1) void pickFromCamera();
+                if (index === 2) void pickFromFiles();
+              },
+            );
+          } else {
+            Alert.alert('Add attachment', undefined, [
+              { text: 'Take Photo', onPress: () => void pickFromCamera() },
+              { text: 'Choose File', onPress: () => void pickFromFiles() },
+              { text: 'Cancel', style: 'cancel' },
+            ]);
           }
         }
 
@@ -64,7 +115,7 @@ export function FormFileField({ field, control }: Props) {
                     <Text style={styles.fileSize}>{formatBytes(picked.size)}</Text>
                   )}
                 </View>
-                <Pressable style={styles.changeButton} onPress={() => void pickFile()}>
+                <Pressable style={styles.changeButton} onPress={openPicker}>
                   <Text style={styles.changeText}>Change</Text>
                 </Pressable>
                 <Pressable style={styles.removeButton} onPress={removeFile} hitSlop={8}>
@@ -74,11 +125,11 @@ export function FormFileField({ field, control }: Props) {
             ) : (
               <Pressable
                 style={[styles.emptyButton, error && styles.emptyButtonError]}
-                onPress={() => void pickFile()}
+                onPress={openPicker}
               >
-                <Text style={styles.emptyIcon}>📎</Text>
+                <Text style={styles.emptyIcon}>{field.allowCamera ? '📷' : '🔎'}</Text>
                 <Text style={[styles.emptyText, error && styles.emptyTextError]}>
-                  Choose file
+                  {field.allowCamera ? 'Take photo or choose file' : 'Choose file'}
                 </Text>
               </Pressable>
             )}

@@ -1,0 +1,48 @@
+{
+  "name": "@qdb/designer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QDB Form Platform — Dynamics CRM Web Resource Form Designer",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:check-size": "vite build && node scripts/checkBundleSize.js",
+    "package": "npm run build && node scripts/packageSolution.js",
+    "package:version": "npm run build && node scripts/packageSolution.js --version",
+    "deploy": "npm run build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "deploy:cloud": "npm run build && node scripts/deploy-cloud.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf dist deploy"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@fluentui/react-components": "^9.46.0",
+    "immer": "^10.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8",
+    "zustand": "^4.5.4"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^2.1.1",
+    "eslint": "^8.57.1",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vitest": "^2.1.1"
+  }
+}

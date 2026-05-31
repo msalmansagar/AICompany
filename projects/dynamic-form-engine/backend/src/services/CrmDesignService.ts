@@ -1,4 +1,4 @@
-import { LRUCache } from 'lru-cache';
+﻿import { LRUCache } from 'lru-cache';
 import type {
   DesignPayload,
   ThemeDefinition,
@@ -24,7 +24,7 @@ import type {
   SpacingScale,
   AlignmentType,
   CardStyleType,
-} from '@dfe/shared';
+} from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ValidationError } from '../utils/errors.js';
 import { CssSanitiserService } from '../utils/cssSanitiser.js';
@@ -106,7 +106,7 @@ export class CrmDesignService extends CrmBaseService {
       return cached;
     }
 
-    logger.debug({ formCode, cacheHit: false }, 'Design cache miss — fetching from Dataverse');
+    logger.debug({ formCode, cacheHit: false }, 'Design cache miss â€” fetching from Dataverse');
     const payload = await this.fetchAndAssembleDesignPayload({ formCode, formDefinitionId, correlationId: formCode });
     this.cache.set(cacheKey, payload);
     return payload;
@@ -181,7 +181,7 @@ export class CrmDesignService extends CrmBaseService {
     context: DesignFetchContext,
   ): Promise<{ formDesign: FormDesign; theme: ThemeDefinition }> {
     if (!rawFormDesign) {
-      logger.debug({ formCode: context.formCode, themeResolution: 'default' }, 'No form design in Dataverse — using defaults');
+      logger.debug({ formCode: context.formCode, themeResolution: 'default' }, 'No form design in Dataverse â€” using defaults');
       const theme = await this.resolveGlobalOrDefaultTheme(context);
       return { formDesign: this.buildDefaultFormDesign(context.formDefinitionId), theme };
     }
@@ -192,7 +192,7 @@ export class CrmDesignService extends CrmBaseService {
       return { formDesign: this.mapFormDesign(rawFormDesign), theme: this.mapTheme(expandedTheme) };
     }
 
-    logger.debug({ formCode: context.formCode, themeResolution: 'global-or-default' }, 'No theme on form design — checking global');
+    logger.debug({ formCode: context.formCode, themeResolution: 'global-or-default' }, 'No theme on form design â€” checking global');
     const theme = await this.resolveGlobalOrDefaultTheme(context);
     return { formDesign: this.mapFormDesign(rawFormDesign), theme };
   }
@@ -201,7 +201,7 @@ export class CrmDesignService extends CrmBaseService {
     const response = await this.crmFetch<ODataCollection<RawTheme>>(
       '/qdb_themes?$filter=qdb_is_active eq true and qdb_form_definitionid eq null&$top=1',
     ).catch((error: unknown) => {
-      logger.warn({ formCode: context.formCode, error }, 'Failed to fetch global theme — falling back to default');
+      logger.warn({ formCode: context.formCode, error }, 'Failed to fetch global theme â€” falling back to default');
       return { value: [] as RawTheme[] };
     });
 
@@ -276,11 +276,11 @@ export class CrmDesignService extends CrmBaseService {
     formCode: string,
   ): T {
     if (result.status === 'fulfilled') return result.value;
-    logger.warn({ formCode, label, error: result.reason }, 'Design sub-query failed — using fallback');
+    logger.warn({ formCode, label, error: result.reason }, 'Design sub-query failed â€” using fallback');
     return fallback;
   }
 
-  // ── Domain mappers ─────────────────────────────────────────────────────────────
+  // â”€â”€ Domain mappers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private mapTheme(raw: RawTheme): ThemeDefinition {
     return {
@@ -413,7 +413,7 @@ export class CrmDesignService extends CrmBaseService {
     };
   }
 
-  // ── Picklist code mappers ─────────────────────────────────────────────────────
+  // â”€â”€ Picklist code mappers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private mapLayoutType(code: number): LayoutType {
     const map: Record<number, LayoutType> = {
@@ -544,7 +544,7 @@ export class CrmDesignService extends CrmBaseService {
   }
 }
 
-// ── Raw Dataverse response types ──────────────────────────────────────────────
+// â”€â”€ Raw Dataverse response types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // PK names follow Dataverse convention: {entityLogicalName}id (no underscore before id)
 // Lookup values follow OData convention: _{attributeName}_value
 

@@ -1,7 +1,7 @@
-import React from 'react';
+﻿import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
-import type { FieldDefinition } from '@qdb/form-engine-shared';
+import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 
@@ -20,7 +20,7 @@ export function FormCheckboxField({ field, control }: Props) {
         <View style={fieldStyles.container}>
           <Pressable style={styles.row} onPress={() => onChange(!value)}>
             <View style={[styles.box, !!value && styles.boxChecked]}>
-              {!!value && <Text style={styles.tick}>✓</Text>}
+              {!!value && <Text style={styles.tick}>âœ“</Text>}
             </View>
             <Text style={styles.label}>
               {field.displayLabel}

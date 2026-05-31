@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MessageBar,
   MessageBarBody,
@@ -17,7 +17,7 @@ import { FormActionBar } from './FormActionBar';
 import { FormConfirmation } from './FormConfirmation';
 import { ThemeSwitcher, readStoredThemePreference } from './ThemeSwitcher';
 import { LIGHT_THEME, DARK_THEME } from '../../theme/themes';
-import type { DesignPayload } from '@dfe/shared';
+import type { DesignPayload } from '@qdb/shared';
 
 const useStyles = makeStyles({
   root: {
@@ -106,7 +106,7 @@ function FormRendererInner() {
     submissionReference,
   } = useFormContext();
 
-  // Theme toggle state — persisted via localStorage
+  // Theme toggle state â€” persisted via localStorage
   const [isDarkMode, setIsDarkMode] = useState<boolean>(readStoredThemePreference);
 
   const activeTheme = isDarkMode ? DARK_THEME : LIGHT_THEME;

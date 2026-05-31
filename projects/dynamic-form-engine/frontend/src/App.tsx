@@ -102,9 +102,7 @@ export function App() {
           {formCode ? (
             <DynamicFormRenderer formCode={formCode} recordId={recordId} />
           ) : (
-            <div className={styles.loginScreen}>
-              <Text>No form specified. Navigate to /forms/:formCode</Text>
-            </div>
+            <FormCatalogue />
           )}
         </div>
       </AuthenticatedTemplate>

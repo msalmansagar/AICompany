@@ -1,10 +1,10 @@
-// RED — failing until TextInputControl and FormContext mock are in place
+﻿// RED â€” failing until TextInputControl and FormContext mock are in place
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { TextInputControl } from './TextInputControl';
-import type { FieldDefinition } from '@dfe/shared';
+import type { FieldDefinition } from '@qdb/shared';
 import * as FormContextModule from '../../../contexts/FormContext';
 
 const mockUpdateFieldValue = vi.hoisted(() => vi.fn());

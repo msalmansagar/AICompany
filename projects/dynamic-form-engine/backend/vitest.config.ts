@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      '@dfe/shared': path.resolve(__dirname, '../shared/src/types/index.ts'),
+      '@qdb/shared': path.resolve(__dirname, '../shared/src/types/index.ts'),
     },
   },
   test: {
