@@ -98,6 +98,8 @@ export const FORM_FIELD_ATTRS = {
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
   PARENT_FIELD_ID: 'qdb_parent_field_id',
   PARENT_FIELD_ID_VALUE: '_qdb_parent_field_id_value',
+  // Sprint 3 — custom field type
+  COMPONENT_KEY: 'qdb_component_key',
 } as const;
 
 // Picklist codes for qdb_field_type
@@ -120,6 +122,8 @@ export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
   file_upload:   100000015,
   repeating_grid:100000016,
   rich_text:     100000017,
+  // Sprint 3
+  custom:        100000018,
 };
 export const PICKLIST_TO_FIELD_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(FIELD_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])
@@ -150,6 +154,10 @@ export const FORM_VALIDATION_RULE_ATTRS = {
   COMPARE_TO_VALUE: 'qdb_compare_to_value',
   SORT_ORDER: 'qdb_priority',
   IS_ACTIVE: 'qdb_is_active',
+  // Sprint 3
+  CUSTOM_EXPRESSION: 'qdb_custom_expression',
+  RULE_TEMPLATE_ID: 'qdb_rule_template_id',
+  RULE_TEMPLATE_ID_VALUE: '_qdb_rule_template_id_value',
 } as const;
 
 export const FORM_BUSINESS_RULE_ATTRS = {
@@ -260,3 +268,70 @@ export const BUTTON_DESIGN_ATTRS = {
   STYLE: 'qdb_style',
   LABEL: 'qdb_label',
 } as const;
+
+// ─── Sprint 3 — qdb_rule_template ────────────────────────────────────────────
+
+export const RULE_TEMPLATE_ATTRS = {
+  ID: 'qdb_rule_templateid',
+  NAME: 'qdb_name',
+  RULE_TYPE: 'qdb_rule_type',
+  ERROR_MESSAGE: 'qdb_error_message',
+  MIN_LENGTH: 'qdb_min_length',
+  MAX_LENGTH: 'qdb_max_length',
+  MIN_VALUE: 'qdb_min_value',
+  MAX_VALUE: 'qdb_max_value',
+  REGEX_PATTERN: 'qdb_regex_pattern',
+  CUSTOM_EXPRESSION: 'qdb_custom_expression',
+} as const;
+
+// Picklist codes for qdb_rule_template.qdb_rule_type (same set as qdb_form_validation_rule)
+export const RULE_TYPE_TO_PICKLIST: Record<string, number> = {
+  required:           100000001,
+  min_length:         100000002,
+  max_length:         100000003,
+  min_value:          100000004,
+  max_value:          100000005,
+  regex:              100000006,
+  email:              100000007,
+  phone:              100000008,
+  date_before:        100000009,
+  date_after:         100000010,
+  cross_field:        100000011,
+  custom_expression:  100000012,
+};
+export const PICKLIST_TO_RULE_TYPE: Record<number, string> = Object.fromEntries(
+  Object.entries(RULE_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])
+);
+
+// ─── Sprint 4 — qdb_fieldlabel ───────────────────────────────────────────────
+
+export const FIELD_LABEL_ATTRS = {
+  ID: 'qdb_fieldlabelid',
+  FIELD_ID: 'qdb_form_field_id',
+  FIELD_ID_VALUE: '_qdb_form_field_id_value',
+  NAME: 'qdb_name',
+  LOCALE: 'qdb_locale',
+  LABEL: 'qdb_label',
+  PLACEHOLDER: 'qdb_placeholder',
+  TOOLTIP: 'qdb_tooltip',
+} as const;
+
+// ─── Sprint 4 — qdb_form_access_policy ───────────────────────────────────────
+
+export const FORM_ACCESS_POLICY_ATTRS = {
+  ID: 'qdb_form_access_policyid',
+  FORM_ID: 'qdb_form_definition_id',
+  FORM_ID_VALUE: '_qdb_form_definition_id_value',
+  NAME: 'qdb_name',
+  ROLE_ID: 'qdb_role_id',
+  ACCESS_TYPE: 'qdb_access_type',
+} as const;
+
+export const ACCESS_TYPE_TO_PICKLIST: Record<string, number> = {
+  view:   100000001,
+  submit: 100000002,
+  draft:  100000003,
+};
+export const PICKLIST_TO_ACCESS_TYPE: Record<number, string> = Object.fromEntries(
+  Object.entries(ACCESS_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])
+);

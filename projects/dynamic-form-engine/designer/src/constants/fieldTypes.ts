@@ -37,6 +37,8 @@ export const FIELD_TYPE = {
   TERMS_BLOCK: 'terms_block',
   DECLARATION_BLOCK: 'declaration_block',
   SUMMARY_BLOCK: 'summary_block',
+  // Sprint 3 — developer-registered custom component
+  CUSTOM: 'custom',
 } as const;
 
 export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
@@ -91,6 +93,8 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.TERMS_BLOCK]: { type: FIELD_TYPE.TERMS_BLOCK, category: 'advanced', label: 'Terms & Conditions', iconName: 'Compliance', hasOptions: false, hasLookup: false, isLayout: false },
   [FIELD_TYPE.DECLARATION_BLOCK]: { type: FIELD_TYPE.DECLARATION_BLOCK, category: 'advanced', label: 'Declaration Block', iconName: 'Assign', hasOptions: false, hasLookup: false, isLayout: false },
   [FIELD_TYPE.SUMMARY_BLOCK]: { type: FIELD_TYPE.SUMMARY_BLOCK, category: 'advanced', label: 'Summary Block', iconName: 'StackedBarChart', hasOptions: false, hasLookup: false, isLayout: false },
+  // Sprint 3
+  [FIELD_TYPE.CUSTOM]: { type: FIELD_TYPE.CUSTOM, category: 'advanced', label: 'Custom Component', iconName: 'Code', hasOptions: false, hasLookup: false, isLayout: false },
 };
 
 export const BASIC_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'basic');

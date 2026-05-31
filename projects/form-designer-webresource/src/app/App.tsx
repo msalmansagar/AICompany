@@ -10,6 +10,10 @@ import { ThemeEditorScreen } from '@/screens/ThemeEditorScreen';
 import { PreviewScreen } from '@/screens/PreviewScreen';
 import { PublishValidationScreen } from '@/screens/PublishValidationScreen';
 import { VersionHistoryScreen } from '@/screens/VersionHistoryScreen';
+// Sprint 3+4
+import { RuleTemplateEditorScreen } from '@/screens/RuleTemplateEditorScreen';
+import { FieldLabelEditorScreen } from '@/screens/FieldLabelEditorScreen';
+import { AccessPolicyEditorScreen } from '@/screens/AccessPolicyEditorScreen';
 import { createCrmContextService } from '@/services/CrmContextService';
 import type { CrmContextService } from '@/services/CrmContextService';
 
@@ -84,6 +88,13 @@ function ActiveScreen({ currentScreen }: ActiveScreenProps): React.ReactElement 
       return <PublishValidationScreen />;
     case 'version-history':
       return <VersionHistoryScreen />;
+    // Sprint 3+4
+    case 'rule-template-editor':
+      return <RuleTemplateEditorScreen />;
+    case 'field-label-editor':
+      return <FieldLabelEditorScreen />;
+    case 'access-policy-editor':
+      return <AccessPolicyEditorScreen />;
     default:
       return <FormListScreen />;
   }

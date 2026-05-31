@@ -88,4 +88,6 @@ export interface DesignerFieldModel {
   options: DesignerOptionValue[];
   /** Present for lookup, child_entity_grid field types */
   lookupConfig: DesignerLookupConfig | null;
+  // Sprint 3 — populated when fieldType = 'custom'
+  componentKey: string | null;
 }

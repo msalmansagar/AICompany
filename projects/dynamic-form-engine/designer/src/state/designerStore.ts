@@ -20,7 +20,11 @@ export type DesignerScreen =
   | 'lookup-config'
   | 'preview'
   | 'publish-validation'
-  | 'version-history';
+  | 'version-history'
+  // Sprint 3+4
+  | 'rule-template-editor'
+  | 'field-label-editor'
+  | 'access-policy-editor';
 
 export type CanvasItemType = 'form' | 'tab' | 'section' | 'field';
 export type PreviewBreakpoint = 'desktop' | 'tablet' | 'mobile';

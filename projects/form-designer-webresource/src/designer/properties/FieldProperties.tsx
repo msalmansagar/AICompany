@@ -80,9 +80,28 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
       return <FileUploadFieldPanel field={field} />;
     case 'rich_text':
       return <RichTextFieldPanel field={field} />;
+    case 'custom':
+      return <CustomFieldPanel field={field} />;
     default:
       return null;
   }
+}
+
+function CustomFieldPanel({ field }: { field: DesignerFieldModel }): React.ReactElement {
+  const updateField = useDesignerStore(s => s.updateField);
+  return (
+    <Field
+      label="Component Key"
+      hint="ComponentRegistry key used to resolve the custom React component at runtime."
+    >
+      <Input
+        value={field.componentKey ?? ''}
+        onChange={(_, d) => updateField(field.id, { componentKey: d.value || null })}
+        placeholder="e.g. qdb/loanCalculator"
+        style={{ fontFamily: 'monospace' }}
+      />
+    </Field>
+  );
 }
 
 interface ColumnSpanButtonsProps {

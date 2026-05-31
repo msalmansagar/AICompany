@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import {
   FORM_FIELD_ATTRS,
@@ -25,6 +26,8 @@ export interface CreateFieldDto {
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   maxRows?: number | null;
+  // Sprint 3
+  componentKey?: string | null;
 }
 
 export interface UpdateFieldDto {
@@ -41,10 +44,12 @@ export interface UpdateFieldDto {
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   maxRows?: number | null;
+  // Sprint 3
+  componentKey?: string | null;
 }
 
 export class FieldService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createField(dto: CreateFieldDto): Promise<string> {
     const fieldTypeCode = FIELD_TYPE_TO_PICKLIST[dto.fieldType] ?? FIELD_TYPE_TO_PICKLIST['text'];
@@ -68,6 +73,7 @@ export class FieldService {
     if (dto.currencyCode != null) payload[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -93,6 +99,7 @@ export class FieldService {
     if (dto.currencyCode !== undefined) data[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -127,6 +134,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.CURRENCY_CODE,
       FORM_FIELD_ATTRS.DECIMAL_PLACES,
       FORM_FIELD_ATTRS.MAX_ROWS,
+      FORM_FIELD_ATTRS.COMPONENT_KEY,
     ].join(',');
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -178,6 +186,9 @@ export class FieldService {
       columnSpan,
       options: [],
       lookupConfig: null,
+      componentKey: record[FORM_FIELD_ATTRS.COMPONENT_KEY] != null
+        ? String(record[FORM_FIELD_ATTRS.COMPONENT_KEY])
+        : null,
     };
   }
 }

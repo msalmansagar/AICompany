@@ -20,7 +20,7 @@
     "@qdb/shared": "*",
     "@fluentui/react-components": "^9.56.3",
     "@fluentui/react-icons": "^2.0.264",
-    "react-use-wizard": "^3.0.0",
+    "react-use-wizard": "^2.3.0",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/extension-bold": "^2.11.7",
     "@tiptap/extension-bullet-list": "^2.11.7",

@@ -6,6 +6,7 @@ import {
   Input,
   Select,
   Text,
+  Textarea,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -13,13 +14,15 @@ import { AddRegular, CheckmarkRegular, DeleteRegular, DismissRegular } from '@fl
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerValidationRule, ValidationRuleType } from '@/state/models/DesignerRuleModel';
 
-const RULE_TYPES: Array<{ value: ValidationRuleType; label: string; hasValue: boolean }> = [
-  { value: 'required', label: 'Required', hasValue: false },
-  { value: 'min_length', label: 'Min Length', hasValue: true },
-  { value: 'max_length', label: 'Max Length', hasValue: true },
-  { value: 'regex', label: 'Pattern (Regex)', hasValue: true },
-  { value: 'min_value', label: 'Min Value', hasValue: true },
-  { value: 'max_value', label: 'Max Value', hasValue: true },
+const RULE_TYPES: Array<{ value: ValidationRuleType; label: string; hasValue: boolean; hasExpression: boolean }> = [
+  { value: 'required',           label: 'Required',              hasValue: false, hasExpression: false },
+  { value: 'min_length',         label: 'Min Length',            hasValue: true,  hasExpression: false },
+  { value: 'max_length',         label: 'Max Length',            hasValue: true,  hasExpression: false },
+  { value: 'regex',              label: 'Pattern (Regex)',        hasValue: true,  hasExpression: false },
+  { value: 'min_value',          label: 'Min Value',             hasValue: true,  hasExpression: false },
+  { value: 'max_value',          label: 'Max Value',             hasValue: true,  hasExpression: false },
+  // Sprint 3
+  { value: 'custom_expression',  label: 'Custom Expression',     hasValue: false, hasExpression: true  },
 ];
 
 const useStyles = makeStyles({
@@ -79,6 +82,7 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
   const styles = useStyles();
   const [ruleType, setRuleType] = useState<ValidationRuleType>('required');
   const [ruleValue, setRuleValue] = useState('');
+  const [customExpression, setCustomExpression] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
   const selectedTypeDef = RULE_TYPES.find(rt => rt.value === ruleType);
@@ -91,6 +95,8 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
       ruleValue: selectedTypeDef?.hasValue ? ruleValue : null,
       errorMessage: errorMessage || `${selectedTypeDef?.label ?? ruleType} validation failed`,
       sortOrder,
+      customExpression: selectedTypeDef?.hasExpression ? customExpression : null,
+      ruleTemplateId: null,
     };
     onSave(newRule);
   }
@@ -103,6 +109,7 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
           onChange={(_, d) => {
             setRuleType(d.value as ValidationRuleType);
             setRuleValue('');
+            setCustomExpression('');
           }}
         >
           {RULE_TYPES.map(rt => (
@@ -117,6 +124,17 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
             value={ruleValue}
             onChange={(_, d) => setRuleValue(d.value)}
             placeholder={ruleType === 'regex' ? 'e.g. ^[A-Z]+$' : 'Enter a number'}
+          />
+        </Field>
+      )}
+
+      {selectedTypeDef?.hasExpression && (
+        <Field label="Expression" hint="Reference field values as {fieldSchemaName}. E.g. {amount} > 1000">
+          <Textarea
+            value={customExpression}
+            onChange={(_, d) => setCustomExpression(d.value)}
+            placeholder="{amount} > 1000 && {customerType} == 'corporate'"
+            resize="vertical"
           />
         </Field>
       )}

@@ -19,6 +19,10 @@ export const ENTITY_NAMES = {
   FIELD_DESIGN: 'qdb_field_design',
   BUTTON_DESIGN: 'qdb_button_design',
   FORM_AUDIT_LOG: 'qdb_form_audit_log',
+  // Sprint 3+4
+  RULE_TEMPLATE: 'qdb_rule_template',
+  FIELD_LABEL: 'qdb_fieldlabel',
+  FORM_ACCESS_POLICY: 'qdb_form_access_policy',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

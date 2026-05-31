@@ -180,6 +180,7 @@ export function DesignerScreen(): React.ReactElement {
           columnSpan: 1,
           options: [],
           lookupConfig: null,
+          componentKey: null,
         };
         addField(newField);
         return;

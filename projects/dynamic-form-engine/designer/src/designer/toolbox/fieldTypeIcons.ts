@@ -2,6 +2,7 @@ import {
   AlignLeftRegular,
   AppsRegular,
   ArrowUploadRegular,
+  CodeRegular,
   CalendarRegular,
   CheckboxCheckedRegular,
   ChevronCircleDownRegular,
@@ -68,6 +69,7 @@ export const FIELD_TYPE_ICONS: Record<FieldType, FluentIcon> = {
   [FIELD_TYPE.TERMS_BLOCK]: ClipboardTextLtrRegular,
   [FIELD_TYPE.DECLARATION_BLOCK]: ClipboardCheckmarkRegular,
   [FIELD_TYPE.SUMMARY_BLOCK]: DataBarVerticalRegular,
+  [FIELD_TYPE.CUSTOM]: CodeRegular,
 };
 
 export { AppsRegular, LayoutCellFourRegular, PuzzlePieceRegular };

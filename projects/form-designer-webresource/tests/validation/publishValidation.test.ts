@@ -88,6 +88,7 @@ function makeField(overrides: Partial<DesignerFieldModel> = {}): DesignerFieldMo
     columnSpan: 1,
     options: [],
     lookupConfig: null,
+    componentKey: null,
     ...overrides,
   };
 }

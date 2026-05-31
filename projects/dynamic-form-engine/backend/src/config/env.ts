@@ -12,7 +12,7 @@ const envSchema = z.object({
   AZURE_CLIENT_SECRET: z.string().min(1),
   AZURE_AD_AUDIENCE: z.string().min(1),
   METADATA_CACHE_TTL_SECONDS: z.coerce.number().default(300),
-  CORS_ORIGIN: z.string().default('http://localhost:3000'),
+  CORS_ORIGIN: z.string().default('http://localhost:3000').transform((v) => v.split(',').map((s) => s.trim())),
   MOCK_CRM: z
     .string()
     .default('false')
