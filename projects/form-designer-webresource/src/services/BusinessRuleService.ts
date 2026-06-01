@@ -27,7 +27,8 @@ export class BusinessRuleService {
     const result = await withRetry(
       () =>
         this.webApi.createRecord(ENTITY_NAMES.FORM_BUSINESS_RULE, {
-          [FORM_BUSINESS_RULE_ATTRS.FORM_ID]: dto.formId,
+          // Lookup fields require @odata.bind notation on create — plain GUIDs cause OData 400
+          [`${FORM_BUSINESS_RULE_ATTRS.FORM_ID}@odata.bind`]: `/qdb_form_definitions(${dto.formId})`,
           [FORM_BUSINESS_RULE_ATTRS.NAME]: dto.name,
           [FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE]: dto.isActive,
           [FORM_BUSINESS_RULE_ATTRS.SORT_ORDER]: dto.sortOrder,
