@@ -4,7 +4,7 @@
 
 declare namespace Xrm {
   namespace WebApi {
-    function createRecord(entityLogicalName: string, data: Record<string, unknown>): Promise<{ id: string }>;
+    function createRecord(entityLogicalName: string, data: Record<string, unknown>): Promise<{ id: string; entityType: string }>;
     function updateRecord(entityLogicalName: string, id: string, data: Record<string, unknown>): Promise<{ id: string }>;
     function deleteRecord(entityLogicalName: string, id: string): Promise<{ id: string }>;
     function retrieveRecord(entityLogicalName: string, id: string, options?: string): Promise<Record<string, unknown>>;

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AuditLogService } from '@/services/AuditLogService';
 import { FORM_AUDIT_LOG_ATTRS } from '@/constants/attributeNames';
 import type { CrmUserContext } from '@/services/CrmContextService';
+import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
 
 function buildMockWebApi() {
   return {
@@ -10,7 +11,7 @@ function buildMockWebApi() {
     deleteRecord: vi.fn(),
     retrieveRecord: vi.fn(),
     retrieveMultipleRecords: vi.fn(),
-  } as unknown as typeof Xrm.WebApi;
+  } as unknown as IWebApiAdapter;
 }
 
 const TEST_USER_CONTEXT: CrmUserContext = {
@@ -28,6 +29,7 @@ describe('AuditLogService', () => {
     service = new AuditLogService(webApi, TEST_USER_CONTEXT);
     vi.mocked(webApi.createRecord).mockResolvedValue({
       id: 'audit-id-1',
+      entityType: 'qdb_form_audit_log',
     });
   });
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { FormDefinitionService } from '@/services/FormDefinitionService';
 import { FORM_DEFINITION_ATTRS, FORM_STATUS_VALUE } from '@/constants/attributeNames';
+import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
 
 function buildMockWebApi() {
   return {
@@ -9,7 +10,7 @@ function buildMockWebApi() {
     deleteRecord: vi.fn(),
     retrieveRecord: vi.fn(),
     retrieveMultipleRecords: vi.fn(),
-  } as unknown as typeof Xrm.WebApi;
+  } as unknown as IWebApiAdapter;
 }
 
 describe('FormDefinitionService', () => {
@@ -23,7 +24,7 @@ describe('FormDefinitionService', () => {
 
   it('createForm_createsRecord_andReturnsId', async () => {
     const expectedId = 'aaa-bbb-ccc';
-    vi.mocked(webApi.createRecord).mockResolvedValue({ id: expectedId });
+    vi.mocked(webApi.createRecord).mockResolvedValue({ id: expectedId, entityType: 'qdb_form_definition' });
 
     const id = await service.createForm({
       name: 'Test Form',
@@ -72,7 +73,7 @@ describe('FormDefinitionService', () => {
 
   it('deleteForm_callsDeleteRecord_withCorrectId', async () => {
     const formId = 'form-to-delete';
-    vi.mocked(webApi.deleteRecord).mockResolvedValue({ id: formId });
+    vi.mocked(webApi.deleteRecord).mockResolvedValue(undefined);
 
     await service.deleteForm(formId);
 
