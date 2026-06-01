@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FIELD_LABEL_ATTRS } from '@/constants/attributeNames';
 import type { DesignerFieldLabelModel } from '@/state/models/DesignerFieldLabelModel';
@@ -22,6 +23,7 @@ export class FieldLabelService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async listLabelsForField(fieldId: string): Promise<DesignerFieldLabelModel[]> {
+    assertGuid(fieldId, 'fieldId');
     const select = [
       FIELD_LABEL_ATTRS.ID,
       FIELD_LABEL_ATTRS.FIELD_ID_VALUE,

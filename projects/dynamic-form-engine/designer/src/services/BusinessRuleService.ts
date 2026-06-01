@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_BUSINESS_RULE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
@@ -62,6 +63,7 @@ export class BusinessRuleService {
   }
 
   async listRulesForForm(formId: string): Promise<DesignerBusinessRule[]> {
+    assertGuid(formId, 'formId');
     const select = [
       FORM_BUSINESS_RULE_ATTRS.ID,
       FORM_BUSINESS_RULE_ATTRS.FORM_ID_VALUE,

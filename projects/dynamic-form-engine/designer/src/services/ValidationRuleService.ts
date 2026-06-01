@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_VALIDATION_RULE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerValidationRule, ValidationRuleType } from '@/state/models/DesignerRuleModel';
@@ -79,6 +80,7 @@ export class ValidationRuleService {
   }
 
   async listRulesForField(fieldId: string): Promise<DesignerValidationRule[]> {
+    assertGuid(fieldId, 'fieldId');
     const select = [
       FORM_VALIDATION_RULE_ATTRS.ID,
       FORM_VALIDATION_RULE_ATTRS.FIELD_ID_VALUE,

@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_OPTION_VALUE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerOptionValue } from '@/state/models/DesignerFormModel';
@@ -60,6 +61,7 @@ export class OptionValueService {
   }
 
   async listOptionsForField(fieldId: string): Promise<DesignerOptionValue[]> {
+    assertGuid(fieldId, 'fieldId');
     const select = [
       FORM_OPTION_VALUE_ATTRS.ID,
       FORM_OPTION_VALUE_ATTRS.FIELD_ID_VALUE,

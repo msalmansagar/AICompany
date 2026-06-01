@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_ACCESS_POLICY_ATTRS, ACCESS_TYPE_TO_PICKLIST, PICKLIST_TO_ACCESS_TYPE } from '@/constants/attributeNames';
 import type { DesignerAccessPolicyModel, AccessPolicyType } from '@/state/models/DesignerAccessPolicyModel';
@@ -19,6 +20,7 @@ export class AccessPolicyService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async listPoliciesForForm(formId: string): Promise<DesignerAccessPolicyModel[]> {
+    assertGuid(formId, 'formId');
     const select = [
       FORM_ACCESS_POLICY_ATTRS.ID,
       FORM_ACCESS_POLICY_ATTRS.FORM_ID_VALUE,

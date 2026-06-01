@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_TAB_ATTRS, FORM_SECTION_ATTRS, FORM_FIELD_ATTRS } from '@/constants/attributeNames';
 import { withRetry } from './crmRetry';
@@ -7,6 +8,7 @@ export class FormDeleteService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async deleteForm(formId: string): Promise<void> {
+    assertGuid(formId, 'formId');
     const tabs = await this.listTabIds(formId);
 
     const sectionIdArrays = await Promise.all(tabs.map(tabId => this.listSectionIds(tabId)));

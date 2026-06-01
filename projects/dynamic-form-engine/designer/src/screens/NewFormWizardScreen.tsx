@@ -453,10 +453,15 @@ export function NewFormWizardScreen(): React.ReactElement {
     if (!crmService) return;
     setIsLoadingEntities(true);
     const clientUrl = crmService.getClientUrl();
+    // EntityDefinitions is a metadata endpoint — Xrm.WebApi does not expose it,
+    // so a credentialed fetch to the same CRM origin is the only supported approach.
     const url = `${clientUrl}/api/data/v9.1/EntityDefinitions?$select=LogicalName,DisplayName&$filter=IsValidForAdvancedFind eq true&$orderby=LogicalName`;
     fetch(url, { credentials: 'include', headers: { Accept: 'application/json', 'OData-Version': '4.0' } })
-      .then(r => r.json())
-      .then((data: { value: Array<{ LogicalName: string; DisplayName: { UserLocalizedLabel?: { Label?: string } } }> }) => {
+      .then(r => {
+        if (!r.ok) throw new Error(`EntityDefinitions request failed: ${r.status}`);
+        return r.json() as Promise<{ value: Array<{ LogicalName: string; DisplayName: { UserLocalizedLabel?: { Label?: string } } }> }>;
+      })
+      .then((data) => {
         setEntities(
           data.value.map(e => ({
             logicalName: e.LogicalName,

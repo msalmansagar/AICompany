@@ -38,6 +38,7 @@ import { ValidationRuleService } from '@/services/ValidationRuleService';
 import { BusinessRuleService } from '@/services/BusinessRuleService';
 import { FormDeleteService } from '@/services/FormDeleteService';
 import { FormCloneService } from '@/services/FormCloneService';
+import { AuditLogService } from '@/services/AuditLogService';
 import { useDesignerStore } from '@/state/designerStore';
 import { DEFAULT_STYLE } from '@/state/models/DesignerStyleModel';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
@@ -205,8 +206,11 @@ export function FormListScreen(): React.ReactElement {
     setError(null);
 
     try {
-      const cloneService = new FormCloneService(crmService.getWebApi());
+      const webApi = crmService.getWebApi();
+      const cloneService = new FormCloneService(webApi);
       await cloneService.cloneForm(formId);
+      const auditService = new AuditLogService(webApi, crmService.getUserContext());
+      await auditService.logAction(formId, 'CLONE', { sourceFormId: formId });
       await loadForms();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to clone form');
@@ -217,12 +221,16 @@ export function FormListScreen(): React.ReactElement {
 
   const handleDeleteConfirm = useCallback(async () => {
     if (!crmService || !deleteTarget) return;
-    setIsDeletingId(deleteTarget.id);
+    const formId = deleteTarget.id;
+    setIsDeletingId(formId);
     setDeleteTarget(null);
 
     try {
-      const deleteService = new FormDeleteService(crmService.getWebApi());
-      await deleteService.deleteForm(deleteTarget.id);
+      const webApi = crmService.getWebApi();
+      const auditService = new AuditLogService(webApi, crmService.getUserContext());
+      await auditService.logAction(formId, 'DELETE_FORM', {});
+      const deleteService = new FormDeleteService(webApi);
+      await deleteService.deleteForm(formId);
       await loadForms();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete form');
