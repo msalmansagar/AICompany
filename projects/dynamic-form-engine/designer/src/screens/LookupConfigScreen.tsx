@@ -1,8 +1,9 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Button,
   Field,
   Input,
+  Spinner,
   Text,
   Textarea,
   makeStyles,
@@ -10,6 +11,8 @@ import {
 } from '@fluentui/react-components';
 import { ArrowLeftRegular, CheckmarkRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { CrmContext } from '@/app/App';
+import { LookupConfigService } from '@/services/LookupConfigService';
 import type { DesignerLookupConfig } from '@/state/models/DesignerFormModel';
 
 const useStyles = makeStyles({
@@ -57,6 +60,7 @@ const useStyles = makeStyles({
 
 export function LookupConfigScreen(): React.ReactElement {
   const styles = useStyles();
+  const crmService = useContext(CrmContext);
 
   const navigateTo = useDesignerStore(s => s.navigateTo);
   const selectedId = useDesignerStore(s => s.selectedId);
@@ -73,6 +77,23 @@ export function LookupConfigScreen(): React.ReactElement {
   }));
 
   const [isDirty, setIsDirty] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // On mount, fetch the latest config from CRM for saved (non-temp) fields
+  useEffect(() => {
+    if (!crmService || !selectedId || selectedId.startsWith('tmp_')) return;
+    const service = new LookupConfigService(crmService.getWebApi());
+    service.getLookupConfigForField(selectedId)
+      .then(cfg => {
+        if (cfg) {
+          setConfig(cfg);
+          updateField(selectedId, { lookupConfig: cfg });
+        }
+      })
+      .catch(() => { /* keep store values as fallback */ });
+  }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBack = useCallback(() => {
     navigateTo('designer');
@@ -83,13 +104,39 @@ export function LookupConfigScreen(): React.ReactElement {
     setIsDirty(true);
   }, []);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     if (!selectedId) return;
-    updateField(selectedId, { lookupConfig: config });
-    setIsDirty(false);
-  }, [selectedId, updateField, config]);
+    setSaveError(null);
+    setSaveSuccess(false);
 
-  const canSave = isDirty && config.targetEntity.trim().length > 0 && config.displayField.trim().length > 0 && config.valueField.trim().length > 0;
+    // Always update the store
+    updateField(selectedId, { lookupConfig: config });
+
+    // Persist to CRM immediately for saved fields
+    if (crmService && !selectedId.startsWith('tmp_')) {
+      setIsSaving(true);
+      try {
+        const service = new LookupConfigService(crmService.getWebApi());
+        await service.upsertLookupConfig({
+          fieldId: selectedId,
+          targetEntity: config.targetEntity,
+          displayField: config.displayField,
+          valueField: config.valueField,
+          filterQuery: config.filterQuery,
+          searchMinChars: config.searchMinChars,
+          maxResults: config.maxResults,
+        });
+        setSaveSuccess(true);
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'Failed to save lookup configuration');
+      } finally {
+        setIsSaving(false);
+      }
+    }
+    setIsDirty(false);
+  }, [selectedId, updateField, config, crmService]);
+
+  const canSave = !isSaving && isDirty && config.targetEntity.trim().length > 0 && config.displayField.trim().length > 0 && config.valueField.trim().length > 0;
 
   if (!field) {
     return (
@@ -180,15 +227,21 @@ export function LookupConfigScreen(): React.ReactElement {
         </div>
 
         <div className={styles.actions}>
-          <Button appearance="subtle" onClick={handleBack}>Cancel</Button>
-          <Button
-            appearance="primary"
-            icon={<CheckmarkRegular />}
-            onClick={handleSave}
-            disabled={!canSave}
-          >
-            Save Configuration
-          </Button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {saveError && <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{saveError}</Text>}
+            {saveSuccess && <Text size={200} style={{ color: tokens.colorPaletteGreenForeground1 }}>Saved successfully</Text>}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button appearance="subtle" onClick={handleBack}>Cancel</Button>
+            <Button
+              appearance="primary"
+              icon={isSaving ? <Spinner size="tiny" /> : <CheckmarkRegular />}
+              onClick={() => void handleSave()}
+              disabled={!canSave}
+            >
+              {isSaving ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

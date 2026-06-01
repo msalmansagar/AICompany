@@ -84,6 +84,7 @@ export function DesignerScreen(): React.ReactElement {
     isDirty,
     isSaving,
     activeCanvasTabId,
+    deletedEntityTypes,
     addField,
     addSection,
     addTab,
@@ -126,6 +127,7 @@ export function DesignerScreen(): React.ReactElement {
         newIds,
         dirtyIds,
         deletedIds,
+        deletedEntityTypes,
       });
 
       markSaved(resolvedIds);
@@ -137,7 +139,7 @@ export function DesignerScreen(): React.ReactElement {
     form, crmService, isSaving,
     tabs, sections, fields, validationRules, businessRules,
     tabOrder, sectionOrder, fieldOrder,
-    newIds, dirtyIds, deletedIds,
+    newIds, dirtyIds, deletedIds, deletedEntityTypes,
     markSaving, markSaved,
   ]);
 

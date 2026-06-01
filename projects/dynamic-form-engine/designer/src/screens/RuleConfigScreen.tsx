@@ -1,10 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   Button,
   Divider,
   Field,
   Input,
   Select,
+  Spinner,
   Text,
   Badge,
   makeStyles,
@@ -18,8 +19,11 @@ import {
   CheckmarkRegular,
   DismissRegular,
   EditRegular,
+  SaveRegular,
 } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { CrmContext } from '@/app/App';
+import { BusinessRuleService } from '@/services/BusinessRuleService';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
 import type {
   BusinessRuleDefinition,
@@ -424,6 +428,7 @@ function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditor
 
 export function RuleConfigScreen(): React.ReactElement {
   const styles = useStyles();
+  const crmService = useContext(CrmContext);
 
   const navigateTo = useDesignerStore(s => s.navigateTo);
   const storeBusinessRules = useDesignerStore(s => s.businessRules);
@@ -439,6 +444,9 @@ export function RuleConfigScreen(): React.ReactElement {
     localRules.length > 0 ? (localRules[0]?.id ?? null) : null
   );
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isSavingAll, setIsSavingAll] = useState(false);
+  const [saveAllError, setSaveAllError] = useState<string | null>(null);
+  const [saveAllSuccess, setSaveAllSuccess] = useState(false);
 
   const handleBack = useCallback(() => {
     navigateTo('designer');
@@ -491,6 +499,22 @@ export function RuleConfigScreen(): React.ReactElement {
     setIsAddingNew(false);
   }, [isAddingNew, selectedRuleId]);
 
+  const handleSaveAllToCrm = useCallback(async () => {
+    if (!crmService || !form?.id || form.id.startsWith('tmp_')) return;
+    setIsSavingAll(true);
+    setSaveAllError(null);
+    setSaveAllSuccess(false);
+    try {
+      const service = new BusinessRuleService(crmService.getWebApi());
+      await service.syncRules(form.id, localRules);
+      setSaveAllSuccess(true);
+    } catch (err) {
+      setSaveAllError(err instanceof Error ? err.message : 'Failed to save rules');
+    } finally {
+      setIsSavingAll(false);
+    }
+  }, [crmService, form, localRules]);
+
   const selectedRule = localRules.find(r => r.id === selectedRuleId) ?? null;
 
   return (
@@ -500,6 +524,17 @@ export function RuleConfigScreen(): React.ReactElement {
           Back to Designer
         </Button>
         <Text size={400} weight="semibold">Business Rules</Text>
+        <div style={{ flex: 1 }} />
+        {saveAllError && <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{saveAllError}</Text>}
+        {saveAllSuccess && <Text size={200} style={{ color: tokens.colorPaletteGreenForeground1 }}>Saved to Dataverse</Text>}
+        <Button
+          appearance="primary"
+          icon={isSavingAll ? <Spinner size="tiny" /> : <SaveRegular />}
+          onClick={() => void handleSaveAllToCrm()}
+          disabled={isSavingAll || localRules.length === 0}
+        >
+          {isSavingAll ? 'Saving...' : 'Save to Dataverse'}
+        </Button>
       </div>
 
       <div className={styles.body}>

@@ -465,7 +465,8 @@ export function NewFormWizardScreen(): React.ReactElement {
         );
       })
       .catch(() => {
-        // Fallback: entity dropdown will be empty, user can still type manually
+        // Metadata API unavailable outside CRM context — user can type the entity name manually
+        setEntities([]);
       })
       .finally(() => setIsLoadingEntities(false));
   }, [crmService]);

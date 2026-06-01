@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useState } from 'react';
+import { DesignService } from '@/services/DesignService';
 import {
   Button,
   Divider,
@@ -284,11 +285,13 @@ export function ThemeEditorScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
 
   const style = useDesignerStore(s => s.style);
+  const form = useDesignerStore(s => s.form);
   const updateStyle = useDesignerStore(s => s.updateStyle);
   const navigateTo = useDesignerStore(s => s.navigateTo);
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const handleBack = useCallback(() => {
     navigateTo('designer');
@@ -296,19 +299,49 @@ export function ThemeEditorScreen(): React.ReactElement {
 
   const handleSave = useCallback(async () => {
     if (!crmService) return;
+    if (!style.themeName.trim()) {
+      setSaveError('Theme name is required.');
+      return;
+    }
     setIsSaving(true);
     setSaveError(null);
+    setSaveSuccess(false);
 
     try {
-      // Style is already live-updated in the store via updateStyle calls.
-      // If a theme service existed it would be called here. The store is already updated.
-      await Promise.resolve();
+      const webApi = crmService.getWebApi();
+      const designService = new DesignService(webApi);
+
+      const themeId = await designService.upsertTheme(
+        {
+          name: style.themeName.trim(),
+          primaryColor: style.primaryColor,
+          accentColor: style.accentColor,
+          backgroundColor: style.backgroundColor,
+          fontFamily: style.fontFamily,
+          fontSizeBase: style.fontSizeBase,
+          borderRadius: style.borderRadius,
+        },
+        style.themeId
+      );
+
+      // Store the saved theme ID and link it to the form design record
+      updateStyle({ themeId });
+
+      if (form?.id && !form.id.startsWith('tmp_')) {
+        await designService.upsertFormDesign({
+          formId: form.id,
+          themeId,
+          customCss: style.customCss,
+        });
+      }
+
+      setSaveSuccess(true);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save theme');
     } finally {
       setIsSaving(false);
     }
-  }, [crmService]);
+  }, [crmService, style, form, updateStyle]);
 
   const patch = useCallback(
     (update: Partial<DesignerStyleModel>) => updateStyle(update),
@@ -331,6 +364,19 @@ export function ThemeEditorScreen(): React.ReactElement {
 
       <div className={styles.body}>
         <div className={styles.sidebar}>
+          <div>
+            <Text weight="semibold" size={300} className={styles.sectionTitle} block>Theme</Text>
+            <Field label="Theme Name" required>
+              <Input
+                value={style.themeName}
+                onChange={(_, data) => { patch({ themeName: data.value }); setSaveSuccess(false); }}
+                placeholder="e.g. QDB Corporate Theme"
+              />
+            </Field>
+          </div>
+
+          <Divider />
+
           <div>
             <Text weight="semibold" size={300} className={styles.sectionTitle} block>Colors</Text>
             <div className={styles.formGroup}>
@@ -453,6 +499,11 @@ export function ThemeEditorScreen(): React.ReactElement {
 
           <div className={styles.saveBar}>
             {saveError && <span className={styles.errorText}>{saveError}</span>}
+            {saveSuccess && !saveError && (
+              <span style={{ color: tokens.colorPaletteGreenForeground1, fontSize: '13px' }}>
+                Theme saved successfully
+              </span>
+            )}
             <Button
               appearance="primary"
               icon={isSaving ? <Spinner size="tiny" /> : <SaveRegular />}

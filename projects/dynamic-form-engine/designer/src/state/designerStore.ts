@@ -64,6 +64,9 @@ export interface DesignerState {
   dirtyIds: string[];
   newIds: string[];
   deletedIds: string[];
+  // Maps deleted record ID → entity type so FormSaveService can issue the correct delete call
+  // even after the record is removed from the tabs/sections/fields maps.
+  deletedEntityTypes: Record<string, 'tab' | 'section' | 'field'>;
 
   // Undo/redo — max 50 entries
   undoStack: DesignerStateSnapshot[];
@@ -198,6 +201,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   dirtyIds: [],
   newIds: [],
   deletedIds: [],
+  deletedEntityTypes: {},
   undoStack: [],
   redoStack: [],
   selectedId: null,
@@ -231,6 +235,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       dirtyIds: [],
       newIds: [],
       deletedIds: [],
+      deletedEntityTypes: {},
       undoStack: [],
       redoStack: [],
       selectedId: null,
@@ -255,6 +260,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       dirtyIds: [],
       newIds: [],
       deletedIds: [],
+      deletedEntityTypes: {},
       undoStack: [],
       redoStack: [],
       selectedId: null,
@@ -318,20 +324,23 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
         if (state.undoStack.length > MAX_UNDO_STACK_SIZE) state.undoStack.shift();
         state.redoStack = [];
 
-        // Remove all sections and their fields first
+        // Remove all sections and their fields first — record entity types before deletion
         const sectionIds = state.sectionOrder[id] ?? [];
         for (const sectionId of sectionIds) {
           const fieldIds = state.fieldOrder[sectionId] ?? [];
           for (const fieldId of fieldIds) {
+            if (!fieldId.startsWith('tmp_')) state.deletedEntityTypes[fieldId] = 'field';
             delete state.fields[fieldId];
             state.deletedIds.push(fieldId);
           }
           delete state.fieldOrder[sectionId];
+          if (!sectionId.startsWith('tmp_')) state.deletedEntityTypes[sectionId] = 'section';
           delete state.sections[sectionId];
           state.deletedIds.push(sectionId);
         }
 
         delete state.sectionOrder[id];
+        if (!id.startsWith('tmp_')) state.deletedEntityTypes[id] = 'tab';
         delete state.tabs[id];
         state.tabOrder = state.tabOrder.filter(tid => tid !== id);
         state.deletedIds.push(id);
@@ -404,6 +413,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
         const fieldIds = state.fieldOrder[id] ?? [];
         for (const fieldId of fieldIds) {
+          if (!fieldId.startsWith('tmp_')) state.deletedEntityTypes[fieldId] = 'field';
           delete state.fields[fieldId];
           state.deletedIds.push(fieldId);
         }
@@ -411,6 +421,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
         const tabId = section.tabId;
         state.sectionOrder[tabId] = (state.sectionOrder[tabId] ?? []).filter(sid => sid !== id);
+        if (!id.startsWith('tmp_')) state.deletedEntityTypes[id] = 'section';
         delete state.sections[id];
         state.deletedIds.push(id);
         state.isDirty = true;
@@ -480,6 +491,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
         if (!field) return;
 
         state.fieldOrder[field.sectionId] = (state.fieldOrder[field.sectionId] ?? []).filter(fid => fid !== id);
+        if (!id.startsWith('tmp_')) state.deletedEntityTypes[id] = 'field';
         delete state.fields[id];
         state.deletedIds.push(id);
         state.isDirty = true;
@@ -645,6 +657,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
         state.dirtyIds = [];
         state.newIds = [];
         state.deletedIds = [];
+        state.deletedEntityTypes = {};
         state.lastSavedAt = new Date();
       })
     ),
@@ -659,6 +672,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
         state.dirtyIds = [];
         state.newIds = [];
         state.deletedIds = [];
+        state.deletedEntityTypes = {};
         state.lastSavedAt = new Date();
         if (state.form) state.form.status = 'published';
       })

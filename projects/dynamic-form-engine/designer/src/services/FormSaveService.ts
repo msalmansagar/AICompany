@@ -28,6 +28,7 @@ type SaveableState = Pick<
   | 'newIds'
   | 'dirtyIds'
   | 'deletedIds'
+  | 'deletedEntityTypes'
   | 'validationRules'
   | 'businessRules'
 >;
@@ -61,7 +62,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, validationRules, businessRules } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -236,22 +237,19 @@ export class FormSaveService {
       }
     }
 
-    // Step 5: Delete real (non-temp) records that were removed.
-    // Build a type map from the current state so each deletion targets the right entity.
-    const fieldIdSet = new Set(Object.keys(fields));
-    const sectionIdSet = new Set(Object.keys(sections));
-    const tabIdSet = new Set(Object.keys(tabs));
+    // Step 5: Delete real (non-temp) CRM records that were removed from the canvas.
+    // Use deletedEntityTypes (recorded at delete time) because the items are no longer
+    // in the tabs/sections/fields maps by the time save() runs.
+    const ENTITY_TYPE_MAP: Record<string, string> = {
+      tab: ENTITY_NAMES.FORM_TAB,
+      section: ENTITY_NAMES.FORM_SECTION,
+      field: ENTITY_NAMES.FORM_FIELD,
+    };
 
     const realDeletedIds = deletedIds.filter(id => !id.startsWith('tmp_'));
     for (const deletedId of realDeletedIds) {
-      const entityName = fieldIdSet.has(deletedId)
-        ? ENTITY_NAMES.FORM_FIELD
-        : sectionIdSet.has(deletedId)
-        ? ENTITY_NAMES.FORM_SECTION
-        : tabIdSet.has(deletedId)
-        ? ENTITY_NAMES.FORM_TAB
-        : null;
-
+      const entityType = deletedEntityTypes[deletedId];
+      const entityName = entityType ? ENTITY_TYPE_MAP[entityType] : null;
       if (entityName) {
         await this.deleteById(deletedId, entityName);
       }
@@ -267,7 +265,7 @@ export class FormSaveService {
       name: form.name,
       code: form.code,
       description: form.description,
-      entityLogicalName: form.entityLogicalName,
+      entityLogicalName: form.entityLogicalName || null,
       allowSaveDraft: form.allowSaveDraft,
       draftExpiryDays: form.draftExpiryDays,
       powerAutomateFlowId: form.powerAutomateFlowId,

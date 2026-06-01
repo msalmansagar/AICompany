@@ -62,16 +62,19 @@ export class FormDefinitionService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createForm(dto: CreateFormDto): Promise<string> {
+    const payload: Record<string, unknown> = {
+      [FORM_DEFINITION_ATTRS.NAME]: dto.name,
+      [FORM_DEFINITION_ATTRS.CODE]: dto.code,
+      [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
+      [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
+      [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
+      [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: true,
+    };
+    if (dto.entityLogicalName) {
+      payload[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] = dto.entityLogicalName;
+    }
     const result = await withRetry(
-      () =>
-        this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, {
-          [FORM_DEFINITION_ATTRS.NAME]: dto.name,
-          [FORM_DEFINITION_ATTRS.CODE]: dto.code,
-          [FORM_DEFINITION_ATTRS.DESCRIPTION]: dto.description,
-          [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
-          [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
-          [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: true,
-        }),
+      () => this.webApi.createRecord(ENTITY_NAMES.FORM_DEFINITION, payload),
       'createForm'
     );
     return result.id;
@@ -100,6 +103,7 @@ export class FormDefinitionService {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE] = dto.confirmationRecordRefAttribute;
     }
     if (dto.accessGroupId !== undefined) data[FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID] = dto.accessGroupId;
+    if (dto.entityLogicalName !== undefined) data[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] = dto.entityLogicalName ?? null;
     if (Object.keys(data).length === 0) return;
 
     await withRetry(
@@ -114,6 +118,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.NAME,
       FORM_DEFINITION_ATTRS.CODE,
       FORM_DEFINITION_ATTRS.DESCRIPTION,
+      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
       FORM_DEFINITION_ATTRS.STATUS,
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
@@ -197,7 +202,7 @@ export class FormDefinitionService {
       name: String(record[FORM_DEFINITION_ATTRS.NAME] ?? ''),
       code: String(record[FORM_DEFINITION_ATTRS.CODE] ?? ''),
       description: String(record[FORM_DEFINITION_ATTRS.DESCRIPTION] ?? ''),
-      entityLogicalName: '',
+      entityLogicalName: String(record[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] ?? ''),
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
       themeId: null,
