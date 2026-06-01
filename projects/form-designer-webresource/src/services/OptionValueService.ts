@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_OPTION_VALUE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerOptionValue } from '@/state/models/DesignerFormModel';
@@ -19,7 +20,7 @@ export interface UpdateOptionDto {
 }
 
 export class OptionValueService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createOption(dto: CreateOptionDto): Promise<string> {
     const result = await withRetry(

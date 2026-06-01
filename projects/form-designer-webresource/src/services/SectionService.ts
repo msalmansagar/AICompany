@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import {
   FORM_SECTION_ATTRS,
@@ -29,7 +30,7 @@ export interface UpdateSectionDto {
 }
 
 export class SectionService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createSection(dto: CreateSectionDto): Promise<string> {
     const result = await withRetry(

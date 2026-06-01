@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import type { DesignerState } from '@/state/designerStore';
 import { FormDefinitionService } from './FormDefinitionService';
@@ -7,6 +8,7 @@ import { FieldService } from './FieldService';
 import { OptionValueService } from './OptionValueService';
 import { LookupConfigService } from './LookupConfigService';
 import { ValidationRuleService } from './ValidationRuleService';
+import { BusinessRuleService } from './BusinessRuleService';
 import { AuditLogService } from './AuditLogService';
 import type { CrmUserContext } from './CrmContextService';
 import { withRetry } from './crmRetry';
@@ -26,7 +28,9 @@ type SaveableState = Pick<
   | 'newIds'
   | 'dirtyIds'
   | 'deletedIds'
+  | 'deletedEntityTypes'
   | 'validationRules'
+  | 'businessRules'
 >;
 
 export interface FormSaveResult {
@@ -41,9 +45,10 @@ export class FormSaveService {
   private readonly optionService: OptionValueService;
   private readonly lookupService: LookupConfigService;
   private readonly validationRuleService: ValidationRuleService;
+  private readonly businessRuleService: BusinessRuleService;
 
   constructor(
-    private readonly webApi: typeof Xrm.WebApi,
+    private readonly webApi: IWebApiAdapter,
     private readonly userContext: CrmUserContext
   ) {
     this.formService = new FormDefinitionService(webApi);
@@ -53,10 +58,11 @@ export class FormSaveService {
     this.optionService = new OptionValueService(webApi);
     this.lookupService = new LookupConfigService(webApi);
     this.validationRuleService = new ValidationRuleService(webApi);
+    this.businessRuleService = new BusinessRuleService(webApi);
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, validationRules } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -231,18 +237,35 @@ export class FormSaveService {
       }
     }
 
-    // Step 5: Delete real (non-temp) records that were removed
+    // Step 5: Delete real (non-temp) CRM records that were removed from the canvas.
+    // Use deletedEntityTypes (recorded at delete time) because the items are no longer
+    // in the tabs/sections/fields maps by the time save() runs.
+    const ENTITY_TYPE_MAP: Record<string, string> = {
+      tab: ENTITY_NAMES.FORM_TAB,
+      section: ENTITY_NAMES.FORM_SECTION,
+      field: ENTITY_NAMES.FORM_FIELD,
+    };
+
     const realDeletedIds = deletedIds.filter(id => !id.startsWith('tmp_'));
     for (const deletedId of realDeletedIds) {
-      await this.tryDelete(deletedId);
+      const entityType = deletedEntityTypes[deletedId];
+      const entityName = entityType ? ENTITY_TYPE_MAP[entityType] : null;
+      if (entityName) {
+        await this.deleteById(deletedId, entityName);
+      }
     }
 
-    // Step 6: Update form definition header
+    // Step 6: Sync business rules for the form
+    if (form.id && !form.id.startsWith('tmp_')) {
+      await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
+    }
+
+    // Step 7: Update form definition header
     await this.formService.updateForm(form.id, {
       name: form.name,
       code: form.code,
       description: form.description,
-      entityLogicalName: form.entityLogicalName,
+      entityLogicalName: form.entityLogicalName || null,
       allowSaveDraft: form.allowSaveDraft,
       draftExpiryDays: form.draftExpiryDays,
       powerAutomateFlowId: form.powerAutomateFlowId,
@@ -251,7 +274,7 @@ export class FormSaveService {
       accessGroupId: form.accessGroupId,
     });
 
-    // Step 7: Write audit log
+    // Step 8: Write audit log
     const auditService = new AuditLogService(this.webApi, this.userContext);
     await auditService.logAction(form.id, 'SAVE_DRAFT', {
       fieldCount: Object.keys(fields).length,
@@ -261,23 +284,12 @@ export class FormSaveService {
     return { resolvedIds };
   }
 
-  private async tryDelete(id: string): Promise<void> {
-    const entityTypes = [
-      ENTITY_NAMES.FORM_FIELD,
-      ENTITY_NAMES.FORM_SECTION,
-      ENTITY_NAMES.FORM_TAB,
-    ] as const;
-
-    for (const entityName of entityTypes) {
-      try {
-        await withRetry(
-          () => this.webApi.deleteRecord(entityName, id),
-          `delete.${entityName}`
-        );
-        return;
-      } catch {
-        // Not this entity type — try next
-      }
-    }
+  // entityTypeMap is built by save() so each ID resolves to the correct entity without
+  // making multiple trial-and-error delete calls against the API.
+  private async deleteById(id: string, entityName: string): Promise<void> {
+    await withRetry(
+      () => this.webApi.deleteRecord(entityName, id),
+      `delete.${entityName}`
+    );
   }
 }

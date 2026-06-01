@@ -1,9 +1,10 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_TAB_ATTRS, FORM_SECTION_ATTRS, FORM_FIELD_ATTRS } from '@/constants/attributeNames';
 import { withRetry } from './crmRetry';
 
 export class FormDeleteService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async deleteForm(formId: string): Promise<void> {
     const tabs = await this.listTabIds(formId);

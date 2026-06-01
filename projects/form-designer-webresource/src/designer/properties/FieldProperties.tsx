@@ -9,6 +9,7 @@ import {
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
+import { TableRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { ValidationRulesPanel } from './panels/ValidationRulesPanel';
@@ -302,6 +303,46 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
 
       <SectionHeading label="Validation Rules" />
       <ValidationRulesPanel fieldId={field.id} />
+
+      <Divider />
+      <FieldMappingSummary field={field} />
+    </div>
+  );
+}
+
+interface FieldMappingSummaryProps {
+  field: DesignerFieldModel;
+}
+
+function FieldMappingSummary({ field }: FieldMappingSummaryProps): React.ReactElement {
+  const navigateTo = useDesignerStore(s => s.navigateTo);
+  const selectItem = useDesignerStore(s => s.selectItem);
+
+  // Read the mapping for this field from the submission mapping store (if loaded)
+  // We show a summary badge and navigate to the full screen on click.
+  const handleOpenMapping = (): void => {
+    selectItem(field.id, 'field');
+    navigateTo('submission-mapping');
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text size={100} weight="semibold" style={{ color: tokens.colorNeutralForeground3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          CRM Mapping
+        </Text>
+        <Button
+          size="small"
+          appearance="outline"
+          icon={<TableRegular />}
+          onClick={handleOpenMapping}
+        >
+          Configure
+        </Button>
+      </div>
+      <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+        Map this field to a Dataverse attribute for submission.
+      </Text>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_BUSINESS_RULE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
@@ -20,7 +21,7 @@ export interface UpdateBusinessRuleDto {
 }
 
 export class BusinessRuleService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createRule(dto: CreateBusinessRuleDto): Promise<string> {
     const result = await withRetry(
@@ -82,6 +83,23 @@ export class BusinessRuleService {
     );
 
     return result.entities.map(record => this.mapRecordToModel(record));
+  }
+
+  async syncRules(formId: string, currentRules: DesignerBusinessRule[]): Promise<void> {
+    const existing = await this.listRulesForForm(formId);
+    const currentRealIds = new Set(currentRules.filter(r => !r.id.startsWith('tmp_')).map(r => r.id));
+
+    await Promise.all(
+      existing.filter(r => !currentRealIds.has(r.id)).map(r => this.deleteRule(r.id))
+    );
+
+    for (const rule of currentRules) {
+      if (rule.id.startsWith('tmp_')) {
+        await this.createRule({ formId, name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition });
+      } else {
+        await this.updateRule(rule.id, { name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition });
+      }
+    }
   }
 
   private mapRecordToModel(record: Record<string, unknown>): DesignerBusinessRule {

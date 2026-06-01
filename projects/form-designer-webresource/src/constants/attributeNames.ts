@@ -6,7 +6,7 @@ export const FORM_DEFINITION_ATTRS = {
   NAME: 'qdb_title',
   CODE: 'qdb_form_code',
   DESCRIPTION: 'qdb_description',
-  // qdb_entity_logical_name is not deployed in the current CRM solution — omitted from all queries
+  ENTITY_LOGICAL_NAME: 'qdb_entity_logical_name',
   STATUS: 'qdb_status',
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',

@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_VERSION_ATTRS } from '@/constants/attributeNames';
 import { withRetry } from './crmRetry';
@@ -13,7 +14,7 @@ export interface FormVersion {
 }
 
 export class VersionService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createVersion(
     formId: string,

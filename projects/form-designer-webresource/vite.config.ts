@@ -9,11 +9,20 @@ import { resolve } from 'path';
  */
 function cacheBustPlugin(): Plugin {
   const buildVersion = Date.now().toString();
+  const noCacheMeta = [
+    '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />',
+    '<meta http-equiv="Pragma" content="no-cache" />',
+    '<meta http-equiv="Expires" content="0" />',
+  ].join('\n    ');
+
   return {
     name: 'cache-bust-assets',
     apply: 'build',
     transformIndexHtml(html) {
       return html
+        // Inject no-cache meta tags right after <head>
+        .replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    ${noCacheMeta}`)
+        // Stamp new version on every asset URL
         .replace(/(src="\.\/assets\/[^"?]+\.js)(")/g, `$1?v=${buildVersion}$2`)
         .replace(/(href="\.\/assets\/[^"?]+\.js)(")/g, `$1?v=${buildVersion}$2`)
         .replace(/(href="\.\/assets\/[^"?]+\.css)(")/g, `$1?v=${buildVersion}$2`);

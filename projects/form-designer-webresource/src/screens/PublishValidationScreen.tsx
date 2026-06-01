@@ -210,9 +210,10 @@ export function PublishValidationScreen(): React.ReactElement {
       navigateTo('designer');
     } catch (err) {
       setPublishError(err instanceof Error ? err.message : 'Publish failed. Please try again.');
-      useDesignerStore.setState({ isPublishing: false });
     } finally {
       setIsPublishing(false);
+      // Always reset the store's isPublishing flag — markPublished() only runs on success
+      useDesignerStore.setState({ isPublishing: false });
     }
   }, [crmService, form, markPublishing, markPublished, navigateTo]);
 

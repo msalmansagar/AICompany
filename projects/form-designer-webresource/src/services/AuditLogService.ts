@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 // Audit log service — append-only writes to qdb_form_audit_log.
 // Every designer action that modifies form data must call this service.
 // Records must never be updated or deleted.
@@ -26,7 +27,7 @@ export interface AuditPayload {
 
 export class AuditLogService {
   constructor(
-    private readonly webApi: typeof Xrm.WebApi,
+    private readonly webApi: IWebApiAdapter,
     private readonly userContext: CrmUserContext
   ) {}
 

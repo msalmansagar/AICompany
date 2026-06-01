@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import {
   THEME_ATTRS,
@@ -51,21 +52,30 @@ export interface UpsertButtonDesignDto {
 }
 
 export class DesignService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
-  async upsertTheme(dto: UpsertThemeDto): Promise<string> {
+  async upsertTheme(dto: UpsertThemeDto, existingThemeId?: string | null): Promise<string> {
+    const payload: Record<string, unknown> = {
+      [THEME_ATTRS.NAME]: dto.name,
+      [THEME_ATTRS.PRIMARY_COLOR]: dto.primaryColor,
+      [THEME_ATTRS.ACCENT_COLOR]: dto.accentColor,
+      [THEME_ATTRS.BACKGROUND_COLOR]: dto.backgroundColor,
+      [THEME_ATTRS.FONT_FAMILY]: dto.fontFamily,
+      [THEME_ATTRS.FONT_SIZE_BASE]: dto.fontSizeBase,
+      [THEME_ATTRS.BORDER_RADIUS]: dto.borderRadius,
+    };
+
+    if (existingThemeId) {
+      await withRetry(
+        () => this.webApi.updateRecord(ENTITY_NAMES.THEME, existingThemeId, payload),
+        'updateTheme'
+      );
+      return existingThemeId;
+    }
+
     const result = await withRetry(
-      () =>
-        this.webApi.createRecord(ENTITY_NAMES.THEME, {
-          [THEME_ATTRS.NAME]: dto.name,
-          [THEME_ATTRS.PRIMARY_COLOR]: dto.primaryColor,
-          [THEME_ATTRS.ACCENT_COLOR]: dto.accentColor,
-          [THEME_ATTRS.BACKGROUND_COLOR]: dto.backgroundColor,
-          [THEME_ATTRS.FONT_FAMILY]: dto.fontFamily,
-          [THEME_ATTRS.FONT_SIZE_BASE]: dto.fontSizeBase,
-          [THEME_ATTRS.BORDER_RADIUS]: dto.borderRadius,
-        }),
-      'upsertTheme'
+      () => this.webApi.createRecord(ENTITY_NAMES.THEME, payload),
+      'createTheme'
     );
     return result.id;
   }

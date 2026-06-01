@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_TAB_ATTRS } from '@/constants/attributeNames';
 import type { DesignerTabModel } from '@/state/models/DesignerFormModel';
@@ -21,7 +22,7 @@ export interface UpdateTabDto {
 }
 
 export class TabService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async createTab(dto: CreateTabDto): Promise<string> {
     const result = await withRetry(

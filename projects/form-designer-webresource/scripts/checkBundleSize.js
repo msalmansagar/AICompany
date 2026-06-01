@@ -19,7 +19,7 @@ function parseArgs() {
   if (dirFlagIndex !== -1 && args[dirFlagIndex + 1]) {
     return args[dirFlagIndex + 1];
   }
-  return 'dist';
+  return 'deploy/webresources/qdb_/form-designer';
 }
 
 function collectFiles(dirPath) {

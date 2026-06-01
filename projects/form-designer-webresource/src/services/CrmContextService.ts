@@ -1,6 +1,6 @@
-// CRM context acquisition service.
-// Safely obtains the Xrm context from the current window or parent frame.
-// Throws a typed error if context is unavailable — never returns null.
+import type { IWebApiAdapter } from './IWebApiAdapter';
+import { CrmWebApiAdapter } from './CrmWebApiAdapter';
+import { RestWebApiAdapter } from './RestWebApiAdapter';
 
 export class CrmContextError extends Error {
   constructor(message: string) {
@@ -16,38 +16,46 @@ export interface CrmUserContext {
 }
 
 export class CrmContextService {
-  private readonly xrm: typeof Xrm;
+  private readonly webApiAdapter: IWebApiAdapter;
+  private readonly xrm: typeof Xrm | null;
 
-  constructor(xrm: typeof Xrm) {
+  constructor(xrm: typeof Xrm | null, authToken: string | null = null) {
     this.xrm = xrm;
+    this.webApiAdapter = xrm
+      ? new CrmWebApiAdapter(xrm.WebApi)
+      : new RestWebApiAdapter(authToken);
   }
 
-  getWebApi(): typeof Xrm.WebApi {
-    return this.xrm.WebApi;
+  getWebApi(): IWebApiAdapter {
+    return this.webApiAdapter;
   }
 
   getClientUrl(): string {
-    return this.xrm.Utility.getGlobalContext().getClientUrl();
+    if (this.xrm) {
+      return this.xrm.Utility.getGlobalContext().getClientUrl();
+    }
+    return import.meta.env.VITE_API_BASE_URL ?? '';
   }
 
   getUserContext(): CrmUserContext {
-    // In web resource context, user context is available via global Xrm
-    // This is a safe pattern for UCI web resources
-    const userId = (this.xrm as unknown as { Page?: { context?: { getUserId?: () => string } } })
-      ?.Page?.context?.getUserId?.() ?? 'unknown';
-    return {
-      userId,
-      userName: userId,
-      userFullName: 'Current User',
-    };
+    if (this.xrm) {
+      const userId = (this.xrm as unknown as { Page?: { context?: { getUserId?: () => string } } })
+        ?.Page?.context?.getUserId?.() ?? 'unknown';
+      return { userId, userName: userId, userFullName: 'Current User' };
+    }
+    return { userId: 'rest-mode-user', userName: 'rest-mode-user', userFullName: 'REST Mode User' };
   }
 }
 
 /**
- * Factory function that safely acquires Xrm context from the web resource iframe environment.
- * Checks current window first, then parent frame (CRM UCI pattern).
+ * Factory that acquires Xrm context from the web resource iframe, or falls back to
+ * REST mode when VITE_USE_REST_API=true (local dev / standalone).
  */
 export function createCrmContextService(): CrmContextService {
+  if (import.meta.env.VITE_USE_REST_API === 'true') {
+    return new CrmContextService(null);
+  }
+
   if (typeof Xrm !== 'undefined') {
     return new CrmContextService(Xrm);
   }
@@ -61,6 +69,6 @@ export function createCrmContextService(): CrmContextService {
   }
 
   throw new CrmContextError(
-    'Xrm context not available. Ensure this web resource runs inside Dynamics CRM UCI.'
+    'Xrm context not available. Ensure this web resource runs inside Dynamics CRM UCI, or set VITE_USE_REST_API=true for standalone mode.'
   );
 }

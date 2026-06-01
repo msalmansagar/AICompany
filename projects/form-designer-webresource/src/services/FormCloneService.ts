@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { FormDefinitionService } from './FormDefinitionService';
 import { TabService } from './TabService';
 import { SectionService } from './SectionService';
@@ -18,7 +19,7 @@ export class FormCloneService {
   private readonly lookupService: LookupConfigService;
   private readonly ruleService: ValidationRuleService;
 
-  constructor(webApi: typeof Xrm.WebApi) {
+  constructor(webApi: IWebApiAdapter) {
     this.formService = new FormDefinitionService(webApi);
     this.tabService = new TabService(webApi);
     this.sectionService = new SectionService(webApi);

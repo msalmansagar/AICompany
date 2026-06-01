@@ -1,3 +1,4 @@
+import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_LOOKUP_CONFIG_ATTRS } from '@/constants/attributeNames';
 import type { DesignerLookupConfig } from '@/state/models/DesignerFormModel';
@@ -14,7 +15,7 @@ export interface UpsertLookupConfigDto {
 }
 
 export class LookupConfigService {
-  constructor(private readonly webApi: typeof Xrm.WebApi) {}
+  constructor(private readonly webApi: IWebApiAdapter) {}
 
   async upsertLookupConfig(dto: UpsertLookupConfigDto): Promise<string> {
     const existing = await this.findExistingConfigId(dto.fieldId);

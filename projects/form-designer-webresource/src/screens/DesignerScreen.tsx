@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -11,6 +11,7 @@ import {
   closestCenter,
   DragOverlay,
 } from '@dnd-kit/core';
+import { arrayMove } from '@dnd-kit/sortable';
 import { makeStyles, tokens, Spinner, Text } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { ComponentToolbox } from '@/designer/toolbox/ComponentToolbox';
@@ -20,8 +21,8 @@ import { DesignerCommandBar } from '@/designer/commandbar/DesignerCommandBar';
 import { CrmContext } from '@/app/App';
 import { FormSaveService } from '@/services/FormSaveService';
 import { validateForDraftSave } from '@/validation/draftValidation';
-import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
-import { FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
+import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
+import { FIELD_TYPE, FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
 
 const useStyles = makeStyles({
   root: {
@@ -65,12 +66,14 @@ function generateTempId(prefix: string): string {
 export function DesignerScreen(): React.ReactElement {
   const styles = useStyles();
   const crmService = useContext(CrmContext);
+  const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
 
   const {
     form,
     tabs,
     sections,
     fields,
+    businessRules,
     validationRules,
     tabOrder,
     sectionOrder,
@@ -80,26 +83,23 @@ export function DesignerScreen(): React.ReactElement {
     deletedIds,
     isDirty,
     isSaving,
+    activeCanvasTabId,
+    deletedEntityTypes,
     addField,
+    addSection,
+    addTab,
     moveField,
     reorderFields,
+    reorderTabs,
     markSaving,
     markSaved,
     navigateTo,
   } = useDesignerStore();
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
   );
-
-  useEffect(() => {
-    const handleAutoSave = () => void handleSaveDraft();
-    window.addEventListener('formdesigner:autosave', handleAutoSave);
-    return () => window.removeEventListener('formdesigner:autosave', handleAutoSave);
-  });
 
   const handleSaveDraft = useCallback(async () => {
     if (!form || !crmService || isSaving) return;
@@ -120,12 +120,14 @@ export function DesignerScreen(): React.ReactElement {
         sections,
         fields,
         validationRules,
+        businessRules,
         tabOrder,
         sectionOrder,
         fieldOrder,
         newIds,
         dirtyIds,
         deletedIds,
+        deletedEntityTypes,
       });
 
       markSaved(resolvedIds);
@@ -135,14 +137,29 @@ export function DesignerScreen(): React.ReactElement {
     }
   }, [
     form, crmService, isSaving,
-    tabs, sections, fields, validationRules,
+    tabs, sections, fields, validationRules, businessRules,
     tabOrder, sectionOrder, fieldOrder,
-    newIds, dirtyIds, deletedIds,
+    newIds, dirtyIds, deletedIds, deletedEntityTypes,
     markSaving, markSaved,
   ]);
 
+  // Fixed: stable dep array so the listener is not re-registered on every render
+  useEffect(() => {
+    const handler = () => void handleSaveDraft();
+    window.addEventListener('formdesigner:autosave', handler);
+    return () => window.removeEventListener('formdesigner:autosave', handler);
+  }, [handleSaveDraft]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current as Record<string, unknown> | undefined;
+    const fieldType = String(data?.['fieldType'] ?? '');
+    const def = fieldType ? FIELD_TYPE_DEFINITIONS[fieldType as keyof typeof FIELD_TYPE_DEFINITIONS] : undefined;
+    setActiveOverlayLabel(def?.label ?? null);
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setActiveOverlayLabel(null);
       const { active, over } = event;
       if (!over) return;
 
@@ -150,15 +167,60 @@ export function DesignerScreen(): React.ReactElement {
       const overId = String(over.id);
       const activeData = active.data.current as Record<string, unknown> | undefined;
 
+      // ── Toolbox drop ──────────────────────────────────────────────────────
       if (activeData?.['source'] === 'toolbox') {
         const fieldType = String(activeData['fieldType'] ?? '');
+        const fieldDef = FIELD_TYPE_DEFINITIONS[fieldType as keyof typeof FIELD_TYPE_DEFINITIONS];
+        if (!fieldDef) return;
+
+        // Layout: TAB type → add a new tab
+        if (fieldType === FIELD_TYPE.TAB) {
+          const newTab: DesignerTabModel = {
+            id: generateTempId('tab'),
+            formId: form?.id ?? '',
+            label: `Tab ${tabOrder.length + 1}`,
+            iconName: null,
+            sortOrder: tabOrder.length,
+            isVisible: true,
+            requiresPreviousTabComplete: false,
+          };
+          addTab(newTab);
+          return;
+        }
+
+        // Layout: SECTION_* types → add section to active tab
+        if (fieldDef.isLayout) {
+          const targetTabId = activeCanvasTabId ?? tabOrder[0];
+          if (!targetTabId) return;
+
+          const columnCount: 1 | 2 | 3 =
+            fieldType === FIELD_TYPE.SECTION_1COL ? 1
+            : fieldType === FIELD_TYPE.SECTION_3COL ? 3
+            : 2; // 2COL, CARD, ACCORDION all default to 2
+
+          const existingSections = sectionOrder[targetTabId] ?? [];
+          const newSection: DesignerSectionModel = {
+            id: generateTempId('section'),
+            tabId: targetTabId,
+            label: fieldDef.label,
+            description: null,
+            columnCount,
+            isCollapsible: fieldType === FIELD_TYPE.SECTION_ACCORDION,
+            isExpandedByDefault: true,
+            isVisible: true,
+            sortOrder: existingSections.length,
+          };
+          addSection(newSection);
+          return;
+        }
+
+        // Regular field drop — resolve target section
         const overData = over.data.current as Record<string, unknown> | undefined;
         const targetSectionId = String(
           overData?.['sectionId'] ??
-          (String(overId).startsWith('section-drop-') ? String(overId).replace('section-drop-', '') : overId)
+          (overId.startsWith('section-drop-') ? overId.replace('section-drop-', '') : overId)
         );
-        const fieldDef = FIELD_TYPE_DEFINITIONS[fieldType as keyof typeof FIELD_TYPE_DEFINITIONS];
-        if (!fieldDef || fieldDef.isLayout) return;
+        if (!sections[targetSectionId] && !overId.startsWith('section-drop-')) return;
 
         const existingFieldIds = fieldOrder[targetSectionId] ?? [];
         const newField: DesignerFieldModel = {
@@ -186,6 +248,17 @@ export function DesignerScreen(): React.ReactElement {
         return;
       }
 
+      // ── Tab reorder ───────────────────────────────────────────────────────
+      if (activeData?.['type'] === 'tab' && tabs[activeId] && tabs[overId]) {
+        const oldIndex = tabOrder.indexOf(activeId);
+        const newIndex = tabOrder.indexOf(overId);
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          reorderTabs(arrayMove(tabOrder, oldIndex, newIndex));
+        }
+        return;
+      }
+
+      // ── Field reorder / move ──────────────────────────────────────────────
       if (activeId !== overId && fields[activeId]) {
         const field = fields[activeId];
         const overField = fields[overId];
@@ -195,10 +268,7 @@ export function DesignerScreen(): React.ReactElement {
           const oldIndex = currentOrder.indexOf(activeId);
           const newIndex = currentOrder.indexOf(overId);
           if (oldIndex !== -1 && newIndex !== -1) {
-            const newOrder = [...currentOrder];
-            newOrder.splice(oldIndex, 1);
-            newOrder.splice(newIndex, 0, activeId);
-            reorderFields(field.sectionId, newOrder);
+            reorderFields(field.sectionId, arrayMove(currentOrder, oldIndex, newIndex));
           }
           return;
         }
@@ -210,15 +280,18 @@ export function DesignerScreen(): React.ReactElement {
         }
       }
     },
-    [fields, fieldOrder, addField, reorderFields, moveField]
+    [form, tabs, sections, fields, fieldOrder, sectionOrder, tabOrder, activeCanvasTabId,
+     addField, addSection, addTab, reorderFields, reorderTabs, moveField]
   );
 
   const handleDragOver = useCallback((_event: DragOverEvent) => {}, []);
-  const handleDragStart = useCallback((_event: DragStartEvent) => {}, []);
 
   const handlePublish = useCallback(() => navigateTo('publish-validation'), [navigateTo]);
   const handlePreview = useCallback(() => navigateTo('preview'), [navigateTo]);
   const handleVersionHistory = useCallback(() => navigateTo('version-history'), [navigateTo]);
+  const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
+  const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
+  const handleThemeEditor = useCallback(() => navigateTo('theme-editor'), [navigateTo]);
 
   if (!form) {
     return (
@@ -249,6 +322,9 @@ export function DesignerScreen(): React.ReactElement {
           onPublish={handlePublish}
           onPreview={handlePreview}
           onVersionHistory={handleVersionHistory}
+          onBusinessRules={handleBusinessRules}
+          onSubmissionMapping={handleSubmissionMapping}
+          onThemeEditor={handleThemeEditor}
           onBack={() => useDesignerStore.getState().navigateTo('form-list')}
         />
         <div className={styles.workArea}>
@@ -275,7 +351,22 @@ export function DesignerScreen(): React.ReactElement {
           </div>
         </div>
       </div>
-      <DragOverlay />
+      <DragOverlay>
+        {activeOverlayLabel ? (
+          <div style={{
+            padding: '6px 14px',
+            backgroundColor: tokens.colorBrandBackground,
+            color: tokens.colorNeutralForegroundOnBrand,
+            borderRadius: 4,
+            fontSize: 13,
+            fontWeight: 600,
+            boxShadow: tokens.shadow8,
+            pointerEvents: 'none',
+          }}>
+            {activeOverlayLabel}
+          </div>
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }
