@@ -24,6 +24,10 @@ declare namespace Xrm {
 
   interface GlobalContext {
     getClientUrl(): string;
+    /** Returns the current user GUID wrapped in curly braces, e.g. {xxxxxxxx-...} */
+    getUserId(): string;
+    /** Returns the current user's display name */
+    getUserName(): string;
   }
 
   namespace App {

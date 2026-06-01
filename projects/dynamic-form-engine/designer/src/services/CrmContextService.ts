@@ -39,9 +39,17 @@ export class CrmContextService {
 
   getUserContext(): CrmUserContext {
     if (this.xrm) {
-      const userId = (this.xrm as unknown as { Page?: { context?: { getUserId?: () => string } } })
-        ?.Page?.context?.getUserId?.() ?? 'unknown';
-      return { userId, userName: userId, userFullName: 'Current User' };
+      const globalContext = this.xrm.Utility.getGlobalContext();
+      const rawUserId = globalContext.getUserId();
+      if (!rawUserId) {
+        throw new CrmContextError(
+          'Xrm.Utility.getGlobalContext().getUserId() returned empty. Cannot record audit actor.'
+        );
+      }
+      // getUserId() wraps the GUID in curly braces — strip them for OData compatibility
+      const userId = rawUserId.replace(/[{}]/g, '');
+      const userFullName = globalContext.getUserName() || userId;
+      return { userId, userName: userId, userFullName };
     }
     return { userId: 'rest-mode-user', userName: 'rest-mode-user', userFullName: 'REST Mode User' };
   }
