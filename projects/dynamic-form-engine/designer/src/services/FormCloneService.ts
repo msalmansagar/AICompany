@@ -33,7 +33,7 @@ export class FormCloneService {
     const source = await this.formService.getForm(sourceFormId);
 
     const newFormId = await this.formService.createForm({
-      name: `${source.name} (Copy)`,
+      name: `${source.name} — Copy`,
       code: `${source.code}_copy_${Date.now()}`,
       description: source.description,
       entityLogicalName: source.entityLogicalName,
