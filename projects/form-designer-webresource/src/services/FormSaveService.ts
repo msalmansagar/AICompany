@@ -265,7 +265,7 @@ export class FormSaveService {
       name: form.name,
       code: form.code,
       description: form.description,
-      entityLogicalName: form.entityLogicalName || null,
+      // entityLogicalName not written — field not deployed on qdb_form_definition
       allowSaveDraft: form.allowSaveDraft,
       draftExpiryDays: form.draftExpiryDays,
       powerAutomateFlowId: form.powerAutomateFlowId,
