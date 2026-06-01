@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   SortableContext,
   horizontalListSortingStrategy,
@@ -64,12 +64,18 @@ export function DesignerCanvas({
 }: DesignerCanvasProps): React.ReactElement {
   const styles = useStyles();
   const [selectedTabId, setSelectedTabId] = useState<string>(activeTabId ?? tabOrder[0] ?? '');
-  const { addSection, reorderTabs, selectItem } = useDesignerStore();
+  const { addSection, reorderTabs, selectItem, setActiveCanvasTab } = useDesignerStore();
+
+  useEffect(() => {
+    const initialTab = activeTabId ?? tabOrder[0] ?? '';
+    if (initialTab) setActiveCanvasTab(initialTab);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectTab = useCallback((tabId: string) => {
     setSelectedTabId(tabId);
+    setActiveCanvasTab(tabId);
     selectItem(tabId, 'tab');
-  }, [selectItem]);
+  }, [selectItem, setActiveCanvasTab]);
 
   const handleAddSection = useCallback(() => {
     const existingSectionIds = sectionOrder[selectedTabId] ?? [];

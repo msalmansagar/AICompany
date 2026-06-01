@@ -19,6 +19,9 @@ import {
   ArrowLeft24Regular,
   ArrowUndo24Regular,
   ArrowRedo24Regular,
+  BranchRegular,
+  TableRegular,
+  PaintBrushRegular,
 } from '@fluentui/react-icons';
 import { useDesignerStore, selectCanUndo, selectCanRedo } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
@@ -64,6 +67,9 @@ interface DesignerCommandBarProps {
   onPublish: () => void;
   onPreview: () => void;
   onVersionHistory: () => void;
+  onBusinessRules: () => void;
+  onSubmissionMapping: () => void;
+  onThemeEditor: () => void;
   onBack: () => void;
 }
 
@@ -76,6 +82,9 @@ export function DesignerCommandBar({
   onPublish,
   onPreview,
   onVersionHistory,
+  onBusinessRules,
+  onSubmissionMapping,
+  onThemeEditor,
   onBack,
 }: DesignerCommandBarProps): React.ReactElement {
   const styles = useStyles();
@@ -129,20 +138,29 @@ export function DesignerCommandBar({
         </Tooltip>
         <ToolbarDivider />
         <Tooltip content="Preview Form" relationship="label">
-          <ToolbarButton
-            icon={<Eye24Regular />}
-            onClick={onPreview}
-            aria-label="Preview"
-          >
+          <ToolbarButton icon={<Eye24Regular />} onClick={onPreview} aria-label="Preview">
             Preview
           </ToolbarButton>
         </Tooltip>
+        <ToolbarDivider />
+        <Tooltip content="Business Rules" relationship="label">
+          <ToolbarButton icon={<BranchRegular />} onClick={onBusinessRules} aria-label="Business Rules">
+            Rules
+          </ToolbarButton>
+        </Tooltip>
+        <Tooltip content="Submission Mapping" relationship="label">
+          <ToolbarButton icon={<TableRegular />} onClick={onSubmissionMapping} aria-label="Submission Mapping">
+            Mapping
+          </ToolbarButton>
+        </Tooltip>
+        <Tooltip content="Theme Editor" relationship="label">
+          <ToolbarButton icon={<PaintBrushRegular />} onClick={onThemeEditor} aria-label="Theme Editor">
+            Theme
+          </ToolbarButton>
+        </Tooltip>
+        <ToolbarDivider />
         <Tooltip content="Version History" relationship="label">
-          <ToolbarButton
-            icon={<History24Regular />}
-            onClick={onVersionHistory}
-            aria-label="Version History"
-          />
+          <ToolbarButton icon={<History24Regular />} onClick={onVersionHistory} aria-label="Version History" />
         </Tooltip>
       </Toolbar>
 

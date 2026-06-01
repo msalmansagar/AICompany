@@ -24,7 +24,8 @@ export type DesignerScreen =
   // Sprint 3+4
   | 'rule-template-editor'
   | 'field-label-editor'
-  | 'access-policy-editor';
+  | 'access-policy-editor'
+  | 'submission-mapping';
 
 export type CanvasItemType = 'form' | 'tab' | 'section' | 'field';
 export type PreviewBreakpoint = 'desktop' | 'tablet' | 'mobile';
@@ -71,6 +72,7 @@ export interface DesignerState {
   // UI state
   selectedId: string | null;
   selectedType: CanvasItemType | null;
+  activeCanvasTabId: string | null;
   isDirty: boolean;
   isSaving: boolean;
   isPublishing: boolean;
@@ -131,6 +133,9 @@ export interface DesignerState {
 
   // Preview
   setPreviewMode: (mode: PreviewBreakpoint | null) => void;
+
+  // Canvas tab tracking
+  setActiveCanvasTab: (tabId: string) => void;
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
@@ -197,6 +202,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   redoStack: [],
   selectedId: null,
   selectedType: null,
+  activeCanvasTabId: null,
   isDirty: false,
   isSaving: false,
   isPublishing: false,
@@ -676,6 +682,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
     ),
 
   setPreviewMode: (mode) => set({ previewMode: mode }),
+  setActiveCanvasTab: (tabId) => set({ activeCanvasTabId: tabId }),
 }));
 
 /** Convenience selectors */

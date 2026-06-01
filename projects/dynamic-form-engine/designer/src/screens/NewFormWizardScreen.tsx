@@ -18,7 +18,6 @@ import { CrmContext } from '@/app/App';
 import { FormDefinitionService } from '@/services/FormDefinitionService';
 import { TabService } from '@/services/TabService';
 import { SectionService } from '@/services/SectionService';
-import { SubmissionMappingService } from '@/services/SubmissionMappingService';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { THEME_ATTRS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
@@ -494,8 +493,6 @@ export function NewFormWizardScreen(): React.ReactElement {
       const formService = new FormDefinitionService(webApi);
       const tabService = new TabService(webApi);
       const sectionService = new SectionService(webApi);
-      const mappingService = new SubmissionMappingService(webApi);
-
       // Step 1: Create form definition
       const newFormId = await formService.createForm({
         name: wizardState.name.trim(),
@@ -553,14 +550,8 @@ export function NewFormWizardScreen(): React.ReactElement {
         });
       }
 
-      // Step 3: Create submission mapping if target entity is set
-      if (wizardState.entityLogicalName.trim()) {
-        await mappingService.createMapping({
-          formId: newFormId,
-          targetEntity: wizardState.entityLogicalName.trim(),
-          targetAttribute: '',
-        });
-      }
+      // Step 3: Submission mappings are configured per-field in the Submission Mapping screen.
+      // No auto-created blank mapping here — the old stub produced invalid CRM records.
 
       // Step 4: Build the form model and load into designer with real IDs
       const newForm: DesignerFormModel = {

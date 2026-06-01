@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
 import {
   Badge,
+  Button,
   Field,
   Input,
   Textarea,
   makeStyles,
 } from '@fluentui/react-components';
+import { OpenRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerLookupConfig } from '@/state/models/DesignerFormModel';
 
@@ -49,6 +51,13 @@ function buildLookupPatch(
 export function LookupFieldPanel({ field }: Props): React.ReactElement {
   const styles = useStyles();
   const updateField = useDesignerStore(s => s.updateField);
+  const selectItem = useDesignerStore(s => s.selectItem);
+  const navigateTo = useDesignerStore(s => s.navigateTo);
+
+  const handleOpenFullConfig = useCallback(() => {
+    selectItem(field.id, 'field');
+    navigateTo('lookup-config');
+  }, [field.id, selectItem, navigateTo]);
 
   const handleTargetEntityChange = useCallback(
     (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
@@ -91,9 +100,15 @@ export function LookupFieldPanel({ field }: Props): React.ReactElement {
   return (
     <div className={styles.root}>
       <div className={styles.badgeRow}>
-        <Badge appearance="outline" color="brand">
-          {field.fieldType}
-        </Badge>
+        <Badge appearance="outline" color="brand">{field.fieldType}</Badge>
+        <Button
+          size="small"
+          appearance="outline"
+          icon={<OpenRegular />}
+          onClick={handleOpenFullConfig}
+        >
+          Full Config
+        </Button>
       </div>
 
       <div className={styles.fieldGroup}>

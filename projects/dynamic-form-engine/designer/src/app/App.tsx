@@ -10,6 +10,10 @@ import { ThemeEditorScreen } from '@/screens/ThemeEditorScreen';
 import { PreviewScreen } from '@/screens/PreviewScreen';
 import { PublishValidationScreen } from '@/screens/PublishValidationScreen';
 import { VersionHistoryScreen } from '@/screens/VersionHistoryScreen';
+import { OptionSetEditorScreen } from '@/screens/OptionSetEditorScreen';
+import { LookupConfigScreen } from '@/screens/LookupConfigScreen';
+import { RuleConfigScreen } from '@/screens/RuleConfigScreen';
+import { SubmissionMappingScreen } from '@/screens/SubmissionMappingScreen';
 // Sprint 3+4
 import { RuleTemplateEditorScreen } from '@/screens/RuleTemplateEditorScreen';
 import { FieldLabelEditorScreen } from '@/screens/FieldLabelEditorScreen';
@@ -88,6 +92,14 @@ function ActiveScreen({ currentScreen }: ActiveScreenProps): React.ReactElement 
       return <PublishValidationScreen />;
     case 'version-history':
       return <VersionHistoryScreen />;
+    case 'option-set-editor':
+      return <OptionSetEditorScreen />;
+    case 'lookup-config':
+      return <LookupConfigScreen />;
+    case 'rule-config':
+      return <RuleConfigScreen />;
+    case 'submission-mapping':
+      return <SubmissionMappingScreen />;
     // Sprint 3+4
     case 'rule-template-editor':
       return <RuleTemplateEditorScreen />;
