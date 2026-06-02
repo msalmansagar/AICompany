@@ -9,7 +9,9 @@
     "migrate": "npx ts-node scripts/migrate-workflow-schema.ts",
     "seed": "npx ts-node scripts/seed-workflow-demo.ts",
     "package": "npm run build && node scripts/packageSolution.js",
-    "package:version": "npm run build && node scripts/packageSolution.js --version"
+    "package:version": "npm run build && node scripts/packageSolution.js --version",
+    "deploy:cloud": "node scripts/deploy-cloud.js",
+    "deploy:cloud:build": "npm run build && node scripts/deploy-cloud.js"
   },
   "dependencies": {
     "@dagrejs/dagre": "^1.1.4",
