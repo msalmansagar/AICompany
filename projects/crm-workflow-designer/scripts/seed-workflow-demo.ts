@@ -42,7 +42,6 @@ const CLIENT_ID = process.env['AZURE_CLIENT_ID'] ?? '08e80e93-0bab-45ef-8372-2e5
 const CLIENT_SECRET = process.env['AZURE_CLIENT_SECRET'];
 const ORG_URL = process.env['CRM_ORG_URL'] ?? 'https://org5869857f.crm4.dynamics.com';
 
-const SOLUTION = 'QdbWorkflowDesigner';
 const API_VER = '9.2';
 
 // ── Bootstrap validation ───────────────────────────────────────────────────────
@@ -98,7 +97,6 @@ function buildHeaders(token: string): Record<string, string> {
     'Content-Type': 'application/json; charset=utf-8',
     'OData-Version': '4.0',
     'OData-MaxVersion': '4.0',
-    'MSCRM.SolutionUniqueName': SOLUTION,
     Prefer: 'return=representation',
   };
 }
@@ -156,9 +154,9 @@ async function createRecord(
 // Entity set names → primary key attribute names
 const PRIMARY_KEYS: Record<string, string> = {
   qdb_work_item_record_types: 'qdb_work_item_record_typeid',
-  qdb_work_item_stepss: 'qdb_work_item_stepsid',
+  qdb_work_item_stepses: 'qdb_work_item_stepsid',
   qdb_outcomes: 'qdb_outcomeid',
-  qdb_outcomeworktaskss: 'qdb_outcomeworktasksid',
+  qdb_outcomeworktaskses: 'qdb_outcomeworktasksid',
 };
 
 function extractPrimaryKey(body: Record<string, unknown>, entitySetName: string): string {
@@ -184,18 +182,17 @@ function logSection(title: string): void {
 async function createProcess(token: string): Promise<string> {
   logSection('Process — Loan Application');
 
+  // Only qdb_name is guaranteed to exist as a string field.
+  // qdb_RecordEntity / qdb_RegardingField / qdb_ParentEntity are Lookup fields
+  // pointing to metadata entities — the designer populates them via lookup UI.
+  // Versioning fields (qdb_version_major etc.) are added by the migrate script.
   return createRecord(
     token,
     'qdb_work_item_record_types',
     {
-      qdb_name: 'Loan Application',
-      qdb_recordentity: 'opportunity',
-      qdb_version_major: 1,
-      qdb_version_minor: 0,
-      // Draft = 100000000
-      qdb_workflow_state: 100_000_000,
+      qdb_name: 'Loan Application (Demo)',
     },
-    'Process: Loan Application',
+    'Process: Loan Application (Demo)',
   );
 }
 
@@ -212,15 +209,13 @@ async function createStep(
 ): Promise<string> {
   return createRecord(
     token,
-    'qdb_work_item_stepss',
+    'qdb_work_item_stepses',
     {
       qdb_name: params.name,
-      qdb_schemaname: params.schemaName,
+      // Actual CRM field names (PascalCase) confirmed via EntityDefinitions query
       qdb_sequenceno: params.sequenceNo,
-      // Assign To: SpecificUser=100000000, Team=100000002
       qdb_task_assign_to: params.assignTo,
       qdb_enableroundrobin: params.enableRoundRobin,
-      // @odata.bind connects the lookup to the process record
       'qdb_record_type@odata.bind': `/qdb_work_item_record_types(${params.processId})`,
     },
     `Step: ${params.name}`,
@@ -243,12 +238,13 @@ async function createOutcome(
       qdb_name: params.name,
       qdb_sequencenumber: params.sequenceNo,
       qdb_applyfilter: params.applyFilter,
-      'qdb_workitemstep@odata.bind': `/qdb_work_item_stepss(${params.stepId})`,
+      'qdb_WorkItemStep@odata.bind': `/qdb_work_item_stepses(${params.stepId})`,
     },
     `Outcome: ${params.name}`,
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function createRoute(
   token: string,
   params: {
@@ -262,18 +258,23 @@ async function createRoute(
   const body: Record<string, unknown> = {
     qdb_name: params.name,
     qdb_sequencenumber: params.sequenceNo,
-    'qdb_outcome@odata.bind': `/qdb_outcomes(${params.outcomeId})`,
+    'qdb_Outcome@odata.bind': `/qdb_outcomes(${params.outcomeId})`,
   };
 
   if (params.filter) {
     body['qdb_filter'] = params.filter;
+    body['qdb_isdefaultcondition'] = false;
+  } else {
+    // Unconditional route — mark as default condition to satisfy plugin validation
+    body['qdb_isdefaultcondition'] = true;
+    body['qdb_filter'] = '<filter type="and"></filter>';
   }
 
   if (params.nextStepId) {
-    body['qdb_nextworkitemstep@odata.bind'] = `/qdb_work_item_stepss(${params.nextStepId})`;
+    body['qdb_NextWorkItemStep@odata.bind'] = `/qdb_work_item_stepses(${params.nextStepId})`;
   }
 
-  return createRecord(token, 'qdb_outcomeworktaskss', body, `Route: ${params.name}`);
+  return createRecord(token, 'qdb_outcomeworktaskses', body, `Route: ${params.name}`);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
@@ -318,7 +319,7 @@ async function main(): Promise<void> {
     schemaName: 'manager_approval',
     sequenceNo: 3,
     assignTo: 100_000_002, // Team
-    enableRoundRobin: true,
+    enableRoundRobin: false, // omit round robin — requires a team record ID
     processId,
   });
 
@@ -339,22 +340,10 @@ async function main(): Promise<void> {
     stepId: step1Id,
   });
 
-  // ── 4. Routes — Step 1 outcomes ────────────────────────────────────────────
-  logSection('Routes — Step 1');
-
-  await createRoute(token, {
-    name: 'Initial Review Approved → Credit Assessment',
-    sequenceNo: 1,
-    outcomeId: outcome1Id,
-    nextStepId: step2Id,
-  });
-
-  await createRoute(token, {
-    name: 'Initial Review Rejected → Terminal',
-    sequenceNo: 1,
-    outcomeId: outcome2Id,
-    // No nextStepId — terminal route, workflow ends
-  });
+  // NOTE: Route (qdb_outcomeworktasks) creation triggers a BPM plugin that requires
+  // qdb_attributesmapping records from the pre-deployed QDB BPM system.
+  // Routes are skipped in this seed — use the designer UI to add them.
+  // The process, steps, and outcomes above provide sufficient data for the canvas.
 
   // ── 5. Outcomes — Step 2 (Credit Assessment) ───────────────────────────────
   logSection('Outcomes — Step 2: Credit Assessment');
@@ -371,22 +360,6 @@ async function main(): Promise<void> {
     sequenceNo: 2,
     applyFilter: false,
     stepId: step2Id,
-  });
-
-  // ── 6. Routes — Step 2 outcomes ────────────────────────────────────────────
-  logSection('Routes — Step 2');
-
-  await createRoute(token, {
-    name: 'Credit Assessment Pass → Manager Approval',
-    sequenceNo: 1,
-    outcomeId: outcome3Id,
-    nextStepId: step3Id,
-  });
-
-  await createRoute(token, {
-    name: 'Credit Assessment Fail → Terminal',
-    sequenceNo: 1,
-    outcomeId: outcome4Id,
   });
 
   // ── 7. Outcomes — Step 3 (Manager Approval) ────────────────────────────────
@@ -413,19 +386,10 @@ async function main(): Promise<void> {
     stepId: step3Id,
   });
 
-  // Store the FetchXML filter on the route (outcome 6 is terminal, so no nextStepId).
-  logSection('Routes — Step 3');
-
-  await createRoute(token, {
-    name: 'Manager Approval Rejected (filtered) → Terminal',
-    sequenceNo: 1,
-    filter: creditLimitFilter,
-    outcomeId: outcome6Id,
-  });
-
-  // Suppress unused variable warning — outcome2Id is referenced in comment above.
-  void outcome2Id;
-  void outcome4Id;
+  // Routes skipped — see note above. Suppress unused variable warnings.
+  void outcome1Id; void outcome2Id; void outcome3Id; void outcome4Id;
+  void outcome6Id; void creditLimitFilter; void step2Id; void step3Id;
+  void createRoute;
 
   console.log('\n════════════════════════════════════════════════════════════════');
   console.log('  Demo seed complete.');
