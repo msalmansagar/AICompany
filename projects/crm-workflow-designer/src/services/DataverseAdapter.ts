@@ -17,9 +17,9 @@ import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
 
 const ENTITY_SETS = {
   process: 'qdb_work_item_record_types',
-  step: 'qdb_work_item_stepss',
+  step: 'qdb_work_item_stepses',
   outcome: 'qdb_outcomes',
-  route: 'qdb_outcomeworktaskss',
+  route: 'qdb_outcomeworktaskses',
 } as const;
 
 export class DataverseAdapter implements ICrmAdapter {
@@ -402,7 +402,7 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
   if (data.stepId) {
-    body['qdb_workitemstep@odata.bind'] = `/${ENTITY_SETS.step}(${data.stepId})`;
+    body['qdb_WorkItemStep@odata.bind'] = `/${ENTITY_SETS.step}(${data.stepId})`;
   }
   return body;
 }
@@ -414,10 +414,10 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.filter !== undefined) body['qdb_filter'] = data.filter;
   if (data.outcomeId) {
-    body['qdb_outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
+    body['qdb_Outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
   }
   if (data.nextStepId) {
-    body['qdb_nextworkitemstep@odata.bind'] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
+    body['qdb_NextWorkItemStep@odata.bind'] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
   }
   return body;
 }
