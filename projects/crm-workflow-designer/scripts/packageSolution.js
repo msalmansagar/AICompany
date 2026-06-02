@@ -159,6 +159,8 @@ function buildWebResourceEntry(crmVersion) {
 function generateCustomizationsXml(crmVersion) {
   const webResourceEntry = buildWebResourceEntry(crmVersion);
 
+  // SiteMap excluded — add a SiteMap entry manually after import to avoid
+  // NullReferenceException on environments with existing sitemap configuration.
   return `<?xml version="1.0" encoding="utf-8"?>
 <ImportExportXml version="9.0.0.0"
                  SolutionPackageVersion="9.0"
@@ -168,36 +170,6 @@ function generateCustomizationsXml(crmVersion) {
 
   <WebResources>${webResourceEntry}
   </WebResources>
-
-  <SiteMap>
-    <SiteMapNodes>
-      <Area Id="qdb_workflowdesigner_area"
-            Title="Workflow Designer"
-            Icon="/_imgs/globe.gif"
-            ShowGroups="true"
-            Lcid="1033">
-        <Group Id="qdb_workflowdesigner_group"
-               Title="Workflow Designer"
-               IsProfile="false">
-          <SubArea Id="qdb_workflowdesigner_subarea"
-                   Icon="/_imgs/ico_16_webresource.gif"
-                   Title="Workflow Designer"
-                   Url="$webresource:${WR_LOGICAL_PREFIX}/${WR_FILENAME}"
-                   Client="All"
-                   AvailableOffline="false"
-                   PassParams="false"
-                   Sku="All">
-            <Titles>
-              <Title LCID="1033" Title="Workflow Designer" />
-            </Titles>
-            <Descriptions>
-              <Description LCID="1033" Description="Open the visual workflow designer to create and manage CRM workflow processes." />
-            </Descriptions>
-          </SubArea>
-        </Group>
-      </Area>
-    </SiteMapNodes>
-  </SiteMap>
 
 </ImportExportXml>
 `;
@@ -214,16 +186,13 @@ function generateSolutionXml(crmVersion) {
   const logicalName = `${WR_LOGICAL_PREFIX}/${WR_FILENAME}`;
   const wrGuid = deterministicGuid(logicalName);
 
-  // type="61" = Web Resource
-  // type="62" = SiteMap
+  // type="61" = Web Resource only.
+  // Security role and SiteMap are excluded — they can cause NullReferenceException
+  // during import on environments with existing sitemap configuration.
+  // Add the role and sitemap entry manually after import via CRM settings.
   const rootComponents =
     `<RootComponents>\n` +
-    `      <!-- Web Resources -->\n` +
     `      <RootComponent type="61" id="{${wrGuid}}" schemaName="${logicalName}" behavior="0" />\n` +
-    `      <!-- Security Roles -->\n` +
-    `      <RootComponent type="9" id="{B2C3D4E5-F6A7-8901-BCDE-F12345678901}" behavior="0" />\n` +
-    `      <!-- SiteMap -->\n` +
-    `      <RootComponent type="62" behavior="0" />\n` +
     `    </RootComponents>`;
 
   xml = xml.replace(/<RootComponents>[\s\S]*?<\/RootComponents>/, rootComponents);
@@ -308,14 +277,8 @@ function run() {
   ensureDir(stagingWebDir);
   fs.copyFileSync(htmSourcePath, path.join(stagingWebDir, WR_FILENAME));
 
-  // 4. Copy security roles
-  const rolesSource = path.join(SOLUTION_TEMPLATE_DIR, 'Roles');
-  if (fs.existsSync(rolesSource)) {
-    fs.cpSync(rolesSource, path.join(STAGING_DIR, 'Roles'), { recursive: true });
-    console.log('Copied security roles.');
-  } else {
-    console.warn('WARNING: deploy/solution/Roles/ not found — security role will not be included.');
-  }
+  // Security role excluded from ZIP — create it manually via CRM Settings > Security Roles.
+  // See deploy/solution/Roles/WorkflowDesignerUser.xml for the privilege list.
 
   // 5. Generate XML manifest files
   console.log('\nGenerating solution XML…');
