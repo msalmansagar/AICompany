@@ -9,8 +9,9 @@
   Upgrade to "Local" (business unit) or "Deep" (child BUs) as access
   requirements evolve — that change can be made post-deployment.
 
-  privilegeid values are intentionally blank: CRM resolves the GUID from
-  the privilege name at import time. Do not fabricate GUIDs here.
+  privilegeid attribute is intentionally omitted: CRM resolves the privilege
+  GUID from the privilege name at import time. An empty string causes a
+  NullReferenceException in the CRM solution importer.
 -->
 <Roles>
   <Role name="Workflow Designer User"
@@ -20,28 +21,28 @@
     <RolePrivileges>
 
       <!-- qdb_work_item_record_type (Process) -->
-      <RolePrivilege name="prvCreateqdb_work_item_record_type" privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvReadqdb_work_item_record_type"   privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvWriteqdb_work_item_record_type"  privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvDeleteqdb_work_item_record_type" privilegeid="" depth="Basic"/>
+      <RolePrivilege name="prvCreateqdb_work_item_record_type" depth="Basic"/>
+      <RolePrivilege name="prvReadqdb_work_item_record_type"   depth="Basic"/>
+      <RolePrivilege name="prvWriteqdb_work_item_record_type"  depth="Basic"/>
+      <RolePrivilege name="prvDeleteqdb_work_item_record_type" depth="Basic"/>
 
       <!-- qdb_work_item_steps (Steps) -->
-      <RolePrivilege name="prvCreateqdb_work_item_steps" privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvReadqdb_work_item_steps"   privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvWriteqdb_work_item_steps"  privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvDeleteqdb_work_item_steps" privilegeid="" depth="Basic"/>
+      <RolePrivilege name="prvCreateqdb_work_item_steps" depth="Basic"/>
+      <RolePrivilege name="prvReadqdb_work_item_steps"   depth="Basic"/>
+      <RolePrivilege name="prvWriteqdb_work_item_steps"  depth="Basic"/>
+      <RolePrivilege name="prvDeleteqdb_work_item_steps" depth="Basic"/>
 
       <!-- qdb_outcome (Outcomes) -->
-      <RolePrivilege name="prvCreateqdb_outcome" privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvReadqdb_outcome"   privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvWriteqdb_outcome"  privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvDeleteqdb_outcome" privilegeid="" depth="Basic"/>
+      <RolePrivilege name="prvCreateqdb_outcome" depth="Basic"/>
+      <RolePrivilege name="prvReadqdb_outcome"   depth="Basic"/>
+      <RolePrivilege name="prvWriteqdb_outcome"  depth="Basic"/>
+      <RolePrivilege name="prvDeleteqdb_outcome" depth="Basic"/>
 
       <!-- qdb_outcomeworktasks (Routes) -->
-      <RolePrivilege name="prvCreateqdb_outcomeworktasks" privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvReadqdb_outcomeworktasks"   privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvWriteqdb_outcomeworktasks"  privilegeid="" depth="Basic"/>
-      <RolePrivilege name="prvDeleteqdb_outcomeworktasks" privilegeid="" depth="Basic"/>
+      <RolePrivilege name="prvCreateqdb_outcomeworktasks" depth="Basic"/>
+      <RolePrivilege name="prvReadqdb_outcomeworktasks"   depth="Basic"/>
+      <RolePrivilege name="prvWriteqdb_outcomeworktasks"  depth="Basic"/>
+      <RolePrivilege name="prvDeleteqdb_outcomeworktasks" depth="Basic"/>
 
     </RolePrivileges>
   </Role>
