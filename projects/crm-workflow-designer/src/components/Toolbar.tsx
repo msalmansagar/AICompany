@@ -5,80 +5,117 @@ import { usePublish } from '@/hooks/usePublish';
 import { useAutoLayout } from '@/hooks/useAutoLayout';
 import { useExport } from '@/hooks/useExport';
 import { useLoadWorkflow } from '@/hooks/useLoadWorkflow';
-import { useCrmAdapter } from '@/app/CrmAdapterContext';
+import type { WorkflowProcess } from '@/types/WorkflowTypes';
 
-export function Toolbar() {
-  const { process, isDirty, isPreviewMode, setPreviewMode } = useWorkflowStore((s) => ({
+interface ToolbarProps {
+  onRequestNew?: () => void;
+  onRequestOpen?: () => void;
+  externalNewDialog?: boolean;
+  externalOpenDialog?: boolean;
+  onCloseNew?: () => void;
+  onCloseOpen?: () => void;
+}
+
+export function Toolbar({
+  onRequestNew,
+  onRequestOpen,
+  externalNewDialog = false,
+  externalOpenDialog = false,
+  onCloseNew,
+  onCloseOpen,
+}: ToolbarProps) {
+  const { process, isDirty, isPreviewMode, setPreviewMode, loadWorkflow, selectNode, showToast } = useWorkflowStore((s) => ({
     process: s.process,
     isDirty: s.isDirty,
     isPreviewMode: s.isPreviewMode,
     setPreviewMode: s.setPreviewMode,
+    loadWorkflow: s.loadWorkflow,
+    selectNode: s.selectNode,
+    showToast: s.showToast,
   }));
 
-  const { save, isSaving } = useWorkflowSave();
+  const { save, isSaving, error: saveError } = useWorkflowSave();
   const { publish, isPublishing, violations } = usePublish();
   const { applyAutoLayout } = useAutoLayout();
   const { exportJson, exportPng } = useExport();
   const { loadProcess, loadProcessList, isLoading: isLoadingProcess } = useLoadWorkflow();
-  const adapter = useCrmAdapter();
 
-  const [showOpenDialog, setShowOpenDialog] = useState(false);
-  const [showNewDialog, setShowNewDialog] = useState(false);
   const [processList, setProcessList] = useState<Array<{ id: string; name: string; state: string }>>([]);
   const [newName, setNewName] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [isLoadingList, setIsLoadingList] = useState(false);
 
   const processName = process?.name ?? 'Untitled Workflow';
   const versionLabel = process ? `v${process.versionMajor}.${process.versionMinor} — ${process.workflowState}` : '';
   const hasErrors = violations.filter((v) => v.severity === 'error').length > 0;
 
+  // Show save error via toast when it changes
+  useEffect(() => {
+    if (saveError) {
+      showToast(`Save failed: ${saveError}`, 'error');
+    }
+  }, [saveError, showToast]);
+
   const handleOpen = useCallback(async () => {
-    setShowOpenDialog(true);
+    onRequestOpen?.();
+    setIsLoadingList(true);
     try {
       const list = await loadProcessList();
       setProcessList(list);
-    } catch {
+    } catch (err) {
+      console.error('[Toolbar] Failed to load process list:', err);
       setProcessList([]);
+    } finally {
+      setIsLoadingList(false);
     }
-  }, [loadProcessList]);
+  }, [loadProcessList, onRequestOpen]);
 
   const handleSelectProcess = useCallback(async (id: string) => {
-    setShowOpenDialog(false);
+    onCloseOpen?.();
     await loadProcess(id);
-  }, [loadProcess]);
+  }, [loadProcess, onCloseOpen]);
 
-  const handleNew = useCallback(async () => {
+  const handleNew = useCallback(() => {
     if (!newName.trim()) return;
-    setIsCreating(true);
-    try {
-      const id = await adapter.createProcess({
-        name: newName.trim(), recordEntity: '', regardingField: '', parentEntity: '',
-        versionMajor: 1, versionMinor: 0, workflowState: 'draft', snapshot: null,
-      });
-      await loadProcess(id);
-      setShowNewDialog(false);
-      setNewName('');
-    } catch {
-      // surface via toast if needed
-    } finally {
-      setIsCreating(false);
+
+    // Create workflow locally — do not call CRM yet. User clicks Save to persist.
+    const tmpId = `tmp_${crypto.randomUUID()}`;
+    const newProcess: WorkflowProcess = {
+      crmId: tmpId,
+      name: newName.trim(),
+      recordEntity: '', regardingField: '', parentEntity: '',
+      versionMajor: 1, versionMinor: 0,
+      workflowState: 'draft', snapshot: null,
+    };
+
+    loadWorkflow(newProcess, [], [], [], {});
+    selectNode('process');
+    onCloseNew?.();
+    setNewName('');
+  }, [newName, loadWorkflow, selectNode, onCloseNew]);
+
+  const handleSave = useCallback(async () => {
+    await save();
+    if (!saveError) {
+      showToast('Workflow saved successfully', 'success');
     }
-  }, [adapter, newName, loadProcess]);
+  }, [save, saveError, showToast]);
 
   // Close dialogs on Escape
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') { setShowOpenDialog(false); setShowNewDialog(false); }
+      if (e.key === 'Escape') {
+        onCloseNew?.();
+        onCloseOpen?.();
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [onCloseNew, onCloseOpen]);
 
   return (
     <>
       <div style={barStyle} role="toolbar" aria-label="Workflow Designer Toolbar">
-        {/* Identity */}
         <div style={identityStyle}>
           <span style={titleStyle}>{processName}</span>
           {versionLabel && <span style={versionStyle}>{versionLabel}</span>}
@@ -86,14 +123,34 @@ export function Toolbar() {
         </div>
 
         <div style={actionsStyle}>
-          <Btn label="New" onClick={() => setShowNewDialog(true)} title="Create new workflow" />
-          <Btn label={isLoadingProcess ? 'Loading…' : 'Open'} onClick={() => void handleOpen()} disabled={isLoadingProcess} title="Open existing workflow" />
+          <Btn label="New" onClick={() => onRequestNew?.()} title="Create new workflow" />
+          <Btn
+            label={isLoadingProcess ? 'Loading…' : 'Open'}
+            onClick={() => void handleOpen()}
+            disabled={isLoadingProcess}
+            title="Open existing workflow"
+          />
           <Divider />
-          <Btn label={isSaving ? 'Saving…' : 'Save'} onClick={() => void save()} disabled={isSaving || !isDirty} title="Save draft (Ctrl+S)" />
-          <Btn label={isPublishing ? 'Publishing…' : 'Publish'} onClick={() => void publish()} disabled={isPublishing || !process || hasErrors} primary title="Validate and publish" />
+          <Btn
+            label={isSaving ? 'Saving…' : 'Save'}
+            onClick={() => void handleSave()}
+            disabled={isSaving || !isDirty}
+            title="Save draft (Ctrl+S)"
+          />
+          <Btn
+            label={isPublishing ? 'Publishing…' : 'Publish'}
+            onClick={() => void publish()}
+            disabled={isPublishing || !process || hasErrors}
+            primary
+            title="Validate and publish"
+          />
           <Divider />
           <Btn label="Auto Layout" onClick={() => void applyAutoLayout()} title="Auto-arrange nodes" />
-          <Btn label={isPreviewMode ? 'Exit Preview' : 'Preview'} onClick={() => setPreviewMode(!isPreviewMode)} title="Toggle preview mode" />
+          <Btn
+            label={isPreviewMode ? 'Exit Preview' : 'Preview'}
+            onClick={() => setPreviewMode(!isPreviewMode)}
+            title="Toggle preview mode"
+          />
           <Divider />
           <div style={{ position: 'relative' }}>
             <Btn label="Export ▾" onClick={() => setExportOpen((o) => !o)} />
@@ -112,11 +169,13 @@ export function Toolbar() {
       </div>
 
       {/* Open process dialog */}
-      {showOpenDialog && (
-        <Backdrop onClick={() => setShowOpenDialog(false)}>
+      {externalOpenDialog && (
+        <Backdrop onClick={() => onCloseOpen?.()}>
           <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
             <h3 style={dialogTitle}>Open Workflow</h3>
-            {processList.length === 0 ? (
+            {isLoadingList ? (
+              <p style={{ color: '#6b7280', fontSize: 13 }}>Loading workflows…</p>
+            ) : processList.length === 0 ? (
               <p style={{ color: '#6b7280', fontSize: 13 }}>No workflows found.</p>
             ) : (
               <div style={listStyle}>
@@ -129,15 +188,15 @@ export function Toolbar() {
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <Btn label="Cancel" onClick={() => setShowOpenDialog(false)} />
+              <Btn label="Cancel" onClick={() => onCloseOpen?.()} />
             </div>
           </div>
         </Backdrop>
       )}
 
       {/* New process dialog */}
-      {showNewDialog && (
-        <Backdrop onClick={() => setShowNewDialog(false)}>
+      {externalNewDialog && (
+        <Backdrop onClick={() => onCloseNew?.()}>
           <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
             <h3 style={dialogTitle}>New Workflow</h3>
             <label style={{ fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>Workflow Name</label>
@@ -146,12 +205,17 @@ export function Toolbar() {
               style={inputStyle}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleNew(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleNew(); }}
               placeholder="e.g. Loan Application Workflow"
             />
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <Btn label="Cancel" onClick={() => setShowNewDialog(false)} />
-              <Btn label={isCreating ? 'Creating…' : 'Create'} primary onClick={() => void handleNew()} disabled={!newName.trim() || isCreating} />
+              <Btn label="Cancel" onClick={() => onCloseNew?.()} />
+              <Btn
+                label="Create"
+                primary
+                onClick={handleNew}
+                disabled={!newName.trim()}
+              />
             </div>
           </div>
         </Backdrop>

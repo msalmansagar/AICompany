@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,7 +9,6 @@ import {
   RadioGroup,
   Radio,
   Switch,
-  Button,
   Spinner,
 } from '@fluentui/react-components';
 import { useQuery } from '@tanstack/react-query';
@@ -21,7 +20,7 @@ import { EntityCombobox } from './shared/EntityCombobox';
 
 const stepPanelSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  schemaName: z.string().min(1, 'Schema name is required'),
+  schemaName: z.string(),
   sequenceNo: z.number().int().min(1),
   taskSubject: z.string(),
   taskDescription: z.string(),
@@ -44,7 +43,6 @@ interface StepPanelProps {
 export function StepPanel({ step }: StepPanelProps) {
   const adapter = useCrmAdapter();
   const setStep = useWorkflowStore((s) => s.setStep);
-  const [entityOverrideEnabled, setEntityOverrideEnabled] = useState(false);
 
   const { data: entities = [] } = useQuery({
     queryKey: ['entities'],
@@ -64,7 +62,7 @@ export function StepPanel({ step }: StepPanelProps) {
     staleTime: 2 * 60 * 1000,
   });
 
-  const { control, watch, reset, setValue, formState: { errors } } = useForm<StepFormValues>({
+  const { control, watch, reset, formState: { errors } } = useForm<StepFormValues>({
     resolver: zodResolver(stepPanelSchema),
     defaultValues: {
       name: step.name,
@@ -99,17 +97,11 @@ export function StepPanel({ step }: StepPanelProps) {
       enableRoundRobin: step.enableRoundRobin,
       roundRobinTeamId: step.roundRobinTeamId,
     });
-    setEntityOverrideEnabled(false);
   }, [step.crmId, reset]);
 
   const assignTo = watch('assignTo');
   const enableRoundRobin = watch('enableRoundRobin');
   const recordEntity = watch('recordEntity');
-
-  function handleAutoSchemaName(name: string): void {
-    const schema = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    setValue('schemaName', schema);
-  }
 
   function handleFieldChange<K extends keyof StepFormValues>(
     field: K,
@@ -134,7 +126,6 @@ export function StepPanel({ step }: StepPanelProps) {
               {...field}
               onChange={(e) => {
                 field.onChange(e);
-                handleAutoSchemaName(e.target.value);
                 handleFieldChange('name', e.target.value);
               }}
             />
@@ -148,7 +139,6 @@ export function StepPanel({ step }: StepPanelProps) {
         render={({ field }) => (
           <Field
             label="Schema Name"
-            required
             validationMessage={errors.schemaName?.message}
             validationState={errors.schemaName ? 'error' : 'none'}
           >
@@ -158,7 +148,7 @@ export function StepPanel({ step }: StepPanelProps) {
                 field.onChange(e);
                 handleFieldChange('schemaName', e.target.value);
               }}
-              placeholder="auto_generated_code"
+              placeholder="optional_schema_name"
               style={{ fontFamily: 'monospace', fontSize: 12 }}
             />
           </Field>
@@ -218,35 +208,22 @@ export function StepPanel({ step }: StepPanelProps) {
 
       <div style={sectionStyle}>
         <div style={sectionHeaderStyle}>
-          <span style={sectionTitleStyle}>Entity Fields</span>
-          {!entityOverrideEnabled && (
-            <Button
-              size="small"
-              appearance="subtle"
-              onClick={() => setEntityOverrideEnabled(true)}
-            >
-              Override
-            </Button>
-          )}
+          <span style={sectionTitleStyle}>Entity Information</span>
         </div>
 
         <Controller
           control={control}
           name="recordEntity"
           render={({ field }) => (
-            <Field label="Record Entity">
-              {entityOverrideEnabled ? (
-                <EntityCombobox
-                  entities={entities}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handleFieldChange('recordEntity', value);
-                  }}
-                />
-              ) : (
-                <Input value={field.value} readOnly style={{ background: '#f9fafb' }} />
-              )}
+            <Field label="Task Entity">
+              <EntityCombobox
+                entities={entities}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  handleFieldChange('recordEntity', value);
+                }}
+              />
             </Field>
           )}
         />
@@ -256,18 +233,31 @@ export function StepPanel({ step }: StepPanelProps) {
           name="regardingField"
           render={({ field }) => (
             <Field label="Regarding Field">
-              {entityOverrideEnabled ? (
-                <AttributeCombobox
-                  entityLogicalName={recordEntity}
-                  value={field.value}
-                  onChange={(value) => {
-                    field.onChange(value);
-                    handleFieldChange('regardingField', value);
-                  }}
-                />
-              ) : (
-                <Input value={field.value} readOnly style={{ background: '#f9fafb' }} />
-              )}
+              <AttributeCombobox
+                entityLogicalName={recordEntity}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  handleFieldChange('regardingField', value);
+                }}
+              />
+            </Field>
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="parentEntity"
+          render={({ field }) => (
+            <Field label="Parent Entity">
+              <EntityCombobox
+                entities={entities}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  handleFieldChange('parentEntity', value);
+                }}
+              />
             </Field>
           )}
         />
@@ -367,14 +357,16 @@ export function StepPanel({ step }: StepPanelProps) {
               control={control}
               name="enableRoundRobin"
               render={({ field }) => (
-                <Switch
-                  label="Enable Round Robin"
-                  checked={field.value}
-                  onChange={(_, data) => {
-                    field.onChange(data.checked);
-                    handleFieldChange('enableRoundRobin', data.checked);
-                  }}
-                />
+                <Field label="Enable Round Robin">
+                  <Switch
+                    checked={field.value}
+                    onChange={(_, data) => {
+                      field.onChange(data.checked);
+                      handleFieldChange('enableRoundRobin', data.checked);
+                    }}
+                    label={field.value ? 'Enabled' : 'Disabled'}
+                  />
+                </Field>
               )}
             />
 

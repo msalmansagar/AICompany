@@ -139,7 +139,9 @@ export function useWorkflowSave(): UseSaveResult {
 
       markClean();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.');
+      const message = err instanceof Error ? err.message : 'Save failed.';
+      console.error('[useWorkflowSave] Save failed:', err);
+      setError(message);
     } finally {
       setIsSaving(false);
     }

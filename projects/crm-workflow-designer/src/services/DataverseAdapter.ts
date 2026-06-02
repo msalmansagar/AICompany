@@ -32,13 +32,18 @@ export class DataverseAdapter implements ICrmAdapter {
   // --- Process ---
 
   async getProcessList(): Promise<WorkflowProcess[]> {
-    const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
-        ENTITY_SETS.process,
-        '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state,qdb_workflow_snapshot'
-      )
-    );
-    return result.entities.map(mapProcess);
+    try {
+      const result = await withRetry(() =>
+        Xrm.WebApi.retrieveMultipleRecords(
+          ENTITY_SETS.process,
+          '?$select=qdb_work_item_record_typeid,qdb_name&$top=50&$orderby=qdb_name asc'
+        )
+      );
+      return result.entities.map(mapProcess);
+    } catch (err) {
+      console.error('[DataverseAdapter] getProcessList failed:', err);
+      throw err;
+    }
   }
 
   async getProcess(id: string): Promise<WorkflowProcess> {
@@ -47,7 +52,7 @@ export class DataverseAdapter implements ICrmAdapter {
       Xrm.WebApi.retrieveRecord(
         ENTITY_SETS.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state,qdb_workflow_snapshot'
+        '?$select=qdb_work_item_record_typeid,qdb_name'
       )
     );
     return mapProcess(raw);
@@ -79,7 +84,7 @@ export class DataverseAdapter implements ICrmAdapter {
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
         ENTITY_SETS.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,qdb_enableroundrobin,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,qdb_task_assign_to,qdb_enableroundrobin,_qdb_assigned_user_value,_qdb_assigned_user_name,_qdb_team_value,_qdb_team_name,_qdb_roundrobinteam_value,_qdb_roundrobinteam_name&$filter=_qdb_record_type_value eq ${processId}`
       )
     );
     return result.entities.map(mapStep);
@@ -202,19 +207,19 @@ export class DataverseAdapter implements ICrmAdapter {
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
-    const filter = search
-      ? `&$filter=contains(fullname,'${encodeURIComponent(search)}')`
+    const searchFilter = search
+      ? ` and (contains(fullname,'${search}') or contains(domainname,'${search}'))`
       : '';
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
         'systemusers',
-        `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${filter}&$top=50`
+        `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=50&$orderby=fullname asc`
       )
     );
     return result.entities.map((u) => ({
       id: u['systemuserid'] as string,
-      fullName: u['fullname'] as string,
-      domainName: u['domainname'] as string,
+      fullName: (u['fullname'] as string) ?? '',
+      domainName: (u['domainname'] as string) ?? '',
     }));
   }
 
@@ -222,12 +227,12 @@ export class DataverseAdapter implements ICrmAdapter {
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
         'teams',
-        '?$select=teamid,name&$filter=teamtype eq 0'
+        '?$select=teamid,name&$top=100&$orderby=name asc'
       )
     );
     return result.entities.map((t) => ({
       id: t['teamid'] as string,
-      name: t['name'] as string,
+      name: (t['name'] as string) ?? '',
     }));
   }
 
@@ -290,44 +295,38 @@ export class DataverseAdapter implements ICrmAdapter {
 
 function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
-    crmId: raw['qdb_work_item_record_typeid'] as string,
+    crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
-    recordEntity: (raw['qdb_recordentity'] as string) ?? '',
-    regardingField: (raw['qdb_regardingfield'] as string) ?? '',
-    parentEntity: (raw['qdb_parententity'] as string) ?? '',
-    versionMajor: (raw['qdb_version_major'] as number) ?? 1,
-    versionMinor: (raw['qdb_version_minor'] as number) ?? 0,
-    workflowState: mapStateCode(raw['qdb_workflow_state'] as number),
-    snapshot: (raw['qdb_workflow_snapshot'] as string | null) ?? null,
+    recordEntity: '',
+    regardingField: '',
+    parentEntity: '',
+    versionMajor: 1,
+    versionMinor: 0,
+    workflowState: 'draft',
+    snapshot: null,
   };
 }
 
-function mapStateCode(code: number): WorkflowProcess['workflowState'] {
-  if (code === WORKFLOW_STATE_CODES.published) return 'published';
-  if (code === WORKFLOW_STATE_CODES.archived) return 'archived';
-  return 'draft';
-}
-
 function mapStep(raw: Record<string, unknown>): WorkflowStep {
-  const assignCode = raw['qdb_task_assign_to'] as number;
+  const assignCode = (raw['qdb_task_assign_to'] as number) ?? 100000000;
   return {
     crmId: raw['qdb_work_item_stepsid'] as string,
     name: (raw['qdb_name'] as string) ?? '',
-    schemaName: (raw['qdb_schemaname'] as string) ?? '',
+    schemaName: '',
     sequenceNo: (raw['qdb_sequenceno'] as number) ?? 0,
     taskSubject: (raw['qdb_tasksubject'] as string) ?? '',
     taskDescription: (raw['qdb_taskdescription'] as string) ?? '',
-    recordEntity: (raw['qdb_recordentity'] as string) ?? '',
-    regardingField: (raw['qdb_regardingfield'] as string) ?? '',
-    parentEntity: (raw['qdb_parententity'] as string) ?? '',
+    recordEntity: '',
+    regardingField: '',
+    parentEntity: '',
     assignTo: assignCode === ASSIGN_TO_CODES.team ? 'team' : 'user',
     assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
-    assignedUserName: null,
+    assignedUserName: (raw['_qdb_assigned_user_name'] as string | null) ?? null,
     teamId: (raw['_qdb_team_value'] as string | null) ?? null,
-    teamName: null,
+    teamName: (raw['_qdb_team_name'] as string | null) ?? null,
     enableRoundRobin: (raw['qdb_enableroundrobin'] as boolean) ?? false,
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
-    roundRobinTeamName: null,
+    roundRobinTeamName: (raw['_qdb_roundrobinteam_name'] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
   };
 }

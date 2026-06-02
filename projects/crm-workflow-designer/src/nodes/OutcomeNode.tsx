@@ -99,7 +99,9 @@ const filterBadgeStyle: React.CSSProperties = {
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#94a3b8',
-  width: 10,
-  height: 10,
+  background: '#059669',
+  width: 12,
+  height: 12,
+  border: '2px solid #fff',
+  borderRadius: '50%',
 };

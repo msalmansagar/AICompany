@@ -17,12 +17,17 @@ export function useLoadWorkflow(): UseLoadWorkflowResult {
   const [error, setError] = useState<string | null>(null);
 
   const loadProcessList = useCallback(async () => {
-    const processes = await adapter.getProcessList();
-    return processes.map((p) => ({
-      id: p.crmId,
-      name: p.name || '(Unnamed)',
-      state: p.workflowState,
-    }));
+    try {
+      const processes = await adapter.getProcessList();
+      return processes.map((p) => ({
+        id: p.crmId,
+        name: p.name || '(Unnamed)',
+        state: p.workflowState,
+      }));
+    } catch (err) {
+      console.error('[useLoadWorkflow] loadProcessList failed:', err);
+      throw err;
+    }
   }, [adapter]);
 
   const loadProcess = useCallback(async (processId: string) => {
@@ -48,7 +53,9 @@ export function useLoadWorkflow(): UseLoadWorkflowResult {
 
       loadWorkflow(process, steps, allOutcomes, allRoutes, {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load workflow.');
+      const msg = err instanceof Error ? err.message : 'Failed to load workflow.';
+      console.error('[useLoadWorkflow] loadProcess failed:', err);
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

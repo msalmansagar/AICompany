@@ -63,9 +63,11 @@ function containerStyle(selected: boolean): React.CSSProperties {
 }
 
 const handleStyle: React.CSSProperties = {
-  background: '#94a3b8',
-  width: 10,
-  height: 10,
+  background: '#2563eb',
+  width: 12,
+  height: 12,
+  border: '2px solid #fff',
+  borderRadius: '50%',
 };
 
 const headerStyle: React.CSSProperties = {

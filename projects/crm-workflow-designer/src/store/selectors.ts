@@ -53,7 +53,6 @@ export function deriveNodes(state: WorkflowDesignerState): Node[] {
   if (steps.length === 0) return nodes;
 
   const startStep = steps[0]!;
-  const endStepIds = findEndStepIds(state);
 
   // Start node
   nodes.push({
@@ -114,22 +113,6 @@ export function deriveNodes(state: WorkflowDesignerState): Node[] {
         } satisfies OutcomeNodeData,
       });
     });
-
-    // End node for steps with no outgoing routes
-    if (endStepIds.has(step.crmId)) {
-      nodes.push({
-        id: `end_${step.crmId}`,
-        type: 'end',
-        position: state.nodePositions[`end_${step.crmId}`] ?? {
-          x: STEP_X_BASE,
-          y: 40 + 100 + (steps.length) * STEP_Y_GAP,
-        },
-        data: {
-          kind: 'end',
-          crmId: `end_${step.crmId}`,
-        } satisfies EndNodeData,
-      });
-    }
   });
 
   return nodes;
@@ -185,32 +168,9 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
     });
   }
 
-  // Step -> End node edges for terminal steps
-  const endStepIds = findEndStepIds(state);
-  for (const stepId of endStepIds) {
-    edges.push({
-      id: `edge_end_${stepId}`,
-      source: stepId,
-      target: `end_${stepId}`,
-      type: 'smoothstep',
-      style: { stroke: '#dc2626', strokeWidth: 2 },
-    });
-  }
-
   return edges;
 }
 
-function findEndStepIds(state: WorkflowDesignerState): Set<string> {
-  const stepsWithOutcomes = new Set(Object.values(state.outcomes).map((o) => o.stepId));
-  const result = new Set<string>();
-  for (const step of Object.values(state.steps)) {
-    if (!stepsWithOutcomes.has(step.crmId)) {
-      result.add(step.crmId);
-    }
-  }
-  return result;
-}
-
-/** Placeholder — positions come from nodePositions in store */
+/** Positions come from nodePositions in store — DEFAULT_POSITION is the fallback */
 const _unused = DEFAULT_POSITION;
 void _unused;
