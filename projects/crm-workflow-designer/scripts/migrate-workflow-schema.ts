@@ -131,14 +131,19 @@ function opt(value: number, label: string): { Value: number; Label: DvLabel } {
 
 // ── HTTP helpers ───────────────────────────────────────────────────────────────
 
-function buildHeaders(token: string): Record<string, string> {
-  return {
+function buildHeaders(token: string, includeSolution = false): Record<string, string> {
+  const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json; charset=utf-8',
     'OData-Version': '4.0',
     'OData-MaxVersion': '4.0',
-    'MSCRM.SolutionUniqueName': SOLUTION,
   };
+  // Only send solution name if the solution is confirmed to exist.
+  // Attribute-level adds work without it — they go to the default solution.
+  if (includeSolution) {
+    headers['MSCRM.SolutionUniqueName'] = SOLUTION;
+  }
+  return headers;
 }
 
 // Codes that signal the component already exists — safe to skip.
@@ -191,6 +196,61 @@ async function postMetadata(
   }
 
   console.log(`  [OK]   ${label}`);
+}
+
+async function attributeExists(token: string, entityLogicalName: string, schemaName: string): Promise<boolean> {
+  const url =
+    `${ORG_URL}/api/data/v${API_VER}/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes` +
+    `?$filter=SchemaName eq '${schemaName}'&$select=SchemaName`;
+
+  const res = await fetch(url, { headers: buildHeaders(token) });
+  if (!res.ok) return false;
+  const data = (await res.json()) as { value: unknown[] };
+  return data.value.length > 0;
+}
+
+async function addLookupViaRelationship(
+  token: string,
+  referencingEntity: string,
+  referencedEntity: string,
+  lookupSchemaName: string,
+  displayLabel: string,
+  label: string,
+): Promise<void> {
+  if (await attributeExists(token, referencingEntity, lookupSchemaName)) {
+    console.log(`  [SKIP] ${label} — already exists`);
+    return;
+  }
+
+  const referencedPk = `${referencedEntity}id`;
+  const relationshipSchemaName = `${referencingEntity}_${lookupSchemaName}`;
+
+  await postMetadata(
+    token,
+    'RelationshipDefinitions',
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata',
+      SchemaName: relationshipSchemaName,
+      IsCustomRelationship: true,
+      IsValidForAdvancedFind: true,
+      ReferencedEntity: referencedEntity,
+      ReferencedAttribute: referencedPk,
+      ReferencingEntity: referencingEntity,
+      ReferencingAttribute: lookupSchemaName.toLowerCase(),
+      Lookup: {
+        '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
+        SchemaName: lookupSchemaName,
+        LogicalName: lookupSchemaName.toLowerCase(),
+        IsCustomAttribute: true,
+        RequiredLevel: { Value: 'None', CanBeChanged: true },
+        DisplayName: {
+          '@odata.type': 'Microsoft.Dynamics.CRM.Label',
+          LocalizedLabels: [{ '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel', Label: displayLabel, LanguageCode: LANG }],
+        },
+      },
+    },
+    label,
+  );
 }
 
 async function entityExists(token: string, logicalName: string): Promise<boolean> {
@@ -496,64 +556,24 @@ async function createWorkItemStepsEntity(token: string): Promise<void> {
 async function addStepLookupAttributes(token: string): Promise<void> {
   logSection('TABLE 2 — lookup attributes');
 
-  // qdb_assigned_user → systemuser
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_work_item_steps')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_assigned_user',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Assigned User'),
-      Description: lbl('Specific user to assign the task to when Assign To = Specific User.'),
-      Targets: ['systemuser'],
-    },
-    'qdb_work_item_steps.qdb_assigned_user (→ systemuser)',
+  await addLookupViaRelationship(
+    token, 'qdb_work_item_steps', 'systemuser', 'qdb_assigned_user',
+    'Assigned User', 'qdb_work_item_steps.qdb_assigned_user (→ systemuser)',
   );
 
-  // qdb_team → team
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_work_item_steps')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_team',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Team'),
-      Description: lbl('Team to assign the task to when Assign To = Team.'),
-      Targets: ['team'],
-    },
-    'qdb_work_item_steps.qdb_team (→ team)',
+  await addLookupViaRelationship(
+    token, 'qdb_work_item_steps', 'team', 'qdb_team',
+    'Team', 'qdb_work_item_steps.qdb_team (→ team)',
   );
 
-  // qdb_roundrobinteam → team
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_work_item_steps')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_roundrobinteam',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Round Robin Team'),
-      Description: lbl('Team whose members receive tasks in round-robin order when Enable Round Robin = Yes.'),
-      Targets: ['team'],
-    },
-    'qdb_work_item_steps.qdb_roundrobinteam (→ team)',
+  await addLookupViaRelationship(
+    token, 'qdb_work_item_steps', 'team', 'qdb_roundrobinteam',
+    'Round Robin Team', 'qdb_work_item_steps.qdb_roundrobinteam (→ team)',
   );
 
-  // qdb_record_type → qdb_work_item_record_type
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_work_item_steps')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_record_type',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Process'),
-      Description: lbl('The workflow process this step belongs to.'),
-      Targets: ['qdb_work_item_record_type'],
-    },
-    'qdb_work_item_steps.qdb_record_type (→ qdb_work_item_record_type)',
+  await addLookupViaRelationship(
+    token, 'qdb_work_item_steps', 'qdb_work_item_record_type', 'qdb_record_type',
+    'Process', 'qdb_work_item_steps.qdb_record_type (→ qdb_work_item_record_type)',
   );
 }
 
@@ -628,19 +648,9 @@ async function createOutcomeEntity(token: string): Promise<void> {
 async function addOutcomeLookupAttributes(token: string): Promise<void> {
   logSection('TABLE 3 — lookup attributes');
 
-  // qdb_workitemstep → qdb_work_item_steps
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_outcome')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_workitemstep',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Work Item Step'),
-      Description: lbl('The step this outcome belongs to.'),
-      Targets: ['qdb_work_item_steps'],
-    },
-    'qdb_outcome.qdb_workitemstep (→ qdb_work_item_steps)',
+  await addLookupViaRelationship(
+    token, 'qdb_outcome', 'qdb_work_item_steps', 'qdb_workitemstep',
+    'Work Item Step', 'qdb_outcome.qdb_workitemstep (→ qdb_work_item_steps)',
   );
 }
 
@@ -719,34 +729,14 @@ async function createOutcomeWorkTasksEntity(token: string): Promise<void> {
 async function addRouteForLookupAttributes(token: string): Promise<void> {
   logSection('TABLE 4 — lookup attributes');
 
-  // qdb_outcome → qdb_outcome
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_outcomeworktasks')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_outcome',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Outcome'),
-      Description: lbl('The outcome that triggers this route.'),
-      Targets: ['qdb_outcome'],
-    },
-    'qdb_outcomeworktasks.qdb_outcome (→ qdb_outcome)',
+  await addLookupViaRelationship(
+    token, 'qdb_outcomeworktasks', 'qdb_outcome', 'qdb_outcome',
+    'Outcome', 'qdb_outcomeworktasks.qdb_outcome (→ qdb_outcome)',
   );
 
-  // qdb_nextworkitemstep → qdb_work_item_steps
-  await postMetadata(
-    token,
-    "EntityDefinitions(LogicalName='qdb_outcomeworktasks')/Attributes",
-    {
-      '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata',
-      SchemaName: 'qdb_nextworkitemstep',
-      RequiredLevel: req('None'),
-      DisplayName: lbl('Next Step'),
-      Description: lbl('The step the workflow transitions to when this route is taken. Null = terminal route (workflow ends).'),
-      Targets: ['qdb_work_item_steps'],
-    },
-    'qdb_outcomeworktasks.qdb_nextworkitemstep (→ qdb_work_item_steps)',
+  await addLookupViaRelationship(
+    token, 'qdb_outcomeworktasks', 'qdb_work_item_steps', 'qdb_nextworkitemstep',
+    'Next Step', 'qdb_outcomeworktasks.qdb_nextworkitemstep (→ qdb_work_item_steps)',
   );
 }
 
