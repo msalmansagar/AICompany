@@ -15,11 +15,22 @@ import type {
 } from '@/types/WorkflowTypes';
 import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
 
-const ENTITY_SETS = {
+// Entity LOGICAL names — required by Xrm.WebApi.*(logicalName, ...)
+const LOGICAL = {
+  process: 'qdb_work_item_record_type',
+  step: 'qdb_work_item_steps',
+  outcome: 'qdb_outcome',
+  route: 'qdb_outcomeworktasks',
+  user: 'systemuser',
+  team: 'team',
+} as const;
+
+// Entity SET names — used only in @odata.bind navigation paths in request bodies
+const SET = {
   process: 'qdb_work_item_record_types',
-  step: 'qdb_work_item_stepses',
+  step: 'qdb_work_item_stepss',
   outcome: 'qdb_outcomes',
-  route: 'qdb_outcomeworktaskses',
+  route: 'qdb_outcomeworktaskss',
 } as const;
 
 export class DataverseAdapter implements ICrmAdapter {
@@ -35,8 +46,8 @@ export class DataverseAdapter implements ICrmAdapter {
     try {
       const result = await withRetry(() =>
         Xrm.WebApi.retrieveMultipleRecords(
-          ENTITY_SETS.process,
-          '?$select=qdb_work_item_record_typeid,qdb_name&$top=50&$orderby=qdb_name asc'
+          LOGICAL.process,
+          '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state&$top=100&$orderby=qdb_name asc'
         )
       );
       return result.entities.map(mapProcess);
@@ -50,31 +61,32 @@ export class DataverseAdapter implements ICrmAdapter {
     assertGuid(id, 'processId');
     const raw = await withRetry(() =>
       Xrm.WebApi.retrieveRecord(
-        ENTITY_SETS.process,
+        LOGICAL.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name'
+        '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state,qdb_workflow_snapshot'
       )
     );
-    return mapProcess(raw);
+    return mapProcess(raw as Record<string, unknown>);
   }
 
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
     const body = buildProcessBody(data);
     const result = await withRetry(() =>
-      Xrm.WebApi.createRecord(ENTITY_SETS.process, body)
+      Xrm.WebApi.createRecord(LOGICAL.process, body)
     );
     return result.id;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
     assertGuid(id, 'processId');
-    const body = buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>);
-    await withRetry(() => Xrm.WebApi.updateRecord(ENTITY_SETS.process, id, body));
+    await withRetry(() =>
+      Xrm.WebApi.updateRecord(LOGICAL.process, id, buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>))
+    );
   }
 
   async deleteProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(ENTITY_SETS.process, id));
+    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.process, id));
   }
 
   // --- Steps ---
@@ -83,8 +95,8 @@ export class DataverseAdapter implements ICrmAdapter {
     assertGuid(processId, 'processId');
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
-        ENTITY_SETS.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,qdb_task_assign_to,qdb_enableroundrobin,_qdb_assigned_user_value,_qdb_assigned_user_name,_qdb_team_value,_qdb_team_name,_qdb_roundrobinteam_value,_qdb_roundrobinteam_name&$filter=_qdb_record_type_value eq ${processId}`
+        LOGICAL.step,
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_assigned_user_name,_qdb_team_value,_qdb_team_name,_qdb_roundrobinteam_value,_qdb_roundrobinteam_name&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -93,19 +105,20 @@ export class DataverseAdapter implements ICrmAdapter {
   async createStep(data: Omit<WorkflowStep, 'crmId'>): Promise<string> {
     assertGuid(data.processId, 'processId');
     const body = buildStepBody(data);
-    const result = await withRetry(() => Xrm.WebApi.createRecord(ENTITY_SETS.step, body));
+    const result = await withRetry(() => Xrm.WebApi.createRecord(LOGICAL.step, body));
     return result.id;
   }
 
   async updateStep(id: string, data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<void> {
     assertGuid(id, 'stepId');
-    const body = buildStepBody(data as Omit<WorkflowStep, 'crmId'>);
-    await withRetry(() => Xrm.WebApi.updateRecord(ENTITY_SETS.step, id, body));
+    await withRetry(() =>
+      Xrm.WebApi.updateRecord(LOGICAL.step, id, buildStepBody(data as Omit<WorkflowStep, 'crmId'>))
+    );
   }
 
   async deleteStep(id: string): Promise<void> {
     assertGuid(id, 'stepId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(ENTITY_SETS.step, id));
+    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.step, id));
   }
 
   // --- Outcomes ---
@@ -114,8 +127,8 @@ export class DataverseAdapter implements ICrmAdapter {
     assertGuid(stepId, 'stepId');
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
-        ENTITY_SETS.outcome,
-        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}`
+        LOGICAL.outcome,
+        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapOutcome);
@@ -123,20 +136,22 @@ export class DataverseAdapter implements ICrmAdapter {
 
   async createOutcome(data: Omit<WorkflowOutcome, 'crmId'>): Promise<string> {
     assertGuid(data.stepId, 'stepId');
-    const body = buildOutcomeBody(data);
-    const result = await withRetry(() => Xrm.WebApi.createRecord(ENTITY_SETS.outcome, body));
+    const result = await withRetry(() =>
+      Xrm.WebApi.createRecord(LOGICAL.outcome, buildOutcomeBody(data))
+    );
     return result.id;
   }
 
   async updateOutcome(id: string, data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<void> {
     assertGuid(id, 'outcomeId');
-    const body = buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>);
-    await withRetry(() => Xrm.WebApi.updateRecord(ENTITY_SETS.outcome, id, body));
+    await withRetry(() =>
+      Xrm.WebApi.updateRecord(LOGICAL.outcome, id, buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>))
+    );
   }
 
   async deleteOutcome(id: string): Promise<void> {
     assertGuid(id, 'outcomeId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(ENTITY_SETS.outcome, id));
+    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.outcome, id));
   }
 
   // --- Routes ---
@@ -145,8 +160,8 @@ export class DataverseAdapter implements ICrmAdapter {
     assertGuid(outcomeId, 'outcomeId');
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
-        ENTITY_SETS.route,
-        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value&$filter=_qdb_outcome_value eq ${outcomeId}`
+        LOGICAL.route,
+        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapRoute);
@@ -155,26 +170,30 @@ export class DataverseAdapter implements ICrmAdapter {
   async createRoute(data: Omit<WorkflowRoute, 'crmId'>): Promise<string> {
     assertGuid(data.outcomeId, 'outcomeId');
     assertGuid(data.nextStepId, 'nextStepId');
-    const body = buildRouteBody(data);
-    const result = await withRetry(() => Xrm.WebApi.createRecord(ENTITY_SETS.route, body));
+    const result = await withRetry(() =>
+      Xrm.WebApi.createRecord(LOGICAL.route, buildRouteBody(data))
+    );
     return result.id;
   }
 
   async updateRoute(id: string, data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<void> {
     assertGuid(id, 'routeId');
-    const body = buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>);
-    await withRetry(() => Xrm.WebApi.updateRecord(ENTITY_SETS.route, id, body));
+    await withRetry(() =>
+      Xrm.WebApi.updateRecord(LOGICAL.route, id, buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>))
+    );
   }
 
   async deleteRoute(id: string): Promise<void> {
     assertGuid(id, 'routeId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(ENTITY_SETS.route, id));
+    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.route, id));
   }
 
   // --- Metadata ---
 
   async getEntities(): Promise<EntityOption[]> {
-    const url = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}/EntityDefinitions?$select=LogicalName,DisplayName,ObjectTypeCode&$filter=IsValidForAdvancedFind eq true`;
+    const url =
+      `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+      `/EntityDefinitions?$select=LogicalName,DisplayName,ObjectTypeCode&$filter=IsValidForAdvancedFind eq true`;
     const response = await withRetry(() =>
       fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -212,7 +231,7 @@ export class DataverseAdapter implements ICrmAdapter {
       : '';
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
-        'systemusers',
+        LOGICAL.user,
         `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=50&$orderby=fullname asc`
       )
     );
@@ -226,8 +245,8 @@ export class DataverseAdapter implements ICrmAdapter {
   async getTeams(): Promise<TeamOption[]> {
     const result = await withRetry(() =>
       Xrm.WebApi.retrieveMultipleRecords(
-        'teams',
-        '?$select=teamid,name&$top=100&$orderby=name asc'
+        LOGICAL.team,
+        '?$select=teamid,name&$filter=teamtype eq 0&$top=100&$orderby=name asc'
       )
     );
     return result.entities.map((t) => ({
@@ -241,7 +260,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async publishProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(ENTITY_SETS.process, id, {
+      Xrm.WebApi.updateRecord(LOGICAL.process, id, {
         qdb_workflow_state: WORKFLOW_STATE_CODES.published,
       })
     );
@@ -274,14 +293,12 @@ export class DataverseAdapter implements ICrmAdapter {
           ...outcome,
           stepId: stepIdMap[step.crmId] ?? step.crmId,
         });
-
         const routes = await this.getRoutes(outcome.crmId);
         for (const route of routes) {
-          const mappedNextStep = stepIdMap[route.nextStepId] ?? route.nextStepId;
           await this.createRoute({
             ...route,
             outcomeId: newOutcomeId,
-            nextStepId: mappedNextStep,
+            nextStepId: stepIdMap[route.nextStepId] ?? route.nextStepId,
           });
         }
       }
@@ -297,43 +314,54 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
-    recordEntity: '',
-    regardingField: '',
-    parentEntity: '',
-    versionMajor: 1,
-    versionMinor: 0,
-    workflowState: 'draft',
-    snapshot: null,
+    recordEntity: (raw['qdb_recordentity'] as string) ?? '',
+    regardingField: (raw['qdb_regardingfield'] as string) ?? '',
+    parentEntity: (raw['qdb_parententity'] as string) ?? '',
+    versionMajor: (raw['qdb_version_major'] as number) ?? 1,
+    versionMinor: (raw['qdb_version_minor'] as number) ?? 0,
+    workflowState: mapStateCode(raw['qdb_workflow_state'] as number | undefined),
+    snapshot: (raw['qdb_workflow_snapshot'] as string | null) ?? null,
   };
 }
 
+function mapStateCode(code: number | undefined): WorkflowProcess['workflowState'] {
+  if (code === WORKFLOW_STATE_CODES.published) return 'published';
+  if (code === WORKFLOW_STATE_CODES.archived) return 'archived';
+  return 'draft';
+}
+
 function mapStep(raw: Record<string, unknown>): WorkflowStep {
-  const assignCode = (raw['qdb_task_assign_to'] as number) ?? 100000000;
+  const assignCode = (raw['qdb_task_assign_to'] as number) ?? ASSIGN_TO_CODES.user;
   return {
-    crmId: raw['qdb_work_item_stepsid'] as string,
+    crmId: (raw['qdb_work_item_stepsid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
-    schemaName: '',
+    schemaName: (raw['qdb_schemaname'] as string) ?? '',
     sequenceNo: (raw['qdb_sequenceno'] as number) ?? 0,
     taskSubject: (raw['qdb_tasksubject'] as string) ?? '',
     taskDescription: (raw['qdb_taskdescription'] as string) ?? '',
-    recordEntity: '',
-    regardingField: '',
-    parentEntity: '',
-    assignTo: assignCode === ASSIGN_TO_CODES.team ? 'team' : 'user',
+    recordEntity: (raw['qdb_recordentity'] as string) ?? '',
+    regardingField: (raw['qdb_regardingfield'] as string) ?? '',
+    parentEntity: (raw['qdb_parententity'] as string) ?? '',
+    assignTo: mapAssignCode(assignCode),
     assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
     assignedUserName: (raw['_qdb_assigned_user_name'] as string | null) ?? null,
     teamId: (raw['_qdb_team_value'] as string | null) ?? null,
     teamName: (raw['_qdb_team_name'] as string | null) ?? null,
-    enableRoundRobin: (raw['qdb_enableroundrobin'] as boolean) ?? false,
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
     roundRobinTeamName: (raw['_qdb_roundrobinteam_name'] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
   };
 }
 
+function mapAssignCode(code: number): WorkflowStep['assignTo'] {
+  if (code === ASSIGN_TO_CODES.team) return 'team';
+  if (code === ASSIGN_TO_CODES.roundRobin) return 'roundRobin';
+  return 'user';
+}
+
 function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
   return {
-    crmId: raw['qdb_outcomeid'] as string,
+    crmId: (raw['qdb_outcomeid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
@@ -343,7 +371,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
 
 function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
   return {
-    crmId: raw['qdb_outcomeworktasksid'] as string,
+    crmId: (raw['qdb_outcomeworktasksid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     subject: (raw['qdb_subject'] as string) ?? '',
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
@@ -385,12 +413,11 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
   if (data.teamId) {
     body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;
   }
-  if (data.enableRoundRobin !== undefined) body['qdb_enableroundrobin'] = data.enableRoundRobin;
   if (data.roundRobinTeamId) {
     body['qdb_roundrobinteam@odata.bind'] = `/teams(${data.roundRobinTeamId})`;
   }
   if (data.processId) {
-    body['qdb_record_type@odata.bind'] = `/${ENTITY_SETS.process}(${data.processId})`;
+    body['qdb_record_type@odata.bind'] = `/${SET.process}(${data.processId})`;
   }
   return body;
 }
@@ -401,7 +428,7 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
   if (data.stepId) {
-    body['qdb_WorkItemStep@odata.bind'] = `/${ENTITY_SETS.step}(${data.stepId})`;
+    body['qdb_WorkItemStep@odata.bind'] = `/${SET.step}(${data.stepId})`;
   }
   return body;
 }
@@ -413,10 +440,10 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.filter !== undefined) body['qdb_filter'] = data.filter;
   if (data.outcomeId) {
-    body['qdb_Outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
+    body['qdb_Outcome@odata.bind'] = `/${SET.outcome}(${data.outcomeId})`;
   }
   if (data.nextStepId) {
-    body['qdb_NextWorkItemStep@odata.bind'] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
+    body['qdb_NextWorkItemStep@odata.bind'] = `/${SET.step}(${data.nextStepId})`;
   }
   return body;
 }

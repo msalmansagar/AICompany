@@ -45,6 +45,8 @@ export interface WorkflowDesignerState {
   setPublishing: (value: boolean) => void;
   setPreviewMode: (value: boolean) => void;
   resolveTemporaryId: (tmpId: string, realId: string, entityType: 'step' | 'outcome' | 'route') => void;
+  resolveProcessId: (realId: string) => void;
+  assignOutcomeToStep: (outcomeId: string, stepId: string) => void;
   loadWorkflow: (
     process: WorkflowProcess,
     steps: WorkflowStep[],
@@ -61,7 +63,7 @@ const emptyState: Omit<
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
   | 'updateNodePosition' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
-  | 'resolveTemporaryId' | 'loadWorkflow' | 'showToast' | 'clearToast'
+  | 'resolveTemporaryId' | 'resolveProcessId' | 'assignOutcomeToStep' | 'loadWorkflow' | 'showToast' | 'clearToast'
 > = {
   process: null,
   steps: {},
@@ -271,6 +273,43 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       setPreviewMode: (value) =>
         set((state) => {
           state.isPreviewMode = value;
+        }),
+
+      resolveProcessId: (realId) =>
+        set((state) => {
+          if (state.process) {
+            state.process.crmId = realId;
+          }
+        }),
+
+      assignOutcomeToStep: (outcomeId, stepId) =>
+        set((state) => {
+          const outcome = state.outcomes[outcomeId];
+          if (!outcome) return;
+
+          // Remove from old outcomeOrder bucket
+          const oldStepId = outcome.stepId;
+          if (oldStepId && state.outcomeOrder[oldStepId]) {
+            state.outcomeOrder[oldStepId] = state.outcomeOrder[oldStepId]!.filter(
+              (id) => id !== outcomeId
+            );
+          }
+
+          // Update outcome
+          outcome.stepId = stepId;
+          if (!state.dirtyIds.includes(outcomeId)) {
+            state.dirtyIds.push(outcomeId);
+          }
+
+          // Add to new outcomeOrder bucket
+          if (!state.outcomeOrder[stepId]) {
+            state.outcomeOrder[stepId] = [];
+          }
+          if (!state.outcomeOrder[stepId]!.includes(outcomeId)) {
+            state.outcomeOrder[stepId]!.push(outcomeId);
+          }
+
+          state.isDirty = true;
         }),
 
       resolveTemporaryId: (tmpId, realId, entityType) =>

@@ -164,10 +164,10 @@ export class ValidationService {
           severity: 'error',
         });
       }
-      if (step.enableRoundRobin && !step.roundRobinTeamId) {
+      if (step.assignTo === 'roundRobin' && !step.roundRobinTeamId) {
         violations.push({
           code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" has Round Robin enabled but no round robin team is selected.`,
+          message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
           nodeId: step.crmId,
           severity: 'error',
         });

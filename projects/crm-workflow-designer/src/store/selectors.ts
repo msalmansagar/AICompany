@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
+import { MarkerType } from '@xyflow/react';
 import type { WorkflowDesignerState } from './workflowStore';
 
 export interface StepNodeData extends Record<string, unknown> {
@@ -6,11 +7,13 @@ export interface StepNodeData extends Record<string, unknown> {
   crmId: string;
   name: string;
   sequenceNo: number;
-  assignTo: 'user' | 'team';
+  assignTo: 'user' | 'team' | 'roundRobin';
   assignedUserName: string | null;
   teamName: string | null;
+  roundRobinTeamName: string | null;
   recordEntity: string;
   isSelected: boolean;
+  hasValidationError: boolean;
 }
 
 export interface OutcomeNodeData extends Record<string, unknown> {
@@ -20,6 +23,7 @@ export interface OutcomeNodeData extends Record<string, unknown> {
   sequenceNumber: number;
   applyFilter: boolean;
   stepId: string;
+  isOrphaned: boolean;
 }
 
 export interface StartNodeData extends Record<string, unknown> {
@@ -40,40 +44,26 @@ export interface RouteEdgeData extends Record<string, unknown> {
   hasFilter: boolean;
 }
 
-const DEFAULT_POSITION = { x: 0, y: 0 };
-const STEP_X_BASE = 300;
-const STEP_Y_GAP = 200;
-const OUTCOME_X_OFFSET = 200;
-const OUTCOME_Y_OFFSET = 80;
+const STEP_X = 320;
+const STEP_Y_GAP = 220;
+const OUTCOME_X_OFFSET = 240;
+const OUTCOME_Y_OFFSET = 60;
 
 export function deriveNodes(state: WorkflowDesignerState): Node[] {
   const nodes: Node[] = [];
+  const stepIds = new Set(Object.keys(state.steps));
   const steps = Object.values(state.steps).sort((a, b) => a.sequenceNo - b.sequenceNo);
-
-  if (steps.length === 0) return nodes;
-
-  const startStep = steps[0]!;
-
-  // Start node
-  nodes.push({
-    id: `start_${startStep.crmId}`,
-    type: 'start',
-    position: state.nodePositions[`start_${startStep.crmId}`] ?? { x: STEP_X_BASE, y: 40 },
-    data: {
-      kind: 'start',
-      crmId: startStep.crmId,
-      name: startStep.name,
-    } satisfies StartNodeData,
-  });
+  const stepsWithOutcomes = new Set(Object.values(state.outcomes).map((o) => o.stepId));
 
   // Step nodes
   steps.forEach((step, index) => {
+    const hasValidationError = !stepsWithOutcomes.has(step.crmId);
     nodes.push({
       id: step.crmId,
       type: 'step',
       position: state.nodePositions[step.crmId] ?? {
-        x: STEP_X_BASE,
-        y: 40 + 100 + index * STEP_Y_GAP,
+        x: STEP_X,
+        y: 80 + index * STEP_Y_GAP,
       },
       selected: state.selectedId === step.crmId,
       data: {
@@ -84,34 +74,45 @@ export function deriveNodes(state: WorkflowDesignerState): Node[] {
         assignTo: step.assignTo,
         assignedUserName: step.assignedUserName,
         teamName: step.teamName,
+        roundRobinTeamName: step.roundRobinTeamName,
         recordEntity: step.recordEntity,
         isSelected: state.selectedId === step.crmId,
+        hasValidationError,
       } satisfies StepNodeData,
     });
+  });
 
-    // Outcome nodes for this step
-    const outcomeIds = state.outcomeOrder[step.crmId] ?? [];
-    outcomeIds.forEach((outcomeId, oi) => {
-      const outcome = state.outcomes[outcomeId];
-      if (!outcome) return;
+  // Outcome nodes — ALL outcomes, including orphaned (stepId='')
+  Object.values(state.outcomes).forEach((outcome, index) => {
+    const isOrphaned = !outcome.stepId || !stepIds.has(outcome.stepId);
 
-      nodes.push({
-        id: outcome.crmId,
-        type: 'outcome',
-        position: state.nodePositions[outcome.crmId] ?? {
-          x: STEP_X_BASE + OUTCOME_X_OFFSET + oi * 180,
-          y: 40 + 100 + index * STEP_Y_GAP + OUTCOME_Y_OFFSET,
-        },
-        selected: state.selectedId === outcome.crmId,
-        data: {
-          kind: 'outcome',
-          crmId: outcome.crmId,
-          name: outcome.name,
-          sequenceNumber: outcome.sequenceNumber,
-          applyFilter: outcome.applyFilter,
-          stepId: outcome.stepId,
-        } satisfies OutcomeNodeData,
-      });
+    // Position: if orphaned, place in a staging area; if linked, position relative to step
+    let defaultPosition: { x: number; y: number };
+    if (!isOrphaned) {
+      const stepIndex = steps.findIndex((s) => s.crmId === outcome.stepId);
+      const outcomeIndex = (state.outcomeOrder[outcome.stepId] ?? []).indexOf(outcome.crmId);
+      defaultPosition = {
+        x: STEP_X + OUTCOME_X_OFFSET + Math.max(0, outcomeIndex) * 180,
+        y: 80 + stepIndex * STEP_Y_GAP + OUTCOME_Y_OFFSET,
+      };
+    } else {
+      defaultPosition = { x: 80 + index * 160, y: 40 };
+    }
+
+    nodes.push({
+      id: outcome.crmId,
+      type: 'outcome',
+      position: state.nodePositions[outcome.crmId] ?? defaultPosition,
+      selected: state.selectedId === outcome.crmId,
+      data: {
+        kind: 'outcome',
+        crmId: outcome.crmId,
+        name: outcome.name,
+        sequenceNumber: outcome.sequenceNumber,
+        applyFilter: outcome.applyFilter,
+        stepId: outcome.stepId,
+        isOrphaned,
+      } satisfies OutcomeNodeData,
     });
   });
 
@@ -120,37 +121,26 @@ export function deriveNodes(state: WorkflowDesignerState): Node[] {
 
 export function deriveEdges(state: WorkflowDesignerState): Edge[] {
   const edges: Edge[] = [];
-  const steps = Object.values(state.steps).sort((a, b) => a.sequenceNo - b.sequenceNo);
+  const stepIds = new Set(Object.keys(state.steps));
 
-  if (steps.length === 0) return edges;
+  // Step → Outcome edges (only for linked outcomes)
+  for (const outcome of Object.values(state.outcomes)) {
+    if (!outcome.stepId || !stepIds.has(outcome.stepId)) continue;
 
-  const startStep = steps[0]!;
-
-  // Start -> first step
-  edges.push({
-    id: `edge_start_${startStep.crmId}`,
-    source: `start_${startStep.crmId}`,
-    target: startStep.crmId,
-    type: 'smoothstep',
-    style: { stroke: '#16a34a', strokeWidth: 2 },
-  });
-
-  // Step -> Outcome edges
-  for (const step of steps) {
-    const outcomeIds = state.outcomeOrder[step.crmId] ?? [];
-    for (const outcomeId of outcomeIds) {
-      edges.push({
-        id: `edge_step_outcome_${step.crmId}_${outcomeId}`,
-        source: step.crmId,
-        target: outcomeId,
-        type: 'stepToOutcome',
-        style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-      });
-    }
+    edges.push({
+      id: `edge_step_outcome_${outcome.stepId}_${outcome.crmId}`,
+      source: outcome.stepId,
+      target: outcome.crmId,
+      type: 'stepToOutcome',
+      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+    });
   }
 
-  // Route edges: outcome -> next step
+  // Route edges: outcome → next step
   for (const route of Object.values(state.routes)) {
+    if (!route.outcomeId || !route.nextStepId) continue;
+
     const hasFilter = route.filter.trim().length > 0;
     edges.push({
       id: `edge_route_${route.crmId}`,
@@ -158,7 +148,8 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
       target: route.nextStepId,
       type: 'route',
       animated: hasFilter,
-      label: route.name,
+      label: route.name || undefined,
+      selected: state.selectedId === route.crmId,
       data: {
         kind: 'route',
         crmId: route.crmId,
@@ -170,7 +161,3 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
 
   return edges;
 }
-
-/** Positions come from nodePositions in store — DEFAULT_POSITION is the fallback */
-const _unused = DEFAULT_POSITION;
-void _unused;

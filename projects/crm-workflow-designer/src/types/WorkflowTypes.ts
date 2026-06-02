@@ -10,6 +10,8 @@ export interface WorkflowProcess {
   snapshot: string | null;
 }
 
+export type AssignToType = 'user' | 'team' | 'roundRobin';
+
 export interface WorkflowStep {
   crmId: string;
   name: string;
@@ -20,12 +22,11 @@ export interface WorkflowStep {
   recordEntity: string;
   regardingField: string;
   parentEntity: string;
-  assignTo: 'user' | 'team';
+  assignTo: AssignToType;
   assignedUserId: string | null;
   assignedUserName: string | null;
   teamId: string | null;
   teamName: string | null;
-  enableRoundRobin: boolean;
   roundRobinTeamId: string | null;
   roundRobinTeamName: string | null;
   processId: string;
@@ -80,7 +81,8 @@ export const WORKFLOW_STATE_CODES: Record<WorkflowStateCode, number> = {
   archived: 100000002,
 };
 
-export const ASSIGN_TO_CODES = {
+export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
   user: 100000000,
+  roundRobin: 100000001,
   team: 100000002,
-} as const;
+};

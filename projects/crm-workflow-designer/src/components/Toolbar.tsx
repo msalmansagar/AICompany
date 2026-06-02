@@ -78,7 +78,13 @@ export function Toolbar({
   const handleNew = useCallback(() => {
     if (!newName.trim()) return;
 
-    // Create workflow locally — do not call CRM yet. User clicks Save to persist.
+    if (isDirty) {
+      const confirmed = window.confirm(
+        'You have unsaved changes. Discard them and create a new workflow?'
+      );
+      if (!confirmed) return;
+    }
+
     const tmpId = `tmp_${crypto.randomUUID()}`;
     const newProcess: WorkflowProcess = {
       crmId: tmpId,
@@ -92,14 +98,12 @@ export function Toolbar({
     selectNode('process');
     onCloseNew?.();
     setNewName('');
-  }, [newName, loadWorkflow, selectNode, onCloseNew]);
+  }, [newName, isDirty, loadWorkflow, selectNode, onCloseNew]);
 
   const handleSave = useCallback(async () => {
     await save();
-    if (!saveError) {
-      showToast('Workflow saved successfully', 'success');
-    }
-  }, [save, saveError, showToast]);
+    // Toast is emitted by useWorkflowSave itself (success or error)
+  }, [save]);
 
   // Close dialogs on Escape
   useEffect(() => {

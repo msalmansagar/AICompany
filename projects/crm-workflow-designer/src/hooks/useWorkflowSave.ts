@@ -24,8 +24,11 @@ export function useWorkflowSave(): UseSaveResult {
     dirtyIds,
     deletedIds,
     deletedEntityTypes,
+    nodePositions,
     resolveTemporaryId,
+    resolveProcessId,
     markClean,
+    showToast,
   } = useWorkflowStore((s) => ({
     process: s.process,
     steps: s.steps,
@@ -35,8 +38,11 @@ export function useWorkflowSave(): UseSaveResult {
     dirtyIds: s.dirtyIds,
     deletedIds: s.deletedIds,
     deletedEntityTypes: s.deletedEntityTypes,
+    nodePositions: s.nodePositions,
     resolveTemporaryId: s.resolveTemporaryId,
+    resolveProcessId: s.resolveProcessId,
     markClean: s.markClean,
+    showToast: s.showToast,
   }));
 
   const save = useCallback(async () => {
@@ -49,8 +55,23 @@ export function useWorkflowSave(): UseSaveResult {
     setError(null);
 
     try {
-      // 1. Save process header
-      if (!isTemporaryId(process.crmId)) {
+      // 1. Create or update process
+      let resolvedProcessId = process.crmId;
+
+      if (isTemporaryId(process.crmId)) {
+        resolvedProcessId = await adapter.createProcess({
+          name: process.name,
+          recordEntity: process.recordEntity,
+          regardingField: process.regardingField,
+          parentEntity: process.parentEntity,
+          versionMajor: process.versionMajor,
+          versionMinor: process.versionMinor,
+          workflowState: 'draft',
+          snapshot: null,
+        });
+        // Update store with real CRM id (no dirty mark — we're mid-save)
+        resolveProcessId(resolvedProcessId);
+      } else {
         assertGuid(process.crmId, 'process.crmId');
         await adapter.updateProcess(process.crmId, {
           name: process.name,
@@ -64,14 +85,14 @@ export function useWorkflowSave(): UseSaveResult {
         });
       }
 
-      // 2. Save steps (create new, update dirty)
+      // 2. Save steps — create new, update dirty
       const stepIdMap: Record<string, string> = {};
 
       for (const step of Object.values(steps)) {
         if (isTemporaryId(step.crmId) || newIds.includes(step.crmId)) {
           const newId = await adapter.createStep({
             ...step,
-            processId: process.crmId,
+            processId: resolvedProcessId,
           });
           stepIdMap[step.crmId] = newId;
           resolveTemporaryId(step.crmId, newId, 'step');
@@ -81,11 +102,12 @@ export function useWorkflowSave(): UseSaveResult {
         }
       }
 
-      // 3. Save outcomes
+      // 3. Save outcomes — create new, update dirty
       const outcomeIdMap: Record<string, string> = {};
 
       for (const outcome of Object.values(outcomes)) {
         const resolvedStepId = stepIdMap[outcome.stepId] ?? outcome.stepId;
+        if (!resolvedStepId || isTemporaryId(resolvedStepId)) continue; // skip orphaned
 
         if (isTemporaryId(outcome.crmId) || newIds.includes(outcome.crmId)) {
           const newId = await adapter.createOutcome({
@@ -100,10 +122,13 @@ export function useWorkflowSave(): UseSaveResult {
         }
       }
 
-      // 4. Save routes
+      // 4. Save routes — create new, update dirty
       for (const route of Object.values(routes)) {
         const resolvedOutcomeId = outcomeIdMap[route.outcomeId] ?? route.outcomeId;
         const resolvedNextStepId = stepIdMap[route.nextStepId] ?? route.nextStepId;
+
+        if (!resolvedOutcomeId || !resolvedNextStepId) continue;
+        if (isTemporaryId(resolvedOutcomeId) || isTemporaryId(resolvedNextStepId)) continue;
 
         if (isTemporaryId(route.crmId) || newIds.includes(route.crmId)) {
           assertGuid(resolvedOutcomeId, 'route.outcomeId');
@@ -120,28 +145,37 @@ export function useWorkflowSave(): UseSaveResult {
         }
       }
 
-      // 5. Process deletions
+      // 5. Save node positions into the workflow snapshot
+      const positionPayload = JSON.stringify(nodePositions);
+      if (!isTemporaryId(resolvedProcessId)) {
+        await adapter.updateProcess(resolvedProcessId, { snapshot: positionPayload });
+      }
+
+      // 6. Process deletions
       for (const deletedId of deletedIds) {
         if (isTemporaryId(deletedId)) continue;
         assertGuid(deletedId, 'deletedId');
-
         const entityType = deletedEntityTypes[deletedId];
         if (entityType === 'step') await adapter.deleteStep(deletedId);
         else if (entityType === 'outcome') await adapter.deleteOutcome(deletedId);
         else if (entityType === 'route') await adapter.deleteRoute(deletedId);
       }
 
-      // 6. Audit
-      const auditService = new AuditService(adapter);
-      await auditService.log('SAVE_DRAFT', process.crmId, {
-        stepCount: Object.keys(steps).length,
-      });
+      // 7. Audit
+      if (!isTemporaryId(resolvedProcessId)) {
+        const auditService = new AuditService(adapter);
+        await auditService.log('SAVE_DRAFT', resolvedProcessId, {
+          stepCount: Object.keys(steps).length,
+        });
+      }
 
       markClean();
+      showToast('Workflow saved successfully.', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Save failed.';
+      const message = err instanceof Error ? err.message : 'Save failed. Please try again.';
       console.error('[useWorkflowSave] Save failed:', err);
       setError(message);
+      showToast(`Save failed: ${message}`, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -155,8 +189,11 @@ export function useWorkflowSave(): UseSaveResult {
     dirtyIds,
     deletedIds,
     deletedEntityTypes,
+    nodePositions,
     resolveTemporaryId,
+    resolveProcessId,
     markClean,
+    showToast,
   ]);
 
   return { isSaving, save, error };

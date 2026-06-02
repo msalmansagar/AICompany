@@ -49,7 +49,7 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <CrmAdapterProvider adapter={adapter}>
           <ReactFlowProvider>
-            <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <WorkflowCanvas />
             </div>
           </ReactFlowProvider>

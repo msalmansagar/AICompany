@@ -321,9 +321,9 @@ function mapStateCode(code: number): WorkflowProcess['workflowState'] {
 }
 
 function mapStep(raw: Record<string, unknown>): WorkflowStep {
-  const assignCode = raw['qdb_task_assign_to'] as number;
+  const assignCode = (raw['qdb_task_assign_to'] as number) ?? ASSIGN_TO_CODES.user;
   return {
-    crmId: raw['qdb_work_item_stepsid'] as string,
+    crmId: (raw['qdb_work_item_stepsid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     schemaName: (raw['qdb_schemaname'] as string) ?? '',
     sequenceNo: (raw['qdb_sequenceno'] as number) ?? 0,
@@ -332,12 +332,13 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     recordEntity: (raw['qdb_recordentity'] as string) ?? '',
     regardingField: (raw['qdb_regardingfield'] as string) ?? '',
     parentEntity: (raw['qdb_parententity'] as string) ?? '',
-    assignTo: assignCode === ASSIGN_TO_CODES.team ? 'team' : 'user',
+    assignTo: assignCode === ASSIGN_TO_CODES.team ? 'team'
+            : assignCode === ASSIGN_TO_CODES.roundRobin ? 'roundRobin'
+            : 'user',
     assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
     assignedUserName: null,
     teamId: (raw['_qdb_team_value'] as string | null) ?? null,
     teamName: null,
-    enableRoundRobin: (raw['qdb_enableroundrobin'] as boolean) ?? false,
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
     roundRobinTeamName: null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
@@ -392,7 +393,6 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
   if (data.assignTo !== undefined) body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
   if (data.assignedUserId) body['qdb_assigned_user@odata.bind'] = `/systemusers(${data.assignedUserId})`;
   if (data.teamId) body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;
-  if (data.enableRoundRobin !== undefined) body['qdb_enableroundrobin'] = data.enableRoundRobin;
   if (data.roundRobinTeamId) body['qdb_roundrobinteam@odata.bind'] = `/teams(${data.roundRobinTeamId})`;
   if (data.processId) body['qdb_record_type@odata.bind'] = `/${ENTITY_SETS.process}(${data.processId})`;
   return body;
