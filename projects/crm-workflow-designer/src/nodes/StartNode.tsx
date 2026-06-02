@@ -1,20 +1,25 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import type { StartNodeData } from '@/store/selectors';
 
-export function EndNode(_props: NodeProps) {
+export function StartNode({ data }: NodeProps) {
+  const nodeData = data as unknown as StartNodeData;
+
   return (
     <div style={containerStyle}>
-      <Handle
-        type="target"
-        position={Position.Top}
-        id="target-top"
-        style={handleStyle}
-      />
       <div style={circleStyle}>
-        <span style={labelStyle}>END</span>
+        <span style={labelStyle}>START</span>
       </div>
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={handleStyle}
+        id="source-bottom"
+      />
     </div>
   );
+
+  void nodeData;
 }
 
 const containerStyle: React.CSSProperties = {
@@ -27,11 +32,11 @@ const circleStyle: React.CSSProperties = {
   width: 64,
   height: 64,
   borderRadius: '50%',
-  background: '#dc2626',
+  background: '#16a34a',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
+  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -42,7 +47,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#dc2626',
+  background: '#16a34a',
   width: 10,
   height: 10,
 };

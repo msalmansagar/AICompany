@@ -1,208 +1,261 @@
 import { useState } from 'react';
-import { useReactFlow } from '@xyflow/react';
-import { useWorkflowStore } from '../store/workflowStore';
-import { validateGraph } from '../validation/GraphValidator';
-import { CrmApiService } from '../services/CrmApiService';
-import { serialize, deserialize } from '../services/WorkflowSerializer';
-import type { NodeType } from '../types/WorkflowTypes';
-
-const NODE_TYPES: Array<{ type: NodeType; label: string; dot: string }> = [
-  { type: 'trigger',   label: '● Trigger',   dot: '#16a34a' },
-  { type: 'condition', label: '◆ Condition',  dot: '#d97706' },
-  { type: 'action',    label: '■ Action',     dot: '#2563eb' },
-  { type: 'approval',  label: '■ Approval',   dot: '#b45309' },
-  { type: 'end',       label: '● End',        dot: '#dc2626' },
-];
+import { useWorkflowStore } from '@/store/workflowStore';
+import { useWorkflowSave } from '@/hooks/useWorkflowSave';
+import { usePublish } from '@/hooks/usePublish';
+import { useAutoLayout } from '@/hooks/useAutoLayout';
+import { useExport } from '@/hooks/useExport';
 
 export function Toolbar() {
-  const { getNodes, getEdges } = useReactFlow();
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const { process, isDirty, isPreviewMode, setPreviewMode } = useWorkflowStore((s) => ({
+    process: s.process,
+    isDirty: s.isDirty,
+    isPreviewMode: s.isPreviewMode,
+    setPreviewMode: s.setPreviewMode,
+  }));
 
-  const { setPendingLoad, viewMode, setViewMode, crmContext, showToast, setDirty, dirtyFlag } =
-    useWorkflowStore((s) => ({
-      setPendingLoad: s.setPendingLoad,
-      viewMode: s.viewMode,
-      setViewMode: s.setViewMode,
-      crmContext: s.crmContext,
-      showToast: s.showToast,
-      setDirty: s.setDirty,
-      dirtyFlag: s.dirtyFlag,
-    }));
+  const { save, isSaving, error: saveError } = useWorkflowSave();
+  const { publish, isPublishing, violations: validationErrors } = usePublish();
+  const { applyAutoLayout } = useAutoLayout();
+  const { exportJson, exportPng } = useExport();
+  const [exportOpen, setExportOpen] = useState(false);
 
-  function handleValidate() {
-    const wfNodes = getNodes().map((n) => ({
-      id: n.id, type: (n.type ?? 'end') as NodeType,
-      position: n.position, data: n.data as Record<string, unknown>,
-    }));
-    const wfEdges = getEdges().map((e) => ({
-      id: e.id, source: e.source, target: e.target,
-      label: e.label as 'true' | 'false' | undefined,
-    }));
-    const result = validateGraph(wfNodes, wfEdges);
-    showToast(
-      result.valid ? 'Workflow is valid.' : result.errors.join(' | '),
-      result.valid ? 'success' : 'error'
-    );
-  }
-
-  async function handleSave() {
-    if (!crmContext) { showToast('CRM context not available.', 'error'); return; }
-    const nodes = getNodes();
-    const edges = getEdges();
-    const wfNodes = nodes.map((n) => ({
-      id: n.id, type: (n.type ?? 'end') as NodeType,
-      position: n.position, data: n.data as Record<string, unknown>,
-    }));
-    const wfEdges = edges.map((e) => ({
-      id: e.id, source: e.source, target: e.target,
-      label: e.label as 'true' | 'false' | undefined,
-    }));
-    const validation = validateGraph(wfNodes, wfEdges);
-    if (!validation.valid) {
-      showToast('Fix validation errors before saving: ' + validation.errors[0], 'error');
-      return;
-    }
-    const definition = serialize(nodes, edges);
-    const service = new CrmApiService(crmContext);
-    setSaving(true);
-    const result = await service.saveWorkflow(definition, 'Workflow', crmContext.entityName ?? '', crmContext.recordId);
-    setSaving(false);
-    if (result.success) {
-      setDirty(false);
-      showToast(result.sizeWarning ? `Saved. Note: ${result.sizeWarning}` : 'Workflow saved.', 'success');
-    } else {
-      showToast(`Save failed: ${result.error}`, 'error');
-    }
-  }
-
-  async function handleLoad() {
-    if (!crmContext?.recordId) {
-      showToast('No record ID in context. Open from a CRM workflow record.', 'error');
-      return;
-    }
-    const service = new CrmApiService(crmContext);
-    const result = await service.loadWorkflow(crmContext.recordId);
-    if (result.success && result.definition) {
-      const { nodes: ln, edges: le } = deserialize(result.definition);
-      setPendingLoad({ nodes: ln, edges: le });
-      showToast('Workflow loaded.', 'success');
-    } else {
-      showToast(`Load failed: ${result.error}`, 'error');
-    }
-  }
+  const processName = process?.name ?? 'Untitled Workflow';
+  const versionLabel = process
+    ? `v${process.versionMajor}.${process.versionMinor} — ${process.workflowState}`
+    : '';
 
   return (
-    <div style={bar}>
-      <div style={group}>
-        {!viewMode && (
-          <div style={{ position: 'relative' }}>
-            <button style={primaryBtn} onClick={() => setAddMenuOpen((o) => !o)}>+ New Stage</button>
-            {addMenuOpen && (
-              <div style={dropMenu}>
-                {NODE_TYPES.map(({ type, label, dot }) => (
-                  <AddNodeButton
-                    key={type}
-                    nodeType={type}
-                    label={label}
-                    dot={dot}
-                    onAdd={() => { setAddMenuOpen(false); setDirty(true); }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+    <div style={barStyle} role="toolbar" aria-label="Workflow Designer Toolbar">
+      {/* Process identity */}
+      <div style={identityStyle}>
+        <span style={titleStyle}>{processName}</span>
+        {versionLabel && <span style={versionStyle}>{versionLabel}</span>}
+        {isDirty && <span style={dirtyDot} title="Unsaved changes" aria-label="Unsaved changes">●</span>}
       </div>
 
-      <div style={centreTitle}>
-        {dirtyFlag && !viewMode && <span style={unsavedDot} title="Unsaved changes" />}
-        Workflow Designer
-        {viewMode && <span style={viewBadge}>View Only</span>}
+      <div style={actionsStyle}>
+        {/* Save */}
+        <ToolbarButton
+          label={isSaving ? 'Saving…' : 'Save'}
+          disabled={isSaving || !isDirty}
+          onClick={() => void save()}
+          title="Save draft (Ctrl+S)"
+        />
+
+        {/* Publish */}
+        <ToolbarButton
+          label={isPublishing ? 'Publishing…' : 'Publish'}
+          disabled={isPublishing || !process}
+          onClick={() => void publish()}
+          primary
+          title="Validate and publish workflow"
+        />
+
+        <Divider />
+
+        {/* Auto Layout */}
+        <ToolbarButton
+          label="Auto Layout"
+          onClick={() => void applyAutoLayout()}
+          title="Auto-arrange nodes (Dagre/ELK)"
+        />
+
+        {/* Preview */}
+        <ToolbarButton
+          label={isPreviewMode ? 'Exit Preview' : 'Preview'}
+          onClick={() => setPreviewMode(!isPreviewMode)}
+          title="Toggle preview mode (read-only)"
+        />
+
+        <Divider />
+
+        {/* Export dropdown */}
+        <div style={{ position: 'relative' }}>
+          <ToolbarButton
+            label="Export ▾"
+            onClick={() => setExportOpen((o) => !o)}
+            title="Export workflow"
+          />
+          {exportOpen && (
+            <div style={dropdownStyle} onMouseLeave={() => setExportOpen(false)}>
+              <DropdownItem label="Export JSON" onClick={() => { exportJson(); setExportOpen(false); }} />
+              <DropdownItem label="Export PNG" onClick={() => {
+                const el = document.querySelector<HTMLElement>('.react-flow');
+                if (el) void exportPng(el);
+                setExportOpen(false);
+              }} />
+            </div>
+          )}
+        </div>
       </div>
 
-      <div style={group}>
-        {!viewMode && <button style={actionBtn} onClick={handleValidate}>✓ Validate</button>}
-        {!viewMode && (
-          <button style={{ ...actionBtn, ...(saving ? disabledBtn : {}) }} onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving…' : '💾 Save'}
-          </button>
-        )}
-        <button style={actionBtn} onClick={handleLoad}>↑ Load</button>
-        <button style={{ ...actionBtn, ...(viewMode ? activeBtn : {}) }} onClick={() => setViewMode(!viewMode)}>
-          {viewMode ? '✏ Edit' : '👁 View'}
-        </button>
-      </div>
+      {/* Error / validation feedback */}
+      {(saveError ?? (validationErrors.length > 0 ? validationErrors[0].message : null)) && (
+        <div style={errorBannerStyle} role="alert">
+          {saveError ?? validationErrors[0]?.message}
+        </div>
+      )}
     </div>
   );
 }
 
-// Separate component so useReactFlow().setNodes is called inside ReactFlowProvider context
-function AddNodeButton({ nodeType, label, dot, onAdd }: {
-  nodeType: NodeType; label: string; dot: string; onAdd: () => void;
+function ToolbarButton({
+  label, onClick, disabled = false, primary = false, title,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  title?: string;
 }) {
-  const { screenToFlowPosition, setNodes } = useReactFlow();
-
-  function handleClick() {
-    const center = screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-    setNodes((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        type: nodeType,
-        position: { x: center.x + Math.random() * 60 - 30, y: center.y + Math.random() * 60 - 30 },
-        data: {},
-      },
-    ]);
-    onAdd();
-  }
-
   return (
-    <button style={dropItem} onClick={handleClick}>
-      <span style={dropDot(dot)} />
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        ...btnBase,
+        ...(primary ? btnPrimary : btnSecondary),
+        ...(disabled ? btnDisabled : {}),
+      }}
+    >
       {label}
     </button>
   );
 }
 
-const bar: React.CSSProperties = {
-  position: 'absolute', top: 0, left: 0, right: 0, height: 48,
-  background: '#fff', borderBottom: '1px solid #e2e8f0',
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '0 16px', zIndex: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+function Divider() {
+  return <div style={dividerStyle} aria-hidden="true" />;
+}
+
+function DropdownItem({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} style={dropdownItemStyle}>
+      {label}
+    </button>
+  );
+}
+
+const barStyle: React.CSSProperties = {
+  height: 44,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  padding: '0 16px',
+  background: '#1e293b',
+  borderBottom: '1px solid #334155',
+  flexShrink: 0,
+  position: 'relative',
+  zIndex: 10,
 };
-const group: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, minWidth: 180 };
-const centreTitle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8,
-  fontSize: 14, fontWeight: 700, color: '#1e293b', letterSpacing: 0.2,
-  position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+
+const identityStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+  flex: 1,
 };
-const unsavedDot: React.CSSProperties = {
-  display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#f59e0b',
+
+const titleStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#f1f5f9',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
 };
-const viewBadge: React.CSSProperties = {
-  fontSize: 10, background: '#fef9c3', color: '#a16207', padding: '2px 7px', borderRadius: 4, fontWeight: 600,
+
+const versionStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#94a3b8',
+  whiteSpace: 'nowrap',
 };
-const primaryBtn: React.CSSProperties = {
-  background: '#2563eb', color: '#fff', border: 'none', borderRadius: 5,
-  padding: '6px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+
+const dirtyDot: React.CSSProperties = {
+  fontSize: 10,
+  color: '#f59e0b',
 };
-const actionBtn: React.CSSProperties = {
-  background: 'none', color: '#475569', border: '1px solid #e2e8f0',
-  borderRadius: 5, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+
+const actionsStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  flexShrink: 0,
 };
-const activeBtn: React.CSSProperties = { background: '#eff6ff', color: '#2563eb', borderColor: '#bfdbfe' };
-const disabledBtn: React.CSSProperties = { opacity: 0.6, cursor: 'not-allowed' };
-const dropMenu: React.CSSProperties = {
-  position: 'absolute', top: '100%', left: 0, marginTop: 4,
-  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-  boxShadow: '0 4px 16px rgba(0,0,0,0.12)', overflow: 'hidden', minWidth: 160, zIndex: 20,
+
+const btnBase: React.CSSProperties = {
+  height: 28,
+  padding: '0 12px',
+  fontSize: 12,
+  fontWeight: 500,
+  borderRadius: 4,
+  border: 'none',
+  cursor: 'pointer',
+  transition: 'background 0.15s',
 };
-const dropItem: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-  padding: '9px 14px', textAlign: 'left', background: 'none', border: 'none',
-  borderBottom: '1px solid #f8fafc', fontSize: 12, color: '#1e293b', fontWeight: 600, cursor: 'pointer',
+
+const btnSecondary: React.CSSProperties = {
+  background: '#334155',
+  color: '#e2e8f0',
 };
-const dropDot = (color: string): React.CSSProperties => ({
-  width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0,
-});
+
+const btnPrimary: React.CSSProperties = {
+  background: '#2563eb',
+  color: '#fff',
+};
+
+const btnDisabled: React.CSSProperties = {
+  opacity: 0.45,
+  cursor: 'not-allowed',
+};
+
+const dividerStyle: React.CSSProperties = {
+  width: 1,
+  height: 20,
+  background: '#475569',
+  margin: '0 4px',
+};
+
+const dropdownStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  right: 0,
+  marginTop: 4,
+  background: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  padding: 4,
+  minWidth: 140,
+  zIndex: 100,
+  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+};
+
+const dropdownItemStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  textAlign: 'left',
+  padding: '6px 12px',
+  fontSize: 12,
+  color: '#e2e8f0',
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 4,
+  cursor: 'pointer',
+};
+
+const errorBannerStyle: React.CSSProperties = {
+  position: 'absolute',
+  bottom: -32,
+  left: 0,
+  right: 0,
+  height: 32,
+  display: 'flex',
+  alignItems: 'center',
+  padding: '0 16px',
+  background: '#7f1d1d',
+  color: '#fca5a5',
+  fontSize: 12,
+  zIndex: 9,
+};

@@ -1,96 +1,86 @@
-export interface WorkflowDefinition {
-  version: '1.0';
-  nodes: WorkflowNode[];
-  edges: WorkflowEdge[];
+export interface WorkflowProcess {
+  crmId: string;
+  name: string;
+  recordEntity: string;
+  regardingField: string;
+  parentEntity: string;
+  versionMajor: number;
+  versionMinor: number;
+  workflowState: 'draft' | 'published' | 'archived';
+  snapshot: string | null;
 }
 
-export interface WorkflowNode {
+export interface WorkflowStep {
+  crmId: string;
+  name: string;
+  schemaName: string;
+  sequenceNo: number;
+  taskSubject: string;
+  taskDescription: string;
+  recordEntity: string;
+  regardingField: string;
+  parentEntity: string;
+  assignTo: 'user' | 'team';
+  assignedUserId: string | null;
+  assignedUserName: string | null;
+  teamId: string | null;
+  teamName: string | null;
+  enableRoundRobin: boolean;
+  roundRobinTeamId: string | null;
+  roundRobinTeamName: string | null;
+  processId: string;
+}
+
+export interface WorkflowOutcome {
+  crmId: string;
+  name: string;
+  sequenceNumber: number;
+  applyFilter: boolean;
+  stepId: string;
+}
+
+export interface WorkflowRoute {
+  crmId: string;
+  name: string;
+  subject: string;
+  sequenceNumber: number;
+  filter: string;
+  outcomeId: string;
+  nextStepId: string;
+}
+
+export interface EntityOption {
+  logicalName: string;
+  displayName: string;
+  objectTypeCode: number;
+}
+
+export interface AttributeOption {
+  schemaName: string;
+  displayName: string;
+  attributeType: string;
+}
+
+export interface UserOption {
   id: string;
-  type: NodeType;
-  position: { x: number; y: number };
-  data: NodeData;
+  fullName: string;
+  domainName: string;
 }
 
-export type NodeType = 'trigger' | 'condition' | 'action' | 'approval' | 'end';
-
-export interface WorkflowEdge {
+export interface TeamOption {
   id: string;
-  source: string;
-  target: string;
-  label?: 'true' | 'false';
+  name: string;
 }
 
-export interface TriggerNodeData {
-  entity: string;
-  event: 'created' | 'updated' | 'deleted';
-  filterField?: string;
-  filterOperator?: CompareOperator;
-  filterValue?: string;
-}
+export type WorkflowStateCode = 'draft' | 'published' | 'archived';
 
-export interface ConditionNodeData {
-  field: string;
-  operator: CompareOperator;
-  value?: string;
-}
+export const WORKFLOW_STATE_CODES: Record<WorkflowStateCode, number> = {
+  draft: 100000000,
+  published: 100000001,
+  archived: 100000002,
+};
 
-export type CompareOperator =
-  | 'eq' | 'ne' | 'gt' | 'lt' | 'ge' | 'le'
-  | 'contains' | 'beginswith' | 'null' | 'notnull';
-
-export interface UpdateFieldAction {
-  actionType: 'updateField';
-  entity: string;
-  field: string;
-  value: string;
-}
-
-export interface CreateRecordAction {
-  actionType: 'createRecord';
-  entity: string;
-  fieldMappings: Array<{ field: string; value: string }>;
-}
-
-export interface SendEmailAction {
-  actionType: 'sendEmail';
-  templateId: string;
-  recipientField: string;
-}
-
-export interface AssignAction {
-  actionType: 'assign';
-  assignToType: 'user' | 'team';
-  assignToId: string;
-  assignToName: string;
-}
-
-export interface WaitAction {
-  actionType: 'wait';
-  durationMinutes: number;
-}
-
-export type ActionNodeData =
-  | UpdateFieldAction
-  | CreateRecordAction
-  | SendEmailAction
-  | AssignAction
-  | WaitAction;
-
-export interface ApprovalNodeData {
-  assignToType: 'user' | 'team';
-  assignToId: string;
-  assignToName: string;
-  approvalField: string;
-  approvedValue: string;
-  rejectedValue: string;
-}
-
-// NodeData used in business logic and serialisation.
-// React Flow state uses Node (unparameterised, data: Record<string,unknown>)
-// and casts to these types at read points.
-export type NodeData =
-  | TriggerNodeData
-  | ConditionNodeData
-  | ActionNodeData
-  | ApprovalNodeData
-  | Record<string, unknown>;
+export const ASSIGN_TO_CODES = {
+  user: 100000000,
+  team: 100000002,
+} as const;

@@ -1,0 +1,155 @@
+import { useState } from 'react';
+import { QueryBuilder, formatQuery } from 'react-querybuilder';
+import 'react-querybuilder/dist/query-builder.css';
+import type { RuleGroupType, Field } from 'react-querybuilder';
+import { formatAsFetchXml, validateFetchXml } from './fetchXmlFormatter';
+import type { AttributeOption } from '@/types/WorkflowTypes';
+
+interface FetchXmlQueryBuilderProps {
+  attributes: AttributeOption[];
+  initialFetchXml?: string;
+  onChange: (fetchXml: string) => void;
+}
+
+const defaultQuery: RuleGroupType = { combinator: 'and', rules: [] };
+
+export function FetchXmlQueryBuilder({
+  attributes,
+  onChange,
+}: FetchXmlQueryBuilderProps) {
+  const [query, setQuery] = useState<RuleGroupType>(defaultQuery);
+  const [previewXml, setPreviewXml] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  const fields: Field[] = attributes.map((attr) => ({
+    name: attr.schemaName,
+    label: attr.displayName,
+    inputType: mapAttributeType(attr.attributeType),
+    valueEditorType: mapEditorType(attr.attributeType),
+  }));
+
+  function handleQueryChange(newQuery: RuleGroupType): void {
+    setQuery(newQuery);
+    const xml = formatAsFetchXml(newQuery);
+    const error = validateFetchXml(xml);
+    setValidationError(error);
+    setPreviewXml(xml);
+    if (!error) {
+      onChange(xml);
+    }
+  }
+
+  function handleManualChange(event: React.ChangeEvent<HTMLTextAreaElement>): void {
+    const xml = event.target.value;
+    setPreviewXml(xml);
+    const error = validateFetchXml(xml);
+    setValidationError(error);
+    if (!error) {
+      onChange(xml);
+    }
+  }
+
+  // Use formatQuery from react-querybuilder as fallback for display
+  const generatedXml = formatQuery(query, 'json_without_ids');
+  void generatedXml;
+
+  return (
+    <div style={containerStyle}>
+      <div style={builderSectionStyle}>
+        <p style={sectionLabelStyle}>Build filter conditions:</p>
+        {fields.length === 0 ? (
+          <p style={emptyStateStyle}>No attributes available for this entity.</p>
+        ) : (
+          <QueryBuilder
+            fields={fields}
+            query={query}
+            onQueryChange={handleQueryChange}
+          />
+        )}
+      </div>
+
+      <div style={previewSectionStyle}>
+        <p style={sectionLabelStyle}>FetchXML preview (editable):</p>
+        <textarea
+          style={textareaStyle(!!validationError)}
+          value={previewXml}
+          onChange={handleManualChange}
+          rows={6}
+          spellCheck={false}
+          aria-label="FetchXML filter"
+          aria-invalid={!!validationError}
+          aria-describedby={validationError ? 'fetchxml-error' : undefined}
+        />
+        {validationError && (
+          <p id="fetchxml-error" style={errorStyle}>
+            {validationError}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function mapAttributeType(type: string): string {
+  const numericTypes = ['Integer', 'Decimal', 'Double', 'Money', 'BigInt'];
+  if (numericTypes.includes(type)) return 'number';
+  if (type === 'DateTime') return 'date';
+  return 'text';
+}
+
+function mapEditorType(type: string): 'text' | 'select' | 'checkbox' {
+  if (type === 'Boolean') return 'checkbox';
+  if (type === 'Picklist' || type === 'State' || type === 'Status') return 'select';
+  return 'text';
+}
+
+const containerStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 16,
+  padding: 16,
+};
+
+const builderSectionStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+};
+
+const previewSectionStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: '#374151',
+  margin: 0,
+};
+
+const emptyStateStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: '#9ca3af',
+  fontStyle: 'italic',
+};
+
+function textareaStyle(hasError: boolean): React.CSSProperties {
+  return {
+    width: '100%',
+    fontFamily: 'monospace',
+    fontSize: 12,
+    border: `1px solid ${hasError ? '#ef4444' : '#d1d5db'}`,
+    borderRadius: 4,
+    padding: 8,
+    resize: 'vertical',
+    outline: 'none',
+  };
+}
+
+const errorStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#ef4444',
+  margin: 0,
+};

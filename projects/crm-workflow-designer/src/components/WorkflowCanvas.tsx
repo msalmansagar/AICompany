@@ -15,10 +15,9 @@ import {
 import { useCallback, useEffect, useMemo } from 'react';
 import { useWorkflowStore } from '../store/workflowStore';
 import { nodeTypes } from '../nodes/nodeTypes';
-import { NodeConfigPanel } from '../panels/NodeConfigPanel';
+import { PropertiesPanel } from '../panels/PropertiesPanel';
 import { Toolbar } from './Toolbar';
 import { ValidationToast } from './ValidationToast';
-import { Legend } from './Legend';
 
 const defaultEdgeOptions: DefaultEdgeOptions = {
   type: 'smoothstep',
@@ -32,167 +31,179 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 
 export function WorkflowCanvas() {
   const {
-    pendingLoad, setPendingLoad,
-    nodeDataPatches, clearNodeDataPatch,
-    pendingDelete, clearPendingDelete,
-    setSelectedNodeId, viewMode, selectedNodeId,
+    selectNode,
+    isPreviewMode,
+    selectedId,
+    updateNodePosition,
+    addStep,
+    deleteStep,
+    deleteOutcome,
+    deleteRoute,
+    steps,
+    nodePositions,
   } = useWorkflowStore((s) => ({
-    pendingLoad: s.pendingLoad,
-    setPendingLoad: s.setPendingLoad,
-    nodeDataPatches: s.nodeDataPatches,
-    clearNodeDataPatch: s.clearNodeDataPatch,
-    pendingDelete: s.pendingDelete,
-    clearPendingDelete: s.clearPendingDelete,
-    setSelectedNodeId: s.setSelectedNodeId,
-    viewMode: s.viewMode,
-    selectedNodeId: s.selectedNodeId,
+    selectNode: s.selectNode,
+    isPreviewMode: s.isPreviewMode,
+    selectedId: s.selectedId,
+    updateNodePosition: s.updateNodePosition,
+    addStep: s.addStep,
+    deleteStep: s.deleteStep,
+    deleteOutcome: s.deleteOutcome,
+    deleteRoute: s.deleteRoute,
+    steps: s.steps,
+    nodePositions: s.nodePositions,
   }));
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-  // Seed a Start (trigger) node on first mount
+  // Seed a Start node on first mount if no steps exist
   useEffect(() => {
-    setNodes([{
-      id: crypto.randomUUID(),
-      type: 'trigger' as const,
-      position: { x: 120, y: 200 },
-      data: { nodeName: 'Start' },
-    }]);
+    if (Object.keys(steps).length === 0) {
+      setNodes([{
+        id: 'start-node',
+        type: 'start',
+        position: nodePositions['start-node'] ?? { x: 120, y: 200 },
+        data: { label: 'Start' },
+      }]);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Consume pending load (from CRM) — one-shot, overrides seed
-  useEffect(() => {
-    if (!pendingLoad) return;
-    setNodes(pendingLoad.nodes);
-    setEdges(pendingLoad.edges);
-    setPendingLoad(null);
-  }, [pendingLoad, setNodes, setEdges, setPendingLoad]);
-
-  // Apply node data patches (from config panel) — merge into RF node data
-  useEffect(() => {
-    const ids = Object.keys(nodeDataPatches);
-    if (ids.length === 0) return;
-    setNodes((prev) =>
-      prev.map((n) =>
-        nodeDataPatches[n.id]
-          ? { ...n, data: { ...n.data, ...nodeDataPatches[n.id] } }
-          : n
-      )
-    );
-    ids.forEach(clearNodeDataPatch);
-  }, [nodeDataPatches, setNodes, clearNodeDataPatch]);
-
-  // Auto-add End node and wire edges when any node is marked as Terminating Stage
-  useEffect(() => {
-    if (viewMode) return;
-    const terminatingNodes = nodes.filter((n) => n.data.terminatingStage);
-    if (terminatingNodes.length === 0) return;
-
-    const endNode = nodes.find((n) => n.type === 'end');
-    if (!endNode) {
-      const maxX = Math.max(...nodes.map((n) => n.position.x), 0);
-      const avgY = Math.round(nodes.reduce((s, n) => s + n.position.y, 0) / nodes.length);
-      setNodes((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          type: 'end' as const,
-          position: { x: maxX + 240, y: avgY },
-          data: { nodeName: 'End' },
-        },
-      ]);
-      return; // next render will wire the edge once endNode is committed
-    }
-
-    const unconnected = terminatingNodes.filter(
-      (n) => !edges.some((e) => e.source === n.id && e.target === endNode.id)
-    );
-    if (unconnected.length === 0) return;
-
-    setEdges((prev) => {
-      let updated = prev;
-      for (const n of unconnected) {
-        updated = addEdge({ id: crypto.randomUUID(), source: n.id, target: endNode.id }, updated);
-      }
-      return updated;
-    });
-  }, [nodes, edges, viewMode, setNodes, setEdges]);
-
-  // Consume pending node deletion
-  useEffect(() => {
-    if (!pendingDelete) return;
-    setNodes((prev) => prev.filter((n) => n.id !== pendingDelete));
-    setEdges((prev) => prev.filter((e) => e.source !== pendingDelete && e.target !== pendingDelete));
-    clearPendingDelete();
-  }, [pendingDelete, setNodes, setEdges, clearPendingDelete]);
-
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (viewMode) return;
+      if (isPreviewMode) return;
       setEdges((eds) => addEdge({ ...connection, id: crypto.randomUUID() }, eds));
     },
-    [viewMode, setEdges]
+    [isPreviewMode, setEdges]
   );
 
-  function onEdgeDoubleClick(_: React.MouseEvent, edge: Edge) {
-    if (viewMode) return;
-    const labels: Array<string | undefined> = [undefined, 'true', 'false', 'Re-quote', 'Revision', 'Approved', 'Rejected'];
-    const current = edge.label as string | undefined;
-    const next = labels[(labels.indexOf(current) + 1) % labels.length];
-    setEdges((eds) => eds.map((e) => (e.id === edge.id ? { ...e, label: next } : e)));
-  }
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      updateNodePosition(node.id, node.position);
+    },
+    [updateNodePosition]
+  );
 
-  const panelOpen = !!selectedNodeId;
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      for (const node of deleted) {
+        if (node.type === 'step') deleteStep(node.id);
+        else if (node.type === 'outcome') deleteOutcome(node.id);
+        else if (node.type === 'route') deleteRoute(node.id);
+      }
+    },
+    [deleteStep, deleteOutcome, deleteRoute]
+  );
+
+  const onDrop = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const nodeType = event.dataTransfer.getData('application/workflow-node');
+      if (!nodeType || isPreviewMode) return;
+
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const position = {
+        x: event.clientX - bounds.left - 100,
+        y: event.clientY - bounds.top - 40,
+      };
+
+      const id = `tmp_${crypto.randomUUID()}`;
+
+      if (nodeType === 'step' || nodeType === 'task' || nodeType === 'approval' || nodeType === 'review') {
+        addStep({
+          crmId: id,
+          name: `New ${nodeType.charAt(0).toUpperCase() + nodeType.slice(1)} Step`,
+          schemaName: `step_${Date.now()}`,
+          sequenceNo: Object.keys(steps).length + 1,
+          taskSubject: '',
+          taskDescription: '',
+          recordEntity: '',
+          regardingField: '',
+          parentEntity: '',
+          assignTo: 'user',
+          assignedUserId: null,
+          assignedUserName: null,
+          teamId: null,
+          teamName: null,
+          enableRoundRobin: false,
+          roundRobinTeamId: null,
+          roundRobinTeamName: null,
+          processId: '',
+        });
+        setNodes((prev) => [
+          ...prev,
+          { id, type: 'step', position, data: { crmId: id } },
+        ]);
+      } else if (nodeType === 'end') {
+        setNodes((prev) => [
+          ...prev,
+          { id: `end-${crypto.randomUUID()}`, type: 'end', position, data: { label: 'End' } },
+        ]);
+      }
+    },
+    [isPreviewMode, addStep, steps, setNodes]
+  );
+
+  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const panelOpen = !!selectedId;
   const flowStyle = useMemo<React.CSSProperties>(
-    () => ({ width: panelOpen ? 'calc(100% - 360px)' : '100%', height: '100%' }),
+    () => ({ width: panelOpen ? 'calc(100% - 320px)' : '100%', height: '100%' }),
     [panelOpen]
   );
 
   return (
-    <div style={canvasWrapper}>
-      <ReactFlow
-        style={flowStyle}
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        onNodesChange={viewMode ? undefined : onNodesChange}
-        onEdgesChange={viewMode ? undefined : onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={(_: React.MouseEvent, node: Node) => setSelectedNodeId(node.id)}
-        onPaneClick={() => setSelectedNodeId(null)}
-        onEdgeDoubleClick={onEdgeDoubleClick}
-        fitView
-        fitViewOptions={{ padding: 0.2 }}
-        proOptions={{ hideAttribution: true }}
-        nodesDraggable={!viewMode}
-        nodesConnectable={!viewMode}
-        elementsSelectable={!viewMode}
-        minZoom={0.25}
-        maxZoom={2}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
-        <Controls style={controlsStyle} />
-        <MiniMap
-          style={minimapStyle}
-          nodeColor={minimapNodeColor}
-          maskColor="rgba(248,250,252,0.7)"
-        />
-      </ReactFlow>
+    <div style={canvasWrapper} onDrop={onDrop} onDragOver={onDragOver}>
       <Toolbar />
-      <NodeConfigPanel />
+      <div style={mainArea}>
+        <ReactFlow
+          style={flowStyle}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          onNodesChange={isPreviewMode ? undefined : onNodesChange}
+          onEdgesChange={isPreviewMode ? undefined : onEdgesChange}
+          onNodesDelete={onNodesDelete}
+          onConnect={onConnect}
+          onNodeDragStop={onNodeDragStop}
+          onNodeClick={(_: React.MouseEvent, node: Node) => selectNode(node.id)}
+          onPaneClick={() => selectNode(null)}
+          fitView
+          fitViewOptions={{ padding: 0.2 }}
+          proOptions={{ hideAttribution: true }}
+          nodesDraggable={!isPreviewMode}
+          nodesConnectable={!isPreviewMode}
+          elementsSelectable={!isPreviewMode}
+          snapToGrid
+          snapGrid={[20, 20]}
+          minZoom={0.25}
+          maxZoom={2}
+          deleteKeyCode="Delete"
+          multiSelectionKeyCode="Shift"
+        >
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+          <Controls style={controlsStyle} />
+          <MiniMap
+            style={minimapStyle}
+            nodeColor={minimapNodeColor}
+            maskColor="rgba(248,250,252,0.7)"
+          />
+        </ReactFlow>
+        {selectedId && <PropertiesPanel />}
+      </div>
       <ValidationToast />
-      <Legend />
     </div>
   );
 }
 
 function minimapNodeColor(node: Node): string {
   const colorMap: Record<string, string> = {
-    trigger: '#16a34a', condition: '#d97706',
-    action: '#2563eb', approval: '#b45309', end: '#dc2626',
+    start: '#16a34a', step: '#2563eb', outcome: '#059669', end: '#dc2626',
   };
   return colorMap[node.type ?? ''] ?? '#94a3b8';
 }
@@ -200,9 +211,15 @@ function minimapNodeColor(node: Node): string {
 const canvasWrapper: React.CSSProperties = {
   width: '100%',
   height: '100%',
-  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
   background: '#f8fafc',
-  paddingTop: 48,
+};
+
+const mainArea: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  overflow: 'hidden',
 };
 
 const controlsStyle: React.CSSProperties = { bottom: 80, left: 16 };
