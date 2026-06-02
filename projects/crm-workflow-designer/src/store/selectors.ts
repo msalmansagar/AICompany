@@ -11,7 +11,7 @@ export interface StepNodeData extends Record<string, unknown> {
   assignedUserName: string | null;
   teamName: string | null;
   roundRobinTeamName: string | null;
-  recordEntity: string;
+  recordEntityName: string | null;
   isSelected: boolean;
   hasValidationError: boolean;
 }
@@ -75,7 +75,7 @@ export function deriveNodes(state: WorkflowDesignerState): Node[] {
         assignedUserName: step.assignedUserName,
         teamName: step.teamName,
         roundRobinTeamName: step.roundRobinTeamName,
-        recordEntity: step.recordEntity,
+        recordEntityName: step.recordEntityName,
         isSelected: state.selectedId === step.crmId,
         hasValidationError,
       } satisfies StepNodeData,

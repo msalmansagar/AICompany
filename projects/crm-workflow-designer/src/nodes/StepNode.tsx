@@ -34,9 +34,9 @@ export function StepNode({ data, selected }: NodeProps) {
         )}
       </div>
 
-      {d.recordEntity && (
+      {d.recordEntityName && (
         <div style={entityRowStyle}>
-          <span style={entityBadgeStyle}>{d.recordEntity}</span>
+          <span style={entityBadgeStyle}>{d.recordEntityName}</span>
         </div>
       )}
 

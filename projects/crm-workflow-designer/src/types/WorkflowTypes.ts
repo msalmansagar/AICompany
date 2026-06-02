@@ -19,9 +19,12 @@ export interface WorkflowStep {
   sequenceNo: number;
   taskSubject: string;
   taskDescription: string;
-  recordEntity: string;
-  regardingField: string;
-  parentEntity: string;
+  recordEntityId: string | null;
+  recordEntityName: string | null;
+  regardingFieldId: string | null;
+  regardingFieldName: string | null;
+  parentEntityId: string | null;
+  parentEntityName: string | null;
   assignTo: AssignToType;
   assignedUserId: string | null;
   assignedUserName: string | null;
@@ -30,6 +33,17 @@ export interface WorkflowStep {
   roundRobinTeamId: string | null;
   roundRobinTeamName: string | null;
   processId: string;
+}
+
+export interface AutoNumberEntityOption {
+  id: string;
+  name: string;
+}
+
+export interface AutoNumberFieldOption {
+  id: string;
+  name: string;
+  entityId: string;
 }
 
 export interface WorkflowOutcome {

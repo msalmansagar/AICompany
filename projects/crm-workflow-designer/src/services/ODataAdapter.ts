@@ -12,6 +12,8 @@ import type {
   AttributeOption,
   UserOption,
   TeamOption,
+  AutoNumberEntityOption,
+  AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
 import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
 
@@ -20,6 +22,8 @@ const ENTITY_SETS = {
   step: 'qdb_work_item_stepss',
   outcome: 'qdb_outcomes',
   route: 'qdb_outcomeworktaskss',
+  crmEntity: 'crmi_autonumber_system_entitieses',
+  crmField: 'crmi_autonumber_entities_fieldses',
 } as const;
 
 export class ODataAdapter implements ICrmAdapter {
@@ -128,7 +132,7 @@ export class ODataAdapter implements ICrmAdapter {
   async getSteps(processId: string): Promise<WorkflowStep[]> {
     assertGuid(processId, 'processId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,qdb_enableroundrobin,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}`
+      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}`
     );
     return data.value.map(mapStep);
   }
@@ -247,6 +251,28 @@ export class ODataAdapter implements ICrmAdapter {
     }));
   }
 
+  async getAutoNumberEntities(): Promise<AutoNumberEntityOption[]> {
+    const data = await this.get<{ value: Record<string, unknown>[] }>(
+      `${ENTITY_SETS.crmEntity}?$select=crmi_autonumber_system_entitiesid,crmi_name&$orderby=crmi_name asc&$top=200`
+    );
+    return data.value.map((e) => ({
+      id: (e['crmi_autonumber_system_entitiesid'] as string) ?? '',
+      name: (e['crmi_name'] as string) ?? '',
+    }));
+  }
+
+  async getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]> {
+    const filterClause = entityId ? `&$filter=_crmi_entity_value eq ${entityId}` : '';
+    const data = await this.get<{ value: Record<string, unknown>[] }>(
+      `${ENTITY_SETS.crmField}?$select=crmi_autonumber_entities_fieldsid,crmi_name,_crmi_entity_value${filterClause}&$orderby=crmi_name asc&$top=200`
+    );
+    return data.value.map((e) => ({
+      id: (e['crmi_autonumber_entities_fieldsid'] as string) ?? '',
+      name: (e['crmi_name'] as string) ?? '',
+      entityId: (e['_crmi_entity_value'] as string) ?? '',
+    }));
+  }
+
   // --- Lifecycle ---
 
   async publishProcess(id: string): Promise<void> {
@@ -329,9 +355,12 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     sequenceNo: (raw['qdb_sequenceno'] as number) ?? 0,
     taskSubject: (raw['qdb_tasksubject'] as string) ?? '',
     taskDescription: (raw['qdb_taskdescription'] as string) ?? '',
-    recordEntity: (raw['qdb_recordentity'] as string) ?? '',
-    regardingField: (raw['qdb_regardingfield'] as string) ?? '',
-    parentEntity: (raw['qdb_parententity'] as string) ?? '',
+    recordEntityId: (raw['_qdb_recordentity_value'] as string | null) ?? null,
+    recordEntityName: (raw['_qdb_recordentity_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
+    regardingFieldId: (raw['_qdb_regardingfield_value'] as string | null) ?? null,
+    regardingFieldName: (raw['_qdb_regardingfield_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
+    parentEntityId: (raw['_qdb_parententity_value'] as string | null) ?? null,
+    parentEntityName: (raw['_qdb_parententity_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
     assignTo: assignCode === ASSIGN_TO_CODES.team ? 'team'
             : assignCode === ASSIGN_TO_CODES.roundRobin ? 'roundRobin'
             : 'user',
@@ -387,9 +416,9 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
   if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
   if (data.taskSubject !== undefined) body['qdb_tasksubject'] = data.taskSubject;
   if (data.taskDescription !== undefined) body['qdb_taskdescription'] = data.taskDescription;
-  if (data.recordEntity !== undefined) body['qdb_recordentity'] = data.recordEntity;
-  if (data.regardingField !== undefined) body['qdb_regardingfield'] = data.regardingField;
-  if (data.parentEntity !== undefined) body['qdb_parententity'] = data.parentEntity;
+  if (data.recordEntityId) body['qdb_recordentity@odata.bind'] = `/${ENTITY_SETS.crmEntity}(${data.recordEntityId})`;
+  if (data.regardingFieldId) body['qdb_regardingfield@odata.bind'] = `/${ENTITY_SETS.crmField}(${data.regardingFieldId})`;
+  if (data.parentEntityId) body['qdb_parententity@odata.bind'] = `/${ENTITY_SETS.crmEntity}(${data.parentEntityId})`;
   if (data.assignTo !== undefined) body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
   if (data.assignedUserId) body['qdb_assigned_user@odata.bind'] = `/systemusers(${data.assignedUserId})`;
   if (data.teamId) body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;

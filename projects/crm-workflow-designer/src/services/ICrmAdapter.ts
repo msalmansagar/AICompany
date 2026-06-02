@@ -7,6 +7,8 @@ import type {
   AttributeOption,
   UserOption,
   TeamOption,
+  AutoNumberEntityOption,
+  AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
 
 export interface ICrmAdapter {
@@ -40,6 +42,8 @@ export interface ICrmAdapter {
   getAttributes(entityLogicalName: string): Promise<AttributeOption[]>;
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
+  getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
+  getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 
   // Workflow lifecycle
   publishProcess(id: string): Promise<void>;
