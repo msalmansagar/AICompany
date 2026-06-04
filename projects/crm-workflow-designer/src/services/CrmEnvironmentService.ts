@@ -1,3 +1,8 @@
+import { DevXrmWebApiShim } from './DevXrmWebApiShim';
+import type { XrmPort } from './DevXrmWebApiShim';
+
+export type { XrmPort };
+
 const ONLINE_URL_PATTERNS = [
   '.dynamics.com',
   '.microsoftdynamics.de',
@@ -13,13 +18,42 @@ export class CrmContextError extends Error {
 }
 
 export class CrmEnvironmentService {
-  private readonly xrm: typeof Xrm;
+  private readonly xrm: typeof Xrm | null;
+  private readonly devShim: DevXrmWebApiShim | null;
+  readonly isDevMode: boolean;
 
   constructor() {
-    this.xrm = resolveXrm();
+    try {
+      this.xrm = resolveXrm();
+      this.devShim = null;
+      this.isDevMode = false;
+    } catch (err) {
+      // In Vite dev mode fall back to the fetch-based shim instead of crashing.
+      if (!import.meta.env.DEV) throw err;
+      this.xrm = null;
+      this.devShim = new DevXrmWebApiShim();
+      this.isDevMode = true;
+    }
+  }
+
+  // Returns the narrow WebApi interface — same shape whether CRM or local dev.
+  getXrm(): XrmPort {
+    if (this.devShim) {
+      return { WebApi: this.devShim };
+    }
+    // Safe cast: real Xrm.WebApi satisfies XrmPort.WebApi.
+    return this.xrm as unknown as XrmPort;
+  }
+
+  // Returns the full Xrm object for adapters that need write operations.
+  // Throws in dev mode — write operations always require a real CRM session.
+  getCrmXrm(): typeof Xrm {
+    if (!this.xrm) throw new CrmContextError('Write operations require CRM context (not available in dev mode).');
+    return this.xrm;
   }
 
   isOnline(): boolean {
+    if (this.isDevMode) return true;
     const clientUrl = this.getClientUrl().toLowerCase();
     const versionSignalsOnline = this.detectOnlineFromVersion();
     if (versionSignalsOnline !== null) return versionSignalsOnline;
@@ -31,11 +65,13 @@ export class CrmEnvironmentService {
   }
 
   getClientUrl(): string {
-    return this.xrm.Utility.getGlobalContext().getClientUrl();
+    if (this.isDevMode) return 'https://org5869857f.crm4.dynamics.com';
+    return this.xrm!.Utility.getGlobalContext().getClientUrl();
   }
 
   getUserContext(): { userId: string; userName: string; orgName: string } {
-    const ctx = this.xrm.Utility.getGlobalContext();
+    if (this.isDevMode) return { userId: 'dev', userName: 'Dev User', orgName: 'dev' };
+    const ctx = this.xrm!.Utility.getGlobalContext();
     return {
       userId: ctx.getUserId().replace(/[{}]/g, ''),
       userName: ctx.getUserName(),
@@ -49,11 +85,9 @@ export class CrmEnvironmentService {
 
   private detectOnlineFromVersion(): boolean | null {
     try {
-      const version = this.xrm.Utility.getGlobalContext().getVersion();
+      const version = this.xrm!.Utility.getGlobalContext().getVersion();
       if (!version) return null;
       const major = parseInt(version.split('.')[0] ?? '0', 10);
-      // Dataverse Online is version 9.x+; on-prem can also be 9.x
-      // Version alone is insufficient — use as secondary signal only
       return major >= 9 ? null : false;
     } catch {
       return null;

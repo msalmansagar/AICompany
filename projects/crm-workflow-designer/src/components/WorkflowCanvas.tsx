@@ -4,353 +4,291 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
-  MarkerType,
-  ConnectionLineType,
-  ConnectionMode,
-  type Connection,
-  type Node,
-  type Edge,
-  type IsValidConnection,
   useReactFlow,
   Panel,
+  applyNodeChanges,
+  getNodesBounds,
+  getViewportForBounds,
+  type Node,
+  type Edge,
+  type NodeChange,
 } from '@xyflow/react';
+import { toPng } from 'html-to-image';
+import jsPDF from 'jspdf';
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { useWorkflowStore } from '../store/workflowStore';
-import { deriveNodes, deriveEdges } from '../store/selectors';
+import { buildGraph } from '../services/WorkflowGraphBuilder';
+import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
+import { buildTechnicalGraph } from '../services/TechnicalGraphBuilder';
+import { buildSwimlaneGraph } from '../services/SwimlaneGraphBuilder';
 import { nodeTypes } from '../nodes/nodeTypes';
-import { edgeTypes } from '../edges/edgeTypes';
-import { PropertiesPanel } from '../panels/PropertiesPanel';
-import { Toolbar } from './Toolbar';
-import { WorkflowToolbox } from './WorkflowToolbox';
-import { ValidationToast } from './ValidationToast';
-import { useAutoLayout } from '../hooks/useAutoLayout';
+import { ViewToolbar } from './ViewToolbar';
+import { ProcessSelectorDialog } from './ProcessSelectorDialog';
+import { ReadOnlyPropertyPanel } from './ReadOnlyPropertyPanel';
+import type { WorkflowView } from '../hooks/useWorkflowView';
+import type { ViewMode } from '../types/ViewMode';
+import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
-function CanvasActionBar() {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
-  const { applyAutoLayout } = useAutoLayout();
-  const [showGrid, setShowGrid] = useState(true);
-  const toggleGrid = useCallback(() => setShowGrid((v) => !v), []);
-
-  return (
-    <Panel position="top-right" style={canvasBarStyle}>
-      <CBtn title="Fit View" onClick={() => void fitView({ padding: 0.2 })}>⊡</CBtn>
-      <CBtn title="Zoom In" onClick={() => void zoomIn()}>+</CBtn>
-      <CBtn title="Zoom Out" onClick={() => void zoomOut()}>−</CBtn>
-      <div style={barSep} />
-      <CBtn title="Auto Layout" onClick={() => void applyAutoLayout()}>⊞</CBtn>
-      <CBtn title="Toggle Grid" onClick={toggleGrid} active={showGrid}>⊹</CBtn>
-    </Panel>
-  );
+interface WorkflowCanvasProps {
+  view: WorkflowView;
 }
 
-function CBtn({ title, onClick, children, active }: {
-  title: string; onClick: () => void; children: React.ReactNode; active?: boolean;
-}) {
-  return (
-    <button type="button" title={title} onClick={onClick} style={cBtnStyle(active ?? false)}>
-      {children}
-    </button>
-  );
-}
+const EXPORT_W = 2560;
+const EXPORT_H = 1440;
 
-export function WorkflowCanvas() {
-  const store = useWorkflowStore();
-  const {
-    selectNode,
-    isPreviewMode,
-    updateNodePosition,
-    addStep,
-    addOutcome,
-    addRoute,
-    assignOutcomeToStep,
-    deleteStep,
-    deleteOutcome,
-    deleteRoute,
-    showToast,
-  } = store;
+type BuildFn = (
+  steps: Parameters<typeof buildGraph>[0],
+  outcomes: Parameters<typeof buildGraph>[1],
+  dir?: LayoutDir
+) => ReturnType<typeof buildGraph>;
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [showNewDialog, setShowNewDialog] = useState(false);
-  const [showOpenDialog, setShowOpenDialog] = useState(false);
+const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
+  executive: buildExecutiveGraph as BuildFn,
+  business:  buildGraph as BuildFn,
+  technical: buildTechnicalGraph as BuildFn,
+  swimlane:  buildSwimlaneGraph as BuildFn,
+};
 
-  // Sync store → React Flow canvas
+export function WorkflowCanvas({ view }: WorkflowCanvasProps) {
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const { fitView, getNodes } = useReactFlow();
+  const fitViewTrigger = useRef(0);
+
+  // Rebuild graph whenever the loaded data, view mode, or layout direction changes.
   useEffect(() => {
-    const state = useWorkflowStore.getState();
-    setNodes(deriveNodes(state));
-    setEdges(deriveEdges(state));
+    if (!view.data) return;
+    const builder = GRAPH_BUILDERS[view.viewMode];
+    const { nodes: rebuilt, edges: rebuiltEdges } = builder(
+      view.data.steps,
+      view.data.outcomes,
+      view.layoutDir
+    );
+    view.setNodes(() => rebuilt);
+    view.setEdges(() => rebuiltEdges);
+    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.steps, store.outcomes, store.routes, store.nodePositions, store.selectedId]);
+  }, [view.data, view.viewMode, view.layoutDir]);
 
-  // Stable ref for nodes so onConnect closure doesn't go stale
-  const nodesRef = useRef(nodes);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  const handleOpen = useCallback(() => {
+    setSelectorOpen(true);
+    void view.loadProcessList();
+  }, [view]);
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (isPreviewMode) return;
-      if (!connection.source || !connection.target) return;
+  const handleSelect = useCallback((processId: string) => {
+    setSelectorOpen(false);
+    void view.loadWorkflow(processId);
+  }, [view]);
 
-      const currentNodes = nodesRef.current;
-      const sourceNode = currentNodes.find((n) => n.id === connection.source);
-      const targetNode = currentNodes.find((n) => n.id === connection.target);
+  const handleFitView = useCallback(() => {
+    fitViewTrigger.current += 1;
+    fitView({ padding: 0.2, duration: 300 });
+  }, [fitView]);
 
-      if (!sourceNode || !targetNode) return;
+  const handleAutoLayout = useCallback(() => {
+    if (!view.data || view.nodes.length === 0) return;
+    const builder = GRAPH_BUILDERS[view.viewMode];
+    const { nodes: positioned, edges: rebuilt } = builder(
+      view.data.steps,
+      view.data.outcomes,
+      view.layoutDir
+    );
+    view.setNodes(() => positioned);
+    view.setEdges(() => rebuilt);
+    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+  }, [view, fitView]);
 
-      const srcType = sourceNode.type;
-      const tgtType = targetNode.type;
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    view.selectElement(node.id);
+  }, [view]);
 
-      if (srcType === 'outcome' && (tgtType === 'step' || tgtType === 'end')) {
-        // Outcome → Step: create a Route
-        const routeId = `tmp_${crypto.randomUUID()}`;
-        const routeCount = Object.keys(useWorkflowStore.getState().routes).length + 1;
-        addRoute({
-          crmId: routeId,
-          name: `Route ${routeCount}`,
-          subject: '',
-          sequenceNumber: routeCount,
-          filter: '',
-          outcomeId: connection.source,
-          nextStepId: connection.target,
-        });
-        selectNode(routeId);
-      } else if (srcType === 'step' && tgtType === 'outcome') {
-        // Step → Outcome: assign outcome to step
-        const outcome = useWorkflowStore.getState().outcomes[connection.target];
-        if (outcome) {
-          assignOutcomeToStep(connection.target, connection.source);
-        }
-      } else {
-        showToast(`Invalid connection: ${srcType} → ${tgtType}. Allowed: step→outcome, outcome→step.`, 'error');
-      }
-    },
-    [isPreviewMode, addRoute, assignOutcomeToStep, selectNode, showToast]
-  );
+  const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
+    view.selectElement(edge.id);
+  }, [view]);
 
-  const isValidConnection = useCallback<IsValidConnection>(
-    (connectionOrEdge) => {
-      const source = connectionOrEdge.source;
-      const target = connectionOrEdge.target;
-      if (!source || !target) return false;
-      if (source === target) return false;
-      const currentNodes = nodesRef.current;
-      const src = currentNodes.find((n) => n.id === source);
-      const tgt = currentNodes.find((n) => n.id === target);
-      if (!src || !tgt) return false;
-      return (
-        (src.type === 'step' && tgt.type === 'outcome') ||
-        (src.type === 'outcome' && (tgt.type === 'step' || tgt.type === 'end'))
-      );
-    },
-    []
-  );
+  const handlePaneClick = useCallback(() => {
+    view.selectElement(null);
+  }, [view]);
 
-  const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      updateNodePosition(node.id, node.position);
-    },
-    [updateNodePosition]
-  );
+  const handleNodesChange = useCallback((changes: NodeChange[]) => {
+    view.setNodes((prev) => applyNodeChanges(changes, prev));
+  }, [view]);
 
-  const onNodesDelete = useCallback(
-    (deleted: Node[]) => {
-      for (const node of deleted) {
-        if (node.type === 'step') deleteStep(node.id);
-        else if (node.type === 'outcome') deleteOutcome(node.id);
-      }
-    },
-    [deleteStep, deleteOutcome]
-  );
+  // Captures the React Flow viewport element scaled to fit all nodes.
+  const captureImage = useCallback(async (): Promise<string> => {
+    const nodes = getNodes();
+    if (nodes.length === 0) throw new Error('No nodes to export.');
+    const bounds = getNodesBounds(nodes);
+    const { x, y, zoom } = getViewportForBounds(bounds, EXPORT_W, EXPORT_H, 0.05, 4, 0.08);
+    const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!viewportEl) throw new Error('Viewport element not found.');
+    return toPng(viewportEl, {
+      backgroundColor: '#f8fafc',
+      width: EXPORT_W,
+      height: EXPORT_H,
+      style: {
+        width: `${EXPORT_W}px`,
+        height: `${EXPORT_H}px`,
+        transform: `translate(${x}px, ${y}px) scale(${zoom})`,
+      },
+    });
+  }, [getNodes]);
 
-  const onEdgesDelete = useCallback(
-    (deleted: Edge[]) => {
-      for (const edge of deleted) {
-        // Only delete route edges from the store (stepToOutcome edges are derived)
-        if (edge.type === 'route') {
-          deleteRoute(edge.id.replace('edge_route_', ''));
-        } else if (edge.type === 'route' || edge.data?.kind === 'route') {
-          const routeId = (edge.data as { crmId?: string } | undefined)?.crmId;
-          if (routeId) deleteRoute(routeId);
-        }
-      }
-    },
-    [deleteRoute]
-  );
+  const handleDownloadPng = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const dataUrl = await captureImage();
+      const link = document.createElement('a');
+      link.download = `${view.data?.process.name ?? 'workflow'}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('[export png]', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [captureImage, view.data]);
 
-  const onDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      const nodeType = event.dataTransfer.getData('application/workflow-node');
-      if (!nodeType || isPreviewMode) return;
-
-      const bounds = event.currentTarget.getBoundingClientRect();
-      const position = {
-        x: event.clientX - bounds.left - 80,
-        y: event.clientY - bounds.top - 30,
-      };
-      const id = `tmp_${crypto.randomUUID()}`;
-      const currentProcess = useWorkflowStore.getState().process;
-
-      if (nodeType === 'step' || nodeType === 'task') {
-        const stepCount = Object.keys(useWorkflowStore.getState().steps).length;
-        addStep({
-          crmId: id,
-          name: 'New Step',
-          schemaName: '',
-          sequenceNo: stepCount + 1,
-          taskSubject: '',
-          taskDescription: '',
-          recordEntityId: null,
-          recordEntityName: null,
-          regardingFieldId: null,
-          regardingFieldName: null,
-          parentEntityId: null,
-          parentEntityName: null,
-          assignTo: 'user',
-          assignedUserId: null,
-          assignedUserName: null,
-          teamId: null,
-          teamName: null,
-          roundRobinTeamId: null,
-          roundRobinTeamName: null,
-          processId: currentProcess?.crmId ?? '',
-        });
-        updateNodePosition(id, position);
-        selectNode(id);
-      } else if (nodeType === 'outcome') {
-        const outcomeCount = Object.keys(useWorkflowStore.getState().outcomes).length;
-        addOutcome({
-          crmId: id,
-          name: 'Outcome',
-          sequenceNumber: outcomeCount + 1,
-          applyFilter: false,
-          stepId: '',
-        });
-        updateNodePosition(id, position);
-        selectNode(id);
-      } else if (nodeType === 'end') {
-        // End nodes are visual-only markers; add as standalone node
-        const endId = `end_${crypto.randomUUID()}`;
-        setNodes((prev) => [
-          ...prev,
-          {
-            id: endId,
-            type: 'end',
-            position,
-            data: { kind: 'end', crmId: '' },
-          },
-        ]);
-      }
-    },
-    [isPreviewMode, addStep, addOutcome, updateNodePosition, selectNode, setNodes]
-  );
-
-  const onDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  }, []);
-
-  const isEmptyCanvas = Object.keys(store.steps).length === 0 && !store.process;
+  const handleDownloadPdf = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      const dataUrl = await captureImage();
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [EXPORT_W, EXPORT_H] });
+      pdf.addImage(dataUrl, 'PNG', 0, 0, EXPORT_W, EXPORT_H);
+      pdf.save(`${view.data?.process.name ?? 'workflow'}.pdf`);
+    } catch (err) {
+      console.error('[export pdf]', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [captureImage, view.data]);
 
   return (
-    <div style={wrapperStyle}>
-      <Toolbar
-        onRequestNew={() => setShowNewDialog(true)}
-        onRequestOpen={() => setShowOpenDialog(true)}
-        externalNewDialog={showNewDialog}
-        externalOpenDialog={showOpenDialog}
-        onCloseNew={() => setShowNewDialog(false)}
-        onCloseOpen={() => setShowOpenDialog(false)}
+    <div style={shellStyle}>
+      <ViewToolbar
+        processName={view.data?.process.name ?? null}
+        isLoading={view.phase === 'loading-list' || view.phase === 'loading-workflow'}
+        isExporting={isExporting}
+        showMiniMap={showMiniMap}
+        viewMode={view.viewMode}
+        layoutDir={view.layoutDir}
+        onOpen={handleOpen}
+        onRefresh={() => void view.refresh()}
+        onFitView={handleFitView}
+        onAutoLayout={handleAutoLayout}
+        onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+        onDownloadPng={() => void handleDownloadPng()}
+        onDownloadPdf={() => void handleDownloadPdf()}
+        onViewModeChange={view.setViewMode}
+        onLayoutDirChange={view.setLayoutDir}
       />
+
       <div style={bodyStyle}>
-        <WorkflowToolbox />
-        <div style={canvasContainerStyle} onDrop={onDrop} onDragOver={onDragOver}>
+        <div style={canvasWrap}>
           <ReactFlow
-            nodes={nodes}
-            edges={edges}
+            nodes={view.nodes}
+            edges={view.edges}
             nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            defaultEdgeOptions={{
-              type: 'smoothstep',
-              animated: false,
-              style: { stroke: '#94a3b8', strokeWidth: 2 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
-            }}
-            connectionLineType={ConnectionLineType.SmoothStep}
-            connectionMode={ConnectionMode.Loose}
-            isValidConnection={isValidConnection}
-            onNodesChange={isPreviewMode ? undefined : onNodesChange}
-            onEdgesChange={isPreviewMode ? undefined : onEdgesChange}
-            onNodesDelete={onNodesDelete}
-            onEdgesDelete={onEdgesDelete}
-            onConnect={onConnect}
-            onNodeDragStop={onNodeDragStop}
-            onNodeClick={(_: React.MouseEvent, node: Node) => selectNode(node.id)}
-            onEdgeClick={(_: React.MouseEvent, edge: Edge) => {
-              const routeId = (edge.data as { crmId?: string } | undefined)?.crmId ?? edge.id;
-              selectNode(routeId);
-            }}
-            onPaneClick={() => selectNode(null)}
+            onNodesChange={handleNodesChange}
+            onNodeClick={handleNodeClick}
+            onEdgeClick={handleEdgeClick}
+            onPaneClick={handlePaneClick}
+            nodesDraggable={true}
+            nodesConnectable={false}
+            elementsSelectable={true}
+            deleteKeyCode={null}
             fitView
-            fitViewOptions={{ padding: 0.25, maxZoom: 1.0 }}
+            fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
             proOptions={{ hideAttribution: true }}
-            nodesDraggable={!isPreviewMode}
-            nodesConnectable={!isPreviewMode}
-            elementsSelectable={!isPreviewMode}
-            snapToGrid
-            snapGrid={[20, 20]}
-            minZoom={0.1}
-            maxZoom={2}
+            minZoom={0.08}
+            maxZoom={2.5}
             zoomOnScroll
             panOnDrag
             selectionOnDrag={false}
-            deleteKeyCode="Delete"
-            multiSelectionKeyCode="Shift"
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
             <Controls showInteractive={false} />
-            <MiniMap nodeColor={minimapColor} maskColor="rgba(248,250,252,0.7)" />
-            <CanvasActionBar />
-          </ReactFlow>
+            {showMiniMap && (
+              <MiniMap
+                nodeColor={minimapColor}
+                maskColor="rgba(248,250,252,0.75)"
+                style={{ bottom: 60 }}
+              />
+            )}
 
-          {isEmptyCanvas && (
-            <div style={emptyOverlayStyle}>
-              <div style={emptyCardStyle}>
-                <h2 style={emptyHeadingStyle}>Workflow Designer</h2>
-                <p style={emptySubtextStyle}>Create a new workflow or open an existing one to begin</p>
-                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                  <button style={emptyPrimaryBtn} onClick={() => setShowNewDialog(true)}>
-                    + New Workflow
-                  </button>
-                  <button style={emptySecondaryBtn} onClick={() => setShowOpenDialog(true)}>
-                    Open Workflow
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+            {view.phase === 'loading-workflow' && <LoadingOverlay />}
+            {view.phase === 'error' && view.error && <ErrorPanel message={view.error} onRetry={() => void view.refresh()} />}
+
+            {(view.phase === 'idle' || (view.phase === 'ready' && view.nodes.length === 0)) && (
+              <EmptyState onOpen={handleOpen} hasNoSteps={view.phase === 'ready'} />
+            )}
+          </ReactFlow>
         </div>
-        <PropertiesPanel />
+
+        <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} />
       </div>
-      <ValidationToast />
+
+      {selectorOpen && (
+        <ProcessSelectorDialog
+          processes={view.processList}
+          isLoading={view.phase === 'loading-list'}
+          error={view.phase === 'error' ? view.error : null}
+          onSelect={handleSelect}
+          onClose={() => setSelectorOpen(false)}
+        />
+      )}
     </div>
   );
 }
 
-function minimapColor(node: Node): string {
+function LoadingOverlay() {
   return (
-    ({
-      step: '#2563eb',
-      outcome: '#059669',
-      end: '#dc2626',
-      start: '#16a34a',
-    } as Record<string, string>)[node.type ?? ''] ?? '#94a3b8'
+    <Panel position="top-center" style={overlayPanelStyle}>
+      <span style={spinnerStyle} />
+      <span style={{ fontSize: 13, color: '#475569' }}>Loading workflow…</span>
+    </Panel>
   );
 }
 
-const wrapperStyle: React.CSSProperties = {
+function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) {
+  return (
+    <Panel position="top-center" style={errorPanelStyle}>
+      <strong style={{ fontSize: 12, color: '#991b1b', display: 'block', marginBottom: 4 }}>
+        Failed to load workflow
+      </strong>
+      <pre style={errorPreStyle}>{message}</pre>
+      <button type="button" style={retryBtn} onClick={onRetry}>Retry</button>
+    </Panel>
+  );
+}
+
+function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolean }) {
+  return (
+    <Panel position="top-center" style={{ marginTop: 80 }}>
+      <div style={emptyCard}>
+        <div style={emptyHeading}>Workflow Designer</div>
+        {hasNoSteps ? (
+          <p style={emptyText}>This process has no workflow steps.</p>
+        ) : (
+          <p style={emptyText}>Open an existing workflow to visualise it.</p>
+        )}
+        <button type="button" style={openBtn} onClick={onOpen}>
+          Open Workflow
+        </button>
+      </div>
+    </Panel>
+  );
+}
+
+function minimapColor(node: Node): string {
+  if (node.type === 'viewStep') return '#2563eb';
+  if (node.type === 'viewDecision') return '#7c3aed';
+  if (node.type === 'viewStart') return '#16a34a';
+  if (node.type === 'viewEnd') return '#dc2626';
+  return '#94a3b8';
+}
+
+const shellStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
   display: 'flex',
@@ -365,47 +303,88 @@ const bodyStyle: React.CSSProperties = {
   minHeight: 0,
 };
 
-const canvasContainerStyle: React.CSSProperties = {
+const canvasWrap: React.CSSProperties = {
   flex: 1,
   position: 'relative',
   overflow: 'hidden',
 };
 
-const emptyOverlayStyle: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
+const overlayPanelStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
-  background: 'rgba(248,250,252,0.9)',
-  pointerEvents: 'auto',
-  zIndex: 5,
+  gap: 8,
+  background: '#fff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 8,
+  padding: '8px 16px',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+  marginTop: 12,
 };
 
-const emptyCardStyle: React.CSSProperties = {
+const errorPanelStyle: React.CSSProperties = {
+  background: '#fff',
+  border: '1px solid #fecaca',
+  borderRadius: 8,
+  padding: '12px 16px',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+  maxWidth: 480,
+  marginTop: 12,
+};
+
+const errorPreStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontFamily: 'monospace',
+  color: '#7f1d1d',
+  margin: '0 0 8px',
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
+  maxHeight: 200,
+  overflowY: 'auto',
+};
+
+const retryBtn: React.CSSProperties = {
+  padding: '4px 12px',
+  background: '#dc2626',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 4,
+  fontSize: 12,
+  cursor: 'pointer',
+};
+
+const spinnerStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: 14,
+  height: 14,
+  border: '2px solid #e2e8f0',
+  borderTopColor: '#2563eb',
+  borderRadius: '50%',
+};
+
+const emptyCard: React.CSSProperties = {
   background: '#fff',
   borderRadius: 12,
   padding: '40px 48px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
   textAlign: 'center',
-  maxWidth: 440,
+  maxWidth: 400,
 };
 
-const emptyHeadingStyle: React.CSSProperties = {
-  fontSize: 22,
+const emptyHeading: React.CSSProperties = {
+  fontSize: 20,
   fontWeight: 700,
   color: '#1e293b',
-  margin: '0 0 8px',
+  marginBottom: 8,
 };
 
-const emptySubtextStyle: React.CSSProperties = {
+const emptyText: React.CSSProperties = {
   color: '#64748b',
-  fontSize: 14,
-  margin: '0 0 28px',
+  fontSize: 13,
+  margin: '0 0 24px',
 };
 
-const emptyPrimaryBtn: React.CSSProperties = {
-  padding: '10px 22px',
+const openBtn: React.CSSProperties = {
+  padding: '10px 24px',
   background: '#2563eb',
   color: '#fff',
   border: 'none',
@@ -414,49 +393,3 @@ const emptyPrimaryBtn: React.CSSProperties = {
   fontWeight: 600,
   cursor: 'pointer',
 };
-
-const emptySecondaryBtn: React.CSSProperties = {
-  padding: '10px 22px',
-  background: '#f1f5f9',
-  color: '#374151',
-  border: '1px solid #e2e8f0',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-
-const canvasBarStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  background: '#1e293b',
-  borderRadius: 8,
-  padding: 4,
-  boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-};
-
-const barSep: React.CSSProperties = {
-  width: 1,
-  height: 20,
-  background: '#334155',
-  margin: '0 2px',
-};
-
-function cBtnStyle(active: boolean): React.CSSProperties {
-  return {
-    width: 28,
-    height: 28,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 5,
-    border: 'none',
-    background: active ? '#2563eb' : 'transparent',
-    color: active ? '#fff' : '#94a3b8',
-    fontSize: 14,
-    cursor: 'pointer',
-    fontFamily: 'monospace',
-    lineHeight: 1,
-  };
-}

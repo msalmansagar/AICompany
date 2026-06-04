@@ -17,7 +17,7 @@ import type {
 } from '@/types/WorkflowTypes';
 import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
 
-// Entity LOGICAL names — required by Xrm.WebApi.*(logicalName, ...)
+// Entity LOGICAL names — required by this.xrm.WebApi.*(logicalName, ...)
 const LOGICAL = {
   process: 'qdb_work_item_record_type',
   step: 'qdb_work_item_steps',
@@ -25,8 +25,8 @@ const LOGICAL = {
   route: 'qdb_outcomeworktasks',
   user: 'systemuser',
   team: 'team',
-  crmEntity: 'crmi_autonumber_system_entities',
-  crmField: 'crmi_autonumber_entities_fields',
+  crmEntity: 'crmi_autonumber_system_entitieses',
+  crmField: 'crmi_autonumber_entities_fieldses',
 } as const;
 
 // Entity SET names — used only in @odata.bind navigation paths in request bodies
@@ -39,11 +39,23 @@ const SET = {
   crmField: 'crmi_autonumber_entities_fieldses',
 } as const;
 
+interface DiscoveredEntityMeta {
+  logicalName: string;
+  entitySetName: string;
+  primaryIdAttr: string;
+  primaryNameAttr: string;
+}
+
 export class DataverseAdapter implements ICrmAdapter {
   private readonly env: CrmEnvironmentService;
+  private readonly xrm: typeof Xrm;
+  private cachedSystemEntityMeta: DiscoveredEntityMeta | null = null;
+  private cachedFieldEntityMeta: DiscoveredEntityMeta | null = null;
+  private cachedFieldRelAttr: string | null = null;
 
   constructor(env: CrmEnvironmentService) {
     this.env = env;
+    this.xrm = env.getCrmXrm();
   }
 
   // --- Process ---
@@ -51,22 +63,21 @@ export class DataverseAdapter implements ICrmAdapter {
   async getProcessList(): Promise<WorkflowProcess[]> {
     try {
       const result = await withRetry(() =>
-        Xrm.WebApi.retrieveMultipleRecords(
+        this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
           '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state&$top=100&$orderby=qdb_name asc'
         )
       );
       return result.entities.map(mapProcess);
     } catch (err) {
-      console.error('[DataverseAdapter] getProcessList failed:', err);
-      throw err;
+      throw asError(err, 'getProcessList');
     }
   }
 
   async getProcess(id: string): Promise<WorkflowProcess> {
     assertGuid(id, 'processId');
     const raw = await withRetry(() =>
-      Xrm.WebApi.retrieveRecord(
+      this.xrm.WebApi.retrieveRecord(
         LOGICAL.process,
         id,
         '?$select=qdb_work_item_record_typeid,qdb_name,qdb_recordentity,qdb_regardingfield,qdb_parententity,qdb_version_major,qdb_version_minor,qdb_workflow_state,qdb_workflow_snapshot'
@@ -78,7 +89,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
     const body = buildProcessBody(data);
     const result = await withRetry(() =>
-      Xrm.WebApi.createRecord(LOGICAL.process, body)
+      this.xrm.WebApi.createRecord(LOGICAL.process, body)
     );
     return result.id;
   }
@@ -86,13 +97,13 @@ export class DataverseAdapter implements ICrmAdapter {
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
     assertGuid(id, 'processId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(LOGICAL.process, id, buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>))
+      this.xrm.WebApi.updateRecord(LOGICAL.process, id, buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>))
     );
   }
 
   async deleteProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.process, id));
+    await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.process, id));
   }
 
   // --- Steps ---
@@ -100,7 +111,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async getSteps(processId: string): Promise<WorkflowStep[]> {
     assertGuid(processId, 'processId');
     const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
+      this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
         `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_assigned_user_name,_qdb_team_value,_qdb_team_name,_qdb_roundrobinteam_value,_qdb_roundrobinteam_name&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
@@ -111,20 +122,20 @@ export class DataverseAdapter implements ICrmAdapter {
   async createStep(data: Omit<WorkflowStep, 'crmId'>): Promise<string> {
     assertGuid(data.processId, 'processId');
     const body = buildStepBody(data);
-    const result = await withRetry(() => Xrm.WebApi.createRecord(LOGICAL.step, body));
+    const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.step, body));
     return result.id;
   }
 
   async updateStep(id: string, data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<void> {
     assertGuid(id, 'stepId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(LOGICAL.step, id, buildStepBody(data as Omit<WorkflowStep, 'crmId'>))
+      this.xrm.WebApi.updateRecord(LOGICAL.step, id, buildStepBody(data as Omit<WorkflowStep, 'crmId'>))
     );
   }
 
   async deleteStep(id: string): Promise<void> {
     assertGuid(id, 'stepId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.step, id));
+    await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.step, id));
   }
 
   // --- Outcomes ---
@@ -132,7 +143,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async getOutcomes(stepId: string): Promise<WorkflowOutcome[]> {
     assertGuid(stepId, 'stepId');
     const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
+      this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.outcome,
         `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
       )
@@ -143,7 +154,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async createOutcome(data: Omit<WorkflowOutcome, 'crmId'>): Promise<string> {
     assertGuid(data.stepId, 'stepId');
     const result = await withRetry(() =>
-      Xrm.WebApi.createRecord(LOGICAL.outcome, buildOutcomeBody(data))
+      this.xrm.WebApi.createRecord(LOGICAL.outcome, buildOutcomeBody(data))
     );
     return result.id;
   }
@@ -151,13 +162,13 @@ export class DataverseAdapter implements ICrmAdapter {
   async updateOutcome(id: string, data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<void> {
     assertGuid(id, 'outcomeId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(LOGICAL.outcome, id, buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>))
+      this.xrm.WebApi.updateRecord(LOGICAL.outcome, id, buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>))
     );
   }
 
   async deleteOutcome(id: string): Promise<void> {
     assertGuid(id, 'outcomeId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.outcome, id));
+    await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.outcome, id));
   }
 
   // --- Routes ---
@@ -165,7 +176,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async getRoutes(outcomeId: string): Promise<WorkflowRoute[]> {
     assertGuid(outcomeId, 'outcomeId');
     const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
+      this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.route,
         `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
       )
@@ -177,7 +188,7 @@ export class DataverseAdapter implements ICrmAdapter {
     assertGuid(data.outcomeId, 'outcomeId');
     assertGuid(data.nextStepId, 'nextStepId');
     const result = await withRetry(() =>
-      Xrm.WebApi.createRecord(LOGICAL.route, buildRouteBody(data))
+      this.xrm.WebApi.createRecord(LOGICAL.route, buildRouteBody(data))
     );
     return result.id;
   }
@@ -185,13 +196,13 @@ export class DataverseAdapter implements ICrmAdapter {
   async updateRoute(id: string, data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<void> {
     assertGuid(id, 'routeId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(LOGICAL.route, id, buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>))
+      this.xrm.WebApi.updateRecord(LOGICAL.route, id, buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>))
     );
   }
 
   async deleteRoute(id: string): Promise<void> {
     assertGuid(id, 'routeId');
-    await withRetry(() => Xrm.WebApi.deleteRecord(LOGICAL.route, id));
+    await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.route, id));
   }
 
   // --- Metadata ---
@@ -232,72 +243,207 @@ export class DataverseAdapter implements ICrmAdapter {
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
-    const searchFilter = search
-      ? ` and (contains(fullname,'${search}') or contains(domainname,'${search}'))`
-      : '';
-    const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
-        LOGICAL.user,
-        `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=50&$orderby=fullname asc`
-      )
-    );
-    return result.entities.map((u) => ({
-      id: u['systemuserid'] as string,
-      fullName: (u['fullname'] as string) ?? '',
-      domainName: (u['domainname'] as string) ?? '',
-    }));
+    try {
+      const searchFilter = search
+        ? ` and (contains(fullname,'${search}') or contains(domainname,'${search}'))`
+        : '';
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords(
+          LOGICAL.user,
+          `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=50&$orderby=fullname asc`
+        )
+      );
+      return result.entities.map((u) => ({
+        id: u['systemuserid'] as string,
+        fullName: (u['fullname'] as string) ?? '',
+        domainName: (u['domainname'] as string) ?? '',
+      }));
+    } catch (err) {
+      throw asError(err, 'getUsers');
+    }
   }
 
   async getTeams(): Promise<TeamOption[]> {
-    const result = await withRetry(() =>
-      Xrm.WebApi.retrieveMultipleRecords(
-        LOGICAL.team,
-        '?$select=teamid,name&$filter=teamtype eq 0&$top=100&$orderby=name asc'
-      )
-    );
-    return result.entities.map((t) => ({
-      id: t['teamid'] as string,
-      name: (t['name'] as string) ?? '',
-    }));
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords(
+          LOGICAL.team,
+          '?$select=teamid,name&$filter=teamtype eq 0&$top=100&$orderby=name asc'
+        )
+      );
+      return result.entities.map((t) => ({
+        id: t['teamid'] as string,
+        name: (t['name'] as string) ?? '',
+      }));
+    } catch (err) {
+      throw asError(err, 'getTeams');
+    }
   }
 
   async getAutoNumberEntities(): Promise<AutoNumberEntityOption[]> {
     try {
-      const result = await withRetry(() =>
-        Xrm.WebApi.retrieveMultipleRecords(
-          LOGICAL.crmEntity,
-          '?$select=crmi_autonumber_system_entitiesid,crmi_name&$orderby=crmi_name asc&$top=200'
-        )
+      const meta = await this.resolveSystemEntityMeta();
+      const url =
+        `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+        `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr}` +
+        `&$orderby=${meta.primaryNameAttr} asc&$top=200`;
+      const data = await withRetry(() =>
+        fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{ value: Record<string, unknown>[] }>;
+        })
       );
-      return result.entities.map((e) => ({
-        id: (e['crmi_autonumber_system_entitiesid'] as string) ?? '',
-        name: (e['crmi_name'] as string) ?? '',
+      return data.value.map((e) => ({
+        id: (e[meta.primaryIdAttr] as string) ?? '',
+        name: (e[meta.primaryNameAttr] as string) ?? '',
       }));
     } catch (err) {
-      console.error('[DataverseAdapter] getAutoNumberEntities failed:', err);
-      throw err;
+      throw asError(err, 'getAutoNumberEntities');
     }
   }
 
   async getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]> {
     try {
-      const filterClause = entityId
-        ? `&$filter=_crmi_entity_value eq ${entityId}`
-        : '';
-      const result = await withRetry(() =>
-        Xrm.WebApi.retrieveMultipleRecords(
-          LOGICAL.crmField,
-          `?$select=crmi_autonumber_entities_fieldsid,crmi_name,_crmi_entity_value${filterClause}&$orderby=crmi_name asc&$top=200`
-        )
+      const { meta, relAttr } = await this.resolveFieldEntityMeta();
+      const filterClause = entityId ? `&$filter=${relAttr} eq ${entityId}` : '';
+      const url =
+        `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+        `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr},${relAttr}` +
+        `${filterClause}&$orderby=${meta.primaryNameAttr} asc&$top=200`;
+      const data = await withRetry(() =>
+        fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{ value: Record<string, unknown>[] }>;
+        })
       );
-      return result.entities.map((e) => ({
-        id: (e['crmi_autonumber_entities_fieldsid'] as string) ?? '',
-        name: (e['crmi_name'] as string) ?? '',
-        entityId: (e['_crmi_entity_value'] as string) ?? '',
+      return data.value.map((e) => ({
+        id: (e[meta.primaryIdAttr] as string) ?? '',
+        name: (e[meta.primaryNameAttr] as string) ?? '',
+        entityId: (e[relAttr] as string) ?? '',
       }));
     } catch (err) {
-      console.error('[DataverseAdapter] getAutoNumberEntityFields failed:', err);
-      throw err;
+      throw asError(err, 'getAutoNumberEntityFields');
+    }
+  }
+
+  private async resolveSystemEntityMeta(): Promise<DiscoveredEntityMeta> {
+    if (this.cachedSystemEntityMeta) return this.cachedSystemEntityMeta;
+    const all = await this.fetchAutoNumberEntityDefs();
+    const found = all.find((e) =>
+      e.logicalName.includes('system_ent') || e.logicalName.includes('systementit')
+    );
+    if (!found) {
+      const names = all.map((e) => e.logicalName).join(', ') || '(none)';
+      throw new Error(
+        `Cannot find autonumber system-entities table. ` +
+        `crmi_autonumber* tables discovered: [${names}]`
+      );
+    }
+    this.cachedSystemEntityMeta = found;
+    return found;
+  }
+
+  private async resolveFieldEntityMeta(): Promise<{ meta: DiscoveredEntityMeta; relAttr: string }> {
+    if (this.cachedFieldEntityMeta && this.cachedFieldRelAttr) {
+      return { meta: this.cachedFieldEntityMeta, relAttr: this.cachedFieldRelAttr };
+    }
+    const all = await this.fetchAutoNumberEntityDefs();
+    const systemMeta = await this.resolveSystemEntityMeta();
+    const found = all.find(
+      (e) => e.logicalName !== systemMeta.logicalName &&
+        (e.logicalName.includes('field') || e.logicalName.includes('_field'))
+    );
+    if (!found) {
+      const names = all.map((e) => e.logicalName).join(', ') || '(none)';
+      throw new Error(
+        `Cannot find autonumber entity-fields table. ` +
+        `crmi_autonumber* tables discovered: [${names}]`
+      );
+    }
+    const relAttr = await this.discoverLookupAttr(found.logicalName, systemMeta.logicalName);
+    this.cachedFieldEntityMeta = found;
+    this.cachedFieldRelAttr = relAttr;
+    return { meta: found, relAttr };
+  }
+
+  private async fetchAutoNumberEntityDefs(): Promise<DiscoveredEntityMeta[]> {
+    // Direct key lookups — no $filter needed (string functions return 501 on this org).
+    // Confirmed logical names from this Dataverse environment.
+    const baseUrl = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
+    const select = 'LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute';
+    const knownNames = [LOGICAL.crmEntity, LOGICAL.crmField];
+
+    const directResults = await Promise.allSettled(
+      knownNames.map((name) =>
+        fetch(`${baseUrl}/EntityDefinitions(LogicalName='${name}')?$select=${select}`, {
+          credentials: 'include',
+          headers: buildODataHeaders(),
+        }).then((r) =>
+          r.ok
+            ? (r.json() as Promise<{ LogicalName: string; EntitySetName: string; PrimaryIdAttribute: string; PrimaryNameAttribute: string }>)
+            : Promise.reject(new Error(`HTTP ${r.status} for ${name}`))
+        )
+      )
+    );
+
+    const found: DiscoveredEntityMeta[] = [];
+    for (const r of directResults) {
+      if (r.status === 'fulfilled') {
+        found.push({
+          logicalName: r.value.LogicalName,
+          entitySetName: r.value.EntitySetName,
+          primaryIdAttr: r.value.PrimaryIdAttribute,
+          primaryNameAttr: r.value.PrimaryNameAttribute,
+        });
+      }
+    }
+    if (found.length > 0) return found;
+
+    // Fallback: IsCustomEntity eq true (equality filter — supported unlike string functions)
+    const url = `${baseUrl}/EntityDefinitions?$filter=IsCustomEntity%20eq%20true&$select=${select}`;
+    const resp = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status} fetching EntityDefinitions. ${body}`);
+    }
+
+    const all = await resp.json() as {
+      value: Array<{ LogicalName: string; EntitySetName: string; PrimaryIdAttribute: string; PrimaryNameAttribute: string }>;
+    };
+
+    const matches = all.value.filter((e) => e.LogicalName.includes('autonumber'));
+    if (matches.length === 0) {
+      const crmiNames = all.value
+        .filter((e) => e.LogicalName.startsWith('crmi_'))
+        .map((e) => e.LogicalName)
+        .sort()
+        .join(', ');
+      throw new Error(
+        `No autonumber entities found. crmi_* custom entities: [${crmiNames || '(none)'}]`
+      );
+    }
+
+    return matches.map((e) => ({
+      logicalName: e.LogicalName,
+      entitySetName: e.EntitySetName,
+      primaryIdAttr: e.PrimaryIdAttribute,
+      primaryNameAttr: e.PrimaryNameAttribute,
+    }));
+  }
+
+  private async discoverLookupAttr(entityLogicalName: string, targetLogicalName: string): Promise<string> {
+    try {
+      const url =
+        `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+        `/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes/Microsoft.Dynamics.CRM.LookupAttributeMetadata` +
+        `?$select=SchemaName,Targets`;
+      const response = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!response.ok) return '_crmi_entity_value';
+      const data = await response.json() as { value: Array<{ SchemaName: string; Targets: string[] }> };
+      const match = data.value.find((a) => Array.isArray(a.Targets) && a.Targets.includes(targetLogicalName));
+      return match ? `_${match.SchemaName.toLowerCase()}_value` : '_crmi_entity_value';
+    } catch {
+      return '_crmi_entity_value';
     }
   }
 
@@ -306,7 +452,7 @@ export class DataverseAdapter implements ICrmAdapter {
   async publishProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
     await withRetry(() =>
-      Xrm.WebApi.updateRecord(LOGICAL.process, id, {
+      this.xrm.WebApi.updateRecord(LOGICAL.process, id, {
         qdb_workflow_state: WORKFLOW_STATE_CODES.published,
       })
     );
@@ -435,9 +581,11 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
 function buildProcessBody(data: Partial<Omit<WorkflowProcess, 'crmId'>>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (data.name !== undefined) body['qdb_name'] = data.name;
-  if (data.recordEntity !== undefined) body['qdb_recordentity'] = data.recordEntity;
-  if (data.regardingField !== undefined) body['qdb_regardingfield'] = data.regardingField;
-  if (data.parentEntity !== undefined) body['qdb_parententity'] = data.parentEntity;
+  // Only send lookup-like fields when they have a non-empty value to avoid
+  // CRM rejecting the request with "invalid value for Lookup" on empty strings.
+  if (data.recordEntity) body['qdb_recordentity'] = data.recordEntity;
+  if (data.regardingField) body['qdb_regardingfield'] = data.regardingField;
+  if (data.parentEntity) body['qdb_parententity'] = data.parentEntity;
   if (data.versionMajor !== undefined) body['qdb_version_major'] = data.versionMajor;
   if (data.versionMinor !== undefined) body['qdb_version_minor'] = data.versionMinor;
   if (data.workflowState !== undefined) body['qdb_workflow_state'] = WORKFLOW_STATE_CODES[data.workflowState];
@@ -509,4 +657,18 @@ function buildODataHeaders(): HeadersInit {
     'OData-MaxVersion': '4.0',
     Accept: 'application/json',
   };
+}
+
+// Xrm.WebApi rejects with a plain {errorCode, message} object, not an Error instance.
+// This converts it so React Query and catch blocks receive a real Error with the detail.
+function asError(err: unknown, context: string): Error {
+  // Always log the raw error so it's visible in browser DevTools regardless of UI state
+  console.error(`[DataverseAdapter:${context}] raw error →`, err);
+  if (err instanceof Error) return err;
+  if (typeof err === 'object' && err !== null) {
+    const xrm = err as Record<string, unknown>;
+    const msg = typeof xrm['message'] === 'string' ? xrm['message'] : JSON.stringify(xrm);
+    return new Error(`[${context}] ${msg}`);
+  }
+  return new Error(`[${context}] ${String(err)}`);
 }
