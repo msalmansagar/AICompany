@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      MOCK_CRM: 'true'
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-dev-tenant}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-dev-client}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET:-dev-secret}
+      AZURE_AD_AUDIENCE: ${AZURE_AD_AUDIENCE:-api://dev}
+      DATAVERSE_URL: ${DATAVERSE_URL:-https://mock.crm.dynamics.com}
+      METADATA_CACHE_TTL_SECONDS: '60'
+      CORS_ORIGIN: http://localhost:3000
+      LOG_LEVEL: debug
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:4000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:-dev-spa-client}
+        VITE_AZURE_TENANT_ID: ${VITE_AZURE_TENANT_ID:-dev-tenant}
+        VITE_API_SCOPE: ${VITE_API_SCOPE:-api://dev/access_as_user}
+        VITE_API_BASE_URL: http://backend:4000
+    ports:
+      - '3000:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

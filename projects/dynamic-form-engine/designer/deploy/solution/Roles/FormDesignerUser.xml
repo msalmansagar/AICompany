@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Security Role: Form Designer User
+  Publisher prefix: qdb
+  Privilege depth: Basic (user-owned records only)
+
+  Privilege depth encoding:
+    0 = None
+    1 = Basic  (user-owned)
+    2 = Local  (business unit)
+    3 = Deep   (business unit + child BUs)
+    4 = Global (organisation-wide)
+
+  WHY Basic depth: Form definitions are user-created assets. Each designer
+  user should have full access to their own records. Organisation-wide access
+  is granted via separate administrator roles, not this role.
+
+  qdb_form_audit_log: Create+Read only — audit records are append-only per
+  Article VI of the Technology Constitution. Write and Delete are intentionally
+  withheld to preserve the integrity of the audit trail.
+
+  qdb_form_version, qdb_theme: Delete withheld — versions and themes are
+  retained for rollback and historical reference; accidental deletion would
+  break form version history and theme consistency across forms.
+-->
+<Roles>
+  <Role name="Form Designer User"
+        id="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+        inheritsfromid="{00000000-0000-0000-0000-000000000000}"
+        ismanaged="1"
+        introducedversion="1.0.0.0">
+    <RolePrivileges>
+
+      <!-- qdb_form_definition: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_definition"  privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_definition"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_definition"   privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_definition"  privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_tab: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_tab"         privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_tab"           privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_tab"          privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_tab"         privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_section: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_section"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_section"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_section"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_section"     privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_field: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_field"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_field"         privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_field"        privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_field"       privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_validation_rule: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_validation_rule"  privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_validation_rule"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_validation_rule"   privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_validation_rule"  privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_business_rule: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_business_rule"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_business_rule"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_business_rule"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_business_rule"    privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_option_value: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_option_value"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_option_value"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_option_value"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_option_value"     privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_lookup_config: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_lookup_config"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_lookup_config"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_lookup_config"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_lookup_config"    privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_submission_mapping: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_submission_mapping"   privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_submission_mapping"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_submission_mapping"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_submission_mapping"   privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_version: Create + Read + Write only (no Delete — preserve version history) -->
+      <RolePrivilege name="prvCreateqdb_form_version"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_version"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_version"      privilegeid=""  depth="Basic" />
+
+      <!-- qdb_theme: Create + Read + Write only (no Delete — themes shared across forms) -->
+      <RolePrivilege name="prvCreateqdb_theme"            privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_theme"              privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_theme"             privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_design: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_form_design"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_design"        privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_form_design"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_form_design"      privilegeid=""  depth="Basic" />
+
+      <!-- qdb_section_design: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_section_design"   privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_section_design"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_section_design"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_section_design"   privilegeid=""  depth="Basic" />
+
+      <!-- qdb_field_design: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_field_design"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_field_design"       privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_field_design"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_field_design"     privilegeid=""  depth="Basic" />
+
+      <!-- qdb_button_design: full CRUD -->
+      <RolePrivilege name="prvCreateqdb_button_design"    privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_button_design"      privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvWriteqdb_button_design"     privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvDeleteqdb_button_design"    privilegeid=""  depth="Basic" />
+
+      <!-- qdb_form_audit_log: Create + Read only (append-only — no Write or Delete) -->
+      <RolePrivilege name="prvCreateqdb_form_audit_log"   privilegeid=""  depth="Basic" />
+      <RolePrivilege name="prvReadqdb_form_audit_log"     privilegeid=""  depth="Basic" />
+
+    </RolePrivileges>
+  </Role>
+</Roles>

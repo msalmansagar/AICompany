@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Stop hook — fires after every Claude response
-// Appends a session entry to .claude/sessions/log.md
-// so engagement history persists across sessions.
+// Captures session details including active project context
+// so cross-session memory is meaningful, not just timestamps.
 
-const { appendFileSync, mkdirSync, existsSync } = require('fs');
+const { appendFileSync, readFileSync, mkdirSync, existsSync } = require('fs');
 const { join } = require('path');
 const chunks = [];
 
@@ -22,9 +22,26 @@ process.stdin.on('end', () => {
     const stopReason = input?.stop_reason || 'unknown';
     const turns = input?.num_turns || 0;
 
+    let projectContext = '';
+    const stateFile = join(process.cwd(), 'projects', 'state.yml');
+
+    if (existsSync(stateFile)) {
+      const state = readFileSync(stateFile, 'utf8');
+      const nameMatch = state.match(/- name:\s*(.+)/);
+      const phaseMatch = state.match(/phase:\s*(.+)/);
+      const agentMatch = state.match(/last_agent:\s*(.+)/);
+      const statusMatch = state.match(/status:\s*in_progress/);
+
+      if (nameMatch && statusMatch) {
+        projectContext += `\n- Active project: ${nameMatch[1].trim()}`;
+        if (phaseMatch) projectContext += `\n- Phase: ${phaseMatch[1].trim()}`;
+        if (agentMatch) projectContext += `\n- Last agent: ${agentMatch[1].trim()}`;
+      }
+    }
+
     appendFileSync(
       logFile,
-      `\n## Session — ${timestamp}\n- Stop reason: ${stopReason}\n- Turns: ${turns}\n`
+      `\n## Session — ${timestamp}\n- Stop reason: ${stopReason}\n- Turns: ${turns}${projectContext}\n`
     );
 
     process.exit(0);

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <CustomControls>
+    <CustomControl Name="Maqsad.EmailEditorControl" Version="1.0.0" AllowCrossEntityBinding="False">
+      <Manifest>
+        <control namespace="Maqsad" constructor="EmailEditorControl" version="1.0.0" display-name-key="EmailEditor_Display_Key" description-key="EmailEditor_Desc_Key" control-type="virtual" api-version="1.3.18">
+          <property name="templateValue" display-name-key="TemplateValue_Display" description-key="TemplateValue_Desc" of-type="Multiple" usage="bound" required="true" />
+          <property name="rootEntityLogicalName" display-name-key="RootEntity_Display" description-key="RootEntity_Desc" of-type="SingleLine.Text" usage="input" required="true" />
+          <property name="sampleRecordId" display-name-key="SampleRecord_Display" description-key="SampleRecord_Desc" of-type="SingleLine.Text" usage="input" required="false" />
+          <property name="maxRelationshipDepth" display-name-key="MaxDepth_Display" description-key="MaxDepth_Desc" of-type="Whole.None" usage="input" required="false" />
+          <resources>
+            <code path="bundle.js" order="1" />
+            <resx path="EmailEditorControl.1033.resx" version="1.0.0" />
+          </resources>
+          <feature-usage>
+            <uses-feature name="WebAPI" required="true" />
+            <uses-feature name="Utility" required="false" />
+          </feature-usage>
+        </control>
+      </Manifest>
+    </CustomControl>
+  </CustomControls>
+</ImportExportXml>

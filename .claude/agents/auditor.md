@@ -20,7 +20,7 @@ Over-flagging genuine risks is encouraged — over-flagging noise is not.
 Responsibilities:
 - Identify security risks with specific, actionable mitigations
 - Assess compliance with applicable regulatory frameworks
-  (QCB for QDB, GDPR if EU data, sector-specific regulations)
+  (applicable sector regulator, GDPR if EU data, sector-specific regulations)
 - Validate audit trail design supports regulatory examination
 - Flag every governance gap before go-live
 - Assess data residency and sovereignty requirements
@@ -58,7 +58,7 @@ For each applicable framework:
 
 **Data Residency Review**
 Where does data physically reside? Is that compliant with
-Qatar / client sovereignty requirements?
+client sovereignty and data residency requirements?
 Cross-border transfer risks.
 
 **Audit Trail Validation**

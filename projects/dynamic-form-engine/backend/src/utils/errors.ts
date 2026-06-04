@@ -1,0 +1,60 @@
+export class AppError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+export class CrmApiError extends AppError {
+  constructor(
+    message: string,
+    public readonly crmStatusCode?: number,
+    public readonly crmErrorCode?: string,
+  ) {
+    super(message, 502, 'CRM_API_ERROR');
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Unauthorized') {
+    super(message, 401, 'UNAUTHORIZED');
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = 'Forbidden') {
+    super(message, 403, 'FORBIDDEN');
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(resource: string) {
+    super(`${resource} not found`, 404, 'NOT_FOUND');
+  }
+}
+
+export class FormNotFoundError extends NotFoundError {
+  constructor(formCode: string) {
+    super(`Form '${formCode}'`);
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(
+    message: string,
+    public readonly fieldErrors?: Record<string, string[]>,
+  ) {
+    super(message, 400, 'VALIDATION_ERROR');
+  }
+}
+
+export class FormInactiveError extends AppError {
+  constructor(formCode: string) {
+    super(`Form '${formCode}' is not active`, 404, 'FORM_INACTIVE');
+  }
+}

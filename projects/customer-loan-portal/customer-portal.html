@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QDB — Customer Loan Portal</title>
+<style>
+  :root {
+    --primary: #0a2463;
+    --primary-light: #1e3a8a;
+    --accent: #e8a317;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --white: #ffffff;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--gray-50); color: var(--gray-900); font-size: 14px; }
+
+  /* ── Screens ── */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ── LOGIN ── */
+  #screen-login { background: linear-gradient(135deg, #0a2463 0%, #1e3a8a 60%, #0a2463 100%); align-items: center; justify-content: center; }
+  .login-card { background: var(--white); border-radius: 16px; padding: 48px 40px; width: 420px; box-shadow: var(--shadow-lg); }
+  .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+  .login-logo-mark { width: 48px; height: 48px; background: var(--primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--white); font-weight: 800; font-size: 20px; }
+  .login-logo-text { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .login-logo-text span { display: block; font-size: 11px; font-weight: 400; color: var(--gray-500); text-transform: uppercase; letter-spacing: 1px; }
+  .login-title { font-size: 20px; font-weight: 700; color: var(--gray-900); margin-bottom: 6px; }
+  .login-sub { color: var(--gray-500); margin-bottom: 28px; font-size: 13px; }
+  .form-group { margin-bottom: 18px; }
+  .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--gray-700); margin-bottom: 6px; }
+  .form-input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--gray-200); border-radius: var(--radius); font-size: 14px; outline: none; transition: border-color 0.2s; }
+  .form-input:focus { border-color: var(--primary); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; border-radius: var(--radius); font-size: 14px; font-weight: 500; border: none; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+  .btn-primary { background: var(--primary); color: var(--white); }
+  .btn-primary:hover { background: var(--primary-light); }
+  .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+  .btn-outline:hover { background: var(--gray-50); }
+  .btn-success { background: var(--success); color: var(--white); }
+  .btn-danger { background: var(--danger); color: var(--white); }
+  .btn-accent { background: var(--accent); color: var(--white); }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  .btn-lg { padding: 12px 28px; font-size: 15px; }
+  .btn-full { width: 100%; }
+
+  /* ── TOP NAV ── */
+  .topnav { background: var(--primary); color: var(--white); height: 56px; display: flex; align-items: center; padding: 0 24px; gap: 16px; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow-md); }
+  .topnav-logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  .topnav-logo-mark { width: 32px; height: 32px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; color: var(--primary); }
+  .topnav-spacer { flex: 1; }
+  .topnav-user { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .topnav-avatar { width: 32px; height: 32px; background: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; }
+  .notif-badge { position: relative; }
+  .notif-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; background: var(--accent); border-radius: 50%; border: 1.5px solid var(--primary); }
+
+  /* ── LAYOUT ── */
+  .page-body { flex: 1; padding: 28px 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--gray-900); margin-bottom: 4px; }
+  .page-sub { color: var(--gray-500); font-size: 13px; margin-bottom: 24px; }
+
+  /* ── CARDS ── */
+  .card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); box-shadow: var(--shadow); }
+  .card-header { padding: 16px 20px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .card-title { font-size: 15px; font-weight: 600; color: var(--gray-900); }
+  .card-body { padding: 20px; }
+
+  /* ── STATUS BADGES ── */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 500; }
+  .badge-draft { background: #f3f4f6; color: #6b7280; }
+  .badge-submitted { background: #dbeafe; color: #1d4ed8; }
+  .badge-rm-review { background: #fef3c7; color: #92400e; }
+  .badge-credit { background: #ede9fe; color: #6d28d9; }
+  .badge-approved { background: #dcfce7; color: #15803d; }
+  .badge-rejected { background: #fee2e2; color: #991b1b; }
+  .badge-merged { background: #e0f2fe; color: #0369a1; }
+
+  /* ── GRID ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* ── STAT CARD ── */
+  .stat-card { background: var(--white); border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 20px; }
+  .stat-label { font-size: 12px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .stat-value { font-size: 28px; font-weight: 700; color: var(--gray-900); }
+  .stat-sub { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+  .stat-icon { font-size: 22px; margin-bottom: 8px; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.4px; background: var(--gray-50); border-bottom: 1px solid var(--gray-200); }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--gray-100); font-size: 13px; color: var(--gray-700); }
+  tr:hover td { background: var(--gray-50); }
+  tr:last-child td { border-bottom: none; }
+  .td-link { color: var(--primary); cursor: pointer; font-weight: 500; }
+  .td-link:hover { text-decoration: underline; }
+
+  /* ── STEPPER ── */
+  .stepper { display: flex; align-items: center; margin-bottom: 32px; }
+  .step { display: flex; align-items: center; flex: 1; }
+  .step-circle { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 14px; flex-shrink: 0; border: 2px solid var(--gray-300); background: var(--white); color: var(--gray-500); }
+  .step-circle.done { background: var(--success); border-color: var(--success); color: var(--white); }
+  .step-circle.active { background: var(--primary); border-color: var(--primary); color: var(--white); }
+  .step-label { font-size: 12px; color: var(--gray-500); margin-left: 8px; font-weight: 500; white-space: nowrap; }
+  .step-label.active { color: var(--primary); font-weight: 600; }
+  .step-line { flex: 1; height: 2px; background: var(--gray-200); margin: 0 8px; }
+  .step-line.done { background: var(--success); }
+
+  /* ── FACILITY SELECTOR ── */
+  .facility-item { border: 2px solid var(--gray-200); border-radius: var(--radius); padding: 16px; cursor: pointer; transition: all 0.2s; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 12px; }
+  .facility-item:hover { border-color: var(--primary); background: #f0f4ff; }
+  .facility-item.selected { border-color: var(--primary); background: #f0f4ff; }
+  .facility-check { width: 20px; height: 20px; border-radius: 4px; border: 2px solid var(--gray-300); flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
+  .facility-item.selected .facility-check { background: var(--primary); border-color: var(--primary); color: var(--white); }
+  .facility-info { flex: 1; }
+  .facility-name { font-weight: 600; color: var(--gray-900); margin-bottom: 4px; }
+  .facility-meta { display: flex; gap: 20px; font-size: 12px; color: var(--gray-500); }
+  .facility-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--gray-100); font-size: 11px; font-weight: 500; color: var(--gray-600); }
+
+  /* ── REQUEST TYPE CHIPS ── */
+  .rt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 2px solid var(--gray-200); font-size: 13px; cursor: pointer; transition: all 0.2s; margin: 4px; background: var(--white); }
+  .rt-chip:hover { border-color: var(--primary); color: var(--primary); }
+  .rt-chip.selected { border-color: var(--primary); background: var(--primary); color: var(--white); }
+  .rt-chip.conflict { border-color: var(--danger); background: #fee2e2; color: var(--danger); }
+
+  /* ── TIMELINE ── */
+  .timeline { padding: 4px 0; }
+  .tl-item { display: flex; gap: 16px; padding-bottom: 20px; position: relative; }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; }
+  .tl-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .tl-dot.done { background: #dcfce7; color: var(--success); }
+  .tl-dot.active { background: #dbeafe; color: #1d4ed8; }
+  .tl-dot.pending { background: var(--gray-100); color: var(--gray-400); }
+  .tl-line { width: 2px; flex: 1; background: var(--gray-200); margin-top: 4px; }
+  .tl-line.done { background: var(--success); }
+  .tl-content { flex: 1; padding-top: 4px; }
+  .tl-stage { font-weight: 600; font-size: 14px; color: var(--gray-900); }
+  .tl-stage.pending { color: var(--gray-400); }
+  .tl-date { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .tl-note { font-size: 12px; color: var(--gray-600); margin-top: 4px; background: var(--gray-50); border-radius: 4px; padding: 6px 10px; border-left: 2px solid var(--gray-300); }
+
+  /* ── UPLOAD ZONE ── */
+  .upload-zone { border: 2px dashed var(--gray-300); border-radius: var(--radius); padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; }
+  .upload-zone:hover { border-color: var(--primary); background: #f0f4ff; }
+  .upload-icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-label { font-size: 14px; color: var(--gray-700); font-weight: 500; }
+  .upload-hint { font-size: 12px; color: var(--gray-500); margin-top: 4px; }
+  .uploaded-file { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--gray-50); border-radius: var(--radius); border: 1px solid var(--gray-200); margin-top: 8px; }
+  .uploaded-file-name { flex: 1; font-size: 13px; color: var(--gray-700); }
+  .uploaded-file-size { font-size: 12px; color: var(--gray-500); }
+  .uploaded-file-remove { cursor: pointer; color: var(--gray-400); font-size: 18px; line-height: 1; }
+  .uploaded-file-remove:hover { color: var(--danger); }
+
+  /* ── WIZARD NAV ── */
+  .wizard-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--gray-200); }
+
+  /* ── NOTIFICATION PANEL ── */
+  .notif-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-dot-indicator { width: 8px; height: 8px; background: var(--primary); border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+  .notif-text { font-size: 13px; color: var(--gray-700); }
+  .notif-time { font-size: 11px; color: var(--gray-500); margin-top: 2px; }
+
+  /* ── ALERT ── */
+  .alert { padding: 12px 16px; border-radius: var(--radius); font-size: 13px; margin-bottom: 16px; display: flex; gap: 10px; align-items: flex-start; }
+  .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+  .alert-warning { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+  .alert-danger { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+  /* ── DIVIDER ── */
+  .divider { height: 1px; background: var(--gray-200); margin: 20px 0; }
+
+  /* ── CONFLICT BANNER ── */
+  .conflict-banner { background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--radius); padding: 10px 14px; font-size: 13px; color: var(--danger); margin-top: 8px; }
+
+  /* ── REVIEW BLOCK ── */
+  .review-facility { border: 1px solid var(--gray-200); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
+  .review-facility-header { background: var(--gray-50); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .review-facility-body { padding: 14px 16px; }
+  .review-rt-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+  /* ── SECTION HEADER ── */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .section-title { font-size: 16px; font-weight: 600; color: var(--gray-900); }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar { height: 4px; background: var(--gray-200); border-radius: 2px; margin-top: 8px; }
+  .progress-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--gray-100); }
+  ::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 1: LOGIN                               -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">Q</div>
+      <div class="login-logo-text">QDB Portal <span>Qatar Development Bank</span></div>
+    </div>
+    <div class="login-title">Welcome back</div>
+    <div class="login-sub">Sign in to your business banking portal</div>
+    <div class="form-group">
+      <label class="form-label">CIF / Username</label>
+      <input class="form-input" type="text" placeholder="Enter your CIF number" value="QDB-C-004821" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" placeholder="••••••••" value="password" />
+    </div>
+    <div style="margin-bottom:18px; display:flex; justify-content:space-between; align-items:center;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-600);cursor:pointer;">
+        <input type="checkbox" checked /> Remember me
+      </label>
+      <a href="#" style="font-size:13px;color:var(--primary);">Forgot password?</a>
+    </div>
+    <button class="btn btn-primary btn-full btn-lg" onclick="navigate('dashboard')">Sign In</button>
+    <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--gray-500);">
+      Protected by MFA · TLS 1.3 encrypted
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 2: DASHBOARD                          -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user">
+      <div class="notif-badge" onclick="navigate('notifications')" style="cursor:pointer;font-size:18px;">🔔<div class="notif-dot"></div></div>
+      &nbsp;&nbsp;
+      <div class="topnav-avatar">AI</div>
+      <span>Al-Rashid Industries</span>
+      <span style="color:rgba(255,255,255,0.5);">|</span>
+      <span style="cursor:pointer;color:rgba(255,255,255,0.7);" onclick="navigate('login')">Sign out</span>
+    </div>
+  </nav>
+  <div class="page-body">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;">
+      <div>
+        <div class="page-title">Good morning, Al-Rashid Industries 👋</div>
+        <div class="page-sub">CIF: QDB-C-004821 · Relationship Manager: Ahmed Al-Kuwari</div>
+      </div>
+      <button class="btn btn-primary" onclick="navigate('new-app-step1')">+ New Application</button>
+    </div>
+
+    <div class="grid-4" style="margin-bottom:28px;">
+      <div class="stat-card"><div class="stat-icon">🏦</div><div class="stat-label">Active Facilities</div><div class="stat-value">4</div><div class="stat-sub">Total limit QAR 85M</div></div>
+      <div class="stat-card"><div class="stat-icon">📄</div><div class="stat-label">Applications</div><div class="stat-value">3</div><div class="stat-sub">1 in review</div></div>
+      <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-label">Pending Action</div><div class="stat-value">1</div><div class="stat-sub">Document required</div></div>
+      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Approved (YTD)</div><div class="stat-value">2</div><div class="stat-sub">QAR 48M approved</div></div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:28px;">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">My Facilities</div>
+          <span style="font-size:12px;color:var(--gray-500);">4 active</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Facility</th><th>Type</th><th>Limit</th><th>Expiry</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="td-link">Term Loan - FAC-001</td><td>Term Loan</td><td>QAR 25M</td><td>Dec 2025</td><td><span class="badge badge-approved">Active</span></td></tr>
+              <tr><td class="td-link">Overdraft - FAC-002</td><td>Overdraft</td><td>QAR 10M</td><td>Mar 2026</td><td><span class="badge badge-approved">Active</span></td></tr>
+              <tr><td class="td-link">LC Facility - FAC-003</td><td>Letter of Credit</td><td>QAR 30M</td><td>Jun 2025</td><td><span class="badge badge-rm-review">Expiring Soon</span></td></tr>
+              <tr><td class="td-link">LG Facility - FAC-004</td><td>Letter of Guarantee</td><td>QAR 20M</td><td>Sep 2026</td><td><span class="badge badge-approved">Active</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Applications</div>
+          <span class="td-link" onclick="navigate('tracking')" style="font-size:13px;">View all</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Reference</th><th>Submitted</th><th>Stage</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td class="td-link" onclick="navigate('tracking')">APP-20260501-0042</td><td>01 May 2026</td><td>Credit Review</td><td><span class="badge badge-credit">In Review</span></td></tr>
+              <tr><td class="td-link">APP-20260415-0031</td><td>15 Apr 2026</td><td>Completed</td><td><span class="badge badge-approved">Approved</span></td></tr>
+              <tr><td class="td-link">APP-20260310-0019</td><td>10 Mar 2026</td><td>Completed</td><td><span class="badge badge-approved">Approved</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <span>⚠️</span>
+      <div><strong>Action Required:</strong> Application APP-20260501-0042 requires additional documents. Please upload the audited financial statements for FY2025.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 3: NEW APP — STEP 1: SELECT FACILITIES -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-new-app-step1" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--gray-500);">
+      <span class="td-link" onclick="navigate('dashboard')">Dashboard</span> / <span>New Application</span>
+    </div>
+    <div class="page-title">New Loan Application</div>
+    <div class="page-sub">Bundle multiple facilities and request types into a single application</div>
+
+    <div class="stepper">
+      <div class="step">
+        <div class="step-circle active">1</div>
+        <div class="step-label active">Select Facilities</div>
+      </div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">2</div><div class="step-label">Request Types</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">3</div><div class="step-label">Documents</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">4</div><div class="step-label">Review & Submit</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Select Facilities to Include</div>
+        <span style="font-size:12px;color:var(--gray-500);">Select one or more · You can also add a new facility below</span>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info">
+          <span>ℹ️</span>
+          <div>You can select multiple existing facilities and/or request a new facility in the same application. All selected items will be submitted as a single bundled request.</div>
+        </div>
+
+        <div style="font-weight:600;margin-bottom:10px;color:var(--gray-700);">Existing Facilities</div>
+
+        <div class="facility-item selected" id="fac-001" onclick="toggleFacility('fac-001')">
+          <div class="facility-check">✓</div>
+          <div class="facility-info">
+            <div class="facility-name">Term Loan — FAC-001 <span class="facility-tag">Term Loan</span></div>
+            <div class="facility-meta"><span>Limit: QAR 25,000,000</span><span>Expiry: Dec 2025</span><span>Outstanding: QAR 18.5M</span></div>
+          </div>
+        </div>
+
+        <div class="facility-item" id="fac-002" onclick="toggleFacility('fac-002')">
+          <div class="facility-check"></div>
+          <div class="facility-info">
+            <div class="facility-name">Overdraft — FAC-002 <span class="facility-tag">Overdraft</span></div>
+            <div class="facility-meta"><span>Limit: QAR 10,000,000</span><span>Expiry: Mar 2026</span><span>Outstanding: QAR 4.2M</span></div>
+          </div>
+        </div>
+
+        <div class="facility-item selected" id="fac-003" onclick="toggleFacility('fac-003')">
+          <div class="facility-check">✓</div>
+          <div class="facility-info">
+            <div class="facility-name">LC Facility — FAC-003 <span class="facility-tag">Letter of Credit</span></div>
+            <div class="facility-meta"><span>Limit: QAR 30,000,000</span><span>Expiry: Jun 2025 ⚠️ Expiring</span><span>Outstanding: QAR 22.1M</span></div>
+          </div>
+        </div>
+
+        <div class="facility-item" id="fac-004" onclick="toggleFacility('fac-004')">
+          <div class="facility-check"></div>
+          <div class="facility-info">
+            <div class="facility-name">LG Facility — FAC-004 <span class="facility-tag">Letter of Guarantee</span></div>
+            <div class="facility-meta"><span>Limit: QAR 20,000,000</span><span>Expiry: Sep 2026</span><span>Outstanding: QAR 5.8M</span></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div style="font-weight:600;margin-bottom:10px;color:var(--gray-700);">New Facility Request</div>
+        <div class="facility-item" id="fac-new" onclick="toggleFacility('fac-new')">
+          <div class="facility-check"></div>
+          <div class="facility-info">
+            <div class="facility-name">➕ Request a New Facility</div>
+            <div style="font-size:12px;color:var(--gray-500);margin-top:4px;">Add a new credit facility to this application</div>
+          </div>
+        </div>
+
+        <div class="wizard-footer">
+          <button class="btn btn-outline" onclick="navigate('dashboard')">← Back to Dashboard</button>
+          <div style="display:flex;gap:10px;">
+            <button class="btn btn-outline btn-sm">Save Draft</button>
+            <button class="btn btn-primary" onclick="navigate('new-app-step2')">Continue → Request Types</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 4: STEP 2 — REQUEST TYPES             -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-new-app-step2" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div class="page-title">New Loan Application</div>
+    <div class="page-sub">Select the request types for each selected facility</div>
+
+    <div class="stepper">
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Select Facilities</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle active">2</div><div class="step-label active">Request Types</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">3</div><div class="step-label">Documents</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">4</div><div class="step-label">Review & Submit</div></div>
+    </div>
+
+    <div class="alert alert-info">
+      <span>ℹ️</span>
+      <div>Select one or more request types per facility. Conflicting combinations will be flagged automatically.</div>
+    </div>
+
+    <!-- FAC-001 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Term Loan — FAC-001</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">Limit QAR 25M · Expiry Dec 2025</div>
+        </div>
+        <span class="badge badge-submitted">2 selected</span>
+      </div>
+      <div class="card-body">
+        <div style="font-size:13px;color:var(--gray-600);margin-bottom:10px;">Select request types:</div>
+        <div>
+          <span class="rt-chip selected" onclick="toggleChip(this,'fac001')">✓ Renewal</span>
+          <span class="rt-chip selected" onclick="toggleChip(this,'fac001')">✓ Limit Increase</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac001')">Rescheduling</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac001')">Extension of Drawdown</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac001')">Ownership Change</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac001')">Facility Amendment</span>
+        </div>
+        <div style="margin-top:14px;">
+          <label class="form-label">Amount Requested (QAR)</label>
+          <input class="form-input" style="max-width:300px;" type="text" value="35,000,000" placeholder="Enter requested amount" />
+        </div>
+        <div style="margin-top:10px;">
+          <label class="form-label">Customer Remarks</label>
+          <textarea class="form-input" rows="2" placeholder="Remarks for this facility request...">Business expansion — new plant in Al Wakra. Requires additional working capital and renewal of existing term loan.</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- FAC-003 -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div>
+          <div class="card-title">LC Facility — FAC-003</div>
+          <div style="font-size:12px;color:var(--gray-500);margin-top:2px;">Limit QAR 30M · Expiry Jun 2025 ⚠️</div>
+        </div>
+        <span class="badge badge-submitted">1 selected</span>
+      </div>
+      <div class="card-body">
+        <div style="font-size:13px;color:var(--gray-600);margin-bottom:10px;">Select request types:</div>
+        <div>
+          <span class="rt-chip selected" onclick="toggleChip(this,'fac003')">✓ Renewal</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac003')">Limit Increase</span>
+          <span class="rt-chip conflict" id="rt-reschedule" onclick="showConflict()">Rescheduling ⚠</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac003')">Extension of Drawdown</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac003')">Ownership Change</span>
+          <span class="rt-chip" onclick="toggleChip(this,'fac003')">Facility Amendment</span>
+        </div>
+        <div id="conflict-msg" class="conflict-banner" style="display:none;">
+          ⚠️ <strong>Conflict Detected:</strong> "Renewal" and "Rescheduling" cannot be applied to the same facility. Renewal resets facility terms; Rescheduling modifies the existing payment schedule. Please remove one of these request types.
+        </div>
+        <div style="margin-top:14px;">
+          <label class="form-label">Amount Requested (QAR)</label>
+          <input class="form-input" style="max-width:300px;" type="text" value="30,000,000" placeholder="Enter requested amount" />
+        </div>
+        <div style="margin-top:10px;">
+          <label class="form-label">Customer Remarks</label>
+          <textarea class="form-input" rows="2" placeholder="Remarks for this facility request...">LC facility expiring in 2 months. Require renewal for import letters of credit for FY2026 operations.</textarea>
+        </div>
+      </div>
+    </div>
+
+    <div class="wizard-footer">
+      <button class="btn btn-outline" onclick="navigate('new-app-step1')">← Back</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline btn-sm">Save Draft</button>
+        <button class="btn btn-primary" onclick="navigate('new-app-step3')">Continue → Documents</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 5: STEP 3 — DOCUMENTS                 -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-new-app-step3" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div class="page-title">New Loan Application</div>
+    <div class="page-sub">Upload required documents for your request</div>
+
+    <div class="stepper">
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Select Facilities</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Request Types</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle active">3</div><div class="step-label active">Documents</div></div>
+      <div class="step-line"></div>
+      <div class="step"><div class="step-circle">4</div><div class="step-label">Review & Submit</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Required Documents</div><span style="font-size:12px;color:var(--gray-500);">2 of 4 uploaded</span></div>
+      <div class="card-body">
+        <div style="margin-bottom:6px;font-size:13px;color:var(--gray-600);">Upload documents below. Required items are marked with a red asterisk.</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:50%"></div></div>
+        <div style="text-align:right;font-size:11px;color:var(--gray-500);margin-top:4px;margin-bottom:16px;">2 / 4 documents uploaded</div>
+
+        <!-- Doc 1 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-weight:500;font-size:14px;">Audited Financial Statements (FY2025)</span>
+            <span style="color:var(--danger);font-weight:600;">*</span>
+            <span class="badge badge-submitted" style="margin-left:auto;">Uploaded</span>
+          </div>
+          <div class="uploaded-file">
+            <span>📄</span>
+            <span class="uploaded-file-name">AlRashid_FinancialStatements_FY2025.pdf</span>
+            <span class="uploaded-file-size">2.4 MB</span>
+            <span class="uploaded-file-remove">×</span>
+          </div>
+        </div>
+
+        <!-- Doc 2 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-weight:500;font-size:14px;">Board Resolution</span>
+            <span style="color:var(--danger);font-weight:600;">*</span>
+            <span class="badge badge-submitted" style="margin-left:auto;">Uploaded</span>
+          </div>
+          <div class="uploaded-file">
+            <span>📄</span>
+            <span class="uploaded-file-name">Board_Resolution_May2026.pdf</span>
+            <span class="uploaded-file-size">0.8 MB</span>
+            <span class="uploaded-file-remove">×</span>
+          </div>
+        </div>
+
+        <!-- Doc 3 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-weight:500;font-size:14px;">6-Month Bank Statements</span>
+            <span style="color:var(--danger);font-weight:600;">*</span>
+            <span class="badge badge-draft" style="margin-left:auto;">Pending</span>
+          </div>
+          <div class="upload-zone" onclick="simulateUpload(this, 'BankStatements_Jan-Jun2026.pdf', '1.2 MB')">
+            <div class="upload-icon">☁️</div>
+            <div class="upload-label">Drag & drop or click to upload</div>
+            <div class="upload-hint">PDF, DOCX, XLSX, JPG, PNG · Max 25 MB</div>
+          </div>
+        </div>
+
+        <!-- Doc 4 -->
+        <div style="margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <span style="font-weight:500;font-size:14px;">Trade Licence (current)</span>
+            <span style="color:var(--gray-400);font-size:12px;">Optional</span>
+            <span class="badge badge-draft" style="margin-left:auto;">Pending</span>
+          </div>
+          <div class="upload-zone" onclick="simulateUpload(this, 'TradeLicence_2026.pdf', '0.5 MB')">
+            <div class="upload-icon">☁️</div>
+            <div class="upload-label">Drag & drop or click to upload</div>
+            <div class="upload-hint">PDF, DOCX, XLSX, JPG, PNG · Max 25 MB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wizard-footer">
+      <button class="btn btn-outline" onclick="navigate('new-app-step2')">← Back</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline btn-sm">Save Draft</button>
+        <button class="btn btn-primary" onclick="navigate('new-app-step4')">Continue → Review</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 6: STEP 4 — REVIEW & SUBMIT           -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-new-app-step4" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div class="page-title">New Loan Application</div>
+    <div class="page-sub">Review your application before submitting</div>
+
+    <div class="stepper">
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Select Facilities</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Request Types</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle done">✓</div><div class="step-label">Documents</div></div>
+      <div class="step-line done"></div>
+      <div class="step"><div class="step-circle active">4</div><div class="step-label active">Review & Submit</div></div>
+    </div>
+
+    <div class="alert alert-success">
+      <span>✅</span>
+      <div>Your application is ready to submit. Please review the details below before confirming.</div>
+    </div>
+
+    <!-- Summary -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Application Summary</div></div>
+      <div class="card-body">
+        <div class="grid-2">
+          <div><div style="font-size:12px;color:var(--gray-500);">Customer</div><div style="font-weight:600;">Al-Rashid Industries LLC</div></div>
+          <div><div style="font-size:12px;color:var(--gray-500);">CIF</div><div style="font-weight:600;">QDB-C-004821</div></div>
+          <div><div style="font-size:12px;color:var(--gray-500);">Total Facilities</div><div style="font-weight:600;">2 existing</div></div>
+          <div><div style="font-size:12px;color:var(--gray-500);">Total Requested Amount</div><div style="font-weight:600;">QAR 65,000,000</div></div>
+          <div><div style="font-size:12px;color:var(--gray-500);">Documents Uploaded</div><div style="font-weight:600;">3 of 4</div></div>
+          <div><div style="font-size:12px;color:var(--gray-500);">Assigned RM</div><div style="font-weight:600;">Ahmed Al-Kuwari</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Facilities -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Facilities & Request Types</div></div>
+      <div class="card-body">
+        <div class="review-facility">
+          <div class="review-facility-header">
+            <span style="font-weight:600;">Term Loan — FAC-001</span>
+            <span class="badge badge-submitted">QAR 35,000,000</span>
+          </div>
+          <div class="review-facility-body">
+            <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px;">Request Types:</div>
+            <div class="review-rt-list">
+              <span class="badge badge-credit">Renewal</span>
+              <span class="badge badge-credit">Limit Increase</span>
+            </div>
+            <div style="font-size:12px;color:var(--gray-600);margin-top:8px;"><em>Business expansion — new plant in Al Wakra. Requires additional working capital and renewal of existing term loan.</em></div>
+          </div>
+        </div>
+        <div class="review-facility" style="margin-top:10px;">
+          <div class="review-facility-header">
+            <span style="font-weight:600;">LC Facility — FAC-003</span>
+            <span class="badge badge-submitted">QAR 30,000,000</span>
+          </div>
+          <div class="review-facility-body">
+            <div style="font-size:12px;color:var(--gray-500);margin-bottom:6px;">Request Types:</div>
+            <div class="review-rt-list">
+              <span class="badge badge-credit">Renewal</span>
+            </div>
+            <div style="font-size:12px;color:var(--gray-600);margin-top:8px;"><em>LC facility expiring in 2 months. Require renewal for import letters of credit for FY2026 operations.</em></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wizard-footer">
+      <button class="btn btn-outline" onclick="navigate('new-app-step3')">← Back</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-outline btn-sm">Save Draft</button>
+        <button class="btn btn-success" onclick="navigate('submitted')">Submit Application ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 7: SUBMITTED CONFIRMATION             -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-submitted" class="screen" style="align-items:center;justify-content:center;background:var(--gray-50);">
+  <div style="text-align:center;max-width:500px;padding:40px;">
+    <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+    <div style="font-size:24px;font-weight:700;color:var(--gray-900);margin-bottom:8px;">Application Submitted!</div>
+    <div style="color:var(--gray-500);margin-bottom:24px;">Your application has been received and assigned to your Relationship Manager.</div>
+    <div style="background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:24px;margin-bottom:24px;">
+      <div style="font-size:12px;color:var(--gray-500);margin-bottom:4px;">Application Reference</div>
+      <div style="font-size:22px;font-weight:700;color:var(--primary);">APP-20260506-0055</div>
+      <div style="font-size:12px;color:var(--gray-500);margin-top:8px;">Submitted: 06 May 2026 · Assigned RM: Ahmed Al-Kuwari</div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button class="btn btn-primary" onclick="navigate('tracking')">Track Application</button>
+      <button class="btn btn-outline" onclick="navigate('dashboard')">Back to Dashboard</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 8: APPLICATION TRACKING               -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-tracking" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;color:var(--gray-500);">
+      <span class="td-link" onclick="navigate('dashboard')">Dashboard</span> / <span>Application Tracking</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
+      <div>
+        <div class="page-title">APP-20260501-0042 <span class="badge badge-credit" style="vertical-align:middle;font-size:13px;">Credit Review</span></div>
+        <div class="page-sub">Submitted: 01 May 2026 · RM: Ahmed Al-Kuwari</div>
+      </div>
+      <button class="btn btn-outline btn-sm">📄 Download Summary</button>
+    </div>
+
+    <div class="grid-2" style="align-items:start;">
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header"><div class="card-title">Application Progress</div></div>
+          <div class="card-body">
+            <div class="timeline">
+              <div class="tl-item">
+                <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
+                <div class="tl-content"><div class="tl-stage">Application Submitted</div><div class="tl-date">01 May 2026, 09:14 AM</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-left"><div class="tl-dot done">✓</div><div class="tl-line done"></div></div>
+                <div class="tl-content"><div class="tl-stage">RM Review</div><div class="tl-date">01 May 2026, 02:30 PM</div><div class="tl-note">Application reviewed and verified by RM. All documents accepted.</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-left"><div class="tl-dot active">⏳</div><div class="tl-line"></div></div>
+                <div class="tl-content"><div class="tl-stage">Credit Review</div><div class="tl-date">03 May 2026, 10:00 AM</div><div class="tl-note">Application is currently under credit assessment.</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-left"><div class="tl-dot pending">○</div><div class="tl-line"></div></div>
+                <div class="tl-content"><div class="tl-stage pending">Approval</div></div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-left"><div class="tl-dot pending">○</div></div>
+                <div class="tl-content"><div class="tl-stage pending">Completed / Decision</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning">
+          <span>⚠️</span>
+          <div><strong>Document Required:</strong> Credit team has requested audited financial statements for FY2025. Please upload to proceed.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:6px;">Upload Documents</button>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:16px;">
+          <div class="card-header"><div class="card-title">Facilities in This Application</div></div>
+          <div class="card-body" style="padding:0;">
+            <table>
+              <thead><tr><th>Facility</th><th>Request Types</th><th>Amount</th></tr></thead>
+              <tbody>
+                <tr><td>Term Loan — FAC-001</td><td><span class="badge badge-credit">Renewal</span> <span class="badge badge-credit">Limit Increase</span></td><td>QAR 35M</td></tr>
+                <tr><td>LC Facility — FAC-003</td><td><span class="badge badge-credit">Renewal</span></td><td>QAR 30M</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Documents</div></div>
+          <div class="card-body" style="padding:0;">
+            <table>
+              <thead><tr><th>Document</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Financial Statements FY2025</td><td><span class="badge badge-approved">Verified ✓</span></td></tr>
+                <tr><td>Board Resolution</td><td><span class="badge badge-approved">Verified ✓</span></td></tr>
+                <tr><td>Bank Statements (6M)</td><td><span class="badge badge-rm-review">Requested</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- SCREEN 9: NOTIFICATIONS                      -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="screen-notifications" class="screen">
+  <nav class="topnav">
+    <div class="topnav-logo"><div class="topnav-logo-mark">Q</div>QDB Portal</div>
+    <div class="topnav-spacer"></div>
+    <div class="topnav-user"><div class="topnav-avatar">AI</div><span>Al-Rashid Industries</span></div>
+  </nav>
+  <div class="page-body">
+    <div class="page-title">Notifications</div>
+    <div class="page-sub">3 unread notifications</div>
+    <div class="card" style="max-width:700px;">
+      <div class="card-body">
+        <div class="notif-item">
+          <div class="notif-dot-indicator"></div>
+          <div>
+            <div class="notif-text"><strong>Document Required</strong> — APP-20260501-0042: Please upload bank statements (6 months) as requested by the credit team.</div>
+            <div class="notif-time">Today, 10:45 AM</div>
+          </div>
+        </div>
+        <div class="notif-item">
+          <div class="notif-dot-indicator"></div>
+          <div>
+            <div class="notif-text"><strong>Status Update</strong> — APP-20260501-0042 has moved to Credit Review stage.</div>
+            <div class="notif-time">03 May 2026, 10:00 AM</div>
+          </div>
+        </div>
+        <div class="notif-item">
+          <div class="notif-dot-indicator"></div>
+          <div>
+            <div class="notif-text"><strong>Application Received</strong> — Your application APP-20260501-0042 has been received and assigned to RM Ahmed Al-Kuwari.</div>
+            <div class="notif-time">01 May 2026, 09:15 AM</div>
+          </div>
+        </div>
+        <div class="notif-item" style="opacity:0.6;">
+          <div style="width:8px;height:8px;margin-top:5px;flex-shrink:0;"></div>
+          <div>
+            <div class="notif-text"><strong>Application Approved</strong> — APP-20260415-0031 has been approved. Facilities will be updated shortly.</div>
+            <div class="notif-time">28 Apr 2026, 03:30 PM</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:16px;"><button class="btn btn-outline btn-sm" onclick="navigate('dashboard')">← Back to Dashboard</button></div>
+  </div>
+</div>
+
+<script>
+function navigate(screen) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + screen).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function toggleFacility(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('selected');
+  const check = el.querySelector('.facility-check');
+  check.textContent = el.classList.contains('selected') ? '✓' : '';
+}
+
+function toggleChip(el, facId) {
+  if (el.classList.contains('conflict')) return;
+  el.classList.toggle('selected');
+  el.textContent = el.classList.contains('selected')
+    ? '✓ ' + el.textContent.replace('✓ ', '')
+    : el.textContent.replace('✓ ', '');
+}
+
+function showConflict() {
+  const chip = document.getElementById('rt-reschedule');
+  const msg = document.getElementById('conflict-msg');
+  chip.classList.toggle('selected');
+  msg.style.display = chip.classList.contains('selected') ? 'block' : 'none';
+}
+
+function simulateUpload(zone, name, size) {
+  zone.innerHTML = `
+    <div class="uploaded-file" style="text-align:left;">
+      <span>📄</span>
+      <span class="uploaded-file-name">${name}</span>
+      <span class="uploaded-file-size">${size}</span>
+      <span class="uploaded-file-remove" onclick="this.parentElement.parentElement.innerHTML='<div class=\\'upload-icon\\'>☁️</div><div class=\\'upload-label\\'>Drag & drop or click to upload</div><div class=\\'upload-hint\\'>PDF, DOCX, XLSX, JPG, PNG · Max 25 MB</div>'">×</span>
+    </div>`;
+}
+</script>
+</body>
+</html>

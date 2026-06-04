@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  solution.xml — template for QdbWorkflowDesigner CRM solution.
+
+  This file is a BUILD TEMPLATE. Do not import this file directly into CRM.
+
+  At package time (npm run package), packageSolution.js reads this template,
+  updates the <Version> tag and regenerates the <RootComponents> section with
+  one entry per actual build artifact, then writes the result to
+  deploy/.staging/solution.xml — which is what gets zipped and imported.
+
+  Permanent decisions (Article XI — cannot be changed after first import):
+    UniqueName : QdbWorkflowDesigner
+    Publisher  : qdb (prefix qdb_)
+    Managed    : 0 (unmanaged for development; produce a managed build for production)
+-->
+<ImportExportXml version="9.0.0.0"
+                 SolutionPackageVersion="9.0"
+                 languagecode="1033"
+                 generatedBy="CrmExport">
+  <SolutionManifest>
+    <UniqueName>QdbWorkflowDesigner</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="QDB Workflow Designer" languagecode="1033"/>
+    </LocalizedNames>
+    <Version>1.0.0.0</Version>
+    <Managed>0</Managed>
+    <Publisher>
+      <UniqueName>qdb</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="Maqsad AI" languagecode="1033"/>
+      </LocalizedNames>
+      <CustomizationPrefix>qdb</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+    </Publisher>
+    <RootComponents>
+      <!-- Populated by packageSolution.js at build time — do not edit manually -->
+    </RootComponents>
+  </SolutionManifest>
+</ImportExportXml>

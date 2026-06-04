@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml version="9.2.24.10388" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <SolutionManifest>
+    <UniqueName>DynamicFormEngine</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="Dynamic Form Engine" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="Dynamic Form Engine — configurable multi-step form framework for Dataverse and Power Pages." languagecode="1033" />
+    </Descriptions>
+    <Version>1.0.0.0</Version>
+    <Managed>0</Managed>
+    <Publisher>
+      <UniqueName>maqsad_ai</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="Maqsad AI" languagecode="1033" />
+      </LocalizedNames>
+      <Descriptions>
+        <Description description="Maqsad AI Publisher" languagecode="1033" />
+      </Descriptions>
+      <EMailAddress>info@maqsad.ai</EMailAddress>
+      <SupportingWebsiteUrl>https://maqsad.ai</SupportingWebsiteUrl>
+      <CustomizationPrefix>dfe</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+      <Addresses>
+        <Address>
+          <AddressNumber>1</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true" />
+          <County xsi:nil="true" />
+          <Country xsi:nil="true" />
+          <Fax xsi:nil="true" />
+          <FreightTermsCode xsi:nil="true" />
+          <ImportSequenceNumber xsi:nil="true" />
+          <Latitude xsi:nil="true" />
+          <Line1 xsi:nil="true" />
+          <Line2 xsi:nil="true" />
+          <Line3 xsi:nil="true" />
+          <Longitude xsi:nil="true" />
+          <Name xsi:nil="true" />
+          <PostalCode xsi:nil="true" />
+          <PostOfficeBox xsi:nil="true" />
+          <PrimaryContactName xsi:nil="true" />
+          <ShippingMethodCode xsi:nil="true" />
+          <StateOrProvince xsi:nil="true" />
+          <Telephone1 xsi:nil="true" />
+          <Telephone2 xsi:nil="true" />
+          <Telephone3 xsi:nil="true" />
+          <TimeZoneRuleVersionNumber xsi:nil="true" />
+          <UPSZone xsi:nil="true" />
+          <UTCOffset xsi:nil="true" />
+          <UTCConversionTimeZoneCode xsi:nil="true" />
+        </Address>
+      </Addresses>
+    </Publisher>
+    <RootComponents>
+      <!-- dfe_formdefinition -->
+      <RootComponent type="1" id="{1A2B3C4D-0001-0000-0000-000000000001}" behavior="0" />
+      <!-- dfe_tab -->
+      <RootComponent type="1" id="{1A2B3C4D-0002-0000-0000-000000000002}" behavior="0" />
+      <!-- dfe_section -->
+      <RootComponent type="1" id="{1A2B3C4D-0003-0000-0000-000000000003}" behavior="0" />
+      <!-- dfe_field -->
+      <RootComponent type="1" id="{1A2B3C4D-0004-0000-0000-000000000004}" behavior="0" />
+      <!-- dfe_option -->
+      <RootComponent type="1" id="{1A2B3C4D-0005-0000-0000-000000000005}" behavior="0" />
+      <!-- dfe_validationrule -->
+      <RootComponent type="1" id="{1A2B3C4D-0006-0000-0000-000000000006}" behavior="0" />
+      <!-- dfe_businessrule -->
+      <RootComponent type="1" id="{1A2B3C4D-0007-0000-0000-000000000007}" behavior="0" />
+      <!-- dfe_rulecondition -->
+      <RootComponent type="1" id="{1A2B3C4D-0008-0000-0000-000000000008}" behavior="0" />
+      <!-- dfe_lookupconfig -->
+      <RootComponent type="1" id="{1A2B3C4D-0009-0000-0000-000000000009}" behavior="0" />
+      <!-- dfe_fileuploadconfig -->
+      <RootComponent type="1" id="{1A2B3C4D-0010-0000-0000-000000000010}" behavior="0" />
+      <!-- dfe_submissionmapping -->
+      <RootComponent type="1" id="{1A2B3C4D-0011-0000-0000-000000000011}" behavior="0" />
+      <!-- dfe_formdraft -->
+      <RootComponent type="1" id="{1A2B3C4D-0012-0000-0000-000000000012}" behavior="0" />
+      <!-- dfe_submissionlog -->
+      <RootComponent type="1" id="{1A2B3C4D-0013-0000-0000-000000000013}" behavior="0" />
+      <!-- dfe_auditlog -->
+      <RootComponent type="1" id="{1A2B3C4D-0014-0000-0000-000000000014}" behavior="0" />
+    </RootComponents>
+    <MissingDependencies />
+  </SolutionManifest>
+</ImportExportXml>

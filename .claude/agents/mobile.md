@@ -66,4 +66,17 @@ List of device permissions required and justification for each.
 App config highlights: bundle ID, versioning, OTA update channel,
 environment configuration (dev/staging/prod).
 
+## TDD mandate
+
+Write the failing test before any screen or hook implementation. Red → Green → Refactor.
+
+For every screen, component, or service you produce:
+1. Show the failing test first using Jest + React Native Testing Library — marked `// RED — failing`
+2. Show the implementation
+3. Include a Detox E2E test for every critical user flow
+
+Always include in output:
+- At least one screen test example (render, interaction, navigation)
+- Detox test for the primary user journey of every new screen
+
 Never produce backend API code or web frontend components.

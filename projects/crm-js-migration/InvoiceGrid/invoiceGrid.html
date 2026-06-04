@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!--
+    invoiceGrid.html  v2
+    Invoice Entry Grid — Web Resource
+    Compatible: CRM On-Prem v9.1 (IE Mode / Edge Chromium), UCI, Dataverse
+
+    URL params:
+      parentId  — GUID of the qdb_payment_authorization_ticket record
+      etn       — entity logical name
+      design    — "legacy" | "uci"  (default: "uci")
+
+    Dependencies (same CRM WebResources folder):
+      invoiceGrid.css  |  formIntegration.js  |  invoiceGrid.js
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Invoice Entry Grid</title>
+    <link rel="stylesheet" href="invoiceGrid.css" />
+</head>
+<body>
+
+    <!-- ── Toolbar ─────────────────────────────────────────────────────────── -->
+    <div id="toolbar" class="toolbar">
+        <button id="btnAddInvoice" class="btn btn-primary" type="button">+ Add Invoice</button>
+        <button id="btnSaveAll"    class="btn btn-success" type="button">Save All</button>
+        <span   id="statusMsg"     class="status-msg" role="status" aria-live="polite"></span>
+        <span   id="loadingIndicator" class="loading-indicator" style="display:none;" aria-label="Saving">&#9696; Saving&hellip;</span>
+    </div>
+
+    <!-- ── Invoices container (accordion panels injected here) ─────────────── -->
+    <div id="invoicesContainer" class="invoices-container">
+        <!-- invoice panels rendered by invoiceGrid.js -->
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         TEMPLATES  (script type="text/html" — not rendered by browser,
+                     safely accessible as .text / .innerHTML, IE-compatible)
+         ═══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── Invoice panel template ──────────────────────────────────────────── -->
+    <script type="text/html" id="invoicePanelTemplate">
+        <div class="invoice-panel" data-panel-id="">
+            <!-- Accordion header -->
+            <div class="invoice-panel-header">
+                <button type="button" class="panel-toggle" aria-expanded="true" aria-label="Collapse panel">
+                    <span class="toggle-arrow">&#9660;</span>
+                </button>
+                <span class="panel-title">New Invoice</span>
+                <button type="button" class="btn-remove-panel" aria-label="Remove this invoice">Remove</button>
+            </div>
+
+            <!-- Accordion body -->
+            <div class="invoice-panel-body">
+
+                <!-- Header fields -->
+                <div class="form-row">
+                    <div class="form-group col-4">
+                        <label class="field-label required">Invoice No.</label>
+                        <input type="text"
+                               class="field-input invoice-no"
+                               maxlength="100"
+                               autocomplete="off"
+                               aria-required="true"
+                               placeholder="e.g. INV-2024-0001" />
+                        <span class="field-error" role="alert" style="display:none;"></span>
+                    </div>
+                    <div class="form-group col-3">
+                        <label class="field-label required">Invoice Date</label>
+                        <!--
+                            type="date" shows a date picker in UCI/modern browsers.
+                            In IE Mode it degrades to a text field — the placeholder
+                            guides the user. normaliseDateToIso() in formIntegration.js
+                            handles YYYY-MM-DD, M/D/YYYY and DD/MM/YYYY formats.
+                        -->
+                        <input type="date"
+                               class="field-input invoice-date"
+                               aria-required="true"
+                               placeholder="DD/MM/YYYY" />
+                        <span class="field-hint">Format: DD/MM/YYYY in IE Mode</span>
+                        <span class="field-error" role="alert" style="display:none;"></span>
+                    </div>
+                    <div class="form-group col-3">
+                        <label class="field-label">Invoice Amount</label>
+                        <input type="text"
+                               class="field-input invoice-amount text-right"
+                               value="0.00"
+                               readonly
+                               tabindex="-1"
+                               aria-label="Invoice amount (auto-calculated)" />
+                        <span class="field-hint">Auto-calculated from lines</span>
+                    </div>
+                    <div class="form-group col-3">
+                        <label class="field-label">Disbursement Amount</label>
+                        <input type="number"
+                               class="field-input disbursement-amount text-right"
+                               min="0"
+                               step="0.01"
+                               placeholder="0.00" />
+                    </div>
+                </div>
+
+                <!-- Grid toolbar -->
+                <div class="grid-toolbar">
+                    <button type="button" class="btn btn-secondary btn-add-line">+ Add Line</button>
+                </div>
+
+                <!-- Line items grid -->
+                <div class="table-wrapper">
+                    <table class="grid-table">
+                        <colgroup>
+                            <col style="width:44px">
+                            <col style="width:160px">
+                            <col style="width:250px">
+                            <col style="width:88px">
+                            <col style="width:108px">
+                            <col style="width:118px">
+                            <col style="width:128px">
+                            <col style="width:44px">
+                        </colgroup>
+                        <thead>
+                            <tr class="grid-header-row">
+                                <th class="th-nosort col-seq"    data-col-index="0" scope="col">#</th>
+                                <th class="th-sortable col-hscode" data-col-index="1" scope="col">
+                                    <span class="th-label">HS Code</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-sortable col-desc" data-col-index="2" scope="col">
+                                    <span class="th-label">Goods Description</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-sortable col-qty" data-col-index="3" scope="col">
+                                    <span class="th-label">Qty</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-sortable col-uom" data-col-index="4" scope="col">
+                                    <span class="th-label">UOM</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-sortable col-price" data-col-index="5" scope="col">
+                                    <span class="th-label">Unit Price</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-sortable col-total" data-col-index="6" scope="col">
+                                    <span class="th-label">Line Total</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                    <div class="col-resize-handle" title="Drag to resize"></div>
+                                </th>
+                                <th class="th-nosort col-action" data-col-index="7" scope="col">
+                                    <span class="sr-only">Actions</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="line-table-body">
+                            <!-- rows injected by invoiceGrid.js -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="grid-footer-row">
+                                <td colspan="6" class="footer-label">Grand Total</td>
+                                <td class="footer-total text-right">0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div><!-- /.table-wrapper -->
+
+            </div><!-- /.invoice-panel-body -->
+        </div><!-- /.invoice-panel -->
+    </script>
+
+    <!-- ── Line row template ───────────────────────────────────────────────── -->
+    <script type="text/html" id="rowTemplate">
+        <tr class="grid-row" data-row-id="">
+            <td class="col-seq cell-seq text-center"></td>
+
+            <!-- HS Code lookup control -->
+            <td class="col-hscode">
+                <div class="lookup-control">
+                    <input type="text"
+                           class="lookup-text-input"
+                           autocomplete="off"
+                           aria-label="HS Code lookup"
+                           aria-haspopup="listbox"
+                           aria-autocomplete="list"
+                           placeholder="Search HS code&hellip;" />
+                    <input type="hidden" class="hscode-id" />
+                    <button type="button" class="lookup-btn lookup-search-btn" aria-label="Open HS Code lookup">
+                        &#128269;
+                    </button>
+                    <button type="button" class="lookup-btn lookup-clear-btn" aria-label="Clear HS Code" style="display:none;">
+                        &#10005;
+                    </button>
+                </div>
+            </td>
+
+            <!-- Goods Description — read-only, auto-populated from HS Code -->
+            <td class="col-desc">
+                <input type="text"
+                       class="field-input desc-input"
+                       readonly
+                       tabindex="-1"
+                       aria-label="Goods description (auto-filled from HS Code)" />
+            </td>
+
+            <td class="col-qty">
+                <input type="number"
+                       class="field-input cell-input qty-input text-right"
+                       min="0"
+                       step="1"
+                       value="1"
+                       aria-label="Quantity" />
+            </td>
+
+            <td class="col-uom">
+                <!-- Values match qdb_unitofmeasurement Option Set integers -->
+                <select class="field-input cell-input uom-select" aria-label="Unit of measurement">
+                    <option value="">--</option>
+                    <option value="100000000">Ton</option>
+                    <option value="100000001">Kilogram</option>
+                    <option value="100000002">Liter</option>
+                    <option value="100000003">Bags</option>
+                    <option value="100000004">Box</option>
+                    <option value="100000005">Cubic-Meter</option>
+                    <option value="100000006">Meter</option>
+                    <option value="100000007">Units</option>
+                </select>
+            </td>
+
+            <td class="col-price">
+                <input type="number"
+                       class="field-input cell-input price-input text-right"
+                       min="0"
+                       step="0.01"
+                       value="0.00"
+                       aria-label="Unit price" />
+            </td>
+
+            <td class="col-total text-right cell-line-total">0.00</td>
+
+            <td class="col-action text-center">
+                <button type="button" class="btn-delete-row" aria-label="Delete row">&#10005;</button>
+            </td>
+        </tr>
+    </script>
+
+    <!-- ── Shared HS Code lookup dropdown ──────────────────────────────────── -->
+    <div id="hsCodeDropdown"
+         class="hscode-dropdown"
+         style="display:none;"
+         role="listbox"
+         aria-label="HS Code suggestions">
+        <!-- options injected by invoiceGrid.js -->
+    </div>
+
+    <!-- ── Scripts (data layer first, then UI controller) ─────────────────── -->
+    <script src="formIntegration.js"></script>
+    <script src="invoiceGrid.js"></script>
+
+</body>
+</html>

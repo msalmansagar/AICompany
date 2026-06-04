@@ -2,7 +2,87 @@
 # Updated by orchestrator after every phase completion
 # Phases: inception | ba | architecture | build | qa | audit | delivered
 
-projects: []
+projects:
+  - name: dynamic-form-engine
+    type: web
+    phase: delivered
+    started: 2026-05-06
+    last_updated: 2026-05-25
+    last_agent: ceo (mobile-phase-6)
+    ceo_approved_phases: [ba, architecture, build, qa, audit, delivered]
+    output_dir: projects/dynamic-form-engine/
+    status: approved_with_conditions
+    notes: >
+      WEB: APPROVED WITH CONDITIONS. 10 Sprint 1 blockers must be resolved before UAT.
+      Critical: data residency (West Europe → Qatar North), business rules hardcoded to [],
+      file upload non-functional (multer not registered), CORS wildcard fallback.
+      Two external gates required: QDB written confirmation on Azure AD tenant type and
+      Qatar North Dataverse environment provisioning.
+      MOBILE EXTENSION: APPROVED WITH CONDITIONS (2026-05-25). React Native + Expo managed
+      workflow app rendering same Dataverse-backed forms on iOS 16+ / Android 13+.
+      10 UAT blockers (MUATC-001 through MUATC-010) + 6 production gates (MPROD-001 through
+      MPROD-006) must be resolved before respective milestones. CONFIRMED BUG: MCODE-S-01 —
+      MSAL scope targets wrong client ID, app is completely non-functional as built, HTTP 401
+      on every API call. GATE-A (tenant type) and GATE-B (Qatar/UAE North Dataverse) inherited
+      from web engagement and block mobile UAT environment provisioning. Mobile output dir:
+      projects/dynamic-form-engine/mobile/
+
+  - name: customer-loan-portal
+    type: web
+    phase: delivered
+    started: 2026-05-06
+    last_updated: 2026-05-09
+    last_agent: ceo (phase-7)
+    ceo_approved_phases: [ba, architecture, build, qa, audit, delivered]
+    output_dir: projects/customer-loan-portal/
+    status: approved_with_conditions
+    notes: >
+      APPROVED WITH CONDITIONS. 6 Release Blockers must be resolved before UAT.
+      C-007 (Dataverse/Power Automate terminology) is a Release Blocker — violates
+      2 of 6 Phase 1 CEO conditions. C-004 (merge atomicity) classified Sprint 1.
+      GG-001 through GG-005 are go-live prerequisites. GG-002 elevated to Release Blocker
+      as compensating control for C-004.
+
+  - name: email-editor-pcf
+    type: crm
+    phase: build
+    started: 2026-04-14
+    last_updated: 2026-04-14
+    last_agent: architect + backend
+    ceo_approved_phases: [ba, architecture, build]
+    output_dir: projects/email-editor-pcf/
+    status: in_progress
+
+  - name: crm-workflow-designer
+    type: crm
+    phase: build
+    started: 2026-04-29
+    last_updated: 2026-04-30
+    last_agent: architect + build
+    ceo_approved_phases: [ba]
+    output_dir: projects/crm-workflow-designer/
+    status: in_progress
+    notes: >
+      Architecture complete. Build complete (React 18 + @xyflow/react v12 + Zustand + Vite).
+      3 HIGH risks still require client input before production deployment:
+      R1 plugin JSON schema, R2 field size confirmation, R3 allowed-list config entity.
+
+  - name: form-designer-webresource
+    type: crm
+    phase: qa
+    started: 2026-05-18
+    last_updated: 2026-05-19
+    last_agent: qa
+    ceo_approved_phases: [ba, architecture, build]
+    output_dir: projects/form-designer-webresource/
+    status: in_progress
+    notes: >
+      Dynamics CRM Web Resource — Drag-and-Drop Form Designer.
+      React + TypeScript + Fluent UI + dnd-kit. Phase 5 QA complete.
+      87 new test cases authored. 4 high-confidence defects identified:
+      DEFECT-001 (PV-001 whitespace bypass), DEFECT-002 (Xrm.Page deprecated usage),
+      DEFECT-003 (VersionService zero coverage), DEFECT-004 (publish pipeline partial failure).
+      All must be resolved before UAT. Awaiting Phase 6 Audit.
 
 # Example entry:
 # projects:

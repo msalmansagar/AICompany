@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="EmailEditor_Display_Key"><value>Email Template Editor</value></data>
+  <data name="EmailEditor_Desc_Key"><value>Compose email templates with dynamic field tokens sourced from Dataverse metadata.</value></data>
+  <data name="TemplateValue_Display"><value>Template</value></data>
+  <data name="TemplateValue_Desc"><value>The raw template string with {{token}} syntax.</value></data>
+  <data name="RootEntity_Display"><value>Root Entity Logical Name</value></data>
+  <data name="RootEntity_Desc"><value>The primary entity logical name (e.g. contact, loan_application).</value></data>
+  <data name="SampleRecord_Display"><value>Sample Record ID</value></data>
+  <data name="SampleRecord_Desc"><value>GUID of a record to use in the preview pane.</value></data>
+  <data name="MaxDepth_Display"><value>Max Relationship Depth</value></data>
+  <data name="MaxDepth_Desc"><value>How many relationship levels deep the field picker allows (default 3).</value></data>
+</root>

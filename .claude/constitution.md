@@ -98,3 +98,13 @@ Orchestrator must pause and get explicit CEO approval before:
 - Human-in-the-loop gates for irreversible actions
 - MCP servers scoped to least-privilege access
 - Never expose raw database credentials to agent tools
+
+## Article XIV — Observability Standards
+- Structured logging required in all services: pino for Node.js,
+  ITracingService for CRM plugins, structured logger for all others
+- Every log entry must carry: correlation_id, timestamp, service_name, operation
+- No `console.log` in production code — use structured logger only
+- Health check endpoint on every service: GET /health → { status, version, timestamp }
+- Correlation IDs propagated across all service-to-service calls
+- Metrics defined per service before deployment: request count, error rate, p95 latency
+- Alerting thresholds must be defined and tested before go-live — not after an incident

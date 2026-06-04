@@ -4,13 +4,23 @@
     "CLAUDE_CODE_SUBAGENT_MODEL": "claude-sonnet-4-6"
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"D:\\AI Projects\\AICompany\\.claude\\hooks\\session-start.js\""
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/block-no-verify.js"
+            "command": "node \"D:\\AI Projects\\AICompany\\.claude\\hooks\\block-no-verify.js\""
           }
         ]
       }
@@ -21,7 +31,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/post-edit-typecheck.js"
+            "command": "node \"D:\\AI Projects\\AICompany\\.claude\\hooks\\post-edit-typecheck.js\""
+          },
+          {
+            "type": "command",
+            "command": "node \"D:\\AI Projects\\AICompany\\.claude\\hooks\\post-edit-lint.js\""
           }
         ]
       }
@@ -31,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/session-end.js"
+            "command": "node \"D:\\AI Projects\\AICompany\\.claude\\hooks\\session-end.js\""
           }
         ]
       }

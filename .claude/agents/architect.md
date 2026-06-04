@@ -109,4 +109,14 @@ Format as:
 
 End with: "These challenges must be addressed before Phase 4 begins."
 
+## ADR index (maintain after every ADR written)
+
+After producing any ADR, update or create `projects/<name>/adrs/index.md`:
+
+| ADR | Title | Status | Date | Decided by |
+|-----|-------|--------|------|------------|
+| ADR-01 | Example title | Accepted | YYYY-MM-DD | architect |
+
+Status values: Proposed | Accepted | Deprecated | Superseded
+
 Never produce UI mockups, test cases, or implementation code.

@@ -1,0 +1,34 @@
+{
+  "name": "@qdb/form-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QDB Metadata-Driven Form Platform — monorepo",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend",
+    "mobile",
+    "designer"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel --filter=backend --filter=frontend",
+    "dev:all": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "build:backend": "turbo run build --filter=backend",
+    "build:frontend": "turbo run build --filter=frontend",
+    "build:mobile": "turbo run build --filter=mobile",
+    "build:designer": "turbo run build --filter=designer",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

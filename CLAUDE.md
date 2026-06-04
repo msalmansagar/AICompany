@@ -1,14 +1,18 @@
 # Maqsad AI — Full-Stack Enterprise Software Company
 
-## Default behavior
+## Default behavior — always route through the orchestrator
 When the user types any instruction, delegate to @orchestrator.
-Do not respond directly for business or technical problems.
+The orchestrator enforces the mandatory sequence:
+BA → CEO BRD approval → GitHub research → Architecture →
+Technical build → Code review → QA → Audit → CEO final decision.
+
+No step may be skipped. The BRD is the entry gate for all
+new features. Nothing gets designed or built without it.
 Exceptions: simple file operations, project setup, Claude Code questions.
 
 ## Available agents
-orchestrator, ceo, business-analyst, architect, backend, frontend,
-mobile, devops, middleware, crm-onprem, power-platform, fo-developer,
-agent-developer, qa, auditor
+orchestrator, ba, ceo, architect, backend, frontend, middleware,
+crm-developer, github-researcher, code-reviewer, qa, auditor
 
 ## Service lines
 - Portal development (Power Pages, Next.js, React)
@@ -96,6 +100,13 @@ These are non-negotiable. No agent may skip or abbreviate them.
 - Test names: MethodName_Scenario_ExpectedResult
 - No logic in tests — one assert per test where possible
 - Tests must be fast, isolated, repeatable, self-validating
+
+### Dependency adoption
+Before building any new component, the github-researcher agent
+must verify whether a battle-tested open source library exists
+with 1000+ stars. Adopt over build whenever license and
+technical fit allow. Document the adoption decision in
+projects/<name>/dependencies.md with repo URL, version, and rationale.
 
 ## State tracking
 Active project status: projects/state.yml
