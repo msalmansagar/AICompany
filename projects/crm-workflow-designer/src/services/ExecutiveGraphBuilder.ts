@@ -128,7 +128,7 @@ export function buildExecutiveGraph(
   const endEdge: Edge = {
     id: 'e_exec_end',
     source: `step_${lastStep.id}`, target: END_NODE_ID,
-    sourceHandle: 'bottom', targetHandle: 'top',
+    sourceHandle: 'out', targetHandle: 'in',
     type: 'smoothstep',
     style: { stroke: '#dc2626', strokeWidth: 2 },
     markerEnd: { type: MarkerType.ArrowClosed, color: '#dc2626' },
@@ -165,20 +165,30 @@ function applyExecLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): N
     return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
   });
 
-  // Align all step and terminal nodes to the same center x.
   const stepNodes = positioned.filter((n) => n.type === 'execStep');
-  if (stepNodes.length > 0) {
+  if (stepNodes.length === 0) return positioned;
+
+  if (dir === 'TB') {
+    // Align all nodes to the same center X to prevent staircase drift.
     const centerX =
       stepNodes.reduce((sum, n) => sum + n.position.x + EXEC_STEP_W / 2, 0) / stepNodes.length;
     return positioned.map((node) => {
-      if (node.type === 'execStep') {
+      if (node.type === 'execStep')
         return { ...node, position: { ...node.position, x: centerX - EXEC_STEP_W / 2 } };
-      }
-      if (node.type === 'viewStart' || node.type === 'viewEnd') {
+      if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, x: centerX - MARKER_SIZE / 2 } };
-      }
+      return node;
+    });
+  } else {
+    // LR: align all nodes to the same center Y.
+    const centerY =
+      stepNodes.reduce((sum, n) => sum + n.position.y + EXEC_STEP_H / 2, 0) / stepNodes.length;
+    return positioned.map((node) => {
+      if (node.type === 'execStep')
+        return { ...node, position: { ...node.position, y: centerY - EXEC_STEP_H / 2 } };
+      if (node.type === 'viewStart' || node.type === 'viewEnd')
+        return { ...node, position: { ...node.position, y: centerY - MARKER_SIZE / 2 } };
       return node;
     });
   }
-  return positioned;
 }
