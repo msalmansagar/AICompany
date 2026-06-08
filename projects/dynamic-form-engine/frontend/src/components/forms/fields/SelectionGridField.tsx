@@ -21,13 +21,22 @@ import {
   MessageBar,
   MessageBarBody,
   MessageBarActions,
+  Card,
+  CardHeader,
+  ToggleButton,
+  Badge,
 } from '@fluentui/react-components';
 import {
   ChevronLeftRegular,
   ChevronRightRegular,
   ArrowClockwiseRegular,
+  GridRegular,
+  TableRegular,
+  CheckmarkCircleRegular,
 } from '@fluentui/react-icons';
 import type { GridRecord } from '@qdb/shared';
+
+type ViewMode = 'table' | 'card';
 import { useFormContext } from '../../../contexts/FormContext';
 import { useSelectionGridData } from '../../../hooks/useSelectionGridData';
 import type { ControlProps } from '../FieldRenderer';
@@ -102,6 +111,50 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground2,
   },
+  toolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: tokens.spacingHorizontalXS,
+    paddingBottom: tokens.spacingVerticalXS,
+  },
+  cardGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+    gap: tokens.spacingVerticalM,
+  },
+  cardItem: {
+    cursor: 'pointer',
+    border: `2px solid transparent`,
+    borderRadius: tokens.borderRadiusMedium,
+    transition: 'border-color 0.15s',
+    position: 'relative',
+  },
+  cardItemSelected: {
+    borderColor: tokens.colorBrandStroke1,
+    backgroundColor: tokens.colorBrandBackground2,
+  },
+  cardBadge: {
+    position: 'absolute',
+    top: tokens.spacingVerticalXS,
+    right: tokens.spacingHorizontalXS,
+  },
+  cardFieldRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXXS,
+    paddingTop: tokens.spacingVerticalXS,
+  },
+  cardFieldLabel: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+    fontWeight: tokens.fontWeightSemibold,
+  },
+  cardFieldValue: {
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground1,
+    wordBreak: 'break-word',
+  },
 });
 
 interface SelectionGridFieldProps extends ControlProps {
@@ -122,6 +175,8 @@ export function SelectionGridField({
   const gridConfig = field.gridConfig;
   const selectionMode = gridConfig?.selectionMode ?? 'single';
   const columnConfigs = gridConfig?.columnConfigs ?? [];
+
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Selection state: Set<string> of selected record GUIDs.
   // Persists across page navigation within the same session.
@@ -195,6 +250,11 @@ export function SelectionGridField({
     }
   }
 
+  const sortedCols = useMemo(
+    () => [...columnConfigs].sort((a, b) => a.displayOrder - b.displayOrder),
+    [columnConfigs],
+  );
+
   const columns = useMemo<ColumnDef<GridRecord>[]>(() => {
     const colDefs: ColumnDef<GridRecord>[] = [];
 
@@ -224,11 +284,6 @@ export function SelectionGridField({
       });
     }
 
-    // Data columns driven by gridColumnConfig.
-    const sortedCols = [...columnConfigs].sort(
-      (a, b) => a.displayOrder - b.displayOrder,
-    );
-
     for (const col of sortedCols) {
       colDefs.push({
         id: col.columnId,
@@ -248,7 +303,7 @@ export function SelectionGridField({
     }
 
     return colDefs;
-  }, [columnConfigs, selectionMode, selectedIds, gridData.records]);
+  }, [sortedCols, selectionMode, selectedIds, gridData.records]);
 
   const table = useReactTable({
     data: gridData.records,
@@ -309,7 +364,90 @@ export function SelectionGridField({
         </Text>
       )}
 
-      <div className={styles.scrollContainer}>
+      {/* View mode toggle toolbar */}
+      <div className={styles.toolbar}>
+        <ToggleButton
+          icon={<TableRegular />}
+          checked={viewMode === 'table'}
+          onClick={() => setViewMode('table')}
+          size="small"
+          aria-label="Table view"
+          appearance={viewMode === 'table' ? 'primary' : 'subtle'}
+        >
+          Table
+        </ToggleButton>
+        <ToggleButton
+          icon={<GridRegular />}
+          checked={viewMode === 'card'}
+          onClick={() => setViewMode('card')}
+          size="small"
+          aria-label="Card view"
+          appearance={viewMode === 'card' ? 'primary' : 'subtle'}
+        >
+          Cards
+        </ToggleButton>
+      </div>
+
+      {/* Card view */}
+      {viewMode === 'card' && (
+        <div className={styles.cardGrid} role="listbox" aria-multiselectable={selectionMode === 'multi'} aria-label={`${field.label} card view`}>
+          {gridData.records.length === 0 ? (
+            <Text className={styles.emptyState}>No records found.</Text>
+          ) : (
+            gridData.records.map((record) => {
+              const isSelected = selectedIds.has(record.id);
+              return (
+                <Card
+                  key={record.id}
+                  className={`${styles.cardItem} ${isSelected ? styles.cardItemSelected : ''}`}
+                  onClick={() => toggleRow(record.id)}
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(record.id); }
+                  }}
+                >
+                  {isSelected && (
+                    <Badge
+                      className={styles.cardBadge}
+                      icon={<CheckmarkCircleRegular />}
+                      color="brand"
+                      appearance="filled"
+                      size="small"
+                      aria-label="Selected"
+                    />
+                  )}
+                  <CardHeader
+                    header={
+                      <Text weight="semibold">
+                        {String(record.values[sortedCols[0]?.targetAttribute] ?? record.id.slice(0, 8))}
+                      </Text>
+                    }
+                  />
+                  <div className={styles.cardFieldRow}>
+                    {sortedCols.slice(1).map((col) => (
+                      <div key={col.columnId}>
+                        <Text className={styles.cardFieldLabel}>{col.columnLabel}</Text>
+                        <Text className={styles.cardFieldValue} block>
+                          {String(
+                            record.values[`${col.targetAttribute}@OData.Community.Display.V1.FormattedValue`]
+                            ?? record.values[col.targetAttribute]
+                            ?? '—'
+                          )}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Table view */}
+      {viewMode === 'table' && <div className={styles.scrollContainer}>
         <table
           className={styles.table}
           role="grid"
@@ -387,7 +525,7 @@ export function SelectionGridField({
             )}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {gridData.totalPages > 1 && (
         <div className={styles.paginationRow}>

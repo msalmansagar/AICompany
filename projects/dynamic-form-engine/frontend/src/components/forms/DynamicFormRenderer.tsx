@@ -370,13 +370,11 @@ function FormRendererInner() {
                     tab={activeTab}
                     isVisible={true}
                     isTabActive={true}
-                    showSaveDraft={formDefinition.allowSaveDraft}
-                    showSubmit={isOnFinalTab}
                   />
                 )}
               </div>
 
-              <FormActionBar sticky={isStickyBar} />
+              <FormActionBar sticky={isStickyBar} showSubmit={isOnFinalTab} />
             </main>
           )}
         </DesignContext.Provider>

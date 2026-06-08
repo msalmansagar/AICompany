@@ -28,6 +28,8 @@ import type { FormButton, ButtonAction } from '@qdb/shared';
 
 interface FormActionBarProps {
   sticky?: boolean;
+  // When false the submit button is hidden (user is not on the final tab yet).
+  showSubmit?: boolean;
 }
 
 const DEFAULT_BUTTON: FormButton = {
@@ -85,7 +87,7 @@ const useStyles = makeStyles({
   },
 });
 
-export function FormActionBar({ sticky = false }: FormActionBarProps) {
+export function FormActionBar({ sticky = false, showSubmit = true }: FormActionBarProps) {
   const styles = useStyles();
   const {
     formDefinition,
@@ -109,9 +111,13 @@ export function FormActionBar({ sticky = false }: FormActionBarProps) {
 
   const visibleButtons = (formDefinition?.buttons ?? [])
     .filter((b) => b.isVisible && b.isActive)
+    .filter((b) => b.action !== 'submit' || showSubmit)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
-  const buttons = visibleButtons.length > 0 ? visibleButtons : [DEFAULT_BUTTON];
+  // Only show the default submit button when no Dataverse buttons exist AND submit is allowed.
+  const buttons = visibleButtons.length > 0
+    ? visibleButtons
+    : showSubmit ? [DEFAULT_BUTTON] : [];
 
   const handleSaveDraft = useCallback(async () => {
     setSaveDraftState('saving');
