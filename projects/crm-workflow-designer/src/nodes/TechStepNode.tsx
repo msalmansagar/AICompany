@@ -1,7 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
-import type { TechStepData } from '../services/TechnicalGraphBuilder';
+import type { TechStepData, BackHandleInfo } from '../services/TechnicalGraphBuilder';
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
@@ -11,7 +11,7 @@ const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
 };
 
 export function TechStepNode({ data, selected }: NodeProps) {
-  const { step, outcomeRows, layoutDir } = data as unknown as TechStepData;
+  const { step, outcomeRows, layoutDir, backOutHandles, backInHandles } = data as unknown as TechStepData;
   const isLR = layoutDir === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
   const assignColor = ASSIGN_COLOR[assignLabel] ?? { bg: '#f1f5f9', text: '#475569' };
@@ -20,19 +20,33 @@ export function TechStepNode({ data, selected }: NodeProps) {
     : assignLabel === 'Team'        ? step.teamName
     :                                 step.roundRobinTeamName;
 
-  // Technical identifier: prefer schemaName, fall back to last 8 chars of step ID.
   const techId = step.schemaName || `…${step.id.slice(-8)}`;
-
-  const mainInPos  = isLR ? Position.Left   : Position.Top;
-  const mainOutPos = isLR ? Position.Right  : Position.Bottom;
-  const backOutPos = isLR ? Position.Bottom : Position.Left;
-  const backInPos  = isLR ? Position.Top    : Position.Left;
+  const mainInPos  = isLR ? Position.Left  : Position.Top;
+  const mainOutPos = isLR ? Position.Right : Position.Bottom;
+  const backHandlePos = isLR ? Position.Top : Position.Left;
 
   return (
     <div style={containerStyle(selected ?? false)}>
-      <Handle type="target" position={mainInPos}  id="in"       style={handle('#94a3b8')} />
-      <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
-      <Handle type="target" position={backInPos}  id="back-in"  style={backHandleStyle(isLR, 'in')} />
+      <Handle type="target" position={mainInPos} id="in" style={handle('#94a3b8')} />
+
+      {(backOutHandles ?? []).map((h: BackHandleInfo) => (
+        <Handle
+          key={`bo-${h.outcomeId}`}
+          type="source"
+          position={backHandlePos}
+          id={`back-out-${h.outcomeId}`}
+          style={backHandleStyle(isLR, h.offset)}
+        />
+      ))}
+      {(backInHandles ?? []).map((h: BackHandleInfo) => (
+        <Handle
+          key={`bi-${h.outcomeId}`}
+          type="target"
+          position={backHandlePos}
+          id={`back-in-${h.outcomeId}`}
+          style={backHandleStyle(isLR, h.offset)}
+        />
+      ))}
 
       {/* Technical header band */}
       <div style={techHeader}>
@@ -90,12 +104,12 @@ export function TechStepNode({ data, selected }: NodeProps) {
 function TechOutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isBackEdge) {
     return (
-      <div style={outcomeRow}>
+      <div style={backEdgeRow}>
         <span style={icon('#7c3aed')}>↩</span>
         <span style={outcomeLabel('#4c1d95')}>{row.name}</span>
         <div style={rightSide}>
           {row.applyFilter && <span style={filterBadge}>◈ filtered</span>}
-          {row.nextStepName && <span style={targetText('#7c3aed')}>→ {row.nextStepName}</span>}
+          {row.nextStepName && <span style={backTargetText}>↑ {row.nextStepName}</span>}
         </div>
       </div>
     );
@@ -125,10 +139,12 @@ function handle(color: string): React.CSSProperties {
   return { background: color, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
 }
 
-function backHandleStyle(isLR: boolean, which: 'out' | 'in'): React.CSSProperties {
-  const base = { background: '#a78bfa', width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
-  if (isLR) return base;
-  return { ...base, top: which === 'out' ? '32%' : '68%' };
+function backHandleStyle(isLR: boolean, offset: number): React.CSSProperties {
+  return {
+    background: '#a78bfa', width: 8, height: 8,
+    border: '2px solid #fff', borderRadius: '50%',
+    ...(isLR ? { left: `${offset}%` } : { top: `${offset}%` }),
+  };
 }
 
 function containerStyle(selected: boolean): React.CSSProperties {
@@ -235,6 +251,17 @@ const outcomesSection: React.CSSProperties = {
 
 const outcomeRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 5, minHeight: 20,
+};
+
+const backEdgeRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 5, minHeight: 20,
+  background: '#f5f3ff', borderLeft: '3px solid #7c3aed',
+  margin: '1px -12px', padding: '2px 12px 2px 9px',
+};
+
+const backTargetText: React.CSSProperties = {
+  fontSize: 10, color: '#7c3aed', fontWeight: 600, flexShrink: 0,
+  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100,
 };
 
 const rightSide: React.CSSProperties = {

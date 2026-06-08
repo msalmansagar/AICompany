@@ -22,6 +22,9 @@ import { CrmDesignService } from './services/CrmDesignService.js';
 import { CrmFormCloneService } from './services/CrmFormCloneService.js';
 import { CrmDesignerProxyService } from './services/CrmDesignerProxyService.js';
 import { AccessPolicyService } from './services/AccessPolicyService.js';
+import { CrmInfoCardService } from './services/CrmInfoCardService.js';
+import { CrmInfoCardAdminService } from './services/CrmInfoCardAdminService.js';
+import { CrmGridDataService } from './services/CrmGridDataService.js';
 import { CssSanitiserService } from './utils/cssSanitiser.js';
 import {
   MockMetadataService,
@@ -38,6 +41,8 @@ import { createOptionsRouter } from './routes/options.routes.js';
 import { createFilesRouter } from './routes/files.routes.js';
 import { createThemesRouter, createFormDesignRouter, createDesignCacheRouter } from './routes/design.routes.js';
 import { createAdminRouter } from './routes/admin.routes.js';
+import { createGridsRouter } from './routes/grids.routes.js';
+import { createInfoCardsAdminRouter } from './routes/info-cards.admin.routes.js';
 import { createDesignerProxyRouter } from './routes/designer-proxy.routes.js';
 import type { FormDefinition, DesignPayload, ThemeDefinition } from '@qdb/shared';
 
@@ -66,6 +71,11 @@ const policyCache = new LRUCache<string, string[]>(
 const authService = new CrmAuthService();
 const policyService = config.MOCK_CRM ? null : new AccessPolicyService(authService, policyCache);
 const cssSanitiser = new CssSanitiserService();
+const infoCardService = config.MOCK_CRM ? null : new CrmInfoCardService(authService);
+const infoCardAdminService = config.MOCK_CRM ? null : new CrmInfoCardAdminService(authService);
+const gridDataService = config.MOCK_CRM
+  ? null
+  : new CrmGridDataService(authService, metadataCache as LRUCache<string, unknown>);
 
 // When MOCK_CRM=true, swap all CRM services for in-memory mocks.
 // This allows full local development without a Dataverse environment.
@@ -87,7 +97,7 @@ const submissionService = config.MOCK_CRM
 
 const metadataService = config.MOCK_CRM
   ? (new MockMetadataService() as unknown as CrmMetadataService)
-  : new CrmMetadataService(authService, metadataCache);
+  : new CrmMetadataService(authService, metadataCache, infoCardService);
 
 const fileService = config.MOCK_CRM
   ? (new MockFileService() as unknown as CrmFileService)
@@ -118,13 +128,19 @@ app.use('/api/health', healthRouter);
 // â”€â”€ Authenticated routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use('/api', authMiddleware);
 app.use('/api/lookups', createLookupsRouter(lookupService));
-app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService));
+app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService, infoCardService));
+if (gridDataService) {
+  app.use('/api/grids', createGridsRouter(gridDataService));
+}
 app.use('/api/options', createOptionsRouter(metadataService));
 app.use('/api/files', createFilesRouter(fileService));
 app.use('/api/themes', createThemesRouter(designService));
 app.use('/api/form-design', createFormDesignRouter(designService));
 app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
 app.use('/api/admin', createAdminRouter(metadataService, designService));
+if (infoCardAdminService) {
+  app.use('/api/admin', createInfoCardsAdminRouter(infoCardAdminService));
+}
 if (designerProxyService) {
   app.use('/api/designer/records', createDesignerProxyRouter(designerProxyService));
 }
@@ -140,4 +156,10 @@ app.listen(config.PORT, () => {
   );
 });
 
-export { app, metadataCache, designCache, policyCache, authService, auditService, dataService, lookupService, submissionService, metadataService, fileService, designService, cloneService, designerProxyService, policyService };
+export {
+  app, metadataCache, designCache, policyCache,
+  authService, auditService, dataService, lookupService,
+  submissionService, metadataService, fileService,
+  designService, cloneService, designerProxyService, policyService,
+  infoCardService, infoCardAdminService, gridDataService,
+};

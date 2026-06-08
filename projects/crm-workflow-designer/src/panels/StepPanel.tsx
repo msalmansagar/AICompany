@@ -22,9 +22,6 @@ const stepPanelSchema = z.object({
   sequenceNo: z.number().int().min(1, 'Sequence must be ≥ 1'),
   taskSubject: z.string(),
   taskDescription: z.string(),
-  recordEntityId: z.string().nullable(),
-  regardingFieldId: z.string().nullable(),
-  parentEntityId: z.string().nullable(),
   assignTo: z.enum(['user', 'team', 'roundRobin']),
   assignedUserId: z.string().nullable(),
   teamId: z.string().nullable(),
@@ -40,13 +37,6 @@ interface StepPanelProps {
 export function StepPanel({ step }: StepPanelProps) {
   const adapter = useCrmAdapter();
   const setStep = useWorkflowStore((s) => s.setStep);
-
-  const { data: autoNumberEntities = [], isLoading: isLoadingEntities, error: entitiesError } = useQuery({
-    queryKey: ['autoNumberEntities'],
-    queryFn: () => adapter.getAutoNumberEntities(),
-    staleTime: 5 * 60 * 1000,
-    retry: 2,
-  });
 
   const { data: users = [], isLoading: isLoadingUsers, error: usersError } = useQuery({
     queryKey: ['users'],
@@ -72,14 +62,6 @@ export function StepPanel({ step }: StepPanelProps) {
   }, [step.crmId, reset]);
 
   const assignTo = watch('assignTo');
-  const recordEntityId = watch('recordEntityId');
-
-  const { data: entityFields = [], isLoading: isLoadingFields, error: fieldsError } = useQuery({
-    queryKey: ['autoNumberEntityFields', recordEntityId],
-    queryFn: () => adapter.getAutoNumberEntityFields(recordEntityId ?? undefined),
-    staleTime: 2 * 60 * 1000,
-    retry: 2,
-  });
 
   function pushChange<K extends keyof StepFormValues>(field: K, value: StepFormValues[K]): void {
     setStep({ ...step, [field]: value } as WorkflowStep);
@@ -158,91 +140,6 @@ export function StepPanel({ step }: StepPanelProps) {
         />
       </Section>
 
-      {/* === Entity Information === */}
-      <Section title="Entity Information">
-        <Field label="Task Entity" hint="qdb_recordentity — lookup to crmi_autonumber_system_entities">
-          {isLoadingEntities ? (
-            <Spinner size="tiny" label="Loading entities…" />
-          ) : entitiesError ? (
-            <ErrorNote message="Failed to load entities" />
-          ) : (
-            <Controller control={control} name="recordEntityId"
-              render={({ field }) => (
-                <select style={selectStyle} value={field.value ?? ''}
-                  onChange={(e) => {
-                    const id = e.target.value || null;
-                    const name = autoNumberEntities.find((en) => en.id === e.target.value)?.name ?? null;
-                    field.onChange(id);
-                    setStep({
-                      ...step,
-                      recordEntityId: id,
-                      recordEntityName: name,
-                      regardingFieldId: null,
-                      regardingFieldName: null,
-                    });
-                  }}>
-                  <option value="">Select task entity…</option>
-                  {autoNumberEntities.map((en) => (
-                    <option key={en.id} value={en.id}>{en.name}</option>
-                  ))}
-                </select>
-              )}
-            />
-          )}
-        </Field>
-
-        <Field label="Regarding (Parent) Field" hint="qdb_regardingfield — lookup to crmi_autonumber_entities_fields">
-          {isLoadingFields ? (
-            <Spinner size="tiny" label="Loading fields…" />
-          ) : fieldsError ? (
-            <ErrorNote message="Failed to load fields" />
-          ) : (
-            <Controller control={control} name="regardingFieldId"
-              render={({ field }) => (
-                <select style={selectStyle} value={field.value ?? ''}
-                  disabled={!recordEntityId}
-                  onChange={(e) => {
-                    const id = e.target.value || null;
-                    const name = entityFields.find((f) => f.id === e.target.value)?.name ?? null;
-                    field.onChange(id);
-                    setStep({ ...step, regardingFieldId: id, regardingFieldName: name });
-                  }}>
-                  <option value="">{recordEntityId ? 'Select regarding field…' : 'Select task entity first'}</option>
-                  {entityFields.map((f) => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-              )}
-            />
-          )}
-        </Field>
-
-        <Field label="Parent Entity" hint="qdb_parententity — lookup to crmi_autonumber_system_entities">
-          {isLoadingEntities ? (
-            <Spinner size="tiny" label="Loading entities…" />
-          ) : entitiesError ? (
-            <ErrorNote message="Failed to load entities" />
-          ) : (
-            <Controller control={control} name="parentEntityId"
-              render={({ field }) => (
-                <select style={selectStyle} value={field.value ?? ''}
-                  onChange={(e) => {
-                    const id = e.target.value || null;
-                    const name = autoNumberEntities.find((en) => en.id === e.target.value)?.name ?? null;
-                    field.onChange(id);
-                    setStep({ ...step, parentEntityId: id, parentEntityName: name });
-                  }}>
-                  <option value="">Select parent entity…</option>
-                  {autoNumberEntities.map((en) => (
-                    <option key={en.id} value={en.id}>{en.name}</option>
-                  ))}
-                </select>
-              )}
-            />
-          )}
-        </Field>
-      </Section>
-
       {/* === Assignment === */}
       <Section title="Assignment">
         <Controller control={control} name="assignTo"
@@ -274,7 +171,7 @@ export function StepPanel({ step }: StepPanelProps) {
         {assignTo === 'user' && (
           <Field label="Assigned User">
             {isLoadingUsers ? <Spinner size="tiny" label="Loading users…" /> : (
-              usersError ? <ErrorNote message="Failed to load users" /> : (
+              usersError ? <ErrorNote message="Failed to load users" error={usersError} /> : (
                 <Controller control={control} name="assignedUserId"
                   render={({ field }) => (
                     <select style={selectStyle} value={field.value ?? ''}
@@ -294,7 +191,7 @@ export function StepPanel({ step }: StepPanelProps) {
         {assignTo === 'team' && (
           <Field label="Team">
             {isLoadingTeams ? <Spinner size="tiny" label="Loading teams…" /> : (
-              teamsError ? <ErrorNote message="Failed to load teams" /> : (
+              teamsError ? <ErrorNote message="Failed to load teams" error={teamsError} /> : (
                 <Controller control={control} name="teamId"
                   render={({ field }) => (
                     <select style={selectStyle} value={field.value ?? ''}
@@ -314,7 +211,7 @@ export function StepPanel({ step }: StepPanelProps) {
         {assignTo === 'roundRobin' && (
           <Field label="Round Robin Team">
             {isLoadingTeams ? <Spinner size="tiny" label="Loading teams…" /> : (
-              teamsError ? <ErrorNote message="Failed to load teams" /> : (
+              teamsError ? <ErrorNote message="Failed to load teams" error={teamsError} /> : (
                 <Controller control={control} name="roundRobinTeamId"
                   render={({ field }) => (
                     <select style={selectStyle} value={field.value ?? ''}
@@ -347,9 +244,6 @@ function buildDefaults(step: WorkflowStep): StepFormValues {
     sequenceNo: step.sequenceNo,
     taskSubject: step.taskSubject,
     taskDescription: step.taskDescription,
-    recordEntityId: step.recordEntityId,
-    regardingFieldId: step.regardingFieldId,
-    parentEntityId: step.parentEntityId,
     assignTo: step.assignTo,
     assignedUserId: step.assignedUserId,
     teamId: step.teamId,
@@ -366,8 +260,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ErrorNote({ message }: { message: string }) {
-  return <span style={errorNoteStyle}>{message}</span>;
+function ErrorNote({ message, error }: { message: string; error?: unknown }) {
+  const detail = extractErrorDetail(error);
+  return (
+    <div style={errorBoxStyle}>
+      <strong style={{ fontSize: 12, color: '#991b1b' }}>{message}</strong>
+      {detail && (
+        <div style={{ fontSize: 11, marginTop: 4, color: '#7f1d1d', wordBreak: 'break-word', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+          {detail}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function extractErrorDetail(error: unknown): string {
+  if (!error) return '';
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const xrm = error as Record<string, unknown>;
+    if (typeof xrm['message'] === 'string') return xrm['message'];
+    return JSON.stringify(xrm, null, 2);
+  }
+  return String(error);
 }
 
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12 };
@@ -386,6 +301,9 @@ const selectStyle: React.CSSProperties = {
   fontSize: 13, background: '#fff',
 };
 
-const errorNoteStyle: React.CSSProperties = {
-  fontSize: 12, color: '#dc2626', fontStyle: 'italic',
+const errorBoxStyle: React.CSSProperties = {
+  background: '#fef2f2',
+  border: '1px solid #fecaca',
+  borderRadius: 6,
+  padding: '8px 10px',
 };

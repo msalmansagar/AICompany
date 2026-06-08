@@ -13,13 +13,18 @@ import { FormRadioField } from './FormRadioField';
 import { FormLookupField } from './FormLookupField';
 import { FormFileField } from './FormFileField';
 import { FormRepeatingGridField } from './FormRepeatingGridField';
+import { FormBooleanField } from './FormBooleanField';
+import { FormInteractiveGridField } from './FormInteractiveGridField';
+import { FormInfoCardField } from './FormInfoCardField';
 
 interface Props {
   field: FieldDefinition;
   control: Control<Record<string, unknown>>;
+  accessToken?: string;
+  isTabActive?: boolean;
 }
 
-export function FieldRenderer({ field, control }: Props) {
+export function FieldRenderer({ field, control, accessToken = '', isTabActive = false }: Props) {
   switch (field.fieldType) {
     case 'text':
       return <FormTextField field={field} control={control} />;
@@ -52,11 +57,26 @@ export function FieldRenderer({ field, control }: Props) {
       return <FormFileField field={field} control={control} />;
     case 'grid':
       return <FormRepeatingGridField field={field} control={control} />;
-    default:
+    case 'boolean':
+      return <FormBooleanField field={field} control={control} />;
+    case 'interactive-grid':
+      return (
+        <FormInteractiveGridField
+          field={field}
+          control={control}
+          accessToken={accessToken}
+          isTabActive={isTabActive}
+        />
+      );
+    case 'info-card':
+      return <FormInfoCardField field={field} />;
+    default: {
+      const exhaustive: never = field.fieldType;
       return (
         <Text style={{ color: '#999', fontSize: 13 }}>
-          Unsupported field type: {field.fieldType}
+          Unsupported field type: {String(exhaustive)}
         </Text>
       );
+    }
   }
 }

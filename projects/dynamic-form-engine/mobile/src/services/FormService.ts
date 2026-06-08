@@ -136,6 +136,34 @@ interface BackendFormButton {
   isActive: boolean;
 }
 
+interface BackendInfoCardItem {
+  itemId: string;
+  displayOrder: number;
+  itemTitle: string;
+  itemDescription: string | null;
+  iconReference: string | null;
+  downloadUrl: string | null;
+}
+
+interface BackendInfoCardSection {
+  sectionId: string;
+  displayOrder: number;
+  sectionTitle: string | null;
+  sectionType: 'numbered-steps' | 'icon-list' | 'download-list';
+  noteText: string | null;
+  items: BackendInfoCardItem[];
+}
+
+interface BackendInfoCardScreen {
+  screenId: string;
+  displayOrder: number;
+  iconUrl: string | null;
+  iconAltText: string | null;
+  heading: string;
+  subHeading: string | null;
+  sections: BackendInfoCardSection[];
+}
+
 interface BackendFormDefinition {
   id: string;
   formCode: string;
@@ -148,6 +176,13 @@ interface BackendFormDefinition {
   buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
   tabs: BackendTabDefinition[];
+  // DFE-ADD-001 fields
+  infoCards: BackendInfoCardScreen[];
+  allowInfocardSkip: boolean;
+  infocardBackLabel?: string;
+  infocardContinueLabel?: string;
+  infocardStartLabel?: string;
+  infocardSkipLabel?: string;
 }
 
 // â”€â”€ Type normalization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -263,6 +298,34 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
       targetEntity: m.targetEntityLogicalName,
       fieldMappings: { [m.fieldId]: m.targetAttributeLogicalName },
     })),
+    infoCards: (backend.infoCards ?? []).map((s) => ({
+      screenId: s.screenId,
+      displayOrder: s.displayOrder,
+      iconUrl: s.iconUrl,
+      iconAltText: s.iconAltText,
+      heading: s.heading,
+      subHeading: s.subHeading,
+      sections: (s.sections ?? []).map((sec) => ({
+        sectionId: sec.sectionId,
+        displayOrder: sec.displayOrder,
+        sectionTitle: sec.sectionTitle,
+        sectionType: sec.sectionType,
+        noteText: sec.noteText,
+        items: (sec.items ?? []).map((item) => ({
+          itemId: item.itemId,
+          displayOrder: item.displayOrder,
+          itemTitle: item.itemTitle,
+          itemDescription: item.itemDescription,
+          iconReference: item.iconReference,
+          downloadUrl: item.downloadUrl,
+        })),
+      })),
+    })),
+    allowInfocardSkip: backend.allowInfocardSkip ?? false,
+    infocardBackLabel: backend.infocardBackLabel,
+    infocardContinueLabel: backend.infocardContinueLabel,
+    infocardStartLabel: backend.infocardStartLabel,
+    infocardSkipLabel: backend.infocardSkipLabel,
   };
 }
 
@@ -355,15 +418,29 @@ export async function submitForm(
   return 'submitted';
 }
 
+interface SaveDraftPayload {
+  formData: Record<string, unknown>;
+  currentTabIndex: number;
+  infoCardViewed: boolean;
+  gridSchemaHash: Record<string, never>;
+}
+
 export async function saveDraft(
   formCode: string,
   formData: Record<string, unknown>,
   currentTabIndex: number,
   accessToken: string,
+  infoCardViewed: boolean = false,
 ): Promise<void> {
-  await apiPost<{ formData: Record<string, unknown>; currentTabIndex: number }, unknown>(
+  const payload: SaveDraftPayload = {
+    formData,
+    currentTabIndex,
+    infoCardViewed,
+    gridSchemaHash: {},
+  };
+  await apiPost<SaveDraftPayload, unknown>(
     `/api/forms/${formCode}/draft`,
-    { formData, currentTabIndex },
+    payload,
     accessToken,
   );
 }

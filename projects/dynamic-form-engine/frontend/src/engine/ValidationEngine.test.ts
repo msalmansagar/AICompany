@@ -182,7 +182,11 @@ describe('ValidationEngine', () => {
         allowSaveDraft: true,
         draftExpiryDays: 7,
         confirmationMessage: 'Done',
+        allowInfocardSkip: false,
+        infocardCountsInProgress: false,
+        infoCards: [],
         submissionMappings: [],
+        buttons: [],
         createdAt: '',
         modifiedAt: '',
         tabs: [
@@ -231,6 +235,108 @@ describe('ValidationEngine', () => {
       const shape = schema.shape;
       expect('name' in shape).toBe(true);
       expect('secret' in shape).toBe(false);
+    });
+  });
+
+  // DFE-ADD-002: Boolean field validation (BC-010).
+  describe('boolean field validation', () => {
+    it('validateField_returnsNoError_whenBooleanIsFalse_andRequired', () => {
+      // Boolean false is a valid answer — it is not "empty".
+      const field = makeField({
+        fieldType: 'boolean',
+        isRequired: true,
+      });
+
+      const errors = engine.validateField(field, false, {});
+
+      expect(errors).toHaveLength(0);
+    });
+
+    it('validateField_returnsError_whenBooleanIsUndefined_andRequired', () => {
+      const field = makeField({
+        fieldType: 'boolean',
+        isRequired: true,
+      });
+
+      const errors = engine.validateField(field, undefined, {});
+
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('validateField_returnsNoError_whenBooleanIsTrue_andRequired', () => {
+      const field = makeField({
+        fieldType: 'boolean',
+        isRequired: true,
+      });
+
+      const errors = engine.validateField(field, true, {});
+
+      expect(errors).toHaveLength(0);
+    });
+
+    it('validateField_returnsNoError_whenBooleanIsOptionalAndUndefined', () => {
+      const field = makeField({ fieldType: 'boolean', isRequired: false });
+
+      const errors = engine.validateField(field, undefined, {});
+
+      expect(errors).toHaveLength(0);
+    });
+  });
+
+  // DFE-ADD-002: Interactive Grid validation (BC-010).
+  describe('interactive-grid field validation', () => {
+    it('validateField_returnsError_whenSelectionGridIsRequired_andEmpty', () => {
+      const field = makeField({
+        fieldType: 'interactive-grid',
+        isRequired: true,
+      });
+
+      // Empty array = no selection made.
+      const errors = engine.validateField(field, [], {});
+
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('validateField_returnsError_whenSelectionGridIsRequired_andUndefined', () => {
+      const field = makeField({
+        fieldType: 'interactive-grid',
+        isRequired: true,
+      });
+
+      const errors = engine.validateField(field, undefined, {});
+
+      expect(errors.length).toBeGreaterThan(0);
+    });
+
+    it('validateField_returnsNoError_whenSelectionGridHasValue', () => {
+      const field = makeField({
+        fieldType: 'interactive-grid',
+        isRequired: true,
+      });
+
+      // A selected GUID string.
+      const errors = engine.validateField(
+        field,
+        '00000000-0000-0000-0000-000000000001',
+        {},
+      );
+
+      expect(errors).toHaveLength(0);
+    });
+
+    it('validateField_returnsNoError_whenEntryGridHasRows', () => {
+      const field = makeField({
+        fieldType: 'interactive-grid',
+        isRequired: true,
+      });
+
+      const errors = engine.validateField(
+        field,
+        [{ qdb_name: 'Row 1' }],
+        {},
+      );
+
+      expect(errors).toHaveLength(0);
     });
   });
 });

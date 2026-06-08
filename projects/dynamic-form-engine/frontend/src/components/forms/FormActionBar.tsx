@@ -1,4 +1,5 @@
 ﻿import { useCallback, useState } from 'react';
+import { logger } from '../../utils/logger';
 import {
   Button,
   Dialog,
@@ -118,7 +119,11 @@ export function FormActionBar({ sticky = false }: FormActionBarProps) {
       await saveDraft();
       setSaveDraftState('saved');
       setTimeout(() => setSaveDraftState('idle'), 2500);
-    } catch {
+    } catch (error) {
+      logger.error('save_draft_failed', {
+        operation: 'handleSaveDraft',
+        error: error instanceof Error ? error.message : String(error),
+      });
       setSaveDraftState('error');
       setTimeout(() => setSaveDraftState('idle'), 2500);
     }
@@ -194,9 +199,9 @@ function FormButtonItem({
           disabled={isSubmitting}
           onClick={onSubmit}
           aria-busy={isSubmitting}
-          aria-label={isSubmitting ? 'Submittingâ€¦' : button.label}
+          aria-label={isSubmitting ? 'Submitting…' : button.label}
         >
-          {isSubmitting ? 'Submittingâ€¦' : button.label}
+          {isSubmitting ? 'Submitting…' : button.label}
         </Button>
         {errorCount > 0 && !isSubmitting && (
           <Badge
@@ -227,7 +232,7 @@ function FormButtonItem({
         onClick={onSaveDraft}
         aria-label={button.label}
       >
-        {isSaving ? 'Savingâ€¦' : isSaved ? 'Saved' : button.label}
+        {isSaving ? 'Saving…' : isSaved ? 'Saved' : button.label}
       </Button>
     );
   }

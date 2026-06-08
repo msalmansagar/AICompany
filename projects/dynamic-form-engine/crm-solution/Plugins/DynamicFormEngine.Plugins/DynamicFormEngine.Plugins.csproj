@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <AssemblyName>DynamicFormEngine.Plugins</AssemblyName>
+    <RootNamespace>DynamicFormEngine.Plugins</RootNamespace>
+    <Nullable>enable</Nullable>
+    <Optimize>true</Optimize>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ILMerge-compatible SDK references for Dataverse plugin deployment.
+         Version pinned to 9.0.2.* — the LTS range compatible with Dataverse online. -->
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.49" />
+  </ItemGroup>
+
+</Project>

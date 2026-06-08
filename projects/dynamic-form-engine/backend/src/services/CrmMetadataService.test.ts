@@ -39,6 +39,17 @@ function okJson(data: unknown) {
   });
 }
 
+// 3 parallel calls after form definition: tabs, submissionMappings, buttons.
+// infoCardService is null in tests so no additional fetch for info-cards.
+function mockFormFetchSequence() {
+  return [
+    okJson(mockFormResponse()),  // form definition (sequential)
+    okJson({ value: [] }),        // tabs (parallel)
+    okJson({ value: [] }),        // submission mappings (parallel)
+    okJson({ value: [] }),        // buttons (parallel)
+  ];
+}
+
 describe('CrmMetadataService', () => {
   let service: CrmMetadataService;
   let cache: LRUCache<string, never>;
@@ -46,16 +57,16 @@ describe('CrmMetadataService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cache = makeCache();
-    service = new CrmMetadataService(mockAuthService, cache as never);
+    // infoCardService is null — no info-card fetches in these tests.
+    service = new CrmMetadataService(mockAuthService, cache as never, null);
   });
 
   describe('getFormDefinition', () => {
     it('getFormDefinition_whenFormExists_returnsAssembledFormDefinition', async () => {
-      // Arrange — mock all 6 Dataverse calls in fetch sequence
-      mockFetch
-        .mockReturnValueOnce(okJson(mockFormResponse()))      // form definition
-        .mockReturnValueOnce(okJson({ value: [] }))           // tabs
-        .mockReturnValueOnce(okJson({ value: [] }));          // submission mappings
+      // Arrange — form def + 3 parallel calls (tabs, mappings, buttons)
+      for (const mock of mockFormFetchSequence()) {
+        mockFetch.mockReturnValueOnce(mock);
+      }
 
       // Act
       const result = await service.getFormDefinition('test-form');
@@ -87,17 +98,16 @@ describe('CrmMetadataService', () => {
     });
 
     it('getFormDefinition_onSecondCall_returnsFromCacheWithoutFetch', async () => {
-      // Arrange
-      mockFetch
-        .mockReturnValueOnce(okJson(mockFormResponse()))
-        .mockReturnValueOnce(okJson({ value: [] }))
-        .mockReturnValueOnce(okJson({ value: [] }));
+      // Arrange — form def + 3 parallel
+      for (const mock of mockFormFetchSequence()) {
+        mockFetch.mockReturnValueOnce(mock);
+      }
 
       // First call — populates cache
       await service.getFormDefinition('test-form');
       const firstCallCount = mockFetch.mock.calls.length;
 
-      // Act — second call
+      // Act — second call should use cache
       await service.getFormDefinition('test-form');
 
       // Assert — no new fetch calls
@@ -105,14 +115,10 @@ describe('CrmMetadataService', () => {
     });
 
     it('getFormDefinition_afterInvalidateCache_fetchesFromDataverse', async () => {
-      // Arrange
-      mockFetch
-        .mockReturnValueOnce(okJson(mockFormResponse()))
-        .mockReturnValueOnce(okJson({ value: [] }))
-        .mockReturnValueOnce(okJson({ value: [] }))
-        .mockReturnValueOnce(okJson(mockFormResponse()))
-        .mockReturnValueOnce(okJson({ value: [] }))
-        .mockReturnValueOnce(okJson({ value: [] }));
+      // Arrange — two full sequences (first load + reload after cache bust)
+      for (const mock of [...mockFormFetchSequence(), ...mockFormFetchSequence()]) {
+        mockFetch.mockReturnValueOnce(mock);
+      }
 
       await service.getFormDefinition('test-form');
       const afterFirstCall = mockFetch.mock.calls.length;

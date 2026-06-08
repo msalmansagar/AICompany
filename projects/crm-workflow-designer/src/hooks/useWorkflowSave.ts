@@ -172,7 +172,7 @@ export function useWorkflowSave(): UseSaveResult {
       markClean();
       showToast('Workflow saved successfully.', 'success');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Save failed. Please try again.';
+      const message = extractCrmMessage(err);
       console.error('[useWorkflowSave] Save failed:', err);
       setError(message);
       showToast(`Save failed: ${message}`, 'error');
@@ -197,4 +197,14 @@ export function useWorkflowSave(): UseSaveResult {
   ]);
 
   return { isSaving, save, error };
+}
+
+function extractCrmMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'object' && err !== null) {
+    const obj = err as Record<string, unknown>;
+    if (typeof obj['message'] === 'string') return obj['message'];
+    return JSON.stringify(obj);
+  }
+  return String(err);
 }

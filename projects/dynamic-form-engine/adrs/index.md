@@ -13,3 +13,7 @@
 | ADR-009 | postcss + postcss-safe-parser + custom allowlist plugin for custom_css sanitisation | Accepted | 2026-05-17 | Architect |
 | ADR-010 | Separate design LRU cache instance vs combined with metadata cache | Accepted | 2026-05-17 | Architect |
 | ADR-011 | LayoutEngine as pure utility function, not a React component | Accepted | 2026-05-17 | Architect |
+| ADR-ADD-001 | qdb_grid_filter_expression removed — View-based Selection Grid replaces raw OData filter | Accepted | 2026-06-06 | Architect |
+| ADR-ADD-002 | Entry Grid atomic transaction via Dataverse $batch changeset | Accepted | 2026-06-06 | Architect |
+| ADR-ADD-003 | Selection Grid lazy loading on tab activation (NFR-001 protection) | Accepted | 2026-06-06 | Architect |
+| ADR-ADD-004 | Info-Card first-view audit via dedicated qdb_info_card_view_record entity | Accepted | 2026-06-06 | Architect |

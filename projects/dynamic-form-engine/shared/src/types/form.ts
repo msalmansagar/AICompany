@@ -2,7 +2,7 @@ export type FieldType =
   | 'text' | 'textarea' | 'number' | 'currency' | 'decimal'
   | 'date' | 'datetime' | 'dropdown' | 'multiselect' | 'lookup'
   | 'checkbox' | 'radio' | 'email' | 'phone' | 'file'
-  | 'richtext' | 'grid';
+  | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid';
 
 export interface ValidationRule {
   ruleId: string;
@@ -15,6 +15,70 @@ export interface OptionValue {
   value: string;
   label: string;
   displayOrder: number;
+}
+
+export type BooleanRenderStyle = 'toggle' | 'radio';
+export type GridSelectionMode = 'single' | 'multi';
+export type GridMode = 'selection' | 'entry';
+export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
+
+export interface GridColumnConfig {
+  columnAttribute: string;
+  columnLabel: string;
+  isVisible: boolean;
+  displayOrder: number;
+}
+
+export interface GridFieldConfig {
+  mode: GridMode;
+  selectionMode?: GridSelectionMode;
+  // columns may be absent when only basic CRM metadata is loaded (no column config records)
+  columns?: GridColumnConfig[];
+  maxRows?: number;
+  // DFE-ADD-002: new Dataverse-backed grid attributes
+  savedViewId?: string;
+  entityName?: string;
+  minRows?: number;
+}
+
+export interface GridRecord {
+  id: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface GridRecordPage {
+  records: GridRecord[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface InfoCardItem {
+  itemId: string;
+  displayOrder: number;
+  itemTitle: string;
+  itemDescription?: string;
+  iconReference?: string;
+  downloadUrl?: string;
+}
+
+export interface InfoCardSection {
+  sectionId: string;
+  displayOrder: number;
+  sectionTitle: string;
+  sectionType: InfoCardSectionType;
+  noteText?: string;
+  items: InfoCardItem[];
+}
+
+export interface InfoCardScreen {
+  screenId: string;
+  displayOrder: number;
+  iconUrl?: string;
+  iconAltText?: string;
+  heading: string;
+  subHeading?: string;
+  sections: InfoCardSection[];
 }
 
 export interface FieldDefinition {
@@ -35,6 +99,15 @@ export interface FieldDefinition {
   decimalPlaces?: number;
   currencySymbol?: string;
   childFields?: FieldDefinition[];
+  boolRenderStyle?: BooleanRenderStyle;
+  trueLabel?: string;
+  falseLabel?: string;
+  // DFE-ADD-002: info-card field config
+  infoCardStyle?: 'info' | 'warning' | 'success' | 'error';
+  infoCardTitle?: string;
+  infoCardBody?: string;
+  infoCardIcon?: string;
+  gridConfig?: GridFieldConfig;
 }
 
 export interface SectionDefinition {
@@ -89,4 +162,10 @@ export interface FormDefinition {
   buttons: FormButton[];
   businessRules: BusinessRule[];
   submissionMappings: SubmissionMapping[];
+  infoCards: InfoCardScreen[];
+  allowInfocardSkip: boolean;
+  infocardBackLabel?: string;
+  infocardContinueLabel?: string;
+  infocardStartLabel?: string;
+  infocardSkipLabel?: string;
 }

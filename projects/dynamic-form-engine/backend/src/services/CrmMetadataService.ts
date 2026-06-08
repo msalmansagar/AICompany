@@ -19,11 +19,14 @@ import type {
   BusinessRuleAction,
   ConditionOperator,
   LogicalOperator,
+  GridColumnConfig,
+  GridColumnOptionValue,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
+import type { CrmInfoCardService, InfoCardScreen } from './CrmInfoCardService.js';
 
 const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 
@@ -37,6 +40,7 @@ export class CrmMetadataService extends CrmBaseService {
   constructor(
     authService: CrmAuthService,
     private readonly cache: LRUCache<string, FormDefinition>,
+    private readonly infoCardService: CrmInfoCardService | null = null,
   ) {
     super(authService);
   }
@@ -118,10 +122,13 @@ export class CrmMetadataService extends CrmBaseService {
 
     const formId = raw.qdb_form_definitionid;
 
-    const [tabs, submissionMappings, buttons] = await Promise.all([
+    const [tabs, submissionMappings, buttons, infoCards] = await Promise.all([
       this.fetchTabsWithChildren(formId, locale),
       this.fetchSubmissionMappings(formId),
       this.fetchFormButtons(formId),
+      this.infoCardService
+        ? this.infoCardService.fetchInfoCardScreens(formId, formId)
+        : Promise.resolve<InfoCardScreen[]>([]),
     ]);
 
     return {
@@ -137,6 +144,14 @@ export class CrmMetadataService extends CrmBaseService {
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
       confirmationRecordRefAttribute: raw.qdb_confirmation_record_ref_attribute,
       accessGroupId: raw.qdb_access_group_id,
+      // DFE-ADD-001 extensions (backward-compatible — defaults to false / empty).
+      allowInfocardSkip: raw.qdb_allow_infocard_skip ?? false,
+      infocardCountsInProgress: raw.qdb_infocard_counts_in_progress ?? false,
+      infocardBackLabel: raw.qdb_infocard_back_label,
+      infocardContinueLabel: raw.qdb_infocard_continue_label,
+      infocardStartLabel: raw.qdb_infocard_start_label,
+      infocardSkipLabel: raw.qdb_infocard_skip_label,
+      infoCards,
       submissionMappings,
       buttons,
       tabs,
@@ -224,11 +239,12 @@ export class CrmMetadataService extends CrmBaseService {
       fields.map((f) => [f.qdb_form_fieldid, f.qdb_schema_name]),
     );
 
-    const [optionsMap, validationMap, lookupMap, businessRulesMap] = await Promise.all([
+    const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap] = await Promise.all([
       this.fetchOptions(fieldIds),
       this.fetchValidationRules(fieldIds),
       this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
+      this.fetchGridColumnConfigs(fieldIds),
     ]);
 
     const definitions = fields.map((field) => ({
@@ -252,6 +268,26 @@ export class CrmMetadataService extends CrmBaseService {
       decimalPlaces: field.qdb_decimal_places,
       maxRows: field.qdb_max_rows,
       componentKey: field.qdb_component_key,
+      trueLabel: field.qdb_true_label,
+      falseLabel: field.qdb_false_label,
+      boolRenderStyle: this.mapBooleanRenderStyle(field.qdb_boolean_render_style),
+      infoCardStyle: this.mapInfoCardStyle(field.qdb_info_card_style),
+      infoCardTitle: field.qdb_info_card_title,
+      infoCardBody: field.qdb_info_card_body,
+      infoCardIcon: field.qdb_info_card_icon,
+      gridConfig: field.qdb_grid_mode != null ? {
+        // Canonical names (read by SelectionGridField / EntryGridField)
+        gridMode: this.mapGridMode(field.qdb_grid_mode),
+        targetEntity: field.qdb_grid_entity_name ?? '',
+        columnConfigs: columnConfigMap.get(field.qdb_form_fieldid) ?? [],
+        selectionMode: this.mapSelectionMode(field.qdb_selection_mode),
+        minRows: field.qdb_grid_min_rows ?? undefined,
+        maxRows: field.qdb_max_rows ?? 200,
+        savedViewId: field.qdb_saved_view_id ?? undefined,
+        // Alias names (used by new mapper references)
+        mode: this.mapGridMode(field.qdb_grid_mode),
+        entityName: field.qdb_grid_entity_name ?? undefined,
+      } : undefined,
       validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
     }));
@@ -262,6 +298,28 @@ export class CrmMetadataService extends CrmBaseService {
     }
 
     return definitions;
+  }
+
+  private async fetchGridColumnConfigs(fieldIds: string[]): Promise<Map<string, GridColumnConfig[]>> {
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+    const response = await this.crmFetch<ODataCollection<RawGridColumnConfig>>(
+      `/qdb_grid_column_configs?$filter=(${filter}) and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
+    );
+    const map = new Map<string, GridColumnConfig[]>();
+    for (const col of response.value) {
+      const fieldId = col._qdb_form_field_id_value;
+      const existing = map.get(fieldId) ?? [];
+      existing.push({
+        columnId: col.qdb_grid_column_configid,
+        displayOrder: col.qdb_display_order,
+        columnLabel: col.qdb_column_label,
+        targetAttribute: col.qdb_column_attribute,
+        columnFieldType: col.qdb_column_field_type ?? 'text',
+        options: parseColumnOptions(col.qdb_column_options_json),
+      });
+      map.set(fieldId, existing);
+    }
+    return map;
   }
 
   private async fetchOptions(fieldIds: string[]): Promise<Map<string, OptionValue[]>> {
@@ -555,8 +613,30 @@ export class CrmMetadataService extends CrmBaseService {
       100000010: 'radio',         100000011: 'currency',   100000012: 'decimal',
       100000013: 'email',         100000014: 'phone',      100000015: 'file',
       100000016: 'repeatingGrid', 100000017: 'richText',   100000018: 'custom',
+      100000019: 'boolean',
+      100000020: 'info-card',
+      100000021: 'interactive-grid',
     };
     return map[code] ?? 'text';
+  }
+
+  private mapBooleanRenderStyle(code: number | undefined): 'toggle' | 'radio' {
+    return code === 100000001 ? 'radio' : 'toggle';
+  }
+
+  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' {
+    const map: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
+      100000000: 'info', 100000001: 'warning', 100000002: 'success', 100000003: 'error',
+    };
+    return map[code ?? 0] ?? 'info';
+  }
+
+  private mapGridMode(code: number | undefined): 'selection' | 'entry' {
+    return code === 100000001 ? 'entry' : 'selection';
+  }
+
+  private mapSelectionMode(code: number | undefined): 'single' | 'multi' {
+    return code === 100000001 ? 'multi' : 'single';
   }
 
   private mapFormStatus(code: number): 'draft' | 'active' | 'inactive' | 'archived' {
@@ -650,6 +730,13 @@ interface RawFormDefinition {
   qdb_confirmation_message?: string;
   qdb_confirmation_record_ref_attribute?: string;
   qdb_access_group_id?: string;
+  // DFE-ADD-001 additions
+  qdb_allow_infocard_skip?: boolean;
+  qdb_infocard_counts_in_progress?: boolean;
+  qdb_infocard_back_label?: string;
+  qdb_infocard_continue_label?: string;
+  qdb_infocard_start_label?: string;
+  qdb_infocard_skip_label?: string;
   createdon: string;
   modifiedon: string;
 }
@@ -693,6 +780,21 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
   qdb_component_key?: string;
+  // DFE-ADD-002 boolean field
+  qdb_true_label?: string;
+  qdb_false_label?: string;
+  qdb_boolean_render_style?: number;
+  // DFE-ADD-002 info-card field
+  qdb_info_card_style?: number;
+  qdb_info_card_title?: string;
+  qdb_info_card_body?: string;
+  qdb_info_card_icon?: string;
+  // DFE-ADD-002 interactive-grid field
+  qdb_saved_view_id?: string;
+  qdb_grid_entity_name?: string;
+  qdb_selection_mode?: number;
+  qdb_grid_mode?: number;
+  qdb_grid_min_rows?: number;
 }
 
 interface RawOption {
@@ -801,4 +903,27 @@ interface RawFieldLabel {
   qdb_label?: string;
   qdb_placeholder?: string;
   qdb_tooltip?: string;
+}
+
+interface RawGridColumnConfig {
+  qdb_grid_column_configid: string;
+  _qdb_form_field_id_value: string;
+  qdb_column_attribute: string;
+  qdb_column_label: string;
+  qdb_column_field_type?: string;
+  qdb_display_order: number;
+  qdb_is_visible?: boolean;
+  qdb_is_editable?: boolean;
+  qdb_column_options_json?: string;
+}
+
+function parseColumnOptions(json: string | null | undefined): GridColumnOptionValue[] | undefined {
+  if (!json) return undefined;
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed as GridColumnOptionValue[];
+  } catch {
+    return undefined;
+  }
 }

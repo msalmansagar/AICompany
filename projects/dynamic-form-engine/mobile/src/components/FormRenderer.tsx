@@ -1,15 +1,26 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
 import { FieldRenderer } from './fields/FieldRenderer';
+import { InfoCardFlow } from './info-card/InfoCardFlow';
+
+type Phase = 'info-cards' | 'form';
 
 interface Props {
   form: FormDefinition;
+  accessToken: string;
+  draftId?: string;
   onSubmit: (values: Record<string, unknown>) => void | Promise<void>;
-  onSaveDraft?: (values: Record<string, unknown>, tabIndex: number) => void | Promise<void>;
+  onSaveDraft?: (values: Record<string, unknown>, tabIndex: number, meta: DraftMeta) => void | Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
+}
+
+interface DraftMeta {
+  infoCardViewed: boolean;
+  gridSchemaHash: Record<string, never>;
 }
 
 function buildDefaultValues(form: FormDefinition): Record<string, unknown> {
@@ -49,11 +60,56 @@ const DEFAULT_BUTTON: FormButton = {
   confirmationRequired: false,
 };
 
-export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitting = false }: Props) {
-  const tabs = [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder);
-  const [activeTabIndex, setActiveTabIndex] = useState(0);
+export function FormRenderer({
+  form,
+  accessToken,
+  draftId,
+  onSubmit,
+  onSaveDraft,
+  onCancel,
+  isSubmitting = false,
+}: Props) {
+  const insets = useSafeAreaInsets();
+  const tabs = useMemo(
+    () => [...form.tabs].sort((a, b) => a.displayOrder - b.displayOrder),
+    [form.tabs],
+  );
 
-  // fieldKey â†’ display label, for human-readable error messages
+  const [phase, setPhase] = useState<Phase>('form');
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [infoCardViewed, setInfoCardViewed] = useState(false);
+
+  const finalTabDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [finalTabId, setFinalTabId] = useState<string | undefined>(undefined);
+
+  // Phase transition: show info-cards if present and no draft resume
+  useEffect(() => {
+    const hasInfoCards = (form.infoCards ?? []).length > 0;
+    const hasDraftResume = draftId !== undefined && draftId.length > 0;
+    if (hasInfoCards && !hasDraftResume) {
+      setPhase('info-cards');
+    }
+  }, [form.infoCards, draftId]);
+
+  // Debounced final-tab computation (300 ms)
+  useEffect(() => {
+    if (finalTabDebounceRef.current !== null) {
+      clearTimeout(finalTabDebounceRef.current);
+    }
+    finalTabDebounceRef.current = setTimeout(() => {
+      const visibleTabs = tabs.filter((t) => t.sections.length > 0 || tabs.length === 1);
+      const last = visibleTabs.reduce<TabDefinition | undefined>(
+        (best, t) => (best === undefined || t.displayOrder > best.displayOrder ? t : best),
+        undefined,
+      );
+      setFinalTabId(last?.tabId);
+    }, 300);
+
+    return () => {
+      if (finalTabDebounceRef.current !== null) clearTimeout(finalTabDebounceRef.current);
+    };
+  }, [tabs]);
+
   const fieldKeyToLabel = useMemo(() => {
     const map: Record<string, string> = {};
     for (const tab of tabs) {
@@ -66,7 +122,6 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
     return map;
   }, [tabs]);
 
-  // fieldKey â†’ sorted tab index, so we can jump to the first tab with errors
   const fieldKeyToTabIndex = useMemo(() => {
     const map: Record<string, number> = {};
     tabs.forEach((tab, index) => {
@@ -87,6 +142,8 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   });
 
   const activeTab = tabs[activeTabIndex];
+  const activeTabId = activeTab?.tabId;
+  const isOnFinalTab = finalTabId !== undefined && activeTabId === finalTabId;
 
   function handleFormSubmit(values: Record<string, unknown>): void {
     void onSubmit(values);
@@ -95,7 +152,6 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   function handleInvalidSubmit(errors: FieldErrors<Record<string, unknown>>): void {
     const errorKeys = Object.keys(errors);
 
-    // Navigate to the earliest tab that has a failing field so the user can see it
     const firstErrorTabIndex = errorKeys
       .map((key) => fieldKeyToTabIndex[key] ?? activeTabIndex)
       .sort((a, b) => a - b)[0] ?? activeTabIndex;
@@ -108,7 +164,7 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
       .map((key) => fieldKeyToLabel[key] ?? key)
       .slice(0, 5);
     const detail = failedLabels.length > 0
-      ? `\n\n${failedLabels.map((l) => `â€¢ ${l}`).join('\n')}`
+      ? `\n\n${failedLabels.map((l) => `• ${l}`).join('\n')}`
       : '';
     Alert.alert(
       'Validation Error',
@@ -120,11 +176,28 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
     reset();
   }
 
+  function handleInfoCardComplete(): void {
+    setInfoCardViewed(true);
+    setPhase('form');
+  }
+
+  if (phase === 'info-cards') {
+    return (
+      <InfoCardFlow
+        formDefinition={form}
+        accessToken={accessToken}
+        onComplete={handleInfoCardComplete}
+      />
+    );
+  }
+
   const visibleButtons = (form.buttons ?? [])
     .filter((b) => b.isVisible)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const buttons = visibleButtons.length > 0 ? visibleButtons : [DEFAULT_BUTTON];
+
+  const draftMeta: DraftMeta = { infoCardViewed, gridSchemaHash: {} };
 
   return (
     <View style={styles.container}>
@@ -135,6 +208,9 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
               key={tab.tabId}
               style={[styles.tab, activeTabIndex === index && styles.tabActive]}
               onPress={() => setActiveTabIndex(index)}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.displayLabel}
+              accessibilityState={{ selected: activeTabIndex === index }}
             >
               <Text style={[styles.tabText, activeTabIndex === index && styles.tabTextActive]}>
                 {tab.displayLabel}
@@ -146,19 +222,31 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={styles.contentInner}
+        contentContainerStyle={[styles.contentInner, { paddingBottom: Math.max(insets.bottom + 16, 40) }]}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab && <TabContent tab={activeTab} control={control} />}
+        {activeTab && (
+          <TabContent
+            tab={activeTab}
+            control={control}
+            accessToken={accessToken}
+            activeTabId={activeTabId ?? ''}
+          />
+        )}
 
         <View style={styles.actions}>
           {buttons.map((button) => (
-            <FormButtonItem
+            <TabAwareFormButton
               key={button.buttonId}
               button={button}
               isSubmitting={isSubmitting}
+              isOnFinalTab={isOnFinalTab}
               onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
-              onSaveDraft={onSaveDraft ? () => void onSaveDraft(getValues(), activeTabIndex) : undefined}
+              onSaveDraft={
+                onSaveDraft
+                  ? () => void onSaveDraft(getValues(), activeTabIndex, draftMeta)
+                  : undefined
+              }
               onCancel={onCancel}
               onReset={handleReset}
             />
@@ -169,16 +257,28 @@ export function FormRenderer({ form, onSubmit, onSaveDraft, onCancel, isSubmitti
   );
 }
 
-interface FormButtonItemProps {
+interface TabAwareFormButtonProps {
   button: FormButton;
   isSubmitting: boolean;
+  isOnFinalTab: boolean;
   onSubmit: () => void;
   onSaveDraft?: () => void;
   onCancel?: () => void;
   onReset: () => void;
 }
 
-function FormButtonItem({ button, isSubmitting, onSubmit, onSaveDraft, onCancel, onReset }: FormButtonItemProps) {
+function TabAwareFormButton({
+  button,
+  isSubmitting,
+  isOnFinalTab,
+  onSubmit,
+  onSaveDraft,
+  onCancel,
+  onReset,
+}: TabAwareFormButtonProps) {
+  // Submit is only shown on the final tab; saveDraft shows on every tab
+  if (button.action === 'submit' && !isOnFinalTab) return null;
+
   function handlePress(): void {
     if (button.confirmationRequired) {
       Alert.alert(
@@ -202,49 +302,64 @@ function FormButtonItem({ button, isSubmitting, onSubmit, onSaveDraft, onCancel,
   }
 
   const isPrimary = button.isPrimary;
-  const isDisabled = isSubmitting || (button.action === 'saveDraft' && !onSaveDraft);
+  const isDisabled = isSubmitting || (button.action === 'saveDraft' && onSaveDraft === undefined);
 
   const containerStyle = [
     isPrimary ? styles.primaryButton : styles.secondaryButton,
     isDisabled && styles.buttonDisabled,
-    !isPrimary && { flex: undefined as number | undefined },
   ];
 
   const textStyle = isPrimary ? styles.primaryButtonText : styles.secondaryButtonText;
 
   return (
-    <Pressable style={containerStyle} disabled={isDisabled} onPress={handlePress}>
+    <Pressable
+      style={containerStyle}
+      disabled={isDisabled}
+      onPress={handlePress}
+      accessibilityRole="button"
+      accessibilityLabel={button.label}
+      accessibilityState={{ disabled: isDisabled }}
+    >
       <Text style={textStyle}>
-        {isSubmitting && button.action === 'submit' ? 'Submittingâ€¦' : button.label}
+        {isSubmitting && button.action === 'submit' ? 'Submitting…' : button.label}
       </Text>
     </Pressable>
   );
 }
 
-function TabContent({
-  tab,
-  control,
-}: {
+interface TabContentProps {
   tab: TabDefinition;
   control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
-}) {
+  accessToken: string;
+  activeTabId: string;
+}
+
+function TabContent({ tab, control, accessToken, activeTabId }: TabContentProps) {
   const sections = [...tab.sections].sort((a, b) => a.displayOrder - b.displayOrder);
+  const isActive = tab.tabId === activeTabId;
   return (
     <>
       {sections.map((section) => (
-        <SectionContent key={section.sectionId} section={section} control={control} />
+        <SectionContent
+          key={section.sectionId}
+          section={section}
+          control={control}
+          accessToken={accessToken}
+          isTabActive={isActive}
+        />
       ))}
     </>
   );
 }
 
-function SectionContent({
-  section,
-  control,
-}: {
+interface SectionContentProps {
   section: SectionDefinition;
   control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
-}) {
+  accessToken: string;
+  isTabActive: boolean;
+}
+
+function SectionContent({ section, control, accessToken, isTabActive }: SectionContentProps) {
   const fields = [...section.fields]
     .sort((a, b) => a.displayOrder - b.displayOrder)
     .filter((f) => f.isVisibleDefault);
@@ -252,7 +367,13 @@ function SectionContent({
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
       {fields.map((field) => (
-        <FieldRenderer key={field.fieldId} field={field} control={control} />
+        <FieldRenderer
+          key={field.fieldId}
+          field={field}
+          control={control}
+          accessToken={accessToken}
+          isTabActive={isTabActive}
+        />
       ))}
     </View>
   );
@@ -266,7 +387,7 @@ const styles = StyleSheet.create({
   tabText: { fontSize: 14, color: '#666', fontWeight: '500' },
   tabTextActive: { color: '#0078d4', fontWeight: '700' },
   content: { flex: 1 },
-  contentInner: { padding: 16, paddingBottom: 40 },
+  contentInner: { padding: 16 },
   section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },

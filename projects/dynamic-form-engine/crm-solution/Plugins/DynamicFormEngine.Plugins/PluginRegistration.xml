@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plugin Registration Descriptor
+  Import into Dynamics using Plugin Registration Tool (PRT) or PAC CLI:
+    pac plugin push --pluginFile bin/Release/net462/DynamicFormEngine.Plugins.dll
+
+  Step details:
+    Entity:     dfe_field
+    Message:    Delete
+    Stage:      Pre-Validation (10)  — fires before DB constraint checks; allows clean user-facing error
+    Mode:       Synchronous
+    Deployment: Server only (no offline)
+-->
+<Solutions>
+  <Solution UniqueName="DynamicFormEngine">
+
+    <PluginAssemblies>
+      <PluginAssembly
+        Name="DynamicFormEngine.Plugins"
+        FileName="DynamicFormEngine.Plugins.dll"
+        SourceType="Database"
+        IsolationMode="Sandbox">
+
+        <PluginTypes>
+          <PluginType
+            TypeName="DynamicFormEngine.Plugins.FieldDeleteOrphanGuardPlugin"
+            FriendlyName="Field Delete — Orphan Guard"
+            Description="Blocks dfe_field deletion when referenced by dfe_rulecondition.dfe_fieldid to prevent silent rule evaluation failures.">
+
+            <Steps>
+              <Step
+                Name="dfe_field: Delete — Pre-Validation orphan guard"
+                MessageName="Delete"
+                PrimaryEntityName="dfe_field"
+                Stage="10"
+                Mode="0"
+                SupportedDeployment="0"
+                AsyncAutoDelete="false"
+                Description="Prevents field deletion when any rule condition references the field via dfe_fieldid.">
+              </Step>
+            </Steps>
+
+          </PluginType>
+        </PluginTypes>
+
+      </PluginAssembly>
+    </PluginAssemblies>
+
+  </Solution>
+</Solutions>

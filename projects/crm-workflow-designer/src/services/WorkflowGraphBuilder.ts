@@ -177,35 +177,12 @@ export function buildGraph(
     };
   });
 
-  // Back-edges: route left-side in TB (U-curve to the left), bottom in LR.
-  // Handle positions are rendered in ViewStepNode based on layoutDir.
-  const backEdges: Edge[] = outcomes
-    .filter((o) => backEdgeOutcomeIds.has(o.id))
-    .map((o) => ({
-      id: `e_back_${o.id}`,
-      source: `step_${o.stepId}`,
-      target: `step_${o.nextStepId!}`,
-      sourceHandle: 'back-out',
-      targetHandle: 'back-in',
-      type: 'smoothstep',
-      label: `↩ ${truncate(o.name, 18)}`,
-      labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
-      labelBgStyle: { fill: '#f5f3ff', fillOpacity: 1, rx: 4 },
-      labelBgPadding: [8, 4] as [number, number],
-      style: { stroke: '#7c3aed', strokeWidth: 1.5, strokeDasharray: '6 3' },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#7c3aed' },
-      selectable: true,
-    }));
-
   const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges];
   const positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
 
-  return { nodes: positionedNodes, edges: [...layoutEdges, ...backEdges] };
+  return { nodes: positionedNodes, edges: layoutEdges };
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? `${s.slice(0, max)}…` : s;
-}
 
 export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): Node[] {
   const g = new dagre.graphlib.Graph();

@@ -172,12 +172,13 @@ export class CrmSubmissionService extends CrmBaseService {
   }
 
   private applyTransform(value: unknown, expression: string): unknown {
-    // Phase 1: only simple transforms supported (uppercase, lowercase, trim, toString)
     switch (expression) {
       case 'uppercase': return String(value).toUpperCase();
       case 'lowercase': return String(value).toLowerCase();
       case 'trim': return String(value).trim();
       case 'toString': return String(value);
+      // Serialize arrays or objects (e.g. entry-grid rows) to a JSON string
+      case 'toJson': return typeof value === 'string' ? value : JSON.stringify(value);
       default: return value;
     }
   }

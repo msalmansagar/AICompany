@@ -69,6 +69,8 @@ const useStyles = makeStyles({
 interface SectionRendererProps {
   section: SectionDefinition;
   isVisible: boolean;
+  // Forwarded to FieldRenderer for interactive-grid lazy loading (ADR-ADD-003).
+  isTabActive?: boolean;
 }
 
 function prefersReducedMotion(): boolean {
@@ -93,7 +95,7 @@ function buildCollapsibleStyle(
   };
 }
 
-function SectionRendererInner({ section, isVisible }: SectionRendererProps) {
+function SectionRendererInner({ section, isVisible, isTabActive = false }: SectionRendererProps) {
   const styles = useStyles();
   const { ruleState, validationErrors } = useFormContext();
   const design = useDesignContext();
@@ -185,6 +187,7 @@ function SectionRendererInner({ section, isVisible }: SectionRendererProps) {
               isRequired={isRequired}
               isReadonly={isReadonly}
               error={errorMessage}
+              isTabActive={isTabActive}
             />
           </div>
         );

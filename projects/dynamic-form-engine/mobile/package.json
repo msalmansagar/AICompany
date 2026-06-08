@@ -57,6 +57,16 @@
     "preset": "jest-expo",
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg)"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^zod$": "<rootDir>/../node_modules/zod/index.cjs",
+      "^@qdb/shared$": "<rootDir>/../shared/src/index.ts",
+      "^react$": "<rootDir>/node_modules/react/index.js",
+      "^react/(.*)$": "<rootDir>/node_modules/react/$1",
+      "^react-test-renderer$": "<rootDir>/node_modules/react-test-renderer/index.js",
+      "^react-test-renderer/(.*)$": "<rootDir>/node_modules/react-test-renderer/$1"
+    },
+    "setupFilesAfterFramework": [],
+    "testPathIgnorePatterns": ["/node_modules/", "/e2e/"]
   }
 }

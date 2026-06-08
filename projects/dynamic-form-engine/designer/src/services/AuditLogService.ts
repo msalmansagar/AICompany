@@ -39,7 +39,7 @@ export class AuditLogService {
     await withRetry(
       () =>
         this.webApi.createRecord(ENTITY_NAMES.FORM_AUDIT_LOG, {
-          [FORM_AUDIT_LOG_ATTRS.FORM_ID]: formId,
+          [`${FORM_AUDIT_LOG_ATTRS.FORM_ID}@odata.bind`]: `/qdb_form_definitions(${formId})`,
           [FORM_AUDIT_LOG_ATTRS.ACTION]: action,
           [FORM_AUDIT_LOG_ATTRS.ACTOR_ID]: this.userContext.userId,
           [FORM_AUDIT_LOG_ATTRS.ACTOR_NAME]: this.userContext.userFullName,

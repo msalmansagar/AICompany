@@ -5,11 +5,18 @@ import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
 import type { StepOutcomeRow, LayoutDir } from './WorkflowGraphBuilder';
 import { STEP_W, MARKER_SIZE } from './WorkflowGraphBuilder';
 
+export interface BackHandleInfo {
+  outcomeId: string;
+  offset: number; // % position along the top (LR) or left (TB) edge
+}
+
 export interface TechStepData extends Record<string, unknown> {
   step: CrmStep;
   outcomeRows: StepOutcomeRow[];
   nodeHeight: number;
   layoutDir: LayoutDir;
+  backOutHandles: BackHandleInfo[];
+  backInHandles: BackHandleInfo[];
 }
 
 const TECH_BASE_H = 90;
@@ -49,6 +56,17 @@ export function buildTechnicalGraph(
     }
   }
 
+  // Per-step back-handle registries — each outcome gets its own handle slot.
+  const backOutsByStep = new Map<string, string[]>();
+  const backInsByStep  = new Map<string, string[]>();
+  for (const o of outcomes) {
+    if (!backEdgeOutcomeIds.has(o.id)) continue;
+    if (!backOutsByStep.has(o.stepId))     backOutsByStep.set(o.stepId, []);
+    if (!backInsByStep.has(o.nextStepId!)) backInsByStep.set(o.nextStepId!, []);
+    backOutsByStep.get(o.stepId)!.push(o.id);
+    backInsByStep.get(o.nextStepId!)!.push(o.id);
+  }
+
   const outcomesByStep = new Map<string, CrmOutcome[]>();
   for (const step of steps) outcomesByStep.set(step.id, []);
   for (const o of outcomes) outcomesByStep.get(o.stepId)?.push(o);
@@ -82,7 +100,11 @@ export function buildTechnicalGraph(
       id: `step_${step.id}`,
       type: 'techStep',
       position: { x: 0, y: 0 },
-      data: { step, outcomeRows, nodeHeight, layoutDir: dir } as TechStepData,
+      data: {
+        step, outcomeRows, nodeHeight, layoutDir: dir,
+        backOutHandles: spreadHandles(backOutsByStep.get(step.id) ?? []),
+        backInHandles:  spreadHandles(backInsByStep.get(step.id)  ?? []),
+      } as TechStepData,
       draggable: true,
       selectable: true,
     };
@@ -149,14 +171,14 @@ export function buildTechnicalGraph(
     };
   });
 
-  // Back-edges with full outcome name (no truncation for technical view).
+  // Each back-edge gets its own per-outcome handle ID so arcs never share a point.
   const backEdges: Edge[] = outcomes
     .filter((o) => backEdgeOutcomeIds.has(o.id))
     .map((o) => ({
       id: `e_back_${o.id}`,
       source: `step_${o.stepId}`, target: `step_${o.nextStepId!}`,
-      sourceHandle: 'back-out', targetHandle: 'back-in',
-      type: 'smoothstep',
+      sourceHandle: `back-out-${o.id}`, targetHandle: `back-in-${o.id}`,
+      type: 'bezier',
       label: `↩ ${o.name}${o.applyFilter ? ' ◈' : ''}`,
       labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
       labelBgStyle: { fill: '#f5f3ff', fillOpacity: 1, rx: 4 },
@@ -169,6 +191,14 @@ export function buildTechnicalGraph(
   const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges];
   const positionedNodes = applyTechLayout(nodes, layoutEdges, dir);
   return { nodes: positionedNodes, edges: [...layoutEdges, ...backEdges] };
+}
+
+function spreadHandles(ids: string[]): BackHandleInfo[] {
+  const n = ids.length;
+  return ids.map((id, i) => ({
+    outcomeId: id,
+    offset: n === 1 ? 50 : 15 + (i / (n - 1)) * 70,
+  }));
 }
 
 function applyTechLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): Node[] {

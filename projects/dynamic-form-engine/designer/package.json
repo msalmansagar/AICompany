@@ -5,6 +5,7 @@
   "description": "QDB Form Platform — Dynamics CRM Web Resource Form Designer",
   "scripts": {
     "dev": "vite",
+    "dev:proxy": "node scripts/dev-proxy.mjs",
     "build": "tsc && vite build",
     "build:check-size": "vite build && node scripts/checkBundleSize.js",
     "package": "npm run build && node scripts/packageSolution.js",
