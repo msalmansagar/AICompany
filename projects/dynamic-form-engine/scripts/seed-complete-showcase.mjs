@@ -239,6 +239,8 @@ const fResident = await post('qdb_form_fields', fld(secDOB.qdb_form_sectionid, {
   qdb_schema_name: 'cs_is_resident', qdb_field_type: FT.boolean,
   qdb_label: 'Qatar Resident?', qdb_display_order: 4,
   qdb_boolean_render_style: BOOL.toggle,
+  qdb_true_label:  'Yes, I am a Qatar resident',
+  qdb_false_label: 'No, I am not a resident',
 }));
 
 // ── Section: Employment ───────────────────────────────────────────────────────
