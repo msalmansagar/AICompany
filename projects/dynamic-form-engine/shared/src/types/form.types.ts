@@ -383,10 +383,10 @@ export interface GridRecord {
 
 export interface GridRecordPage {
   records: GridRecord[];
-  totalCount: number;
   page: number;
   pageSize: number;
-  totalPages: number;
+  hasNextPage: boolean;      // true when more records exist beyond this page
+  nextPageCookie?: string;   // opaque base64 cursor — pass back as pagingCookie for page+1
   isCapped: boolean;
 }
 

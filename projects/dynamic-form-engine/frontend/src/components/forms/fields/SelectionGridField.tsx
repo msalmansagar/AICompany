@@ -318,7 +318,7 @@ export function SelectionGridField({
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
-    pageCount: gridData.totalPages,
+    pageCount: -1, // unknown total — Next/Prev driven by hasNextPage
   });
 
   if (gridData.status === 'idle' || gridData.status === 'loading') {
@@ -367,8 +367,7 @@ export function SelectionGridField({
     >
       {gridData.isCapped && (
         <Text className={styles.cappedNotice} role="status">
-          Showing the first {gridData.totalCount} records. Contact your
-          administrator if you cannot find a record.
+          Row limit reached. Contact your administrator if you cannot find a record.
         </Text>
       )}
 
@@ -535,11 +534,11 @@ export function SelectionGridField({
         </table>
       </div>}
 
-      {gridData.totalPages > 1 && (
+      {(gridData.page > 1 || gridData.hasNextPage) && (
         <div className={styles.paginationRow}>
           <Text className={styles.paginationInfo}>
-            Page {gridData.page} of {gridData.totalPages} ({gridData.totalCount}{' '}
-            total)
+            Page {gridData.page}
+            {gridData.isCapped && ' (row limit reached)'}
           </Text>
           <div className={styles.paginationButtons}>
             <Button
@@ -555,7 +554,7 @@ export function SelectionGridField({
               appearance="secondary"
               iconPosition="after"
               icon={<ChevronRightRegular />}
-              disabled={gridData.page >= gridData.totalPages}
+              disabled={!gridData.hasNextPage}
               onClick={() => gridData.loadPage(gridData.page + 1)}
               aria-label="Next page"
             >

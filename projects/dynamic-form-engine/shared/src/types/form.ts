@@ -54,9 +54,11 @@ export interface GridRecord {
 
 export interface GridRecordPage {
   records: GridRecord[];
-  totalCount: number;
   page: number;
   pageSize: number;
+  hasNextPage: boolean;
+  nextPageCookie?: string;
+  isCapped: boolean;
 }
 
 export type UploadDestination = 'crmNotes' | 'sharePoint';

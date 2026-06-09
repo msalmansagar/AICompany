@@ -21,7 +21,7 @@ export interface GridFieldConfig {
   selectionMode: 'single' | 'multi';
   maxRows: number;
   columnConfigs: GridColumnConfig[];
-  filterExpression?: string;        // static OData $filter appended to every query
+  filterExpression?: string;        // static filter condition (OData-style, parsed to FetchXML)
   dependsOnFilterTemplate?: string; // template — {dependsOnValue} replaced at request time
 }
 
@@ -32,16 +32,19 @@ export interface GridRecord {
 
 export interface GridRecordPage {
   records: GridRecord[];
-  totalCount: number;
   page: number;
   pageSize: number;
-  totalPages: number;
+  hasNextPage: boolean;        // true when more records exist beyond this page
+  nextPageCookie?: string;     // opaque cursor — send back as pagingCookie for page+1
   isCapped: boolean;
 }
 
-interface ODataCollection<T> {
+interface FetchXmlCollection<T> {
   value: T[];
-  '@odata.count'?: number;
+  '@Microsoft.Dynamics.CRM.morerecords'?: boolean;
+  '@Microsoft.Dynamics.CRM.fetchxmlpagingcookie'?: string;
+  '@Microsoft.Dynamics.CRM.totalrecordcount'?: number;
+  '@Microsoft.Dynamics.CRM.totalrecordcountlimitexceeded'?: boolean;
 }
 
 interface RawGridField {
@@ -93,42 +96,46 @@ export class CrmGridDataService extends CrmBaseService {
     pageSize: number,
     correlationId: string,
     dependsOnValue?: string,
+    pagingCookie?: string,
   ): Promise<GridRecordPage> {
     const fieldConfig = await this.resolveFieldConfig(fieldId, correlationId);
-    const fetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
 
-    const columns = fieldConfig.columnConfigs.map((c) => c.targetAttribute);
-    const skip = (page - 1) * pageSize;
-    const effectiveTop = Math.min(pageSize, fieldConfig.maxRows - skip);
-
-    if (effectiveTop <= 0) {
-      return buildEmptyPage(page, pageSize, fieldConfig.maxRows);
+    // Guard: if paging would exceed maxRows, return empty immediately.
+    const recordsSeenSoFar = (page - 1) * pageSize;
+    if (recordsSeenSoFar >= fieldConfig.maxRows) {
+      return buildEmptyPage(page, pageSize);
     }
 
-    const selectClause = columns.join(',');
-    // Execute using OData with fetchxml parameter — Dataverse supports this for saved views.
-    const url = buildGridQueryUrl(
-      fieldConfig.targetEntity,
-      fieldConfig.savedViewId,
-      selectClause,
-      effectiveTop,
-      skip,
+    const baseFetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
+    const columns = fieldConfig.columnConfigs.map((c) => c.targetAttribute);
+
+    const fetchXml = buildFetchXml(
+      baseFetchXml,
+      page,
+      pageSize,
+      pagingCookie,
       fieldConfig.filterExpression,
       fieldConfig.dependsOnFilterTemplate,
       dependsOnValue,
     );
 
+    const url = `/${fieldConfig.targetEntity}s?fetchXml=${encodeURIComponent(fetchXml)}`;
+
     const startMs = Date.now();
-    const response = await this.crmFetch<ODataCollection<Record<string, unknown>>>(url);
+    const response = await this.crmFetch<FetchXmlCollection<Record<string, unknown>>>(url);
     const latencyMs = Date.now() - startMs;
 
     const rawRecords = response.value;
-    const rawCount = response['@odata.count'] ?? rawRecords.length;
+    const hasMore = response['@Microsoft.Dynamics.CRM.morerecords'] ?? false;
+    const rawCookie = response['@Microsoft.Dynamics.CRM.fetchxmlpagingcookie'];
 
-    // Apply the max-rows cap. If the view returns more than maxRows, cap it.
-    const isCapped = rawCount > fieldConfig.maxRows;
-    const totalCount = isCapped ? fieldConfig.maxRows : rawCount;
-    const totalPages = Math.ceil(totalCount / pageSize);
+    // Cap: if we've already returned maxRows worth, don't serve beyond.
+    const recordsReturnedSoFar = recordsSeenSoFar + rawRecords.length;
+    const isCapped = recordsReturnedSoFar >= fieldConfig.maxRows && hasMore;
+    const hasNextPage = hasMore && !isCapped;
+    const nextPageCookie = hasNextPage && rawCookie
+      ? Buffer.from(rawCookie).toString('base64')
+      : undefined;
 
     const records = rawRecords.map((raw) => {
       const entityIdAttr = `${fieldConfig.targetEntity}id`;
@@ -144,14 +151,15 @@ export class CrmGridDataService extends CrmBaseService {
         page,
         pageSize,
         recordCount: records.length,
-        latencyMs,
+        hasNextPage,
         isCapped,
+        latencyMs,
         operation: 'fetchGridRecords',
       },
       'selection_grid_load',
     );
 
-    return { records, totalCount, page, pageSize, totalPages, isCapped };
+    return { records, page, pageSize, hasNextPage, nextPageCookie, isCapped };
   }
 
   async resolveFieldConfig(
@@ -163,12 +171,12 @@ export class CrmGridDataService extends CrmBaseService {
     if (cached) return cached;
 
     const [fieldResponse, columnsResponse] = await Promise.all([
-      this.crmFetch<ODataCollection<RawGridField>>(
+      this.crmFetch<{ value: RawGridField[] }>(
         `/qdb_form_fields?$filter=qdb_form_fieldid eq '${fieldId}'&$top=1` +
         `&$select=qdb_form_fieldid,qdb_grid_entity_name,qdb_saved_view_id,qdb_selection_mode,qdb_grid_max_rows` +
         `,qdb_grid_filter_expression,qdb_grid_depends_on_filter_template`,
       ),
-      this.crmFetch<ODataCollection<RawGridColumnConfig>>(
+      this.crmFetch<{ value: RawGridColumnConfig[] }>(
         `/qdb_grid_column_configs?$filter=_qdb_form_field_id_value eq '${fieldId}' and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
       ),
     ]);
@@ -215,7 +223,6 @@ export class CrmGridDataService extends CrmBaseService {
     if (cached) return cached;
 
     // CEO condition BC-011: verify this is a System View, not a User View.
-    // System Views are in savedquery entity; User Views are in userquery entity.
     let rawView: RawSavedQuery;
     try {
       rawView = await this.crmFetch<RawSavedQuery>(
@@ -223,7 +230,6 @@ export class CrmGridDataService extends CrmBaseService {
       );
     } catch (error) {
       if (error instanceof CrmApiError && error.crmStatusCode === 404) {
-        // CEO condition BC-004: View not found must return user-facing 400, not 502.
         throw new ValidationError(
           `The configured grid view (${viewId}) was not found. Please contact your administrator.`,
         );
@@ -237,7 +243,6 @@ export class CrmGridDataService extends CrmBaseService {
       );
     }
 
-    // CEO condition BC-011: reject if querytype is not a system view.
     if (rawView.querytype !== undefined && rawView.querytype !== SYSTEM_VIEW_QUERY_TYPE) {
       throw new ValidationError(
         'Only System Views are permitted for Selection Grid configuration. User Views are not allowed.',
@@ -254,56 +259,142 @@ export class CrmGridDataService extends CrmBaseService {
   }
 }
 
+// ── FetchXML builder ───────────────────────────────────────────
+
+/**
+ * Takes the saved view's base FetchXML and produces an execution-ready FetchXML with:
+ * - page/count attributes set for cursor-based paging
+ * - paging-cookie injected when navigating beyond page 1
+ * - filter conditions injected directly into the XML (evaluated at SQL level)
+ */
+function buildFetchXml(
+  baseXml: string,
+  page: number,
+  pageSize: number,
+  pagingCookie: string | undefined,
+  filterExpression: string | undefined,
+  dependsOnFilterTemplate: string | undefined,
+  dependsOnValue: string | undefined,
+): string {
+  // Step 1: strip any existing page/count/top/paging-cookie attrs, inject fresh ones.
+  let xml = baseXml.replace(
+    /<fetch([^>]*)>/,
+    (_match, existingAttrs: string) => {
+      const cleaned = existingAttrs
+        .replace(/\s+page="[^"]*"/g, '')
+        .replace(/\s+count="[^"]*"/g, '')
+        .replace(/\s+top="[^"]*"/g, '')
+        .replace(/\s+paging-cookie="[^"]*"/g, '');
+
+      let newAttrs = `${cleaned} page="${page}" count="${pageSize}"`;
+      if (pagingCookie) {
+        // Cookie arrives base64-encoded from the frontend; decode to the raw XML string.
+        const rawCookie = Buffer.from(pagingCookie, 'base64').toString('utf8');
+        newAttrs += ` paging-cookie="${escapeXmlAttribute(rawCookie)}"`;
+      }
+      return `<fetch${newAttrs}>`;
+    },
+  );
+
+  // Step 2: collect filter conditions to inject.
+  const conditions: string[] = [];
+
+  if (filterExpression) {
+    const cond = parseFilterCondition(filterExpression);
+    if (cond) conditions.push(cond);
+  }
+
+  if (dependsOnFilterTemplate && dependsOnValue !== undefined && dependsOnValue !== '') {
+    const resolved = dependsOnFilterTemplate.replace(
+      '{dependsOnValue}',
+      sanitizeFilterValue(dependsOnValue),
+    );
+    const cond = parseFilterCondition(resolved);
+    if (cond) conditions.push(cond);
+  }
+
+  // Step 3: inject conditions into existing <filter> or wrap in a new one.
+  if (conditions.length > 0) {
+    const conditionsXml = conditions.join('');
+    if (/<filter/.test(xml)) {
+      // Append conditions to the first filter block.
+      xml = xml.replace(/<filter([^>]*)>/, `<filter$1>${conditionsXml}`);
+    } else {
+      // No filter in view — insert one before </entity>.
+      xml = xml.replace('</entity>', `<filter type="and">${conditionsXml}</filter></entity>`);
+    }
+  }
+
+  return xml;
+}
+
+// ── Filter condition parser ────────────────────────────────────
+
+/**
+ * Parses a simple OData-style filter condition into a FetchXML <condition> element.
+ * Supports the subset used by DFE filter templates:
+ *   - attribute eq/ne/lt/gt/le/ge numericValue
+ *   - attribute eq/ne 'stringValue'
+ *   - _lookupAttribute_value eq 'guid'       (navigation property → lookup condition)
+ *   - attribute eq null / attribute ne null
+ */
+function parseFilterCondition(expression: string): string {
+  const expr = expression.trim();
+
+  // Navigation property: _attribute_value eq 'guid'
+  const navMatch = expr.match(/^_(\w+)_value\s+(eq|ne)\s+'([0-9a-f-]+)'$/i);
+  if (navMatch) {
+    const [, attr, op, val] = navMatch;
+    return `<condition attribute="${attr}" operator="${op}" value="${escapeXmlAttribute(val)}"/>`;
+  }
+
+  // String value: attribute op 'value'
+  const strMatch = expr.match(/^(\w+)\s+(eq|ne|like|not-like)\s+'([^']*)'$/i);
+  if (strMatch) {
+    const [, attr, op, val] = strMatch;
+    return `<condition attribute="${attr}" operator="${op}" value="${escapeXmlAttribute(val)}"/>`;
+  }
+
+  // Numeric value: attribute op number
+  const numMatch = expr.match(/^(\w+)\s+(eq|ne|lt|gt|le|ge)\s+(-?\d+(?:\.\d+)?)$/);
+  if (numMatch) {
+    const [, attr, op, val] = numMatch;
+    return `<condition attribute="${attr}" operator="${op}" value="${val}"/>`;
+  }
+
+  // Null checks: attribute eq null / attribute ne null
+  const nullMatch = expr.match(/^(\w+)\s+(eq|ne)\s+null$/i);
+  if (nullMatch) {
+    const [, attr, op] = nullMatch;
+    return `<condition attribute="${attr}" operator="${op === 'eq' ? 'null' : 'not-null'}"/>`;
+  }
+
+  logger.warn({ expression: expr }, 'Grid filter: unrecognised condition format — skipped');
+  return '';
+}
+
 // ── Private helpers ────────────────────────────────────────────
 
 function assertGridFieldHasView(field: RawGridField, fieldId: string): void {
   if (!field.qdb_grid_entity_name) {
-    throw new ValidationError(
-      `Grid field '${fieldId}' has no target entity configured.`,
-    );
+    throw new ValidationError(`Grid field '${fieldId}' has no target entity configured.`);
   }
   if (!field.qdb_saved_view_id) {
-    throw new ValidationError(
-      `Grid field '${fieldId}' has no saved view configured.`,
-    );
+    throw new ValidationError(`Grid field '${fieldId}' has no saved view configured.`);
   }
 }
 
-function buildGridQueryUrl(
-  entity: string,
-  savedQueryId: string,
-  selectClause: string,
-  top: number,
-  skip: number,
-  filterExpression?: string,
-  dependsOnFilterTemplate?: string,
-  dependsOnValue?: string,
-): string {
-  const filters: string[] = ['statecode eq 0'];
-
-  if (filterExpression) {
-    filters.push(`(${filterExpression})`);
-  }
-
-  if (dependsOnFilterTemplate && dependsOnValue !== undefined && dependsOnValue !== '') {
-    const safeValue = sanitizeODataValue(dependsOnValue);
-    filters.push(`(${dependsOnFilterTemplate.replace('{dependsOnValue}', safeValue)})`);
-  }
-
-  const params = new URLSearchParams({
-    savedQuery: savedQueryId,
-    $select: selectClause,
-    $top: String(top),
-    $count: 'true',
-    $filter: filters.join(' and '),
-  });
-  if (skip > 0) params.set('$skip', String(skip));
-  return `/${entity}s?${params.toString()}`;
+/** Escape a value for safe use in an XML attribute (double-quotes). */
+function escapeXmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
-// Escapes a user-supplied value before substituting into an OData filter string.
-// Single quotes are doubled (OData escaping), and length is capped at 200 chars.
-function sanitizeODataValue(value: string): string {
+/** Cap length and escape single-quotes before substituting into a filter template. */
+function sanitizeFilterValue(value: string): string {
   return value.slice(0, 200).replace(/'/g, "''");
 }
 
@@ -316,31 +407,17 @@ function buildRestrictedValues(
   const columnSet = new Set(allowedColumns);
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(raw)) {
-    // Always include plain column values
-    if (columnSet.has(key)) {
-      result[key] = value;
-      continue;
-    }
-    // Also include formatted-value annotations for picklist/lookup columns
+    if (columnSet.has(key)) { result[key] = value; continue; }
     if (key.endsWith(ODATA_ANNOTATION_SUFFIX)) {
       const baseKey = key.slice(0, -ODATA_ANNOTATION_SUFFIX.length);
-      if (columnSet.has(baseKey)) {
-        result[key] = value;
-      }
+      if (columnSet.has(baseKey)) result[key] = value;
     }
   }
   return result;
 }
 
-function buildEmptyPage(page: number, pageSize: number, totalCount: number): GridRecordPage {
-  return {
-    records: [],
-    totalCount,
-    page,
-    pageSize,
-    totalPages: Math.ceil(totalCount / pageSize),
-    isCapped: true,
-  };
+function buildEmptyPage(page: number, pageSize: number): GridRecordPage {
+  return { records: [], page, pageSize, hasNextPage: false, isCapped: true };
 }
 
 function parseGridColumnOptions(json: string | null | undefined): Array<{ value: string; label: string }> | undefined {
