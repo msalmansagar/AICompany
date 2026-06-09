@@ -17,6 +17,7 @@ import { DateControl } from './controls/DateControl';
 import { DateTimeControl } from './controls/DateTimeControl';
 import { DropdownControl } from './controls/DropdownControl';
 import { MultiSelectControl } from './controls/MultiSelectControl';
+import { CheckboxGroupControl } from './controls/CheckboxGroupControl';
 import { LookupControl } from './controls/LookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
@@ -239,7 +240,9 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'dropdown':
       return <DropdownControl {...controlProps} />;
     case 'multiselect':
-      return <MultiSelectControl {...controlProps} />;
+      return field.multiselectRenderStyle === 'checkboxes'
+        ? <CheckboxGroupControl {...controlProps} />
+        : <MultiSelectControl {...controlProps} />;
     case 'lookup':
       return <LookupControl {...controlProps} />;
     case 'checkbox':

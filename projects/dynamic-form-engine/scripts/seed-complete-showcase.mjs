@@ -269,6 +269,7 @@ const fContractType = await post('qdb_form_fields', fld(secEmployment.qdb_form_s
 const fSkills = await post('qdb_form_fields', fld(secSkills.qdb_form_sectionid, {
   qdb_schema_name: 'cs_skills', qdb_field_type: FT.multiselect,
   qdb_label: 'Technical Skills', qdb_display_order: 1, qdb_column_span: CS.two,
+  qdb_multiselect_render_style: 100000001, // checkboxes (visible list, not dropdown)
 }));
 const fNotifications = await post('qdb_form_fields', fld(secSkills.qdb_form_sectionid, {
   qdb_schema_name: 'cs_notifications', qdb_field_type: FT.checkbox,

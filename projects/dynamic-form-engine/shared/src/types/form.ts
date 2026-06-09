@@ -18,6 +18,7 @@ export interface OptionValue {
 }
 
 export type BooleanRenderStyle = 'toggle' | 'radio';
+export type MultiselectRenderStyle = 'dropdown' | 'checkboxes';
 export type GridSelectionMode = 'single' | 'multi';
 export type GridMode = 'selection' | 'entry';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
@@ -113,6 +114,7 @@ export interface FieldDefinition {
   currencySymbol?: string;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
+  multiselectRenderStyle?: MultiselectRenderStyle;
   trueLabel?: string;
   falseLabel?: string;
   // DFE-ADD-002: info-card field config

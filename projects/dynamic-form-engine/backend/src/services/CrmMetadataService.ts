@@ -272,6 +272,7 @@ export class CrmMetadataService extends CrmBaseService {
       trueLabel: field.qdb_true_label,
       falseLabel: field.qdb_false_label,
       boolRenderStyle: this.mapBooleanRenderStyle(field.qdb_boolean_render_style),
+      multiselectRenderStyle: this.mapMultiselectRenderStyle(field.qdb_multiselect_render_style),
       infoCardStyle: this.mapInfoCardStyle(field.qdb_info_card_style),
       infoCardTitle: field.qdb_info_card_title,
       infoCardBody: field.qdb_info_card_body,
@@ -626,6 +627,10 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'radio' : 'toggle';
   }
 
+  private mapMultiselectRenderStyle(code: number | undefined): 'dropdown' | 'checkboxes' {
+    return code === 100000001 ? 'checkboxes' : 'dropdown';
+  }
+
   private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' {
     const map: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
       100000000: 'info', 100000001: 'warning', 100000002: 'success', 100000003: 'error',
@@ -826,6 +831,8 @@ interface RawField {
   qdb_allowed_mime_types?: string;
   qdb_max_file_size_mb?: number;
   qdb_max_files?: number;
+  // Multiselect render style
+  qdb_multiselect_render_style?: number;
 }
 
 interface RawOption {
