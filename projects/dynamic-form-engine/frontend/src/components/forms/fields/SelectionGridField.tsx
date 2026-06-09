@@ -208,12 +208,12 @@ export function SelectionGridField({
   }, []);
 
   // Activate lazy load when the containing tab becomes active.
+  // gridData.activate is ref-backed and intentionally stable — excluding it
+  // from deps prevents double-loads when dependsOnValue triggers loadPage recreation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (isTabActive) {
-      gridData.activate();
-    }
-    // gridData.activate is stable (useCallback) — safe to include.
-  }, [isTabActive, gridData.activate]);
+    if (isTabActive) gridData.activate();
+  }, [isTabActive]);
 
   // Updates both local selection state and form context atomically — intentional dual-write.
   const syncSelectionToFormState = useCallback(

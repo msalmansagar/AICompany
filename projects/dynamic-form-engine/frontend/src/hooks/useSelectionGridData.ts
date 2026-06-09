@@ -35,26 +35,29 @@ export function useSelectionGridData(
   const [isCapped, setIsCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // cookieMap: maps page number N → the cookie that fetches page N+1.
-  // Populated as pages are visited so backward navigation re-uses cached cursors.
-  const cookieMapRef = useRef<Map<number, string>>(new Map());
-
-  // Tracks whether any load has completed — prevents re-fetching on tab re-activation.
+  // Synchronous flags — readable without a re-render cycle.
+  // These avoid the stale-closure problem where async state changes haven't
+  // propagated yet when guards in callbacks are evaluated.
+  const isLoadingRef = useRef(false);
   const hasLoadedRef = useRef(false);
-  // AbortController for in-flight requests (ADR-ADD-003: cancel stale requests).
+
+  // cookieMap: maps page N → cookie that fetches page N+1.
+  const cookieMapRef = useRef<Map<number, string>>(new Map());
+  // AbortController for in-flight requests.
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadPage = useCallback(
     async (requestedPage: number) => {
+      // Cancel any in-flight request.
       abortControllerRef.current?.abort();
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
+      // Mark loading synchronously so guards elsewhere see it immediately.
+      isLoadingRef.current = true;
       setStatus('loading');
       setError(null);
 
-      // Retrieve the paging cookie for this page: page 1 needs no cookie,
-      // page N needs the cookie stored from the page N-1 response.
       const pagingCookie = requestedPage > 1
         ? cookieMapRef.current.get(requestedPage - 1)
         : undefined;
@@ -71,7 +74,6 @@ export function useSelectionGridData(
 
         if (controller.signal.aborted) return;
 
-        // Store the cookie so the next page can be fetched efficiently.
         if (result.nextPageCookie) {
           cookieMapRef.current.set(requestedPage, result.nextPageCookie);
         }
@@ -82,9 +84,14 @@ export function useSelectionGridData(
         setIsCapped(result.isCapped);
         setStatus('loaded');
         hasLoadedRef.current = true;
+        isLoadingRef.current = false;
       } catch (fetchError) {
-        if (controller.signal.aborted) return;
-
+        if (controller.signal.aborted) {
+          // The abort itself doesn't mean failure — another call took over.
+          isLoadingRef.current = false;
+          return;
+        }
+        isLoadingRef.current = false;
         setStatus('error');
         setError(
           fetchError instanceof Error ? fetchError.message : 'Failed to load records',
@@ -94,16 +101,22 @@ export function useSelectionGridData(
     [fieldId, pageSize, dependsOnValue],
   );
 
-  // Called when the tab containing this grid becomes active.
+  // Keep a ref to the latest loadPage so activate() is always stable.
+  const loadPageRef = useRef(loadPage);
+  useEffect(() => { loadPageRef.current = loadPage; });
+
+  // activate: called when the containing tab becomes active.
+  // Stable reference — does not change on re-renders, preventing the
+  // double-load race when dependsOnValue triggers a re-create of loadPage.
   const activate = useCallback(() => {
-    if (hasLoadedRef.current || status === 'loading') return;
-    void loadPage(1);
-  }, [loadPage, status]);
+    if (hasLoadedRef.current || isLoadingRef.current) return;
+    void loadPageRef.current(1);
+  }, []); // intentionally no deps — uses refs exclusively
 
   const retry = useCallback(() => {
     hasLoadedRef.current = false;
-    void loadPage(page);
-  }, [loadPage, page]);
+    void loadPageRef.current(page);
+  }, [page]);
 
   // When the depended-on field value changes: clear cookie cache, reset, re-fetch page 1.
   const prevDependsOnRef = useRef(dependsOnValue);
