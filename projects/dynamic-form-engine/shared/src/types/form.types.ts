@@ -244,6 +244,9 @@ export interface FieldDefinition {
   // Multiselect render style (dropdown = default Combobox, checkboxes = visible checkbox list)
   multiselectRenderStyle?: 'dropdown' | 'checkboxes';
 
+  // Radio render style (list = vertical radio buttons, cards = selectable card grid)
+  radioRenderStyle?: 'list' | 'cards';
+
   // DFE-ADD-002: Info-card field config
   infoCardStyle?: 'info' | 'warning' | 'success' | 'error';
   infoCardTitle?: string;

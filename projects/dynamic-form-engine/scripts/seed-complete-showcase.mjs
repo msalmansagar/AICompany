@@ -234,6 +234,7 @@ const fAge = await post('qdb_form_fields', fld(secDOB.qdb_form_sectionid, {
 const fGender = await post('qdb_form_fields', fld(secDOB.qdb_form_sectionid, {
   qdb_schema_name: 'cs_gender', qdb_field_type: FT.radio,
   qdb_label: 'Gender', qdb_display_order: 3,
+  qdb_radio_render_style: 100000001, // cards
 }));
 const fResident = await post('qdb_form_fields', fld(secDOB.qdb_form_sectionid, {
   qdb_schema_name: 'cs_is_resident', qdb_field_type: FT.boolean,
@@ -263,6 +264,7 @@ const fJobTitle = await post('qdb_form_fields', fld(secEmployment.qdb_form_secti
 const fContractType = await post('qdb_form_fields', fld(secEmployment.qdb_form_sectionid, {
   qdb_schema_name: 'cs_contract_type', qdb_field_type: FT.radio,
   qdb_label: 'Contract Type', qdb_display_order: 4,
+  qdb_radio_render_style: 100000001, // cards
 }));
 
 // ── Section: Skills & Prefs ───────────────────────────────────────────────────

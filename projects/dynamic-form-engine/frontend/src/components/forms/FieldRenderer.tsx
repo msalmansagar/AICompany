@@ -18,6 +18,7 @@ import { DateTimeControl } from './controls/DateTimeControl';
 import { DropdownControl } from './controls/DropdownControl';
 import { MultiSelectControl } from './controls/MultiSelectControl';
 import { CheckboxGroupControl } from './controls/CheckboxGroupControl';
+import { RadioCardControl } from './controls/RadioCardControl';
 import { LookupControl } from './controls/LookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
@@ -248,7 +249,9 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'checkbox':
       return <CheckboxControl {...controlProps} />;
     case 'radio':
-      return <RadioControl {...controlProps} />;
+      return field.radioRenderStyle === 'cards'
+        ? <RadioCardControl {...controlProps} />
+        : <RadioControl {...controlProps} />;
     case 'currency':
       return <CurrencyControl {...controlProps} />;
     case 'decimal':
