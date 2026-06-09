@@ -16,6 +16,7 @@ import {
   makeStyles,
   tokens,
   Text,
+  Spinner,
   Skeleton,
   SkeletonItem,
   MessageBar,
@@ -121,27 +122,39 @@ const useStyles = makeStyles({
     gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
     gap: tokens.spacingVerticalM,
   },
+  // Card styling restored: background, padding, shadow, border, hover
   cardItem: {
     cursor: 'pointer',
-    border: `2px solid transparent`,
-    borderRadius: tokens.borderRadiusMedium,
-    transition: 'border-color 0.15s',
     position: 'relative',
+    backgroundColor: tokens.colorNeutralBackground1,
+    border: `2px solid ${tokens.colorNeutralStroke2}`,
+    borderRadius: tokens.borderRadiusMedium,
+    padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
+    boxShadow: tokens.shadow4,
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+    outline: 'none',
   },
   cardItemSelected: {
     border: `2px solid ${tokens.colorBrandStroke1}`,
     backgroundColor: tokens.colorBrandBackground2,
+    boxShadow: tokens.shadow8,
   },
   cardBadge: {
     position: 'absolute',
-    top: tokens.spacingVerticalXS,
-    right: tokens.spacingHorizontalXS,
+    top: tokens.spacingVerticalS,
+    right: tokens.spacingHorizontalS,
+  },
+  cardTitle: {
+    fontWeight: tokens.fontWeightSemibold,
+    fontSize: tokens.fontSizeBase300,
+    color: tokens.colorNeutralForeground1,
+    display: 'block',
+    marginBottom: tokens.spacingVerticalS,
   },
   cardFieldRow: {
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalXXS,
-    paddingTop: tokens.spacingVerticalXS,
   },
   cardFieldLabel: {
     fontSize: tokens.fontSizeBase200,
@@ -152,6 +165,22 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase300,
     color: tokens.colorNeutralForeground1,
     wordBreak: 'break-word',
+  },
+  // Non-blocking loading overlay — shown when re-fetching with existing records
+  refetchOverlay: {
+    position: 'relative',
+  },
+  refetchSpinner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  contentDimmed: {
+    opacity: '0.5',
+    pointerEvents: 'none',
   },
 });
 
@@ -195,6 +224,12 @@ export function SelectionGridField({
 
   const gridData = useSelectionGridData(field.id, 50, dependsOnValue);
 
+  // Track whether we have records from a previous load so we can show a
+  // non-blocking spinner instead of replacing content with skeletons.
+  const hasExistingRecords = gridData.records.length > 0;
+  const isInitialLoad = gridData.status === 'idle' || (gridData.status === 'loading' && !hasExistingRecords);
+  const isRefetching = gridData.status === 'loading' && hasExistingRecords;
+
   // BC-010: register an initial empty value on mount so required validation
   // fires even when this tab is never activated by the user.
   useEffect(() => {
@@ -232,25 +267,36 @@ export function SelectionGridField({
     [field.schemaName, selectionMode, updateFieldValue],
   );
 
-  // useCallback prevents stale-closure in multi-select: functional setSelectedIds
-  // reads the latest Set without needing selectedIds in the dep array.
+  // pendingMultiSync: signals the useEffect below to push the new selectedIds to
+  // form context after the state update settles. Using a ref avoids calling
+  // updateFieldValue inside a functional state updater (React strict mode calls
+  // updaters twice — causing double context broadcasts per click).
+  const pendingMultiSyncRef = useRef(false);
+
   const toggleRow = useCallback((recordId: string) => {
     if (isReadonly) return;
     if (selectionMode === 'single') {
       syncSelectionToFormState(new Set<string>([recordId]));
     } else {
+      pendingMultiSyncRef.current = true;
       setSelectedIds((prev) => {
         const next = new Set(prev);
         if (next.has(recordId)) next.delete(recordId);
         else next.add(recordId);
-        // Sync to form context inside the functional update so it sees the latest set.
-        if (selectionMode === 'multi') {
-          updateFieldValue(field.schemaName, [...next]);
-        }
         return next;
       });
     }
-  }, [isReadonly, selectionMode, syncSelectionToFormState, updateFieldValue, field.schemaName]);
+  }, [isReadonly, selectionMode, syncSelectionToFormState]);
+
+  // Sync multi-select to form context after selectedIds state settles.
+  // Skips on mount (pendingMultiSyncRef starts false) and on filter-driven resets.
+  useEffect(() => {
+    if (!pendingMultiSyncRef.current) return;
+    pendingMultiSyncRef.current = false;
+    updateFieldValue(field.schemaName, [...selectedIds]);
+  // selectedIds is the trigger; the rest are stable references.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedIds]);
 
   const toggleSelectAll = useCallback((checked: boolean) => {
     if (isReadonly) return;
@@ -322,7 +368,9 @@ export function SelectionGridField({
     pageCount: -1, // unknown total — Next/Prev driven by hasNextPage
   });
 
-  if (gridData.status === 'idle' || gridData.status === 'loading') {
+  // Only replace content with skeletons on the very first load (idle or no records yet).
+  // Filter changes and page navigation use the non-blocking spinner overlay instead.
+  if (isInitialLoad) {
     return (
       <div
         className={styles.skeletonRows}
@@ -366,6 +414,14 @@ export function SelectionGridField({
       aria-describedby={errorId}
       aria-invalid={!!errorId}
     >
+      {/* Non-blocking refetch indicator — keeps existing records visible */}
+      {isRefetching && (
+        <div className={styles.refetchSpinner} role="status" aria-live="polite">
+          <Spinner size="tiny" />
+          <Text>Updating…</Text>
+        </div>
+      )}
+
       {gridData.isCapped && (
         <Text className={styles.cappedNotice} role="status">
           Row limit reached. Contact your administrator if you cannot find a record.
@@ -398,7 +454,13 @@ export function SelectionGridField({
 
       {/* Card view */}
       {viewMode === 'card' && (
-        <div className={styles.cardGrid} role="listbox" aria-multiselectable={selectionMode === 'multi'} aria-label={`${field.label} card view`}>
+        <div
+          className={`${styles.cardGrid} ${isRefetching ? styles.contentDimmed : ''}`}
+          role="listbox"
+          aria-multiselectable={selectionMode === 'multi'}
+          aria-label={`${field.label} card view`}
+          aria-busy={isRefetching}
+        >
           {gridData.records.length === 0 ? (
             <Text className={styles.emptyState}>No records found.</Text>
           ) : (
@@ -429,7 +491,7 @@ export function SelectionGridField({
                       aria-label="Selected"
                     />
                   )}
-                  <Text weight="semibold" style={{ display: 'block', padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalS} 0` }}>
+                  <Text className={styles.cardTitle}>
                     {String(record.values[sortedCols[0]?.targetAttribute] ?? record.id.slice(0, 8))}
                   </Text>
                   <div className={styles.cardFieldRow}>
@@ -454,7 +516,7 @@ export function SelectionGridField({
       )}
 
       {/* Table view */}
-      {viewMode === 'table' && <div className={styles.scrollContainer}>
+      {viewMode === 'table' && <div className={`${styles.scrollContainer} ${isRefetching ? styles.contentDimmed : ''}`}>
         <table
           className={styles.table}
           role="grid"
