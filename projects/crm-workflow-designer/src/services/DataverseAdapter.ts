@@ -27,12 +27,13 @@ const LOGICAL = {
   team: 'team',
   crmEntity: 'crmi_autonumber_system_entitieses',
   crmField: 'crmi_autonumber_entities_fieldses',
+  roundRobinTeam: 'qdb_roundrobinteam',
 } as const;
 
 // Entity SET names — used only in @odata.bind navigation paths in request bodies
 const SET = {
   process: 'qdb_work_item_record_types',
-  step: 'qdb_work_item_stepss',
+  step: 'qdb_work_item_stepses',
   outcome: 'qdb_outcomes',
   route: 'qdb_outcomeworktaskss',
   crmEntity: 'crmi_autonumber_system_entitieses',
@@ -50,12 +51,34 @@ export class DataverseAdapter implements ICrmAdapter {
   private readonly env: CrmEnvironmentService;
   private readonly xrm: typeof Xrm;
   private cachedSystemEntityMeta: DiscoveredEntityMeta | null = null;
-  private cachedFieldEntityMeta: DiscoveredEntityMeta | null = null;
-  private cachedFieldRelAttr: string | null = null;
+  private readonly navPropCache = new Map<string, string>();
 
   constructor(env: CrmEnvironmentService) {
     this.env = env;
     this.xrm = env.getCrmXrm();
+  }
+
+  private async resolveNavProp(entityLogicalName: string, attributeLogicalName: string): Promise<string> {
+    const key = `${entityLogicalName}.${attributeLogicalName}`;
+    if (this.navPropCache.has(key)) return this.navPropCache.get(key)!;
+    try {
+      const url =
+        `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+        `/RelationshipDefinitions/Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata` +
+        `?$filter=ReferencingEntity eq '${entityLogicalName}' and ReferencingAttribute eq '${attributeLogicalName}'` +
+        `&$select=ReferencingEntityNavigationPropertyName`;
+      const response = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json() as {
+        value: Array<{ ReferencingEntityNavigationPropertyName: string }>;
+      };
+      const name = data.value[0]?.ReferencingEntityNavigationPropertyName ?? attributeLogicalName;
+      this.navPropCache.set(key, name);
+      return name;
+    } catch {
+      this.navPropCache.set(key, attributeLogicalName);
+      return attributeLogicalName;
+    }
   }
 
   // --- Process ---
@@ -87,18 +110,30 @@ export class DataverseAdapter implements ICrmAdapter {
   }
 
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
-    const body = buildProcessBody(data);
-    const result = await withRetry(() =>
-      this.xrm.WebApi.createRecord(LOGICAL.process, body)
-    );
+    const body = await this.buildProcessBodyResolved(data);
+    const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.process, body));
     return result.id;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
     assertGuid(id, 'processId');
-    await withRetry(() =>
-      this.xrm.WebApi.updateRecord(LOGICAL.process, id, buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>))
-    );
+    const body = await this.buildProcessBodyResolved(data as Omit<WorkflowProcess, 'crmId'>);
+    await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.process, id, body));
+  }
+
+  private async buildProcessBodyResolved(data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildProcessBody(data);
+    if (data.recordEntity || data.regardingField || data.parentEntity) {
+      const [re, rf, pe] = await Promise.all([
+        data.recordEntity   ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_recordentity')  : Promise.resolve(''),
+        data.regardingField ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_regardingfield') : Promise.resolve(''),
+        data.parentEntity   ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_parententity')  : Promise.resolve(''),
+      ]);
+      if (data.recordEntity   && re) body[`${re}@odata.bind`] = `/${SET.crmEntity}(${data.recordEntity})`;
+      if (data.regardingField && rf) body[`${rf}@odata.bind`] = `/${SET.crmField}(${data.regardingField})`;
+      if (data.parentEntity   && pe) body[`${pe}@odata.bind`] = `/${SET.crmEntity}(${data.parentEntity})`;
+    }
+    return body;
   }
 
   async deleteProcess(id: string): Promise<void> {
@@ -121,7 +156,7 @@ export class DataverseAdapter implements ICrmAdapter {
 
   async createStep(data: Omit<WorkflowStep, 'crmId'>): Promise<string> {
     assertGuid(data.processId, 'processId');
-    const body = buildStepBody(data);
+    const body = await this.buildStepBodyResolved(data);
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.step, body));
     return result.id;
   }
@@ -136,6 +171,21 @@ export class DataverseAdapter implements ICrmAdapter {
   async deleteStep(id: string): Promise<void> {
     assertGuid(id, 'stepId');
     await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.step, id));
+  }
+
+  private async buildStepBodyResolved(data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildStepBody(data);
+    if (data.recordEntityId || data.regardingFieldId || data.parentEntityId) {
+      const [re, rf, pe] = await Promise.all([
+        data.recordEntityId  ? this.resolveNavProp('qdb_work_item_steps', 'qdb_recordentity')  : Promise.resolve(''),
+        data.regardingFieldId ? this.resolveNavProp('qdb_work_item_steps', 'qdb_regardingfield') : Promise.resolve(''),
+        data.parentEntityId  ? this.resolveNavProp('qdb_work_item_steps', 'qdb_parententity')  : Promise.resolve(''),
+      ]);
+      if (data.recordEntityId  && re) body[`${re}@odata.bind`] = `/${SET.crmEntity}(${data.recordEntityId})`;
+      if (data.regardingFieldId && rf) body[`${rf}@odata.bind`] = `/${SET.crmField}(${data.regardingFieldId})`;
+      if (data.parentEntityId  && pe) body[`${pe}@odata.bind`] = `/${SET.crmEntity}(${data.parentEntityId})`;
+    }
+    return body;
   }
 
   // --- Outcomes ---
@@ -153,22 +203,31 @@ export class DataverseAdapter implements ICrmAdapter {
 
   async createOutcome(data: Omit<WorkflowOutcome, 'crmId'>): Promise<string> {
     assertGuid(data.stepId, 'stepId');
-    const result = await withRetry(() =>
-      this.xrm.WebApi.createRecord(LOGICAL.outcome, buildOutcomeBody(data))
-    );
+    const body = await this.buildOutcomeBodyResolved(data);
+    const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.outcome, body));
     return result.id;
   }
 
   async updateOutcome(id: string, data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<void> {
     assertGuid(id, 'outcomeId');
-    await withRetry(() =>
-      this.xrm.WebApi.updateRecord(LOGICAL.outcome, id, buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>))
-    );
+    const body = await this.buildOutcomeBodyResolved(data as Omit<WorkflowOutcome, 'crmId'>);
+    await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.outcome, id, body));
   }
 
   async deleteOutcome(id: string): Promise<void> {
     assertGuid(id, 'outcomeId');
     await withRetry(() => this.xrm.WebApi.deleteRecord(LOGICAL.outcome, id));
+  }
+
+  private async buildOutcomeBodyResolved(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildOutcomeBody(data);
+    const [ws, nws] = await Promise.all([
+      data.stepId     ? this.resolveNavProp('qdb_outcome', 'qdb_workitemstep')     : Promise.resolve(''),
+      data.nextStepId ? this.resolveNavProp('qdb_outcome', 'qdb_nextworkitemstep') : Promise.resolve(''),
+    ]);
+    if (data.stepId     && ws)  body[`${ws}@odata.bind`]  = `/${SET.step}(${data.stepId})`;
+    if (data.nextStepId && nws) body[`${nws}@odata.bind`] = `/${SET.step}(${data.nextStepId})`;
+    return body;
   }
 
   // --- Routes ---
@@ -250,7 +309,7 @@ export class DataverseAdapter implements ICrmAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.user,
-          `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=50&$orderby=fullname asc`
+          `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=5000&$orderby=fullname asc`
         )
       );
       return result.entities.map((u) => ({
@@ -268,7 +327,7 @@ export class DataverseAdapter implements ICrmAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.team,
-          '?$select=teamid,name&$filter=teamtype eq 0&$top=100&$orderby=name asc'
+          '?$select=teamid,name&$filter=teamtype eq 0&$top=5000&$orderby=name asc'
         )
       );
       return result.entities.map((t) => ({
@@ -280,13 +339,30 @@ export class DataverseAdapter implements ICrmAdapter {
     }
   }
 
+  async getRoundRobinTeams(): Promise<TeamOption[]> {
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords(
+          LOGICAL.roundRobinTeam,
+          '?$select=qdb_roundrobinteamid,qdb_name&$top=100&$orderby=qdb_name asc'
+        )
+      );
+      return result.entities.map((t) => ({
+        id: t['qdb_roundrobinteamid'] as string,
+        name: (t['qdb_name'] as string) ?? '',
+      }));
+    } catch (err) {
+      throw asError(err, 'getRoundRobinTeams');
+    }
+  }
+
   async getAutoNumberEntities(): Promise<AutoNumberEntityOption[]> {
     try {
       const meta = await this.resolveSystemEntityMeta();
       const url =
         `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
         `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr}` +
-        `&$orderby=${meta.primaryNameAttr} asc&$top=200`;
+        `&$orderby=${meta.primaryNameAttr} asc&$top=5000`;
       const data = await withRetry(() =>
         fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -294,7 +370,7 @@ export class DataverseAdapter implements ICrmAdapter {
         })
       );
       return data.value.map((e) => ({
-        id: (e[meta.primaryIdAttr] as string) ?? '',
+        id: normaliseGuid((e[meta.primaryIdAttr] as string) ?? ''),
         name: (e[meta.primaryNameAttr] as string) ?? '',
       }));
     } catch (err) {
@@ -304,12 +380,12 @@ export class DataverseAdapter implements ICrmAdapter {
 
   async getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]> {
     try {
-      const { meta, relAttr } = await this.resolveFieldEntityMeta();
-      const filterClause = entityId ? `&$filter=${relAttr} eq ${entityId}` : '';
+      const cleanId = entityId ? normaliseGuid(entityId) : '';
+      const filterClause = cleanId ? `&$filter=_crmi_entity_id_value eq ${cleanId}` : '';
       const url =
         `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
-        `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr},${relAttr}` +
-        `${filterClause}&$orderby=${meta.primaryNameAttr} asc&$top=200`;
+        `/${LOGICAL.crmField}?$select=crmi_autonumber_entities_fieldsid,crmi_name,_crmi_entity_id_value` +
+        `${filterClause}&$orderby=crmi_name asc&$top=5000`;
       const data = await withRetry(() =>
         fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -317,9 +393,9 @@ export class DataverseAdapter implements ICrmAdapter {
         })
       );
       return data.value.map((e) => ({
-        id: (e[meta.primaryIdAttr] as string) ?? '',
-        name: (e[meta.primaryNameAttr] as string) ?? '',
-        entityId: (e[relAttr] as string) ?? '',
+        id: normaliseGuid((e['crmi_autonumber_entities_fieldsid'] as string) ?? ''),
+        name: (e['crmi_name'] as string) ?? '',
+        entityId: normaliseGuid((e['_crmi_entity_id_value'] as string) ?? ''),
       }));
     } catch (err) {
       throw asError(err, 'getAutoNumberEntityFields');
@@ -341,29 +417,6 @@ export class DataverseAdapter implements ICrmAdapter {
     }
     this.cachedSystemEntityMeta = found;
     return found;
-  }
-
-  private async resolveFieldEntityMeta(): Promise<{ meta: DiscoveredEntityMeta; relAttr: string }> {
-    if (this.cachedFieldEntityMeta && this.cachedFieldRelAttr) {
-      return { meta: this.cachedFieldEntityMeta, relAttr: this.cachedFieldRelAttr };
-    }
-    const all = await this.fetchAutoNumberEntityDefs();
-    const systemMeta = await this.resolveSystemEntityMeta();
-    const found = all.find(
-      (e) => e.logicalName !== systemMeta.logicalName &&
-        (e.logicalName.includes('field') || e.logicalName.includes('_field'))
-    );
-    if (!found) {
-      const names = all.map((e) => e.logicalName).join(', ') || '(none)';
-      throw new Error(
-        `Cannot find autonumber entity-fields table. ` +
-        `crmi_autonumber* tables discovered: [${names}]`
-      );
-    }
-    const relAttr = await this.discoverLookupAttr(found.logicalName, systemMeta.logicalName);
-    this.cachedFieldEntityMeta = found;
-    this.cachedFieldRelAttr = relAttr;
-    return { meta: found, relAttr };
   }
 
   private async fetchAutoNumberEntityDefs(): Promise<DiscoveredEntityMeta[]> {
@@ -431,29 +484,13 @@ export class DataverseAdapter implements ICrmAdapter {
     }));
   }
 
-  private async discoverLookupAttr(entityLogicalName: string, targetLogicalName: string): Promise<string> {
-    try {
-      const url =
-        `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
-        `/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes/Microsoft.Dynamics.CRM.LookupAttributeMetadata` +
-        `?$select=SchemaName,Targets`;
-      const response = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
-      if (!response.ok) return '_crmi_entity_value';
-      const data = await response.json() as { value: Array<{ SchemaName: string; Targets: string[] }> };
-      const match = data.value.find((a) => Array.isArray(a.Targets) && a.Targets.includes(targetLogicalName));
-      return match ? `_${match.SchemaName.toLowerCase()}_value` : '_crmi_entity_value';
-    } catch {
-      return '_crmi_entity_value';
-    }
-  }
-
   // --- Lifecycle ---
 
   async publishProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
     await withRetry(() =>
       this.xrm.WebApi.updateRecord(LOGICAL.process, id, {
-        qdb_workflow_state: WORKFLOW_STATE_CODES.published,
+        statuscode: 2,
       })
     );
   }
@@ -561,6 +598,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
+    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
   };
 }
 
@@ -581,47 +619,22 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
 function buildProcessBody(data: Partial<Omit<WorkflowProcess, 'crmId'>>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (data.name !== undefined) body['qdb_name'] = data.name;
-  // Only send lookup-like fields when they have a non-empty value to avoid
-  // CRM rejecting the request with "invalid value for Lookup" on empty strings.
-  if (data.recordEntity) body['qdb_recordentity'] = data.recordEntity;
-  if (data.regardingField) body['qdb_regardingfield'] = data.regardingField;
-  if (data.parentEntity) body['qdb_parententity'] = data.parentEntity;
-  if (data.versionMajor !== undefined) body['qdb_version_major'] = data.versionMajor;
-  if (data.versionMinor !== undefined) body['qdb_version_minor'] = data.versionMinor;
-  if (data.workflowState !== undefined) body['qdb_workflow_state'] = WORKFLOW_STATE_CODES[data.workflowState];
-  if (data.snapshot !== undefined) body['qdb_workflow_snapshot'] = data.snapshot;
   return body;
 }
 
 function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (data.name !== undefined) body['qdb_name'] = data.name;
-  if (data.schemaName !== undefined) body['qdb_schemaname'] = data.schemaName;
   if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
-  if (data.taskSubject !== undefined) body['qdb_tasksubject'] = data.taskSubject;
   if (data.taskDescription !== undefined) body['qdb_taskdescription'] = data.taskDescription;
-  if (data.recordEntityId) {
-    body['qdb_recordentity@odata.bind'] = `/${SET.crmEntity}(${data.recordEntityId})`;
+  if (data.assignTo !== undefined) {
+    body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
+    body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
-  if (data.regardingFieldId) {
-    body['qdb_regardingfield@odata.bind'] = `/${SET.crmField}(${data.regardingFieldId})`;
-  }
-  if (data.parentEntityId) {
-    body['qdb_parententity@odata.bind'] = `/${SET.crmEntity}(${data.parentEntityId})`;
-  }
-  if (data.assignTo !== undefined) body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
-  if (data.assignedUserId) {
-    body['qdb_assigned_user@odata.bind'] = `/systemusers(${data.assignedUserId})`;
-  }
-  if (data.teamId) {
-    body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;
-  }
-  if (data.roundRobinTeamId) {
-    body['qdb_roundrobinteam@odata.bind'] = `/teams(${data.roundRobinTeamId})`;
-  }
-  if (data.processId) {
-    body['qdb_record_type@odata.bind'] = `/${SET.process}(${data.processId})`;
-  }
+  if (data.assignedUserId) body['qdb_assigned_user@odata.bind'] = `/systemusers(${data.assignedUserId})`;
+  if (data.teamId) body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;
+  if (data.roundRobinTeamId) body['qdb_roundrobinteam@odata.bind'] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
+  if (data.processId) body['qdb_record_type@odata.bind'] = `/${SET.process}(${data.processId})`;
   return body;
 }
 
@@ -630,9 +643,6 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.name !== undefined) body['qdb_name'] = data.name;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
-  if (data.stepId) {
-    body['qdb_WorkItemStep@odata.bind'] = `/${SET.step}(${data.stepId})`;
-  }
   return body;
 }
 
@@ -649,6 +659,10 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
     body['qdb_NextWorkItemStep@odata.bind'] = `/${SET.step}(${data.nextStepId})`;
   }
   return body;
+}
+
+function normaliseGuid(raw: string): string {
+  return raw.replace(/^\{|\}$/g, '').toLowerCase();
 }
 
 function buildODataHeaders(): HeadersInit {

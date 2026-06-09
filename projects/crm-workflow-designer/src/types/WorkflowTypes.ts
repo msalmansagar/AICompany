@@ -52,7 +52,10 @@ export interface WorkflowOutcome {
   sequenceNumber: number;
   applyFilter: boolean;
   stepId: string;
+  nextStepId: string | null;
 }
+
+export type RoundRobinTeamOption = TeamOption;
 
 export interface WorkflowRoute {
   crmId: string;
@@ -95,8 +98,9 @@ export const WORKFLOW_STATE_CODES: Record<WorkflowStateCode, number> = {
   archived: 100000002,
 };
 
+// Round Robin uses the same OptionSet value as Team (100000002) + qdb_enableroundrobin = true
 export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
   user: 100000000,
-  roundRobin: 100000001,
+  roundRobin: 100000002,
   team: 100000002,
 };

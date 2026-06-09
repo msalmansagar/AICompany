@@ -93,6 +93,10 @@ export function useWorkflowSave(): UseSaveResult {
           const newId = await adapter.createStep({
             ...step,
             processId: resolvedProcessId,
+            // Inherit entity/field references from the parent process
+            recordEntityId: step.recordEntityId ?? process.recordEntity ?? null,
+            regardingFieldId: step.regardingFieldId ?? process.regardingField ?? null,
+            parentEntityId: step.parentEntityId ?? process.parentEntity ?? null,
           });
           stepIdMap[step.crmId] = newId;
           resolveTemporaryId(step.crmId, newId, 'step');
@@ -110,9 +114,13 @@ export function useWorkflowSave(): UseSaveResult {
         if (!resolvedStepId || isTemporaryId(resolvedStepId)) continue; // skip orphaned
 
         if (isTemporaryId(outcome.crmId) || newIds.includes(outcome.crmId)) {
+          const resolvedNextStepId = outcome.nextStepId
+            ? (stepIdMap[outcome.nextStepId] ?? outcome.nextStepId)
+            : null;
           const newId = await adapter.createOutcome({
             ...outcome,
             stepId: resolvedStepId,
+            nextStepId: resolvedNextStepId,
           });
           outcomeIdMap[outcome.crmId] = newId;
           resolveTemporaryId(outcome.crmId, newId, 'outcome');

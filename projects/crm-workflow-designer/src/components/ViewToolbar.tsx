@@ -18,6 +18,8 @@ interface ViewToolbarProps {
   onDownloadPdf(): void;
   onViewModeChange(mode: ViewMode): void;
   onLayoutDirChange(dir: LayoutDir): void;
+  onNewProcess(): void;
+  onEditProcess?(): void;
 }
 
 export function ViewToolbar({
@@ -36,6 +38,8 @@ export function ViewToolbar({
   onDownloadPdf,
   onViewModeChange,
   onLayoutDirChange,
+  onNewProcess,
+  onEditProcess,
 }: ViewToolbarProps) {
   return (
     <div style={wrapperStyle}>
@@ -53,7 +57,14 @@ export function ViewToolbar({
         </div>
 
         <div style={actionsStyle}>
-          <ToolBtn label="Open" onClick={onOpen} title="Open a workflow" primary />
+          <ToolBtn label="New Process" onClick={onNewProcess} title="Create a new workflow process" primary />
+          <ToolBtn label="Open" onClick={onOpen} title="Open a workflow" />
+          {onEditProcess && processName && (
+            <>
+              <Sep />
+              <ToolBtn label="Edit" onClick={onEditProcess} title="Edit this workflow" />
+            </>
+          )}
           <Sep />
           <ToolBtn label="Refresh" onClick={onRefresh} title="Reload from CRM" disabled={isLoading} />
           <ToolBtn label="Fit View" onClick={onFitView} title="Fit diagram to screen" />

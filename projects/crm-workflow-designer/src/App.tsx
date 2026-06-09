@@ -2,11 +2,20 @@ import { useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CrmEnvironmentService } from './services/CrmEnvironmentService';
 import { WorkflowDataService } from './services/WorkflowDataService';
+import { createAdapter } from './services/CrmAdapterFactory';
 import { useWorkflowView } from './hooks/useWorkflowView';
+import { useWorkflowStore } from './store/workflowStore';
 import { WorkflowCanvas } from './components/WorkflowCanvas';
+import { EditCanvas } from './components/edit/EditCanvas';
+import { NewProcessDialog } from './components/edit/NewProcessDialog';
+import { CrmAdapterProvider } from './app/CrmAdapterContext';
+import type { ICrmAdapter } from './services/ICrmAdapter';
+
+type AppMode = 'view' | 'edit';
 
 export function App() {
   const [service, setService] = useState<WorkflowDataService | null>(null);
+  const [adapter, setAdapter] = useState<ICrmAdapter | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -15,6 +24,7 @@ export function App() {
       const env = new CrmEnvironmentService();
       setIsDevMode(env.isDevMode);
       setService(new WorkflowDataService(env));
+      setAdapter(createAdapter(env));
     } catch (err) {
       setInitError(err instanceof Error ? err.message : 'Failed to initialise CRM context.');
     }
@@ -34,25 +44,77 @@ export function App() {
     );
   }
 
-  if (!service) {
+  if (!service || !adapter) {
     return <div style={loadingScreen}>Initialising Workflow Designer…</div>;
   }
 
   return (
     <ReactFlowProvider>
-      <DesignerRoot service={service} isDevMode={isDevMode} />
+      <CrmAdapterProvider adapter={adapter}>
+        <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} />
+      </CrmAdapterProvider>
     </ReactFlowProvider>
   );
 }
 
-function DesignerRoot({
-  service,
-  isDevMode,
-}: {
+interface DesignerRootProps {
   service: WorkflowDataService;
+  adapter: ICrmAdapter;
   isDevMode: boolean;
-}) {
+}
+
+function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
+  const [appMode, setAppMode] = useState<AppMode>('view');
+  const [showNewProcessDialog, setShowNewProcessDialog] = useState(false);
   const view = useWorkflowView(service);
+  const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
+
+  const handleNewProcess = () => setShowNewProcessDialog(true);
+
+  const handleNewProcessConfirm = ({
+    name,
+    taskEntityId,
+    regardingFieldId,
+    parentEntityId,
+  }: {
+    name: string;
+    taskEntityId: string;
+    taskEntityName: string;
+    regardingFieldId: string;
+    regardingFieldName: string;
+    parentEntityId: string;
+    parentEntityName: string;
+  }) => {
+    const tmpId = `tmp_${crypto.randomUUID()}`;
+    loadWorkflow(
+      {
+        crmId: tmpId,
+        name,
+        recordEntity: taskEntityId,
+        regardingField: regardingFieldId,
+        parentEntity: parentEntityId,
+        versionMajor: 1,
+        versionMinor: 0,
+        workflowState: 'draft',
+        snapshot: null,
+      },
+      [],
+      [],
+      [],
+      {}
+    );
+    setShowNewProcessDialog(false);
+    setAppMode('edit');
+  };
+
+  const handleEditProcess = () => {
+    setAppMode('edit');
+  };
+
+  const handleExitEdit = () => {
+    setAppMode('view');
+  };
+
   return (
     <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {isDevMode && (
@@ -61,8 +123,24 @@ function DesignerRoot({
         </div>
       )}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <WorkflowCanvas view={view} />
+        {appMode === 'edit' ? (
+          <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
+        ) : (
+          <WorkflowCanvas
+            view={view}
+            onNewProcess={handleNewProcess}
+            onEditProcess={view.data ? handleEditProcess : undefined}
+          />
+        )}
       </div>
+
+      {showNewProcessDialog && (
+        <NewProcessDialog
+          adapter={adapter}
+          onConfirm={handleNewProcessConfirm}
+          onClose={() => setShowNewProcessDialog(false)}
+        />
+      )}
     </div>
   );
 }

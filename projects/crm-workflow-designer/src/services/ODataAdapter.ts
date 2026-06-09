@@ -19,21 +19,46 @@ import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
 
 const ENTITY_SETS = {
   process: 'qdb_work_item_record_types',
-  step: 'qdb_work_item_stepss',
+  step: 'qdb_work_item_stepses',
   outcome: 'qdb_outcomes',
   route: 'qdb_outcomeworktaskss',
   crmEntity: 'crmi_autonumber_system_entitieses',
   crmField: 'crmi_autonumber_entities_fieldses',
+  roundRobinTeam: 'qdb_roundrobinteams',
 } as const;
 
 export class ODataAdapter implements ICrmAdapter {
   private readonly env: CrmEnvironmentService;
+  private readonly navPropCache = new Map<string, string>();
 
   constructor(env: CrmEnvironmentService) {
     this.env = env;
   }
 
+  // Queries RelationshipDefinitions to find the OData navigation property name used
+  // for @odata.bind. This is the relationship schema name, NOT the field logical name.
+  private async resolveNavProp(entityLogicalName: string, attributeLogicalName: string): Promise<string> {
+    const key = `${entityLogicalName}.${attributeLogicalName}`;
+    if (this.navPropCache.has(key)) return this.navPropCache.get(key)!;
+    try {
+      const data = await this.get<{
+        value: Array<{ ReferencingEntityNavigationPropertyName: string }>;
+      }>(
+        `RelationshipDefinitions/Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata` +
+        `?$filter=ReferencingEntity eq '${entityLogicalName}' and ReferencingAttribute eq '${attributeLogicalName}'` +
+        `&$select=ReferencingEntityNavigationPropertyName`
+      );
+      const name = data.value[0]?.ReferencingEntityNavigationPropertyName ?? attributeLogicalName;
+      this.navPropCache.set(key, name);
+      return name;
+    } catch {
+      this.navPropCache.set(key, attributeLogicalName);
+      return attributeLogicalName;
+    }
+  }
+
   private get baseUrl(): string {
+    if (this.env.isDevMode) return `/api/data/${this.env.getApiVersion()}`;
     return `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
   }
 
@@ -114,12 +139,27 @@ export class ODataAdapter implements ICrmAdapter {
   }
 
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
-    return this.post(ENTITY_SETS.process, buildProcessBody(data));
+    return this.post(ENTITY_SETS.process, await this.buildProcessBodyResolved(data));
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
     assertGuid(id, 'processId');
-    await this.patch(`${ENTITY_SETS.process}(${id})`, buildProcessBody(data as Omit<WorkflowProcess, 'crmId'>));
+    await this.patch(`${ENTITY_SETS.process}(${id})`, await this.buildProcessBodyResolved(data as Omit<WorkflowProcess, 'crmId'>));
+  }
+
+  private async buildProcessBodyResolved(data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildProcessBody(data);
+    if (data.recordEntity || data.regardingField || data.parentEntity) {
+      const [re, rf, pe] = await Promise.all([
+        data.recordEntity  ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_recordentity')  : Promise.resolve(''),
+        data.regardingField ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_regardingfield') : Promise.resolve(''),
+        data.parentEntity  ? this.resolveNavProp('qdb_work_item_record_type', 'qdb_parententity')  : Promise.resolve(''),
+      ]);
+      if (data.recordEntity  && re) body[`${re}@odata.bind`] = `/${ENTITY_SETS.crmEntity}(${data.recordEntity})`;
+      if (data.regardingField && rf) body[`${rf}@odata.bind`] = `/${ENTITY_SETS.crmField}(${data.regardingField})`;
+      if (data.parentEntity  && pe) body[`${pe}@odata.bind`] = `/${ENTITY_SETS.crmEntity}(${data.parentEntity})`;
+    }
+    return body;
   }
 
   async deleteProcess(id: string): Promise<void> {
@@ -139,12 +179,27 @@ export class ODataAdapter implements ICrmAdapter {
 
   async createStep(data: Omit<WorkflowStep, 'crmId'>): Promise<string> {
     assertGuid(data.processId, 'processId');
-    return this.post(ENTITY_SETS.step, buildStepBody(data));
+    return this.post(ENTITY_SETS.step, await this.buildStepBodyResolved(data));
   }
 
   async updateStep(id: string, data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<void> {
     assertGuid(id, 'stepId');
-    await this.patch(`${ENTITY_SETS.step}(${id})`, buildStepBody(data as Omit<WorkflowStep, 'crmId'>));
+    await this.patch(`${ENTITY_SETS.step}(${id})`, await this.buildStepBodyResolved(data as Omit<WorkflowStep, 'crmId'>));
+  }
+
+  private async buildStepBodyResolved(data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildStepBody(data);
+    if (data.recordEntityId || data.regardingFieldId || data.parentEntityId) {
+      const [re, rf, pe] = await Promise.all([
+        data.recordEntityId  ? this.resolveNavProp('qdb_work_item_steps', 'qdb_recordentity')  : Promise.resolve(''),
+        data.regardingFieldId ? this.resolveNavProp('qdb_work_item_steps', 'qdb_regardingfield') : Promise.resolve(''),
+        data.parentEntityId  ? this.resolveNavProp('qdb_work_item_steps', 'qdb_parententity')  : Promise.resolve(''),
+      ]);
+      if (data.recordEntityId  && re) body[`${re}@odata.bind`] = `/${ENTITY_SETS.crmEntity}(${data.recordEntityId})`;
+      if (data.regardingFieldId && rf) body[`${rf}@odata.bind`] = `/${ENTITY_SETS.crmField}(${data.regardingFieldId})`;
+      if (data.parentEntityId  && pe) body[`${pe}@odata.bind`] = `/${ENTITY_SETS.crmEntity}(${data.parentEntityId})`;
+    }
+    return body;
   }
 
   async deleteStep(id: string): Promise<void> {
@@ -164,12 +219,23 @@ export class ODataAdapter implements ICrmAdapter {
 
   async createOutcome(data: Omit<WorkflowOutcome, 'crmId'>): Promise<string> {
     assertGuid(data.stepId, 'stepId');
-    return this.post(ENTITY_SETS.outcome, buildOutcomeBody(data));
+    return this.post(ENTITY_SETS.outcome, await this.buildOutcomeBodyResolved(data));
   }
 
   async updateOutcome(id: string, data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<void> {
     assertGuid(id, 'outcomeId');
-    await this.patch(`${ENTITY_SETS.outcome}(${id})`, buildOutcomeBody(data as Omit<WorkflowOutcome, 'crmId'>));
+    await this.patch(`${ENTITY_SETS.outcome}(${id})`, await this.buildOutcomeBodyResolved(data as Omit<WorkflowOutcome, 'crmId'>));
+  }
+
+  private async buildOutcomeBodyResolved(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildOutcomeBody(data);
+    const [ws, nws] = await Promise.all([
+      data.stepId     ? this.resolveNavProp('qdb_outcome', 'qdb_workitemstep')     : Promise.resolve(''),
+      data.nextStepId ? this.resolveNavProp('qdb_outcome', 'qdb_nextworkitemstep') : Promise.resolve(''),
+    ]);
+    if (data.stepId     && ws)  body[`${ws}@odata.bind`]  = `/${ENTITY_SETS.step}(${data.stepId})`;
+    if (data.nextStepId && nws) body[`${nws}@odata.bind`] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
+    return body;
   }
 
   async deleteOutcome(id: string): Promise<void> {
@@ -232,7 +298,7 @@ export class ODataAdapter implements ICrmAdapter {
       ? `&$filter=isdisabled eq false and contains(fullname,'${encodeURIComponent(search)}')`
       : `&$filter=isdisabled eq false`;
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `systemusers?$select=systemuserid,fullname,domainname${filter}&$top=50`
+      `systemusers?$select=systemuserid,fullname,domainname${filter}&$top=5000&$orderby=fullname asc`
     );
     return data.value.map((u) => ({
       id: u['systemuserid'] as string,
@@ -243,7 +309,7 @@ export class ODataAdapter implements ICrmAdapter {
 
   async getTeams(): Promise<TeamOption[]> {
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `teams?$select=teamid,name&$filter=teamtype eq 0`
+      `teams?$select=teamid,name&$filter=teamtype eq 0&$top=5000&$orderby=name asc`
     );
     return data.value.map((t) => ({
       id: t['teamid'] as string,
@@ -251,25 +317,36 @@ export class ODataAdapter implements ICrmAdapter {
     }));
   }
 
+  async getRoundRobinTeams(): Promise<TeamOption[]> {
+    const data = await this.get<{ value: Record<string, unknown>[] }>(
+      `${ENTITY_SETS.roundRobinTeam}?$select=qdb_roundrobinteamid,qdb_name&$orderby=qdb_name asc&$top=100`
+    );
+    return data.value.map((t) => ({
+      id: t['qdb_roundrobinteamid'] as string,
+      name: (t['qdb_name'] as string) ?? '',
+    }));
+  }
+
   async getAutoNumberEntities(): Promise<AutoNumberEntityOption[]> {
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.crmEntity}?$select=crmi_autonumber_system_entitiesid,crmi_name&$orderby=crmi_name asc&$top=200`
+      `${ENTITY_SETS.crmEntity}?$select=crmi_autonumber_system_entitiesid,crmi_name&$orderby=crmi_name asc&$top=5000`
     );
     return data.value.map((e) => ({
-      id: (e['crmi_autonumber_system_entitiesid'] as string) ?? '',
+      id: normaliseGuid((e['crmi_autonumber_system_entitiesid'] as string) ?? ''),
       name: (e['crmi_name'] as string) ?? '',
     }));
   }
 
   async getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]> {
-    const filterClause = entityId ? `&$filter=_crmi_entity_value eq ${entityId}` : '';
+    const cleanId = entityId ? normaliseGuid(entityId) : '';
+    const filterClause = cleanId ? `&$filter=_crmi_entity_id_value eq ${cleanId}` : '';
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.crmField}?$select=crmi_autonumber_entities_fieldsid,crmi_name,_crmi_entity_value${filterClause}&$orderby=crmi_name asc&$top=200`
+      `${ENTITY_SETS.crmField}?$select=crmi_autonumber_entities_fieldsid,crmi_name,_crmi_entity_id_value${filterClause}&$orderby=crmi_name asc&$top=5000`
     );
     return data.value.map((e) => ({
-      id: (e['crmi_autonumber_entities_fieldsid'] as string) ?? '',
+      id: normaliseGuid((e['crmi_autonumber_entities_fieldsid'] as string) ?? ''),
       name: (e['crmi_name'] as string) ?? '',
-      entityId: (e['_crmi_entity_value'] as string) ?? '',
+      entityId: normaliseGuid((e['_crmi_entity_id_value'] as string) ?? ''),
     }));
   }
 
@@ -278,7 +355,7 @@ export class ODataAdapter implements ICrmAdapter {
   async publishProcess(id: string): Promise<void> {
     assertGuid(id, 'processId');
     await this.patch(`${ENTITY_SETS.process}(${id})`, {
-      qdb_workflow_state: WORKFLOW_STATE_CODES.published,
+      statuscode: 2,
     });
   }
 
@@ -381,6 +458,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
+    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
   };
 }
 
@@ -399,30 +477,21 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
 function buildProcessBody(data: Partial<Omit<WorkflowProcess, 'crmId'>>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (data.name !== undefined) body['qdb_name'] = data.name;
-  if (data.recordEntity !== undefined) body['qdb_recordentity'] = data.recordEntity;
-  if (data.regardingField !== undefined) body['qdb_regardingfield'] = data.regardingField;
-  if (data.parentEntity !== undefined) body['qdb_parententity'] = data.parentEntity;
-  if (data.versionMajor !== undefined) body['qdb_version_major'] = data.versionMajor;
-  if (data.versionMinor !== undefined) body['qdb_version_minor'] = data.versionMinor;
-  if (data.workflowState !== undefined) body['qdb_workflow_state'] = WORKFLOW_STATE_CODES[data.workflowState];
-  if (data.snapshot !== undefined) body['qdb_workflow_snapshot'] = data.snapshot;
   return body;
 }
 
 function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (data.name !== undefined) body['qdb_name'] = data.name;
-  if (data.schemaName !== undefined) body['qdb_schemaname'] = data.schemaName;
   if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
-  if (data.taskSubject !== undefined) body['qdb_tasksubject'] = data.taskSubject;
   if (data.taskDescription !== undefined) body['qdb_taskdescription'] = data.taskDescription;
-  if (data.recordEntityId) body['qdb_recordentity@odata.bind'] = `/${ENTITY_SETS.crmEntity}(${data.recordEntityId})`;
-  if (data.regardingFieldId) body['qdb_regardingfield@odata.bind'] = `/${ENTITY_SETS.crmField}(${data.regardingFieldId})`;
-  if (data.parentEntityId) body['qdb_parententity@odata.bind'] = `/${ENTITY_SETS.crmEntity}(${data.parentEntityId})`;
-  if (data.assignTo !== undefined) body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
+  if (data.assignTo !== undefined) {
+    body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
+    body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
+  }
   if (data.assignedUserId) body['qdb_assigned_user@odata.bind'] = `/systemusers(${data.assignedUserId})`;
   if (data.teamId) body['qdb_team@odata.bind'] = `/teams(${data.teamId})`;
-  if (data.roundRobinTeamId) body['qdb_roundrobinteam@odata.bind'] = `/teams(${data.roundRobinTeamId})`;
+  if (data.roundRobinTeamId) body['qdb_roundrobinteam@odata.bind'] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
   if (data.processId) body['qdb_record_type@odata.bind'] = `/${ENTITY_SETS.process}(${data.processId})`;
   return body;
 }
@@ -432,7 +501,6 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.name !== undefined) body['qdb_name'] = data.name;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
-  if (data.stepId) body['qdb_workitemstep@odata.bind'] = `/${ENTITY_SETS.step}(${data.stepId})`;
   return body;
 }
 
@@ -445,6 +513,10 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.outcomeId) body['qdb_outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
   if (data.nextStepId) body['qdb_nextworkitemstep@odata.bind'] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
   return body;
+}
+
+function normaliseGuid(raw: string): string {
+  return raw.replace(/^\{|\}$/g, '').toLowerCase();
 }
 
 function buildODataHeaders(): HeadersInit {

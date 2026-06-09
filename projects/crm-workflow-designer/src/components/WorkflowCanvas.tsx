@@ -30,6 +30,8 @@ import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
+  onNewProcess: () => void;
+  onEditProcess?: () => void;
 }
 
 const EXPORT_W = 2560;
@@ -48,7 +50,7 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:  buildSwimlaneGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ view, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -181,6 +183,8 @@ export function WorkflowCanvas({ view }: WorkflowCanvasProps) {
         onDownloadPdf={() => void handleDownloadPdf()}
         onViewModeChange={view.setViewMode}
         onLayoutDirChange={view.setLayoutDir}
+        onNewProcess={onNewProcess}
+        onEditProcess={onEditProcess}
       />
 
       <div style={bodyStyle}>

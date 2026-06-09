@@ -42,6 +42,7 @@ export interface ICrmAdapter {
   getAttributes(entityLogicalName: string): Promise<AttributeOption[]>;
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
+  getRoundRobinTeams(): Promise<TeamOption[]>;
   getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
   getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 

@@ -11,6 +11,7 @@ import { ViewDecisionNode } from './ViewDecisionNode';
 import { ExecStepNode } from './ExecStepNode';
 import { TechStepNode } from './TechStepNode';
 import { SwimlaneNode, SwimStepNode } from './SwimlaneNode';
+import { EditStepNode } from './EditStepNode';
 
 export const nodeTypes: NodeTypes = {
   // Legacy edit-mode nodes (kept for compatibility)
@@ -37,4 +38,7 @@ export const nodeTypes: NodeTypes = {
   // Swimlane view
   swimlane: SwimlaneNode,
   swimStep: SwimStepNode,
+
+  // Edit mode
+  editStep: EditStepNode,
 };
