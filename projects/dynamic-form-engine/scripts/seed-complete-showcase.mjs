@@ -385,6 +385,17 @@ const fWarningCard = await post('qdb_form_fields', fld(secReview.qdb_form_sectio
   qdb_info_card_body:  'Once submitted, this record cannot be modified. Please review all sections before proceeding.',
   qdb_info_card_icon:  'WarningRegular',
 }));
+// CRM optionset source demo — options populated from qdb_form_field.qdb_field_type at runtime
+await post('qdb_form_fields', fld(secReview.qdb_form_sectionid, {
+  qdb_schema_name: 'cs_field_type_demo', qdb_field_type: FT.dropdown,
+  qdb_label: 'Field Type (from CRM Optionset)',
+  qdb_placeholder: 'Options loaded from qdb_form_field.qdb_field_type',
+  qdb_tooltip: 'Demonstrates optionSourceEntity — options sourced from CRM attribute OptionSet metadata',
+  qdb_display_order: 10, qdb_column_span: CS.two,
+  qdb_option_source_entity: 'qdb_form_field',
+  qdb_option_source_attribute: 'qdb_field_type',
+}));
+
 // Hidden form-code field for submission mapping
 const fHiddenCode = await post('qdb_form_fields', fld(secReview.qdb_form_sectionid, {
   qdb_schema_name: 'cs_hidden_form_code', qdb_field_type: FT.text,

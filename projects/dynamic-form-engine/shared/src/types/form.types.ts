@@ -247,6 +247,11 @@ export interface FieldDefinition {
   // Radio render style (list = vertical radio buttons, cards = selectable card grid)
   radioRenderStyle?: 'list' | 'cards';
 
+  // Option source from CRM optionset — when set, options come from the CRM attribute's OptionSet
+  // instead of qdb_form_option_value records. Falls back to manual options when not set.
+  optionSourceEntity?: string;     // e.g. 'qdb_form_definition'
+  optionSourceAttribute?: string;  // e.g. 'qdb_status'
+
   // DFE-ADD-002: Info-card field config
   infoCardStyle?: 'info' | 'warning' | 'success' | 'error';
   infoCardTitle?: string;

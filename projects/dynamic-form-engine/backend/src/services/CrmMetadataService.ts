@@ -24,6 +24,7 @@ import type {
   FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
+import { logger } from '../utils/logger.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
@@ -241,7 +242,7 @@ export class CrmMetadataService extends CrmBaseService {
     );
 
     const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap] = await Promise.all([
-      this.fetchOptions(fieldIds),
+      this.fetchOptions(fields),
       this.fetchValidationRules(fieldIds),
       this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
@@ -264,6 +265,8 @@ export class CrmMetadataService extends CrmBaseService {
       isHidden: field.qdb_is_hidden ?? false,
       isVisible: !field.qdb_is_hidden,
       options: optionsMap.get(field.qdb_form_fieldid),
+      optionSourceEntity: field.qdb_option_source_entity,
+      optionSourceAttribute: field.qdb_option_source_attribute,
       lookupConfig: lookupMap.get(field.qdb_form_fieldid),
       currencyCode: field.qdb_currency_code,
       decimalPlaces: field.qdb_decimal_places,
@@ -326,28 +329,72 @@ export class CrmMetadataService extends CrmBaseService {
     return map;
   }
 
-  private async fetchOptions(fieldIds: string[]): Promise<Map<string, OptionValue[]>> {
-    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
-    const response = await this.crmFetch<ODataCollection<RawOption>>(
-      `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+  private async fetchOptions(fields: RawField[]): Promise<Map<string, OptionValue[]>> {
+    const map = new Map<string, OptionValue[]>();
+
+    // Partition fields: those with a CRM optionset source vs. those with manual option values
+    const crmSourceFields = fields.filter(
+      (f) => f.qdb_option_source_entity && f.qdb_option_source_attribute,
+    );
+    const manualFields = fields.filter(
+      (f) => !f.qdb_option_source_entity || !f.qdb_option_source_attribute,
     );
 
-    const map = new Map<string, OptionValue[]>();
-    for (const opt of response.value) {
-      const fieldId = opt._qdb_form_field_id_value;
-      const existing = map.get(fieldId) ?? [];
-      existing.push({
-        value: opt.qdb_value,
-        label: opt.qdb_label,
-        displayOrder: opt.qdb_display_order,
-        isDefault: opt.qdb_is_default ?? false,
-        parentOptionValue: opt.qdb_parent_option_value,
-        isActive: opt.qdb_is_active ?? true,
-      });
-      map.set(fieldId, existing);
+    // Fetch manual options from qdb_form_option_values
+    if (manualFields.length > 0) {
+      const fieldIds = manualFields.map((f) => f.qdb_form_fieldid);
+      const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+      const response = await this.crmFetch<ODataCollection<RawOption>>(
+        `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+      );
+      for (const opt of response.value) {
+        const fieldId = opt._qdb_form_field_id_value;
+        const existing = map.get(fieldId) ?? [];
+        existing.push({
+          value: opt.qdb_value,
+          label: opt.qdb_label,
+          displayOrder: opt.qdb_display_order,
+          isDefault: opt.qdb_is_default ?? false,
+          parentOptionValue: opt.qdb_parent_option_value,
+          isActive: opt.qdb_is_active ?? true,
+        });
+        map.set(fieldId, existing);
+      }
     }
 
+    // Fetch options from CRM attribute OptionSet metadata for source-linked fields
+    await Promise.all(
+      crmSourceFields.map(async (field) => {
+        const options = await this.fetchCrmOptionSetValues(
+          field.qdb_option_source_entity!,
+          field.qdb_option_source_attribute!,
+        );
+        if (options.length > 0) map.set(field.qdb_form_fieldid, options);
+      }),
+    );
+
     return map;
+  }
+
+  private async fetchCrmOptionSetValues(entity: string, attribute: string): Promise<OptionValue[]> {
+    try {
+      const response = await this.crmFetch<CrmPicklistAttributeResponse>(
+        `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet`,
+      );
+      const options = response.OptionSet?.Options ?? [];
+      return options
+        .filter((o) => o.Value != null)
+        .map((o, index) => ({
+          value: String(o.Value),
+          label: o.Label?.LocalizedLabels?.[0]?.Label ?? String(o.Value),
+          displayOrder: index + 1,
+          isDefault: false,
+          isActive: true,
+        }));
+    } catch {
+      logger.warn({ entity, attribute }, 'Failed to fetch CRM optionset values — returning empty list');
+      return [];
+    }
   }
 
   private async fetchValidationRules(fieldIds: string[]): Promise<Map<string, ValidationRule[]>> {
@@ -840,6 +887,9 @@ interface RawField {
   qdb_multiselect_render_style?: number;
   // Radio render style
   qdb_radio_render_style?: number;
+  // Option source from CRM optionset
+  qdb_option_source_entity?: string;
+  qdb_option_source_attribute?: string;
 }
 
 interface RawOption {
@@ -971,4 +1021,16 @@ function parseColumnOptions(json: string | null | undefined): GridColumnOptionVa
   } catch {
     return undefined;
   }
+}
+
+
+interface CrmPicklistAttributeResponse {
+  OptionSet?: {
+    Options?: Array<{
+      Value: number;
+      Label?: {
+        LocalizedLabels?: Array<{ Label: string; LanguageCode: number }>;
+      };
+    }>;
+  };
 }
