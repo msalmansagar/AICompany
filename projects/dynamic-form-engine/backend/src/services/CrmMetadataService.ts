@@ -21,6 +21,7 @@ import type {
   LogicalOperator,
   GridColumnConfig,
   GridColumnOptionValue,
+  FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
@@ -275,6 +276,7 @@ export class CrmMetadataService extends CrmBaseService {
       infoCardTitle: field.qdb_info_card_title,
       infoCardBody: field.qdb_info_card_body,
       infoCardIcon: field.qdb_info_card_icon,
+      fileUploadConfig: this.buildFileUploadConfig(field),
       gridConfig: field.qdb_grid_mode != null ? {
         // Canonical names (read by SelectionGridField / EntryGridField)
         gridMode: this.mapGridMode(field.qdb_grid_mode),
@@ -635,6 +637,31 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'entry' : 'selection';
   }
 
+  private buildFileUploadConfig(field: RawField): FileUploadConfig | undefined {
+    if (field.qdb_field_type !== 100000015) return undefined; // file field only
+    const allowedMimeTypes = this.parseAllowedMimeTypes(field.qdb_allowed_mime_types);
+    return {
+      id: field.qdb_form_fieldid,
+      fieldId: field.qdb_form_fieldid,
+      allowedMimeTypes,
+      maxFileSizeBytes: (field.qdb_max_file_size_mb ?? 10) * 1024 * 1024,
+      destination: 'crmNotes',
+      maxFiles: field.qdb_max_files ?? 1,
+    };
+  }
+
+  private parseAllowedMimeTypes(json: string | null | undefined): string[] {
+    const defaults = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!json) return defaults;
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      return Array.isArray(parsed) ? (parsed as string[]) : defaults;
+    } catch {
+      return defaults;
+    }
+  }
+
   private mapSelectionMode(code: number | undefined): 'single' | 'multi' {
     return code === 100000001 ? 'multi' : 'single';
   }
@@ -795,6 +822,10 @@ interface RawField {
   qdb_selection_mode?: number;
   qdb_grid_mode?: number;
   qdb_grid_min_rows?: number;
+  // File upload config
+  qdb_allowed_mime_types?: string;
+  qdb_max_file_size_mb?: number;
+  qdb_max_files?: number;
 }
 
 interface RawOption {

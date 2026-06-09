@@ -53,6 +53,19 @@ export interface GridRecordPage {
   pageSize: number;
 }
 
+export type UploadDestination = 'crmNotes' | 'sharePoint';
+
+export interface FileUploadConfig {
+  id: string;
+  fieldId: string;
+  allowedMimeTypes: string[];
+  maxFileSizeBytes: number;
+  destination: UploadDestination;
+  sharePointLibraryUrl?: string;
+  sharePointFolderPath?: string;
+  maxFiles: number;
+}
+
 export interface InfoCardItem {
   itemId: string;
   displayOrder: number;
