@@ -131,7 +131,7 @@ const useStyles = makeStyles({
     position: 'relative',
   },
   cardItemSelected: {
-    borderColor: tokens.colorBrandStroke1,
+    border: `2px solid ${tokens.colorBrandStroke1}`,
     backgroundColor: tokens.colorBrandBackground2,
   },
   cardBadge: {
@@ -176,6 +176,14 @@ export function SelectionGridField({
   const selectionMode = gridConfig?.selectionMode ?? 'single';
   const columnConfigs = gridConfig?.columnConfigs ?? [];
 
+  // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
+  const dependsOnFieldId = gridConfig?.dependsOnFieldId;
+  const dependsOnRaw = dependsOnFieldId ? fieldValues[dependsOnFieldId] : undefined;
+  const dependsOnValue = dependsOnRaw !== undefined && dependsOnRaw !== null
+    ? String(dependsOnRaw)
+    : undefined;
+
+
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
   // Selection state: Set<string> of selected record GUIDs.
@@ -187,7 +195,7 @@ export function SelectionGridField({
     return new Set<string>();
   });
 
-  const gridData = useSelectionGridData(field.id);
+  const gridData = useSelectionGridData(field.id, 50, dependsOnValue);
 
   // BC-010: register an initial empty value on mount so required validation
   // fires even when this tab is never activated by the user.

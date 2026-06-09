@@ -370,6 +370,10 @@ export interface GridFieldConfig {
   // DFE-ADD-002: flat mapper aliases used by CrmMetadataService
   mode?: GridMode;
   entityName?: string;
+  // Grid filtering
+  filterExpression?: string;           // static OData $filter appended to every query
+  dependsOnFieldId?: string;           // schema name of the field whose value drives the dynamic filter
+  dependsOnFilterTemplate?: string;    // OData filter template — {dependsOnValue} is substituted at runtime
 }
 
 export interface GridRecord {

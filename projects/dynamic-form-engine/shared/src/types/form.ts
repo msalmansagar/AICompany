@@ -41,6 +41,10 @@ export interface GridFieldConfig {
   savedViewId?: string;
   entityName?: string;
   minRows?: number;
+  // Grid filtering
+  filterExpression?: string;
+  dependsOnFieldId?: string;
+  dependsOnFilterTemplate?: string;
 }
 
 export interface GridRecord {

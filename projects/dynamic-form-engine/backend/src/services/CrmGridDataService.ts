@@ -21,6 +21,8 @@ export interface GridFieldConfig {
   selectionMode: 'single' | 'multi';
   maxRows: number;
   columnConfigs: GridColumnConfig[];
+  filterExpression?: string;        // static OData $filter appended to every query
+  dependsOnFilterTemplate?: string; // template — {dependsOnValue} replaced at request time
 }
 
 export interface GridRecord {
@@ -48,6 +50,8 @@ interface RawGridField {
   qdb_saved_view_id?: string;
   qdb_selection_mode?: number;
   qdb_grid_max_rows?: number;
+  qdb_grid_filter_expression?: string;
+  qdb_grid_depends_on_filter_template?: string;
 }
 
 interface RawGridColumnConfig {
@@ -88,6 +92,7 @@ export class CrmGridDataService extends CrmBaseService {
     page: number,
     pageSize: number,
     correlationId: string,
+    dependsOnValue?: string,
   ): Promise<GridRecordPage> {
     const fieldConfig = await this.resolveFieldConfig(fieldId, correlationId);
     const fetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
@@ -108,6 +113,9 @@ export class CrmGridDataService extends CrmBaseService {
       selectClause,
       effectiveTop,
       skip,
+      fieldConfig.filterExpression,
+      fieldConfig.dependsOnFilterTemplate,
+      dependsOnValue,
     );
 
     const startMs = Date.now();
@@ -157,7 +165,8 @@ export class CrmGridDataService extends CrmBaseService {
     const [fieldResponse, columnsResponse] = await Promise.all([
       this.crmFetch<ODataCollection<RawGridField>>(
         `/qdb_form_fields?$filter=qdb_form_fieldid eq '${fieldId}'&$top=1` +
-        `&$select=qdb_form_fieldid,qdb_grid_entity_name,qdb_saved_view_id,qdb_selection_mode,qdb_grid_max_rows`,
+        `&$select=qdb_form_fieldid,qdb_grid_entity_name,qdb_saved_view_id,qdb_selection_mode,qdb_grid_max_rows` +
+        `,qdb_grid_filter_expression,qdb_grid_depends_on_filter_template`,
       ),
       this.crmFetch<ODataCollection<RawGridColumnConfig>>(
         `/qdb_grid_column_configs?$filter=_qdb_form_field_id_value eq '${fieldId}' and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
@@ -177,6 +186,8 @@ export class CrmGridDataService extends CrmBaseService {
       savedViewId: rawField.qdb_saved_view_id!,
       selectionMode: rawField.qdb_selection_mode === 100000001 ? 'multi' : 'single',
       maxRows: rawField.qdb_grid_max_rows ?? 200,
+      filterExpression: rawField.qdb_grid_filter_expression ?? undefined,
+      dependsOnFilterTemplate: rawField.qdb_grid_depends_on_filter_template ?? undefined,
       columnConfigs: columnsResponse.value.map((c) => ({
         columnId: c.qdb_grid_column_configid,
         displayOrder: c.qdb_display_order,
@@ -264,16 +275,36 @@ function buildGridQueryUrl(
   selectClause: string,
   top: number,
   skip: number,
+  filterExpression?: string,
+  dependsOnFilterTemplate?: string,
+  dependsOnValue?: string,
 ): string {
+  const filters: string[] = ['statecode eq 0'];
+
+  if (filterExpression) {
+    filters.push(`(${filterExpression})`);
+  }
+
+  if (dependsOnFilterTemplate && dependsOnValue !== undefined && dependsOnValue !== '') {
+    const safeValue = sanitizeODataValue(dependsOnValue);
+    filters.push(`(${dependsOnFilterTemplate.replace('{dependsOnValue}', safeValue)})`);
+  }
+
   const params = new URLSearchParams({
     savedQuery: savedQueryId,
     $select: selectClause,
     $top: String(top),
     $count: 'true',
-    $filter: 'statecode eq 0',
+    $filter: filters.join(' and '),
   });
   if (skip > 0) params.set('$skip', String(skip));
   return `/${entity}s?${params.toString()}`;
+}
+
+// Escapes a user-supplied value before substituting into an OData filter string.
+// Single quotes are doubled (OData escaping), and length is capped at 200 chars.
+function sanitizeODataValue(value: string): string {
+  return value.slice(0, 200).replace(/'/g, "''");
 }
 
 const ODATA_ANNOTATION_SUFFIX = '@OData.Community.Display.V1.FormattedValue';

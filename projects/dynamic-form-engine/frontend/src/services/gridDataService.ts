@@ -9,6 +9,7 @@ export interface GridPageRequest {
   page: number;
   pageSize: number;
   signal?: AbortSignal;
+  dependsOnValue?: string;
 }
 
 export async function fetchGridPage({
@@ -16,11 +17,15 @@ export async function fetchGridPage({
   page,
   pageSize,
   signal,
+  dependsOnValue,
 }: GridPageRequest): Promise<GridRecordPage> {
   const params = new URLSearchParams({
     page: String(page),
     pageSize: String(pageSize),
   });
+  if (dependsOnValue !== undefined && dependsOnValue !== '') {
+    params.set('dependsOnValue', dependsOnValue);
+  }
 
   const response = await apiClient.get<GridRecordPage>(
     `/grids/${fieldId}/records?${params.toString()}`,

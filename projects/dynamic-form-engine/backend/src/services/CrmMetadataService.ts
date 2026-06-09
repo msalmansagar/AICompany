@@ -294,6 +294,9 @@ export class CrmMetadataService extends CrmBaseService {
         // Alias names (used by new mapper references)
         mode: this.mapGridMode(field.qdb_grid_mode),
         entityName: field.qdb_grid_entity_name ?? undefined,
+        filterExpression: field.qdb_grid_filter_expression ?? undefined,
+        dependsOnFieldId: field.qdb_grid_depends_on_field_schema ?? undefined,
+        dependsOnFilterTemplate: field.qdb_grid_depends_on_filter_template ?? undefined,
       } : undefined,
       validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
@@ -890,6 +893,10 @@ interface RawField {
   // Option source from CRM optionset
   qdb_option_source_entity?: string;
   qdb_option_source_attribute?: string;
+  // Grid filtering
+  qdb_grid_filter_expression?: string;
+  qdb_grid_depends_on_field_schema?: string;
+  qdb_grid_depends_on_filter_template?: string;
 }
 
 interface RawOption {

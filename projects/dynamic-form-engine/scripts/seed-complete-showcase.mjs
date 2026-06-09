@@ -185,6 +185,8 @@ const secDocs        = await post('qdb_form_sections', secDef(tabFinancial.qdb_f
 const secGrid        = await post('qdb_form_sections', secDef(tabSystem.qdb_form_tabid,       'Select Role',        'Pick the role to assign (selection grid)',                      1, COL.one));
 const secEntryGrid   = await post('qdb_form_sections', secDef(tabSystem.qdb_form_tabid,       'Define Permissions', 'Define custom permissions inline (entry grid)',                 2, COL.one));
 const secLookup      = await post('qdb_form_sections', secDef(tabSystem.qdb_form_tabid,       'Linked Form',        'Link a form definition to this access request',                3, COL.two));
+// System Access — depends-on filter demo section
+const secFilterDemo  = await post('qdb_form_sections', secDef(tabSystem.qdb_form_tabid,       'Filtered Grid Demo', 'Demonstrates dynamic grid filtering: select a status to filter', 4, COL.one));
 // Review tab
 const secReview      = await post('qdb_form_sections', secDef(tabReview.qdb_form_tabid,       'Review',             'Confirm submission date-time and add final comments',           1, COL.two));
 console.log(`  ✓ 10 sections created`);
@@ -338,6 +340,8 @@ const fSelectRole = await post('qdb_form_fields', fld(secGrid.qdb_form_sectionid
   qdb_grid_entity_name: 'qdb_form_definition',
   qdb_saved_view_id: '0448a02f-deed-4410-8a7d-aba72b7802d7',
   qdb_max_rows: 50,
+  // Static filter: show only active forms
+  qdb_grid_filter_expression: 'qdb_status eq 100000001',
 }));
 
 // ── Section: Entry grid (define permissions) ─────────────────────────────────
@@ -352,6 +356,41 @@ const fPermGrid = await post('qdb_form_fields', fld(secEntryGrid.qdb_form_sectio
   qdb_grid_min_rows: 1,
   qdb_max_rows: 20,
 }));
+
+// ── Section: Filtered Grid Demo (depends-on filter) ───────────────────────────
+const fFilterStatus = await post('qdb_form_fields', fld(secFilterDemo.qdb_form_sectionid, {
+  qdb_schema_name: 'cs_filter_status', qdb_field_type: FT.dropdown,
+  qdb_label: 'Filter by Form Status', qdb_placeholder: '— Select a status to filter —',
+  qdb_display_order: 1, qdb_column_span: CS.two,
+}));
+for (const [v, l] of [['100000001','Active'],['100000000','Draft'],['100000002','Inactive']]) {
+  await post('qdb_form_option_values', {
+    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${fFilterStatus.qdb_form_fieldid})`,
+    qdb_value: v, qdb_label: l, qdb_display_order: parseInt(v) - 100000000 + 1, qdb_is_active: true,
+  });
+}
+const fFilteredForms = await post('qdb_form_fields', fld(secFilterDemo.qdb_form_sectionid, {
+  qdb_schema_name: 'cs_filtered_forms', qdb_field_type: FT.interactiveGrid,
+  qdb_label: 'Forms (filtered by status)',
+  qdb_tooltip: 'Records re-load when you change the status dropdown above',
+  qdb_display_order: 2, qdb_column_span: CS.two,
+  qdb_grid_mode: GRD.selection,
+  qdb_selection_mode: SEL.multi,
+  qdb_grid_entity_name: 'qdb_form_definition',
+  qdb_saved_view_id: '0448a02f-deed-4410-8a7d-aba72b7802d7',
+  qdb_max_rows: 20,
+  // Dynamic filter: re-queries when cs_filter_status value changes
+  qdb_grid_depends_on_field_schema: 'cs_filter_status',
+  qdb_grid_depends_on_filter_template: 'qdb_status eq {dependsOnValue}',
+}));
+for (const [attr, label, type, order] of [['qdb_form_code','Form Code','text',1],['qdb_title','Title','text',2],['qdb_status','Status','text',3]]) {
+  await post('qdb_grid_column_configs', {
+    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${fFilteredForms.qdb_form_fieldid})`,
+    qdb_grid_column_configname: `filtered-grid-${attr}`,
+    qdb_column_label: label, qdb_column_attribute: attr, qdb_column_field_type: type,
+    qdb_display_order: order, qdb_is_visible: true, qdb_is_editable: false,
+  });
+}
 
 // ── Section: Linked Form (lookup) ────────────────────────────────────────────
 const fLinkedForm = await post('qdb_form_fields', fld(secLookup.qdb_form_sectionid, {

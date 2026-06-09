@@ -2,7 +2,7 @@
 // Data is cached in component state — no re-fetch on revisit within the same session.
 // ADR-ADD-003: lazy loading on tab activation.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GridRecord, GridRecordPage } from '@qdb/shared';
 import { fetchGridPage } from '../services/gridDataService';
 
@@ -25,6 +25,7 @@ export interface SelectionGridDataState {
 export function useSelectionGridData(
   fieldId: string,
   defaultPageSize = 50,
+  dependsOnValue?: string,
 ): SelectionGridDataState {
   const [status, setStatus] = useState<LoadStatus>('idle');
   const [records, setRecords] = useState<GridRecord[]>([]);
@@ -56,6 +57,7 @@ export function useSelectionGridData(
           page: requestedPage,
           pageSize,
           signal: controller.signal,
+          dependsOnValue,
         });
 
         if (controller.signal.aborted) return;
@@ -78,7 +80,7 @@ export function useSelectionGridData(
         );
       }
     },
-    [fieldId, pageSize],
+    [fieldId, pageSize, dependsOnValue],
   );
 
   // Called when the tab containing this grid becomes active.
@@ -92,6 +94,15 @@ export function useSelectionGridData(
     hasLoadedRef.current = false;
     void loadPage(page);
   }, [loadPage, page]);
+
+  // When the depended-on field value changes, reset and re-fetch from page 1.
+  const prevDependsOnRef = useRef(dependsOnValue);
+  useEffect(() => {
+    if (prevDependsOnRef.current === dependsOnValue) return;
+    prevDependsOnRef.current = dependsOnValue;
+    hasLoadedRef.current = false;
+    void loadPage(1);
+  }, [dependsOnValue, loadPage]);
 
   return {
     status,

@@ -10,6 +10,8 @@ const SAFE_FIELD_ID = z.string().uuid('fieldId must be a valid UUID');
 const gridQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  // Optional: value from the field that drives the dynamic filter (e.g. a selected service ID)
+  dependsOnValue: z.string().max(200).optional(),
 });
 
 export function createGridsRouter(gridDataService: CrmGridDataService): Router {
@@ -30,6 +32,7 @@ export function createGridsRouter(gridDataService: CrmGridDataService): Router {
       query.page,
       query.pageSize,
       correlationId,
+      query.dependsOnValue,
     );
 
     const response: ApiResponse<GridRecordPage> = { success: true, data: page };
