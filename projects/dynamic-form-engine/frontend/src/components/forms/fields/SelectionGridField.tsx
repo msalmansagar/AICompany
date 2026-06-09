@@ -3,7 +3,7 @@
 // Selection state persists across page navigation using a Set<string>.
 // BC-010: required validation applies even if the tab was never visited.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,8 +21,6 @@ import {
   MessageBar,
   MessageBarBody,
   MessageBarActions,
-  Card,
-  CardHeader,
   ToggleButton,
   Badge,
 } from '@fluentui/react-components';
@@ -215,11 +213,15 @@ export function SelectionGridField({
     if (isTabActive) gridData.activate();
   }, [isTabActive]);
 
+  // Keep a ref to the latest records so toggleSelectAll doesn't need records in
+  // the columns memo dep array (which would recompute all column defs on every fetch).
+  const recordsRef = useRef<GridRecord[]>(gridData.records);
+  recordsRef.current = gridData.records;
+
   // Updates both local selection state and form context atomically — intentional dual-write.
   const syncSelectionToFormState = useCallback(
     (nextIds: Set<string>) => {
       setSelectedIds(nextIds);
-
       if (selectionMode === 'single') {
         const [first] = nextIds;
         updateFieldValue(field.schemaName, first ?? null);
@@ -230,33 +232,33 @@ export function SelectionGridField({
     [field.schemaName, selectionMode, updateFieldValue],
   );
 
-  function toggleRow(recordId: string) {
+  // useCallback prevents stale-closure in multi-select: functional setSelectedIds
+  // reads the latest Set without needing selectedIds in the dep array.
+  const toggleRow = useCallback((recordId: string) => {
     if (isReadonly) return;
-
     if (selectionMode === 'single') {
-      const next = new Set<string>([recordId]);
-      syncSelectionToFormState(next);
+      syncSelectionToFormState(new Set<string>([recordId]));
     } else {
-      const next = new Set(selectedIds);
-      if (next.has(recordId)) {
-        next.delete(recordId);
-      } else {
-        next.add(recordId);
-      }
-      syncSelectionToFormState(next);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(recordId)) next.delete(recordId);
+        else next.add(recordId);
+        // Sync to form context inside the functional update so it sees the latest set.
+        if (selectionMode === 'multi') {
+          updateFieldValue(field.schemaName, [...next]);
+        }
+        return next;
+      });
     }
-  }
+  }, [isReadonly, selectionMode, syncSelectionToFormState, updateFieldValue, field.schemaName]);
 
-  function toggleSelectAll(checked: boolean) {
+  const toggleSelectAll = useCallback((checked: boolean) => {
     if (isReadonly) return;
-
-    if (checked) {
-      const next = new Set(gridData.records.map((r) => r.id));
-      syncSelectionToFormState(next);
-    } else {
-      syncSelectionToFormState(new Set<string>());
-    }
-  }
+    const next = checked
+      ? new Set(recordsRef.current.map((r) => r.id))
+      : new Set<string>();
+    syncSelectionToFormState(next);
+  }, [isReadonly, syncSelectionToFormState]);
 
   const sortedCols = useMemo(
     () => [...columnConfigs].sort((a, b) => a.displayOrder - b.displayOrder),
@@ -267,13 +269,14 @@ export function SelectionGridField({
     const colDefs: ColumnDef<GridRecord>[] = [];
 
     // Multi-select: prepend a select-all checkbox column.
+    // recordsRef used instead of gridData.records so this memo doesn't
+    // invalidate on every fetch — column structure is independent of record data.
     if (selectionMode === 'multi') {
       colDefs.push({
         id: '__select__',
         header: () => {
-          const allSelected =
-            gridData.records.length > 0 &&
-            gridData.records.every((r) => selectedIds.has(r.id));
+          const recs = recordsRef.current;
+          const allSelected = recs.length > 0 && recs.every((r) => selectedIds.has(r.id));
           return (
             <Checkbox
               checked={allSelected}
@@ -301,9 +304,7 @@ export function SelectionGridField({
           const cellValue = record.values[col.targetAttribute];
           return (
             <span>
-              {cellValue !== null && cellValue !== undefined
-                ? String(cellValue)
-                : ''}
+              {cellValue !== null && cellValue !== undefined ? String(cellValue) : ''}
             </span>
           );
         },
@@ -311,7 +312,7 @@ export function SelectionGridField({
     }
 
     return colDefs;
-  }, [sortedCols, selectionMode, selectedIds, gridData.records]);
+  }, [sortedCols, selectionMode, selectedIds, toggleRow, toggleSelectAll]);
 
   const table = useReactTable({
     data: gridData.records,
@@ -404,7 +405,7 @@ export function SelectionGridField({
             gridData.records.map((record) => {
               const isSelected = selectedIds.has(record.id);
               return (
-                <Card
+                <div
                   key={record.id}
                   className={`${styles.cardItem} ${isSelected ? styles.cardItemSelected : ''}`}
                   onClick={() => toggleRow(record.id)}
@@ -412,7 +413,10 @@ export function SelectionGridField({
                   aria-selected={isSelected}
                   tabIndex={0}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRow(record.id); }
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleRow(record.id);
+                    }
                   }}
                 >
                   {isSelected && (
@@ -425,13 +429,9 @@ export function SelectionGridField({
                       aria-label="Selected"
                     />
                   )}
-                  <CardHeader
-                    header={
-                      <Text weight="semibold">
-                        {String(record.values[sortedCols[0]?.targetAttribute] ?? record.id.slice(0, 8))}
-                      </Text>
-                    }
-                  />
+                  <Text weight="semibold" style={{ display: 'block', padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalS} 0` }}>
+                    {String(record.values[sortedCols[0]?.targetAttribute] ?? record.id.slice(0, 8))}
+                  </Text>
                   <div className={styles.cardFieldRow}>
                     {sortedCols.slice(1).map((col) => (
                       <div key={col.columnId}>
@@ -446,7 +446,7 @@ export function SelectionGridField({
                       </div>
                     ))}
                   </div>
-                </Card>
+                </div>
               );
             })
           )}
