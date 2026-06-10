@@ -118,6 +118,8 @@ export interface OptionValue {
   isDefault: boolean;
   parentOptionValue?: string; // for dependent dropdowns
   isActive: boolean;
+  description?: string;  // shown below the label in radio-card mode
+  iconName?: string;     // Fluent UI icon name (e.g. "PersonRegular")
 }
 
 // ── Lookup configuration ──────────────────────────────────────

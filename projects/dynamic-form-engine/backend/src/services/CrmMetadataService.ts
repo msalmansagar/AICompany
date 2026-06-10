@@ -348,7 +348,9 @@ export class CrmMetadataService extends CrmBaseService {
       const fieldIds = manualFields.map((f) => f.qdb_form_fieldid);
       const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
       const response = await this.crmFetch<ODataCollection<RawOption>>(
-        `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+        `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true` +
+        `&$orderby=qdb_display_order asc` +
+        `&$select=_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name`,
       );
       for (const opt of response.value) {
         const fieldId = opt._qdb_form_field_id_value;
@@ -360,6 +362,8 @@ export class CrmMetadataService extends CrmBaseService {
           isDefault: opt.qdb_is_default ?? false,
           parentOptionValue: opt.qdb_parent_option_value,
           isActive: opt.qdb_is_active ?? true,
+          description: opt.qdb_description ?? undefined,
+          iconName: opt.qdb_icon_name ?? undefined,
         });
         map.set(fieldId, existing);
       }
@@ -907,6 +911,8 @@ interface RawOption {
   qdb_is_default?: boolean;
   qdb_parent_option_value?: string;
   qdb_is_active?: boolean;
+  qdb_description?: string;
+  qdb_icon_name?: string;
 }
 
 interface RawValidationRule {

@@ -448,9 +448,11 @@ console.log(`  ✓ 22 fields created (all 21 types + 1 hidden system field)`);
 // [7] OPTION VALUES — qdb_form_option_value
 // ══════════════════════════════════════════════════════════════════════════════
 console.log('\n[7] Option Values (qdb_form_option_value)…');
-const opt = (fieldId, value, label, order) => ({
+const opt = (fieldId, value, label, order, description = null, iconName = null) => ({
   'qdb_form_field_id@odata.bind': `/qdb_form_fields(${fieldId})`,
   qdb_value: value, qdb_label: label, qdb_display_order: order, qdb_is_active: true,
+  ...(description ? { qdb_description: description } : {}),
+  ...(iconName    ? { qdb_icon_name:    iconName    } : {}),
 });
 
 // Nationality options
@@ -461,13 +463,22 @@ for (const [i, [val, lbl]] of [['qat','Qatari'],['sau','Saudi'],['egy','Egyptian
 for (const [i, [val, lbl]] of [['employed','Employed'],['self_employed','Self-Employed'],['unemployed','Unemployed'],['student','Student'],['retired','Retired']].entries()) {
   await post('qdb_form_option_values', opt(fEmpStatus.qdb_form_fieldid, val, lbl, i + 1));
 }
-// Gender options (radio)
-for (const [i, [val, lbl]] of [['male','Male'],['female','Female'],['other','Prefer not to say']].entries()) {
-  await post('qdb_form_option_values', opt(fGender.qdb_form_fieldid, val, lbl, i + 1));
+// Gender options (radio cards — heading + description + icon)
+for (const [i, [val, lbl, desc, icon]] of [
+  ['male',   'Male',              'Identifies as male',              'PersonRegular'],
+  ['female', 'Female',            'Identifies as female',            'PersonCircleRegular'],
+  ['other',  'Prefer not to say', 'Privacy — not disclosed',         'ShieldRegular'],
+].entries()) {
+  await post('qdb_form_option_values', opt(fGender.qdb_form_fieldid, val, lbl, i + 1, desc, icon));
 }
-// Contract type (radio)
-for (const [i, [val, lbl]] of [['permanent','Permanent'],['contract','Fixed-term Contract'],['part_time','Part-time'],['freelance','Freelance']].entries()) {
-  await post('qdb_form_option_values', opt(fContractType.qdb_form_fieldid, val, lbl, i + 1));
+// Contract type (radio cards — heading + description + icon)
+for (const [i, [val, lbl, desc, icon]] of [
+  ['permanent', 'Permanent',          'Full-time, no end date',              'BriefcaseRegular'],
+  ['contract',  'Fixed-term',         'Defined duration with end date',      'DocumentRegular'],
+  ['part_time', 'Part-time',          'Reduced hours, flexible schedule',    'CalendarRegular'],
+  ['freelance', 'Freelance',          'Independent contractor engagement',   'StarRegular'],
+].entries()) {
+  await post('qdb_form_option_values', opt(fContractType.qdb_form_fieldid, val, lbl, i + 1, desc, icon));
 }
 // Skills (multiselect)
 for (const [i, [val, lbl]] of [['js','JavaScript'],['ts','TypeScript'],['react','React'],['nodejs','Node.js'],['csharp','C#'],['dotnet','.NET'],['dynamics','Dynamics 365'],['power_platform','Power Platform'],['azure','Azure'],['devops','DevOps']].entries()) {

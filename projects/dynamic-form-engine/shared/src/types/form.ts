@@ -15,6 +15,8 @@ export interface OptionValue {
   value: string;
   label: string;
   displayOrder: number;
+  description?: string;
+  iconName?: string;
 }
 
 export type BooleanRenderStyle = 'toggle' | 'radio';

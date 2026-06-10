@@ -1,62 +1,118 @@
-import { makeStyles, tokens, mergeClasses } from '@fluentui/react-components';
-import { CheckmarkCircleFilled } from '@fluentui/react-icons';
+import { makeStyles, mergeClasses, tokens, Text } from '@fluentui/react-components';
+import {
+  PersonRegular,
+  BriefcaseRegular,
+  DocumentRegular,
+  CalendarRegular,
+  StarRegular,
+  ShieldRegular,
+  HomeRegular,
+  PeopleRegular,
+  ClockRegular,
+  PersonCircleRegular,
+  LockClosedRegular,
+} from '@fluentui/react-icons';
 import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
+import type { FC } from 'react';
+
+// Registry of supported Fluent UI icon names → components (24px).
+// Add entries here as new icon names are introduced in option data.
+const ICON_REGISTRY: Record<string, FC<{ className?: string }>> = {
+  PersonRegular,
+  BriefcaseRegular,
+  DocumentRegular,
+  CalendarRegular,
+  StarRegular,
+  ShieldRegular,
+  HomeRegular,
+  PeopleRegular,
+  ClockRegular,
+  PersonCircleRegular,
+  LockClosedRegular,
+};
 
 const useStyles = makeStyles({
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
     gap: tokens.spacingHorizontalM,
   },
+  // Each card is a clickable option
   card: {
     position: 'relative',
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: tokens.spacingVerticalXS,
-    padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalM}`,
+    gap: tokens.spacingVerticalS,
+    padding: `${tokens.spacingVerticalL} ${tokens.spacingHorizontalL}`,
     borderRadius: tokens.borderRadiusMedium,
     border: `2px solid ${tokens.colorNeutralStroke1}`,
     cursor: 'pointer',
     backgroundColor: tokens.colorNeutralBackground1,
-    textAlign: 'center',
-    transition: 'border-color 0.15s ease, background-color 0.15s ease',
+    boxShadow: tokens.shadow4,
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+    outline: 'none',
   },
   cardSelected: {
     border: `2px solid ${tokens.colorBrandStroke1}`,
     backgroundColor: tokens.colorBrandBackground2,
+    boxShadow: tokens.shadow8,
   },
   cardDisabled: {
-    opacity: 0.5,
+    opacity: '0.5',
     cursor: 'not-allowed',
   },
-  checkmark: {
-    position: 'absolute',
-    top: tokens.spacingVerticalXS,
-    right: tokens.spacingHorizontalXS,
-    color: tokens.colorBrandForeground1,
-    fontSize: '18px',
+  // Top row: radio indicator + icon side by side
+  topRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  label: {
+  // Custom radio circle drawn in CSS
+  radioCircle: {
+    width: '18px',
+    height: '18px',
+    borderRadius: '50%',
+    border: `2px solid ${tokens.colorNeutralStroke1}`,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleSelected: {
+    border: `2px solid ${tokens.colorBrandForeground1}`,
+  },
+  // Inner dot shown when selected
+  radioDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    backgroundColor: tokens.colorBrandForeground1,
+  },
+  // Option icon
+  icon: {
+    fontSize: '28px',
+    color: tokens.colorNeutralForeground3,
+  },
+  iconSelected: {
+    color: tokens.colorBrandForeground1,
+  },
+  // Option label (heading)
+  heading: {
     fontSize: tokens.fontSizeBase300,
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground1,
     lineHeight: tokens.lineHeightBase300,
   },
+  // Optional description below heading
   description: {
     fontSize: tokens.fontSizeBase200,
     color: tokens.colorNeutralForeground3,
     lineHeight: tokens.lineHeightBase200,
   },
-  hiddenRadio: {
-    position: 'absolute',
-    opacity: 0,
-    width: 0,
-    height: 0,
-    pointerEvents: 'none',
+  descriptionSelected: {
+    color: tokens.colorNeutralForeground2,
   },
 });
 
@@ -87,18 +143,24 @@ export function RadioCardControl({
       aria-required={isRequired}
       aria-describedby={errorId}
       aria-invalid={!!errorId}
+      aria-label={field.label}
       className={styles.grid}
     >
       {options
         .sort((a, b) => a.displayOrder - b.displayOrder)
         .map((option) => {
           const isSelected = selectedValue === option.value;
+          const IconComponent = option.iconName ? ICON_REGISTRY[option.iconName] : undefined;
+
           return (
             <div
               key={option.value}
               role="radio"
               aria-checked={isSelected}
               aria-disabled={isReadonly}
+              aria-label={option.description
+                ? `${option.label}: ${option.description}`
+                : option.label}
               tabIndex={isReadonly ? -1 : 0}
               className={mergeClasses(
                 styles.card,
@@ -113,8 +175,41 @@ export function RadioCardControl({
                 }
               }}
             >
-              {isSelected && <CheckmarkCircleFilled className={styles.checkmark} />}
-              <span className={styles.label}>{option.label}</span>
+              {/* Top row: radio circle (left) + icon (right) */}
+              <div className={styles.topRow}>
+                <div
+                  className={mergeClasses(
+                    styles.radioCircle,
+                    isSelected && styles.radioCircleSelected,
+                  )}
+                >
+                  {isSelected && <div className={styles.radioDot} />}
+                </div>
+
+                {IconComponent && (
+                  <IconComponent
+                    className={mergeClasses(
+                      styles.icon,
+                      isSelected && styles.iconSelected,
+                    )}
+                  />
+                )}
+              </div>
+
+              {/* Heading */}
+              <Text className={styles.heading}>{option.label}</Text>
+
+              {/* Description (optional) */}
+              {option.description && (
+                <Text
+                  className={mergeClasses(
+                    styles.description,
+                    isSelected && styles.descriptionSelected,
+                  )}
+                >
+                  {option.description}
+                </Text>
+              )}
             </div>
           );
         })}
