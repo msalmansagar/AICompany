@@ -319,7 +319,10 @@ const fYearsExp = await post('qdb_form_fields', fld(secFinance.qdb_form_sectioni
 const fCvFile = await post('qdb_form_fields', fld(secDocs.qdb_form_sectionid, {
   qdb_schema_name: 'cs_cv_file', qdb_field_type: FT.file,
   qdb_label: 'Upload CV / Resume', qdb_display_order: 1, qdb_column_span: CS.two,
-  qdb_allowed_mime_types: JSON.stringify(['application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','image/jpeg','image/png']),
+  // Structured multiselect (OData format: comma-separated string)
+  // PDF(0), JPEG(1), PNG(2), DOC(6), DOCX(5)
+  qdb_allowed_file_extensions: '100000000,100000001,100000002,100000006,100000005',
+  qdb_document_type: 100000000, // CV / Resume
   qdb_max_file_size_mb: 5,
   qdb_max_files: 1,
 }));
