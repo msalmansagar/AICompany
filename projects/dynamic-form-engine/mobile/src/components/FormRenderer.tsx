@@ -5,6 +5,7 @@ import { useForm, type FieldErrors } from 'react-hook-form';
 import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 import { InfoCardFlow } from './info-card/InfoCardFlow';
+import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
 
 type Phase = 'info-cards' | 'form';
 
@@ -12,6 +13,8 @@ interface Props {
   form: FormDefinition;
   accessToken: string;
   draftId?: string;
+  /** Pre-populate field values, e.g. when resuming a saved draft. */
+  initialValues?: Record<string, unknown>;
   onSubmit: (values: Record<string, unknown>) => void | Promise<void>;
   onSaveDraft?: (values: Record<string, unknown>, tabIndex: number, meta: DraftMeta) => void | Promise<void>;
   onCancel?: () => void;
@@ -23,7 +26,10 @@ interface DraftMeta {
   gridSchemaHash: Record<string, never>;
 }
 
-function buildDefaultValues(form: FormDefinition): Record<string, unknown> {
+function buildDefaultValues(
+  form: FormDefinition,
+  initialValues?: Record<string, unknown>,
+): Record<string, unknown> {
   const defaults: Record<string, unknown> = {};
   for (const tab of form.tabs) {
     for (const section of tab.sections) {
@@ -32,7 +38,7 @@ function buildDefaultValues(form: FormDefinition): Record<string, unknown> {
       }
     }
   }
-  return defaults;
+  return initialValues ? { ...defaults, ...initialValues } : defaults;
 }
 
 function fieldTypeDefault(field: FieldDefinition): unknown {
@@ -64,6 +70,7 @@ export function FormRenderer({
   form,
   accessToken,
   draftId,
+  initialValues,
   onSubmit,
   onSaveDraft,
   onCancel,
@@ -82,7 +89,7 @@ export function FormRenderer({
   const finalTabDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finalTabId, setFinalTabId] = useState<string | undefined>(undefined);
 
-  // Phase transition: show info-cards if present and no draft resume
+  // Phase transition: show info-cards if present and not resuming a draft.
   useEffect(() => {
     const hasInfoCards = (form.infoCards ?? []).length > 0;
     const hasDraftResume = draftId !== undefined && draftId.length > 0;
@@ -91,7 +98,7 @@ export function FormRenderer({
     }
   }, [form.infoCards, draftId]);
 
-  // Debounced final-tab computation (300 ms)
+  // Debounced final-tab computation (300 ms).
   useEffect(() => {
     if (finalTabDebounceRef.current !== null) {
       clearTimeout(finalTabDebounceRef.current);
@@ -134,9 +141,9 @@ export function FormRenderer({
     return map;
   }, [tabs]);
 
-  const defaultValues = useMemo(() => buildDefaultValues(form), [form]);
+  const defaultValues = useMemo(() => buildDefaultValues(form, initialValues), [form, initialValues]);
 
-  const { control, handleSubmit, getValues, reset } = useForm<Record<string, unknown>>({
+  const { control, handleSubmit, getValues, reset, setValue } = useForm<Record<string, unknown>>({
     mode: 'onBlur',
     defaultValues,
   });
@@ -200,60 +207,62 @@ export function FormRenderer({
   const draftMeta: DraftMeta = { infoCardViewed, gridSchemaHash: {} };
 
   return (
-    <View style={styles.container}>
-      {tabs.length > 1 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-          {tabs.map((tab, index) => (
-            <Pressable
-              key={tab.tabId}
-              style={[styles.tab, activeTabIndex === index && styles.tabActive]}
-              onPress={() => setActiveTabIndex(index)}
-              accessibilityRole="tab"
-              accessibilityLabel={tab.displayLabel}
-              accessibilityState={{ selected: activeTabIndex === index }}
-            >
-              <Text style={[styles.tabText, activeTabIndex === index && styles.tabTextActive]}>
-                {tab.displayLabel}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
-
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={[styles.contentInner, { paddingBottom: Math.max(insets.bottom + 16, 40) }]}
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab && (
-          <TabContent
-            tab={activeTab}
-            control={control}
-            accessToken={accessToken}
-            activeTabId={activeTabId ?? ''}
-          />
+    <MobileFormProvider form={form} control={control} setValue={setValue}>
+      <View style={styles.container}>
+        {tabs.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
+            {tabs.map((tab, index) => (
+              <Pressable
+                key={tab.tabId}
+                style={[styles.tab, activeTabIndex === index && styles.tabActive]}
+                onPress={() => setActiveTabIndex(index)}
+                accessibilityRole="tab"
+                accessibilityLabel={tab.displayLabel}
+                accessibilityState={{ selected: activeTabIndex === index }}
+              >
+                <Text style={[styles.tabText, activeTabIndex === index && styles.tabTextActive]}>
+                  {tab.displayLabel}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         )}
 
-        <View style={styles.actions}>
-          {buttons.map((button) => (
-            <TabAwareFormButton
-              key={button.buttonId}
-              button={button}
-              isSubmitting={isSubmitting}
-              isOnFinalTab={isOnFinalTab}
-              onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
-              onSaveDraft={
-                onSaveDraft
-                  ? () => void onSaveDraft(getValues(), activeTabIndex, draftMeta)
-                  : undefined
-              }
-              onCancel={onCancel}
-              onReset={handleReset}
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={[styles.contentInner, { paddingBottom: Math.max(insets.bottom + 16, 40) }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {activeTab && (
+            <TabContent
+              tab={activeTab}
+              control={control}
+              accessToken={accessToken}
+              activeTabId={activeTabId ?? ''}
             />
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+          )}
+
+          <View style={styles.actions}>
+            {buttons.map((button) => (
+              <TabAwareFormButton
+                key={button.buttonId}
+                button={button}
+                isSubmitting={isSubmitting}
+                isOnFinalTab={isOnFinalTab}
+                onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
+                onSaveDraft={
+                  onSaveDraft
+                    ? () => void onSaveDraft(getValues(), activeTabIndex, draftMeta)
+                    : undefined
+                }
+                onCancel={onCancel}
+                onReset={handleReset}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+    </MobileFormProvider>
   );
 }
 
@@ -276,7 +285,6 @@ function TabAwareFormButton({
   onCancel,
   onReset,
 }: TabAwareFormButtonProps) {
-  // Submit is only shown on the final tab; saveDraft shows on every tab
   if (button.action === 'submit' && !isOnFinalTab) return null;
 
   function handlePress(): void {
@@ -308,7 +316,6 @@ function TabAwareFormButton({
     isPrimary ? styles.primaryButton : styles.secondaryButton,
     isDisabled && styles.buttonDisabled,
   ];
-
   const textStyle = isPrimary ? styles.primaryButtonText : styles.secondaryButtonText;
 
   return (
@@ -360,21 +367,42 @@ interface SectionContentProps {
 }
 
 function SectionContent({ section, control, accessToken, isTabActive }: SectionContentProps) {
-  const fields = [...section.fields]
-    .sort((a, b) => a.displayOrder - b.displayOrder)
-    .filter((f) => f.isVisibleDefault);
+  const { ruleState } = useMobileFormContext();
+  const [isCollapsed, setIsCollapsed] = useState(section.isCollapsedByDefault ?? false);
+
+  const fields = [...section.fields].sort((a, b) => a.displayOrder - b.displayOrder);
+
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
-      {fields.map((field) => (
-        <FieldRenderer
-          key={field.fieldId}
-          field={field}
-          control={control}
-          accessToken={accessToken}
-          isTabActive={isTabActive}
-        />
-      ))}
+      <Pressable
+        style={styles.sectionHeader}
+        onPress={section.isCollapsible ? () => setIsCollapsed((c) => !c) : undefined}
+        accessibilityRole={section.isCollapsible ? 'button' : 'none'}
+        accessibilityLabel={section.isCollapsible ? `${isCollapsed ? 'Expand' : 'Collapse'} ${section.displayLabel}` : undefined}
+      >
+        <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
+        {section.isCollapsible && (
+          <Text style={styles.chevron}>{isCollapsed ? '▶' : '▼'}</Text>
+        )}
+      </Pressable>
+
+      {!isCollapsed && fields.map((field) => {
+        // Rule-state visibility is also enforced inside FieldRenderer; this pre-filters
+        // fields that are statically invisible to avoid unnecessary renders.
+        const isVisible = ruleState.visibilityMap.has(field.fieldKey)
+          ? ruleState.visibilityMap.get(field.fieldKey) === true
+          : field.isVisibleDefault;
+        if (!isVisible) return null;
+        return (
+          <FieldRenderer
+            key={field.fieldId}
+            field={field}
+            control={control}
+            accessToken={accessToken}
+            isTabActive={isTabActive}
+          />
+        );
+      })}
     </View>
   );
 }
@@ -388,8 +416,18 @@ const styles = StyleSheet.create({
   tabTextActive: { color: '#0078d4', fontWeight: '700' },
   content: { flex: 1 },
   contentInner: { padding: 16 },
-  section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', marginBottom: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  section: { backgroundColor: '#fff', borderRadius: 12, marginBottom: 16 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 },
+  chevron: { fontSize: 12, color: '#888', marginLeft: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   primaryButton: { flex: 1, backgroundColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },

@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Controller, type Control } from 'react-hook-form';
-import type { FieldDefinition, GridRecord } from '@qdb/shared';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Controller, useWatch, type Control } from 'react-hook-form';
+import type { FieldDefinition, GridColumnConfig, GridRecord } from '@qdb/shared';
 import { apiGet } from '../../services/apiClient';
 import { fieldStyles } from './fieldStyles';
 import { isFieldRequired } from '../../utils/buildValidationRules';
@@ -14,10 +14,19 @@ interface Props {
   isTabActive: boolean;
 }
 
-interface GridRecordPage {
+interface GridPageResponse {
   records: GridRecord[];
-  totalCount: number;
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  nextPageCookie?: string;
+  isCapped: boolean;
+  totalCount?: number;
+  totalPages?: number;
 }
+
+type ViewMode = 'table' | 'card';
+type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 25;
 
@@ -35,40 +44,110 @@ function buildRequiredRule(field: FieldDefinition): Record<string, (v: unknown) 
 }
 
 export function FormSelectionGridField({ field, control, accessToken, isTabActive }: Props) {
-  const [records, setRecords] = useState<GridRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | undefined>(undefined);
-  const [hasFetched, setHasFetched] = useState(false);
-
   const gridConfig = field.gridConfig;
   const isMulti = gridConfig?.selectionMode === 'multi';
-  // Backend pre-filters columns to visible only; sort by displayOrder.
-  const visibleColumns = (gridConfig?.columnConfigs ?? [])
-    .sort((a, b) => a.displayOrder - b.displayOrder);
+  const visibleColumns = (gridConfig?.columnConfigs ?? []).sort((a, b) => a.displayOrder - b.displayOrder);
 
-  const fetchRecords = useCallback(async (): Promise<void> => {
+  // ── dependsOnValue ───────────────────────────────────────────
+  const dependsOnFieldKey = (gridConfig?.dependsOnFieldId ?? '__none__') as string;
+  const rawDependsOn = useWatch({ control, name: dependsOnFieldKey });
+  const dependsOnValue = gridConfig?.dependsOnFieldId
+    ? (rawDependsOn != null ? String(rawDependsOn) : undefined)
+    : undefined;
+
+  // ── grid data state ──────────────────────────────────────────
+  const [records, setRecords] = useState<GridRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | undefined>();
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | undefined>();
+  const isLoadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const cookieMapRef = useRef(new Map<number, string>());
+
+  // ── search / sort / view ─────────────────────────────────────
+  const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [sortBy, setSortBy] = useState<string | undefined>();
+  const [sortDir, setSortDir] = useState<SortDir | undefined>();
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
+
+  // Debounce search input by 300 ms.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchText), 300);
+    return () => clearTimeout(t);
+  }, [searchText]);
+
+  // Stable ref holding the latest filter params so fetchRecords stays stable.
+  const filterRef = useRef({ dependsOnValue, debouncedSearch, sortBy, sortDir });
+  filterRef.current = { dependsOnValue, debouncedSearch, sortBy, sortDir };
+
+  const fetchRecords = useCallback(async (requestedPage: number): Promise<void> => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setIsLoading(true);
     setLoadError(undefined);
+
+    const { dependsOnValue: dov, debouncedSearch: ds, sortBy: sb, sortDir: sd } = filterRef.current;
+    const pagingCookie = requestedPage > 1 ? cookieMapRef.current.get(requestedPage - 1) : undefined;
+
+    const params = new URLSearchParams({ page: String(requestedPage), pageSize: String(PAGE_SIZE) });
+    if (dov) params.set('dependsOnValue', dov);
+    if (ds) params.set('searchText', ds);
+    if (sb) params.set('sortBy', sb);
+    if (sd) params.set('sortDirection', sd);
+    if (pagingCookie) params.set('pagingCookie', pagingCookie);
+
     try {
-      const page = await apiGet<GridRecordPage>(
-        `/api/grids/${field.fieldId}/records?page=1&pageSize=${PAGE_SIZE}`,
+      const resp = await apiGet<GridPageResponse>(
+        `/api/grids/${field.fieldId}/records?${params.toString()}`,
         accessToken,
       );
-      setRecords(page.records);
+      if (resp.nextPageCookie) cookieMapRef.current.set(requestedPage, resp.nextPageCookie);
+      setRecords(resp.records);
+      setPage(resp.page);
+      setHasNextPage(resp.hasNextPage);
+      setTotalCount(resp.totalCount);
+      hasLoadedRef.current = true;
     } catch (error) {
-      logger.error({ message: 'Failed to fetch grid records', context: { fieldId: field.fieldId, error } });
+      logger.error({ message: 'Grid fetch failed', context: { fieldId: field.fieldId, error } });
       setLoadError('Failed to load records. Tap to retry.');
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
   }, [field.fieldId, accessToken]);
 
+  // Lazy load on first tab activation.
   useEffect(() => {
-    if (isTabActive && !hasFetched) {
-      setHasFetched(true);
-      void fetchRecords();
+    if (isTabActive && !hasLoadedRef.current && !isLoadingRef.current) {
+      void fetchRecords(1);
     }
-  }, [isTabActive, hasFetched, fetchRecords]);
+  }, [isTabActive, fetchRecords]);
+
+  // Re-fetch page 1 when any filter changes.
+  const filterKey = [dependsOnValue ?? '', debouncedSearch, sortBy ?? '', sortDir ?? ''].join('\0');
+  const prevFilterKeyRef = useRef(filterKey);
+  useEffect(() => {
+    if (prevFilterKeyRef.current === filterKey) return;
+    prevFilterKeyRef.current = filterKey;
+    cookieMapRef.current.clear();
+    hasLoadedRef.current = false;
+    void fetchRecords(1);
+  // fetchRecords is stable (field.fieldId + accessToken only).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
+
+  function handleSort(targetAttribute: string): void {
+    if (sortBy === targetAttribute) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortBy(undefined); setSortDir(undefined); }
+    } else {
+      setSortBy(targetAttribute);
+      setSortDir('asc');
+    }
+  }
 
   if (!gridConfig) {
     return (
@@ -86,7 +165,13 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
       rules={{ validate: buildRequiredRule(field) }}
       render={({ field: { value, onChange }, fieldState: { error } }) => {
         const selectedSingle = typeof value === 'string' ? value : '';
-        const selectedMulti = Array.isArray(value) ? (value as string[]) : [];
+        const selectedMulti: string[] = Array.isArray(value) ? (value as string[]) : [];
+
+        const currentPageIds = records.map((r) => r.id);
+        const allCurrentSelected =
+          isMulti &&
+          currentPageIds.length > 0 &&
+          currentPageIds.every((id) => selectedMulti.includes(id));
 
         function isSelected(recordId: string): boolean {
           return isMulti ? selectedMulti.includes(recordId) : selectedSingle === recordId;
@@ -103,24 +188,65 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
           }
         }
 
+        function handleSelectAll(): void {
+          if (allCurrentSelected) {
+            onChange(selectedMulti.filter((id) => !currentPageIds.includes(id)));
+          } else {
+            const newIds = currentPageIds.filter((id) => !selectedMulti.includes(id));
+            onChange([...selectedMulti, ...newIds]);
+          }
+        }
+
         return (
           <View style={fieldStyles.container}>
-            <Text style={fieldStyles.label}>
-              {field.displayLabel}
-              {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
-            </Text>
+            {/* Header row: label + view toggle */}
+            <View style={styles.headerRow}>
+              <Text style={fieldStyles.label}>
+                {field.displayLabel}
+                {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
+              </Text>
+              <Pressable
+                style={styles.viewToggle}
+                onPress={() => setViewMode((m) => (m === 'table' ? 'card' : 'table'))}
+                accessibilityRole="button"
+                accessibilityLabel={viewMode === 'table' ? 'Switch to card view' : 'Switch to table view'}
+              >
+                <Text style={styles.viewToggleText}>{viewMode === 'table' ? '⊞ Cards' : '≡ Table'}</Text>
+              </Pressable>
+            </View>
 
+            {/* Search input */}
+            <View style={styles.searchRow}>
+              <TextInput
+                style={styles.searchInput}
+                value={searchText}
+                onChangeText={setSearchText}
+                placeholder="Search…"
+                placeholderTextColor="#aaa"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+                accessibilityLabel="Search records"
+              />
+              {searchText.length > 0 && (
+                <Pressable style={styles.clearSearch} onPress={() => setSearchText('')}>
+                  <Text style={styles.clearSearchText}>✕</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Loading */}
             {isLoading && (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#0078d4" />
-                <Text style={styles.loadingText}>Loading records...</Text>
+                <Text style={styles.loadingText}>Loading records…</Text>
               </View>
             )}
 
+            {/* Error / retry */}
             {!isLoading && loadError !== undefined && (
               <Pressable
                 style={styles.errorRow}
-                onPress={() => { setHasFetched(false); }}
+                onPress={() => { hasLoadedRef.current = false; void fetchRecords(page); }}
                 accessibilityRole="button"
                 accessibilityLabel="Retry loading records"
               >
@@ -128,27 +254,78 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
               </Pressable>
             )}
 
-            {!isLoading && loadError === undefined && records.length === 0 && hasFetched && (
+            {/* Empty state */}
+            {!isLoading && loadError === undefined && records.length === 0 && hasLoadedRef.current && (
               <Text style={styles.emptyConfig}>No records found.</Text>
             )}
 
+            {/* Records */}
             {!isLoading && records.length > 0 && (
               <>
-                <GridHeader columns={visibleColumns.map((c) => c.columnLabel)} isMulti={isMulti} />
-                <FlatList
-                  data={records}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                  renderItem={({ item }) => (
-                    <GridRow
-                      record={item}
+                {/* Select-all bar (multi only) */}
+                {isMulti && (
+                  <Pressable style={styles.selectAllBar} onPress={handleSelectAll} accessibilityRole="button">
+                    <Text style={styles.selectAllText}>
+                      {allCurrentSelected ? 'Deselect all on this page' : 'Select all on this page'}
+                    </Text>
+                    {selectedMulti.length > 0 && (
+                      <Text style={styles.selectedCountBadge}>{selectedMulti.length} selected</Text>
+                    )}
+                  </Pressable>
+                )}
+
+                {viewMode === 'table'
+                  ? (
+                    <TableView
+                      records={records}
                       columns={visibleColumns}
-                      selected={isSelected(item.id)}
                       isMulti={isMulti}
-                      onPress={() => handleSelect(item.id)}
+                      sortBy={sortBy}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                      isSelected={isSelected}
+                      onSelect={handleSelect}
                     />
-                  )}
-                />
+                  )
+                  : (
+                    <CardView
+                      records={records}
+                      columns={visibleColumns}
+                      isMulti={isMulti}
+                      isSelected={isSelected}
+                      onSelect={handleSelect}
+                    />
+                  )
+                }
+
+                {/* Pagination */}
+                <View style={styles.pagination}>
+                  <Pressable
+                    style={[styles.pageButton, page <= 1 && styles.pageButtonDisabled]}
+                    onPress={() => { if (page > 1) void fetchRecords(page - 1); }}
+                    disabled={page <= 1}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous page"
+                  >
+                    <Text style={[styles.pageButtonText, page <= 1 && styles.pageButtonTextDisabled]}>‹ Prev</Text>
+                  </Pressable>
+
+                  <Text style={styles.pageInfo}>
+                    {totalCount !== undefined
+                      ? `Page ${page} · ${totalCount} total`
+                      : `Page ${page}`}
+                  </Text>
+
+                  <Pressable
+                    style={[styles.pageButton, !hasNextPage && styles.pageButtonDisabled]}
+                    onPress={() => { if (hasNextPage) void fetchRecords(page + 1); }}
+                    disabled={!hasNextPage}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next page"
+                  >
+                    <Text style={[styles.pageButtonText, !hasNextPage && styles.pageButtonTextDisabled]}>Next ›</Text>
+                  </Pressable>
+                </View>
               </>
             )}
 
@@ -160,32 +337,63 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
   );
 }
 
-interface GridHeaderProps {
-  columns: string[];
+// ── Table view ───────────────────────────────────────────────────
+
+interface TableViewProps {
+  records: GridRecord[];
+  columns: GridColumnConfig[];
   isMulti: boolean;
+  sortBy: string | undefined;
+  sortDir: SortDir | undefined;
+  onSort: (attr: string) => void;
+  isSelected: (id: string) => boolean;
+  onSelect: (id: string) => void;
 }
 
-function GridHeader({ columns, isMulti }: GridHeaderProps) {
+function TableView({ records, columns, isMulti, sortBy, sortDir, onSort, isSelected, onSelect }: TableViewProps) {
   return (
-    <View style={styles.headerRow}>
-      <View style={[styles.checkCell, styles.headerCell]}>
-        <Text style={styles.headerText}>{isMulti ? '' : ''}</Text>
+    <View>
+      {/* Sortable column headers */}
+      <View style={styles.tableHeaderRow}>
+        <View style={styles.checkCell} />
+        {columns.map((col) => {
+          const isSorted = sortBy === col.targetAttribute;
+          return (
+            <Pressable
+              key={col.targetAttribute}
+              style={styles.tableHeaderCell}
+              onPress={() => onSort(col.targetAttribute)}
+              accessibilityRole="button"
+              accessibilityLabel={`Sort by ${col.columnLabel}`}
+            >
+              <Text style={styles.headerText} numberOfLines={1}>{col.columnLabel}</Text>
+              <Text style={styles.sortIndicator}>
+                {isSorted ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
-      {columns.map((label) => (
-        <View key={label} style={[styles.dataCell, styles.headerCell]}>
-          <Text style={styles.headerText}>{label}</Text>
-        </View>
-      ))}
+
+      <FlatList
+        data={records}
+        keyExtractor={(item) => item.id}
+        scrollEnabled={false}
+        renderItem={({ item }) => (
+          <TableRow
+            record={item}
+            columns={columns}
+            selected={isSelected(item.id)}
+            isMulti={isMulti}
+            onPress={() => onSelect(item.id)}
+          />
+        )}
+      />
     </View>
   );
 }
 
-interface GridColumnConfig {
-  targetAttribute: string;
-  columnLabel: string;
-}
-
-interface GridRowProps {
+interface TableRowProps {
   record: GridRecord;
   columns: GridColumnConfig[];
   selected: boolean;
@@ -193,14 +401,13 @@ interface GridRowProps {
   onPress: () => void;
 }
 
-function GridRow({ record, columns, selected, isMulti, onPress }: GridRowProps) {
+function TableRow({ record, columns, selected, isMulti, onPress }: TableRowProps) {
   return (
     <Pressable
-      style={[styles.dataRow, selected && styles.dataRowSelected]}
+      style={[styles.tableDataRow, selected && styles.dataRowSelected]}
       onPress={onPress}
       accessibilityRole={isMulti ? 'checkbox' : 'radio'}
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`Select record ${record.id}`}
     >
       <View style={styles.checkCell}>
         {isMulti ? (
@@ -214,7 +421,7 @@ function GridRow({ record, columns, selected, isMulti, onPress }: GridRowProps) 
         )}
       </View>
       {columns.map((col) => (
-        <View key={col.targetAttribute} style={styles.dataCell}>
+        <View key={col.targetAttribute} style={styles.tableDataCell}>
           <Text style={styles.cellText} numberOfLines={1}>
             {String(record.values[col.targetAttribute] ?? '')}
           </Text>
@@ -224,13 +431,90 @@ function GridRow({ record, columns, selected, isMulti, onPress }: GridRowProps) 
   );
 }
 
+// ── Card view ────────────────────────────────────────────────────
+
+interface CardViewProps {
+  records: GridRecord[];
+  columns: GridColumnConfig[];
+  isMulti: boolean;
+  isSelected: (id: string) => boolean;
+  onSelect: (id: string) => void;
+}
+
+function CardView({ records, columns, isMulti, isSelected, onSelect }: CardViewProps) {
+  return (
+    <View style={styles.cardGrid}>
+      {records.map((record) => {
+        const selected = isSelected(record.id);
+        return (
+          <Pressable
+            key={record.id}
+            style={[styles.recordCard, selected && styles.recordCardSelected]}
+            onPress={() => onSelect(record.id)}
+            accessibilityRole={isMulti ? 'checkbox' : 'radio'}
+            accessibilityState={{ checked: selected }}
+          >
+            <View style={styles.cardSelIndicator}>
+              {isMulti ? (
+                <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+                  {selected && <Text style={styles.checkboxTick}>✓</Text>}
+                </View>
+              ) : (
+                <View style={[styles.radioCircle, selected && styles.radioCircleSelected]}>
+                  {selected && <View style={styles.radioDot} />}
+                </View>
+              )}
+            </View>
+            {columns.map((col) => (
+              <View key={col.targetAttribute} style={styles.cardField}>
+                <Text style={styles.cardFieldLabel}>{col.columnLabel}</Text>
+                <Text style={styles.cardFieldValue}>
+                  {String(record.values[col.targetAttribute] ?? '—')}
+                </Text>
+              </View>
+            ))}
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  emptyConfig: { fontSize: 13, color: '#999', fontStyle: 'italic', paddingVertical: 8 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  viewToggle: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: '#0078d4' },
+  viewToggleText: { fontSize: 12, color: '#0078d4', fontWeight: '600' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  searchInput: {
+    flex: 1,
+    height: 38,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    fontSize: 14,
+    color: '#1a1a2e',
+    backgroundColor: '#fff',
+  },
+  clearSearch: { position: 'absolute', right: 10, padding: 4 },
+  clearSearchText: { fontSize: 13, color: '#999' },
   loadingContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 },
   loadingText: { fontSize: 13, color: '#888' },
   errorRow: { paddingVertical: 10 },
   errorRetryText: { fontSize: 13, color: '#d32f2f', textDecorationLine: 'underline' },
-  headerRow: {
+  emptyConfig: { fontSize: 13, color: '#999', fontStyle: 'italic', paddingVertical: 8 },
+  selectAllBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  selectAllText: { fontSize: 13, color: '#0078d4', fontWeight: '500' },
+  selectedCountBadge: { fontSize: 12, color: '#0078d4', backgroundColor: '#e8f2fb', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  // Table styles
+  tableHeaderRow: {
     flexDirection: 'row',
     backgroundColor: '#f0f4f8',
     borderTopLeftRadius: 8,
@@ -238,7 +522,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
-  dataRow: {
+  tableHeaderCell: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0',
+  },
+  headerText: { fontSize: 12, fontWeight: '600', color: '#555', flex: 1 },
+  sortIndicator: { fontSize: 10, color: '#888' },
+  tableDataRow: {
     flexDirection: 'row',
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -247,10 +542,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   dataRowSelected: { backgroundColor: '#f0f7ff' },
-  headerCell: { paddingVertical: 10 },
   checkCell: { width: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRightWidth: 1, borderRightColor: '#e0e0e0' },
-  dataCell: { flex: 1, paddingHorizontal: 10, paddingVertical: 10, borderRightWidth: 1, borderRightColor: '#e0e0e0', justifyContent: 'center' },
-  headerText: { fontSize: 12, fontWeight: '600', color: '#555' },
+  tableDataCell: { flex: 1, paddingHorizontal: 10, paddingVertical: 10, borderRightWidth: 1, borderRightColor: '#e0e0e0', justifyContent: 'center' },
   cellText: { fontSize: 13, color: '#1a1a2e' },
   checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 2, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
   checkboxSelected: { backgroundColor: '#0078d4', borderColor: '#0078d4' },
@@ -258,4 +551,29 @@ const styles = StyleSheet.create({
   radioCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#ccc', alignItems: 'center', justifyContent: 'center' },
   radioCircleSelected: { borderColor: '#0078d4' },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0078d4' },
+  // Pagination
+  pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, paddingHorizontal: 4 },
+  pageButton: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 6, borderWidth: 1, borderColor: '#0078d4' },
+  pageButtonDisabled: { borderColor: '#ccc' },
+  pageButtonText: { fontSize: 13, color: '#0078d4', fontWeight: '600' },
+  pageButtonTextDisabled: { color: '#ccc' },
+  pageInfo: { fontSize: 13, color: '#555' },
+  // Card view
+  cardGrid: { gap: 10 },
+  recordCard: {
+    borderWidth: 1.5,
+    borderColor: '#e0e0e0',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  recordCardSelected: { borderColor: '#0078d4', backgroundColor: '#f0f7ff' },
+  cardSelIndicator: { alignSelf: 'center', marginRight: 4 },
+  cardField: { minWidth: '40%', flex: 1 },
+  cardFieldLabel: { fontSize: 11, color: '#888', marginBottom: 2, fontWeight: '500' },
+  cardFieldValue: { fontSize: 14, color: '#1a1a2e', fontWeight: '400' },
 });

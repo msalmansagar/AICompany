@@ -49,7 +49,7 @@ export function FormInfoCardField({ field }: Props) {
   return (
     <View
       style={[styles.container, { borderLeftColor: borderColor }]}
-      accessibilityRole="note"
+      accessibilityRole="none"
       accessibilityLabel={field.infoCardTitle ?? field.displayLabel}
     >
       <View style={styles.iconColumn}>

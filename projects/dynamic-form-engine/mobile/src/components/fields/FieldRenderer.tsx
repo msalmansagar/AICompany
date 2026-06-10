@@ -10,12 +10,16 @@ import { FormDateField } from './FormDateField';
 import { FormDropdownField } from './FormDropdownField';
 import { FormCheckboxField } from './FormCheckboxField';
 import { FormRadioField } from './FormRadioField';
+import { FormRadioCardField } from './FormRadioCardField';
+import { FormCheckboxGroupField } from './FormCheckboxGroupField';
 import { FormLookupField } from './FormLookupField';
 import { FormFileField } from './FormFileField';
 import { FormRepeatingGridField } from './FormRepeatingGridField';
 import { FormBooleanField } from './FormBooleanField';
 import { FormInteractiveGridField } from './FormInteractiveGridField';
 import { FormInfoCardField } from './FormInfoCardField';
+import { useMobileFormContext } from '../../context/MobileFormContext';
+import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
 interface Props {
   field: FieldDefinition;
@@ -25,53 +29,78 @@ interface Props {
 }
 
 export function FieldRenderer({ field, control, accessToken = '', isTabActive = false }: Props) {
-  switch (field.fieldType) {
+  const { ruleState } = useMobileFormContext();
+
+  // Rule-based visibility — fall back to the static default.
+  const isVisible = ruleState.visibilityMap.has(field.fieldKey)
+    ? ruleState.visibilityMap.get(field.fieldKey) === true
+    : field.isVisibleDefault;
+
+  if (!isVisible) return null;
+
+  // Overlay required / readonly from rule state onto a shallow field copy.
+  const effectiveField: FieldDefinition = {
+    ...field,
+    isRequiredDefault: ruleState.requiredMap.get(field.fieldKey) ?? field.isRequiredDefault,
+    isReadonlyDefault: ruleState.readonlyMap.get(field.fieldKey) ?? field.isReadonlyDefault,
+  };
+
+  switch (effectiveField.fieldType) {
     case 'text':
-      return <FormTextField field={field} control={control} />;
+      return <FormTextField field={effectiveField} control={control} />;
     case 'email':
-      return <FormTextField field={field} control={control} keyboardType="email-address" />;
+      return <FormTextField field={effectiveField} control={control} keyboardType="email-address" />;
     case 'phone':
-      return <FormTextField field={field} control={control} keyboardType="phone-pad" />;
+      return <FormTextField field={effectiveField} control={control} keyboardType="phone-pad" />;
     case 'number':
-      return <FormNumericField field={field} control={control} />;
+      return <FormNumericField field={effectiveField} control={control} />;
     case 'currency':
     case 'decimal':
-      return <FormNumericField field={field} control={control} />;
+      return <FormNumericField field={effectiveField} control={control} />;
     case 'textarea':
-      return <FormTextAreaField field={field} control={control} />;
+      return <FormTextAreaField field={effectiveField} control={control} />;
     case 'richtext':
-      return <FormRichTextField field={field} control={control} />;
+      return <FormRichTextField field={effectiveField} control={control} />;
     case 'date':
     case 'datetime':
-      return <FormDateField field={field} control={control} />;
+      return <FormDateField field={effectiveField} control={control} />;
     case 'dropdown':
+      return <FormDropdownField field={effectiveField} control={control} />;
     case 'multiselect':
-      return <FormDropdownField field={field} control={control} />;
+      return effectiveField.multiselectRenderStyle === 'checkboxes'
+        ? <FormCheckboxGroupField field={effectiveField} control={control} />
+        : <FormDropdownField field={effectiveField} control={control} />;
     case 'checkbox':
-      return <FormCheckboxField field={field} control={control} />;
+      return <FormCheckboxField field={effectiveField} control={control} />;
     case 'radio':
-      return <FormRadioField field={field} control={control} />;
+      return effectiveField.radioRenderStyle === 'cards'
+        ? <FormRadioCardField field={effectiveField} control={control} />
+        : <FormRadioField field={effectiveField} control={control} />;
     case 'lookup':
-      return <FormLookupField field={field} control={control} />;
+      return <FormLookupField field={effectiveField} control={control} />;
     case 'file':
-      return <FormFileField field={field} control={control} />;
+      return <FormFileField field={effectiveField} control={control} />;
     case 'grid':
-      return <FormRepeatingGridField field={field} control={control} />;
+      return <FormRepeatingGridField field={effectiveField} control={control} />;
     case 'boolean':
-      return <FormBooleanField field={field} control={control} />;
+      return <FormBooleanField field={effectiveField} control={control} />;
     case 'interactive-grid':
       return (
         <FormInteractiveGridField
-          field={field}
+          field={effectiveField}
           control={control}
           accessToken={accessToken}
           isTabActive={isTabActive}
         />
       );
     case 'info-card':
-      return <FormInfoCardField field={field} />;
+      return <FormInfoCardField field={effectiveField} />;
     default: {
-      const exhaustive: never = field.fieldType;
+      // Try custom registry before failing.
+      const componentKey = (effectiveField as FieldDefinition & { componentKey?: string }).componentKey ?? '';
+      const Custom = ComponentRegistry.resolve(componentKey);
+      if (Custom) return <Custom field={effectiveField} control={control} />;
+      const exhaustive: never = effectiveField.fieldType;
       return (
         <Text style={{ color: '#999', fontSize: 13 }}>
           Unsupported field type: {String(exhaustive)}

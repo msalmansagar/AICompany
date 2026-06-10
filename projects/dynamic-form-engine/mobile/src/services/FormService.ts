@@ -23,6 +23,7 @@ import type {
   ValidationRule,
   OptionValue,
   FieldType,
+  BusinessRule,
 } from '@qdb/shared';
 
 // ── Backend response shapes (as returned by @qdb/shared) ──────
@@ -176,6 +177,7 @@ interface BackendFormDefinition {
   buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
   tabs: BackendTabDefinition[];
+  businessRules?: unknown[];
   // DFE-ADD-001 fields
   infoCards: BackendInfoCardScreen[];
   allowInfocardSkip: boolean;
@@ -255,6 +257,7 @@ function mapSectionDefinition(section: BackendSectionDefinition): SectionDefinit
     displayLabel: section.label,
     displayOrder: section.displayOrder,
     isCollapsible: section.isCollapsible,
+    isCollapsedByDefault: section.isCollapsedByDefault,
     fields: section.fields.map(mapFieldDefinition),
   };
 }
@@ -292,7 +295,7 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     confirmationMessage: backend.confirmationMessage,
     buttons: (backend.buttons ?? []).map(mapFormButton),
     tabs: backend.tabs.map(mapTabDefinition),
-    businessRules: [],
+    businessRules: (backend.businessRules ?? []) as BusinessRule[],
     submissionMappings: backend.submissionMappings.map((m) => ({
       mappingId: m.id,
       targetEntity: m.targetEntityLogicalName,
@@ -301,23 +304,23 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     infoCards: (backend.infoCards ?? []).map((s) => ({
       screenId: s.screenId,
       displayOrder: s.displayOrder,
-      iconUrl: s.iconUrl,
-      iconAltText: s.iconAltText,
+      iconUrl: s.iconUrl ?? undefined,
+      iconAltText: s.iconAltText ?? undefined,
       heading: s.heading,
-      subHeading: s.subHeading,
+      subHeading: s.subHeading ?? undefined,
       sections: (s.sections ?? []).map((sec) => ({
         sectionId: sec.sectionId,
         displayOrder: sec.displayOrder,
-        sectionTitle: sec.sectionTitle,
+        sectionTitle: sec.sectionTitle ?? '',
         sectionType: sec.sectionType,
-        noteText: sec.noteText,
+        noteText: sec.noteText ?? undefined,
         items: (sec.items ?? []).map((item) => ({
           itemId: item.itemId,
           displayOrder: item.displayOrder,
           itemTitle: item.itemTitle,
-          itemDescription: item.itemDescription,
-          iconReference: item.iconReference,
-          downloadUrl: item.downloadUrl,
+          itemDescription: item.itemDescription ?? undefined,
+          iconReference: item.iconReference ?? undefined,
+          downloadUrl: item.downloadUrl ?? undefined,
         })),
       })),
     })),

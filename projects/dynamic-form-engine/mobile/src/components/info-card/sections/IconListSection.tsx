@@ -17,7 +17,7 @@ export function IconListSection({ sectionTitle, items }: Props) {
       {sorted.map((item) => (
         <View key={item.itemId} style={styles.itemRow} accessibilityRole="text">
           <View style={styles.iconContainer} accessibilityElementsHidden>
-            <InfoCardIcon iconName={item.iconReference} size={18} color="#0078d4" />
+            <InfoCardIcon iconName={item.iconReference ?? null} size={18} color="#0078d4" />
           </View>
           <View style={styles.itemContent}>
             <Text style={styles.itemTitle}>{item.itemTitle}</Text>

@@ -139,6 +139,7 @@ export interface SectionDefinition {
   displayLabel: string;
   displayOrder: number;
   isCollapsible: boolean;
+  isCollapsedByDefault?: boolean;
   fields: FieldDefinition[];
 }
 
