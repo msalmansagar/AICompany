@@ -413,15 +413,9 @@ function parseFilterCondition(expression: string): string {
 // ── Helpers ────────────────────────────────────────────────────
 
 function resolveSearchAttributes(columns: GridColumnConfig[]): string[] {
-  const textColumns = columns
+  return columns
     .filter((c) => TEXT_SEARCHABLE_FIELD_TYPES.has(c.columnFieldType))
     .map((c) => c.targetAttribute);
-
-  // Fall back to the first column if no text-type columns exist.
-  if (textColumns.length === 0 && columns.length > 0) {
-    return [columns[0].targetAttribute];
-  }
-  return textColumns;
 }
 
 function assertGridFieldHasView(field: RawGridField, fieldId: string): void {

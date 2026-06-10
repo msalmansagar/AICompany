@@ -186,6 +186,7 @@ describe('CrmGridDataService', () => {
     }
 
     it('fetchGridRecords_withSearchText_injectsLikeConditionIntoFetchXml', async () => {
+      // makeColumnConfig defaults to qdb_column_field_type: 'text' — searchable
       setupMocks({ value: [] });
 
       await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
@@ -195,6 +196,23 @@ describe('CrmGridDataService', () => {
       const decodedUrl = decodeURIComponent(recordsCall);
       expect(decodedUrl).toContain('operator="like"');
       expect(decodedUrl).toContain('%savings%');
+    });
+
+    it('fetchGridRecords_withSearchText_whenNoTextColumns_omitsSearchFilter', async () => {
+      // optionset column — LIKE would cause a Dataverse 400 FormatException
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [
+          makeColumnConfig({ qdb_column_field_type: 'optionset' }),
+        ]}))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({ value: [] }));
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, 'test');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).not.toContain('operator="like"');
     });
 
     it('fetchGridRecords_withSearchText_usesOrFilterAcrossTextColumns', async () => {
