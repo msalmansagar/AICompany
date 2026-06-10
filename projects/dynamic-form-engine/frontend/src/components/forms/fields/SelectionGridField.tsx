@@ -412,14 +412,15 @@ export function SelectionGridField({
           );
         },
         cell: ({ row }) => (
-          <Checkbox
-            checked={selectedIds.has((row.original as GridRecord).id)}
-            onChange={(e) => {
-              e.stopPropagation(); // prevent tr onClick from firing toggleRow a second time
-              toggleRow((row.original as GridRecord).id);
-            }}
-            aria-label={`Select row ${row.index + 1}`}
-          />
+          // span catches the click before it reaches <tr onClick=toggleRow>,
+          // preventing the double-toggle (onChange + tr onClick both fire toggleRow).
+          <span onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              checked={selectedIds.has((row.original as GridRecord).id)}
+              onChange={() => toggleRow((row.original as GridRecord).id)}
+              aria-label={`Select row ${row.index + 1}`}
+            />
+          </span>
         ),
       });
     }
