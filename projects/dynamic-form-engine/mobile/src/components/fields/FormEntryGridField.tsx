@@ -13,7 +13,7 @@ interface Props {
 type GridRow = Record<string, string>;
 
 function buildEmptyRow(columns: GridColumnConfig[]): GridRow {
-  return Object.fromEntries(columns.map((c) => [c.columnAttribute, '']));
+  return Object.fromEntries(columns.map((c) => [c.targetAttribute, '']));
 }
 
 function buildRequiredRule(field: FieldDefinition): Record<string, (v: unknown) => true | string> {
@@ -30,8 +30,8 @@ function buildRequiredRule(field: FieldDefinition): Record<string, (v: unknown) 
 export function FormEntryGridField({ field, control }: Props) {
   const gridConfig = field.gridConfig;
   const maxRows = gridConfig?.maxRows ?? 200;
-  const visibleColumns = (gridConfig?.columns ?? [])
-    .filter((c) => c.isVisible)
+  // Backend pre-filters columns to visible only; sort by displayOrder.
+  const visibleColumns = (gridConfig?.columnConfigs ?? [])
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   if (visibleColumns.length === 0) {
@@ -99,7 +99,7 @@ export function FormEntryGridField({ field, control }: Props) {
               <View>
                 <View style={styles.headerRow}>
                   {visibleColumns.map((col) => (
-                    <View key={col.columnAttribute} style={[styles.cell, styles.headerCell]}>
+                    <View key={col.targetAttribute} style={[styles.cell, styles.headerCell]}>
                       <Text style={styles.headerText} numberOfLines={1}>{col.columnLabel}</Text>
                     </View>
                   ))}
@@ -109,11 +109,11 @@ export function FormEntryGridField({ field, control }: Props) {
                 {rows.map((row, rowIndex) => (
                   <View key={rowIndex} style={styles.dataRow}>
                     {visibleColumns.map((col) => (
-                      <View key={col.columnAttribute} style={styles.cell}>
+                      <View key={col.targetAttribute} style={styles.cell}>
                         <TextInput
                           style={styles.cellInput}
-                          value={row[col.columnAttribute] ?? ''}
-                          onChangeText={(text) => updateCell(rowIndex, col.columnAttribute, text)}
+                          value={row[col.targetAttribute] ?? ''}
+                          onChangeText={(text) => updateCell(rowIndex, col.targetAttribute, text)}
                           placeholder={col.columnLabel}
                           placeholderTextColor="#bbb"
                           accessibilityLabel={`${col.columnLabel} row ${rowIndex + 1}`}

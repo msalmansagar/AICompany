@@ -27,23 +27,22 @@ export type GridMode = 'selection' | 'entry';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
 export interface GridColumnConfig {
-  columnAttribute: string;
+  columnId: string;
+  targetAttribute: string;
   columnLabel: string;
-  isVisible: boolean;
   displayOrder: number;
+  columnFieldType: string;
 }
 
 export interface GridFieldConfig {
   mode: GridMode;
   selectionMode?: GridSelectionMode;
-  // columns may be absent when only basic CRM metadata is loaded (no column config records)
-  columns?: GridColumnConfig[];
+  // Backend pre-filters to visible columns only; absent if no column configs are defined.
+  columnConfigs?: GridColumnConfig[];
   maxRows?: number;
-  // DFE-ADD-002: new Dataverse-backed grid attributes
   savedViewId?: string;
   entityName?: string;
   minRows?: number;
-  // Grid filtering
   filterExpression?: string;
   dependsOnFieldId?: string;
   dependsOnFilterTemplate?: string;
@@ -51,7 +50,7 @@ export interface GridFieldConfig {
 
 export interface GridRecord {
   id: string;
-  attributes: Record<string, unknown>;
+  values: Record<string, unknown>;
 }
 
 export interface GridRecordPage {

@@ -42,8 +42,8 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
 
   const gridConfig = field.gridConfig;
   const isMulti = gridConfig?.selectionMode === 'multi';
-  const visibleColumns = (gridConfig?.columns ?? [])
-    .filter((c) => c.isVisible)
+  // Backend pre-filters columns to visible only; sort by displayOrder.
+  const visibleColumns = (gridConfig?.columnConfigs ?? [])
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const fetchRecords = useCallback(async (): Promise<void> => {
@@ -181,7 +181,7 @@ function GridHeader({ columns, isMulti }: GridHeaderProps) {
 }
 
 interface GridColumnConfig {
-  columnAttribute: string;
+  targetAttribute: string;
   columnLabel: string;
 }
 
@@ -214,9 +214,9 @@ function GridRow({ record, columns, selected, isMulti, onPress }: GridRowProps) 
         )}
       </View>
       {columns.map((col) => (
-        <View key={col.columnAttribute} style={styles.dataCell}>
+        <View key={col.targetAttribute} style={styles.dataCell}>
           <Text style={styles.cellText} numberOfLines={1}>
-            {String(record.attributes[col.columnAttribute] ?? '')}
+            {String(record.values[col.targetAttribute] ?? '')}
           </Text>
         </View>
       ))}
