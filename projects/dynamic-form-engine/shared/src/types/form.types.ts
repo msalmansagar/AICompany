@@ -396,6 +396,8 @@ export interface GridRecordPage {
   hasNextPage: boolean;      // true when more records exist beyond this page
   nextPageCookie?: string;   // opaque base64 cursor — pass back as pagingCookie for page+1
   isCapped: boolean;
+  totalCount?: number;       // total matching records capped at maxRows; absent when Dataverse count limit exceeded
+  totalPages?: number;       // Math.ceil(totalCount / pageSize); absent when totalCount is unavailable
 }
 
 // ── Grid schema hash validation result (DFE-ADD-002) ─────────

@@ -10,20 +10,25 @@ const SAFE_FIELD_ID = z.string().uuid('fieldId must be a valid UUID');
 const gridQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
-  // Optional: value from the field that drives the dynamic filter
   dependsOnValue: z.string().max(200).optional(),
-  // Optional: opaque cursor from previous page response (base64-encoded paging cookie)
   pagingCookie: z.string().max(4000).optional(),
+  // Server-side text search — applied as OR LIKE across text-type columns.
+  searchText: z.string().max(200).optional(),
+  // Server-side sort — attribute must be a configured column; validated in the service.
+  sortBy: z.string().max(100).regex(/^[a-z_][a-z0-9_]*$/, 'sortBy must be a lowercase attribute name').optional(),
+  sortDirection: z.enum(['asc', 'desc']).optional(),
 });
 
 export function createGridsRouter(gridDataService: CrmGridDataService): Router {
   const router = Router();
 
-  // GET /api/grids/:fieldId/records?page=1&pageSize=50[&dependsOnValue=...][&pagingCookie=...]
+  // GET /api/grids/:fieldId/records
+  //   ?page=1&pageSize=50
+  //   [&dependsOnValue=...][&pagingCookie=...]
+  //   [&searchText=...][&sortBy=attribute&sortDirection=asc|desc]
   //
-  // Fetches paginated records for a Selection Grid field using FetchXML cursor paging.
-  // Filters and entity resolution are performed server-side — callers never supply
-  // entity names, view names, or filter expressions directly (security requirement).
+  // All filtering and entity resolution are performed server-side.
+  // Callers never supply entity names, view names, or raw filter expressions.
   router.get('/:fieldId/records', async (req: Request, res: Response) => {
     const fieldId = SAFE_FIELD_ID.parse(req.params.fieldId);
     const query = gridQuerySchema.parse(req.query);
@@ -36,6 +41,9 @@ export function createGridsRouter(gridDataService: CrmGridDataService): Router {
       correlationId,
       query.dependsOnValue,
       query.pagingCookie,
+      query.searchText,
+      query.sortBy,
+      query.sortDirection,
     );
 
     const response: ApiResponse<GridRecordPage> = { success: true, data: page };

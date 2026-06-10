@@ -1,7 +1,8 @@
 // Lazily loads Selection Grid records on tab activation using FetchXML cursor paging.
 // Each page response carries a nextPageCookie (opaque base64 cursor). The hook stores
 // cookies per page so forward and backward navigation both work without re-scanning.
-// ADR-ADD-003: lazy loading on tab activation.
+// Search text and sort params are forwarded to the backend on every page request.
+// Any change to dependsOnValue, searchText, or sort clears the cookie map and resets to page 1.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GridRecord, GridRecordPage } from '@qdb/shared';
@@ -16,6 +17,8 @@ export interface SelectionGridDataState {
   pageSize: number;
   hasNextPage: boolean;
   isCapped: boolean;
+  totalCount: number | undefined;
+  totalPages: number | undefined;
   error: string | null;
   loadPage: (page: number) => void;
   activate: () => void;
@@ -26,6 +29,9 @@ export function useSelectionGridData(
   fieldId: string,
   defaultPageSize = 50,
   dependsOnValue?: string,
+  searchText?: string,
+  sortBy?: string,
+  sortDirection?: 'asc' | 'desc',
 ): SelectionGridDataState {
   const [status, setStatus] = useState<LoadStatus>('idle');
   const [records, setRecords] = useState<GridRecord[]>([]);
@@ -33,27 +39,21 @@ export function useSelectionGridData(
   const [pageSize] = useState(defaultPageSize);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isCapped, setIsCapped] = useState(false);
+  const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
+  const [totalPages, setTotalPages] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
-  // Synchronous flags — readable without a re-render cycle.
-  // These avoid the stale-closure problem where async state changes haven't
-  // propagated yet when guards in callbacks are evaluated.
   const isLoadingRef = useRef(false);
   const hasLoadedRef = useRef(false);
-
-  // cookieMap: maps page N → cookie that fetches page N+1.
   const cookieMapRef = useRef<Map<number, string>>(new Map());
-  // AbortController for in-flight requests.
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const loadPage = useCallback(
     async (requestedPage: number) => {
-      // Cancel any in-flight request.
       abortControllerRef.current?.abort();
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      // Mark loading synchronously so guards elsewhere see it immediately.
       isLoadingRef.current = true;
       setStatus('loading');
       setError(null);
@@ -70,6 +70,9 @@ export function useSelectionGridData(
           signal: controller.signal,
           dependsOnValue,
           pagingCookie,
+          searchText,
+          sortBy,
+          sortDirection,
         });
 
         if (controller.signal.aborted) return;
@@ -82,12 +85,13 @@ export function useSelectionGridData(
         setPage(result.page);
         setHasNextPage(result.hasNextPage);
         setIsCapped(result.isCapped);
+        setTotalCount(result.totalCount);
+        setTotalPages(result.totalPages);
         setStatus('loaded');
         hasLoadedRef.current = true;
         isLoadingRef.current = false;
       } catch (fetchError) {
         if (controller.signal.aborted) {
-          // The abort itself doesn't mean failure — another call took over.
           isLoadingRef.current = false;
           return;
         }
@@ -98,35 +102,36 @@ export function useSelectionGridData(
         );
       }
     },
-    [fieldId, pageSize, dependsOnValue],
+    [fieldId, pageSize, dependsOnValue, searchText, sortBy, sortDirection],
   );
 
-  // Keep a ref to the latest loadPage so activate() is always stable.
   const loadPageRef = useRef(loadPage);
   useEffect(() => { loadPageRef.current = loadPage; });
 
-  // activate: called when the containing tab becomes active.
-  // Stable reference — does not change on re-renders, preventing the
-  // double-load race when dependsOnValue triggers a re-create of loadPage.
   const activate = useCallback(() => {
     if (hasLoadedRef.current || isLoadingRef.current) return;
     void loadPageRef.current(1);
-  }, []); // intentionally no deps — uses refs exclusively
+  }, []);
 
   const retry = useCallback(() => {
     hasLoadedRef.current = false;
     void loadPageRef.current(page);
   }, [page]);
 
-  // When the depended-on field value changes: clear cookie cache, reset, re-fetch page 1.
-  const prevDependsOnRef = useRef(dependsOnValue);
+  // When any filter param changes: clear the cookie cache, reset loaded flag, and
+  // re-fetch page 1. Uses a combined key so a single effect handles all filter types.
+  const filterKey = [dependsOnValue ?? '', searchText ?? '', sortBy ?? '', sortDirection ?? ''].join('\0');
+  const prevFilterKeyRef = useRef(filterKey);
+
   useEffect(() => {
-    if (prevDependsOnRef.current === dependsOnValue) return;
-    prevDependsOnRef.current = dependsOnValue;
+    if (prevFilterKeyRef.current === filterKey) return;
+    prevFilterKeyRef.current = filterKey;
     cookieMapRef.current.clear();
     hasLoadedRef.current = false;
-    void loadPage(1);
-  }, [dependsOnValue, loadPage]);
+    void loadPageRef.current(1);
+  // loadPageRef is a ref — intentionally excluded from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey]);
 
   return {
     status,
@@ -135,6 +140,8 @@ export function useSelectionGridData(
     pageSize,
     hasNextPage,
     isCapped,
+    totalCount,
+    totalPages,
     error,
     loadPage: (p: number) => { void loadPage(p); },
     activate,

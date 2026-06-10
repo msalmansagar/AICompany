@@ -1,8 +1,3 @@
-// Fetches Selection Grid records from the backend using FetchXML cursor paging.
-// Entity resolution and filter injection are performed server-side.
-// The frontend sends fieldId + optional pagingCookie (cursor); the backend
-// returns hasNextPage + nextPageCookie for efficient keyset navigation.
-
 import apiClient from '../api/apiClient';
 import type { GridRecordPage } from '@qdb/shared';
 
@@ -12,7 +7,10 @@ export interface GridPageRequest {
   pageSize: number;
   signal?: AbortSignal;
   dependsOnValue?: string;
-  pagingCookie?: string;   // opaque cursor from the previous page response
+  pagingCookie?: string;
+  searchText?: string;
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
 export async function fetchGridPage({
@@ -22,6 +20,9 @@ export async function fetchGridPage({
   signal,
   dependsOnValue,
   pagingCookie,
+  searchText,
+  sortBy,
+  sortDirection,
 }: GridPageRequest): Promise<GridRecordPage> {
   const params = new URLSearchParams({
     page: String(page),
@@ -31,9 +32,15 @@ export async function fetchGridPage({
   if (dependsOnValue !== undefined && dependsOnValue !== '') {
     params.set('dependsOnValue', dependsOnValue);
   }
-
   if (pagingCookie) {
     params.set('pagingCookie', pagingCookie);
+  }
+  if (searchText && searchText.trim()) {
+    params.set('searchText', searchText.trim());
+  }
+  if (sortBy) {
+    params.set('sortBy', sortBy);
+    params.set('sortDirection', sortDirection ?? 'asc');
   }
 
   const response = await apiClient.get<GridRecordPage>(

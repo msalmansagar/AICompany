@@ -21,8 +21,8 @@ export interface GridFieldConfig {
   selectionMode: 'single' | 'multi';
   maxRows: number;
   columnConfigs: GridColumnConfig[];
-  filterExpression?: string;        // static filter condition (OData-style, parsed to FetchXML)
-  dependsOnFilterTemplate?: string; // template — {dependsOnValue} replaced at request time
+  filterExpression?: string;
+  dependsOnFilterTemplate?: string;
 }
 
 export interface GridRecord {
@@ -34,9 +34,11 @@ export interface GridRecordPage {
   records: GridRecord[];
   page: number;
   pageSize: number;
-  hasNextPage: boolean;        // true when more records exist beyond this page
-  nextPageCookie?: string;     // opaque cursor — send back as pagingCookie for page+1
+  hasNextPage: boolean;
+  nextPageCookie?: string;
   isCapped: boolean;
+  totalCount?: number;
+  totalPages?: number;
 }
 
 interface FetchXmlCollection<T> {
@@ -71,12 +73,26 @@ interface RawSavedQuery {
   querytype?: number;
 }
 
-// View querytype: 0 = System View (savedquery). User views live in userquery entity.
-// CEO condition BC-011: only System Views permitted.
+interface BuildFetchXmlParams {
+  baseXml: string;
+  page: number;
+  pageSize: number;
+  pagingCookie: string | undefined;
+  filterExpression: string | undefined;
+  dependsOnFilterTemplate: string | undefined;
+  dependsOnValue: string | undefined;
+  searchText: string | undefined;
+  searchAttributes: string[];
+  sortBy: string | undefined;
+  sortDirection: 'asc' | 'desc' | undefined;
+}
+
+// View querytype: 0 = System View. CEO condition BC-011: only System Views permitted.
 const SYSTEM_VIEW_QUERY_TYPE = 0;
 
+const TEXT_SEARCHABLE_FIELD_TYPES = new Set(['text', 'email', 'phone', 'textarea']);
+
 export class CrmGridDataService extends CrmBaseService {
-  // 24-hour LRU cache for saved View fetchxml — reuses the existing cache pattern.
   private readonly viewCache: LRUCache<string, string>;
 
   constructor(
@@ -86,7 +102,7 @@ export class CrmGridDataService extends CrmBaseService {
     super(authService);
     this.viewCache = new LRUCache<string, string>({
       max: 200,
-      ttl: 24 * 60 * 60 * 1000, // 24 hours
+      ttl: 24 * 60 * 60 * 1000,
     });
   }
 
@@ -97,27 +113,36 @@ export class CrmGridDataService extends CrmBaseService {
     correlationId: string,
     dependsOnValue?: string,
     pagingCookie?: string,
+    searchText?: string,
+    sortBy?: string,
+    sortDirection?: 'asc' | 'desc',
   ): Promise<GridRecordPage> {
     const fieldConfig = await this.resolveFieldConfig(fieldId, correlationId);
 
-    // Guard: if paging would exceed maxRows, return empty immediately.
     const recordsSeenSoFar = (page - 1) * pageSize;
     if (recordsSeenSoFar >= fieldConfig.maxRows) {
       return buildEmptyPage(page, pageSize);
     }
 
-    const baseFetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
-    const columns = fieldConfig.columnConfigs.map((c) => c.targetAttribute);
+    const validatedSortBy = this.validateSortAttribute(sortBy, fieldConfig);
 
-    const fetchXml = buildFetchXml(
-      baseFetchXml,
+    const searchAttributes = resolveSearchAttributes(fieldConfig.columnConfigs);
+
+    const baseFetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
+
+    const fetchXml = buildFetchXml({
+      baseXml: baseFetchXml,
       page,
       pageSize,
       pagingCookie,
-      fieldConfig.filterExpression,
-      fieldConfig.dependsOnFilterTemplate,
+      filterExpression: fieldConfig.filterExpression,
+      dependsOnFilterTemplate: fieldConfig.dependsOnFilterTemplate,
       dependsOnValue,
-    );
+      searchText,
+      searchAttributes,
+      sortBy: validatedSortBy,
+      sortDirection,
+    });
 
     const url = `/${fieldConfig.targetEntity}s?fetchXml=${encodeURIComponent(fetchXml)}`;
 
@@ -128,8 +153,9 @@ export class CrmGridDataService extends CrmBaseService {
     const rawRecords = response.value;
     const hasMore = response['@Microsoft.Dynamics.CRM.morerecords'] ?? false;
     const rawCookie = response['@Microsoft.Dynamics.CRM.fetchxmlpagingcookie'];
+    const rawTotal = response['@Microsoft.Dynamics.CRM.totalrecordcount'];
+    const totalCountExceeded = response['@Microsoft.Dynamics.CRM.totalrecordcountlimitexceeded'] ?? false;
 
-    // Cap: if we've already returned maxRows worth, don't serve beyond.
     const recordsReturnedSoFar = recordsSeenSoFar + rawRecords.length;
     const isCapped = recordsReturnedSoFar >= fieldConfig.maxRows && hasMore;
     const hasNextPage = hasMore && !isCapped;
@@ -137,11 +163,19 @@ export class CrmGridDataService extends CrmBaseService {
       ? Buffer.from(rawCookie).toString('base64')
       : undefined;
 
+    const totalCount = !totalCountExceeded && rawTotal !== undefined && rawTotal >= 0
+      ? Math.min(rawTotal, fieldConfig.maxRows)
+      : undefined;
+
+    const totalPages = totalCount !== undefined
+      ? Math.ceil(totalCount / pageSize)
+      : undefined;
+
+    const columns = fieldConfig.columnConfigs.map((c) => c.targetAttribute);
     const records = rawRecords.map((raw) => {
       const entityIdAttr = `${fieldConfig.targetEntity}id`;
       const id = (raw[entityIdAttr] as string | undefined) ?? (raw['id'] as string | undefined) ?? '';
-      const values = buildRestrictedValues(raw, columns);
-      return { id, values };
+      return { id, values: buildRestrictedValues(raw, columns) };
     });
 
     logger.info(
@@ -153,13 +187,16 @@ export class CrmGridDataService extends CrmBaseService {
         recordCount: records.length,
         hasNextPage,
         isCapped,
+        totalCount,
         latencyMs,
+        hasSearch: !!searchText,
+        hasSortBy: !!validatedSortBy,
         operation: 'fetchGridRecords',
       },
       'selection_grid_load',
     );
 
-    return { records, page, pageSize, hasNextPage, nextPageCookie, isCapped };
+    return { records, page, pageSize, hasNextPage, nextPageCookie, isCapped, totalCount, totalPages };
   }
 
   async resolveFieldConfig(
@@ -207,22 +244,15 @@ export class CrmGridDataService extends CrmBaseService {
     };
 
     this.metadataCache.set(cacheKey, fieldConfig as unknown);
-    logger.info(
-      { correlationId, fieldId, operation: 'resolveFieldConfig' },
-      'Grid field config resolved and cached',
-    );
+    logger.info({ correlationId, fieldId, operation: 'resolveFieldConfig' }, 'Grid field config resolved and cached');
 
     return fieldConfig;
   }
 
-  private async resolveViewFetchXml(
-    viewId: string,
-    correlationId: string,
-  ): Promise<string> {
+  private async resolveViewFetchXml(viewId: string, correlationId: string): Promise<string> {
     const cached = this.viewCache.get(viewId);
     if (cached) return cached;
 
-    // CEO condition BC-011: verify this is a System View, not a User View.
     let rawView: RawSavedQuery;
     try {
       rawView = await this.crmFetch<RawSavedQuery>(
@@ -249,34 +279,37 @@ export class CrmGridDataService extends CrmBaseService {
       );
     }
 
-    logger.info(
-      { correlationId, viewId, operation: 'resolveViewFetchXml' },
-      'Saved view fetchxml resolved and cached for 24h',
-    );
-
+    logger.info({ correlationId, viewId, operation: 'resolveViewFetchXml' }, 'Saved view fetchxml resolved');
     this.viewCache.set(viewId, rawView.fetchxml);
     return rawView.fetchxml;
+  }
+
+  // Validates that sortBy is a real column attribute in this field's config.
+  // Rejects unknown attributes to prevent FetchXML injection.
+  private validateSortAttribute(
+    sortBy: string | undefined,
+    config: GridFieldConfig,
+  ): string | undefined {
+    if (!sortBy) return undefined;
+    const isValid = config.columnConfigs.some((c) => c.targetAttribute === sortBy);
+    if (!isValid) {
+      logger.warn({ sortBy, fieldId: config.fieldId }, 'Sort attribute rejected — not in column config');
+      return undefined;
+    }
+    return sortBy;
   }
 }
 
 // ── FetchXML builder ───────────────────────────────────────────
 
-/**
- * Takes the saved view's base FetchXML and produces an execution-ready FetchXML with:
- * - page/count attributes set for cursor-based paging
- * - paging-cookie injected when navigating beyond page 1
- * - filter conditions injected directly into the XML (evaluated at SQL level)
- */
-function buildFetchXml(
-  baseXml: string,
-  page: number,
-  pageSize: number,
-  pagingCookie: string | undefined,
-  filterExpression: string | undefined,
-  dependsOnFilterTemplate: string | undefined,
-  dependsOnValue: string | undefined,
-): string {
-  // Step 1: strip any existing page/count/top/paging-cookie attrs, inject fresh ones.
+function buildFetchXml(params: BuildFetchXmlParams): string {
+  const {
+    baseXml, page, pageSize, pagingCookie,
+    filterExpression, dependsOnFilterTemplate, dependsOnValue,
+    searchText, searchAttributes, sortBy, sortDirection,
+  } = params;
+
+  // Step 1: Strip existing page/count/top/paging-cookie/order attrs; inject fresh ones.
   let xml = baseXml.replace(
     /<fetch([^>]*)>/,
     (_match, existingAttrs: string) => {
@@ -284,11 +317,11 @@ function buildFetchXml(
         .replace(/\s+page="[^"]*"/g, '')
         .replace(/\s+count="[^"]*"/g, '')
         .replace(/\s+top="[^"]*"/g, '')
-        .replace(/\s+paging-cookie="[^"]*"/g, '');
+        .replace(/\s+paging-cookie="[^"]*"/g, '')
+        .replace(/\s+returntotalrecordcount="[^"]*"/g, '');
 
-      let newAttrs = `${cleaned} page="${page}" count="${pageSize}"`;
+      let newAttrs = `${cleaned} page="${page}" count="${pageSize}" returntotalrecordcount="true"`;
       if (pagingCookie) {
-        // Cookie arrives base64-encoded from the frontend; decode to the raw XML string.
         const rawCookie = Buffer.from(pagingCookie, 'base64').toString('utf8');
         newAttrs += ` paging-cookie="${escapeXmlAttribute(rawCookie)}"`;
       }
@@ -296,7 +329,17 @@ function buildFetchXml(
     },
   );
 
-  // Step 2: collect filter conditions to inject.
+  // Step 2: Strip existing <order> elements — user sort overrides view default.
+  xml = xml.replace(/<order\b[^>]*\/>/g, '');
+  xml = xml.replace(/<order\b[^>]*>[\s\S]*?<\/order>/g, '');
+
+  // Step 3: Inject user sort before </entity> when active.
+  if (sortBy) {
+    const descending = sortDirection === 'desc' ? 'true' : 'false';
+    xml = xml.replace('</entity>', `<order attribute="${sortBy}" descending="${descending}"/></entity>`);
+  }
+
+  // Step 4: Collect filter conditions (static + depends-on + search).
   const conditions: string[] = [];
 
   if (filterExpression) {
@@ -313,14 +356,20 @@ function buildFetchXml(
     if (cond) conditions.push(cond);
   }
 
-  // Step 3: inject conditions into existing <filter> or wrap in a new one.
+  if (searchText && searchText.trim() && searchAttributes.length > 0) {
+    const escaped = escapeXmlAttribute(`%${searchText.trim()}%`);
+    const orConditions = searchAttributes
+      .map((attr) => `<condition attribute="${attr}" operator="like" value="${escaped}"/>`)
+      .join('');
+    conditions.push(`<filter type="or">${orConditions}</filter>`);
+  }
+
+  // Step 5: Inject conditions into existing <filter> or wrap in a new one.
   if (conditions.length > 0) {
     const conditionsXml = conditions.join('');
     if (/<filter/.test(xml)) {
-      // Append conditions to the first filter block.
       xml = xml.replace(/<filter([^>]*)>/, `<filter$1>${conditionsXml}`);
     } else {
-      // No filter in view — insert one before </entity>.
       xml = xml.replace('</entity>', `<filter type="and">${conditionsXml}</filter></entity>`);
     }
   }
@@ -330,39 +379,27 @@ function buildFetchXml(
 
 // ── Filter condition parser ────────────────────────────────────
 
-/**
- * Parses a simple OData-style filter condition into a FetchXML <condition> element.
- * Supports the subset used by DFE filter templates:
- *   - attribute eq/ne/lt/gt/le/ge numericValue
- *   - attribute eq/ne 'stringValue'
- *   - _lookupAttribute_value eq 'guid'       (navigation property → lookup condition)
- *   - attribute eq null / attribute ne null
- */
 function parseFilterCondition(expression: string): string {
   const expr = expression.trim();
 
-  // Navigation property: _attribute_value eq 'guid'
   const navMatch = expr.match(/^_(\w+)_value\s+(eq|ne)\s+'([0-9a-f-]+)'$/i);
   if (navMatch) {
     const [, attr, op, val] = navMatch;
     return `<condition attribute="${attr}" operator="${op}" value="${escapeXmlAttribute(val)}"/>`;
   }
 
-  // String value: attribute op 'value'
   const strMatch = expr.match(/^(\w+)\s+(eq|ne|like|not-like)\s+'([^']*)'$/i);
   if (strMatch) {
     const [, attr, op, val] = strMatch;
     return `<condition attribute="${attr}" operator="${op}" value="${escapeXmlAttribute(val)}"/>`;
   }
 
-  // Numeric value: attribute op number
   const numMatch = expr.match(/^(\w+)\s+(eq|ne|lt|gt|le|ge)\s+(-?\d+(?:\.\d+)?)$/);
   if (numMatch) {
     const [, attr, op, val] = numMatch;
     return `<condition attribute="${attr}" operator="${op}" value="${val}"/>`;
   }
 
-  // Null checks: attribute eq null / attribute ne null
   const nullMatch = expr.match(/^(\w+)\s+(eq|ne)\s+null$/i);
   if (nullMatch) {
     const [, attr, op] = nullMatch;
@@ -373,7 +410,19 @@ function parseFilterCondition(expression: string): string {
   return '';
 }
 
-// ── Private helpers ────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────
+
+function resolveSearchAttributes(columns: GridColumnConfig[]): string[] {
+  const textColumns = columns
+    .filter((c) => TEXT_SEARCHABLE_FIELD_TYPES.has(c.columnFieldType))
+    .map((c) => c.targetAttribute);
+
+  // Fall back to the first column if no text-type columns exist.
+  if (textColumns.length === 0 && columns.length > 0) {
+    return [columns[0].targetAttribute];
+  }
+  return textColumns;
+}
 
 function assertGridFieldHasView(field: RawGridField, fieldId: string): void {
   if (!field.qdb_grid_entity_name) {
@@ -384,7 +433,6 @@ function assertGridFieldHasView(field: RawGridField, fieldId: string): void {
   }
 }
 
-/** Escape a value for safe use in an XML attribute (double-quotes). */
 function escapeXmlAttribute(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -393,7 +441,6 @@ function escapeXmlAttribute(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
-/** Cap length and escape single-quotes before substituting into a filter template. */
 function sanitizeFilterValue(value: string): string {
   return value.slice(0, 200).replace(/'/g, "''");
 }

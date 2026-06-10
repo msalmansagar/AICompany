@@ -11,8 +11,7 @@ global.fetch = mockFetch;
 
 function okJson(data: unknown) {
   return Promise.resolve({
-    ok: true,
-    status: 200,
+    ok: true, status: 200,
     json: () => Promise.resolve(data),
     text: () => Promise.resolve(JSON.stringify(data)),
     headers: { get: () => null },
@@ -21,9 +20,7 @@ function okJson(data: unknown) {
 
 function errorResponse(status: number, code = '') {
   return Promise.resolve({
-    ok: false,
-    status,
-    statusText: 'Error',
+    ok: false, status, statusText: 'Error',
     text: () => Promise.resolve(`{"error":{"code":"${code}","message":"Error"}}`),
     headers: { get: () => null },
   });
@@ -36,9 +33,9 @@ function makeMetadataCache() {
 function makeGridField(overrides: Record<string, unknown> = {}) {
   return {
     qdb_form_fieldid: 'field-grid-001',
-    qdb_grid_target_entity: 'qdb_product',
-    qdb_grid_saved_view_id: 'view-abc',
-    qdb_grid_selection_mode: 100000001,
+    qdb_grid_entity_name: 'qdb_product',
+    qdb_saved_view_id: 'view-abc',
+    qdb_selection_mode: 100000001,
     qdb_grid_max_rows: 100,
     ...overrides,
   };
@@ -49,11 +46,13 @@ function makeColumnConfig(overrides: Record<string, unknown> = {}) {
     qdb_grid_column_configid: 'col-001',
     qdb_display_order: 1,
     qdb_column_label: 'Product Name',
-    qdb_target_attribute: 'qdb_name',
+    qdb_column_attribute: 'qdb_name',
     qdb_column_field_type: 'text',
     ...overrides,
   };
 }
+
+const BASE_FETCH_XML = '<fetch><entity name="qdb_product"><attribute name="qdb_name"/></entity></fetch>';
 
 // ── Tests ──────────────────────────────────────────────────────
 
@@ -71,15 +70,12 @@ describe('CrmGridDataService', () => {
     it('fetchGridRecords_withValidField_returnsPaginatedRecords', async () => {
       // Arrange
       mockFetch
-        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))   // field config
-        .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] })) // column configs
-        .mockReturnValueOnce(okJson({                                   // saved view
-          fetchxml: '<fetch><entity name="qdb_product"/></fetch>',
-          querytype: 0,
-        }))
-        .mockReturnValueOnce(okJson({                                   // records query
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({
           value: [{ qdb_productid: 'prod-001', qdb_name: 'Savings Account' }],
-          '@odata.count': 1,
+          '@Microsoft.Dynamics.CRM.totalrecordcount': 1,
         }));
 
       // Act
@@ -92,6 +88,7 @@ describe('CrmGridDataService', () => {
       expect(result.page).toBe(1);
       expect(result.pageSize).toBe(50);
       expect(result.isCapped).toBe(false);
+      expect(result.totalCount).toBe(1);
     });
 
     it('fetchGridRecords_whenTotalExceedsMaxRows_setsCappedTrue', async () => {
@@ -100,10 +97,11 @@ describe('CrmGridDataService', () => {
       mockFetch
         .mockReturnValueOnce(okJson({ value: [fieldWithLowMax] }))
         .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
-        .mockReturnValueOnce(okJson({ fetchxml: '<fetch/>', querytype: 0 }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
         .mockReturnValueOnce(okJson({
           value: Array.from({ length: 5 }, (_, i) => ({ qdb_productid: `prod-${i}`, qdb_name: `P${i}` })),
-          '@odata.count': 50, // Dataverse says 50 but maxRows is 5
+          '@Microsoft.Dynamics.CRM.morerecords': true,
+          '@Microsoft.Dynamics.CRM.totalrecordcount': 50,
         }));
 
       // Act
@@ -111,30 +109,28 @@ describe('CrmGridDataService', () => {
 
       // Assert
       expect(result.isCapped).toBe(true);
-      expect(result.totalCount).toBe(5);
+      expect(result.totalCount).toBe(5); // capped at maxRows
     });
 
     it('fetchGridRecords_whenSavedViewNotFound_returnsUserFacing400', async () => {
-      // Arrange — CEO condition BC-004: 404 on view must return 400 not 502
+      // Arrange — CEO condition BC-004
       mockFetch
         .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
         .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
         .mockReturnValueOnce(errorResponse(404));
 
-      // Act & Assert
       await expect(
         service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001'),
       ).rejects.toThrow('not found');
     });
 
     it('fetchGridRecords_whenViewIsUserView_rejectsWithValidationError', async () => {
-      // Arrange — CEO condition BC-011: user views (querytype !== 0) are forbidden
+      // Arrange — CEO condition BC-011
       mockFetch
         .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
         .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
-        .mockReturnValueOnce(okJson({ fetchxml: '<fetch/>', querytype: 1 })); // 1 = user view
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 1 }));
 
-      // Act & Assert
       await expect(
         service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001'),
       ).rejects.toThrow('Only System Views are permitted');
@@ -145,10 +141,9 @@ describe('CrmGridDataService', () => {
       mockFetch
         .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
         .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
-        .mockReturnValueOnce(okJson({ fetchxml: '<fetch/>', querytype: 0 }))
-        .mockReturnValueOnce(okJson({ value: [], '@odata.count': 0 }))
-        // Second call: only the records query should fire (field config is cached)
-        .mockReturnValueOnce(okJson({ value: [], '@odata.count': 0 }));
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({ value: [] }))
+        .mockReturnValueOnce(okJson({ value: [] })); // second call: records only
 
       await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
       const firstCount = mockFetch.mock.calls.length;
@@ -156,7 +151,7 @@ describe('CrmGridDataService', () => {
       await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
       const secondCount = mockFetch.mock.calls.length;
 
-      // Only one additional fetch (the records query) — field config is cached.
+      // Only one additional fetch (records query) — field config is cached
       expect(secondCount - firstCount).toBe(1);
     });
 
@@ -165,22 +160,137 @@ describe('CrmGridDataService', () => {
       mockFetch
         .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
         .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
-        .mockReturnValueOnce(okJson({ fetchxml: '<fetch/>', querytype: 0 }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
         .mockReturnValueOnce(okJson({
           value: [{
             qdb_productid: 'prod-001',
             qdb_name: 'Savings',
             qdb_internal_secret: 'should-be-excluded',
           }],
-          '@odata.count': 1,
         }));
 
-      // Act
       const result = await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
 
-      // Assert — only qdb_name is in columnConfigs; internal_secret must be excluded
       expect(result.records[0].values).toHaveProperty('qdb_name');
       expect(result.records[0].values).not.toHaveProperty('qdb_internal_secret');
+    });
+  });
+
+  describe('search and sort', () => {
+    function setupMocks(recordsResponse: unknown) {
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson(recordsResponse));
+    }
+
+    it('fetchGridRecords_withSearchText_injectsLikeConditionIntoFetchXml', async () => {
+      setupMocks({ value: [] });
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, 'savings');
+
+      const recordsCall = mockFetch.mock.calls[3][0] as string;
+      const decodedUrl = decodeURIComponent(recordsCall);
+      expect(decodedUrl).toContain('operator="like"');
+      expect(decodedUrl).toContain('%savings%');
+    });
+
+    it('fetchGridRecords_withSearchText_usesOrFilterAcrossTextColumns', async () => {
+      // Arrange — two text columns
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [
+          makeColumnConfig({ qdb_column_attribute: 'qdb_name', qdb_column_field_type: 'text' }),
+          makeColumnConfig({ qdb_grid_column_configid: 'col-002', qdb_display_order: 2, qdb_column_attribute: 'qdb_email', qdb_column_field_type: 'email' }),
+        ]}))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({ value: [] }));
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, 'john');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).toContain('filter type="or"');
+      expect(decodedUrl).toContain('attribute="qdb_name"');
+      expect(decodedUrl).toContain('attribute="qdb_email"');
+    });
+
+    it('fetchGridRecords_withSortBy_injectsOrderElement', async () => {
+      setupMocks({ value: [] });
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, undefined, 'qdb_name', 'desc');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).toContain('<order attribute="qdb_name" descending="true"/>');
+    });
+
+    it('fetchGridRecords_withSortByAsc_setDescendingFalse', async () => {
+      setupMocks({ value: [] });
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, undefined, 'qdb_name', 'asc');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).toContain('descending="false"');
+    });
+
+    it('fetchGridRecords_withUnknownSortBy_ignoresSortSilently', async () => {
+      setupMocks({ value: [] });
+
+      // 'qdb_unknown' is not a configured column — must be silently dropped
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, undefined, 'qdb_unknown', 'asc');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).not.toContain('<order');
+    });
+
+    it('fetchGridRecords_withSearchAndSort_injectsBoth', async () => {
+      setupMocks({ value: [] });
+
+      await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001',
+        undefined, undefined, 'abc', 'qdb_name', 'asc');
+
+      const decodedUrl = decodeURIComponent(mockFetch.mock.calls[3][0] as string);
+      expect(decodedUrl).toContain('operator="like"');
+      expect(decodedUrl).toContain('<order attribute="qdb_name"');
+    });
+  });
+
+  describe('totalCount', () => {
+    it('fetchGridRecords_returnsTotalCountFromDataverse', async () => {
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({
+          value: [{ qdb_productid: 'p1', qdb_name: 'A' }],
+          '@Microsoft.Dynamics.CRM.totalrecordcount': 42,
+        }));
+
+      const result = await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
+
+      expect(result.totalCount).toBe(42);
+      expect(result.totalPages).toBe(1); // Math.ceil(42/50) = 1
+    });
+
+    it('fetchGridRecords_whenCountLimitExceeded_returnsTotalCountUndefined', async () => {
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [makeColumnConfig()] }))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({
+          value: [],
+          '@Microsoft.Dynamics.CRM.totalrecordcountlimitexceeded': true,
+        }));
+
+      const result = await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
+
+      expect(result.totalCount).toBeUndefined();
+      expect(result.totalPages).toBeUndefined();
     });
   });
 });

@@ -13,6 +13,7 @@ import {
 import {
   Button,
   Checkbox,
+  Input,
   makeStyles,
   tokens,
   Text,
@@ -32,6 +33,11 @@ import {
   GridRegular,
   TableRegular,
   CheckmarkCircleRegular,
+  SearchRegular,
+  ArrowSortRegular,
+  ArrowSortUpRegular,
+  ArrowSortDownRegular,
+  DismissRegular,
 } from '@fluentui/react-icons';
 import type { GridRecord } from '@qdb/shared';
 
@@ -182,6 +188,35 @@ const useStyles = makeStyles({
     opacity: '0.5',
     pointerEvents: 'none',
   },
+  searchRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: tokens.spacingHorizontalS,
+    paddingBottom: tokens.spacingVerticalXS,
+  },
+  searchInput: {
+    minWidth: '220px',
+    flex: '0 0 auto',
+  },
+  thSortable: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    cursor: 'pointer',
+    userSelect: 'none',
+    ':hover': {
+      color: tokens.colorBrandForeground1,
+    },
+  },
+  sortIcon: {
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+    flexShrink: 0,
+  },
+  sortIconActive: {
+    color: tokens.colorBrandForeground1,
+  },
 });
 
 interface SelectionGridFieldProps extends ControlProps {
@@ -213,6 +248,39 @@ export function SelectionGridField({
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
+  // Search state: searchInput is the live value; searchText is the debounced value sent to the backend.
+  const [searchInput, setSearchInput] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setSearchText(value.trim());
+    }, 300);
+  }, []);
+
+  const clearSearch = useCallback(() => {
+    clearTimeout(searchDebounceRef.current);
+    setSearchInput('');
+    setSearchText('');
+  }, []);
+
+  // Sort state: column = null means no override (view default order).
+  const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>({
+    column: null,
+    direction: 'asc',
+  });
+
+  const handleSortColumn = useCallback((attribute: string) => {
+    setSortState((prev) => {
+      if (prev.column !== attribute) return { column: attribute, direction: 'asc' };
+      if (prev.direction === 'asc') return { column: attribute, direction: 'desc' };
+      return { column: null, direction: 'asc' };
+    });
+  }, []);
+
   // Selection state: Set<string> of selected record GUIDs.
   // Persists across page navigation within the same session.
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
@@ -222,7 +290,14 @@ export function SelectionGridField({
     return new Set<string>();
   });
 
-  const gridData = useSelectionGridData(field.id, 50, dependsOnValue);
+  const gridData = useSelectionGridData(
+    field.id,
+    50,
+    dependsOnValue,
+    searchText,
+    sortState.column ?? undefined,
+    sortState.column ? sortState.direction : undefined,
+  );
 
   // Track whether we have records from a previous load so we can show a
   // non-blocking spinner instead of replacing content with skeletons.
@@ -344,7 +419,25 @@ export function SelectionGridField({
     for (const col of sortedCols) {
       colDefs.push({
         id: col.columnId,
-        header: col.columnLabel,
+        header: () => {
+          const isActive = sortState.column === col.targetAttribute;
+          const SortIcon = isActive
+            ? (sortState.direction === 'asc' ? ArrowSortUpRegular : ArrowSortDownRegular)
+            : ArrowSortRegular;
+          return (
+            <div
+              className={styles.thSortable}
+              onClick={() => handleSortColumn(col.targetAttribute)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Sort by ${col.columnLabel}${isActive ? `, currently ${sortState.direction}ending` : ''}`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSortColumn(col.targetAttribute); } }}
+            >
+              <span>{col.columnLabel}</span>
+              <SortIcon className={`${styles.sortIcon} ${isActive ? styles.sortIconActive : ''}`} />
+            </div>
+          );
+        },
         cell: ({ row }) => {
           const record = row.original as GridRecord;
           const cellValue = record.values[col.targetAttribute];
@@ -358,7 +451,7 @@ export function SelectionGridField({
     }
 
     return colDefs;
-  }, [sortedCols, selectionMode, selectedIds, toggleRow, toggleSelectAll]);
+  }, [sortedCols, selectionMode, selectedIds, toggleRow, toggleSelectAll, sortState, handleSortColumn, styles.thSortable, styles.sortIcon, styles.sortIconActive]);
 
   const table = useReactTable({
     data: gridData.records,
@@ -428,28 +521,53 @@ export function SelectionGridField({
         </Text>
       )}
 
-      {/* View mode toggle toolbar */}
-      <div className={styles.toolbar}>
-        <ToggleButton
-          icon={<TableRegular />}
-          checked={viewMode === 'table'}
-          onClick={() => setViewMode('table')}
+      {/* Search + view toggle row */}
+      <div className={styles.searchRow}>
+        <Input
+          className={styles.searchInput}
           size="small"
-          aria-label="Table view"
-          appearance={viewMode === 'table' ? 'primary' : 'subtle'}
-        >
-          Table
-        </ToggleButton>
-        <ToggleButton
-          icon={<GridRegular />}
-          checked={viewMode === 'card'}
-          onClick={() => setViewMode('card')}
-          size="small"
-          aria-label="Card view"
-          appearance={viewMode === 'card' ? 'primary' : 'subtle'}
-        >
-          Cards
-        </ToggleButton>
+          placeholder="Search records…"
+          value={searchInput}
+          onChange={(_, data) => handleSearchChange(data.value)}
+          disabled={isReadonly}
+          contentBefore={<SearchRegular />}
+          contentAfter={
+            searchInput
+              ? (
+                <Button
+                  appearance="transparent"
+                  size="small"
+                  icon={<DismissRegular />}
+                  onClick={clearSearch}
+                  aria-label="Clear search"
+                />
+              )
+              : undefined
+          }
+          aria-label={`Search ${field.label} records`}
+        />
+        <div className={styles.toolbar}>
+          <ToggleButton
+            icon={<TableRegular />}
+            checked={viewMode === 'table'}
+            onClick={() => setViewMode('table')}
+            size="small"
+            aria-label="Table view"
+            appearance={viewMode === 'table' ? 'primary' : 'subtle'}
+          >
+            Table
+          </ToggleButton>
+          <ToggleButton
+            icon={<GridRegular />}
+            checked={viewMode === 'card'}
+            onClick={() => setViewMode('card')}
+            size="small"
+            aria-label="Card view"
+            appearance={viewMode === 'card' ? 'primary' : 'subtle'}
+          >
+            Cards
+          </ToggleButton>
+        </div>
       </div>
 
       {/* Card view */}
@@ -600,7 +718,9 @@ export function SelectionGridField({
         <div className={styles.paginationRow}>
           <Text className={styles.paginationInfo}>
             Page {gridData.page}
-            {gridData.isCapped && ' (row limit reached)'}
+            {gridData.totalPages ? ` of ${gridData.totalPages}` : ''}
+            {gridData.totalCount ? ` · ${gridData.totalCount} records` : ''}
+            {gridData.isCapped && ' · row limit applied'}
           </Text>
           <div className={styles.paginationButtons}>
             <Button

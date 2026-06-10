@@ -22,9 +22,10 @@ const GRID_PAGE_RESPONSE: GridRecordPage = {
     { id: 'r-2', values: { name: 'Bob' } },
   ],
   totalCount: 2,
+  totalPages: 1,
   page: 1,
   pageSize: 50,
-  totalPages: 1,
+  hasNextPage: false,
   isCapped: false,
 };
 
