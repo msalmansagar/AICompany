@@ -724,6 +724,7 @@ export class CrmMetadataService extends CrmBaseService {
   private buildFileUploadConfig(field: RawField): FileUploadConfig | undefined {
     if (field.qdb_field_type !== 100000015) return undefined; // file field only
 
+    const extensionCodes = this.parseExtensionCodes(field.qdb_allowed_file_extensions);
     const allowedMimeTypes = this.resolveAllowedMimeTypes(
       field.qdb_allowed_file_extensions,
       field.qdb_allowed_mime_types,
@@ -737,20 +738,25 @@ export class CrmMetadataService extends CrmBaseService {
       destination: 'crmNotes',
       maxFiles: field.qdb_max_files ?? 1,
       ...(field.qdb_document_type !== undefined && { documentType: field.qdb_document_type }),
-      ...(field.qdb_allowed_file_extensions !== undefined && {
-        allowedFileExtensions: field.qdb_allowed_file_extensions,
-      }),
+      ...(extensionCodes.length > 0 && { allowedFileExtensions: extensionCodes }),
     };
+  }
+
+  // Parses the Dataverse comma-separated MultiSelect string into a number array.
+  private parseExtensionCodes(raw: string | undefined): number[] {
+    if (!raw) return [];
+    return raw.split(',').map(Number).filter((n) => !isNaN(n));
   }
 
   // Resolves the final MIME type array.
   // Priority: structured MultiSelect values → legacy JSON memo → hardcoded defaults.
   private resolveAllowedMimeTypes(
-    extensionCodes: number[] | undefined,
+    extensionRaw: string | undefined,
     mimeJson: string | undefined,
   ): string[] {
-    if (extensionCodes !== undefined && extensionCodes.length > 0) {
-      return extensionCodes.flatMap(
+    const codes = this.parseExtensionCodes(extensionRaw);
+    if (codes.length > 0) {
+      return codes.flatMap(
         (code) => CrmMetadataService.FILE_EXTENSION_MIME_MAP[code] ?? [],
       );
     }
@@ -931,7 +937,7 @@ interface RawField {
   qdb_grid_min_rows?: number;
   // File upload config
   qdb_allowed_mime_types?: string;
-  qdb_allowed_file_extensions?: number[]; // MultiSelect returns number[]
+  qdb_allowed_file_extensions?: string; // Dataverse MultiSelect returns comma-separated string
   qdb_max_file_size_mb?: number;
   qdb_max_files?: number;
   qdb_document_type?: number;

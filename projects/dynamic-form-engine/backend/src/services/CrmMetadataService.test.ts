@@ -190,8 +190,8 @@ describe('CrmMetadataService', () => {
     it(
       'buildFileUploadConfig_whenExtensionCodesPresent_mapsToMimeTypes',
       async () => {
-        // Arrange — PDF (100000000) + PNG (100000002)
-        seedMocks({ qdb_allowed_file_extensions: [100000000, 100000002] });
+        // Arrange — PDF (100000000) + PNG (100000002) — Dataverse returns comma-separated string
+        seedMocks({ qdb_allowed_file_extensions: '100000000,100000002' });
 
         // Act
         const form = await makeService().getFormDefinition('test-form');
@@ -230,7 +230,7 @@ describe('CrmMetadataService', () => {
       'buildFileUploadConfig_whenBothExtensionCodesAndMimeJson_prefersExtensionCodes',
       async () => {
         // Extension codes take priority over memo fallback
-        seedMocks({ qdb_allowed_file_extensions: [100000014], qdb_allowed_mime_types: '["image/gif"]' });
+        seedMocks({ qdb_allowed_file_extensions: '100000014', qdb_allowed_mime_types: '["image/gif"]' });
 
         // Act
         const form = await makeService().getFormDefinition('test-form');
@@ -244,8 +244,8 @@ describe('CrmMetadataService', () => {
     it(
       'buildFileUploadConfig_whenEmptyExtensionCodesArray_fallsBackToMimeJson',
       async () => {
-        // An empty array means "no selection made" — fall back to memo
-        seedMocks({ qdb_allowed_file_extensions: [], qdb_allowed_mime_types: '["application/zip"]' });
+        // An empty/undefined string means "no selection made" — fall back to memo
+        seedMocks({ qdb_allowed_file_extensions: undefined, qdb_allowed_mime_types: '["application/zip"]' });
 
         // Act
         const form = await makeService().getFormDefinition('test-form');
