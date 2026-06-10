@@ -131,4 +131,145 @@ describe('CrmMetadataService', () => {
       expect(mockFetch.mock.calls.length).toBeGreaterThan(afterFirstCall);
     });
   });
+
+  // ── buildFileUploadConfig / resolveAllowedMimeTypes ───────────────────────
+  // Exercised through getFormDefinition so the full fetch chain is covered.
+  // Each test creates its own service + cache to avoid cross-test cache hits.
+
+  describe('buildFileUploadConfig — allowedFileExtensions resolution', () => {
+    /**
+     * Registers mock responses for the full nested fetch sequence that occurs
+     * when there is exactly one tab → one section → one file field.
+     *
+     * Actual call order (sequential then parallel):
+     *   1  form definition
+     *   2  [parallel] tabs / submission mappings / buttons
+     *      (infoCardService is null — no 4th parallel call)
+     *   3  sections (sequential, after tabs resolves)
+     *   4  fields   (sequential, after sections resolves)
+     *   5  [parallel] options / validation rules / lookup configs /
+     *                 business rules / grid column configs
+     */
+    function seedMocks(fieldOverrides: Record<string, unknown>): void {
+      const tabResponse     = { value: [{ qdb_form_tabid: 'tab-001', qdb_label: 'Tab', qdb_display_order: 1 }] };
+      const sectionResponse = { value: [{ qdb_form_sectionid: 'sec-001', _qdb_form_tab_id_value: 'tab-001', qdb_label: 'Section', qdb_display_order: 1 }] };
+      const fieldResponse   = {
+        value: [
+          {
+            qdb_form_fieldid:             'fld-001',
+            _qdb_form_section_id_value:   'sec-001',
+            qdb_field_type:               100000015, // file
+            qdb_schema_name:              'upload_field',
+            qdb_label:                    'Upload',
+            qdb_display_order:            1,
+            ...fieldOverrides,
+          },
+        ],
+      };
+
+      [
+        mockFormResponse(),      // [1] form definition
+        tabResponse,             // [2a] tabs (parallel)
+        { value: [] },           // [2b] submission mappings (parallel)
+        { value: [] },           // [2c] buttons (parallel)
+        sectionResponse,         // [3] sections
+        fieldResponse,           // [4] fields
+        { value: [] },           // [5a] options — manual (parallel)
+        { value: [] },           // [5b] validation rules (parallel)
+        { value: [] },           // [5c] lookup configs (parallel)
+        { value: [] },           // [5d] business rules (parallel)
+        { value: [] },           // [5e] grid column configs (parallel)
+      ].forEach((data) => mockFetch.mockReturnValueOnce(okJson(data)));
+    }
+
+    /** Returns a fresh isolated service so each test starts with an empty cache. */
+    function makeService() {
+      return new CrmMetadataService(mockAuthService, makeCache() as never, null);
+    }
+
+    it(
+      'buildFileUploadConfig_whenExtensionCodesPresent_mapsToMimeTypes',
+      async () => {
+        // Arrange — PDF (100000000) + PNG (100000002)
+        seedMocks({ qdb_allowed_file_extensions: [100000000, 100000002] });
+
+        // Act
+        const form = await makeService().getFormDefinition('test-form');
+        const uploadField = form.tabs[0].sections[0].fields[0];
+
+        // Assert
+        expect(uploadField.fileUploadConfig).toBeDefined();
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toEqual([
+          'application/pdf',
+          'image/png',
+        ]);
+        expect(uploadField.fileUploadConfig?.allowedFileExtensions).toEqual([100000000, 100000002]);
+      },
+    );
+
+    it(
+      'buildFileUploadConfig_whenNoExtensionCodes_fallsBackToMimeJson',
+      async () => {
+        // Arrange — legacy JSON memo, no multiselect codes
+        seedMocks({ qdb_allowed_mime_types: '["image/gif","text/plain"]' });
+
+        // Act
+        const form = await makeService().getFormDefinition('test-form');
+        const uploadField = form.tabs[0].sections[0].fields[0];
+
+        // Assert
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toEqual([
+          'image/gif',
+          'text/plain',
+        ]);
+        expect(uploadField.fileUploadConfig?.allowedFileExtensions).toBeUndefined();
+      },
+    );
+
+    it(
+      'buildFileUploadConfig_whenBothExtensionCodesAndMimeJson_prefersExtensionCodes',
+      async () => {
+        // Extension codes take priority over memo fallback
+        seedMocks({ qdb_allowed_file_extensions: [100000014], qdb_allowed_mime_types: '["image/gif"]' });
+
+        // Act
+        const form = await makeService().getFormDefinition('test-form');
+        const uploadField = form.tabs[0].sections[0].fields[0];
+
+        // Assert — only MP3 MIME type, not image/gif
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toEqual(['audio/mpeg']);
+      },
+    );
+
+    it(
+      'buildFileUploadConfig_whenEmptyExtensionCodesArray_fallsBackToMimeJson',
+      async () => {
+        // An empty array means "no selection made" — fall back to memo
+        seedMocks({ qdb_allowed_file_extensions: [], qdb_allowed_mime_types: '["application/zip"]' });
+
+        // Act
+        const form = await makeService().getFormDefinition('test-form');
+        const uploadField = form.tabs[0].sections[0].fields[0];
+
+        // Assert
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toEqual(['application/zip']);
+      },
+    );
+
+    it(
+      'buildFileUploadConfig_whenNoExtensionCodesAndNoMimeJson_returnsDefaults',
+      async () => {
+        // Neither multiselect nor memo — defaults apply
+        seedMocks({});
+
+        // Act
+        const form = await makeService().getFormDefinition('test-form');
+        const uploadField = form.tabs[0].sections[0].fields[0];
+
+        // Assert — default list from parseAllowedMimeTypes
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toContain('application/pdf');
+        expect(uploadField.fileUploadConfig?.allowedMimeTypes).toContain('image/jpeg');
+      },
+    );
+  });
 });

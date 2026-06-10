@@ -701,9 +701,34 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'entry' : 'selection';
   }
 
+  // Maps each qdb_allowed_file_extensions option value to its MIME type(s).
+  // Values are the Dataverse MultiSelect integer codes defined during provisioning.
+  private static readonly FILE_EXTENSION_MIME_MAP: Record<number, string[]> = {
+    100000000: ['application/pdf'],
+    100000001: ['image/jpeg'],
+    100000002: ['image/png'],
+    100000003: ['image/gif'],
+    100000004: ['image/webp'],
+    100000005: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    100000006: ['application/msword'],
+    100000007: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    100000008: ['application/vnd.ms-excel'],
+    100000009: ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    100000010: ['text/plain'],
+    100000011: ['text/csv'],
+    100000012: ['application/zip'],
+    100000013: ['video/mp4'],
+    100000014: ['audio/mpeg'],
+  };
+
   private buildFileUploadConfig(field: RawField): FileUploadConfig | undefined {
     if (field.qdb_field_type !== 100000015) return undefined; // file field only
-    const allowedMimeTypes = this.parseAllowedMimeTypes(field.qdb_allowed_mime_types);
+
+    const allowedMimeTypes = this.resolveAllowedMimeTypes(
+      field.qdb_allowed_file_extensions,
+      field.qdb_allowed_mime_types,
+    );
+
     return {
       id: field.qdb_form_fieldid,
       fieldId: field.qdb_form_fieldid,
@@ -712,7 +737,24 @@ export class CrmMetadataService extends CrmBaseService {
       destination: 'crmNotes',
       maxFiles: field.qdb_max_files ?? 1,
       ...(field.qdb_document_type !== undefined && { documentType: field.qdb_document_type }),
+      ...(field.qdb_allowed_file_extensions !== undefined && {
+        allowedFileExtensions: field.qdb_allowed_file_extensions,
+      }),
     };
+  }
+
+  // Resolves the final MIME type array.
+  // Priority: structured MultiSelect values → legacy JSON memo → hardcoded defaults.
+  private resolveAllowedMimeTypes(
+    extensionCodes: number[] | undefined,
+    mimeJson: string | undefined,
+  ): string[] {
+    if (extensionCodes !== undefined && extensionCodes.length > 0) {
+      return extensionCodes.flatMap(
+        (code) => CrmMetadataService.FILE_EXTENSION_MIME_MAP[code] ?? [],
+      );
+    }
+    return this.parseAllowedMimeTypes(mimeJson);
   }
 
   private parseAllowedMimeTypes(json: string | null | undefined): string[] {
@@ -889,6 +931,7 @@ interface RawField {
   qdb_grid_min_rows?: number;
   // File upload config
   qdb_allowed_mime_types?: string;
+  qdb_allowed_file_extensions?: number[]; // MultiSelect returns number[]
   qdb_max_file_size_mb?: number;
   qdb_max_files?: number;
   qdb_document_type?: number;

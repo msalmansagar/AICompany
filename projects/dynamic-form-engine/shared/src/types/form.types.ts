@@ -195,6 +195,11 @@ export interface FileUploadConfig {
   sharePointFolderPath?: string;
   maxFiles: number;
   documentType?: number;            // qdb_document_type picklist value
+  /** Raw MultiSelect option values from qdb_allowed_file_extensions.
+   *  Present when the field was configured via the structured multiselect;
+   *  absent when only the legacy qdb_allowed_mime_types memo was used.
+   *  The portal does not need to inspect these — use allowedMimeTypes instead. */
+  allowedFileExtensions?: number[];
 }
 
 // ── Submission mapping ────────────────────────────────────────
