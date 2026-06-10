@@ -195,7 +195,7 @@ export function FileUploadControl({
   const failedEntries = uploadEntries.filter((e) => e.error);
 
   const formattedMaxSize = formatBytes(maxSize);
-  const allowedTypes = config?.allowedMimeTypes?.join(', ') ?? 'Any file type';
+  const allowedTypes = resolveAllowedTypesLabel(config?.allowedFileExtensions, config?.allowedMimeTypes);
 
   return (
     <div>
@@ -285,4 +285,37 @@ function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
+}
+
+const EXTENSION_LABELS: Record<number, string> = {
+  100000000: 'PDF',
+  100000001: 'JPEG',
+  100000002: 'PNG',
+  100000003: 'GIF',
+  100000004: 'WEBP',
+  100000005: 'DOCX',
+  100000006: 'DOC',
+  100000007: 'XLSX',
+  100000008: 'XLS',
+  100000009: 'PPTX',
+  100000010: 'TXT',
+  100000011: 'CSV',
+  100000012: 'ZIP',
+  100000013: 'MP4',
+  100000014: 'MP3',
+};
+
+function resolveAllowedTypesLabel(
+  extensionCodes: number[] | undefined,
+  mimeTypes: string[] | undefined,
+): string {
+  if (extensionCodes && extensionCodes.length > 0) {
+    return extensionCodes
+      .map((code) => EXTENSION_LABELS[code] ?? String(code))
+      .join(', ');
+  }
+  if (mimeTypes && mimeTypes.length > 0) {
+    return mimeTypes.join(', ');
+  }
+  return 'Any file type';
 }
