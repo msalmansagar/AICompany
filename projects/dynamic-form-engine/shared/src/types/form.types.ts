@@ -194,6 +194,7 @@ export interface FileUploadConfig {
   sharePointLibraryUrl?: string;
   sharePointFolderPath?: string;
   maxFiles: number;
+  documentType?: number;            // qdb_document_type picklist value
 }
 
 // ── Submission mapping ────────────────────────────────────────

@@ -711,6 +711,7 @@ export class CrmMetadataService extends CrmBaseService {
       maxFileSizeBytes: (field.qdb_max_file_size_mb ?? 10) * 1024 * 1024,
       destination: 'crmNotes',
       maxFiles: field.qdb_max_files ?? 1,
+      ...(field.qdb_document_type !== undefined && { documentType: field.qdb_document_type }),
     };
   }
 
@@ -890,6 +891,7 @@ interface RawField {
   qdb_allowed_mime_types?: string;
   qdb_max_file_size_mb?: number;
   qdb_max_files?: number;
+  qdb_document_type?: number;
   // Multiselect render style
   qdb_multiselect_render_style?: number;
   // Radio render style
