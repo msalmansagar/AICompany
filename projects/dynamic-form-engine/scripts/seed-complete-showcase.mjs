@@ -386,7 +386,7 @@ const fFilteredForms = await post('qdb_form_fields', fld(secFilterDemo.qdb_form_
   qdb_grid_depends_on_field_schema: 'cs_filter_status',
   qdb_grid_depends_on_filter_template: 'qdb_status eq {dependsOnValue}',
 }));
-for (const [attr, label, type, order] of [['qdb_form_code','Form Code','text',1],['qdb_title','Title','text',2],['qdb_status','Status','text',3]]) {
+for (const [attr, label, type, order] of [['qdb_form_code','Form Code','text',1],['qdb_title','Title','text',2],['qdb_status','Status','status',3]]) {
   await post('qdb_grid_column_configs', {
     'qdb_form_field_id@odata.bind': `/qdb_form_fields(${fFilteredForms.qdb_form_fieldid})`,
     qdb_grid_column_configname: `filtered-grid-${attr}`,
