@@ -638,10 +638,10 @@ const gcol = (fieldId, name, label, colType, order, editable, opts) => ({
 });
 
 // Selection grid columns (form definitions)
-await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_form_code',  'Form Code', 'text',    1, false));
-await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_title',      'Title',     'text',    2, false));
-await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_status',     'Status',    'text',    3, false));
-await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-modifiedon',     'Modified',  'text',    4, false));
+await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_form_code',  'Form Code', 'text',     1, false));
+await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_title',      'Title',     'text',     2, false));
+await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-qdb_status',     'Status',    'status',   3, false));
+await post('qdb_grid_column_configs', gcol(fSelectRole.qdb_form_fieldid, 'showcase-sel-modifiedon',     'Modified',  'datetime', 4, false));
 
 // Entry grid columns (custom permissions)
 const fieldTypeOpts = [
