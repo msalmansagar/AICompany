@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import {
   Dropdown,
   Option,
@@ -52,13 +52,27 @@ export function DropdownControl({
   }, [field.id, staticOptions.length, filteredByRule]);
 
   const rawValue = fieldValues[field.schemaName];
-  const selectedValue = rawValue !== null && rawValue !== undefined ? [String(rawValue)] : [];
+
+  // Stable array reference — Fluent UI Dropdown compares selectedOptions by reference.
+  // A new array on every render causes Dropdown to fire onOptionSelect on each re-render,
+  // creating an infinite loop: onOptionSelect → updateFieldValue → re-render → repeat.
+  const selectedValue = useMemo(
+    () => rawValue !== null && rawValue !== undefined ? [String(rawValue)] : [],
+    [rawValue],
+  );
 
   function handleOptionSelect(_event: unknown, data: { optionValue?: string }) {
-    updateFieldValue(field.schemaName, data.optionValue ?? null);
+    const next = data.optionValue ?? null;
+    // Guard: skip if the value hasn't actually changed (Fluent UI can fire spuriously).
+    const current = rawValue !== null && rawValue !== undefined ? String(rawValue) : null;
+    if (next === current) return;
+    updateFieldValue(field.schemaName, next);
   }
 
-  const activeOptions = resolvedOptions.filter((o) => o.isActive);
+  const activeOptions = useMemo(
+    () => resolvedOptions.filter((o) => o.isActive).sort((a, b) => a.displayOrder - b.displayOrder),
+    [resolvedOptions],
+  );
 
   return (
     <Dropdown
@@ -72,13 +86,11 @@ export function DropdownControl({
       aria-describedby={errorId}
       aria-invalid={!!errorId}
     >
-      {activeOptions
-        .sort((a, b) => a.displayOrder - b.displayOrder)
-        .map((option) => (
-          <Option key={option.value} value={option.value}>
-            {option.label}
-          </Option>
-        ))}
+      {activeOptions.map((option) => (
+        <Option key={option.value} value={option.value}>
+          {option.label}
+        </Option>
+      ))}
     </Dropdown>
   );
 }
