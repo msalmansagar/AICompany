@@ -92,7 +92,7 @@ export function useSelectionGridData(
         isLoadingRef.current = false;
       } catch (fetchError) {
         if (controller.signal.aborted) {
-          isLoadingRef.current = false;
+          // A newer loadPage call has already set isLoadingRef = true — don't clobber it.
           return;
         }
         isLoadingRef.current = false;

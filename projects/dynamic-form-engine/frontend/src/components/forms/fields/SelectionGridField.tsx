@@ -186,7 +186,6 @@ const useStyles = makeStyles({
   },
   contentDimmed: {
     opacity: '0.5',
-    pointerEvents: 'none',
   },
   searchRow: {
     display: 'flex',
@@ -373,13 +372,19 @@ export function SelectionGridField({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIds]);
 
+  // Use the same pendingMultiSync pattern as toggleRow so FormContext is updated
+  // in a deferred useEffect rather than synchronously in the event handler.
+  // Calling updateFieldValue synchronously here triggers a full-form re-render
+  // + rule-engine evaluation with every selected GUID, freezing the UI.
   const toggleSelectAll = useCallback((checked: boolean) => {
     if (isReadonly) return;
-    const next = checked
-      ? new Set(recordsRef.current.map((r) => r.id))
-      : new Set<string>();
-    syncSelectionToFormState(next);
-  }, [isReadonly, syncSelectionToFormState]);
+    pendingMultiSyncRef.current = true;
+    setSelectedIds(
+      checked
+        ? new Set(recordsRef.current.map((r) => r.id))
+        : new Set<string>(),
+    );
+  }, [isReadonly]);
 
   const sortedCols = useMemo(
     () => [...columnConfigs].sort((a, b) => a.displayOrder - b.displayOrder),
@@ -409,7 +414,10 @@ export function SelectionGridField({
         cell: ({ row }) => (
           <Checkbox
             checked={selectedIds.has((row.original as GridRecord).id)}
-            onChange={() => toggleRow((row.original as GridRecord).id)}
+            onChange={(e) => {
+              e.stopPropagation(); // prevent tr onClick from firing toggleRow a second time
+              toggleRow((row.original as GridRecord).id);
+            }}
             aria-label={`Select row ${row.index + 1}`}
           />
         ),
