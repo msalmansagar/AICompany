@@ -109,6 +109,15 @@ export const FORM_FIELD_ATTRS = {
   INFO_CARD_TITLE: 'qdb_info_card_title',
   INFO_CARD_BODY: 'qdb_info_card_body',
   INFO_CARD_ICON: 'qdb_info_card_icon',
+  // Sprint 5 — interactive-grid / repeating-grid config
+  GRID_MODE: 'qdb_grid_mode',
+  GRID_ENTITY_NAME: 'qdb_grid_entity_name',
+  GRID_SELECTION_MODE: 'qdb_selection_mode',
+  GRID_MIN_ROWS: 'qdb_grid_min_rows',
+  GRID_SAVED_VIEW_ID: 'qdb_saved_view_id',
+  GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
+  GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
+  GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
 } as const;
 
 // Picklist codes for qdb_field_type
@@ -175,6 +184,40 @@ export const PICKLIST_TO_INFO_CARD_STYLE: Record<number, 'info' | 'warning' | 's
   100000002: 'success',
   100000003: 'error',
 };
+
+// Grid mode picklist — qdb_grid_mode
+export const GRID_MODE_TO_PICKLIST: Record<string, number> = {
+  selection: 100000000,
+  entry:     100000001,
+};
+export const PICKLIST_TO_GRID_MODE: Record<number, 'selection' | 'entry'> = {
+  100000000: 'selection',
+  100000001: 'entry',
+};
+
+// Grid selection mode — qdb_selection_mode
+export const GRID_SELECTION_MODE_TO_PICKLIST: Record<string, number> = {
+  single: 100000000,
+  multi:  100000001,
+};
+export const PICKLIST_TO_GRID_SELECTION_MODE: Record<number, 'single' | 'multi'> = {
+  100000000: 'single',
+  100000001: 'multi',
+};
+
+// Grid column config attributes — qdb_grid_column_configs entity
+export const GRID_COLUMN_CONFIG_ATTRS = {
+  ID:             'qdb_grid_column_configid',
+  FIELD_ID:       'qdb_form_field_id',
+  FIELD_ID_VALUE: '_qdb_form_field_id_value',
+  COLUMN_LABEL:   'qdb_column_label',
+  TARGET_ATTR:    'qdb_column_attribute',
+  COLUMN_TYPE:    'qdb_column_field_type',
+  DISPLAY_ORDER:  'qdb_display_order',
+  IS_VISIBLE:     'qdb_is_visible',
+  IS_EDITABLE:    'qdb_is_editable',
+  OPTIONS_JSON:   'qdb_column_options_json',
+} as const;
 
 export const FORM_VALIDATION_RULE_ATTRS = {
   ID: 'qdb_form_validation_ruleid',

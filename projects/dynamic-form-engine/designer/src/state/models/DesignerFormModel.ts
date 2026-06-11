@@ -66,6 +66,17 @@ export interface DesignerLookupConfig {
   maxResults: number;
 }
 
+export interface DesignerGridColumnConfig {
+  /** CRM GUID or 'tmp_col_<timestamp>' for unsaved columns */
+  id: string;
+  columnLabel: string;
+  targetAttribute: string;
+  columnFieldType: string;
+  displayOrder: number;
+  isEditable: boolean;
+  optionsJson: string | null;
+}
+
 export interface DesignerFieldModel {
   /** CRM GUID or 'tmp_field_<timestamp>' */
   id: string;
@@ -99,4 +110,14 @@ export interface DesignerFieldModel {
   infoCardTitle: string | null;
   infoCardBody: string | null;
   infoCardIcon: string | null;
+  // Sprint 5 — interactive-grid / repeating-grid config
+  gridMode: 'selection' | 'entry' | null;
+  gridEntityName: string | null;
+  gridSelectionMode: 'single' | 'multi' | null;
+  gridMinRows: number | null;
+  gridSavedViewId: string | null;
+  gridFilterExpression: string | null;
+  gridDependsOnFieldId: string | null;
+  gridDependsOnFilterTemplate: string | null;
+  gridColumns: DesignerGridColumnConfig[];
 }

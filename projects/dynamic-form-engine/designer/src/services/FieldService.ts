@@ -10,6 +10,10 @@ import {
   PICKLIST_TO_BOOL_RENDER_STYLE,
   INFO_CARD_STYLE_TO_PICKLIST,
   PICKLIST_TO_INFO_CARD_STYLE,
+  GRID_MODE_TO_PICKLIST,
+  PICKLIST_TO_GRID_MODE,
+  GRID_SELECTION_MODE_TO_PICKLIST,
+  PICKLIST_TO_GRID_SELECTION_MODE,
 } from '@/constants/attributeNames';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
@@ -40,6 +44,15 @@ export interface CreateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  // Sprint 5 — grid config
+  gridMode?: 'selection' | 'entry' | null;
+  gridEntityName?: string | null;
+  gridSelectionMode?: 'single' | 'multi' | null;
+  gridMinRows?: number | null;
+  gridSavedViewId?: string | null;
+  gridFilterExpression?: string | null;
+  gridDependsOnFieldId?: string | null;
+  gridDependsOnFilterTemplate?: string | null;
 }
 
 export interface UpdateFieldDto {
@@ -66,6 +79,15 @@ export interface UpdateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  // Sprint 5 — grid config
+  gridMode?: 'selection' | 'entry' | null;
+  gridEntityName?: string | null;
+  gridSelectionMode?: 'single' | 'multi' | null;
+  gridMinRows?: number | null;
+  gridSavedViewId?: string | null;
+  gridFilterExpression?: string | null;
+  gridDependsOnFieldId?: string | null;
+  gridDependsOnFilterTemplate?: string | null;
 }
 
 export class FieldService {
@@ -101,6 +123,14 @@ export class FieldService {
     if (dto.infoCardTitle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle;
     if (dto.infoCardBody != null) payload[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody;
     if (dto.infoCardIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon;
+    if (dto.gridMode != null) payload[FORM_FIELD_ATTRS.GRID_MODE] = GRID_MODE_TO_PICKLIST[dto.gridMode];
+    if (dto.gridEntityName != null) payload[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName;
+    if (dto.gridSelectionMode != null) payload[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode];
+    if (dto.gridMinRows != null) payload[FORM_FIELD_ATTRS.GRID_MIN_ROWS] = dto.gridMinRows;
+    if (dto.gridSavedViewId != null) payload[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID] = dto.gridSavedViewId;
+    if (dto.gridFilterExpression != null) payload[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] = dto.gridFilterExpression;
+    if (dto.gridDependsOnFieldId != null) payload[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] = dto.gridDependsOnFieldId;
+    if (dto.gridDependsOnFilterTemplate != null) payload[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] = dto.gridDependsOnFilterTemplate;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -134,6 +164,14 @@ export class FieldService {
     if (dto.infoCardTitle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle ?? null;
     if (dto.infoCardBody !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody ?? null;
     if (dto.infoCardIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon ?? null;
+    if (dto.gridMode !== undefined) data[FORM_FIELD_ATTRS.GRID_MODE] = dto.gridMode != null ? GRID_MODE_TO_PICKLIST[dto.gridMode] : null;
+    if (dto.gridEntityName !== undefined) data[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName ?? null;
+    if (dto.gridSelectionMode !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = dto.gridSelectionMode != null ? GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode] : null;
+    if (dto.gridMinRows !== undefined) data[FORM_FIELD_ATTRS.GRID_MIN_ROWS] = dto.gridMinRows ?? null;
+    if (dto.gridSavedViewId !== undefined) data[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID] = dto.gridSavedViewId ?? null;
+    if (dto.gridFilterExpression !== undefined) data[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] = dto.gridFilterExpression ?? null;
+    if (dto.gridDependsOnFieldId !== undefined) data[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] = dto.gridDependsOnFieldId ?? null;
+    if (dto.gridDependsOnFilterTemplate !== undefined) data[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] = dto.gridDependsOnFilterTemplate ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -176,6 +214,14 @@ export class FieldService {
       FORM_FIELD_ATTRS.INFO_CARD_TITLE,
       FORM_FIELD_ATTRS.INFO_CARD_BODY,
       FORM_FIELD_ATTRS.INFO_CARD_ICON,
+      FORM_FIELD_ATTRS.GRID_MODE,
+      FORM_FIELD_ATTRS.GRID_ENTITY_NAME,
+      FORM_FIELD_ATTRS.GRID_SELECTION_MODE,
+      FORM_FIELD_ATTRS.GRID_MIN_ROWS,
+      FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID,
+      FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION,
+      FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD,
+      FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE,
     ].join(',');
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -241,6 +287,19 @@ export class FieldService {
       infoCardTitle: record[FORM_FIELD_ATTRS.INFO_CARD_TITLE] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_TITLE]) : null,
       infoCardBody: record[FORM_FIELD_ATTRS.INFO_CARD_BODY] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_BODY]) : null,
       infoCardIcon: record[FORM_FIELD_ATTRS.INFO_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_ICON]) : null,
+      gridMode: record[FORM_FIELD_ATTRS.GRID_MODE] != null
+        ? (PICKLIST_TO_GRID_MODE[Number(record[FORM_FIELD_ATTRS.GRID_MODE])] ?? null)
+        : null,
+      gridEntityName: record[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] != null ? String(record[FORM_FIELD_ATTRS.GRID_ENTITY_NAME]) : null,
+      gridSelectionMode: record[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] != null
+        ? (PICKLIST_TO_GRID_SELECTION_MODE[Number(record[FORM_FIELD_ATTRS.GRID_SELECTION_MODE])] ?? null)
+        : null,
+      gridMinRows: record[FORM_FIELD_ATTRS.GRID_MIN_ROWS] != null ? Number(record[FORM_FIELD_ATTRS.GRID_MIN_ROWS]) : null,
+      gridSavedViewId: record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID] != null ? String(record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID]) : null,
+      gridFilterExpression: record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] != null ? String(record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION]) : null,
+      gridDependsOnFieldId: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD]) : null,
+      gridDependsOnFilterTemplate: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE]) : null,
+      gridColumns: [],
     };
   }
 }

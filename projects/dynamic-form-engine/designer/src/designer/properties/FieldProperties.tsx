@@ -23,6 +23,8 @@ import { FileUploadFieldPanel } from './panels/FileUploadFieldPanel';
 import { RichTextFieldPanel } from './panels/RichTextFieldPanel';
 import { BooleanFieldPanel } from './panels/BooleanFieldPanel';
 import { InfoCardFieldPanel } from './panels/InfoCardFieldPanel';
+import { InteractiveGridFieldPanel } from './panels/InteractiveGridFieldPanel';
+import { RepeatingGridFieldPanel } from './panels/RepeatingGridFieldPanel';
 
 const useStyles = makeStyles({
   root: {
@@ -87,6 +89,10 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
       return <BooleanFieldPanel field={field} />;
     case 'info-card':
       return <InfoCardFieldPanel field={field} />;
+    case 'interactive-grid':
+      return <InteractiveGridFieldPanel field={field} />;
+    case 'repeating_grid':
+      return <RepeatingGridFieldPanel field={field} />;
     case 'custom':
       return <CustomFieldPanel field={field} />;
     default:
@@ -305,18 +311,6 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
                 updateField(fieldId, { decimalPlaces: data.value ? parseInt(data.value, 10) : null })
               }
               placeholder="e.g. 2"
-            />
-          </Field>
-        )}
-        {field.fieldType === 'repeating_grid' && (
-          <Field label="Max Rows" hint="Leave blank for no limit">
-            <Input
-              type="number"
-              value={field.maxRows != null ? String(field.maxRows) : ''}
-              onChange={(_, data) =>
-                updateField(fieldId, { maxRows: data.value ? parseInt(data.value, 10) : null })
-              }
-              placeholder="e.g. 10"
             />
           </Field>
         )}

@@ -250,6 +250,15 @@ export function DesignerScreen(): React.ReactElement {
           infoCardTitle: null,
           infoCardBody: null,
           infoCardIcon: null,
+          gridMode: null,
+          gridEntityName: null,
+          gridSelectionMode: null,
+          gridMinRows: null,
+          gridSavedViewId: null,
+          gridFilterExpression: null,
+          gridDependsOnFieldId: null,
+          gridDependsOnFilterTemplate: null,
+          gridColumns: [],
         };
         addField(newField);
         return;

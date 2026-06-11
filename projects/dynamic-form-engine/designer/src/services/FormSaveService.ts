@@ -10,11 +10,13 @@ import { LookupConfigService } from './LookupConfigService';
 import { ValidationRuleService } from './ValidationRuleService';
 import { BusinessRuleService } from './BusinessRuleService';
 import { AuditLogService } from './AuditLogService';
+import { GridColumnConfigService } from './GridColumnConfigService';
 import type { CrmUserContext } from './CrmContextService';
 import { withRetry } from './crmRetry';
 
 const OPTION_FIELD_TYPES = new Set(['dropdown', 'multi_select', 'radio']);
 const LOOKUP_FIELD_TYPES = new Set(['lookup', 'child_entity_grid']);
+const GRID_FIELD_TYPES = new Set(['repeating_grid', 'interactive-grid']);
 
 type SaveableState = Pick<
   DesignerState,
@@ -46,6 +48,7 @@ export class FormSaveService {
   private readonly lookupService: LookupConfigService;
   private readonly validationRuleService: ValidationRuleService;
   private readonly businessRuleService: BusinessRuleService;
+  private readonly gridColumnService: GridColumnConfigService;
 
   constructor(
     private readonly webApi: IWebApiAdapter,
@@ -59,6 +62,7 @@ export class FormSaveService {
     this.lookupService = new LookupConfigService(webApi);
     this.validationRuleService = new ValidationRuleService(webApi);
     this.businessRuleService = new BusinessRuleService(webApi);
+    this.gridColumnService = new GridColumnConfigService(webApi);
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
@@ -136,6 +140,14 @@ export class FormSaveService {
           infoCardTitle: field.infoCardTitle,
           infoCardBody: field.infoCardBody,
           infoCardIcon: field.infoCardIcon,
+          gridMode: field.gridMode,
+          gridEntityName: field.gridEntityName,
+          gridSelectionMode: field.gridSelectionMode,
+          gridMinRows: field.gridMinRows,
+          gridSavedViewId: field.gridSavedViewId,
+          gridFilterExpression: field.gridFilterExpression,
+          gridDependsOnFieldId: field.gridDependsOnFieldId,
+          gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -165,7 +177,12 @@ export class FormSaveService {
           });
         }
 
-        // Step 3d: Create validation rules for new fields
+        // Step 3d: Sync grid columns for new grid fields
+        if (GRID_FIELD_TYPES.has(field.fieldType) && field.gridColumns.length > 0) {
+          await this.gridColumnService.syncColumns(realId, field.gridColumns);
+        }
+
+        // Step 3e: Create validation rules for new fields
         const fieldRules = Object.values(validationRules).filter(r => r.fieldId === tempFieldId);
         for (const rule of fieldRules) {
           await this.validationRuleService.createRule({
@@ -225,6 +242,14 @@ export class FormSaveService {
           infoCardTitle: field.infoCardTitle,
           infoCardBody: field.infoCardBody,
           infoCardIcon: field.infoCardIcon,
+          gridMode: field.gridMode,
+          gridEntityName: field.gridEntityName,
+          gridSelectionMode: field.gridSelectionMode,
+          gridMinRows: field.gridMinRows,
+          gridSavedViewId: field.gridSavedViewId,
+          gridFilterExpression: field.gridFilterExpression,
+          gridDependsOnFieldId: field.gridDependsOnFieldId,
+          gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
@@ -245,7 +270,12 @@ export class FormSaveService {
           });
         }
 
-        // Step 4d: Sync validation rules for dirty fields
+        // Step 4d: Sync grid columns for dirty grid fields
+        if (GRID_FIELD_TYPES.has(field.fieldType)) {
+          await this.gridColumnService.syncColumns(id, field.gridColumns);
+        }
+
+        // Step 4e: Sync validation rules for dirty fields
         const fieldRules = Object.values(validationRules).filter(r => r.fieldId === id);
         await this.validationRuleService.syncRules(id, fieldRules);
       }
