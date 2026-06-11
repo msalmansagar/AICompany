@@ -48,6 +48,7 @@
     "@babel/core": "^7.24.0",
     "@testing-library/react-native": "^12.5.0",
     "@types/react": "~19.1.10",
+    "dotenv": "^16.4.7",
     "eslint": "^8.57.0",
     "jest": "^29.7.0",
     "jest-expo": "~54.0.0",
@@ -67,6 +68,9 @@
       "^react-test-renderer/(.*)$": "<rootDir>/node_modules/react-test-renderer/$1"
     },
     "setupFilesAfterFramework": [],
-    "testPathIgnorePatterns": ["/node_modules/", "/e2e/"]
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/e2e/"
+    ]
   }
 }
