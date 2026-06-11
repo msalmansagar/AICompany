@@ -63,6 +63,30 @@ interface BackendValidationRule {
   priority: number;
 }
 
+interface BackendGridColumnConfig {
+  columnId: string;
+  displayOrder: number;
+  columnLabel: string;
+  targetAttribute: string;
+  columnFieldType: string;
+  options?: unknown[];
+}
+
+interface BackendGridConfig {
+  mode?: string;
+  gridMode?: string;
+  selectionMode?: string;
+  entityName?: string;
+  targetEntity?: string;
+  columnConfigs?: BackendGridColumnConfig[];
+  minRows?: number;
+  maxRows?: number;
+  savedViewId?: string;
+  filterExpression?: string;
+  dependsOnFieldId?: string;
+  dependsOnFilterTemplate?: string;
+}
+
 interface BackendFieldDefinition {
   id: string;
   sectionId: string;
@@ -91,6 +115,9 @@ interface BackendFieldDefinition {
     searchMinChars: number;
     maxResults: number;
   };
+  gridConfig?: BackendGridConfig;
+  radioRenderStyle?: string;
+  multiselectRenderStyle?: string;
 }
 
 interface BackendSectionDefinition {
@@ -248,6 +275,28 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
           field.lookupConfig.maxResults ?? 10,
         ].join('|')
       : undefined,
+    gridConfig: field.gridConfig
+      ? {
+          mode: (field.gridConfig.mode ?? field.gridConfig.gridMode ?? 'entry') as 'selection' | 'entry',
+          selectionMode: (field.gridConfig.selectionMode ?? 'single') as 'single' | 'multi',
+          entityName: field.gridConfig.entityName ?? field.gridConfig.targetEntity,
+          columnConfigs: (field.gridConfig.columnConfigs ?? []).map((col) => ({
+            columnId: col.columnId,
+            displayOrder: col.displayOrder,
+            columnLabel: col.columnLabel,
+            targetAttribute: col.targetAttribute,
+            columnFieldType: col.columnFieldType,
+          })),
+          maxRows: field.gridConfig.maxRows,
+          minRows: field.gridConfig.minRows,
+          savedViewId: field.gridConfig.savedViewId,
+          filterExpression: field.gridConfig.filterExpression,
+          dependsOnFieldId: field.gridConfig.dependsOnFieldId,
+          dependsOnFilterTemplate: field.gridConfig.dependsOnFilterTemplate,
+        }
+      : undefined,
+    radioRenderStyle: field.radioRenderStyle as 'list' | 'cards' | undefined,
+    multiselectRenderStyle: field.multiselectRenderStyle as 'dropdown' | 'checkboxes' | undefined,
   };
 }
 
