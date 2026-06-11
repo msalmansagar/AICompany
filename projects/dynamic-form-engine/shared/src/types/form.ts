@@ -2,7 +2,8 @@ export type FieldType =
   | 'text' | 'textarea' | 'number' | 'currency' | 'decimal'
   | 'date' | 'datetime' | 'dropdown' | 'multiselect' | 'lookup'
   | 'checkbox' | 'radio' | 'email' | 'phone' | 'file'
-  | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid';
+  | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid'
+  | 'custom';
 
 export interface ValidationRule {
   ruleId: string;

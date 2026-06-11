@@ -486,7 +486,7 @@ export const MOCK_LOAN_APPLICATION: FormDefinition = {
             {
               id: 'fld-declaration-text',
               sectionId: 'sec-declaration',
-              fieldType: 'richText',
+              fieldType: 'richtext',
               schemaName: 'qdb_declaration_text',
               label: 'Declaration',
               displayOrder: 1,

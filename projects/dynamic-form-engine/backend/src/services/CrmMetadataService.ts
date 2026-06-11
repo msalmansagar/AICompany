@@ -670,7 +670,7 @@ export class CrmMetadataService extends CrmBaseService {
       100000007: 'multiselect',   100000008: 'lookup',     100000009: 'checkbox',
       100000010: 'radio',         100000011: 'currency',   100000012: 'decimal',
       100000013: 'email',         100000014: 'phone',      100000015: 'file',
-      100000016: 'repeatingGrid', 100000017: 'richText',   100000018: 'custom',
+      100000016: 'grid',          100000017: 'richtext',    100000018: 'custom',
       100000019: 'boolean',
       100000020: 'info-card',
       100000021: 'interactive-grid',

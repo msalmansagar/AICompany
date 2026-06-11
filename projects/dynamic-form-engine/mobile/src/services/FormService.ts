@@ -216,13 +216,8 @@ interface BackendFormDefinition {
 
 // â”€â”€ Type normalization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const FIELD_TYPE_MAP: Record<string, FieldType> = {
-  richText: 'richtext',
-  repeatingGrid: 'grid',
-};
-
 function normalizeFieldType(raw: string): FieldType {
-  return (FIELD_TYPE_MAP[raw] ?? raw) as FieldType;
+  return raw as FieldType;
 }
 
 // â”€â”€ Mapping functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

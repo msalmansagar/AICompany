@@ -105,11 +105,13 @@ export function FieldRenderer({ field, control, accessToken = '', isTabActive = 
       );
     case 'info-card':
       return <FormInfoCardField field={effectiveField} />;
+    case 'custom': {
+      const customKey = (effectiveField as FieldDefinition & { componentKey?: string }).componentKey ?? '';
+      const CustomField = ComponentRegistry.resolve(customKey);
+      if (CustomField) return <CustomField field={effectiveField} control={control} />;
+      return null;
+    }
     default: {
-      // Try custom registry before failing.
-      const componentKey = (effectiveField as FieldDefinition & { componentKey?: string }).componentKey ?? '';
-      const Custom = ComponentRegistry.resolve(componentKey);
-      if (Custom) return <Custom field={effectiveField} control={control} />;
       const exhaustive: never = effectiveField.fieldType;
       return (
         <Text style={{ color: '#999', fontSize: 13 }}>
