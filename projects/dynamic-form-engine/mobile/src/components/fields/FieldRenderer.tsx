@@ -15,6 +15,7 @@ import { FormCheckboxGroupField } from './FormCheckboxGroupField';
 import { FormLookupField } from './FormLookupField';
 import { FormFileField } from './FormFileField';
 import { FormRepeatingGridField } from './FormRepeatingGridField';
+import { FormSelectionGridField } from './FormSelectionGridField';
 import { FormBooleanField } from './FormBooleanField';
 import { FormInteractiveGridField } from './FormInteractiveGridField';
 import { FormInfoCardField } from './FormInfoCardField';
@@ -81,7 +82,16 @@ export function FieldRenderer({ field, control, accessToken = '', isTabActive = 
     case 'file':
       return <FormFileField field={effectiveField} control={control} />;
     case 'grid':
-      return <FormRepeatingGridField field={effectiveField} control={control} />;
+      return effectiveField.gridConfig?.mode === 'selection'
+        ? (
+          <FormSelectionGridField
+            field={effectiveField}
+            control={control}
+            accessToken={accessToken}
+            isTabActive={isTabActive}
+          />
+        )
+        : <FormRepeatingGridField field={effectiveField} control={control} />;
     case 'boolean':
       return <FormBooleanField field={effectiveField} control={control} />;
     case 'interactive-grid':
