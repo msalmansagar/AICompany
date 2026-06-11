@@ -100,6 +100,15 @@ export const FORM_FIELD_ATTRS = {
   PARENT_FIELD_ID_VALUE: '_qdb_parent_field_id_value',
   // Sprint 3 — custom field type
   COMPONENT_KEY: 'qdb_component_key',
+  // Sprint 4 — boolean field type
+  BOOL_RENDER_STYLE: 'qdb_bool_render_style',
+  TRUE_LABEL: 'qdb_true_label',
+  FALSE_LABEL: 'qdb_false_label',
+  // Sprint 4 — info-card inline field
+  INFO_CARD_STYLE: 'qdb_info_card_style',
+  INFO_CARD_TITLE: 'qdb_info_card_title',
+  INFO_CARD_BODY: 'qdb_info_card_body',
+  INFO_CARD_ICON: 'qdb_info_card_icon',
 } as const;
 
 // Picklist codes for qdb_field_type
@@ -123,7 +132,11 @@ export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
   repeating_grid:100000016,
   rich_text:     100000017,
   // Sprint 3
-  custom:        100000018,
+  custom:          100000018,
+  // Sprint 4
+  boolean:         100000019,
+  'info-card':     100000020,
+  'interactive-grid': 100000021,
 };
 export const PICKLIST_TO_FIELD_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(FIELD_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])
@@ -137,6 +150,30 @@ export const COLUMN_SPAN_TO_PICKLIST: Record<number, number> = {
 export const PICKLIST_TO_COLUMN_SPAN: Record<number, 1 | 2 | 3> = {
   100000001: 1, 100000002: 2, 100000003: 3, 100000004: 3,
   1: 1, 2: 2, 3: 3,
+};
+
+// Boolean render style — qdb_bool_render_style picklist
+export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
+  toggle: 100000000,
+  radio:  100000001,
+};
+export const PICKLIST_TO_BOOL_RENDER_STYLE: Record<number, 'toggle' | 'radio'> = {
+  100000000: 'toggle',
+  100000001: 'radio',
+};
+
+// Info-card style — qdb_info_card_style picklist
+export const INFO_CARD_STYLE_TO_PICKLIST: Record<string, number> = {
+  info:    100000000,
+  warning: 100000001,
+  success: 100000002,
+  error:   100000003,
+};
+export const PICKLIST_TO_INFO_CARD_STYLE: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
+  100000000: 'info',
+  100000001: 'warning',
+  100000002: 'success',
+  100000003: 'error',
 };
 
 export const FORM_VALIDATION_RULE_ATTRS = {

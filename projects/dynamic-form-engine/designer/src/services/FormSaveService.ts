@@ -129,6 +129,13 @@ export class FormSaveService {
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          boolRenderStyle: field.boolRenderStyle,
+          trueLabel: field.trueLabel,
+          falseLabel: field.falseLabel,
+          infoCardStyle: field.infoCardStyle,
+          infoCardTitle: field.infoCardTitle,
+          infoCardBody: field.infoCardBody,
+          infoCardIcon: field.infoCardIcon,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -211,6 +218,13 @@ export class FormSaveService {
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          boolRenderStyle: field.boolRenderStyle,
+          trueLabel: field.trueLabel,
+          falseLabel: field.falseLabel,
+          infoCardStyle: field.infoCardStyle,
+          infoCardTitle: field.infoCardTitle,
+          infoCardBody: field.infoCardBody,
+          infoCardIcon: field.infoCardIcon,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields

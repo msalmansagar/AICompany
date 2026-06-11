@@ -240,9 +240,104 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
             <button type="button" tabIndex={-1} style={{ padding: '6px 10px', borderRadius: `${style.borderRadius}px`, border: '1px solid #ccc', backgroundColor: '#f5f5f5', cursor: 'default' }}>...</button>
           </div>
         );
+      case 'multi_select':
+        return (
+          <select style={{ ...inputStyle, width: '100%' }} multiple size={Math.min(4, field.options.length || 2)} aria-label={field.label} tabIndex={-1}>
+            {field.options.length > 0
+              ? field.options.map(opt => <option key={opt.id} value={opt.value}>{opt.label}</option>)
+              : <option>-- No options defined --</option>
+            }
+          </select>
+        );
+      case 'boolean': {
+        const renderStyle = field.boolRenderStyle ?? 'toggle';
+        if (renderStyle === 'radio') {
+          return (
+            <div style={{ display: 'flex', gap: '16px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'default' }}>
+                <input type="radio" readOnly name={field.id} tabIndex={-1} />
+                {field.trueLabel || 'Yes'}
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'default' }}>
+                <input type="radio" readOnly name={field.id} tabIndex={-1} />
+                {field.falseLabel || 'No'}
+              </label>
+            </div>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="checkbox" role="switch" readOnly tabIndex={-1} aria-label={field.label} defaultChecked={field.defaultValue === 'true'} />
+            <span style={{ fontSize: '13px', color: '#555' }}>Toggle</span>
+          </div>
+        );
+      }
+      case 'repeating_grid':
+      case 'interactive-grid': {
+        const isInteractive = field.fieldType === 'interactive-grid';
+        return (
+          <div style={{ border: '1px solid #e0e0e0', borderRadius: `${style.borderRadius}px`, overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', fontFamily: style.fontFamily }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f0f4f8' }}>
+                  {isInteractive && (
+                    <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 600, color: '#555', width: '32px' }}>
+                      ☐
+                    </th>
+                  )}
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 600, color: '#555' }}>Column 1</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 600, color: '#555' }}>Column 2</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e0e0e0', fontWeight: 600, color: '#555' }}>Column 3</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {isInteractive && <td style={{ padding: '10px', borderBottom: '1px solid #f0f0f0' }} />}
+                  <td colSpan={3} style={{ padding: '12px 10px', color: '#999', fontSize: '11px', textAlign: 'center', borderBottom: '1px solid #f0f0f0', fontStyle: 'italic' }}>
+                    {isInteractive ? 'Data loads at runtime — configure columns in properties panel' : 'Rows added at runtime'}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        );
+      }
       default:
         return <input type="text" {...baseProps} defaultValue={field.defaultValue ?? ''} />;
     }
+  }
+
+  // Info-card is display-only — render the banner directly, no label wrapper.
+  if (field.fieldType === 'info-card') {
+    const cardStyleKey = (field.infoCardStyle ?? 'info') as 'info' | 'warning' | 'success' | 'error';
+    const borderColours = { info: '#0078d4', warning: '#f7630c', success: '#107c10', error: '#d92b2b' };
+    const bgColours = { info: '#eff6fc', warning: '#fff4e5', success: '#f0f9f0', error: '#fef0f0' };
+    return (
+      <div style={{
+        marginBottom: `${style.fieldSpacing}px`,
+        padding: '10px 14px',
+        borderLeft: `4px solid ${borderColours[cardStyleKey]}`,
+        backgroundColor: bgColours[cardStyleKey],
+        borderRadius: `${style.borderRadius}px`,
+        fontFamily: style.fontFamily,
+      }}>
+        {field.infoCardTitle && (
+          <div style={{ fontWeight: 600, marginBottom: '4px', fontSize: `${style.fontSizeBase}px` }}>
+            {field.infoCardTitle}
+          </div>
+        )}
+        {field.infoCardBody && (
+          <div style={{ fontSize: `${style.fontSizeBase - 1}px`, color: '#444', lineHeight: '1.5' }}>
+            {field.infoCardBody}
+          </div>
+        )}
+        {!field.infoCardTitle && !field.infoCardBody && (
+          <div style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>
+            Info banner — configure title and body in properties panel
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

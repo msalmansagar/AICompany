@@ -243,6 +243,13 @@ export function DesignerScreen(): React.ReactElement {
           options: [],
           lookupConfig: null,
           componentKey: null,
+          boolRenderStyle: null,
+          trueLabel: null,
+          falseLabel: null,
+          infoCardStyle: null,
+          infoCardTitle: null,
+          infoCardBody: null,
+          infoCardIcon: null,
         };
         addField(newField);
         return;

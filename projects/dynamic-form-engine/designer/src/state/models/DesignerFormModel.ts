@@ -90,4 +90,13 @@ export interface DesignerFieldModel {
   lookupConfig: DesignerLookupConfig | null;
   // Sprint 3 — populated when fieldType = 'custom'
   componentKey: string | null;
+  // Sprint 4 — boolean field config
+  boolRenderStyle: 'toggle' | 'radio' | null;
+  trueLabel: string | null;
+  falseLabel: string | null;
+  // Sprint 4 — info-card inline field config
+  infoCardStyle: 'info' | 'warning' | 'success' | 'error' | null;
+  infoCardTitle: string | null;
+  infoCardBody: string | null;
+  infoCardIcon: string | null;
 }

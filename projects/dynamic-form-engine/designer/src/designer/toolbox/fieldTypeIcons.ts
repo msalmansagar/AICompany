@@ -4,6 +4,7 @@ import {
   ArrowUploadRegular,
   CodeRegular,
   CalendarRegular,
+  ToggleLeftRegular,
   CheckboxCheckedRegular,
   ChevronCircleDownRegular,
   ClipboardCheckmarkRegular,
@@ -70,6 +71,10 @@ export const FIELD_TYPE_ICONS: Record<FieldType, FluentIcon> = {
   [FIELD_TYPE.DECLARATION_BLOCK]: ClipboardCheckmarkRegular,
   [FIELD_TYPE.SUMMARY_BLOCK]: DataBarVerticalRegular,
   [FIELD_TYPE.CUSTOM]: CodeRegular,
+  // Sprint 4
+  [FIELD_TYPE.BOOLEAN]: ToggleLeftRegular,
+  [FIELD_TYPE.INFO_CARD]: InfoRegular,
+  [FIELD_TYPE.INTERACTIVE_GRID]: TableRegular,
 };
 
 export { AppsRegular, LayoutCellFourRegular, PuzzlePieceRegular };

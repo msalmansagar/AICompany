@@ -6,6 +6,10 @@ import {
   PICKLIST_TO_FIELD_TYPE,
   COLUMN_SPAN_TO_PICKLIST,
   PICKLIST_TO_COLUMN_SPAN,
+  BOOL_RENDER_STYLE_TO_PICKLIST,
+  PICKLIST_TO_BOOL_RENDER_STYLE,
+  INFO_CARD_STYLE_TO_PICKLIST,
+  PICKLIST_TO_INFO_CARD_STYLE,
 } from '@/constants/attributeNames';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
@@ -28,6 +32,14 @@ export interface CreateFieldDto {
   maxRows?: number | null;
   // Sprint 3
   componentKey?: string | null;
+  // Sprint 4
+  boolRenderStyle?: 'toggle' | 'radio' | null;
+  trueLabel?: string | null;
+  falseLabel?: string | null;
+  infoCardStyle?: 'info' | 'warning' | 'success' | 'error' | null;
+  infoCardTitle?: string | null;
+  infoCardBody?: string | null;
+  infoCardIcon?: string | null;
 }
 
 export interface UpdateFieldDto {
@@ -46,6 +58,14 @@ export interface UpdateFieldDto {
   maxRows?: number | null;
   // Sprint 3
   componentKey?: string | null;
+  // Sprint 4
+  boolRenderStyle?: 'toggle' | 'radio' | null;
+  trueLabel?: string | null;
+  falseLabel?: string | null;
+  infoCardStyle?: 'info' | 'warning' | 'success' | 'error' | null;
+  infoCardTitle?: string | null;
+  infoCardBody?: string | null;
+  infoCardIcon?: string | null;
 }
 
 export class FieldService {
@@ -74,6 +94,13 @@ export class FieldService {
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
+    if (dto.boolRenderStyle != null) payload[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle];
+    if (dto.trueLabel != null) payload[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel;
+    if (dto.falseLabel != null) payload[FORM_FIELD_ATTRS.FALSE_LABEL] = dto.falseLabel;
+    if (dto.infoCardStyle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_STYLE] = INFO_CARD_STYLE_TO_PICKLIST[dto.infoCardStyle];
+    if (dto.infoCardTitle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle;
+    if (dto.infoCardBody != null) payload[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody;
+    if (dto.infoCardIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -100,6 +127,13 @@ export class FieldService {
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
+    if (dto.boolRenderStyle !== undefined) data[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = dto.boolRenderStyle != null ? BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle] : null;
+    if (dto.trueLabel !== undefined) data[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel ?? null;
+    if (dto.falseLabel !== undefined) data[FORM_FIELD_ATTRS.FALSE_LABEL] = dto.falseLabel ?? null;
+    if (dto.infoCardStyle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_STYLE] = dto.infoCardStyle != null ? INFO_CARD_STYLE_TO_PICKLIST[dto.infoCardStyle] : null;
+    if (dto.infoCardTitle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle ?? null;
+    if (dto.infoCardBody !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody ?? null;
+    if (dto.infoCardIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -135,6 +169,13 @@ export class FieldService {
       FORM_FIELD_ATTRS.DECIMAL_PLACES,
       FORM_FIELD_ATTRS.MAX_ROWS,
       FORM_FIELD_ATTRS.COMPONENT_KEY,
+      FORM_FIELD_ATTRS.BOOL_RENDER_STYLE,
+      FORM_FIELD_ATTRS.TRUE_LABEL,
+      FORM_FIELD_ATTRS.FALSE_LABEL,
+      FORM_FIELD_ATTRS.INFO_CARD_STYLE,
+      FORM_FIELD_ATTRS.INFO_CARD_TITLE,
+      FORM_FIELD_ATTRS.INFO_CARD_BODY,
+      FORM_FIELD_ATTRS.INFO_CARD_ICON,
     ].join(',');
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -189,6 +230,17 @@ export class FieldService {
       componentKey: record[FORM_FIELD_ATTRS.COMPONENT_KEY] != null
         ? String(record[FORM_FIELD_ATTRS.COMPONENT_KEY])
         : null,
+      boolRenderStyle: record[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] != null
+        ? (PICKLIST_TO_BOOL_RENDER_STYLE[Number(record[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE])] ?? null)
+        : null,
+      trueLabel: record[FORM_FIELD_ATTRS.TRUE_LABEL] != null ? String(record[FORM_FIELD_ATTRS.TRUE_LABEL]) : null,
+      falseLabel: record[FORM_FIELD_ATTRS.FALSE_LABEL] != null ? String(record[FORM_FIELD_ATTRS.FALSE_LABEL]) : null,
+      infoCardStyle: record[FORM_FIELD_ATTRS.INFO_CARD_STYLE] != null
+        ? (PICKLIST_TO_INFO_CARD_STYLE[Number(record[FORM_FIELD_ATTRS.INFO_CARD_STYLE])] ?? null)
+        : null,
+      infoCardTitle: record[FORM_FIELD_ATTRS.INFO_CARD_TITLE] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_TITLE]) : null,
+      infoCardBody: record[FORM_FIELD_ATTRS.INFO_CARD_BODY] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_BODY]) : null,
+      infoCardIcon: record[FORM_FIELD_ATTRS.INFO_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_ICON]) : null,
     };
   }
 }
