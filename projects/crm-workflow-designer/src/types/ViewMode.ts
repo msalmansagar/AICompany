@@ -1,4 +1,4 @@
-export type ViewMode = 'executive' | 'business' | 'technical' | 'swimlane';
+export type ViewMode = 'executive' | 'business' | 'technical' | 'technical-new' | 'swimlane';
 
 export interface ViewModeMeta {
   id: ViewMode;
@@ -21,6 +21,11 @@ export const VIEW_MODES: ViewModeMeta[] = [
     id: 'technical',
     label: 'Technical',
     description: 'Full detail — schema, tasks, assignments',
+  },
+  {
+    id: 'technical-new',
+    label: 'Technical (New)',
+    description: 'SOP-style canvas with full technical detail and colour-coded paths',
   },
   {
     id: 'swimlane',

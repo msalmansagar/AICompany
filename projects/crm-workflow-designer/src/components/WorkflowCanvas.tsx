@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState, useRef } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
 import { buildTechnicalGraph } from '../services/TechnicalGraphBuilder';
+import { buildTechNewGraph } from '../services/TechNewGraphBuilder';
 import { buildSwimlaneGraph } from '../services/SwimlaneGraphBuilder';
 import { nodeTypes } from '../nodes/nodeTypes';
 import { ViewToolbar } from './ViewToolbar';
@@ -45,10 +46,11 @@ type BuildFn = (
 ) => ReturnType<typeof buildGraph>;
 
 const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
-  executive: buildExecutiveGraph as BuildFn,
-  business:  buildGraph as BuildFn,
-  technical: buildTechnicalGraph as BuildFn,
-  swimlane:  buildSwimlaneGraph as BuildFn,
+  executive:      buildExecutiveGraph as BuildFn,
+  business:       buildGraph as BuildFn,
+  technical:      buildTechnicalGraph as BuildFn,
+  'technical-new': buildTechNewGraph as BuildFn,
+  swimlane:       buildSwimlaneGraph as BuildFn,
 };
 
 export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {

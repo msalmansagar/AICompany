@@ -18,6 +18,8 @@ import { SopOutcomeNode } from './SopOutcomeNode';
 import { SopStartNode } from './SopStartNode';
 import { SopEndNode } from './SopEndNode';
 import { SopSwimlaneNode } from './SopSwimlaneNode';
+import { TechNewStepNode } from './TechNewStepNode';
+import { TechNewOutcomeNode } from './TechNewOutcomeNode';
 
 export const nodeTypes: NodeTypes = {
   // Legacy edit-mode nodes (kept for compatibility)
@@ -40,6 +42,10 @@ export const nodeTypes: NodeTypes = {
 
   // Technical view
   techStep: TechStepNode,
+
+  // Technical (New) view
+  techNewStep: TechNewStepNode,
+  techNewOutcome: TechNewOutcomeNode,
 
   // Swimlane view
   swimlane: SwimlaneNode,
