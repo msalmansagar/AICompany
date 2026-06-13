@@ -28,6 +28,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     nodePositions,
     selectedId,
     process,
+    validationResults,
     addStep,
     addOutcome,
     selectNode,
@@ -40,6 +41,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     nodePositions: s.nodePositions,
     selectedId: s.selectedId,
     process: s.process,
+    validationResults: s.validationResults,
     addStep: s.addStep,
     addOutcome: s.addOutcome,
     selectNode: s.selectNode,
@@ -48,6 +50,14 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   }));
 
   const nodes = useMemo<Node[]>(() => {
+    const errorStepIds = new Set<string>();
+    for (const v of validationResults) {
+      if (v.nodeId && (!v.nodeType || v.nodeType === 'step')) {
+        errorStepIds.add(v.nodeId);
+      }
+      for (const id of (v.affectedNodeIds ?? [])) errorStepIds.add(id);
+    }
+
     const stepCount = stepOrder.length;
 
     const startPosition = nodePositions[START_NODE_ID] ?? { x: 300, y: -80 };
@@ -85,6 +95,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         assignTo: step.assignTo,
         assigneeName: resolveAssigneeName(step),
         isSelected: selectedId === `step_${stepId}`,
+        hasError: errorStepIds.has(step.crmId),
       };
 
       return {
@@ -98,7 +109,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     }).filter(Boolean);
 
     return [startNode, ...stepNodes, endNode];
-  }, [steps, stepOrder, nodePositions, selectedId]);
+  }, [steps, stepOrder, nodePositions, selectedId, validationResults]);
 
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];

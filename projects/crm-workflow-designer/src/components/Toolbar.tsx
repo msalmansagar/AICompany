@@ -34,8 +34,9 @@ export function Toolbar({
     showToast: s.showToast,
   }));
 
+  const validationResults = useWorkflowStore((s) => s.validationResults);
   const { save, isSaving, error: saveError } = useWorkflowSave();
-  const { publish, isPublishing, violations } = usePublish();
+  const { publish, isPublishing } = usePublish();
   const { applyAutoLayout } = useAutoLayout();
   const { exportJson, exportPng } = useExport();
   const { loadProcess, loadProcessList, isLoading: isLoadingProcess } = useLoadWorkflow();
@@ -48,7 +49,7 @@ export function Toolbar({
 
   const processName = process?.name ?? 'Untitled Workflow';
   const versionLabel = process ? `v${process.versionMajor}.${process.versionMinor} — ${process.workflowState}` : '';
-  const hasErrors = violations.filter((v) => v.severity === 'error').length > 0;
+  const hasErrors = validationResults.filter((v) => v.severity === 'error').length > 0;
 
   // Show save error via toast when it changes
   useEffect(() => {

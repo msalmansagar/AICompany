@@ -3,25 +3,35 @@ import type { WorkflowDesignerState } from '@/store/workflowStore';
 export type ViolationCode =
   | 'NO_PROCESS'
   | 'NO_STEPS'
+  | 'MISSING_STEP_NAME'
   | 'ORPHAN_STEP'
   | 'NO_OUTCOMES'
+  | 'NO_TERMINAL_OUTCOME'
   | 'DUPLICATE_SEQUENCE'
   | 'INVALID_ASSIGNMENT'
   | 'MISSING_FETCHXML'
-  | 'CIRCULAR_ROUTE'
+  | 'DEAD_LOOP'
   | 'MISSING_START'
   | 'MISSING_END'
-  | 'INVALID_NEXT_STEP';
+  | 'INVALID_NEXT_STEP'
+  | 'MISSING_TASK_SUBJECT'
+  | 'DUPLICATE_OUTCOME_NAME'
+  | 'TOO_MANY_OUTCOMES';
 
 export interface Violation {
   code: ViolationCode;
   message: string;
+  /** Primary affected node ID (step.crmId or outcome.crmId). */
   nodeId?: string;
+  /** 'step' | 'outcome' — used to build canvas selection IDs. Defaults to 'step'. */
+  nodeType?: 'step' | 'outcome';
+  /** All node IDs affected by this violation (e.g. all steps in a dead loop). */
+  affectedNodeIds?: string[];
   severity: 'error' | 'warning';
 }
 
 export class ValidationService {
-  validate(state: Pick<WorkflowDesignerState, 'process' | 'steps' | 'outcomes' | 'routes' | 'stepOrder'>): Violation[] {
+  validate(state: Pick<WorkflowDesignerState, 'process' | 'steps' | 'outcomes' | 'routes' | 'stepOrder' | 'outcomeOrder'>): Violation[] {
     const violations: Violation[] = [];
 
     if (!state.process) {
@@ -35,15 +45,20 @@ export class ValidationService {
       return violations;
     }
 
+    this.checkMissingStepNames(steps, violations);
     this.checkStartNode(steps, violations);
     this.checkEndNodes(state, violations);
     this.checkOrphanSteps(state, violations);
     this.checkNoOutcomes(state, violations);
+    this.checkNoTerminalOutcome(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
     this.checkMissingFetchXml(state, violations);
     this.checkInvalidNextStep(state, violations);
-    this.checkCircularRoutes(state, violations);
+    this.checkDeadLoops(state, violations);
+    this.checkMissingTaskSubject(steps, violations);
+    this.checkDuplicateOutcomeNames(state, violations);
+    this.checkTooManyOutcomes(state, violations);
 
     return violations;
   }
@@ -212,54 +227,179 @@ export class ValidationService {
     }
   }
 
-  private checkCircularRoutes(
+  private checkMissingStepNames(
+    steps: WorkflowDesignerState['steps'][string][],
+    violations: Violation[]
+  ): void {
+    for (const step of steps) {
+      if (!step.name?.trim()) {
+        violations.push({
+          code: 'MISSING_STEP_NAME',
+          message: `Step ${step.sequenceNo} is missing a name.`,
+          nodeId: step.crmId,
+          nodeType: 'step',
+          severity: 'error',
+        });
+      }
+    }
+  }
+
+  private checkNoTerminalOutcome(
+    state: Pick<WorkflowDesignerState, 'outcomes'>,
+    violations: Violation[]
+  ): void {
+    const hasTerminal = Object.values(state.outcomes).some((o) => o.nextStepId === null);
+    if (!hasTerminal) {
+      violations.push({
+        code: 'NO_TERMINAL_OUTCOME',
+        message: 'No outcome leads to the End node — the process can never complete.',
+        severity: 'error',
+      });
+    }
+  }
+
+  /**
+   * Replaces the old CIRCULAR_ROUTE check. A cycle is only a dead loop when
+   * no member of the cycle can exit — either via a terminal outcome (→ End)
+   * or via a route/outcome pointing to a step outside the cycle.
+   */
+  private checkDeadLoops(
     state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
     violations: Violation[]
   ): void {
-    // Build adjacency: stepId -> list of nextStepIds via outcomes/routes
-    const adjacency = new Map<string, string[]>();
-    for (const step of Object.values(state.steps)) {
-      adjacency.set(step.crmId, []);
-    }
-
-    for (const outcome of Object.values(state.outcomes)) {
-      const routes = Object.values(state.routes).filter((r) => r.outcomeId === outcome.crmId);
-      for (const route of routes) {
-        const existing = adjacency.get(outcome.stepId) ?? [];
-        existing.push(route.nextStepId);
-        adjacency.set(outcome.stepId, existing);
-      }
-    }
+    const stepNextIds = this.buildStepNextMap(state);
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
+    const deadLoopIds = new Set<string>();
 
-    const detectCycle = (nodeId: string): boolean => {
-      if (inStack.has(nodeId)) return true;
-      if (visited.has(nodeId)) return false;
+    const dfs = (stepId: string, stackPath: string[]): void => {
+      visited.add(stepId);
+      inStack.add(stepId);
+      stackPath.push(stepId);
 
-      visited.add(nodeId);
-      inStack.add(nodeId);
+      for (const nextId of stepNextIds.get(stepId) ?? []) {
+        if (nextId === null) continue; // terminal — valid exit
 
-      for (const neighbor of adjacency.get(nodeId) ?? []) {
-        if (detectCycle(neighbor)) return true;
+        if (!visited.has(nextId)) {
+          dfs(nextId, stackPath);
+        } else if (inStack.has(nextId)) {
+          const cycleStart = stackPath.indexOf(nextId);
+          const cycleMembers = stackPath.slice(cycleStart);
+          const cycleSet = new Set(cycleMembers);
+
+          const hasExit = cycleMembers.some((sid) => {
+            const nexts = stepNextIds.get(sid) ?? new Set<string | null>();
+            return [...nexts].some((n) => n === null || !cycleSet.has(n as string));
+          });
+
+          if (!hasExit) {
+            for (const sid of cycleMembers) deadLoopIds.add(sid);
+          }
+        }
       }
 
-      inStack.delete(nodeId);
-      return false;
+      inStack.delete(stepId);
+      stackPath.pop();
     };
 
-    for (const stepId of adjacency.keys()) {
-      if (!visited.has(stepId)) {
-        if (detectCycle(stepId)) {
+    for (const stepId of Object.keys(state.steps)) {
+      if (!visited.has(stepId)) dfs(stepId, []);
+    }
+
+    if (deadLoopIds.size === 0) return;
+
+    const names = [...deadLoopIds]
+      .map((id) => state.steps[id]?.name ?? id)
+      .join(', ');
+
+    violations.push({
+      code: 'DEAD_LOOP',
+      severity: 'error',
+      message: `Dead-end loop — these steps cycle forever with no path to the End node: ${names}.`,
+      nodeId: [...deadLoopIds][0],
+      nodeType: 'step',
+      affectedNodeIds: [...deadLoopIds],
+    });
+  }
+
+  private buildStepNextMap(
+    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>
+  ): Map<string, Set<string | null>> {
+    const map = new Map<string, Set<string | null>>();
+
+    for (const o of Object.values(state.outcomes)) {
+      if (!map.has(o.stepId)) map.set(o.stepId, new Set());
+      if (!o.applyFilter) {
+        map.get(o.stepId)!.add(o.nextStepId); // null = terminal
+      } else {
+        const stepRoutes = Object.values(state.routes).filter((r) => r.outcomeId === o.crmId);
+        for (const r of stepRoutes) {
+          map.get(o.stepId)!.add(r.nextStepId);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  private checkMissingTaskSubject(
+    steps: WorkflowDesignerState['steps'][string][],
+    violations: Violation[]
+  ): void {
+    for (const step of steps) {
+      if (!step.taskSubject?.trim()) {
+        violations.push({
+          code: 'MISSING_TASK_SUBJECT',
+          message: `Step "${step.name || `#${step.sequenceNo}`}" has no task subject — the CRM task created for this step will have a blank title.`,
+          nodeId: step.crmId,
+          nodeType: 'step',
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  private checkDuplicateOutcomeNames(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'outcomeOrder'>,
+    violations: Violation[]
+  ): void {
+    for (const stepId of Object.keys(state.steps)) {
+      const outcomeIds = state.outcomeOrder[stepId] ?? [];
+      const seen = new Map<string, string>();
+      for (const oid of outcomeIds) {
+        const name = state.outcomes[oid]?.name?.trim().toLowerCase() ?? '';
+        if (!name) continue;
+        if (seen.has(name)) {
           violations.push({
-            code: 'CIRCULAR_ROUTE',
-            message: 'The workflow contains a circular route — at least one step loops back to itself or a previous step.',
+            code: 'DUPLICATE_OUTCOME_NAME',
+            message: `Step "${state.steps[stepId]?.name}" has two outcomes both named "${state.outcomes[oid]?.name}" — outcome names must be unique within a step.`,
             nodeId: stepId,
-            severity: 'error',
+            nodeType: 'step',
+            severity: 'warning',
           });
           break;
         }
+        seen.set(name, oid);
+      }
+    }
+  }
+
+  private checkTooManyOutcomes(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'outcomeOrder'>,
+    violations: Violation[]
+  ): void {
+    const THRESHOLD = 5;
+    for (const stepId of Object.keys(state.steps)) {
+      const count = (state.outcomeOrder[stepId] ?? []).length;
+      if (count >= THRESHOLD) {
+        violations.push({
+          code: 'TOO_MANY_OUTCOMES',
+          message: `Step "${state.steps[stepId]?.name}" has ${count} outcomes — consider simplifying or splitting the step.`,
+          nodeId: stepId,
+          nodeType: 'step',
+          severity: 'warning',
+        });
       }
     }
   }

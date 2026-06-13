@@ -23,7 +23,11 @@ import { OutcomePropertiesPanel } from './OutcomePropertiesPanel';
 import { SimulationPanel } from './SimulationPanel';
 import { AutoSimulationPanel } from './AutoSimulationPanel';
 import { AutoSimPlaybackHUD } from './AutoSimPlaybackHUD';
+import { ValidationPanel } from './ValidationPanel';
+import { ValidationService } from '@/services/ValidationService';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
+
+const validationService = new ValidationService();
 
 interface EditCanvasProps {
   adapter: ICrmAdapter;
@@ -44,10 +48,17 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     isAutoSimulating,
     autoSimPhase,
     simHistory,
+    validationResults,
+    steps,
+    outcomes,
+    routes,
+    outcomeOrder,
     deleteStep,
     deleteOutcome,
     selectNode,
     clearToast,
+    setValidationResults,
+    clearValidationResults,
     startSimulation,
     stopSimulation,
     simStepBack,
@@ -64,10 +75,17 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     isAutoSimulating: s.isAutoSimulating,
     autoSimPhase: s.autoSimPhase,
     simHistory: s.simHistory,
+    validationResults: s.validationResults,
+    steps: s.steps,
+    outcomes: s.outcomes,
+    routes: s.routes,
+    outcomeOrder: s.outcomeOrder,
     deleteStep: s.deleteStep,
     deleteOutcome: s.deleteOutcome,
     selectNode: s.selectNode,
     clearToast: s.clearToast,
+    setValidationResults: s.setValidationResults,
+    clearValidationResults: s.clearValidationResults,
     startSimulation: s.startSimulation,
     stopSimulation: s.stopSimulation,
     simStepBack: s.simStepBack,
@@ -90,6 +108,13 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const processName = process?.name ?? 'New Process';
   const canSimulate = stepOrder.length > 0;
   const canSimStepBack = simHistory.length > 0;
+  const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
+
+  const handleValidate = useCallback(() => {
+    if (!process) return;
+    const results = validationService.validate({ process, steps, outcomes, routes, stepOrder, outcomeOrder });
+    setValidationResults(results);
+  }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
   useEffect(() => {
     setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
@@ -155,6 +180,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         isSimulating={isSimulating}
         canSimulate={canSimulate}
         canSimStepBack={canSimStepBack}
+        validationErrorCount={validationErrorCount}
         onBack={handleBack}
         onAddStep={editMode.addStep}
         onSave={() => void save()}
@@ -164,6 +190,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         onRedo={() => redo()}
         canUndo={canUndo}
         canRedo={canRedo}
+        onValidate={handleValidate}
         onSimulate={startSimulation}
         onAutoSimulate={startAutoSimulation}
         onExitSimulation={stopSimulation}
@@ -248,7 +275,15 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
           )}
         </div>
 
-        {!isSimulating && !isAutoSimulating && propertiesPanel}
+        {!isSimulating && !isAutoSimulating && (
+          <div style={sidebarStyle}>
+            <ValidationPanel
+              onNodeFocus={selectNode}
+              onClose={clearValidationResults}
+            />
+            {propertiesPanel}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -291,6 +326,12 @@ const bodyStyle: React.CSSProperties = {
 const canvasWrapStyle: React.CSSProperties = {
   flex: 1,
   position: 'relative',
+  overflow: 'hidden',
+};
+
+const sidebarStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
   overflow: 'hidden',
 };
 

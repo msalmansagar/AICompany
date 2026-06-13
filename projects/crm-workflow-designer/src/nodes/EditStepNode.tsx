@@ -10,6 +10,7 @@ export interface EditStepData extends Record<string, unknown> {
   assignTo: 'user' | 'team' | 'roundRobin';
   assigneeName: string | null;
   isSelected: boolean;
+  hasError: boolean;
 }
 
 const ASSIGN_TO_LABELS: Record<EditStepData['assignTo'], string> = {
@@ -31,7 +32,7 @@ export function EditStepNode({ data }: NodeProps) {
   };
 
   return (
-    <div style={buildContainerStyle(isSelected)}>
+    <div style={buildContainerStyle(isSelected, stepData.hasError ?? false)}>
       <Handle
         type="target"
         position={Position.Top}
@@ -77,18 +78,24 @@ export function EditStepNode({ data }: NodeProps) {
   );
 }
 
-function buildContainerStyle(isSelected: boolean): React.CSSProperties {
+function buildContainerStyle(isSelected: boolean, hasError: boolean): React.CSSProperties {
+  const borderColor = hasError ? '#ef4444' : isSelected ? '#2563eb' : '#334155';
+  const borderWidth = hasError || isSelected ? '2px' : '1.5px';
+  const boxShadow = hasError
+    ? '0 0 0 3px rgba(239,68,68,0.18), 0 2px 8px rgba(0,0,0,0.12)'
+    : isSelected
+    ? '0 0 0 3px rgba(37,99,235,0.2)'
+    : '0 2px 8px rgba(0,0,0,0.12)';
   return {
     width: 260,
-    background: '#fff',
-    border: isSelected ? '2px solid #2563eb' : '1.5px solid #334155',
+    background: hasError ? '#fff8f8' : '#fff',
+    border: `${borderWidth} solid ${borderColor}`,
     borderRadius: 8,
     overflow: 'visible',
-    boxShadow: isSelected
-      ? '0 0 0 3px rgba(37,99,235,0.2)'
-      : '0 2px 8px rgba(0,0,0,0.12)',
+    boxShadow,
     cursor: 'pointer',
     position: 'relative',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
   };
 }
 

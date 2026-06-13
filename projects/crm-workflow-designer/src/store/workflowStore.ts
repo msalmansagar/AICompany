@@ -3,6 +3,7 @@ import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { SimPath } from '@/services/PathEnumerator';
+import type { Violation } from '@/services/ValidationService';
 
 export type AutoSimSpeed = 'slow' | 'normal' | 'fast';
 export type AutoSimPhase = 'playing' | 'holding' | 'done' | null;
@@ -26,6 +27,7 @@ export interface WorkflowDesignerState {
   isPreviewMode: boolean;
   toastMessage: string | null;
   toastType: 'error' | 'success' | null;
+  validationResults: Violation[];
 
   // Manual simulation
   isSimulating: boolean;
@@ -46,6 +48,8 @@ export interface WorkflowDesignerState {
   autoSimTakenOutcomeIds: string[];
 
   // Actions
+  setValidationResults: (results: Violation[]) => void;
+  clearValidationResults: () => void;
   showToast: (message: string, type: 'error' | 'success') => void;
   clearToast: () => void;
   setProcess: (process: WorkflowProcess) => void;
@@ -101,7 +105,8 @@ const emptyState: Omit<
   | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simStepBack'
   | 'startAutoSimulation' | 'stopAutoSimulation'
   | 'initAutoSimPlayback' | 'autoSimAdvanceStep' | 'autoSimBeginHold' | 'autoSimBeginNextPath' | 'autoSimFinish' | 'setAutoSimSpeed'
-  | 'resolveTemporaryId' | 'resolveProcessId' | 'assignOutcomeToStep' | 'loadWorkflow' | 'showToast' | 'clearToast'
+  | 'resolveTemporaryId' | 'resolveProcessId' | 'assignOutcomeToStep' | 'loadWorkflow'
+  | 'showToast' | 'clearToast' | 'setValidationResults' | 'clearValidationResults'
 > = {
   process: null,
   steps: {},
@@ -121,6 +126,7 @@ const emptyState: Omit<
   isPreviewMode: false,
   toastMessage: null,
   toastType: null,
+  validationResults: [],
   isSimulating: false,
   simCurrentStepId: null,
   simVisitedStepIds: [],
@@ -152,6 +158,16 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
         set((state) => {
           state.toastMessage = null;
           state.toastType = null;
+        }),
+
+      setValidationResults: (results) =>
+        set((state) => {
+          state.validationResults = results;
+        }),
+
+      clearValidationResults: () =>
+        set((state) => {
+          state.validationResults = [];
         }),
 
       setProcess: (process) =>

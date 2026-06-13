@@ -4,12 +4,10 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import { ValidationService } from '@/services/ValidationService';
 import { VersioningService } from '@/services/VersioningService';
 import { AuditService } from '@/services/AuditService';
-import type { Violation } from '@/services/ValidationService';
 import { assertGuid } from '@/services/assertGuid';
 
 interface UsePublishResult {
   isPublishing: boolean;
-  violations: Violation[];
   publish: () => Promise<void>;
   error: string | null;
 }
@@ -20,18 +18,19 @@ const versioningService = new VersioningService();
 export function usePublish(): UsePublishResult {
   const adapter = useCrmAdapter();
   const [isPublishing, setIsPublishing] = useState(false);
-  const [violations, setViolations] = useState<Violation[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const { process, steps, outcomes, routes, stepOrder, setProcess, setPublishing } =
+  const { process, steps, outcomes, routes, stepOrder, outcomeOrder, setProcess, setPublishing, setValidationResults } =
     useWorkflowStore((s) => ({
       process: s.process,
       steps: s.steps,
       outcomes: s.outcomes,
       routes: s.routes,
       stepOrder: s.stepOrder,
+      outcomeOrder: s.outcomeOrder,
       setProcess: s.setProcess,
       setPublishing: s.setPublishing,
+      setValidationResults: s.setValidationResults,
     }));
 
   const publish = useCallback(async () => {
@@ -40,9 +39,9 @@ export function usePublish(): UsePublishResult {
       return;
     }
 
-    // Validate before publish
-    const newViolations = validationService.validate({ process, steps, outcomes, routes, stepOrder });
-    setViolations(newViolations);
+    // Validate before publish and persist results to store for UI display
+    const newViolations = validationService.validate({ process, steps, outcomes, routes, stepOrder, outcomeOrder });
+    setValidationResults(newViolations);
 
     const hasBlockingErrors = newViolations.some((v) => v.severity === 'error');
     if (hasBlockingErrors) {
@@ -95,7 +94,7 @@ export function usePublish(): UsePublishResult {
       setIsPublishing(false);
       setPublishing(false);
     }
-  }, [adapter, process, steps, outcomes, routes, stepOrder, setProcess, setPublishing]);
+  }, [adapter, process, steps, outcomes, routes, stepOrder, outcomeOrder, setProcess, setPublishing, setValidationResults]);
 
-  return { isPublishing, violations, publish, error };
+  return { isPublishing, publish, error };
 }

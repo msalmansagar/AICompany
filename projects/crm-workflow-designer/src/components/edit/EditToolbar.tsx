@@ -7,6 +7,7 @@ interface EditToolbarProps {
   isSimulating: boolean;
   canSimulate: boolean;
   canSimStepBack: boolean;
+  validationErrorCount: number;
   onBack: () => void;
   onAddStep: () => void;
   onSave: () => void;
@@ -16,6 +17,7 @@ interface EditToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onValidate: () => void;
   onSimulate: () => void;
   onAutoSimulate: () => void;
   onExitSimulation: () => void;
@@ -32,6 +34,7 @@ export function EditToolbar({
   isSimulating,
   canSimulate,
   canSimStepBack,
+  validationErrorCount,
   onBack,
   onAddStep,
   onSave,
@@ -41,6 +44,7 @@ export function EditToolbar({
   onRedo,
   canUndo,
   canRedo,
+  onValidate,
   onSimulate,
   onAutoSimulate,
   onExitSimulation,
@@ -87,6 +91,11 @@ export function EditToolbar({
               <ToolBtn label="Redo" onClick={onRedo} disabled={!canRedo} title="Redo last undone change" />
               <Sep />
               <ToolBtn label="Add Step" onClick={onAddStep} title="Add a new step to this workflow" />
+              <Sep />
+              <ValidateBtn
+                errorCount={validationErrorCount}
+                onClick={onValidate}
+              />
               <Sep />
               <ToolBtn
                 label={isSaving ? 'Saving…' : 'Save Draft'}
@@ -155,6 +164,28 @@ function ToolBtn({
 
 function Sep() {
   return <div style={sepStyle} />;
+}
+
+function ValidateBtn({ errorCount, onClick }: { errorCount: number; onClick: () => void }) {
+  const hasErrors = errorCount > 0;
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        type="button"
+        title="Run process validation"
+        onClick={onClick}
+        style={{
+          ...btnBase,
+          ...(hasErrors ? btnError : btnSecondary),
+        }}
+      >
+        ✓ Validate
+      </button>
+      {hasErrors && (
+        <span style={errorCountBadge}>{errorCount}</span>
+      )}
+    </div>
+  );
 }
 
 const wrapperStyle: React.CSSProperties = {
@@ -239,7 +270,27 @@ const backBtnStyle: React.CSSProperties = {
 
 const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
 const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
+const btnError: React.CSSProperties = { background: '#7f1d1d', color: '#fecaca' };
 const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
+
+const errorCountBadge: React.CSSProperties = {
+  position: 'absolute',
+  top: -6,
+  right: -6,
+  minWidth: 16,
+  height: 16,
+  borderRadius: 8,
+  background: '#ef4444',
+  color: '#fff',
+  fontSize: 9,
+  fontWeight: 700,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 3px',
+  border: '1.5px solid #1e293b',
+  lineHeight: 1,
+};
 
 const sepStyle: React.CSSProperties = {
   width: 1,
