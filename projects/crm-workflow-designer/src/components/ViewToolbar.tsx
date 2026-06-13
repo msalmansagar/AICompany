@@ -20,6 +20,7 @@ interface ViewToolbarProps {
   onLayoutDirChange(dir: LayoutDir): void;
   onNewProcess(): void;
   onEditProcess?(): void;
+  onBackToList?(): void;
 }
 
 export function ViewToolbar({
@@ -40,12 +41,18 @@ export function ViewToolbar({
   onLayoutDirChange,
   onNewProcess,
   onEditProcess,
+  onBackToList,
 }: ViewToolbarProps) {
   return (
     <div style={wrapperStyle}>
       {/* Row 1 — identity + actions */}
       <div style={barStyle} role="toolbar" aria-label="Workflow Viewer Toolbar">
         <div style={identityStyle}>
+          {onBackToList && (
+            <button type="button" style={backBtnStyle} onClick={onBackToList} title="Back to process list">
+              ← Processes
+            </button>
+          )}
           <span style={logoText}>Workflow Designer</span>
           {isLoading && <span style={loadingBadge}>Loading…</span>}
           {!isLoading && processName && (
@@ -313,6 +320,20 @@ const btnBase: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   transition: 'background 0.1s',
+};
+
+const backBtnStyle: React.CSSProperties = {
+  height: 24,
+  padding: '0 10px',
+  fontSize: 11,
+  fontWeight: 600,
+  borderRadius: 4,
+  border: '1px solid #334155',
+  background: 'transparent',
+  color: '#94a3b8',
+  cursor: 'pointer',
+  flexShrink: 0,
+  marginRight: 4,
 };
 
 const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };

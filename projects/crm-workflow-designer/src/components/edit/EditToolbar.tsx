@@ -4,6 +4,10 @@ interface EditToolbarProps {
   isSaving: boolean;
   isPublishing: boolean;
   canPublish: boolean;
+  isSimulating: boolean;
+  canSimulate: boolean;
+  canSimStepBack: boolean;
+  onBack: () => void;
   onAddStep: () => void;
   onSave: () => void;
   onPublish: () => void;
@@ -12,6 +16,11 @@ interface EditToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onSimulate: () => void;
+  onAutoSimulate: () => void;
+  onExitSimulation: () => void;
+  onSimStepBack: () => void;
+  onSimReset: () => void;
 }
 
 export function EditToolbar({
@@ -20,6 +29,10 @@ export function EditToolbar({
   isSaving,
   isPublishing,
   canPublish,
+  isSimulating,
+  canSimulate,
+  canSimStepBack,
+  onBack,
   onAddStep,
   onSave,
   onPublish,
@@ -28,6 +41,11 @@ export function EditToolbar({
   onRedo,
   canUndo,
   canRedo,
+  onSimulate,
+  onAutoSimulate,
+  onExitSimulation,
+  onSimStepBack,
+  onSimReset,
 }: EditToolbarProps) {
   const displayName = isDirty ? `${processName} *` : processName;
 
@@ -35,34 +53,70 @@ export function EditToolbar({
     <div style={wrapperStyle}>
       <div style={barStyle} role="toolbar" aria-label="Workflow Edit Toolbar">
         <div style={identityStyle}>
+          {!isSimulating && (
+            <>
+              <button
+                type="button"
+                onClick={onBack}
+                style={backBtnStyle}
+                title="Back to process list"
+              >
+                ← Processes
+              </button>
+              <span style={dividerStyle} />
+            </>
+          )}
           <span style={logoText}>Workflow Designer</span>
           <span style={dividerStyle} />
           <span style={processNameStyle} title={processName}>
-            {displayName}
+            {isSimulating ? `Simulating: ${processName}` : displayName}
           </span>
         </div>
 
         <div style={actionsStyle}>
-          <ToolBtn label="Undo" onClick={onUndo} disabled={!canUndo} title="Undo last change" />
-          <ToolBtn label="Redo" onClick={onRedo} disabled={!canRedo} title="Redo last undone change" />
-          <Sep />
-          <ToolBtn label="Add Step" onClick={onAddStep} title="Add a new step to this workflow" />
-          <Sep />
-          <ToolBtn
-            label={isSaving ? 'Saving…' : 'Save Draft'}
-            onClick={onSave}
-            disabled={isSaving}
-            title="Save as draft"
-          />
-          <ToolBtn
-            label={isPublishing ? 'Publishing…' : 'Publish'}
-            onClick={onPublish}
-            disabled={!canPublish || isPublishing}
-            primary
-            title={canPublish ? 'Publish this workflow' : 'Save first to enable publish'}
-          />
-          <Sep />
-          <ToolBtn label="Discard" onClick={onDiscard} title="Discard all unsaved changes" />
+          {isSimulating ? (
+            <>
+              <ToolBtn label="← Back" onClick={onSimStepBack} disabled={!canSimStepBack} title="Step back to previous step" />
+              <ToolBtn label="↺ Reset" onClick={onSimReset} title="Restart simulation from the beginning" />
+              <Sep />
+              <ToolBtn label="Exit Simulation" onClick={onExitSimulation} title="Exit simulation mode" />
+            </>
+          ) : (
+            <>
+              <ToolBtn label="Undo" onClick={onUndo} disabled={!canUndo} title="Undo last change" />
+              <ToolBtn label="Redo" onClick={onRedo} disabled={!canRedo} title="Redo last undone change" />
+              <Sep />
+              <ToolBtn label="Add Step" onClick={onAddStep} title="Add a new step to this workflow" />
+              <Sep />
+              <ToolBtn
+                label={isSaving ? 'Saving…' : 'Save Draft'}
+                onClick={onSave}
+                disabled={isSaving}
+                title="Save as draft"
+              />
+              <ToolBtn
+                label={isPublishing ? 'Publishing…' : 'Publish'}
+                onClick={onPublish}
+                disabled={!canPublish || isPublishing}
+                primary
+                title={canPublish ? 'Publish this workflow' : 'Save first to enable publish'}
+              />
+              <Sep />
+              <ToolBtn
+                label="▶ Simulate"
+                onClick={onSimulate}
+                disabled={!canSimulate}
+                title={canSimulate ? 'Run a visual step-by-step simulation' : 'Add steps to enable simulation'}
+              />
+              <ToolBtn
+                label="⏵⏵ Auto"
+                onClick={onAutoSimulate}
+                disabled={!canSimulate}
+                title={canSimulate ? 'Enumerate all possible paths automatically' : 'Add steps to enable simulation'}
+              />
+              <ToolBtn label="Discard" onClick={onDiscard} title="Discard all unsaved changes" />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -168,6 +222,19 @@ const btnBase: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   transition: 'background 0.1s',
+};
+
+const backBtnStyle: React.CSSProperties = {
+  height: 26,
+  padding: '0 10px',
+  fontSize: 11,
+  fontWeight: 500,
+  borderRadius: 4,
+  border: 'none',
+  cursor: 'pointer',
+  background: 'transparent',
+  color: '#64748b',
+  flexShrink: 0,
 };
 
 const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };

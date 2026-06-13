@@ -2,12 +2,16 @@ export interface WorkflowProcess {
   crmId: string;
   name: string;
   recordEntity: string;
+  recordEntityName: string | null;
   regardingField: string;
   parentEntity: string;
+  parentEntityName: string | null;
   versionMajor: number;
   versionMinor: number;
   workflowState: 'draft' | 'published' | 'archived';
   snapshot: string | null;
+  /** ID of the qdb_sop this process was derived from. Only set on SOP-derived processes. */
+  sopId?: string | null;
 }
 
 export type AssignToType = 'user' | 'team' | 'roundRobin';

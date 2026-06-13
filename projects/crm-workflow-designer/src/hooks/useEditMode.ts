@@ -103,29 +103,30 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];
 
-    // Find the entry step — the step with no incoming outcomes
-    const stepsWithIncoming = new Set<string>(
-      Object.values(outcomes)
-        .map((o) => o.nextStepId)
-        .filter((id): id is string => id !== null)
-    );
-    const entryStepId = stepOrder.find((id) => !stepsWithIncoming.has(id));
-
+    // Entry step = lowest sequenceNo (first in stepOrder, sorted on load).
+    // Using "no incoming" heuristic breaks when back-edges point back to step 1.
+    const entryStepId = stepOrder[0];
     if (entryStepId) {
       result.push(buildStartEdge(entryStepId));
     }
 
     for (const outcome of Object.values(outcomes)) {
+      const sourceStep = steps[outcome.stepId];
+      const targetStep = outcome.nextStepId ? steps[outcome.nextStepId] : null;
+      const isBackEdge = Boolean(
+        targetStep && sourceStep && targetStep.sequenceNo < sourceStep.sequenceNo
+      );
+
       const sourceNodeId = `step_${outcome.stepId}`;
       const targetNodeId = outcome.nextStepId
         ? `step_${outcome.nextStepId}`
         : END_NODE_ID;
 
-      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId));
+      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge));
     }
 
     return result;
-  }, [outcomes, stepOrder]);
+  }, [outcomes, steps, stepOrder]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -253,19 +254,23 @@ function buildStartEdge(entryStepId: string): Edge {
   };
 }
 
-function buildOutcomeEdge(outcome: WorkflowOutcome, sourceNodeId: string, targetNodeId: string): Edge {
+function buildOutcomeEdge(
+  outcome: WorkflowOutcome,
+  sourceNodeId: string,
+  targetNodeId: string,
+  isBackEdge: boolean
+): Edge {
+  const stroke = isBackEdge ? '#f59e0b' : '#64748b';
   return {
     id: `outcome_${outcome.crmId}`,
     source: sourceNodeId,
     target: targetNodeId,
     sourceHandle: 'out',
     targetHandle: 'in',
-    type: 'smoothstep',
-    style: { stroke: '#64748b' },
-    label: outcome.name,
-    labelStyle: { fontSize: 10, fill: '#94a3b8' },
-    labelBgStyle: { fill: '#0f172a', fillOpacity: 0.8 },
-    markerEnd: { type: 'arrowclosed' as const, color: '#64748b' },
+    type: 'outcome',
+    style: { stroke, strokeDasharray: isBackEdge ? '5 4' : undefined },
+    data: { label: outcome.name, isBackEdge },
+    markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };
 }
 

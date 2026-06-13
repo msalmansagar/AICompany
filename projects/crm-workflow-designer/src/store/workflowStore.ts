@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
+import type { SimPath } from '@/services/PathEnumerator';
+
+export type AutoSimSpeed = 'slow' | 'normal' | 'fast';
+export type AutoSimPhase = 'playing' | 'holding' | 'done' | null;
 
 export interface WorkflowDesignerState {
   process: WorkflowProcess | null;
@@ -23,6 +27,24 @@ export interface WorkflowDesignerState {
   toastMessage: string | null;
   toastType: 'error' | 'success' | null;
 
+  // Manual simulation
+  isSimulating: boolean;
+  simCurrentStepId: string | null;
+  simVisitedStepIds: string[];
+  simTakenOutcomeIds: string[];
+  simHistory: Array<{ stepId: string; outcomeId: string }>;
+
+  // Auto simulation playback
+  isAutoSimulating: boolean;
+  autoSimPhase: AutoSimPhase;
+  autoSimSpeed: AutoSimSpeed;
+  autoSimPaths: SimPath[];
+  autoSimCurrentPathIndex: number;
+  autoSimCurrentStepIndex: number;
+  autoSimCurrentStepId: string | null;
+  autoSimVisitedStepIds: string[];
+  autoSimTakenOutcomeIds: string[];
+
   // Actions
   showToast: (message: string, type: 'error' | 'success') => void;
   clearToast: () => void;
@@ -31,6 +53,7 @@ export interface WorkflowDesignerState {
   setOutcome: (outcome: WorkflowOutcome) => void;
   setRoute: (route: WorkflowRoute) => void;
   addStep: (step: WorkflowStep) => void;
+  addStepAfter: (fromStepId: string) => void;
   addOutcome: (outcome: WorkflowOutcome) => void;
   addRoute: (route: WorkflowRoute) => void;
   deleteStep: (id: string) => void;
@@ -44,6 +67,18 @@ export interface WorkflowDesignerState {
   resetStore: () => void;
   setPublishing: (value: boolean) => void;
   setPreviewMode: (value: boolean) => void;
+  startSimulation: () => void;
+  stopSimulation: () => void;
+  simTakeOutcome: (outcomeId: string) => void;
+  simStepBack: () => void;
+  startAutoSimulation: () => void;
+  stopAutoSimulation: () => void;
+  initAutoSimPlayback: (paths: SimPath[]) => void;
+  autoSimAdvanceStep: () => void;
+  autoSimBeginHold: () => void;
+  autoSimBeginNextPath: () => void;
+  autoSimFinish: () => void;
+  setAutoSimSpeed: (speed: AutoSimSpeed) => void;
   resolveTemporaryId: (tmpId: string, realId: string, entityType: 'step' | 'outcome' | 'route') => void;
   resolveProcessId: (realId: string) => void;
   assignOutcomeToStep: (outcomeId: string, stepId: string) => void;
@@ -59,10 +94,13 @@ export interface WorkflowDesignerState {
 const emptyState: Omit<
   WorkflowDesignerState,
   | 'setProcess' | 'setStep' | 'setOutcome' | 'setRoute'
-  | 'addStep' | 'addOutcome' | 'addRoute'
+  | 'addStep' | 'addStepAfter' | 'addOutcome' | 'addRoute'
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
   | 'updateNodePosition' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
+  | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simStepBack'
+  | 'startAutoSimulation' | 'stopAutoSimulation'
+  | 'initAutoSimPlayback' | 'autoSimAdvanceStep' | 'autoSimBeginHold' | 'autoSimBeginNextPath' | 'autoSimFinish' | 'setAutoSimSpeed'
   | 'resolveTemporaryId' | 'resolveProcessId' | 'assignOutcomeToStep' | 'loadWorkflow' | 'showToast' | 'clearToast'
 > = {
   process: null,
@@ -83,6 +121,20 @@ const emptyState: Omit<
   isPreviewMode: false,
   toastMessage: null,
   toastType: null,
+  isSimulating: false,
+  simCurrentStepId: null,
+  simVisitedStepIds: [],
+  simTakenOutcomeIds: [],
+  simHistory: [],
+  isAutoSimulating: false,
+  autoSimPhase: null,
+  autoSimSpeed: 'normal',
+  autoSimPaths: [],
+  autoSimCurrentPathIndex: 0,
+  autoSimCurrentStepIndex: 0,
+  autoSimCurrentStepId: null,
+  autoSimVisitedStepIds: [],
+  autoSimTakenOutcomeIds: [],
 };
 
 export const useWorkflowStore = create<WorkflowDesignerState>()(
@@ -140,6 +192,69 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.steps[step.crmId] = step;
           state.stepOrder.push(step.crmId);
           state.newIds.push(step.crmId);
+          state.isDirty = true;
+        }),
+
+      addStepAfter: (fromStepId) =>
+        set((state) => {
+          if (!state.process) return;
+          const fromStep = state.steps[fromStepId];
+          if (!fromStep) return;
+
+          const newStepId = `tmp_${crypto.randomUUID()}`;
+          const nextSeqNo = state.stepOrder.length + 1;
+
+          const newStep: WorkflowStep = {
+            crmId: newStepId,
+            name: 'New Step',
+            sequenceNo: nextSeqNo,
+            schemaName: '',
+            taskSubject: '',
+            taskDescription: '',
+            assignTo: 'user',
+            assignedUserId: null,
+            assignedUserName: null,
+            teamId: null,
+            teamName: null,
+            roundRobinTeamId: null,
+            roundRobinTeamName: null,
+            recordEntityId: null,
+            recordEntityName: null,
+            regardingFieldId: null,
+            regardingFieldName: null,
+            parentEntityId: null,
+            parentEntityName: null,
+            processId: state.process.crmId,
+          };
+
+          state.steps[newStepId] = newStep;
+          state.stepOrder.push(newStepId);
+          state.newIds.push(newStepId);
+
+          // Position new step directly below the source step
+          const fromIndex = state.stepOrder.indexOf(fromStepId);
+          const defaultFromPos = { x: 300, y: fromIndex * 160 + 80 };
+          const fromPos = state.nodePositions[`step_${fromStepId}`] ?? defaultFromPos;
+          state.nodePositions[`step_${newStepId}`] = { x: fromPos.x, y: fromPos.y + 180 };
+
+          // Auto-create connecting outcome
+          const maxSeq = Object.values(state.outcomes).reduce(
+            (max, o) => (o.sequenceNumber > max ? o.sequenceNumber : max), 0
+          );
+          const outcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[outcomeId] = {
+            crmId: outcomeId,
+            name: 'Next',
+            sequenceNumber: maxSeq + 1,
+            applyFilter: false,
+            stepId: fromStepId,
+            nextStepId: newStepId,
+          };
+          if (!state.outcomeOrder[fromStepId]) state.outcomeOrder[fromStepId] = [];
+          state.outcomeOrder[fromStepId]!.push(outcomeId);
+          state.newIds.push(outcomeId);
+
+          state.selectedId = `step_${newStepId}`;
           state.isDirty = true;
         }),
 
@@ -273,6 +388,142 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       setPreviewMode: (value) =>
         set((state) => {
           state.isPreviewMode = value;
+        }),
+
+      startSimulation: () =>
+        set((state) => {
+          if (state.stepOrder.length === 0) return;
+          const stepsWithIncoming = new Set<string>(
+            Object.values(state.outcomes)
+              .map((o) => o.nextStepId)
+              .filter((id): id is string => id !== null)
+          );
+          const entryStepId =
+            state.stepOrder.find((id) => !stepsWithIncoming.has(id)) ?? state.stepOrder[0]!;
+          state.isSimulating = true;
+          state.simCurrentStepId = entryStepId;
+          state.simVisitedStepIds = [];
+          state.simTakenOutcomeIds = [];
+          state.simHistory = [];
+          state.selectedId = null;
+        }),
+
+      stopSimulation: () =>
+        set((state) => {
+          state.isSimulating = false;
+          state.simCurrentStepId = null;
+          state.simVisitedStepIds = [];
+          state.simTakenOutcomeIds = [];
+          state.simHistory = [];
+        }),
+
+      startAutoSimulation: () =>
+        set((state) => {
+          state.isAutoSimulating = true;
+          state.autoSimPhase = null;
+          state.autoSimPaths = [];
+          state.autoSimCurrentPathIndex = 0;
+          state.autoSimCurrentStepIndex = 0;
+          state.autoSimCurrentStepId = null;
+          state.autoSimVisitedStepIds = [];
+          state.autoSimTakenOutcomeIds = [];
+          state.selectedId = null;
+        }),
+
+      stopAutoSimulation: () =>
+        set((state) => {
+          state.isAutoSimulating = false;
+          state.autoSimPhase = null;
+          state.autoSimPaths = [];
+          state.autoSimCurrentPathIndex = 0;
+          state.autoSimCurrentStepIndex = 0;
+          state.autoSimCurrentStepId = null;
+          state.autoSimVisitedStepIds = [];
+          state.autoSimTakenOutcomeIds = [];
+        }),
+
+      initAutoSimPlayback: (paths) =>
+        set((state) => {
+          state.autoSimPaths = paths;
+          state.autoSimCurrentPathIndex = 0;
+          state.autoSimCurrentStepIndex = 0;
+          state.autoSimPhase = paths.length > 0 ? 'playing' : 'done';
+          state.autoSimCurrentStepId = paths[0]?.steps[0]?.stepId ?? null;
+          state.autoSimVisitedStepIds = [];
+          state.autoSimTakenOutcomeIds = [];
+        }),
+
+      autoSimAdvanceStep: () =>
+        set((state) => {
+          const path = state.autoSimPaths[state.autoSimCurrentPathIndex];
+          if (!path) return;
+          const current = path.steps[state.autoSimCurrentStepIndex];
+          if (current) {
+            if (!state.autoSimVisitedStepIds.includes(current.stepId)) {
+              state.autoSimVisitedStepIds.push(current.stepId);
+            }
+            if (current.outcomeTaken) {
+              state.autoSimTakenOutcomeIds.push(current.outcomeTaken.outcomeId);
+            }
+          }
+          state.autoSimCurrentStepIndex += 1;
+          const next = path.steps[state.autoSimCurrentStepIndex];
+          state.autoSimCurrentStepId = next?.stepId ?? null;
+        }),
+
+      autoSimBeginHold: () =>
+        set((state) => {
+          const path = state.autoSimPaths[state.autoSimCurrentPathIndex];
+          if (!path) return;
+          const current = path.steps[state.autoSimCurrentStepIndex];
+          if (current && !state.autoSimVisitedStepIds.includes(current.stepId)) {
+            state.autoSimVisitedStepIds.push(current.stepId);
+          }
+          state.autoSimPhase = 'holding';
+          state.autoSimCurrentStepId = null;
+        }),
+
+      autoSimBeginNextPath: () =>
+        set((state) => {
+          state.autoSimCurrentPathIndex += 1;
+          state.autoSimCurrentStepIndex = 0;
+          state.autoSimPhase = 'playing';
+          const next = state.autoSimPaths[state.autoSimCurrentPathIndex];
+          state.autoSimCurrentStepId = next?.steps[0]?.stepId ?? null;
+          state.autoSimVisitedStepIds = [];
+          state.autoSimTakenOutcomeIds = [];
+        }),
+
+      autoSimFinish: () =>
+        set((state) => {
+          state.autoSimPhase = 'done';
+          state.autoSimCurrentStepId = null;
+        }),
+
+      setAutoSimSpeed: (speed) =>
+        set((state) => {
+          state.autoSimSpeed = speed;
+        }),
+
+      simTakeOutcome: (outcomeId) =>
+        set((state) => {
+          const outcome = state.outcomes[outcomeId];
+          if (!outcome || state.simCurrentStepId === null) return;
+          state.simHistory.push({ stepId: state.simCurrentStepId, outcomeId });
+          if (!state.simVisitedStepIds.includes(state.simCurrentStepId)) {
+            state.simVisitedStepIds.push(state.simCurrentStepId);
+          }
+          state.simTakenOutcomeIds.push(outcomeId);
+          state.simCurrentStepId = outcome.nextStepId;
+        }),
+
+      simStepBack: () =>
+        set((state) => {
+          const last = state.simHistory.pop();
+          if (!last) return;
+          state.simCurrentStepId = last.stepId;
+          state.simVisitedStepIds = state.simVisitedStepIds.filter((id) => id !== last.stepId);
+          state.simTakenOutcomeIds = state.simTakenOutcomeIds.filter((id) => id !== last.outcomeId);
         }),
 
       resolveProcessId: (realId) =>

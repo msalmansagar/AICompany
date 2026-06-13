@@ -11,11 +11,18 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
 import { usePublish } from '@/hooks/usePublish';
 import { useEditMode } from '@/hooks/useEditMode';
+import { useSimulationMode } from '@/hooks/useSimulationMode';
+import { useAutoSimMode } from '@/hooks/useAutoSimMode';
+import { useAutoSimPlayback } from '@/hooks/useAutoSimPlayback';
 import { nodeTypes } from '@/nodes/nodeTypes';
+import { edgeTypes } from '@/edges/edgeTypes';
 import { isTemporaryId } from '@/services/assertGuid';
 import { EditToolbar } from './EditToolbar';
 import { StepPropertiesPanel } from './StepPropertiesPanel';
 import { OutcomePropertiesPanel } from './OutcomePropertiesPanel';
+import { SimulationPanel } from './SimulationPanel';
+import { AutoSimulationPanel } from './AutoSimulationPanel';
+import { AutoSimPlaybackHUD } from './AutoSimPlaybackHUD';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 interface EditCanvasProps {
@@ -32,25 +39,48 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     isDirty,
     toastMessage,
     toastType,
+    stepOrder,
+    isSimulating,
+    isAutoSimulating,
+    autoSimPhase,
+    simHistory,
     deleteStep,
     deleteOutcome,
     selectNode,
     clearToast,
+    startSimulation,
+    stopSimulation,
+    simStepBack,
+    startAutoSimulation,
+    stopAutoSimulation,
   } = useWorkflowStore((s) => ({
     process: s.process,
     selectedId: s.selectedId,
     isDirty: s.isDirty,
     toastMessage: s.toastMessage,
     toastType: s.toastType,
+    stepOrder: s.stepOrder,
+    isSimulating: s.isSimulating,
+    isAutoSimulating: s.isAutoSimulating,
+    autoSimPhase: s.autoSimPhase,
+    simHistory: s.simHistory,
     deleteStep: s.deleteStep,
     deleteOutcome: s.deleteOutcome,
     selectNode: s.selectNode,
     clearToast: s.clearToast,
+    startSimulation: s.startSimulation,
+    stopSimulation: s.stopSimulation,
+    simStepBack: s.simStepBack,
+    startAutoSimulation: s.startAutoSimulation,
+    stopAutoSimulation: s.stopAutoSimulation,
   }));
 
   const { isSaving, save } = useWorkflowSave();
   const { isPublishing, publish } = usePublish();
   const editMode = useEditMode(adapter);
+  const simMode = useSimulationMode();
+  const autoSimMode = useAutoSimMode();
+  useAutoSimPlayback();
 
   const { undo, redo, pastStates, futureStates } = useStore(useWorkflowStore.temporal);
   const canUndo = pastStates.length > 0;
@@ -58,6 +88,8 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
 
   const canPublish = process !== null && !isTemporaryId(process.crmId);
   const processName = process?.name ?? 'New Process';
+  const canSimulate = stepOrder.length > 0;
+  const canSimStepBack = simHistory.length > 0;
 
   useEffect(() => {
     setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
@@ -89,6 +121,14 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     [selectedId, deleteStep, deleteOutcome, selectNode]
   );
 
+  const handleBack = useCallback(() => {
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Leave without saving?');
+      if (!confirmed) return;
+    }
+    onExitEdit();
+  }, [isDirty, onExitEdit]);
+
   const handleDiscard = useCallback(() => {
     const confirmed = window.confirm('Discard all unsaved changes?');
     if (confirmed) onExitEdit();
@@ -112,6 +152,10 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         isSaving={isSaving}
         isPublishing={isPublishing}
         canPublish={canPublish}
+        isSimulating={isSimulating}
+        canSimulate={canSimulate}
+        canSimStepBack={canSimStepBack}
+        onBack={handleBack}
         onAddStep={editMode.addStep}
         onSave={() => void save()}
         onPublish={() => void publish()}
@@ -120,35 +164,91 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         onRedo={() => redo()}
         canUndo={canUndo}
         canRedo={canRedo}
+        onSimulate={startSimulation}
+        onAutoSimulate={startAutoSimulation}
+        onExitSimulation={stopSimulation}
+        onSimStepBack={simStepBack}
+        onSimReset={startSimulation}
       />
 
       <div style={bodyStyle}>
         <div style={canvasWrapStyle}>
-          <ReactFlow
-            nodes={editMode.nodes}
-            edges={editMode.edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={editMode.onNodesChange}
-            onNodeClick={editMode.onNodeClick}
-            onEdgeClick={editMode.onEdgeClick}
-            onPaneClick={editMode.onPaneClick}
-            onConnect={editMode.onConnect}
-            nodesConnectable
-            nodesDraggable
-            elementsSelectable
-            deleteKeyCode={null}
-            fitView
-            fitViewOptions={{ padding: 0.2 }}
-            proOptions={{ hideAttribution: true }}
-            minZoom={0.08}
-            maxZoom={2.5}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+          {isSimulating ? (
+            <ReactFlow
+              nodes={simMode.nodes}
+              edges={simMode.edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={simMode.onNodesChange}
+              nodesConnectable={false}
+              nodesDraggable={false}
+              elementsSelectable={false}
+              deleteKeyCode={null}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              proOptions={{ hideAttribution: true }}
+              minZoom={0.08}
+              maxZoom={2.5}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#0f172a" />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          ) : isAutoSimulating && autoSimPhase !== 'done' ? (
+            <ReactFlow
+              nodes={autoSimMode.nodes}
+              edges={autoSimMode.edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={autoSimMode.onNodesChange}
+              nodesConnectable={false}
+              nodesDraggable={false}
+              elementsSelectable={false}
+              deleteKeyCode={null}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              proOptions={{ hideAttribution: true }}
+              minZoom={0.08}
+              maxZoom={2.5}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          ) : (
+            <ReactFlow
+              nodes={editMode.nodes}
+              edges={editMode.edges}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              onNodesChange={editMode.onNodesChange}
+              onNodeClick={editMode.onNodeClick}
+              onEdgeClick={editMode.onEdgeClick}
+              onPaneClick={editMode.onPaneClick}
+              onConnect={editMode.onConnect}
+              nodesConnectable
+              nodesDraggable
+              elementsSelectable
+              deleteKeyCode={null}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              proOptions={{ hideAttribution: true }}
+              minZoom={0.08}
+              maxZoom={2.5}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          )}
+
+          {isSimulating && <SimulationPanel onExit={stopSimulation} />}
+          {isAutoSimulating && autoSimPhase !== 'done' && (
+            <AutoSimPlaybackHUD onStop={stopAutoSimulation} />
+          )}
+          {isAutoSimulating && autoSimPhase === 'done' && (
+            <AutoSimulationPanel onClose={stopAutoSimulation} />
+          )}
         </div>
 
-        {propertiesPanel}
+        {!isSimulating && !isAutoSimulating && propertiesPanel}
       </div>
     </div>
   );

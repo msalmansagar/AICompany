@@ -32,6 +32,7 @@ interface WorkflowCanvasProps {
   view: WorkflowView;
   onNewProcess: () => void;
   onEditProcess?: () => void;
+  onBackToList?: () => void;
 }
 
 const EXPORT_W = 2560;
@@ -50,7 +51,7 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:  buildSwimlaneGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -185,6 +186,7 @@ export function WorkflowCanvas({ view, onNewProcess, onEditProcess }: WorkflowCa
         onLayoutDirChange={view.setLayoutDir}
         onNewProcess={onNewProcess}
         onEditProcess={onEditProcess}
+        onBackToList={onBackToList}
       />
 
       <div style={bodyStyle}>

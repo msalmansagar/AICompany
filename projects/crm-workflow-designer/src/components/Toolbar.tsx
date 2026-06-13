@@ -97,7 +97,9 @@ export function Toolbar({
     const newProcess: WorkflowProcess = {
       crmId: tmpId,
       name: newName.trim(),
-      recordEntity: '', regardingField: '', parentEntity: '',
+      recordEntity: '', recordEntityName: null,
+      regardingField: '',
+      parentEntity: '', parentEntityName: null,
       versionMajor: 1, versionMinor: 0,
       workflowState: 'draft', snapshot: null,
     };

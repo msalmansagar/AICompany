@@ -12,6 +12,12 @@ import { ExecStepNode } from './ExecStepNode';
 import { TechStepNode } from './TechStepNode';
 import { SwimlaneNode, SwimStepNode } from './SwimlaneNode';
 import { EditStepNode } from './EditStepNode';
+import { SimStepNode } from './SimStepNode';
+import { SopStepNode } from './SopStepNode';
+import { SopOutcomeNode } from './SopOutcomeNode';
+import { SopStartNode } from './SopStartNode';
+import { SopEndNode } from './SopEndNode';
+import { SopSwimlaneNode } from './SopSwimlaneNode';
 
 export const nodeTypes: NodeTypes = {
   // Legacy edit-mode nodes (kept for compatibility)
@@ -41,4 +47,14 @@ export const nodeTypes: NodeTypes = {
 
   // Edit mode
   editStep: EditStepNode,
+
+  // Simulation mode
+  simStep: SimStepNode,
+
+  // SOP Designer
+  sopStep: SopStepNode,
+  sopOutcome: SopOutcomeNode,
+  sopStart: SopStartNode,
+  sopEnd: SopEndNode,
+  sopSwimlane: SopSwimlaneNode,
 };

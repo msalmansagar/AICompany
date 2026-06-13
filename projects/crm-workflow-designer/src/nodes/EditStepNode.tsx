@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import { useWorkflowStore } from '@/store/workflowStore';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -19,6 +21,14 @@ const ASSIGN_TO_LABELS: Record<EditStepData['assignTo'], string> = {
 export function EditStepNode({ data }: NodeProps) {
   const stepData = data as EditStepData;
   const isSelected = stepData.isSelected ?? false;
+  const [plusHover, setPlusHover] = useState(false);
+
+  const addStepAfter = useWorkflowStore((s) => s.addStepAfter);
+
+  const handlePlusClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addStepAfter(stepData.stepId);
+  };
 
   return (
     <div style={buildContainerStyle(isSelected)}>
@@ -51,6 +61,18 @@ export function EditStepNode({ data }: NodeProps) {
         style={handleStyle}
         isConnectable
       />
+
+      {/* Add next step button */}
+      <button
+        type="button"
+        title="Add next step"
+        onClick={handlePlusClick}
+        onMouseEnter={() => setPlusHover(true)}
+        onMouseLeave={() => setPlusHover(false)}
+        style={buildPlusStyle(plusHover)}
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -61,11 +83,41 @@ function buildContainerStyle(isSelected: boolean): React.CSSProperties {
     background: '#fff',
     border: isSelected ? '2px solid #2563eb' : '1.5px solid #334155',
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: 'visible',
     boxShadow: isSelected
       ? '0 0 0 3px rgba(37,99,235,0.2)'
       : '0 2px 8px rgba(0,0,0,0.12)',
     cursor: 'pointer',
+    position: 'relative',
+  };
+}
+
+function buildPlusStyle(hover: boolean): React.CSSProperties {
+  return {
+    position: 'absolute',
+    bottom: -34,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: 22,
+    height: 22,
+    borderRadius: '50%',
+    background: hover ? '#1d4ed8' : '#2563eb',
+    color: '#fff',
+    border: '2px solid #fff',
+    boxShadow: hover
+      ? '0 2px 8px rgba(37,99,235,0.5)'
+      : '0 1px 4px rgba(37,99,235,0.35)',
+    fontSize: 16,
+    lineHeight: '18px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    padding: 0,
+    zIndex: 10,
+    transition: 'background 0.12s, box-shadow 0.12s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 400,
   };
 }
 

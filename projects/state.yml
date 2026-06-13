@@ -55,23 +55,23 @@ projects:
 
   - name: crm-workflow-designer
     type: crm
-    phase: ba
+    phase: delivered
     started: 2026-06-01
-    last_updated: 2026-06-01
-    last_agent: ceo (phase-1-brd-approval)
-    ceo_approved_phases: [ba]
+    last_updated: 2026-06-12
+    last_agent: ceo (phase-6-final)
+    ceo_approved_phases: [ba, architecture, build, qa, audit, delivered]
     output_dir: projects/crm-workflow-designer/
     status: approved_with_conditions
     notes: >
-      CWFD-001 — Enterprise Visual Workflow Designer. React 19+ CRM Web Resource.
-      BRD v1.0 approved by CEO with conditions (2026-06-01).
-      5 conditions precedent to Phase 4 (Build) authorization:
-      COND-01 client confirms 4 CRM entities deployed in all envs;
-      COND-02 architect produces CRM solution delta + client sign-off;
-      COND-03 architect confirms FetchXML Advanced Filter Page viability;
-      COND-04 architect produces bundle size budget (< 5 MB gzipped);
-      COND-05 legal confirmation of OSS license clearance.
-      Next step: GitHub Research (Step 3) — awaiting user go-ahead.
+      CWFD-001 — Enterprise Visual Workflow Designer — Phase 4 build COMPLETE.
+      CWFD-002 — SOP Designer (Two-Tier Process Design System) — FULL ENGAGEMENT COMPLETE (2026-06-12).
+      All 10 engagement steps completed. CEO final decision: APPROVED WITH CONDITIONS.
+      6 release conditions (C-CEO-SOP-01 through C-CEO-SOP-06) must be resolved before UAT.
+      Critical: DEFECT-SOP-001 (cross-SOP StepId injection in plugin) must be fixed before UAT.
+      Output dir for SOP feature: projects/crm-workflow-designer/sop-feature/
+      Key artefacts: brd.md, phase-2-arch.md (ADR-008/ADR-009), phase-3-tech.md,
+      code-review.md, phase-4-qa.md, phase-5-audit.md, phase-6-ceo.md.
+      Zero new npm dependencies. Bundle delta: +55 KB lazy, +4 KB eager.
 
   - name: form-designer-webresource
     type: crm

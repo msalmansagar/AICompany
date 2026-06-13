@@ -62,8 +62,10 @@ export function useWorkflowSave(): UseSaveResult {
         resolvedProcessId = await adapter.createProcess({
           name: process.name,
           recordEntity: process.recordEntity,
+          recordEntityName: process.recordEntityName,
           regardingField: process.regardingField,
           parentEntity: process.parentEntity,
+          parentEntityName: process.parentEntityName,
           versionMajor: process.versionMajor,
           versionMinor: process.versionMinor,
           workflowState: 'draft',
