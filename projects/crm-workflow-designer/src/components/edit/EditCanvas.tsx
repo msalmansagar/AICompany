@@ -25,6 +25,7 @@ import { AutoSimulationPanel } from './AutoSimulationPanel';
 import { AutoSimPlaybackHUD } from './AutoSimPlaybackHUD';
 import { ValidationPanel } from './ValidationPanel';
 import { ValidationService } from '@/services/ValidationService';
+import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -266,7 +267,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             </ReactFlow>
           )}
 
-          {isSimulating && <SimulationPanel onExit={stopSimulation} />}
+          {isSimulating && <SimulationPanel adapter={adapter} onExit={stopSimulation} />}
           {isAutoSimulating && autoSimPhase !== 'done' && (
             <AutoSimPlaybackHUD onStop={stopAutoSimulation} />
           )}
@@ -302,6 +303,11 @@ function resolvePropertiesPanel(
 
   if (selectedId.startsWith('outcome_')) {
     return <OutcomePropertiesPanel outcomeId={selectedId} />;
+  }
+
+  if (selectedId.startsWith('route_edge_')) {
+    const routeId = selectedId.replace('route_edge_', '');
+    return <RoutePropertiesPanel routeId={routeId} adapter={adapter} />;
   }
 
   return null;

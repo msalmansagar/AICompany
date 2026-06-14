@@ -16,7 +16,7 @@ import { SopAdapterContext } from './app/SopAdapterContext';
 import { isSopAdapter } from './services/ISopAdapter';
 import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
-import type { WorkflowProcess, WorkflowStep, WorkflowOutcome } from './types/WorkflowTypes';
+import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
 
 type AppMode = 'list' | 'view' | 'edit' | 'sop-list' | 'roles';
 
@@ -144,9 +144,16 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
       const outcomeArrays = await Promise.all(steps.map((s) => adapter.getOutcomes(s.crmId)));
       const allOutcomes: WorkflowOutcome[] = outcomeArrays.flat();
 
-      loadWorkflow(process as WorkflowProcess, steps as WorkflowStep[], allOutcomes, [], {});
+      const conditionalOutcomes = allOutcomes.filter((o) => o.applyFilter);
+      const routeArrays = await Promise.all(conditionalOutcomes.map((o) => adapter.getRoutes(o.crmId)));
+      const allRoutes: WorkflowRoute[] = routeArrays.flat();
+
+      loadWorkflow(process as WorkflowProcess, steps as WorkflowStep[], allOutcomes, allRoutes, {});
       setPreviousMode(appMode === 'view' ? 'view' : 'list');
       setAppMode('edit');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      window.alert(`Failed to load process for editing:\n\n${msg}`);
     } finally {
       setLoadingMessage(null);
     }
@@ -180,6 +187,7 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
         ) : appMode === 'view' ? (
           <WorkflowCanvas
             view={view}
+            adapter={adapter}
             onNewProcess={handleNewProcess}
             onEditProcess={view.data ? handleEditCurrentProcess : undefined}
             onBackToList={() => setAppMode('list')}

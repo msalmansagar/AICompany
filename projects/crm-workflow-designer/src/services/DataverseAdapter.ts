@@ -177,7 +177,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_assigned_user_name,_qdb_team_value,_qdb_team_name,_qdb_roundrobinteam_value,_qdb_roundrobinteam_name&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -280,7 +280,7 @@ export class DataverseAdapter implements ISopAdapter {
 
   async createRoute(data: Omit<WorkflowRoute, 'crmId'>): Promise<string> {
     assertGuid(data.outcomeId, 'outcomeId');
-    assertGuid(data.nextStepId, 'nextStepId');
+    if (data.nextStepId) assertGuid(data.nextStepId, 'nextStepId');
     const result = await withRetry(() =>
       this.xrm.WebApi.createRecord(LOGICAL.route, buildRouteBody(data))
     );
@@ -334,6 +334,63 @@ export class DataverseAdapter implements ISopAdapter {
       displayName: a.DisplayName?.UserLocalizedLabel?.Label ?? a.SchemaName,
       attributeType: a.AttributeType,
     }));
+  }
+
+  async getAttributesMeta(entityLogicalName: string): Promise<Array<{ logicalName: string; displayName: string; attributeType: string }>> {
+    const url =
+      `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes` +
+      `?$select=LogicalName,DisplayName,AttributeType`;
+    type Row = { LogicalName: string; DisplayName: { UserLocalizedLabel?: { Label: string } } | null; AttributeType: string };
+    try {
+      const response = await withRetry(() =>
+        fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{ value: Row[] }>;
+        })
+      );
+      return response.value.map((a) => ({
+        logicalName: a.LogicalName,
+        displayName: a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName,
+        attributeType: a.AttributeType,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getOptionSetLabels(entityLogicalName: string, attributeLogicalName: string): Promise<Map<number, string>> {
+    const base = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
+    type OptionRow = { Value: number; Label: { UserLocalizedLabel?: { Label: string } } };
+
+    const tryFetch = async (cast: string): Promise<OptionRow[]> => {
+      const url =
+        `${base}/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes/${cast}` +
+        `?$filter=LogicalName eq '${attributeLogicalName}'&$expand=OptionSet($select=Options)`;
+      const r = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json() as { value: Array<{ OptionSet?: { Options: OptionRow[] } }> };
+      return data.value[0]?.OptionSet?.Options ?? [];
+    };
+
+    const casts = [
+      'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
+      'Microsoft.Dynamics.CRM.StatusAttributeMetadata',
+      'Microsoft.Dynamics.CRM.StateAttributeMetadata',
+      'Microsoft.Dynamics.CRM.MultiSelectPicklistAttributeMetadata',
+    ];
+
+    const results = await Promise.allSettled(casts.map(tryFetch));
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.length > 0) {
+        const map = new Map<number, string>();
+        for (const o of r.value) {
+          map.set(o.Value, o.Label?.UserLocalizedLabel?.Label ?? String(o.Value));
+        }
+        return map;
+      }
+    }
+    return new Map();
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
@@ -766,7 +823,7 @@ export class DataverseAdapter implements ISopAdapter {
           await this.createRoute({
             ...route,
             outcomeId: newOutcomeId,
-            nextStepId: stepIdMap[route.nextStepId] ?? route.nextStepId,
+            nextStepId: route.nextStepId ? (stepIdMap[route.nextStepId] ?? route.nextStepId) : null,
           });
         }
       }
@@ -813,11 +870,11 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     parentEntityName: (raw['_qdb_parententity_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
     assignTo: mapAssignCode(assignCode),
     assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
-    assignedUserName: (raw['_qdb_assigned_user_name'] as string | null) ?? null,
+    assignedUserName: (raw[`_qdb_assigned_user_value${FMT}`] as string | null) ?? null,
     teamId: (raw['_qdb_team_value'] as string | null) ?? null,
-    teamName: (raw['_qdb_team_name'] as string | null) ?? null,
+    teamName: (raw[`_qdb_team_value${FMT}`] as string | null) ?? null,
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
-    roundRobinTeamName: (raw['_qdb_roundrobinteam_name'] as string | null) ?? null,
+    roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
   };
 }
@@ -847,7 +904,7 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
     filter: (raw['qdb_filter'] as string) ?? '',
     outcomeId: (raw['_qdb_outcome_value'] as string) ?? '',
-    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string) ?? '',
+    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
   };
 }
 

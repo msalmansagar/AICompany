@@ -28,9 +28,12 @@ import { ReadOnlyPropertyPanel } from './ReadOnlyPropertyPanel';
 import type { WorkflowView } from '../hooks/useWorkflowView';
 import type { ViewMode } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
+import type { ICrmAdapter } from '../services/ICrmAdapter';
+import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
+  adapter: ICrmAdapter;
   onNewProcess: () => void;
   onEditProcess?: () => void;
   onBackToList?: () => void;
@@ -42,7 +45,8 @@ const EXPORT_H = 1440;
 type BuildFn = (
   steps: Parameters<typeof buildGraph>[0],
   outcomes: Parameters<typeof buildGraph>[1],
-  dir?: LayoutDir
+  dir?: LayoutDir,
+  routes?: Parameters<typeof buildGraph>[3]
 ) => ReturnType<typeof buildGraph>;
 
 const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
@@ -53,12 +57,14 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:       buildSwimlaneGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
   const fitViewTrigger = useRef(0);
+
+  const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
 
   // Rebuild graph whenever the loaded data, view mode, or layout direction changes.
   useEffect(() => {
@@ -67,13 +73,28 @@ export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList
     const { nodes: rebuilt, edges: rebuiltEdges } = builder(
       view.data.steps,
       view.data.outcomes,
-      view.layoutDir
+      view.layoutDir,
+      view.data.routes,
     );
     view.setNodes(() => rebuilt);
     view.setEdges(() => rebuiltEdges);
     setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.data, view.viewMode, view.layoutDir]);
+
+  // Apply resolved human-readable labels to route edges once metadata is fetched.
+  // Also re-runs on view mode / data change so labels survive graph rebuilds.
+  useEffect(() => {
+    if (resolvedLabels.size === 0) return;
+    view.setEdges((prev) =>
+      prev.map((edge) => {
+        const routeId = extractRouteId(edge.id);
+        const label = routeId ? resolvedLabels.get(routeId) : undefined;
+        return label ? { ...edge, label } : edge;
+      })
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedLabels, view.viewMode, view.layoutDir, view.data]);
 
   const handleOpen = useCallback(() => {
     setSelectorOpen(true);
@@ -96,7 +117,8 @@ export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList
     const { nodes: positioned, edges: rebuilt } = builder(
       view.data.steps,
       view.data.outcomes,
-      view.layoutDir
+      view.layoutDir,
+      view.data.routes,
     );
     view.setNodes(() => positioned);
     view.setEdges(() => rebuilt);
@@ -233,7 +255,7 @@ export function WorkflowCanvas({ view, onNewProcess, onEditProcess, onBackToList
           </ReactFlow>
         </div>
 
-        <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} />
+        <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} adapter={adapter} />
       </div>
 
       {selectorOpen && (
@@ -286,6 +308,13 @@ function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolea
       </div>
     </Panel>
   );
+}
+
+function extractRouteId(edgeId: string): string | null {
+  for (const prefix of ['e_route_', 'e_exec_route_', 'e_tech_route_']) {
+    if (edgeId.startsWith(prefix)) return edgeId.slice(prefix.length);
+  }
+  return null;
 }
 
 function minimapColor(node: Node): string {

@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
-import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
+import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 
 export type LayoutDir = 'TB' | 'LR';
 
@@ -44,10 +44,33 @@ export function computeStepHeight(outcomeCount: number): number {
 const START_NODE_ID = 'node_start';
 const END_NODE_ID = 'node_end';
 
+export const GATEWAY_SIZE = 52; // diamond bounding box
+
+const OPERATOR_LABELS: Record<string, string> = {
+  eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥',
+  like: 'like', 'not-like': '!like', null: 'is null', 'not-null': '!null',
+};
+
+export function conditionLabel(filter: string): string {
+  if (!filter?.trim()) return 'else';
+  try {
+    const doc = new DOMParser().parseFromString(filter, 'text/xml');
+    const conds = Array.from(doc.querySelectorAll('condition'));
+    if (!conds.length) return 'FetchXML';
+    return conds.map((c) => {
+      const attr = c.getAttribute('attribute') ?? '';
+      const op = OPERATOR_LABELS[c.getAttribute('operator') ?? ''] ?? c.getAttribute('operator') ?? '';
+      const val = c.getAttribute('value') ?? '';
+      return val ? `${attr} ${op} ${val}` : `${attr} ${op}`;
+    }).join(', ');
+  } catch { return 'FetchXML'; }
+}
+
 export function buildGraph(
   steps: CrmStep[],
   outcomes: CrmOutcome[],
-  dir: LayoutDir = 'TB'
+  dir: LayoutDir = 'TB',
+  routes: CrmRoute[] = []
 ): { nodes: Node[]; edges: Edge[] } {
   const stepById = new Map(steps.map((s) => [s.id, s]));
 
@@ -116,7 +139,38 @@ export function buildGraph(
     data: { layoutDir: dir }, draggable: false, selectable: false,
   };
 
-  const nodes: Node[] = [startNode, ...stepNodes, endNode];
+  // Build route lookup: outcomeId → routes[]
+  const routesByOutcome = new Map<string, CrmRoute[]>();
+  for (const r of routes) {
+    if (!routesByOutcome.has(r.outcomeId)) routesByOutcome.set(r.outcomeId, []);
+    routesByOutcome.get(r.outcomeId)!.push(r);
+  }
+  for (const list of routesByOutcome.values()) {
+    list.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  }
+
+  // Gateway nodes — one per conditional outcome that has routes
+  const gatewayNodes: Node[] = [];
+  for (const o of outcomes) {
+    if (!o.applyFilter) continue;
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    if (outcomeRoutes.length === 0) continue;
+    gatewayNodes.push({
+      id: `gw_${o.id}`,
+      type: 'routeGateway',
+      position: { x: 0, y: 0 },
+      data: {
+        outcomeName: o.name,
+        outcomeId: o.id,
+        routeCount: outcomeRoutes.length,
+        isSelected: false,
+      },
+      draggable: true,
+      selectable: true,
+    });
+  }
+
+  const nodes: Node[] = [startNode, ...stepNodes, ...gatewayNodes, endNode];
 
   const startEdges: Edge[] = firstSteps.map((s) => ({
     id: `e_start_${s.id}`,
@@ -130,30 +184,108 @@ export function buildGraph(
     selectable: false,
   }));
 
-  // One forward edge per unique (source step, target step) pair.
   const forwardEdges: Edge[] = [];
   const seenForwardPairs = new Set<string>();
+
   for (const o of outcomes) {
-    if (!o.nextStepId || backEdgeOutcomeIds.has(o.id)) continue;
-    const key = `${o.stepId}→${o.nextStepId}`;
-    if (seenForwardPairs.has(key)) continue;
-    seenForwardPairs.add(key);
-    forwardEdges.push({
-      id: `e_fwd_${o.stepId}_${o.nextStepId}`,
-      source: `step_${o.stepId}`,
-      target: `step_${o.nextStepId}`,
-      sourceHandle: 'out',
-      targetHandle: 'in',
-      type: 'smoothstep',
-      style: { stroke: '#64748b', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
-      selectable: false,
-    });
+    if (backEdgeOutcomeIds.has(o.id)) continue;
+
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    const hasGateway = o.applyFilter && outcomeRoutes.length > 0;
+
+    if (hasGateway) {
+      // Step → gateway (entry edge). No label — the outcome name is already
+      // shown in the step card's outcome pill and on the gateway node itself.
+      const entryKey = `${o.stepId}→gw_${o.id}`;
+      if (!seenForwardPairs.has(entryKey)) {
+        seenForwardPairs.add(entryKey);
+        forwardEdges.push({
+          id: `e_entry_${o.id}`,
+          source: `step_${o.stepId}`,
+          target: `gw_${o.id}`,
+          sourceHandle: 'out',
+          targetHandle: 'in',
+          type: 'smoothstep',
+          style: { stroke: '#d97706', strokeWidth: 1.5, strokeDasharray: '5 3' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#d97706' },
+          selectable: false,
+        });
+      }
+
+      // Gateway → each route destination
+      for (const route of outcomeRoutes) {
+        const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
+        const isFallback = !route.filter?.trim();
+        const stroke = isFallback ? '#16a34a' : '#d97706';
+        const cond = conditionLabel(route.filter);
+        const edgeLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+
+        forwardEdges.push({
+          id: `e_route_${route.id}`,
+          source: `gw_${o.id}`,
+          target: targetId,
+          sourceHandle: 'out',
+          targetHandle: 'in',
+          type: 'smoothstep',
+          animated: !isFallback,
+          label: edgeLabel,
+          labelStyle: {
+            fontSize: 9,
+            fontWeight: 600,
+            fill: isFallback ? '#166534' : '#92400e',
+          },
+          labelBgStyle: {
+            fill: isFallback ? '#f0fdf4' : '#fef3c7',
+            fillOpacity: 1,
+          },
+          style: {
+            stroke,
+            strokeWidth: 1.5,
+            strokeDasharray: isFallback ? '4 4' : undefined,
+          },
+          markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+          selectable: true,
+        });
+      }
+    } else if (o.nextStepId) {
+      // Plain non-conditional forward edge (deduplicated by step pair)
+      const key = `${o.stepId}→${o.nextStepId}`;
+      if (!seenForwardPairs.has(key)) {
+        seenForwardPairs.add(key);
+        forwardEdges.push({
+          id: `e_fwd_${o.stepId}_${o.nextStepId}`,
+          source: `step_${o.stepId}`,
+          target: `step_${o.nextStepId}`,
+          sourceHandle: 'out',
+          targetHandle: 'in',
+          type: 'smoothstep',
+          style: { stroke: '#64748b', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+          selectable: false,
+        });
+      }
+    }
   }
 
-  // Terminal edges: only the last step (highest sequenceNo with terminal outcomes)
-  // gets a visible red edge to END. Others are invisible (Dagre ranking only).
-  const terminalStepIds = new Set(outcomes.filter((o) => !o.nextStepId).map((o) => o.stepId));
+  // Terminal edges: steps with terminal outcomes → END
+  const terminalStepIds = new Set<string>();
+  for (const o of outcomes) {
+    if (o.applyFilter) {
+      // For conditional outcomes, terminal routes go gateway → END (already added above).
+      // The step itself still needs a Dagre rank connection if ALL routes are terminal.
+      continue;
+    }
+    if (!o.nextStepId) terminalStepIds.add(o.stepId);
+  }
+  // Also collect steps whose gateway routes are all terminal (nextStepId=null)
+  for (const o of outcomes) {
+    if (!o.applyFilter) continue;
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    if (outcomeRoutes.length > 0 && outcomeRoutes.every((r) => !r.nextStepId)) {
+      terminalStepIds.add(o.stepId);
+    }
+  }
+
   const lastTerminalStep = [...terminalStepIds]
     .map((id) => stepById.get(id))
     .filter((s): s is CrmStep => s !== undefined)
@@ -178,7 +310,13 @@ export function buildGraph(
   });
 
   const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges];
-  const positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
+  let positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
+
+  // Move route-destination step nodes to the RIGHT of their gateway so routes
+  // branch horizontally instead of stacking in the center column.
+  if (dir === 'TB' && routes.length > 0) {
+    positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, STEP_W);
+  }
 
   return { nodes: positionedNodes, edges: layoutEdges };
 }
@@ -187,14 +325,10 @@ export function buildGraph(
 export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): Node[] {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: dir, nodesep: 100, ranksep: 60, marginx: 80, marginy: 60 });
+  g.setGraph({ rankdir: dir, nodesep: 80, ranksep: 100, marginx: 80, marginy: 60 });
 
   for (const node of nodes) {
-    const w = node.type === 'viewStep' ? STEP_W : MARKER_SIZE;
-    const h =
-      node.type === 'viewStep'
-        ? (node.data as ViewStepData).nodeHeight
-        : MARKER_SIZE;
+    const { w, h } = nodeDimensions(node);
     g.setNode(node.id, { width: w, height: h });
   }
 
@@ -207,11 +341,7 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
   dagre.layout(g);
 
   const positioned = nodes.map((node) => {
-    const w = node.type === 'viewStep' ? STEP_W : MARKER_SIZE;
-    const h =
-      node.type === 'viewStep'
-        ? (node.data as ViewStepData).nodeHeight
-        : MARKER_SIZE;
+    const { w, h } = nodeDimensions(node);
     const pos = g.node(node.id);
     if (!pos) return node;
     return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
@@ -221,7 +351,6 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
   if (stepNodes.length === 0) return positioned;
 
   if (dir === 'TB') {
-    // Align all nodes to same center X to prevent staircase drift.
     const centerX =
       stepNodes.reduce((sum, n) => sum + n.position.x + STEP_W / 2, 0) / stepNodes.length;
     return positioned.map((node) => {
@@ -229,13 +358,15 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
         return { ...node, position: { ...node.position, x: centerX - STEP_W / 2 } };
       if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, x: centerX - MARKER_SIZE / 2 } };
+      // Gateway nodes keep Dagre's x (they branch off the center column naturally)
       return node;
     });
   } else {
-    // LR: align all nodes to same center Y.
     const centerY =
-      stepNodes.reduce((sum, n) => sum + n.position.y + (n.data as ViewStepData).nodeHeight / 2, 0) /
-      stepNodes.length;
+      stepNodes.reduce(
+        (sum, n) => sum + n.position.y + (n.data as ViewStepData).nodeHeight / 2,
+        0
+      ) / stepNodes.length;
     return positioned.map((node) => {
       if (node.type === 'viewStep') {
         const h = (node.data as ViewStepData).nodeHeight;
@@ -246,4 +377,102 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
       return node;
     });
   }
+}
+
+function nodeDimensions(node: Node): { w: number; h: number } {
+  if (node.type === 'viewStep') {
+    return { w: STEP_W, h: (node.data as ViewStepData).nodeHeight };
+  }
+  if (node.type === 'routeGateway') {
+    return { w: GATEWAY_SIZE, h: GATEWAY_SIZE };
+  }
+  return { w: MARKER_SIZE, h: MARKER_SIZE };
+}
+
+const STEP_NODE_TYPES = new Set(['viewStep', 'execStep', 'techStep']);
+const BRANCH_GAP = 80;
+const ROUTE_STACK_GAP = 40;
+
+/**
+ * After Dagre layout, explicitly positions both gateway diamonds and their
+ * destination steps so the layout branches RIGHT instead of center-stacking.
+ *
+ * Chain: [Source Step] → [Gateway ◈] → [Dest1]
+ *                                     → [Dest2]
+ *                                     → [Dest3]
+ *
+ * Gateway is placed BRANCH_GAP to the right of its source step, vertically
+ * centered on the source step. Destination steps are stacked vertically as a
+ * block centered on the gateway, BRANCH_GAP to the right of the gateway.
+ */
+export function branchRouteDestinations(
+  nodes: Node[],
+  routes: CrmRoute[],
+  outcomes: CrmOutcome[],
+  stepW: number
+): Node[] {
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  const outcomeSourceStep = new Map<string, string>();
+  for (const o of outcomes) {
+    if (o.applyFilter) outcomeSourceStep.set(o.id, o.stepId);
+  }
+
+  const routesByOutcome = new Map<string, CrmRoute[]>();
+  for (const r of routes) {
+    if (!routesByOutcome.has(r.outcomeId)) routesByOutcome.set(r.outcomeId, []);
+    routesByOutcome.get(r.outcomeId)!.push(r);
+  }
+  for (const list of routesByOutcome.values()) {
+    list.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  }
+
+  const newPositions = new Map<string, { x: number; y: number }>();
+
+  for (const [outcomeId, outcomeRoutes] of routesByOutcome) {
+    const gwNodeId = `gw_${outcomeId}`;
+    const sourceStepId = outcomeSourceStep.get(outcomeId);
+    if (!sourceStepId) continue;
+    const sourceNode = nodeById.get(`step_${sourceStepId}`);
+    if (!sourceNode) continue;
+
+    const srcH = (sourceNode.data as { nodeHeight?: number }).nodeHeight ?? 78;
+    const gwX = sourceNode.position.x + stepW + BRANCH_GAP;
+    const gwY = sourceNode.position.y + srcH / 2 - GATEWAY_SIZE / 2;
+    newPositions.set(gwNodeId, { x: gwX, y: gwY });
+
+    const gwCenterY = gwY + GATEWAY_SIZE / 2;
+    const destX = gwX + GATEWAY_SIZE + BRANCH_GAP;
+
+    const destStepIds = outcomeRoutes
+      .filter((r) => r.nextStepId)
+      .map((r) => `step_${r.nextStepId}`);
+
+    if (destStepIds.length === 0) continue;
+
+    const heights = destStepIds.map((id) => {
+      const n = nodeById.get(id);
+      return n ? ((n.data as { nodeHeight?: number }).nodeHeight ?? 78) : 78;
+    });
+    const totalH =
+      heights.reduce((s, h) => s + h, 0) + (destStepIds.length - 1) * ROUTE_STACK_GAP;
+
+    let currentY = gwCenterY - totalH / 2;
+    for (let i = 0; i < destStepIds.length; i++) {
+      if (!newPositions.has(destStepIds[i])) {
+        newPositions.set(destStepIds[i], { x: destX, y: currentY });
+      }
+      currentY += heights[i] + ROUTE_STACK_GAP;
+    }
+  }
+
+  if (newPositions.size === 0) return nodes;
+
+  return nodes.map((node) => {
+    const newPos = newPositions.get(node.id);
+    if (!newPos) return node;
+    const isRelocatable = STEP_NODE_TYPES.has(node.type ?? '') || node.type === 'routeGateway';
+    if (!isRelocatable) return node;
+    return { ...node, position: newPos };
+  });
 }

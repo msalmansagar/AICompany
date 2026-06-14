@@ -287,7 +287,7 @@ export class ODataAdapter implements ISopAdapter {
 
   async createRoute(data: Omit<WorkflowRoute, 'crmId'>): Promise<string> {
     assertGuid(data.outcomeId, 'outcomeId');
-    assertGuid(data.nextStepId, 'nextStepId');
+    if (data.nextStepId) assertGuid(data.nextStepId, 'nextStepId');
     return this.post(ENTITY_SETS.route, buildRouteBody(data));
   }
 
@@ -323,6 +323,53 @@ export class ODataAdapter implements ISopAdapter {
       displayName: a.DisplayName?.UserLocalizedLabel?.Label ?? a.SchemaName,
       attributeType: a.AttributeType,
     }));
+  }
+
+  async getAttributesMeta(entityLogicalName: string): Promise<Array<{ logicalName: string; displayName: string; attributeType: string }>> {
+    type Row = { LogicalName: string; DisplayName: { UserLocalizedLabel?: { Label: string } } | null; AttributeType: string };
+    try {
+      const data = await this.get<{ value: Row[] }>(
+        `EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes?$select=LogicalName,DisplayName,AttributeType`
+      );
+      return data.value.map((a) => ({
+        logicalName: a.LogicalName,
+        displayName: a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName,
+        attributeType: a.AttributeType,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getOptionSetLabels(entityLogicalName: string, attributeLogicalName: string): Promise<Map<number, string>> {
+    type OptionRow = { Value: number; Label: { UserLocalizedLabel?: { Label: string } } };
+
+    const tryFetch = async (cast: string): Promise<OptionRow[]> => {
+      const data = await this.get<{ value: Array<{ OptionSet?: { Options: OptionRow[] } }> }>(
+        `EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes/${cast}` +
+        `?$filter=LogicalName eq '${attributeLogicalName}'&$expand=OptionSet($select=Options)`
+      );
+      return data.value[0]?.OptionSet?.Options ?? [];
+    };
+
+    const casts = [
+      'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
+      'Microsoft.Dynamics.CRM.StatusAttributeMetadata',
+      'Microsoft.Dynamics.CRM.StateAttributeMetadata',
+      'Microsoft.Dynamics.CRM.MultiSelectPicklistAttributeMetadata',
+    ];
+
+    const results = await Promise.allSettled(casts.map(tryFetch));
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value.length > 0) {
+        const map = new Map<number, string>();
+        for (const o of r.value) {
+          map.set(o.Value, o.Label?.UserLocalizedLabel?.Label ?? String(o.Value));
+        }
+        return map;
+      }
+    }
+    return new Map();
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
@@ -602,7 +649,7 @@ export class ODataAdapter implements ISopAdapter {
           await this.createRoute({
             ...route,
             outcomeId: newOutcomeId,
-            nextStepId: stepIdMap[route.nextStepId] ?? route.nextStepId,
+            nextStepId: route.nextStepId ? (stepIdMap[route.nextStepId] ?? route.nextStepId) : null,
           });
         }
       }
@@ -679,7 +726,7 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
     filter: (raw['qdb_filter'] as string) ?? '',
     outcomeId: (raw['_qdb_outcome_value'] as string) ?? '',
-    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string) ?? '',
+    nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
   };
 }
 
