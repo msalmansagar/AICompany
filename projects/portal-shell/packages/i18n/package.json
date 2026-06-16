@@ -1,0 +1,17 @@
+{
+  "name": "@portal/i18n",
+  "version": "0.0.1",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./en": "./src/en.json",
+    "./ar": "./src/ar.json"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

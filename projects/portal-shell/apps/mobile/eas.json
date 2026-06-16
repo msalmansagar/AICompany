@@ -1,0 +1,30 @@
+{
+  "cli": { "version": ">= 14.0.0" },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://localhost:4001",
+        "EXPO_PUBLIC_PORTAL_ID": "default"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api-staging.portal.maqsad.io",
+        "EXPO_PUBLIC_PORTAL_ID": "default"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.portal.maqsad.io",
+        "EXPO_PUBLIC_PORTAL_ID": "default"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
