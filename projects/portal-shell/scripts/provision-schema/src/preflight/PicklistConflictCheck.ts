@@ -5,15 +5,15 @@ import type { CheckResult } from '../types/ProvisioningResult.js';
 // All integer values the provisioning script plans to create.
 // Grouped by option set name for diagnostic output on conflict.
 const PLANNED_OPTION_SETS: ReadonlyMap<string, readonly number[]> = new Map([
-  ['qdb_preferred_language', [100000001, 100000002]],
+  ['qdb_preferred_language', [860001001, 860001002]],
   ['qdb_nav_layout', [860000001, 860000002]],
   ['qdb_sidebar_default_state', [860000001, 860000002]],
   ['qdb_auth_provider', [860000001, 860000002, 860000003]],
   ['qdb_badge_source', [860000001, 860000002, 860000003]],
   ['qdb_request_status', [860000001, 860000002, 860000003, 860000004, 860000005]],
   ['qdb_notification_type', [860000001, 860000002, 860000003, 860000004]],
-  ['qdb_cms_content_type', [100000001, 100000002, 100000003, 100000004]],
-  ['qdb_cms_status', [100000001, 100000002, 100000003]],
+  ['qdb_cms_content_type', [860002001, 860002002, 860002003, 860002004]],
+  ['qdb_cms_status', [860003001, 860003002, 860003003]],
 ]);
 
 export interface ConflictEntry {
@@ -38,9 +38,11 @@ export async function runPicklistConflictCheck(
 ): Promise<CheckResult> {
   console.log('[PHASE-2b] Enumerating all GlobalOptionSetDefinitions (paginated)...');
 
+  // Cast to OptionSetMetadata (concrete picklist type) so the Options property
+  // is available. $select is not used — OptionSetMetadataBase (abstract) does
+  // not expose Options and Dataverse returns 400 if you try to $select it.
   const allOptionSets = await http.fetchAllPages<GlobalOptionSetRecord>(
-    'GlobalOptionSetDefinitions',
-    { select: ['Name', 'Options'] },
+    'GlobalOptionSetDefinitions/Microsoft.Dynamics.CRM.OptionSetMetadata',
   );
 
   console.log(`[PHASE-2b] Retrieved ${allOptionSets.length} global option set(s).`);

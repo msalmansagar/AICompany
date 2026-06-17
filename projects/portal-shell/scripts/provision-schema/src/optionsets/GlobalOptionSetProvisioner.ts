@@ -7,8 +7,8 @@ import type { StepResult } from '../types/ProvisioningResult.js';
 // Values are authoritative from the BRD code (not the brief).
 const GLOBAL_OPTION_SETS: ReadonlyArray<GlobalOptionSetPayload> = [
   buildOptionSet('qdb_preferred_language', 'Preferred Language', [
-    { value: 100000001, label: 'English' },
-    { value: 100000002, label: 'Arabic' },
+    { value: 860001001, label: 'English' },
+    { value: 860001002, label: 'Arabic' },
   ]),
   buildOptionSet('qdb_nav_layout', 'Navigation Layout', [
     { value: 860000001, label: 'Sidebar' },
@@ -42,15 +42,15 @@ const GLOBAL_OPTION_SETS: ReadonlyArray<GlobalOptionSetPayload> = [
     { value: 860000004, label: 'Error' },
   ]),
   buildOptionSet('qdb_cms_content_type', 'CMS Content Type', [
-    { value: 100000001, label: 'Blog' },
-    { value: 100000002, label: 'News' },
-    { value: 100000003, label: 'Announcement' },
-    { value: 100000004, label: 'Page' },
+    { value: 860002001, label: 'Blog' },
+    { value: 860002002, label: 'News' },
+    { value: 860002003, label: 'Announcement' },
+    { value: 860002004, label: 'Page' },
   ]),
   buildOptionSet('qdb_cms_status', 'CMS Status', [
-    { value: 100000001, label: 'Draft' },
-    { value: 100000002, label: 'Published' },
-    { value: 100000003, label: 'Archived' },
+    { value: 860003001, label: 'Draft' },
+    { value: 860003002, label: 'Published' },
+    { value: 860003003, label: 'Archived' },
   ]),
 ];
 

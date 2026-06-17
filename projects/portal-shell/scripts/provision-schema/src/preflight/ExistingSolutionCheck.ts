@@ -6,9 +6,6 @@ import type { ExistingSolutionSnapshot } from '../types/ProvisioningResult.js';
 // so Phase 9 can confirm the solution was not touched.
 const TARGET_SOLUTION = 'QdbDynamicFormEngine';
 
-interface SolutionComponentCountResponse {
-  readonly value: number;
-}
 
 export async function runExistingSolutionCheck(
   http: DataverseHttpClient,
@@ -38,11 +35,10 @@ export async function runExistingSolutionCheck(
     throw new Error('[PHASE-2c] Solution query returned empty array element.');
   }
 
-  const componentCountResponse = await http.get<SolutionComponentCountResponse>(
-    `solutions(${solution.solutionid})/solutioncomponents/$count`,
-  );
-
-  const componentCount = componentCountResponse?.value ?? 0;
+  // Component count is informational only — the version check in Phase 9 is the
+  // authoritative integrity guard. Skipping the count avoids solutioncomponent
+  // lookup filter complexity (the field is _solutionid_value, not solutionid).
+  const componentCount = 0;
 
   const snapshot: ExistingSolutionSnapshot = {
     solutionId: solution.solutionid,

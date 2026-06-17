@@ -54,7 +54,6 @@ export const portalNavItemsDefinition: EntityMetadataPayload = {
       LogicalName: 'qdb_display_order',
       DisplayName: label('Display Order'),
       RequiredLevel: requiredLevel('ApplicationRequired'),
-      DefaultValue: 0,
     },
     {
       ...booleanField('qdb_IsVisible', 'qdb_is_visible', 'Is Visible', true),

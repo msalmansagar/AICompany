@@ -8,21 +8,22 @@ interface PortalConfigRecord {
 }
 
 // SD-001: Minimum portal config record for the API to boot.
-// Field names are from BRD FR-SCHEMA-004 / PortalConfigService.ts selectFields().
+// Field names use the actual Dataverse-derived logical names (SchemaName lowercased).
+// Dataverse ignores explicit LogicalName in attribute creation payloads.
 const SEED_RECORD = {
-  qdb_portal_name: 'Portal Shell (Staging)',
-  qdb_primary_color: '#1A73E8',
-  qdb_accent_color: '#FBBC04',
-  qdb_nav_layout: 860000001,              // sidebar
-  qdb_sidebar_default_state: 860000001,   // expanded
-  qdb_auth_provider: 860000003,           // custom
-  qdb_rtl_enabled: false,
-  qdb_header_show_notifications: true,
-  qdb_notification_poll_interval_seconds: 30,
-  qdb_landing_page: '/dashboard',
+  qdb_portalname: 'Portal Shell (Staging)',
+  qdb_primarycolor: '#1A73E8',
+  qdb_accentcolor: '#FBBC04',
+  qdb_navlayout: 860000001,              // sidebar
+  qdb_sidebardefaultstate: 860000001,   // expanded
+  qdb_authprovider: 860000003,           // custom
+  qdb_rtlenabled: false,
+  qdb_headershownotifications: true,
+  qdb_notificationpollintervalseconds: 30,
+  qdb_landingpage: '/dashboard',
 };
 
-const IDEMPOTENCY_FILTER = `qdb_portal_name eq 'Portal Shell (Staging)'`;
+const IDEMPOTENCY_FILTER = `qdb_portalname eq 'Portal Shell (Staging)'`;
 
 export async function seedPortalConfig(
   http: DataverseHttpClient,

@@ -105,7 +105,6 @@ export const portalServicesDefinition: EntityMetadataPayload = {
       LogicalName: 'qdb_display_order',
       DisplayName: label('Display Order'),
       RequiredLevel: requiredLevel('ApplicationRequired'),
-      DefaultValue: 0,
     },
   ],
 };

@@ -7,11 +7,12 @@ import type { StepResult } from '../types/ProvisioningResult.js';
 // Field names from BRD FR-SCHEMA-006 / widgets.ts DataverseWidgetConfig interface.
 const WIDGET_TYPE = 'my-requests-summary';
 
+// Field names use actual Dataverse-derived logical names (SchemaName lowercased).
 const SEED_RECORD = {
-  qdb_widget_type: WIDGET_TYPE,
+  qdb_widgettype: WIDGET_TYPE,
   qdb_title: 'My Requests',
-  qdb_display_order: 1,
-  qdb_column_span: 2,
+  qdb_displayorder: 1,
+  qdb_columnspan: 2,
   qdb_config: '{}',
 };
 
@@ -23,7 +24,7 @@ export async function seedWidgetConfig(
   const existing = await http.get<ODataCollectionResponse<{ qdb_portal_widget_configsid: string }>>(
     'qdb_portal_widget_configses',
     {
-      filter: `qdb_widget_type eq '${WIDGET_TYPE}'`,
+      filter: `qdb_widgettype eq '${WIDGET_TYPE}'`,
       select: ['qdb_portal_widget_configsid'],
       top: 1,
     },

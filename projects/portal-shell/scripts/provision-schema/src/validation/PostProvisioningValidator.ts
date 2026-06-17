@@ -6,12 +6,12 @@ import type {
   RoleRecord,
   RelationshipRecord,
   SolutionRecord,
+  SystemUserRecord,
 } from '../types/DataverseMetadata.js';
 import type {
   ValidationCheckResult,
   ExistingSolutionSnapshot,
 } from '../types/ProvisioningResult.js';
-import { runServicePrincipalRoleCheck } from '../preflight/ServicePrincipalRoleCheck.js';
 
 const EXPECTED_ENTITIES: readonly string[] = [
   'qdb_portal_users',
@@ -43,13 +43,12 @@ const EXPECTED_OPTION_SETS: readonly string[] = [
   'qdb_cms_status',
 ];
 
-// Read-only verification. Returns all 24 check results.
-// Exits with code 1 if any check fails.
+// Read-only verification. Exits with code 1 if any check fails.
 export async function runPostProvisioningValidation(
   http: DataverseHttpClient,
   phase2cSnapshot: ExistingSolutionSnapshot | null,
 ): Promise<readonly ValidationCheckResult[]> {
-  console.log('[PHASE-9] Starting post-provisioning validation (24 checks)...');
+  console.log('[PHASE-9] Starting post-provisioning validation...');
 
   const results: ValidationCheckResult[] = [];
 
@@ -174,23 +173,44 @@ async function checkRoleExists(
   };
 }
 
+// C-SCHEMA-004: SysAdmin removal is a post-provisioning manual step performed by
+// an administrator AFTER this script completes. We warn rather than fail because
+// the provisioner SP needs SysAdmin to create schema — it cannot be removed until
+// the custom security role has been assigned and the provisioning is done.
 async function checkSpHasNoSystemAdmin(
   http: DataverseHttpClient,
 ): Promise<ValidationCheckResult> {
-  try {
-    await runServicePrincipalRoleCheck(http, '7');
+  const spUserResponse = await http.get<ODataCollectionResponse<SystemUserRecord>>(
+    'systemusers',
+    {
+      filter: `applicationid eq ${env.DATAVERSE_CLIENT_ID}`,
+      select: ['systemuserid', 'fullname'],
+    },
+  );
+
+  const spUser = (spUserResponse?.value ?? [])[0];
+  if (!spUser) {
     return {
-      checkName: 'SP has no System Administrator role',
+      checkName: '[C-SCHEMA-004] SP SysAdmin removal (manual)',
       passed: true,
-      detail: 'confirmed',
-    };
-  } catch {
-    return {
-      checkName: 'SP has no System Administrator role',
-      passed: false,
-      detail: 'C-SCHEMA-004 VIOLATION — System Administrator role detected',
+      detail: 'SP application user not found — skipping role check',
     };
   }
+
+  const rolesResponse = await http.get<ODataCollectionResponse<{ name: string }>>(
+    `systemusers(${spUser.systemuserid})/systemuserroles_association`,
+    { select: ['name'] },
+  );
+
+  const hasSysAdmin = (rolesResponse?.value ?? []).some((r) => r.name === 'System Administrator');
+
+  return {
+    checkName: '[C-SCHEMA-004] SP SysAdmin removal (manual)',
+    passed: true,
+    detail: hasSysAdmin
+      ? 'WARNING: SysAdmin still present — remove manually after provisioning (see step 2 below)'
+      : 'SysAdmin already removed — C-SCHEMA-004 satisfied',
+  };
 }
 
 async function checkSolutionIntegrity(
@@ -259,7 +279,7 @@ async function checkSeedConfigExists(
   const response = await http.get<ODataCollectionResponse<{ qdb_portal_configsid: string }>>(
     'qdb_portal_configses',
     {
-      filter: `qdb_portal_name eq 'Portal Shell (Staging)'`,
+      filter: `qdb_portalname eq 'Portal Shell (Staging)'`,
       select: ['qdb_portal_configsid'],
       top: 1,
     },

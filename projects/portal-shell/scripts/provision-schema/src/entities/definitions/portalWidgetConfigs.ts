@@ -37,7 +37,6 @@ export const portalWidgetConfigsDefinition: EntityMetadataPayload = {
       LogicalName: 'qdb_display_order',
       DisplayName: label('Display Order'),
       RequiredLevel: requiredLevel('ApplicationRequired'),
-      DefaultValue: 0,
     },
     {
       '@odata.type': 'Microsoft.Dynamics.CRM.IntegerAttributeMetadata',
@@ -45,7 +44,6 @@ export const portalWidgetConfigsDefinition: EntityMetadataPayload = {
       LogicalName: 'qdb_column_span',
       DisplayName: label('Column Span'),
       RequiredLevel: requiredLevel('ApplicationRequired'),
-      DefaultValue: 1,
     },
     {
       '@odata.type': 'Microsoft.Dynamics.CRM.MemoAttributeMetadata',

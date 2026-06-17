@@ -52,6 +52,16 @@ export class DataverseHttpClient {
     };
   }
 
+  // Used for org-level admin mutations (solution creation, publisher ops) where
+  // the MSCRM.SolutionUniqueName header must NOT be present — the solution context
+  // header causes Dataverse to reject creating the solution record itself.
+  private buildAdminMutationHeaders(token: string): Record<string, string> {
+    return {
+      ...this.buildReadOnlyHeaders(token),
+      'Content-Type': 'application/json; charset=utf-8',
+    };
+  }
+
   private buildUrl(path: string, options?: QueryOptions): string {
     const url = new URL(path, BASE_URL);
     if (options?.filter) url.searchParams.set('$filter', options.filter);
@@ -93,10 +103,11 @@ export class DataverseHttpClient {
       return this.executeWithRetry(buildRequest, operation, 1);
     }
 
-    if (response.status === 429 && retryCount < 3) {
+    if (response.status === 429 && retryCount < 8) {
       const retryAfterHeader = response.headers.get('Retry-After');
       const rawWait = parseInt(retryAfterHeader ?? '', 10);
-      const waitSeconds = Number.isFinite(rawWait) ? Math.min(rawWait, 120) : 5;
+      // Default 20s for entity customization lock errors; Retry-After overrides when present
+      const waitSeconds = Number.isFinite(rawWait) ? Math.min(rawWait, 120) : 20;
       console.log(`[WARN] 429 on ${operation} — waiting ${waitSeconds}s (attempt ${retryCount + 1}/3)`);
       await sleep(waitSeconds * 1000);
       return this.executeWithRetry(buildRequest, operation, retryCount + 1);
@@ -202,7 +213,7 @@ export class DataverseHttpClient {
     return { id: entityId } as unknown as T;
   }
 
-  // Separate post that returns the raw response for header inspection
+  // Separate post that returns the raw response for header inspection (includes solution header)
   async postRaw(path: string, body: unknown): Promise<Response> {
     const url = this.buildUrl(path);
     const operation = `POST ${path}`;
@@ -212,6 +223,29 @@ export class DataverseHttpClient {
         new Request(url, {
           method: 'POST',
           headers: this.buildMutationHeaders(token),
+          body: JSON.stringify(body),
+        }),
+      operation,
+    );
+
+    if (!response.ok) {
+      await this.parseError(response, operation);
+    }
+
+    return response;
+  }
+
+  // postAdminRaw is for org-level mutations that must NOT carry MSCRM.SolutionUniqueName
+  // (solution creation, publisher operations).
+  async postAdminRaw(path: string, body: unknown): Promise<Response> {
+    const url = this.buildUrl(path);
+    const operation = `POST ${path}`;
+
+    const response = await this.executeWithRetry(
+      (token) =>
+        new Request(url, {
+          method: 'POST',
+          headers: this.buildAdminMutationHeaders(token),
           body: JSON.stringify(body),
         }),
       operation,

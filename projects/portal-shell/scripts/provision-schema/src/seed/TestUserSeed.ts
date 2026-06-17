@@ -42,15 +42,18 @@ export async function seedTestUser(
 
   const passwordHash = await hashPassword(env.SEED_TEST_USER_PASSWORD);
 
+  // Field names use actual Dataverse-derived logical names (SchemaName lowercased).
   await http.post('qdb_portal_userses', {
     qdb_email: TEST_USER_EMAIL,
-    qdb_password_hash: passwordHash,
-    qdb_first_name: 'Smoke',
-    qdb_last_name: 'Tester',
-    qdb_display_name: 'Smoke Tester',
+    qdb_passwordhash: passwordHash,
+    qdb_firstname: 'Smoke',
+    qdb_lastname: 'Tester',
+    qdb_displayname: 'Smoke Tester',
     qdb_roles: '["portal_user"]',
-    qdb_linked_entity_ids: '[]',
-    qdb_preferred_language: 100000001,  // en
+    qdb_linkedentityids: '[]',
+    // The local option set on this attribute has values 0,1,2 (not the 860001xxx global set).
+    // Value 0 = first option (English). The global binding was lost during an early creation run.
+    qdb_preferredlanguage: 0,
   });
 
   console.log(`[PHASE-8] [PASS] [SD-003] Test user '${TEST_USER_EMAIL}' seeded.`);

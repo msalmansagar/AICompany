@@ -71,16 +71,16 @@ describe('detectConflicts', () => {
     });
 
     it('should identify the planned option set name in each conflict entry', () => {
+      // 860001001 is the English value for qdb_preferred_language
       const index = new Map<number, string>([
-        [100000001, 'foreign_set_a'],
+        [860001001, 'foreign_set_a'],
       ]);
 
       const conflicts = detectConflicts(index);
 
-      const conflict = conflicts.find((c) => c.value === 100000001);
+      const conflict = conflicts.find((c) => c.value === 860001001);
       expect(conflict).toBeDefined();
-      // 100000001 is used by qdb_preferred_language and qdb_cms_content_type
-      expect(['qdb_preferred_language', 'qdb_cms_content_type']).toContain(conflict?.plannedOptionSet);
+      expect(conflict?.plannedOptionSet).toBe('qdb_preferred_language');
     });
   });
 });

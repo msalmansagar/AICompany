@@ -52,7 +52,9 @@ export async function provisionSolution(
 
   console.log(`[PHASE-3] Creating solution '${SOLUTION_UNIQUE_NAME}'...`);
 
-  const createResponse = await http.postRaw('solutions', {
+  // postAdminRaw: solution creation must NOT carry MSCRM.SolutionUniqueName header —
+  // Dataverse rejects it because the solution doesn't exist yet.
+  const createResponse = await http.postAdminRaw('solutions', {
     uniquename: SOLUTION_UNIQUE_NAME,
     friendlyname: SOLUTION_FRIENDLY_NAME,
     version: SOLUTION_VERSION,

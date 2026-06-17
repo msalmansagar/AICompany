@@ -9,7 +9,6 @@ import { DataverseHttpClient } from './http/DataverseHttpClient.js';
 import { runPublisherCheck } from './preflight/PublisherCheck.js';
 import { runPicklistConflictCheck } from './preflight/PicklistConflictCheck.js';
 import { runExistingSolutionCheck } from './preflight/ExistingSolutionCheck.js';
-import { runServicePrincipalRoleCheck } from './preflight/ServicePrincipalRoleCheck.js';
 
 import { provisionSolution } from './solution/SolutionProvisioner.js';
 import { provisionAllGlobalOptionSets } from './optionsets/GlobalOptionSetProvisioner.js';
@@ -54,8 +53,10 @@ async function main(): Promise<void> {
   // 2c Existing solution snapshot (C-SCHEMA-006)
   const phase2cSnapshot: ExistingSolutionSnapshot | null = await runExistingSolutionCheck(http);
 
-  // 2d Service principal role check (C-SCHEMA-004)
-  await runServicePrincipalRoleCheck(http, '2d');
+  // NOTE: C-SCHEMA-004 (SP must not have SysAdmin at runtime) is a post-provisioning
+  // manual step. The provisioner SP needs SysAdmin to create schema — checking for its
+  // absence here would always block. Admin removes SysAdmin after this script completes
+  // and assigns the custom QDB Portal Shell User role (Phase 7 below).
 
   console.log('[PHASE-2] [PASS] All pre-flight guards passed.');
 
@@ -83,9 +84,6 @@ async function main(): Promise<void> {
   if (roleResult.roleId && !env.DRY_RUN) {
     await assignRoleToServicePrincipal(http, roleResult.roleId);
   }
-
-  // C-SCHEMA-004 post-assignment check
-  await runServicePrincipalRoleCheck(http, '7');
 
   // PHASE 8: Seed data
   await orchestrateSeed(http);
@@ -142,7 +140,10 @@ function printSolutionExportInstruction(): void {
   console.log('');
   console.log('POST-PROVISIONING MANUAL STEPS REQUIRED:');
   console.log('1. Run PAC CLI export (command above)');
-  console.log('2. Apply Column Security Profile to qdb_portal_configs.qdb_auth_config_json:');
+  console.log('2. [C-SCHEMA-004] Remove System Administrator role from the DFE Backend API');
+  console.log('   service principal — it now has the QDB Portal Shell User role which is sufficient.');
+  console.log('   Power Apps > Settings > Users > Application Users > DFE Backend API > Manage roles');
+  console.log('3. Apply Column Security Profile to qdb_portal_configs.qdb_auth_config_json:');
   console.log('   - In Power Apps maker portal: Settings -> Column Security Profiles');
   console.log('   - Create profile "Portal Auth Config" with Read=No, Update=No for non-admin roles');
   console.log('   - Assign to qdb_auth_config_json column on qdb_portal_configs entity');

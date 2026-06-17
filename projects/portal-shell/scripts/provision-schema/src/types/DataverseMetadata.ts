@@ -41,9 +41,21 @@ export interface IntegerAttributeMetadata extends BaseAttributeMetadata {
   readonly DefaultValue?: number;
 }
 
+export interface BooleanOptionMetadata {
+  readonly Value: 1 | 0;
+  readonly Label: LocalizedLabelSet;
+}
+
+export interface BooleanOptionSetMetadata {
+  readonly '@odata.type': 'Microsoft.Dynamics.CRM.BooleanOptionSetMetadata';
+  readonly TrueOption: BooleanOptionMetadata;
+  readonly FalseOption: BooleanOptionMetadata;
+}
+
 export interface BooleanAttributeMetadata extends BaseAttributeMetadata {
   readonly '@odata.type': 'Microsoft.Dynamics.CRM.BooleanAttributeMetadata';
   readonly DefaultValue: boolean;
+  readonly OptionSet: BooleanOptionSetMetadata;
 }
 
 export interface DateTimeAttributeMetadata extends BaseAttributeMetadata {
@@ -62,9 +74,15 @@ export interface OptionSetReference {
 
 export interface PicklistAttributeMetadata extends BaseAttributeMetadata {
   readonly '@odata.type': 'Microsoft.Dynamics.CRM.PicklistAttributeMetadata';
+  // READ: returned by Dataverse to name the global option set
   readonly GlobalOptionSet?: OptionSetReference;
+  // CREATE (inline): local option set with Options array
+  // CREATE (global reference): { IsGlobal: true, Name: '...', '@odata.type': '...' }
   readonly OptionSet?: {
-    readonly Options: readonly OptionMetadata[];
+    readonly '@odata.type'?: string;
+    readonly IsGlobal?: boolean;
+    readonly Name?: string;
+    readonly Options?: readonly OptionMetadata[];
   };
   readonly DefaultFormValue?: number;
 }
@@ -117,7 +135,6 @@ export interface AssociatedMenuConfiguration {
   readonly Behavior: 'DoNotDisplay' | 'UseCollectionName' | 'UseLabel';
   readonly Group: 'Details' | 'Sales' | 'Service' | 'Marketing';
   readonly Order: number | null;
-  readonly IsCustomizable: { readonly Value: boolean };
 }
 
 export interface CascadeConfiguration {
@@ -143,7 +160,8 @@ export interface OneToManyRelationshipPayload {
   readonly ReferencedEntity: string;
   readonly ReferencingEntity: string;
   readonly ReferencedAttribute: string;
-  readonly ReferencingAttribute: string;
+  // ReferencingAttribute is NOT sent when Lookup is provided — Dataverse creates the
+  // lookup attribute from the Lookup definition. Specifying both causes a 404 lookup error.
   readonly Lookup: LookupAttributeInRelationship;
   readonly AssociatedMenuConfiguration: AssociatedMenuConfiguration;
   readonly CascadeConfiguration: CascadeConfiguration;

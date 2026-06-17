@@ -83,7 +83,7 @@ export const portalUsersDefinition: EntityMetadataPayload = {
     },
     {
       ...globalPicklist('qdb_PreferredLanguage', 'qdb_preferred_language', 'Preferred Language', 'qdb_preferred_language'),
-      DefaultFormValue: 100000001,
+      DefaultFormValue: 860001001,
     },
   ],
 };

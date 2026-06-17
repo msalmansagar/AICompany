@@ -182,7 +182,6 @@ export const portalConfigsDefinition: EntityMetadataPayload = {
       RequiredLevel: requiredLevel('ApplicationRequired'),
       MinValue: 10,
       MaxValue: 120,
-      DefaultValue: 30,
     },
   ],
 };

@@ -6,6 +6,7 @@ import type {
   PicklistAttributeMetadata,
   LookupAttributeMetadata,
   BooleanAttributeMetadata,
+  BooleanOptionSetMetadata,
 } from '../../types/DataverseMetadata.js';
 
 export function label(text: string): LocalizedLabelSet {
@@ -30,7 +31,12 @@ export function globalPicklist(
     LogicalName: logicalName,
     DisplayName: label(displayLabel),
     RequiredLevel: requiredLevel('None'),
-    GlobalOptionSet: { Name: optionSetName },
+    // OptionSet with IsGlobal+Name is the correct format for entity creation via OData
+    OptionSet: {
+      '@odata.type': 'Microsoft.Dynamics.CRM.OptionSetMetadata',
+      IsGlobal: true,
+      Name: optionSetName,
+    },
   };
 }
 
@@ -66,6 +72,14 @@ export function requiredLookup(
   };
 }
 
+function booleanOptionSet(trueLabel: string, falseLabel: string): BooleanOptionSetMetadata {
+  return {
+    '@odata.type': 'Microsoft.Dynamics.CRM.BooleanOptionSetMetadata',
+    TrueOption: { Value: 1, Label: label(trueLabel) },
+    FalseOption: { Value: 0, Label: label(falseLabel) },
+  };
+}
+
 export function booleanField(
   schemaName: string,
   logicalName: string,
@@ -79,5 +93,6 @@ export function booleanField(
     DisplayName: label(displayLabel),
     RequiredLevel: requiredLevel('None'),
     DefaultValue: defaultValue,
+    OptionSet: booleanOptionSet('Yes', 'No'),
   };
 }

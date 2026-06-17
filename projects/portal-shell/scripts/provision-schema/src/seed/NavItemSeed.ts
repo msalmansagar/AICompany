@@ -4,47 +4,48 @@ import type { ODataCollectionResponse } from '../types/DataverseMetadata.js';
 import type { StepResult } from '../types/ProvisioningResult.js';
 
 // SD-002: 3 default nav items from BRD Section 10 SD-002.
-// Field names from BRD FR-SCHEMA-005 / NavService.ts DataverseNavItem interface.
+// Field names use the actual Dataverse-derived logical names (SchemaName lowercased).
+// Dataverse ignores explicit LogicalName in attribute creation payloads.
 
 interface NavSeedRecord {
   readonly qdb_label: string;
-  readonly qdb_label_ar: string;
-  readonly qdb_page_code: string;
+  readonly qdb_labelar: string;
+  readonly qdb_pagecode: string;
   readonly qdb_icon: string;
-  readonly qdb_display_order: number;
-  readonly qdb_is_visible: boolean;
-  readonly qdb_badge_source: number;
-  readonly qdb_badge_value?: string;
+  readonly qdb_displayorder: number;
+  readonly qdb_isvisible: boolean;
+  readonly qdb_badgesource: number;
+  readonly qdb_badgevalue?: string;
 }
 
 const NAV_SEEDS: readonly NavSeedRecord[] = [
   {
     qdb_label: 'Dashboard',
-    qdb_label_ar: 'لوحة التحكم',
-    qdb_page_code: 'dashboard',
+    qdb_labelar: 'لوحة التحكم',
+    qdb_pagecode: 'dashboard',
     qdb_icon: 'home',
-    qdb_display_order: 1,
-    qdb_is_visible: true,
-    qdb_badge_source: 860000001,  // none
+    qdb_displayorder: 1,
+    qdb_isvisible: true,
+    qdb_badgesource: 860000001,  // none
   },
   {
     qdb_label: 'My Requests',
-    qdb_label_ar: 'طلباتي',
-    qdb_page_code: 'my-requests',
+    qdb_labelar: 'طلباتي',
+    qdb_pagecode: 'my-requests',
     qdb_icon: 'file-text',
-    qdb_display_order: 2,
-    qdb_is_visible: true,
-    qdb_badge_source: 860000003,  // query
-    qdb_badge_value: 'qdb_portal_requests?$filter=qdb_status eq 860000001',
+    qdb_displayorder: 2,
+    qdb_isvisible: true,
+    qdb_badgesource: 860000003,  // query
+    qdb_badgevalue: 'qdb_portal_requests?$filter=qdb_requeststatus eq 860000001',
   },
   {
     qdb_label: 'Services',
-    qdb_label_ar: 'الخدمات',
-    qdb_page_code: 'services',
+    qdb_labelar: 'الخدمات',
+    qdb_pagecode: 'services',
     qdb_icon: 'grid',
-    qdb_display_order: 3,
-    qdb_is_visible: true,
-    qdb_badge_source: 860000001,  // none
+    qdb_displayorder: 3,
+    qdb_isvisible: true,
+    qdb_badgesource: 860000001,  // none
   },
 ];
 
@@ -73,7 +74,7 @@ async function seedSingleNavItem(
   const existing = await http.get<ODataCollectionResponse<{ qdb_portal_nav_itemsid: string }>>(
     'qdb_portal_nav_itemses',
     {
-      filter: `qdb_page_code eq '${record.qdb_page_code}'`,
+      filter: `qdb_pagecode eq '${record.qdb_pagecode}'`,
       select: ['qdb_portal_nav_itemsid'],
       top: 1,
     },
@@ -82,16 +83,16 @@ async function seedSingleNavItem(
   const existingRecords = existing?.value ?? [];
 
   if (existingRecords.length > 0) {
-    console.log(`[PHASE-8] [SKIP] [SD-002] Nav item '${record.qdb_page_code}' already exists.`);
-    return { name: `SD-002 nav:${record.qdb_page_code}`, status: 'skipped' };
+    console.log(`[PHASE-8] [SKIP] [SD-002] Nav item '${record.qdb_pagecode}' already exists.`);
+    return { name: `SD-002 nav:${record.qdb_pagecode}`, status: 'skipped' };
   }
 
   if (env.DRY_RUN) {
-    console.log(`[PHASE-8] [DRY-RUN SKIP] [SD-002] Would seed nav item '${record.qdb_page_code}'.`);
-    return { name: `SD-002 nav:${record.qdb_page_code}`, status: 'dry-run' };
+    console.log(`[PHASE-8] [DRY-RUN SKIP] [SD-002] Would seed nav item '${record.qdb_pagecode}'.`);
+    return { name: `SD-002 nav:${record.qdb_pagecode}`, status: 'dry-run' };
   }
 
   await http.post('qdb_portal_nav_itemses', record);
-  console.log(`[PHASE-8] [PASS] [SD-002] Nav item '${record.qdb_page_code}' seeded.`);
-  return { name: `SD-002 nav:${record.qdb_page_code}`, status: 'created' };
+  console.log(`[PHASE-8] [PASS] [SD-002] Nav item '${record.qdb_pagecode}' seeded.`);
+  return { name: `SD-002 nav:${record.qdb_pagecode}`, status: 'created' };
 }
