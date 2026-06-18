@@ -4,14 +4,17 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { DataverseClient } from '@portal/dataverse-client';
 import type { TokenClaims } from '@portal/types';
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    /** Decoded JWT claims — populated on authenticated routes only */
-    user?: TokenClaims;
+// Augmenting @fastify/jwt (not fastify directly) avoids a type conflict: @fastify/jwt
+// already declares FastifyRequest.user as string|object|Buffer. Augmenting FastifyJWT
+// makes the jwt package's own declaration resolve to TokenClaims throughout.
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: TokenClaims;
+    user: TokenClaims;
   }
 }
 
-const REVOKED_TOKENS_ENTITY = 'qdb_portal_revoked_tokens';
+const REVOKED_TOKENS_ENTITY = 'qdb_portal_revoked_tokenses';
 
 // Revoked JTIs cached for 1 hour (matches max access token TTL).
 // Valid JTIs cached for 60 s to avoid a Dataverse round-trip on every request.

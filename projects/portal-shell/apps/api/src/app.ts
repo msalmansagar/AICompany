@@ -31,6 +31,8 @@ import { adminWidgetRoutes } from './routes/admin/widgets.js';
 import { cmsRoutes } from './routes/cms.js';
 import { adminCmsRoutes } from './routes/admin/cms.js';
 import { CmsService } from './services/CmsService.js';
+import { adminComponentRoutes } from './routes/admin/components.js';
+import { ComponentRegistryService } from './services/ComponentRegistryService.js';
 
 /**
  * Builds and configures the Fastify application instance.
@@ -42,13 +44,13 @@ import { CmsService } from './services/CmsService.js';
  * @param config - Validated environment config (from loadConfig())
  */
 export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
+  // exactOptionalPropertyTypes: transport must be absent (not undefined) when not in dev.
   const app = Fastify({
     logger: {
       level: config.LOG_LEVEL,
-      transport:
-        config.NODE_ENV === 'development'
-          ? { target: 'pino-pretty', options: { colorize: true } }
-          : undefined,
+      ...(config.NODE_ENV === 'development'
+        ? { transport: { target: 'pino-pretty', options: { colorize: true } } }
+        : {}),
     },
     disableRequestLogging: false,
   });
@@ -113,6 +115,9 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       const cmsService = new CmsService(instance.dataverse);
       await cmsRoutes(instance, { cmsService });
       await adminCmsRoutes(instance, { cmsService });
+
+      const componentRegistryService = new ComponentRegistryService(instance.dataverse);
+      await adminComponentRoutes(instance, { componentRegistryService });
     }),
   );
 
@@ -120,34 +125,31 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   // Global error handler — RFC 7807 Problem Details
   // ---------------------------------------------------------------------------
 
+  // Fastify v5 types the error handler parameter as unknown — cast once upfront.
   app.setErrorHandler(async (error, request, reply) => {
+    const err = error as Error & { code?: string; statusCode?: number; issues?: unknown[] };
     const correlationId = request.correlationId;
 
     app.log.error({
-      error: {
-        name: error.name,
-        message: error.message,
-        code: (error as { code?: string }).code,
-      },
+      error: { name: err.name, message: err.message, code: err.code },
       correlationId,
       operation: `${request.method} ${request.url}`,
     });
 
-    // Zod validation failures are re-thrown as ZodError from route handlers
-    if (error.name === 'ZodError') {
+    if (err.name === 'ZodError') {
       return reply.status(422).send({
         code: 'validation_error',
         message: 'Request validation failed',
-        details: (error as { issues?: unknown[] }).issues,
+        details: err.issues,
       });
     }
 
-    const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
+    const statusCode = err.statusCode ?? 500;
     const isProduction = config.NODE_ENV === 'production';
 
     return reply.status(statusCode).send({
-      code: (error as { code?: string }).code ?? 'internal_error',
-      message: isProduction ? 'An unexpected error occurred' : error.message,
+      code: err.code ?? 'internal_error',
+      message: isProduction ? 'An unexpected error occurred' : err.message,
       ...(isProduction ? {} : { details: { correlationId } }),
     });
   });
