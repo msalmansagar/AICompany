@@ -107,7 +107,7 @@ describe('ComponentRegistryService.listDefinitions', () => {
 
     await service.listDefinitions({ category: 2, top: 20, skip: 0 }, CORR);
 
-    const call = (dataverse.getList as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = (dataverse.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
     const options = call[1] as { filter: string };
     expect(options.filter).toContain('qdb_category eq 2');
   });
@@ -203,7 +203,7 @@ describe('ComponentRegistryService.patchDefinition', () => {
     await service.patchDefinition(DEF_ID, { displayName: 'Updated', renderTargets: ['web'] }, CORR);
 
     expect(dataverse.update).toHaveBeenCalledOnce();
-    const patchArg = (dataverse.update as ReturnType<typeof vi.fn>).mock.calls[0][2];
+    const patchArg = (dataverse.update as ReturnType<typeof vi.fn>).mock.calls[0]![2] as Record<string, unknown>;
     expect(patchArg).toMatchObject({ qdb_displayname: 'Updated', qdb_rendertargets: '["web"]' });
     expect(patchArg).not.toHaveProperty('qdb_descriptionar');
   });

@@ -11,7 +11,7 @@ export interface DataverseClientConfig {
 
 export interface ODataQueryOptions {
   select?: string[];
-  filter?: string;
+  filter?: string | undefined;
   top?: number;
   skip?: number;
   orderBy?: string;
@@ -41,7 +41,7 @@ export interface ODataError {
 /** Options accepted by every mutating request */
 export interface RequestOptions {
   /** Propagated from Fastify request context */
-  correlationId?: string;
+  correlationId?: string | undefined;
 }
 
 /** A single operation within an OData $batch changeSet */

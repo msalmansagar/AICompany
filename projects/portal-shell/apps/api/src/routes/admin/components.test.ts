@@ -1,4 +1,4 @@
-// Integration tests for admin component routes.
+﻿// Integration tests for admin component routes.
 // TC-052: every admin component route must return HTTP 403 when the caller's
 // JWT contains a non-Admin role. Missing-token requests must return 401.
 // Admin-role requests must reach the handler (proven by 200/204 responses).
@@ -92,9 +92,9 @@ async function buildTestApp(registry: ComponentRegistryService): Promise<TestApp
       await adminComponentRoutes(instance, { componentRegistryService: registry });
     }),
   );
-  // Mirror the production app's error handler: ZodError → 400.
+  // Mirror the production app's error handler: ZodError â†’ 400.
   // Use error.name check (more reliable across ESM module boundaries than instanceof).
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error: Error & { statusCode?: number }, _request, reply) => {
     if (error.name === 'ZodError') {
       return reply.status(400).send({ code: 'validation_error', message: error.message });
     }
@@ -114,10 +114,10 @@ function makeAuthHeader(app: TestApp, roles: string[]): string {
 }
 
 // ---------------------------------------------------------------------------
-// TC-052 — Viewer-role JWT must be rejected with 403 on all 11 routes
+// TC-052 â€” Viewer-role JWT must be rejected with 403 on all 11 routes
 // ---------------------------------------------------------------------------
 
-describe('TC-052 — Viewer-role JWT returns 403 on every admin component route', () => {
+describe('TC-052 â€” Viewer-role JWT returns 403 on every admin component route', () => {
   let app: TestApp;
   let viewerAuth: string;
 
@@ -133,7 +133,7 @@ describe('TC-052 — Viewer-role JWT returns 403 on every admin component route'
   async function expectForbidden(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string): Promise<void> {
     const res = await app.inject({ method, url, headers: { Authorization: viewerAuth } });
     expect(res.statusCode, `${method} ${url}`).toBe(403);
-    expect(res.json<{ code: string }>().code, `${method} ${url} code`).toBe('forbidden');
+    expect((res.json() as { code: string }).code, `${method} ${url} code`).toBe('forbidden');
   }
 
   it('should_return_403_when_viewer_calls_GET_components', async () => {
@@ -182,10 +182,10 @@ describe('TC-052 — Viewer-role JWT returns 403 on every admin component route'
 });
 
 // ---------------------------------------------------------------------------
-// Auth boundary — missing token must return 401
+// Auth boundary â€” missing token must return 401
 // ---------------------------------------------------------------------------
 
-describe('Auth boundary — missing Bearer token returns 401 on admin component routes', () => {
+describe('Auth boundary â€” missing Bearer token returns 401 on admin component routes', () => {
   let app: TestApp;
 
   beforeAll(async () => {
@@ -199,13 +199,13 @@ describe('Auth boundary — missing Bearer token returns 401 on admin component 
   it('should_return_401_on_GET_components_when_no_token_provided', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/admin/components' });
     expect(res.statusCode).toBe(401);
-    expect(res.json<{ code: string }>().code).toBe('unauthorized');
+    expect((res.json() as { code: string }).code).toBe('unauthorized');
   });
 
   it('should_return_401_on_POST_components_when_no_token_provided', async () => {
     const res = await app.inject({ method: 'POST', url: '/api/admin/components', payload: {} });
     expect(res.statusCode).toBe(401);
-    expect(res.json<{ code: string }>().code).toBe('unauthorized');
+    expect((res.json() as { code: string }).code).toBe('unauthorized');
   });
 
   it('should_return_401_on_set_latest_when_no_token_provided', async () => {
@@ -214,15 +214,15 @@ describe('Auth boundary — missing Bearer token returns 401 on admin component 
       url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}/set-latest`,
     });
     expect(res.statusCode).toBe(401);
-    expect(res.json<{ code: string }>().code).toBe('unauthorized');
+    expect((res.json() as { code: string }).code).toBe('unauthorized');
   });
 });
 
 // ---------------------------------------------------------------------------
-// Admin role — request passes auth guard and reaches handler
+// Admin role â€” request passes auth guard and reaches handler
 // ---------------------------------------------------------------------------
 
-describe('Admin role — JWT with Admin role reaches the route handler', () => {
+describe('Admin role â€” JWT with Admin role reaches the route handler', () => {
   let app: TestApp;
   let adminAuth: string;
 
@@ -242,7 +242,7 @@ describe('Admin role — JWT with Admin role reaches the route handler', () => {
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ items: unknown[]; total: number }>();
+    const body = res.json() as { items: unknown[]; total: number };
     expect(body.items).toEqual([]);
     expect(body.total).toBe(0);
   });
@@ -254,7 +254,7 @@ describe('Admin role — JWT with Admin role reaches the route handler', () => {
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ data: { id: string } }>();
+    const body = res.json() as { data: { id: string } };
     expect(body.data.id).toBe(COMPONENT_ID);
   });
 
@@ -269,10 +269,10 @@ describe('Admin role — JWT with Admin role reaches the route handler', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Route handler logic — validation, error forwarding, response shapes
+// Route handler logic â€” validation, error forwarding, response shapes
 // ---------------------------------------------------------------------------
 
-describe('Route handler logic — validation, RegistryError forwarding, and 404 mapping', () => {
+describe('Route handler logic â€” validation, RegistryError forwarding, and 404 mapping', () => {
   let app: TestApp;
   let registry: ComponentRegistryService;
   let adminAuth: string;
@@ -329,7 +329,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
     (registry.setLatestVersion as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   });
 
-  // GET /components — response shape
+  // GET /components â€” response shape
 
   it('should_include_total_top_and_skip_in_GET_components_response_body', async () => {
     const res = await app.inject({
@@ -338,7 +338,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ items: unknown[]; total: number; top: number; skip: number }>();
+    const body = res.json() as { items: unknown[]; total: number; top: number; skip: number };
     expect(body.top).toBe(10);
     expect(body.skip).toBe(5);
   });
@@ -356,7 +356,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       payload: { name: 'button', displayName: 'Button', category: 1, renderTargets: ['portal'] },
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json<{ code: string }>().code).toBe('duplicate_component_name');
+    expect((res.json() as { code: string }).code).toBe('duplicate_component_name');
   });
 
   it('should_return_201_with_data_when_POST_components_succeeds', async () => {
@@ -367,10 +367,10 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       payload: { name: 'button', displayName: 'Button', category: 1, renderTargets: ['portal'] },
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json<{ data: { id: string } }>().data.id).toBe(COMPONENT_ID);
+    expect((res.json() as { data: { id: string } }).data.id).toBe(COMPONENT_ID);
   });
 
-  // GET /components — non-registry error propagates as 500
+  // GET /components â€” non-registry error propagates as 500
 
   it('should_propagate_unexpected_errors_as_500_from_GET_components_by_id', async () => {
     (registry.getDefinitionById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
@@ -427,10 +427,10 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json<{ code: string }>().code).toBe('component_has_versions');
+    expect((res.json() as { code: string }).code).toBe('component_has_versions');
   });
 
-  // GET /components/:id — 404 path
+  // GET /components/:id â€” 404 path
 
   it('should_return_404_when_GET_component_by_id_throws_DataverseNotFoundError', async () => {
     (registry.getDefinitionById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
@@ -442,7 +442,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(404);
-    expect(res.json<{ code: string }>().code).toBe('not_found');
+    expect((res.json() as { code: string }).code).toBe('not_found');
   });
 
   // GET /components/:id/versions
@@ -458,7 +458,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ items: unknown[]; total: number }>();
+    const body = res.json() as { items: unknown[]; total: number };
     expect(body.items).toHaveLength(1);
     expect(body.total).toBe(1);
   });
@@ -473,7 +473,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       payload: { versionNumber: '1.0.0' },
     });
     expect(res.statusCode).toBe(201);
-    expect(res.json<{ data: { id: string } }>().data.id).toBe(VERSION_ID);
+    expect((res.json() as { data: { id: string } }).data.id).toBe(VERSION_ID);
   });
 
   it('should_return_409_when_POST_versions_service_throws_RegistryError', async () => {
@@ -487,7 +487,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       payload: { versionNumber: '1.0.0' },
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json<{ code: string }>().code).toBe('duplicate_version_number');
+    expect((res.json() as { code: string }).code).toBe('duplicate_version_number');
   });
 
   // GET /components/:id/versions/:versionId
@@ -499,7 +499,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json<{ data: { id: string } }>().data.id).toBe(VERSION_ID);
+    expect((res.json() as { data: { id: string } }).data.id).toBe(VERSION_ID);
   });
 
   it('should_return_404_when_GET_version_by_id_throws_DataverseNotFoundError', async () => {
@@ -512,7 +512,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(404);
-    expect(res.json<{ code: string }>().code).toBe('not_found');
+    expect((res.json() as { code: string }).code).toBe('not_found');
   });
 
   // PATCH /components/:id/versions/:versionId
@@ -538,7 +538,7 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(200);
-    const body = res.json<{ total: number; top: number }>();
+    const body = res.json() as { total: number; top: number };
     expect(body.total).toBe(7);
     expect(body.top).toBe(5);
   });
@@ -564,6 +564,6 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(409);
-    expect(res.json<{ code: string }>().code).toBe('cannot_delete_latest_version');
+    expect((res.json() as { code: string }).code).toBe('cannot_delete_latest_version');
   });
 });
