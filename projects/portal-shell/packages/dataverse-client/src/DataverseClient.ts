@@ -7,6 +7,7 @@ import type {
   ODataQueryOptions,
   ODataError,
   RequestOptions,
+  BatchOperation,
 } from './types.js';
 
 const ODATA_VERSION = '4.0';
@@ -134,6 +135,47 @@ export class DataverseClient {
     return this.executeRequest('POST', url, body, requestOptions);
   }
 
+  /**
+   * Execute a list of operations as a single OData $batch changeSet.
+   *
+   * All operations run in one Dataverse transaction — if any fails, all are
+   * rolled back. Use this when two or more writes must be atomic (e.g. the
+   * set-latest swap that clears the old flag and sets the new one).
+   *
+   * @param operations - Ordered list of mutation operations for the changeSet
+   * @param requestOptions - Per-request context
+   */
+  async executeBatch(
+    operations: BatchOperation[],
+    requestOptions: RequestOptions = {},
+  ): Promise<void> {
+    if (operations.length === 0) return;
+
+    const batchBoundary = `batch_${randomId()}`;
+    const changesetBoundary = `changeset_${randomId()}`;
+    const batchUrl = `${this.orgUrl}/api/data/v9.2/$batch`;
+    const body = buildBatchBody(this.orgUrl, batchBoundary, changesetBoundary, operations);
+
+    const token = await this.getAccessToken();
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': `multipart/mixed;boundary=${batchBoundary}`,
+      Accept: 'application/json',
+      'OData-MaxVersion': ODATA_MAX_VERSION,
+      'OData-Version': ODATA_VERSION,
+      ...(requestOptions.correlationId ? { 'x-correlation-id': requestOptions.correlationId } : {}),
+    };
+
+    const response = await fetch(batchUrl, { method: 'POST', headers, body });
+
+    if (!response.ok) {
+      await this.throwTypedError(response, batchUrl);
+    }
+
+    const responseText = await response.text();
+    throwIfBatchContainsError(responseText);
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
@@ -157,6 +199,9 @@ export class DataverseClient {
     body: Record<string, unknown> | undefined,
     requestOptions: RequestOptions,
   ): Promise<unknown> {
+    const retryOptions = requestOptions.correlationId !== undefined
+      ? { correlationId: requestOptions.correlationId }
+      : {};
     return withRetry(
       async () => {
         const headers = await this.buildHeaders(requestOptions.correlationId);
@@ -178,11 +223,13 @@ export class DataverseClient {
 
         return response.json() as Promise<unknown>;
       },
-      { correlationId: requestOptions.correlationId },
+      retryOptions,
     );
   }
 
-  /** Parses the Dataverse OData error body and throws a typed DataverseError. */
+  /** Parses the Dataverse OData error body and throws a typed DataverseError.
+   * @internal
+   */
   private async throwTypedError(response: Response, url: string): Promise<never> {
     if (response.status === 401) {
       throw new DataverseAuthError(`Request to ${url} returned 401`);
@@ -213,5 +260,103 @@ export class DataverseClient {
     const code = odataError?.error?.code ?? 'unknown';
     const message = odataError?.error?.message ?? `Dataverse returned HTTP ${response.status}`;
     throw new DataverseError(message, code, response.status);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// $batch helpers (module-level to keep the class size in check)
+// ---------------------------------------------------------------------------
+
+function randomId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+/**
+ * Builds a multipart/mixed OData $batch body with a single changeSet.
+ * One changeSet = one Dataverse transaction.
+ */
+function buildBatchBody(
+  orgUrl: string,
+  batchBoundary: string,
+  changesetBoundary: string,
+  operations: BatchOperation[],
+): string {
+  const CRLF = '\r\n';
+  const apiPath = '/api/data/v9.2/';
+  const lines: string[] = [];
+
+  // Outer batch part wraps a single changeSet for atomicity
+  lines.push(`--${batchBoundary}`);
+  lines.push(`Content-Type: multipart/mixed;boundary=${changesetBoundary}`);
+  lines.push('');
+
+  for (const op of operations) {
+    const resourcePath = op.id !== undefined ? `${op.entity}(${op.id})` : op.entity;
+    const absoluteUrl = `${orgUrl}${apiPath}${resourcePath}`;
+    const bodyJson = op.body !== undefined ? JSON.stringify(op.body) : '';
+
+    lines.push(`--${changesetBoundary}`);
+    lines.push('Content-Type: application/http');
+    lines.push('Content-Transfer-Encoding: binary');
+    lines.push('');
+    lines.push(`${op.method} ${absoluteUrl} HTTP/1.1`);
+    lines.push('Content-Type: application/json;type=entry');
+    lines.push('OData-Version: 4.0');
+    lines.push('');
+    lines.push(bodyJson);
+  }
+
+  lines.push(`--${changesetBoundary}--`);
+  lines.push(`--${batchBoundary}--`);
+  lines.push('');
+
+  return lines.join(CRLF);
+}
+
+/**
+ * Scans a Dataverse $batch response body for inner HTTP error status codes.
+ * When Dataverse rolls back a changeSet it returns a single error response
+ * part; the outer HTTP status is always 200.
+ */
+function throwIfBatchContainsError(responseText: string): void {
+  const lines = responseText.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const statusMatch = /^HTTP\/1\.1 (\d{3})/.exec(line);
+    if (statusMatch === null) continue;
+
+    const status = parseInt(statusMatch[1]!, 10);
+    if (status < 400) continue;
+
+    // Advance past HTTP response headers to the body
+    let bodyStart = i + 1;
+    while (bodyStart < lines.length && lines[bodyStart] !== '') {
+      bodyStart++;
+    }
+    bodyStart++;
+
+    const bodyLines: string[] = [];
+    for (let j = bodyStart; j < lines.length; j++) {
+      const bodyLine = lines[j]!;
+      if (bodyLine.startsWith('--')) break;
+      bodyLines.push(bodyLine);
+    }
+    const bodyText = bodyLines.join('\n').trim();
+
+    let code = 'batch_operation_failed';
+    let message = `Dataverse batch changeSet failed with HTTP ${status}`;
+
+    if (bodyText) {
+      try {
+        const parsed = JSON.parse(bodyText) as ODataError;
+        code = parsed.error?.code ?? code;
+        message = parsed.error?.message ?? message;
+      } catch {
+        // Non-JSON error body — fall through to the generic message
+      }
+    }
+
+    throw new DataverseError(message, code, status);
   }
 }

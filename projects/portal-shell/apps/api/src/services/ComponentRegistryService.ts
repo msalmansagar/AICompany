@@ -438,21 +438,26 @@ export class ComponentRegistryService {
 
     const currentLatestId = currentLatest.value[0]?.qdb_component_versionsid;
 
-    // Clear the current latest flag first (if a different version holds it)
-    if (currentLatestId !== undefined && currentLatestId !== versionId) {
-      await this.dataverse.update(
-        VERSIONS_ENTITY,
-        currentLatestId,
-        { qdb_islatest: false },
-        { correlationId },
-      );
+    if (currentLatestId === versionId) {
+      // Already the latest — no writes needed
+      return;
     }
 
-    // Promote the target version to latest
-    await this.dataverse.update(
-      VERSIONS_ENTITY,
-      versionId,
-      { qdb_islatest: true },
+    if (currentLatestId === undefined) {
+      // No prior latest exists — single write is sufficient
+      await this.dataverse.update(VERSIONS_ENTITY, versionId, { qdb_islatest: true }, { correlationId });
+      return;
+    }
+
+    // Two writes needed: clear the old flag and set the new one.
+    // Use a $batch changeSet so both succeed or both fail atomically —
+    // sequential PATCHes could leave the dataset with zero or two latest versions
+    // if a failure occurs between them (GGAP-001 / DXP-P1-001 C3).
+    await this.dataverse.executeBatch(
+      [
+        { method: 'PATCH', entity: VERSIONS_ENTITY, id: currentLatestId, body: { qdb_islatest: false } },
+        { method: 'PATCH', entity: VERSIONS_ENTITY, id: versionId, body: { qdb_islatest: true } },
+      ],
       { correlationId },
     );
   }
@@ -487,7 +492,7 @@ function validatePropsSchema(schemaString: string): void {
   }
 
   try {
-    ajv.compile(parsed);
+    ajv.compile(parsed as object);
   } catch {
     throw new RegistryError('invalid_props_schema', 'propsSchema is not a valid JSON Schema', 400);
   }

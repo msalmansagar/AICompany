@@ -8,4 +8,5 @@ export type {
   ODataListResult,
   ODataError,
   RequestOptions,
+  BatchOperation,
 } from './types.js';

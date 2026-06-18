@@ -43,3 +43,12 @@ export interface RequestOptions {
   /** Propagated from Fastify request context */
   correlationId?: string;
 }
+
+/** A single operation within an OData $batch changeSet */
+export interface BatchOperation {
+  method: 'PATCH' | 'POST' | 'DELETE';
+  entity: string;
+  /** GUID of the record — required for PATCH and DELETE */
+  id?: string;
+  body?: Record<string, unknown>;
+}

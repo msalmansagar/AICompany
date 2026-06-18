@@ -66,7 +66,7 @@ describe('DataverseClient.getList', () => {
     const client = makeClient();
     await client.getList('qdb_portal_configs');
 
-    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
     const init = call[1] as RequestInit;
     const headers = init.headers as Record<string, string>;
 
@@ -81,7 +81,7 @@ describe('DataverseClient.getList', () => {
     const client = makeClient();
     await client.getList('qdb_portal_configs', {}, { correlationId: 'test-corr-123' });
 
-    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
     const headers = (call[1] as RequestInit).headers as Record<string, string>;
 
     expect(headers['x-correlation-id']).toBe('test-corr-123');
@@ -188,5 +188,148 @@ describe('DataverseClient error handling', () => {
     expect(error).toBeInstanceOf(DataverseError);
     expect((error as DataverseError).odataCode).toBe('bad_request_code');
     expect((error as DataverseError).httpStatus).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// executeBatch
+// ---------------------------------------------------------------------------
+
+const VER_ID_OLD = '22222222-2222-2222-2222-222222222222';
+const VER_ID_NEW = '33333333-3333-3333-3333-333333333333';
+
+function makeBatchSuccessResponse(): string {
+  return [
+    '--batchresponse_r1',
+    'Content-Type: multipart/mixed; boundary=changesetresponse_r1',
+    '',
+    '--changesetresponse_r1',
+    'Content-Type: application/http',
+    'Content-Transfer-Encoding: binary',
+    '',
+    'HTTP/1.1 204 No Content',
+    '',
+    '--changesetresponse_r1',
+    'Content-Type: application/http',
+    'Content-Transfer-Encoding: binary',
+    '',
+    'HTTP/1.1 204 No Content',
+    '',
+    '--changesetresponse_r1--',
+    '--batchresponse_r1--',
+  ].join('\r\n');
+}
+
+function makeBatchErrorResponse(status: number, code: string, message: string): string {
+  return [
+    '--batchresponse_r1',
+    'Content-Type: multipart/mixed; boundary=changesetresponse_r1',
+    '',
+    '--changesetresponse_r1',
+    'Content-Type: application/http',
+    'Content-Transfer-Encoding: binary',
+    '',
+    `HTTP/1.1 ${status} Error`,
+    'Content-Type: application/json',
+    '',
+    JSON.stringify({ error: { code, message } }),
+    '--changesetresponse_r1--',
+    '--batchresponse_r1--',
+  ].join('\r\n');
+}
+
+describe('DataverseClient.executeBatch', () => {
+  it('should_return_immediately_when_operations_array_is_empty', async () => {
+    const client = makeClient();
+    // No fetch stub — a call to fetch would throw; verifies no network call occurs
+    await expect(client.executeBatch([])).resolves.toBeUndefined();
+  });
+
+  it('should_resolve_when_all_batch_operations_return_204', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => makeBatchSuccessResponse(),
+      }),
+    );
+
+    const client = makeClient();
+    await expect(
+      client.executeBatch([
+        { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_OLD, body: { qdb_islatest: false } },
+        { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_NEW, body: { qdb_islatest: true } },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it('should_throw_DataverseError_when_changeset_contains_error_response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => makeBatchErrorResponse(400, '0x80040220', 'Record does not exist'),
+      }),
+    );
+
+    const client = makeClient();
+    const error = await client
+      .executeBatch([
+        { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_OLD, body: { qdb_islatest: false } },
+      ])
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(DataverseError);
+    expect((error as DataverseError).httpStatus).toBe(400);
+    expect((error as DataverseError).odataCode).toBe('0x80040220');
+  });
+
+  it('should_send_multipart_mixed_content_type_with_batch_boundary', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => makeBatchSuccessResponse(),
+      }),
+    );
+
+    const client = makeClient();
+    await client.executeBatch([
+      { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_OLD, body: { qdb_islatest: false } },
+    ]);
+
+    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const init = call[1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+
+    expect(headers['Content-Type']).toMatch(/^multipart\/mixed;boundary=batch_/);
+  });
+
+  it('should_include_both_patch_operations_in_request_body', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => makeBatchSuccessResponse(),
+      }),
+    );
+
+    const client = makeClient();
+    await client.executeBatch([
+      { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_OLD, body: { qdb_islatest: false } },
+      { method: 'PATCH', entity: 'qdb_component_versionses', id: VER_ID_NEW, body: { qdb_islatest: true } },
+    ]);
+
+    const call = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    const body = (call[1] as RequestInit).body as string;
+
+    expect(body).toContain(VER_ID_OLD);
+    expect(body).toContain(VER_ID_NEW);
+    expect(body).toContain('"qdb_islatest":false');
+    expect(body).toContain('"qdb_islatest":true');
   });
 });
