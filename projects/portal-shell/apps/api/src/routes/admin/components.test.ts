@@ -3,14 +3,17 @@
 // JWT contains a non-Admin role. Missing-token requests must return 401.
 // Admin-role requests must reach the handler (proven by 200/204 responses).
 
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import fp from 'fastify-plugin';
+import { ZodError } from 'zod';
 import { adminComponentRoutes } from './components.js';
 import { authGuardPlugin } from '../../plugins/auth-guard.js';
 import { registerJwt } from '../../plugins/jwt.js';
 import { requestContextPlugin } from '../../plugins/request-context.js';
 import type { ComponentRegistryService } from '../../services/ComponentRegistryService.js';
+import { RegistryError } from '../../services/ComponentRegistryService.js';
+import { DataverseNotFoundError } from '@portal/dataverse-client';
 import type { DataverseClient } from '@portal/dataverse-client';
 
 // ---------------------------------------------------------------------------
@@ -89,6 +92,14 @@ async function buildTestApp(registry: ComponentRegistryService): Promise<TestApp
       await adminComponentRoutes(instance, { componentRegistryService: registry });
     }),
   );
+  // Mirror the production app's error handler: ZodError → 400.
+  // Use error.name check (more reliable across ESM module boundaries than instanceof).
+  app.setErrorHandler((error, _request, reply) => {
+    if (error.name === 'ZodError') {
+      return reply.status(400).send({ code: 'validation_error', message: error.message });
+    }
+    return reply.status(error.statusCode ?? 500).send({ message: error.message });
+  });
   await app.ready();
   return app;
 }
@@ -254,5 +265,295 @@ describe('Admin role — JWT with Admin role reaches the route handler', () => {
       headers: { Authorization: adminAuth },
     });
     expect(res.statusCode).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route handler logic — validation, error forwarding, response shapes
+// ---------------------------------------------------------------------------
+
+describe('Route handler logic — validation, RegistryError forwarding, and 404 mapping', () => {
+  let app: TestApp;
+  let registry: ComponentRegistryService;
+  let adminAuth: string;
+
+  const nowIso = new Date().toISOString();
+
+  const mockDefinitionDetail = {
+    id: COMPONENT_ID,
+    name: 'test-component',
+    displayName: 'Test Component',
+    displayNameAr: null,
+    category: 1,
+    renderTargets: ['portal'],
+    isActive: true,
+    descriptionEn: null,
+    descriptionAr: null,
+    createdOn: nowIso,
+    modifiedOn: nowIso,
+  };
+
+  const mockVersionDetail = {
+    id: VERSION_ID,
+    versionNumber: '1.0.0',
+    isLatest: false,
+    changeLog: null,
+    propsSchema: null,
+    definitionId: COMPONENT_ID,
+    createdOn: nowIso,
+  };
+
+  beforeAll(async () => {
+    registry = buildMockRegistry();
+    app = await buildTestApp(registry);
+    adminAuth = makeAuthHeader(app, ['Admin']);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Restore default mock return values after clearAllMocks
+    (registry.listDefinitions as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+    (registry.getDefinitionById as ReturnType<typeof vi.fn>).mockResolvedValue(mockDefinitionDetail);
+    (registry.createDefinition as ReturnType<typeof vi.fn>).mockResolvedValue(mockDefinitionDetail);
+    (registry.patchDefinition as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (registry.deactivateDefinition as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (registry.listVersions as ReturnType<typeof vi.fn>).mockResolvedValue({ items: [], total: 0 });
+    (registry.getVersionById as ReturnType<typeof vi.fn>).mockResolvedValue(mockVersionDetail);
+    (registry.createVersion as ReturnType<typeof vi.fn>).mockResolvedValue(mockVersionDetail);
+    (registry.patchVersion as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (registry.deactivateVersion as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (registry.setLatestVersion as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  });
+
+  // GET /components — response shape
+
+  it('should_include_total_top_and_skip_in_GET_components_response_body', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/admin/components?top=10&skip=5',
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ items: unknown[]; total: number; top: number; skip: number }>();
+    expect(body.top).toBe(10);
+    expect(body.skip).toBe(5);
+  });
+
+  // POST /components
+
+  it('should_return_409_when_POST_components_service_throws_RegistryError', async () => {
+    (registry.createDefinition as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new RegistryError('duplicate_component_name', 'already exists', 409),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/components',
+      headers: { Authorization: adminAuth },
+      payload: { name: 'button', displayName: 'Button', category: 1, renderTargets: ['portal'] },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe('duplicate_component_name');
+  });
+
+  it('should_return_201_with_data_when_POST_components_succeeds', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/components',
+      headers: { Authorization: adminAuth },
+      payload: { name: 'button', displayName: 'Button', category: 1, renderTargets: ['portal'] },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json<{ data: { id: string } }>().data.id).toBe(COMPONENT_ID);
+  });
+
+  // GET /components — non-registry error propagates as 500
+
+  it('should_propagate_unexpected_errors_as_500_from_GET_components_by_id', async () => {
+    (registry.getDefinitionById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error('unexpected database connection failure'),
+    );
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(500);
+  });
+
+  // PATCH /components/:id
+
+  it('should_return_204_when_PATCH_components_succeeds', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+      payload: { displayName: 'Updated Name' },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
+  // DELETE /components/:id
+
+  it('should_return_204_when_DELETE_components_succeeds', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('should_return_409_when_DELETE_components_service_throws_RegistryError', async () => {
+    (registry.deactivateDefinition as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new RegistryError('component_has_versions', 'has active versions', 409),
+    );
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe('component_has_versions');
+  });
+
+  // GET /components/:id — 404 path
+
+  it('should_return_404_when_GET_component_by_id_throws_DataverseNotFoundError', async () => {
+    (registry.getDefinitionById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new DataverseNotFoundError('qdb_component_definitionses', COMPONENT_ID),
+    );
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json<{ code: string }>().code).toBe('not_found');
+  });
+
+  // GET /components/:id/versions
+
+  it('should_return_200_with_items_when_GET_versions_succeeds', async () => {
+    (registry.listVersions as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      items: [mockVersionDetail],
+      total: 1,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}/versions`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ items: unknown[]; total: number }>();
+    expect(body.items).toHaveLength(1);
+    expect(body.total).toBe(1);
+  });
+
+  // POST /components/:id/versions
+
+  it('should_return_201_with_data_when_POST_versions_succeeds', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/admin/components/${COMPONENT_ID}/versions`,
+      headers: { Authorization: adminAuth },
+      payload: { versionNumber: '1.0.0' },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json<{ data: { id: string } }>().data.id).toBe(VERSION_ID);
+  });
+
+  it('should_return_409_when_POST_versions_service_throws_RegistryError', async () => {
+    (registry.createVersion as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new RegistryError('duplicate_version_number', 'already exists', 409),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/admin/components/${COMPONENT_ID}/versions`,
+      headers: { Authorization: adminAuth },
+      payload: { versionNumber: '1.0.0' },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe('duplicate_version_number');
+  });
+
+  // GET /components/:id/versions/:versionId
+
+  it('should_return_200_with_version_data_when_GET_version_by_id_succeeds', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ data: { id: string } }>().data.id).toBe(VERSION_ID);
+  });
+
+  it('should_return_404_when_GET_version_by_id_throws_DataverseNotFoundError', async () => {
+    (registry.getVersionById as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new DataverseNotFoundError('qdb_component_versionses', VERSION_ID),
+    );
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json<{ code: string }>().code).toBe('not_found');
+  });
+
+  // PATCH /components/:id/versions/:versionId
+
+  it('should_return_204_when_PATCH_version_succeeds', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}`,
+      headers: { Authorization: adminAuth },
+      payload: { changeLog: 'Bug fix' },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('should_include_total_top_and_skip_in_GET_versions_response_body', async () => {
+    (registry.listVersions as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      items: [],
+      total: 7,
+    });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/admin/components/${COMPONENT_ID}/versions?top=5`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ total: number; top: number }>();
+    expect(body.total).toBe(7);
+    expect(body.top).toBe(5);
+  });
+
+  // DELETE /components/:id/versions/:versionId
+
+  it('should_return_204_when_DELETE_version_succeeds', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(204);
+  });
+
+  it('should_return_409_when_DELETE_version_throws_cannot_delete_latest_version', async () => {
+    (registry.deactivateVersion as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new RegistryError('cannot_delete_latest_version', 'promote another first', 409),
+    );
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/admin/components/${COMPONENT_ID}/versions/${VERSION_ID}`,
+      headers: { Authorization: adminAuth },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json<{ code: string }>().code).toBe('cannot_delete_latest_version');
   });
 });
