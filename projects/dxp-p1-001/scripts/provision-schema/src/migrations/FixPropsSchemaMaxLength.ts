@@ -26,7 +26,8 @@ interface MemoAttributeMetadata {
 }
 
 async function fetchCurrentMaxLength(http: DataverseHttpClient): Promise<number | null> {
-  const path = `EntityDefinitions(LogicalName='${ENTITY_LOGICAL_NAME}')/Attributes(LogicalName='${ATTRIBUTE_LOGICAL_NAME}')`;
+  // Type cast required: MaxLength lives on MemoAttributeMetadata, not the base AttributeMetadata
+  const path = `EntityDefinitions(LogicalName='${ENTITY_LOGICAL_NAME}')/Attributes(LogicalName='${ATTRIBUTE_LOGICAL_NAME}')/Microsoft.Dynamics.CRM.MemoAttributeMetadata`;
   const attr = await http.get<MemoAttributeMetadata>(path, {
     select: ['MaxLength', 'LogicalName', 'AttributeType'],
   });
