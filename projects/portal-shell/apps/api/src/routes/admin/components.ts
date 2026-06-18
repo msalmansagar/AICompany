@@ -41,7 +41,7 @@ const PatchDefinitionSchema = z.object({
 
 const CreateVersionSchema = z.object({
   versionNumber: z.string().min(1).max(50),
-  propsSchema: z.string().optional(),
+  propsSchema: z.string().max(1048576).optional(),
   changeLog: z.string().max(4000).optional(),
 });
 
@@ -154,7 +154,10 @@ export async function adminComponentRoutes(
     { preHandler: authGuard },
     async (request, reply) => {
       const { id } = IdParamSchema.parse(request.params);
-      const body = PatchDefinitionSchema.parse(request.body);
+      const parsed = PatchDefinitionSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ code: 'validation_error', message: parsed.error.message });
+      }
 
       app.log.info({
         operation: 'admin.components.patch',
@@ -164,7 +167,7 @@ export async function adminComponentRoutes(
       });
 
       try {
-        await registry.patchDefinition(id, body, request.correlationId);
+        await registry.patchDefinition(id, parsed.data, request.correlationId);
         return reply.status(204).send();
       } catch (error) {
         return handleRegistryError(error, reply);
@@ -279,7 +282,10 @@ export async function adminComponentRoutes(
     { preHandler: authGuard },
     async (request, reply) => {
       const { id, versionId } = VersionParamSchema.parse(request.params);
-      const body = PatchVersionSchema.parse(request.body);
+      const parsed = PatchVersionSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ code: 'validation_error', message: parsed.error.message });
+      }
 
       app.log.info({
         operation: 'admin.components.versions.patch',
@@ -290,7 +296,7 @@ export async function adminComponentRoutes(
       });
 
       try {
-        await registry.patchVersion(id, versionId, body, request.correlationId);
+        await registry.patchVersion(id, versionId, parsed.data, request.correlationId);
         return reply.status(204).send();
       } catch (error) {
         return handleRegistryError(error, reply);

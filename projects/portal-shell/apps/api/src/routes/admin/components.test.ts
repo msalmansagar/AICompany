@@ -386,6 +386,16 @@ describe('Route handler logic — validation, RegistryError forwarding, and 404 
 
   // PATCH /components/:id
 
+  it('should_return_400_when_PATCH_components_includes_immutable_category_field', async () => {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/admin/components/${COMPONENT_ID}`,
+      headers: { Authorization: adminAuth },
+      payload: { category: 1 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   it('should_return_204_when_PATCH_components_succeeds', async () => {
     const res = await app.inject({
       method: 'PATCH',

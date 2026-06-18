@@ -342,19 +342,20 @@ describe('ComponentRegistryService.createVersion', () => {
     expect((error as RegistryError).statusCode).toBe(409);
   });
 
-  it('should_throw_RegistryError_400_when_propsSchema_exceeds_4000_chars', async () => {
+  it('should_accept_valid_propsSchema_exceeding_4000_chars_now_field_is_re_provisioned', async () => {
     const dataverse = makeDataverse();
     (dataverse.getById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(dvDefinition);
-    (dataverse.getList as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList());
+    (dataverse.getList as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(emptyList())
+      .mockResolvedValueOnce(listOf(dvVersion));
     const service = new ComponentRegistryService(dataverse);
 
-    const error = await service
-      .createVersion(DEF_ID, { versionNumber: '1.0.0', propsSchema: 'x'.repeat(4001) }, CORR)
-      .catch((e) => e);
+    // Valid JSON Schema > 4000 chars — must be accepted now that qdb_propsschema is MaxLength 1048576
+    const largeSchema = JSON.stringify({ type: 'object', title: 'x'.repeat(4100), properties: {} });
+    const result = await service.createVersion(DEF_ID, { versionNumber: '1.0.0', propsSchema: largeSchema }, CORR);
 
-    expect(error).toBeInstanceOf(RegistryError);
-    expect((error as RegistryError).code).toBe('props_schema_too_large');
-    expect((error as RegistryError).statusCode).toBe(400);
+    expect(result.id).toBe(VER_ID);
+    expect(dataverse.create).toHaveBeenCalledOnce();
   });
 
   it('should_throw_RegistryError_400_when_propsSchema_is_not_valid_json', async () => {

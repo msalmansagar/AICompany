@@ -332,16 +332,7 @@ export class ComponentRegistryService {
       );
     }
 
-    // Validate props schema if provided
     if (body.propsSchema !== undefined) {
-      // Dataverse Memo(4000) cap — guard until qdb_propsschema is re-provisioned to MaxLength 1048576 (BRD FR-021)
-      if (body.propsSchema.length > 4000) {
-        throw new RegistryError(
-          'props_schema_too_large',
-          'propsSchema must not exceed 4000 characters until the field is re-provisioned. See DXP-P1-001 GGAP-003.',
-          400,
-        );
-      }
       validatePropsSchema(body.propsSchema);
     }
 
