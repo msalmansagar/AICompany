@@ -20,6 +20,8 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   const [view, setView] = useState<ScreenView>('list');
   const [sops, setSops] = useState<SopSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingCanvas, setIsLoadingCanvas] = useState(false);
+  const [canvasLoadLabel, setCanvasLoadLabel] = useState('Loading SOP…');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [wizardSop, setWizardSop] = useState<Sop | null>(null);
@@ -44,6 +46,8 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   }, [loadSops]);
 
   const handleEditSop = useCallback(async (sopId: string) => {
+    setIsLoadingCanvas(true);
+    setCanvasLoadLabel('Loading SOP…');
     try {
       const [sop, steps, roles] = await Promise.all([
         adapter.getSop(sopId),
@@ -53,6 +57,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
 
       const roleById = new Map(roles.map((r) => [r.id, r]));
 
+      setCanvasLoadLabel(`Loading ${steps.length} steps…`);
       const outcomeArrays = await Promise.all(
         steps.map((s) => adapter.getSopOutcomes(s.id))
       );
@@ -82,17 +87,17 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
         const stepOutcomes = outcomesByStep.get(step.id) ?? [];
         stepOutcomes.forEach((o) => {
           store.addOutcome(o);
-          // swimlane layout computes positions — no manual position needed
         });
       });
 
-      // After loading, mark not dirty
       store.markSaved();
       store.setSop(sop);
 
       setView('canvas');
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Failed to load SOP.');
+    } finally {
+      setIsLoadingCanvas(false);
     }
   }, [adapter, store]);
 
@@ -122,6 +127,8 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   }, [adapter, loadSops]);
 
   const handleOpenCreateProcessWizard = useCallback(async (summary: SopSummary) => {
+    setIsLoadingCanvas(true);
+    setCanvasLoadLabel('Loading process wizard…');
     try {
       const [sop, steps] = await Promise.all([
         adapter.getSop(summary.id),
@@ -132,6 +139,8 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
       setShowWizard(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to load SOP details.');
+    } finally {
+      setIsLoadingCanvas(false);
     }
   }, [adapter]);
 
@@ -151,6 +160,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
           name: 'Step 1', description: '',
           sequenceNo: 1, sopId: tmpId,
           roleId: null, roleName: null, roleStatus: null,
+          stepType: 'step' as const,
         },
         { x: 300, y: 80 }
       );
@@ -172,6 +182,17 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   return (
     <div style={shellStyle}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+      {/* Full-screen overlay while fetching canvas data */}
+      {isLoadingCanvas && (
+        <div style={canvasOverlayStyle}>
+          <div style={canvasLoadCardStyle}>
+            <span style={spinnerLargeStyle} />
+            <span style={canvasLoadTitleStyle}>{canvasLoadLabel}</span>
+            <span style={canvasLoadSubStyle}>Please wait…</span>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={headerStyle}>
@@ -560,4 +581,32 @@ const confirmBtnStyle: React.CSSProperties = {
 
 const confirmBtnDisabledStyle: React.CSSProperties = {
   ...confirmBtnStyle, background: '#99f6e4', cursor: 'not-allowed',
+};
+
+const canvasOverlayStyle: React.CSSProperties = {
+  position: 'absolute', inset: 0, zIndex: 9500,
+  background: 'rgba(248,250,252,0.88)',
+  backdropFilter: 'blur(3px)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+};
+
+const canvasLoadCardStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+  background: '#fff', borderRadius: 12, padding: '32px 48px',
+  border: '1px solid #e2e8f0',
+  boxShadow: '0 8px 32px rgba(15,23,42,0.10)',
+};
+
+const spinnerLargeStyle: React.CSSProperties = {
+  display: 'inline-block', width: 36, height: 36,
+  border: '3px solid #e2e8f0', borderTopColor: '#0f766e',
+  borderRadius: '50%', animation: 'spin 0.75s linear infinite',
+};
+
+const canvasLoadTitleStyle: React.CSSProperties = {
+  fontSize: 15, fontWeight: 700, color: '#0f172a',
+};
+
+const canvasLoadSubStyle: React.CSSProperties = {
+  fontSize: 12, color: '#64748b',
 };
