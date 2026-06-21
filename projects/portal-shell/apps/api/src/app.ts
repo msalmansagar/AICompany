@@ -33,6 +33,10 @@ import { adminCmsRoutes } from './routes/admin/cms.js';
 import { CmsService } from './services/CmsService.js';
 import { adminComponentRoutes } from './routes/admin/components.js';
 import { ComponentRegistryService } from './services/ComponentRegistryService.js';
+import { rbacPlugin } from './plugins/rbac.js';
+import { RbacAuditWriter } from './services/RbacAuditWriter.js';
+import { RbacService } from './services/RbacService.js';
+import { adminRbacRoutes } from './routes/admin/rbac.js';
 
 /**
  * Builds and configures the Fastify application instance.
@@ -81,6 +85,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   });
 
   await app.register(authGuardPlugin);
+  await app.register(rbacPlugin);
 
   // ---------------------------------------------------------------------------
   // Services and routes registered as a single plugin so they execute after
@@ -118,6 +123,12 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
       const componentRegistryService = new ComponentRegistryService(instance.dataverse);
       await adminComponentRoutes(instance, { componentRegistryService });
+
+      const rbacAuditWriter = new RbacAuditWriter(instance.dataverse);
+      const rbacService = new RbacService(instance.dataverse, rbacAuditWriter);
+      instance.decorate('rbacAuditWriter', rbacAuditWriter);
+      instance.decorate('rbacService', rbacService);
+      await adminRbacRoutes(instance, { rbacService });
     }),
   );
 

@@ -31,6 +31,12 @@ export interface TokenClaims {
   roles: string[];
   /** JWT ID — used to check the revocation blocklist */
   jti?: string;
+  /**
+   * Monotonically increasing RBAC version for this user.
+   * Incremented on every role assignment or revocation.
+   * Used as the NodeCache invalidation key (ADR-RBAC-001).
+   */
+  rbac_version?: number;
   /** Issued-at (Unix epoch) */
   iat: number;
   /** Expiry (Unix epoch) */

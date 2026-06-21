@@ -11,3 +11,5 @@ export * from './request.js';
 export * from './service.js';
 export * from './widget.js';
 export * from './cms.js';
+export * from './component-registry.js';
+export * from './rbac.js';
