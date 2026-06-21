@@ -1,37 +1,9 @@
 /**
  * CmsService — Dataverse data access for Track C (CMS).
  *
- * Dataverse entity schema (schema definitions — do NOT generate migration scripts):
- *
- * ─── qdb_cms_content ────────────────────────────────────────────────────────
- *   qdb_cms_contentid   : GUID PK
- *   qdb_slug            : String(100), unique, URL-safe
- *   qdb_title           : String(255)
- *   qdb_title_ar        : String(255) — Arabic title
- *   qdb_content_type    : Picklist  — 100000001=blog, 100000002=news,
- *                                     100000003=announcement, 100000004=page
- *   qdb_body_html       : Memo — Tiptap HTML output (English)
- *   qdb_body_html_ar    : Memo — Tiptap HTML output (Arabic)
- *   qdb_excerpt         : String(500)
- *   qdb_excerpt_ar      : String(500)
- *   qdb_cover_image_url : String(500)
- *   qdb_status          : Picklist  — 100000001=draft, 100000002=published,
- *                                     100000003=archived
- *   qdb_published_on    : DateTime
- *   qdb_author_name     : String(255) — denormalized display name
- *   qdb_tags            : String(1000) — comma-separated tags
- *   qdb_meta_description: String(500)
- *   createdon           : DateTime (standard Dataverse field)
- *   modifiedon          : DateTime (standard Dataverse field)
- *
- * ─── qdb_cms_revision ───────────────────────────────────────────────────────
- *   qdb_cms_revisionid  : GUID PK
- *   qdb_content_id      : Lookup → qdb_cms_content
- *   qdb_body_html       : Memo — snapshot of body at save time
- *   qdb_body_html_ar    : Memo — Arabic snapshot
- *   qdb_saved_by        : String(255) — user display name
- *   createdon           : DateTime — revision timestamp
- * ────────────────────────────────────────────────────────────────────────────
+ * Actual Dataverse attribute logical names are derived from SchemaName by lowercasing.
+ * Dataverse ignores explicit LogicalName values in attribute creation payloads, so
+ * multi-word PascalCase SchemaNames like qdb_BodyHtml become qdb_bodyhtml (no underscores).
  */
 
 import type { DataverseClient } from '@portal/dataverse-client';
@@ -49,11 +21,11 @@ import type {
 } from '@portal/types';
 
 // ---------------------------------------------------------------------------
-// Entity names
+// Entity set names (logical name ends in 's' → Dataverse appends 'es')
 // ---------------------------------------------------------------------------
 
-const CONTENT_ENTITY = 'qdb_cms_contents';
-const REVISION_ENTITY = 'qdb_cms_revisions';
+const CONTENT_ENTITY = 'qdb_cms_contentses';
+const REVISION_ENTITY = 'qdb_cms_revisionses';
 
 // ---------------------------------------------------------------------------
 // Picklist maps
@@ -88,35 +60,35 @@ const STATUS_REVERSE: Record<CmsStatus, number> = {
 const PUBLISHED_STATUS_CODE = 100000002;
 
 // ---------------------------------------------------------------------------
-// Dataverse record shapes
+// Dataverse record shapes — actual logical names (SchemaName.toLowerCase())
 // ---------------------------------------------------------------------------
 
 interface DataverseCmsContent {
-  qdb_cms_contentid: string;
+  qdb_cms_contentsid: string;
   qdb_slug: string;
   qdb_title: string;
-  qdb_title_ar: string;
-  qdb_content_type: number;
-  qdb_body_html: string;
-  qdb_body_html_ar: string;
+  qdb_titlear: string;
+  qdb_contenttype: number;
+  qdb_bodyhtml: string;
+  qdb_bodyhtmlar: string;
   qdb_excerpt: string;
-  qdb_excerpt_ar: string;
-  qdb_cover_image_url: string | null;
+  qdb_excerptar: string;
+  qdb_coverimageurl: string | null;
   qdb_status: number;
-  qdb_published_on: string | null;
-  qdb_author_name: string;
+  qdb_publishedon: string | null;
+  qdb_authorname: string;
   qdb_tags: string | null;
-  qdb_meta_description: string;
+  qdb_metadescription: string;
   createdon: string;
   modifiedon: string;
 }
 
 interface DataverseCmsRevision {
-  qdb_cms_revisionid: string;
-  '_qdb_content_id_value': string;
-  qdb_body_html: string;
-  qdb_body_html_ar: string;
-  qdb_saved_by: string;
+  qdb_cms_revisionsid: string;
+  '_qdb_contentid_value': string; // qdb_ContentId → qdb_contentid → _qdb_contentid_value
+  qdb_bodyhtml: string;
+  qdb_bodyhtmlar: string;
+  qdb_savedby: string;
   createdon: string;
 }
 
@@ -125,35 +97,35 @@ interface DataverseCmsRevision {
 // ---------------------------------------------------------------------------
 
 const SUMMARY_SELECT_FIELDS: (keyof DataverseCmsContent)[] = [
-  'qdb_cms_contentid',
+  'qdb_cms_contentsid',
   'qdb_slug',
   'qdb_title',
-  'qdb_title_ar',
-  'qdb_content_type',
+  'qdb_titlear',
+  'qdb_contenttype',
   'qdb_excerpt',
-  'qdb_excerpt_ar',
-  'qdb_cover_image_url',
+  'qdb_excerptar',
+  'qdb_coverimageurl',
   'qdb_status',
-  'qdb_published_on',
-  'qdb_author_name',
+  'qdb_publishedon',
+  'qdb_authorname',
   'qdb_tags',
   'createdon',
 ];
 
 const FULL_SELECT_FIELDS: (keyof DataverseCmsContent)[] = [
   ...SUMMARY_SELECT_FIELDS,
-  'qdb_body_html',
-  'qdb_body_html_ar',
-  'qdb_meta_description',
+  'qdb_bodyhtml',
+  'qdb_bodyhtmlar',
+  'qdb_metadescription',
   'modifiedon',
 ];
 
 const REVISION_SELECT_FIELDS: (keyof DataverseCmsRevision)[] = [
-  'qdb_cms_revisionid',
-  '_qdb_content_id_value',
-  'qdb_body_html',
-  'qdb_body_html_ar',
-  'qdb_saved_by',
+  'qdb_cms_revisionsid',
+  '_qdb_contentid_value',
+  'qdb_bodyhtml',
+  'qdb_bodyhtmlar',
+  'qdb_savedby',
   'createdon',
 ];
 
@@ -178,7 +150,7 @@ export class CmsService {
    * Returns a paginated list of published content items — public endpoint.
    *
    * OData filter: qdb_status eq 100000002 (published only).
-   * Ordered by qdb_published_on descending.
+   * Ordered by qdb_publishedon descending.
    * Optional filters: content type and tag substring match.
    *
    * @param query - Validated list query params
@@ -196,7 +168,7 @@ export class CmsService {
       {
         select: SUMMARY_SELECT_FIELDS as string[],
         filter,
-        orderBy: 'qdb_published_on desc',
+        orderBy: 'qdb_publishedon desc',
         top: query.pageSize,
         skip,
         count: true,
@@ -307,7 +279,7 @@ export class CmsService {
       { correlationId },
     );
 
-    await this.saveRevision(created.qdb_cms_contentid, created.qdb_body_html, created.qdb_body_html_ar, savedBy, correlationId);
+    await this.saveRevision(created.qdb_cms_contentsid, created.qdb_bodyhtml, created.qdb_bodyhtmlar, savedBy, correlationId);
 
     return mapToContent(created);
   }
@@ -337,7 +309,7 @@ export class CmsService {
   }
 
   /**
-   * Publishes a content record: sets status=published and publishedOn=now.
+   * Publishes a content record: sets status=published and publishedon=now.
    *
    * @param id - GUID of the content record to publish
    * @param correlationId - Request correlation ID
@@ -348,14 +320,14 @@ export class CmsService {
       id,
       {
         qdb_status: STATUS_REVERSE.published,
-        qdb_published_on: new Date().toISOString(),
+        qdb_publishedon: new Date().toISOString(),
       },
       { correlationId },
     );
   }
 
   /**
-   * Unpublishes a content record: sets status=draft and clears publishedOn.
+   * Unpublishes a content record: sets status=draft and clears publishedon.
    *
    * @param id - GUID of the content record to unpublish
    * @param correlationId - Request correlation ID
@@ -366,7 +338,7 @@ export class CmsService {
       id,
       {
         qdb_status: STATUS_REVERSE.draft,
-        qdb_published_on: null,
+        qdb_publishedon: null,
       },
       { correlationId },
     );
@@ -393,7 +365,7 @@ export class CmsService {
       REVISION_ENTITY,
       {
         select: REVISION_SELECT_FIELDS as string[],
-        filter: `_qdb_content_id_value eq ${contentId}`,
+        filter: `_qdb_contentid_value eq ${contentId}`,
         orderBy: 'createdon desc',
       },
       { correlationId },
@@ -425,6 +397,8 @@ export class CmsService {
   // Private helpers
   // ---------------------------------------------------------------------------
 
+  private static readonly MAX_REVISIONS = 10;
+
   private async saveRevision(
     contentId: string,
     bodyHtml: string,
@@ -435,12 +409,41 @@ export class CmsService {
     await this.dataverse.create(
       REVISION_ENTITY,
       {
-        'qdb_content_id@odata.bind': `/${CONTENT_ENTITY}(${contentId})`,
-        qdb_body_html: bodyHtml,
-        qdb_body_html_ar: bodyHtmlAr,
-        qdb_saved_by: savedBy,
+        'qdb_contentid@odata.bind': `/${CONTENT_ENTITY}(${contentId})`,
+        qdb_bodyhtml: bodyHtml,
+        qdb_bodyhtmlar: bodyHtmlAr,
+        qdb_savedby: savedBy,
       },
       { correlationId },
+    );
+    await this.pruneRevisions(contentId, correlationId);
+  }
+
+  /**
+   * Enforces the FIFO revision cap: deletes the oldest revisions when the
+   * total count for a content record exceeds MAX_REVISIONS.
+   *
+   * Fetches revision IDs ordered oldest-first so that slice(0, excess)
+   * targets the correct records for deletion.
+   */
+  private async pruneRevisions(contentId: string, correlationId?: string): Promise<void> {
+    const result = await this.dataverse.getList<{ qdb_cms_revisionsid: string }>(
+      REVISION_ENTITY,
+      {
+        select: ['qdb_cms_revisionsid'],
+        filter: `_qdb_contentid_value eq ${contentId}`,
+        orderBy: 'createdon asc',
+      },
+      { correlationId },
+    );
+
+    const excess = result.value.length - CmsService.MAX_REVISIONS;
+    if (excess <= 0) return;
+
+    await Promise.all(
+      result.value.slice(0, excess).map((r) =>
+        this.dataverse.delete(REVISION_ENTITY, r.qdb_cms_revisionsid, { correlationId }),
+      ),
     );
   }
 }
@@ -451,17 +454,17 @@ export class CmsService {
 
 function mapToSummary(record: DataverseCmsContent): CmsSummary {
   return {
-    id: record.qdb_cms_contentid,
+    id: record.qdb_cms_contentsid,
     slug: record.qdb_slug,
     title: record.qdb_title,
-    titleAr: record.qdb_title_ar,
-    contentType: CONTENT_TYPE_MAP[record.qdb_content_type] ?? 'blog',
+    titleAr: record.qdb_titlear,
+    contentType: CONTENT_TYPE_MAP[record.qdb_contenttype] ?? 'blog',
     excerpt: record.qdb_excerpt ?? '',
-    excerptAr: record.qdb_excerpt_ar ?? '',
-    coverImageUrl: record.qdb_cover_image_url ?? null,
+    excerptAr: record.qdb_excerptar ?? '',
+    coverImageUrl: record.qdb_coverimageurl ?? null,
     status: STATUS_MAP[record.qdb_status] ?? 'draft',
-    publishedOn: record.qdb_published_on ?? null,
-    authorName: record.qdb_author_name ?? '',
+    publishedOn: record.qdb_publishedon ?? null,
+    authorName: record.qdb_authorname ?? '',
     tags: parseTags(record.qdb_tags),
     createdOn: record.createdon,
   };
@@ -470,20 +473,20 @@ function mapToSummary(record: DataverseCmsContent): CmsSummary {
 function mapToContent(record: DataverseCmsContent): CmsContent {
   return {
     ...mapToSummary(record),
-    bodyHtml: record.qdb_body_html ?? '',
-    bodyHtmlAr: record.qdb_body_html_ar ?? '',
-    metaDescription: record.qdb_meta_description ?? '',
+    bodyHtml: record.qdb_bodyhtml ?? '',
+    bodyHtmlAr: record.qdb_bodyhtmlar ?? '',
+    metaDescription: record.qdb_metadescription ?? '',
     modifiedOn: record.modifiedon,
   };
 }
 
 function mapToRevision(record: DataverseCmsRevision): CmsRevision {
   return {
-    id: record.qdb_cms_revisionid,
-    contentId: record['_qdb_content_id_value'],
-    bodyHtml: record.qdb_body_html ?? '',
-    bodyHtmlAr: record.qdb_body_html_ar ?? '',
-    savedBy: record.qdb_saved_by ?? '',
+    id: record.qdb_cms_revisionsid,
+    contentId: record['_qdb_contentid_value'],
+    bodyHtml: record.qdb_bodyhtml ?? '',
+    bodyHtmlAr: record.qdb_bodyhtmlar ?? '',
+    savedBy: record.qdb_savedby ?? '',
     savedOn: record.createdon,
   };
 }
@@ -496,7 +499,7 @@ function buildPublishedFilter(query: CmsListQuery): string {
   const parts: string[] = [`qdb_status eq ${PUBLISHED_STATUS_CODE}`];
 
   if (query.type !== undefined) {
-    parts.push(`qdb_content_type eq ${CONTENT_TYPE_REVERSE[query.type]}`);
+    parts.push(`qdb_contenttype eq ${CONTENT_TYPE_REVERSE[query.type]}`);
   }
 
   if (query.tag !== undefined) {
@@ -514,7 +517,7 @@ function buildAdminFilter(query: AdminCmsListQuery): string {
   }
 
   if (query.type !== undefined) {
-    parts.push(`qdb_content_type eq ${CONTENT_TYPE_REVERSE[query.type]}`);
+    parts.push(`qdb_contenttype eq ${CONTENT_TYPE_REVERSE[query.type]}`);
   }
 
   if (query.tag !== undefined) {
@@ -532,17 +535,17 @@ function buildCreatePayload(body: CreateCmsContentBody): Record<string, unknown>
   return {
     qdb_slug: body.slug,
     qdb_title: body.title,
-    qdb_title_ar: body.titleAr,
-    qdb_content_type: CONTENT_TYPE_REVERSE[body.contentType],
-    qdb_body_html: body.bodyHtml,
-    qdb_body_html_ar: body.bodyHtmlAr,
+    qdb_titlear: body.titleAr,
+    qdb_contenttype: CONTENT_TYPE_REVERSE[body.contentType],
+    qdb_bodyhtml: body.bodyHtml,
+    qdb_bodyhtmlar: body.bodyHtmlAr,
     qdb_excerpt: body.excerpt,
-    qdb_excerpt_ar: body.excerptAr,
-    qdb_cover_image_url: body.coverImageUrl,
+    qdb_excerptar: body.excerptAr,
+    qdb_coverimageurl: body.coverImageUrl,
     qdb_status: STATUS_REVERSE.draft,
-    qdb_author_name: body.authorName,
+    qdb_authorname: body.authorName,
     qdb_tags: body.tags.join(','),
-    qdb_meta_description: body.metaDescription,
+    qdb_metadescription: body.metaDescription,
   };
 }
 
@@ -550,16 +553,16 @@ function buildUpdatePayload(body: UpdateCmsContentBody): Record<string, unknown>
   const patch: Record<string, unknown> = {};
 
   if (body.title !== undefined) patch['qdb_title'] = body.title;
-  if (body.titleAr !== undefined) patch['qdb_title_ar'] = body.titleAr;
-  if (body.contentType !== undefined) patch['qdb_content_type'] = CONTENT_TYPE_REVERSE[body.contentType];
-  if (body.bodyHtml !== undefined) patch['qdb_body_html'] = body.bodyHtml;
-  if (body.bodyHtmlAr !== undefined) patch['qdb_body_html_ar'] = body.bodyHtmlAr;
+  if (body.titleAr !== undefined) patch['qdb_titlear'] = body.titleAr;
+  if (body.contentType !== undefined) patch['qdb_contenttype'] = CONTENT_TYPE_REVERSE[body.contentType];
+  if (body.bodyHtml !== undefined) patch['qdb_bodyhtml'] = body.bodyHtml;
+  if (body.bodyHtmlAr !== undefined) patch['qdb_bodyhtmlar'] = body.bodyHtmlAr;
   if (body.excerpt !== undefined) patch['qdb_excerpt'] = body.excerpt;
-  if (body.excerptAr !== undefined) patch['qdb_excerpt_ar'] = body.excerptAr;
-  if (body.coverImageUrl !== undefined) patch['qdb_cover_image_url'] = body.coverImageUrl;
-  if (body.authorName !== undefined) patch['qdb_author_name'] = body.authorName;
+  if (body.excerptAr !== undefined) patch['qdb_excerptar'] = body.excerptAr;
+  if (body.coverImageUrl !== undefined) patch['qdb_coverimageurl'] = body.coverImageUrl;
+  if (body.authorName !== undefined) patch['qdb_authorname'] = body.authorName;
   if (body.tags !== undefined) patch['qdb_tags'] = body.tags.join(',');
-  if (body.metaDescription !== undefined) patch['qdb_meta_description'] = body.metaDescription;
+  if (body.metaDescription !== undefined) patch['qdb_metadescription'] = body.metaDescription;
 
   return patch;
 }

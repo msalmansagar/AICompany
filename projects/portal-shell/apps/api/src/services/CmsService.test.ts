@@ -1,4 +1,4 @@
-// RED → GREEN → REFACTOR — CmsService unit tests
+﻿// RED → GREEN → REFACTOR — CmsService unit tests
 //
 // Tests use a vi.fn() mock of DataverseClient so no real Dataverse calls are made.
 // Each describe block tests one public method; each it() verifies one behaviour.
@@ -14,21 +14,21 @@ import type { DataverseClient } from '@portal/dataverse-client';
 
 function makeDvContent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    qdb_cms_contentid: 'aaaaaaaa-0000-0000-0000-000000000001',
+    qdb_cms_contentsid: 'aaaaaaaa-0000-0000-0000-000000000001',
     qdb_slug: 'hello-world',
     qdb_title: 'Hello World',
-    qdb_title_ar: 'مرحبا بالعالم',
-    qdb_content_type: 100000001, // blog
-    qdb_body_html: '<p>Hello</p>',
-    qdb_body_html_ar: '<p>مرحبا</p>',
+    qdb_titlear: 'مرحبا بالعالم',
+    qdb_contenttype: 100000001, // blog
+    qdb_bodyhtml: '<p>Hello</p>',
+    qdb_bodyhtmlar: '<p>مرحبا</p>',
     qdb_excerpt: 'A short excerpt',
-    qdb_excerpt_ar: 'ملخص قصير',
-    qdb_cover_image_url: null,
+    qdb_excerptar: 'ملخص قصير',
+    qdb_coverimageurl: null,
     qdb_status: 100000002, // published
-    qdb_published_on: '2025-01-01T00:00:00Z',
-    qdb_author_name: 'Jane Doe',
+    qdb_publishedon: '2025-01-01T00:00:00Z',
+    qdb_authorname: 'Jane Doe',
     qdb_tags: 'tech,news',
-    qdb_meta_description: 'SEO meta',
+    qdb_metadescription: 'SEO meta',
     createdon: '2025-01-01T00:00:00Z',
     modifiedon: '2025-01-02T00:00:00Z',
     ...overrides,
@@ -77,7 +77,7 @@ describe('CmsService.listPublished', () => {
 
     await service.listPublished({ page: 1, pageSize: 12 });
 
-    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(queryOptions.filter).toContain('qdb_status eq 100000002');
   });
 
@@ -89,8 +89,8 @@ describe('CmsService.listPublished', () => {
 
     await service.listPublished({ page: 1, pageSize: 12, type: 'news' });
 
-    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(queryOptions.filter).toContain('qdb_content_type eq 100000002');
+    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(queryOptions.filter).toContain('qdb_contenttype eq 100000002');
   });
 
   it('should_apply_tag_contains_filter_when_tag_query_param_is_provided', async () => {
@@ -101,7 +101,7 @@ describe('CmsService.listPublished', () => {
 
     await service.listPublished({ page: 1, pageSize: 12, tag: 'tech' });
 
-    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(queryOptions.filter).toContain("contains(qdb_tags, 'tech')");
   });
 
@@ -113,7 +113,7 @@ describe('CmsService.listPublished', () => {
 
     await service.listPublished({ page: 3, pageSize: 10 });
 
-    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(queryOptions.skip).toBe(20);
     expect(queryOptions.top).toBe(10);
   });
@@ -156,7 +156,7 @@ describe('CmsService.getBySlug', () => {
 
     await service.getBySlug('hello-world');
 
-    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, queryOptions] = (dvMock.getList as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(queryOptions.filter).toContain('qdb_status eq 100000002');
     expect(queryOptions.filter).toContain("qdb_slug eq 'hello-world'");
   });
@@ -196,14 +196,14 @@ describe('CmsService.create', () => {
     expect(dvMock.create).toHaveBeenCalledTimes(2);
 
     // First call: content record
-    const [firstEntity, firstBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(firstEntity).toBe('qdb_cms_contents');
+    const [firstEntity, firstBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(firstEntity).toBe('qdb_cms_contentses');
     expect(firstBody['qdb_status']).toBe(100000001); // draft
 
     // Second call: revision record
-    const [secondEntity, secondBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[1];
-    expect(secondEntity).toBe('qdb_cms_revisions');
-    expect(secondBody['qdb_saved_by']).toBe('Jane Doe');
+    const [secondEntity, secondBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[1]!;
+    expect(secondEntity).toBe('qdb_cms_revisionses');
+    expect(secondBody['qdb_savedby']).toBe('Jane Doe');
 
     expect(result.status).toBe('draft');
   });
@@ -232,7 +232,7 @@ describe('CmsService.create', () => {
       'Admin',
     );
 
-    const [, contentBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, contentBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(contentBody['qdb_tags']).toBe('alpha,beta');
   });
 });
@@ -263,13 +263,13 @@ describe('CmsService.update', () => {
 
     // Revision should have been created before the update was applied
     expect(dvMock.create).toHaveBeenCalledTimes(1);
-    const [revisionEntity, revisionBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(revisionEntity).toBe('qdb_cms_revisions');
-    expect(revisionBody['qdb_body_html']).toBe('<p>Hello</p>');
-    expect(revisionBody['qdb_saved_by']).toBe('Admin User');
+    const [revisionEntity, revisionBody] = (dvMock.create as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(revisionEntity).toBe('qdb_cms_revisionses');
+    expect(revisionBody['qdb_bodyhtml']).toBe('<p>Hello</p>');
+    expect(revisionBody['qdb_savedby']).toBe('Admin User');
 
     expect(dvMock.update).toHaveBeenCalledTimes(1);
-    const [, id, patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, id, patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(id).toBe('aaaaaaaa-0000-0000-0000-000000000001');
     expect(patch['qdb_title']).toBe('Updated');
   });
@@ -289,7 +289,7 @@ describe('CmsService.update', () => {
       'Admin',
     );
 
-    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(patch).not.toHaveProperty('qdb_slug');
   });
 });
@@ -308,9 +308,9 @@ describe('CmsService.publish', () => {
     const after = new Date();
 
     expect(dvMock.update).toHaveBeenCalledTimes(1);
-    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(patch['qdb_status']).toBe(100000002); // published
-    const publishedOn = new Date(patch['qdb_published_on'] as string);
+    const publishedOn = new Date(patch['qdb_publishedon'] as string);
     expect(publishedOn.getTime()).toBeGreaterThanOrEqual(before.getTime());
     expect(publishedOn.getTime()).toBeLessThanOrEqual(after.getTime());
   });
@@ -324,9 +324,9 @@ describe('CmsService.unpublish', () => {
     await service.unpublish('aaaaaaaa-0000-0000-0000-000000000001');
 
     expect(dvMock.update).toHaveBeenCalledTimes(1);
-    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, , patch] = (dvMock.update as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(patch['qdb_status']).toBe(100000001); // draft
-    expect(patch['qdb_published_on']).toBeNull();
+    expect(patch['qdb_publishedon']).toBeNull();
   });
 });
 
@@ -342,7 +342,7 @@ describe('CmsService.delete', () => {
     await service.delete('aaaaaaaa-0000-0000-0000-000000000001');
 
     expect(dvMock.delete).toHaveBeenCalledWith(
-      'qdb_cms_contents',
+      'qdb_cms_contentses',
       'aaaaaaaa-0000-0000-0000-000000000001',
       {},
     );
@@ -359,11 +359,11 @@ describe('CmsService.listRevisions', () => {
       getList: vi.fn().mockResolvedValue({
         value: [
           {
-            qdb_cms_revisionid: 'rev-001',
-            '_qdb_content_id_value': 'aaaaaaaa-0000-0000-0000-000000000001',
-            qdb_body_html: '<p>Old body</p>',
-            qdb_body_html_ar: '<p>نص قديم</p>',
-            qdb_saved_by: 'Jane Doe',
+            qdb_cms_revisionsid: 'rev-001',
+            '_qdb_contentid_value': 'aaaaaaaa-0000-0000-0000-000000000001',
+            qdb_bodyhtml: '<p>Old body</p>',
+            qdb_bodyhtmlar: '<p>نص قديم</p>',
+            qdb_savedby: 'Jane Doe',
             createdon: '2025-06-10T10:00:00Z',
           },
         ],
@@ -377,6 +377,75 @@ describe('CmsService.listRevisions', () => {
     expect(revisions[0]?.id).toBe('rev-001');
     expect(revisions[0]?.savedBy).toBe('Jane Doe');
     expect(revisions[0]?.savedOn).toBe('2025-06-10T10:00:00Z');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CmsService revision FIFO cap (tested through update)
+// ---------------------------------------------------------------------------
+
+describe('CmsService.pruneRevisions — FIFO cap', () => {
+  function makeRevisionRows(count: number): { qdb_cms_revisionsid: string }[] {
+    return Array.from({ length: count }, (_, i) => ({
+      qdb_cms_revisionsid: `rev-${String(i + 1).padStart(3, '0')}`,
+    }));
+  }
+
+  it('pruneRevisions_should_delete_oldest_revision_when_count_exceeds_10_after_save', async () => {
+    const dvMock = makeMockDataverse({
+      getById: vi.fn()
+        .mockResolvedValueOnce(makeDvContent())
+        .mockResolvedValueOnce(makeDvContent({ qdb_title: 'Updated' })),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue(undefined),
+      getList: vi.fn().mockResolvedValue({ value: makeRevisionRows(11) }),
+    });
+    const service = new CmsService(dvMock);
+
+    await service.update('aaaaaaaa-0000-0000-0000-000000000001', { title: 'Updated' }, 'Admin');
+
+    expect(dvMock.delete).toHaveBeenCalledTimes(1);
+    expect(dvMock.delete).toHaveBeenCalledWith(
+      'qdb_cms_revisionses',
+      'rev-001',
+      expect.anything(),
+    );
+  });
+
+  it('pruneRevisions_should_not_delete_any_revision_when_count_is_at_or_below_10', async () => {
+    const dvMock = makeMockDataverse({
+      getById: vi.fn()
+        .mockResolvedValueOnce(makeDvContent())
+        .mockResolvedValueOnce(makeDvContent()),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue(undefined),
+      getList: vi.fn().mockResolvedValue({ value: makeRevisionRows(10) }),
+    });
+    const service = new CmsService(dvMock);
+
+    await service.update('aaaaaaaa-0000-0000-0000-000000000001', { title: 'Updated' }, 'Admin');
+
+    expect(dvMock.delete).not.toHaveBeenCalled();
+  });
+
+  it('pruneRevisions_should_delete_multiple_excess_revisions_oldest_first', async () => {
+    const dvMock = makeMockDataverse({
+      getById: vi.fn()
+        .mockResolvedValueOnce(makeDvContent())
+        .mockResolvedValueOnce(makeDvContent()),
+      create: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue(undefined),
+      getList: vi.fn().mockResolvedValue({ value: makeRevisionRows(13) }),
+    });
+    const service = new CmsService(dvMock);
+
+    await service.update('aaaaaaaa-0000-0000-0000-000000000001', { title: 'Updated' }, 'Admin');
+
+    expect(dvMock.delete).toHaveBeenCalledTimes(3);
+    const deletedIds = (dvMock.delete as ReturnType<typeof vi.fn>).mock.calls.map(
+      ([, id]: [unknown, string]) => id,
+    );
+    expect(deletedIds).toEqual(['rev-001', 'rev-002', 'rev-003']);
   });
 });
 
