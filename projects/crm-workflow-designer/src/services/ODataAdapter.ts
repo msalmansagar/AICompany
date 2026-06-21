@@ -17,7 +17,7 @@ import type {
   AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
 import type { RawEntityMetadata, RawAttributeMetadata } from '@/types/CrmTypes';
-import { ROLE_STATUS, SOP_STATUS } from '@/types/SopTypes';
+import { ROLE_STATUS, SOP_STATUS, SOP_STEP_TYPE_FROM_OPTION_VALUE, SOP_STEP_TYPE_OPTION_VALUE } from '@/types/SopTypes';
 import type {
   CrmRole,
   Sop,
@@ -48,6 +48,7 @@ const ENTITY_SETS = {
   sop: 'qdb_sops',
   sopStep: 'qdb_sopsteps',
   sopOutcome: 'qdb_sopoutcomes',
+  auditLog: 'qdb_form_audit_logs',
 } as const;
 
 export class ODataAdapter implements ISopAdapter {
@@ -530,7 +531,7 @@ export class ODataAdapter implements ISopAdapter {
   async getSopSteps(sopId: string): Promise<SopStep[]> {
     assertGuid(sopId, 'sopId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.sopStep}?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,_qdb_sop_id_value,_qdb_role_id_value` +
+      `${ENTITY_SETS.sopStep}?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value` +
       `&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
     );
     return data.value.map(mapSopStep);
@@ -539,9 +540,12 @@ export class ODataAdapter implements ISopAdapter {
   async createSopStep(data: CreateSopStepRequest): Promise<string> {
     assertGuid(data.sopId, 'sopId');
     const body: Record<string, unknown> = {
-      qdb_name: data.name,
+      qdb_name:        data.name,
       qdb_description: data.description,
-      qdb_sequenceno: data.sequenceNo,
+      qdb_sequenceno:  data.sequenceNo,
+      qdb_steptypecode:    SOP_STEP_TYPE_OPTION_VALUE[data.stepType ?? 'step'],
+      qdb_executionchannel: data.executionChannel ?? null,
+      qdb_decisionlabel:   data.decisionLabel ?? null,
       [`qdb_sop_id@odata.bind`]: `/${ENTITY_SETS.sop}(${data.sopId})`,
     };
     if (data.roleId) {
@@ -553,9 +557,12 @@ export class ODataAdapter implements ISopAdapter {
   async updateSopStep(id: string, data: UpdateSopStepRequest): Promise<void> {
     assertGuid(id, 'sopStepId');
     const body: Record<string, unknown> = {};
-    if (data.name !== undefined) body['qdb_name'] = data.name;
+    if (data.name !== undefined)       body['qdb_name']        = data.name;
     if (data.description !== undefined) body['qdb_description'] = data.description;
-    if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
+    if (data.sequenceNo !== undefined)  body['qdb_sequenceno']  = data.sequenceNo;
+    if (data.stepType !== undefined)         body['qdb_steptypecode']     = SOP_STEP_TYPE_OPTION_VALUE[data.stepType];
+    if (data.executionChannel !== undefined) body['qdb_executionchannel'] = data.executionChannel ?? null;
+    if (data.decisionLabel !== undefined)   body['qdb_decisionlabel']    = data.decisionLabel ?? null;
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId
         ? `/${ENTITY_SETS.role}(${data.roleId})`
@@ -656,6 +663,15 @@ export class ODataAdapter implements ISopAdapter {
     }
 
     return newId;
+  }
+
+  async logAuditEntry(entry: { action: string; entityId: string; detail: string | undefined; timestamp: string }): Promise<void> {
+    await this.post(ENTITY_SETS.auditLog, {
+      qdb_action: entry.action,
+      qdb_entityid: entry.entityId,
+      qdb_detail: entry.detail,
+      qdb_timestamp: entry.timestamp,
+    });
   }
 }
 
@@ -810,6 +826,7 @@ function mapSop(raw: Record<string, unknown>): Sop {
 }
 
 function mapSopStep(raw: Record<string, unknown>): SopStep {
+  const channelRaw = raw['qdb_executionchannel'] as string | null;
   return {
     id: normaliseGuid((raw['qdb_sopstepid'] as string) ?? ''),
     name: (raw['qdb_name'] as string) ?? '',
@@ -819,6 +836,9 @@ function mapSopStep(raw: Record<string, unknown>): SopStep {
     roleId: raw['_qdb_role_id_value'] ? normaliseGuid(raw['_qdb_role_id_value'] as string) : null,
     roleName: null,
     roleStatus: null,
+    stepType: SOP_STEP_TYPE_FROM_OPTION_VALUE[raw['qdb_steptypecode'] as number] ?? 'step',
+    executionChannel: channelRaw === 'crm' || channelRaw === 'manual' ? channelRaw : null,
+    decisionLabel: (raw['qdb_decisionlabel'] as string | null) ?? null,
   };
 }
 

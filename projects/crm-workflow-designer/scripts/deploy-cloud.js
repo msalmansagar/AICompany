@@ -1,19 +1,25 @@
 'use strict';
 
 /**
- * deploy-cloud.js — deploys workflow-designer.htm directly to Dataverse via Web API.
+ * deploy-cloud.js — DEV / STAGING ONLY deployment script.
  *
- * Bypasses CRM solution import entirely. Creates or updates the web resource
- * record via POST /webresourceset (create) or PATCH /webresourceset(guid) (update),
- * then calls PublishXml to make it live.
+ * Deploys workflow-designer.htm directly to Dataverse via Web API (PATCH webresourceset).
+ * This bypasses solution ALM and is NOT suitable for production.
  *
- * Auth: service principal (client credentials flow)
+ * PRODUCTION deployments must use:
+ *   pac solution export --name QdbWorkflowDesigner --managed
+ *   pac solution import --path QdbWorkflowDesigner_managed.zip --environment <prod-url>
+ *
+ * Auth: deploy-only service principal (separate from the dev-proxy principal).
  *   Required env vars:
- *     AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+ *     AZURE_DEPLOY_TENANT_ID   — Azure AD tenant ID for the deploy principal
+ *     AZURE_DEPLOY_CLIENT_ID   — App registration client ID (deploy principal, NOT dev proxy)
+ *     AZURE_DEPLOY_CLIENT_SECRET — Client secret for the deploy principal
+ *     CRM_ORG_URL              — Target Dataverse org URL
  *
  * Optional:
- *   CRM_ORG_URL  — override target org (default: https://org5869857f.crm4.dynamics.com)
- *   WR_NAME      — logical name (default: qdb_/workflow-designer/workflow-designer.htm)
+ *   WR_NAME  — web resource logical name
+ *              (default: qdb_/workflow-designer/workflow-designer.htm)
  *
  * Usage:
  *   node scripts/deploy-cloud.js
@@ -22,11 +28,29 @@
 const fs   = require('fs');
 const path = require('path');
 
-const TENANT_ID    = process.env.AZURE_TENANT_ID    ?? 'd79e793c-f6de-4204-8508-7980a63df957';
-const CLIENT_ID    = process.env.AZURE_CLIENT_ID    ?? '08e80e93-0bab-45ef-8372-2e554fa9af9b';
-const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
-const ORG_URL      = process.env.CRM_ORG_URL        ?? 'https://org5869857f.crm4.dynamics.com';
-const WR_NAME      = process.env.WR_NAME            ?? 'qdb_/workflow-designer/workflow-designer.htm';
+if (process.env.ENVIRONMENT === 'production') {
+  console.error(
+    '\n[BLOCKED] deploy-cloud.js must not run against a production environment.\n' +
+    'Use: pac solution import --path QdbWorkflowDesigner_managed.zip --environment <prod-url>\n'
+  );
+  process.exit(1);
+}
+
+const TENANT_ID     = process.env.AZURE_DEPLOY_TENANT_ID;
+const CLIENT_ID     = process.env.AZURE_DEPLOY_CLIENT_ID;
+const CLIENT_SECRET = process.env.AZURE_DEPLOY_CLIENT_SECRET;
+const ORG_URL       = process.env.CRM_ORG_URL;
+const WR_NAME       = process.env.WR_NAME ?? 'qdb_/workflow-designer/workflow-designer.htm';
+
+if (!TENANT_ID || !CLIENT_ID || !CLIENT_SECRET || !ORG_URL) {
+  console.error(
+    '\n[ERROR] Missing required environment variables:\n' +
+    '  AZURE_DEPLOY_TENANT_ID, AZURE_DEPLOY_CLIENT_ID,\n' +
+    '  AZURE_DEPLOY_CLIENT_SECRET, CRM_ORG_URL\n' +
+    'These must use the deploy-only service principal, not the dev-proxy principal.\n'
+  );
+  process.exit(1);
+}
 
 const API_BASE     = `${ORG_URL}/api/data/v9.2`;
 const HTM_PATH     = path.join(__dirname, '..', 'dist', 'workflow-designer.htm');
@@ -117,9 +141,6 @@ async function run() {
   console.log(`  File:   ${WR_NAME}`);
   console.log('════════════════════════════════════════════════════\n');
 
-  if (!CLIENT_SECRET) {
-    throw new Error('AZURE_CLIENT_SECRET env var is required.');
-  }
   if (!fs.existsSync(HTM_PATH)) {
     throw new Error(`Build output not found: ${HTM_PATH}\nRun: npm run build`);
   }

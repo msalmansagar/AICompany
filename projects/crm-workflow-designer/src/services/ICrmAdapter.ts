@@ -57,4 +57,14 @@ export interface ICrmAdapter {
   // Workflow lifecycle
   publishProcess(id: string): Promise<void>;
   cloneProcess(id: string): Promise<string>;
+
+  // Audit
+  logAuditEntry(entry: AuditLogEntry): Promise<void>;
+}
+
+export interface AuditLogEntry {
+  action: string;
+  entityId: string;
+  detail: string | undefined;
+  timestamp: string;
 }
