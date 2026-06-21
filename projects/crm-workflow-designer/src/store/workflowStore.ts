@@ -35,6 +35,7 @@ export interface WorkflowDesignerState {
   simVisitedStepIds: string[];
   simTakenOutcomeIds: string[];
   simHistory: Array<{ stepId: string; outcomeId: string }>;
+  simRoutePickerOutcomeId: string | null;
 
   // Auto simulation playback
   isAutoSimulating: boolean;
@@ -74,6 +75,9 @@ export interface WorkflowDesignerState {
   startSimulation: () => void;
   stopSimulation: () => void;
   simTakeOutcome: (outcomeId: string) => void;
+  simOpenRoutePicker: (outcomeId: string) => void;
+  simCloseRoutePicker: () => void;
+  simTakeRoute: (outcomeId: string, nextStepId: string | null) => void;
   simStepBack: () => void;
   startAutoSimulation: () => void;
   stopAutoSimulation: () => void;
@@ -85,6 +89,9 @@ export interface WorkflowDesignerState {
   setAutoSimSpeed: (speed: AutoSimSpeed) => void;
   resolveTemporaryId: (tmpId: string, realId: string, entityType: 'step' | 'outcome' | 'route') => void;
   resolveProcessId: (realId: string) => void;
+  moveStepUp: (stepId: string) => void;
+  moveStepDown: (stepId: string) => void;
+  setNodePositions: (positions: Record<string, { x: number; y: number }>) => void;
   assignOutcomeToStep: (outcomeId: string, stepId: string) => void;
   loadWorkflow: (
     process: WorkflowProcess,
@@ -102,11 +109,12 @@ const emptyState: Omit<
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
   | 'updateNodePosition' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
-  | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simStepBack'
+  | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simOpenRoutePicker' | 'simCloseRoutePicker' | 'simTakeRoute' | 'simStepBack'
   | 'startAutoSimulation' | 'stopAutoSimulation'
   | 'initAutoSimPlayback' | 'autoSimAdvanceStep' | 'autoSimBeginHold' | 'autoSimBeginNextPath' | 'autoSimFinish' | 'setAutoSimSpeed'
   | 'resolveTemporaryId' | 'resolveProcessId' | 'assignOutcomeToStep' | 'loadWorkflow'
   | 'showToast' | 'clearToast' | 'setValidationResults' | 'clearValidationResults'
+  | 'moveStepUp' | 'moveStepDown' | 'setNodePositions'
 > = {
   process: null,
   steps: {},
@@ -132,6 +140,7 @@ const emptyState: Omit<
   simVisitedStepIds: [],
   simTakenOutcomeIds: [],
   simHistory: [],
+  simRoutePickerOutcomeId: null,
   isAutoSimulating: false,
   autoSimPhase: null,
   autoSimSpeed: 'normal',
@@ -207,6 +216,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
         set((state) => {
           state.steps[step.crmId] = step;
           state.stepOrder.push(step.crmId);
+          state.outcomeOrder[step.crmId] = [];
           state.newIds.push(step.crmId);
           state.isDirty = true;
         }),
@@ -409,18 +419,28 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       startSimulation: () =>
         set((state) => {
           if (state.stepOrder.length === 0) return;
-          const stepsWithIncoming = new Set<string>(
-            Object.values(state.outcomes)
-              .map((o) => o.nextStepId)
-              .filter((id): id is string => id !== null)
-          );
+          // Only count FORWARD outcomes as "incoming" — ignore back-edges.
+          // A back-edge is one where the target step has a lower sequenceNo than
+          // the source (e.g. CEO Approval → Initial Review RM loop). Without this
+          // guard, step 1 ends up in stepsWithIncoming and the algorithm picks the
+          // last step (the only one with no forward-incoming) as the entry point.
+          const stepsWithForwardIncoming = new Set<string>();
+          for (const outcome of Object.values(state.outcomes)) {
+            if (!outcome.nextStepId) continue;
+            const src = state.steps[outcome.stepId];
+            const tgt = state.steps[outcome.nextStepId];
+            if (src && tgt && tgt.sequenceNo > src.sequenceNo) {
+              stepsWithForwardIncoming.add(outcome.nextStepId);
+            }
+          }
           const entryStepId =
-            state.stepOrder.find((id) => !stepsWithIncoming.has(id)) ?? state.stepOrder[0]!;
+            state.stepOrder.find((id) => !stepsWithForwardIncoming.has(id)) ?? state.stepOrder[0]!;
           state.isSimulating = true;
           state.simCurrentStepId = entryStepId;
           state.simVisitedStepIds = [];
           state.simTakenOutcomeIds = [];
           state.simHistory = [];
+          state.simRoutePickerOutcomeId = null;
           state.selectedId = null;
         }),
 
@@ -431,6 +451,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.simVisitedStepIds = [];
           state.simTakenOutcomeIds = [];
           state.simHistory = [];
+          state.simRoutePickerOutcomeId = null;
         }),
 
       startAutoSimulation: () =>
@@ -533,6 +554,28 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.simCurrentStepId = outcome.nextStepId;
         }),
 
+      simOpenRoutePicker: (outcomeId) =>
+        set((state) => {
+          state.simRoutePickerOutcomeId = outcomeId;
+        }),
+
+      simCloseRoutePicker: () =>
+        set((state) => {
+          state.simRoutePickerOutcomeId = null;
+        }),
+
+      simTakeRoute: (outcomeId, nextStepId) =>
+        set((state) => {
+          if (state.simCurrentStepId === null) return;
+          state.simHistory.push({ stepId: state.simCurrentStepId, outcomeId });
+          if (!state.simVisitedStepIds.includes(state.simCurrentStepId)) {
+            state.simVisitedStepIds.push(state.simCurrentStepId);
+          }
+          state.simTakenOutcomeIds.push(outcomeId);
+          state.simCurrentStepId = nextStepId;
+          state.simRoutePickerOutcomeId = null;
+        }),
+
       simStepBack: () =>
         set((state) => {
           const last = state.simHistory.pop();
@@ -546,6 +589,41 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
         set((state) => {
           if (state.process) {
             state.process.crmId = realId;
+          }
+        }),
+
+      moveStepUp: (stepId) =>
+        set((state) => {
+          const idx = state.stepOrder.indexOf(stepId);
+          if (idx <= 0) return;
+          [state.stepOrder[idx - 1], state.stepOrder[idx]] = [state.stepOrder[idx]!, state.stepOrder[idx - 1]!];
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+          state.isDirty = true;
+        }),
+
+      moveStepDown: (stepId) =>
+        set((state) => {
+          const idx = state.stepOrder.indexOf(stepId);
+          if (idx < 0 || idx >= state.stepOrder.length - 1) return;
+          [state.stepOrder[idx], state.stepOrder[idx + 1]] = [state.stepOrder[idx + 1]!, state.stepOrder[idx]!];
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+          state.isDirty = true;
+        }),
+
+      setNodePositions: (positions) =>
+        set((state) => {
+          for (const [id, pos] of Object.entries(positions)) {
+            state.nodePositions[id] = pos;
           }
         }),
 
@@ -626,6 +704,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.deletedIds = [];
           state.deletedEntityTypes = {};
           state.isDirty = false;
+          state.validationResults = [];
 
           const sortedSteps = [...steps].sort((a, b) => a.sequenceNo - b.sequenceNo);
           for (const step of sortedSteps) {

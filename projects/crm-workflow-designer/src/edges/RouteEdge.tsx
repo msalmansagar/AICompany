@@ -2,7 +2,6 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
-  useReactFlow,
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import { useState } from 'react';
@@ -23,7 +22,7 @@ export function RouteEdge({
 }: EdgeProps) {
   const edgeData = data as unknown as RouteEdgeData | undefined;
   const [isHovered, setIsHovered] = useState(false);
-  const { deleteElements } = useReactFlow();
+  const deleteOutcome = useWorkflowStore((s) => s.deleteOutcome);
   const isPreviewMode = useWorkflowStore((s) => s.isPreviewMode);
 
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -36,14 +35,16 @@ export function RouteEdge({
   });
 
   const hasFilter = edgeData?.hasFilter ?? false;
+  const isFallback = edgeData?.isFallback ?? false;
   const isConditional = hasFilter;
 
-  const strokeColor = selected ? '#2563eb' : isConditional ? '#d97706' : '#64748b';
-  const strokeDasharray = isConditional ? '6 3' : undefined;
+  const strokeColor = selected ? '#2563eb' : isFallback ? '#16a34a' : isConditional ? '#d97706' : '#64748b';
+  const strokeDasharray = isFallback ? '4 4' : isConditional ? '6 3' : undefined;
 
   function handleDeleteClick(event: React.MouseEvent): void {
     event.stopPropagation();
-    deleteElements({ edges: [{ id }] });
+    const outcomeId = id.replace('outcome_', '');
+    deleteOutcome(outcomeId);
   }
 
   return (
@@ -67,9 +68,10 @@ export function RouteEdge({
           onMouseLeave={() => setIsHovered(false)}
         >
           {edgeData?.name && (
-            <span style={labelTextStyle(isConditional)}>{edgeData.name}</span>
+            <span style={labelTextStyle(isConditional, isFallback)}>{edgeData.name}</span>
           )}
-          {edgeData?.hasFilter && <span style={filterBadgeStyle}>FetchXML</span>}
+          {hasFilter && <span style={filterBadgeStyle}>FetchXML</span>}
+          {isFallback && <span style={fallbackBadgeStyle}>ELSE</span>}
           {isHovered && !isPreviewMode && (
             <button
               style={deleteButtonStyle}
@@ -96,13 +98,16 @@ function labelContainerStyle(x: number, y: number): React.CSSProperties {
   };
 }
 
-function labelTextStyle(isConditional: boolean): React.CSSProperties {
+function labelTextStyle(isConditional: boolean, isFallback: boolean): React.CSSProperties {
+  const color = isFallback ? '#166534' : isConditional ? '#92400e' : '#475569';
+  const bg    = isFallback ? '#f0fdf4' : isConditional ? '#fef3c7' : '#f8fafc';
+  const border = isFallback ? '#86efac' : isConditional ? '#fde68a' : '#e2e8f0';
   return {
     fontSize: 10,
     fontWeight: 600,
-    color: isConditional ? '#92400e' : '#475569',
-    background: isConditional ? '#fef3c7' : '#f8fafc',
-    border: `1px solid ${isConditional ? '#fde68a' : '#e2e8f0'}`,
+    color,
+    background: bg,
+    border: `1px solid ${border}`,
     borderRadius: 4,
     padding: '1px 6px',
   };
@@ -114,6 +119,16 @@ const filterBadgeStyle: React.CSSProperties = {
   color: '#fff',
   borderRadius: 4,
   padding: '0 4px',
+};
+
+const fallbackBadgeStyle: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  background: '#16a34a',
+  color: '#fff',
+  borderRadius: 4,
+  padding: '0 5px',
+  letterSpacing: '0.04em',
 };
 
 const deleteButtonStyle: React.CSSProperties = {

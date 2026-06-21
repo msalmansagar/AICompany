@@ -16,7 +16,8 @@ export type ViolationCode =
   | 'INVALID_NEXT_STEP'
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
-  | 'TOO_MANY_OUTCOMES';
+  | 'TOO_MANY_OUTCOMES'
+  | 'MISSING_FALLBACK_ROUTE';
 
 export interface Violation {
   code: ViolationCode;
@@ -31,6 +32,7 @@ export interface Violation {
 }
 
 export class ValidationService {
+  private static readonly MAX_OUTCOMES_PER_STEP = 5;
   validate(state: Pick<WorkflowDesignerState, 'process' | 'steps' | 'outcomes' | 'routes' | 'stepOrder' | 'outcomeOrder'>): Violation[] {
     const violations: Violation[] = [];
 
@@ -59,6 +61,7 @@ export class ValidationService {
     this.checkMissingTaskSubject(steps, violations);
     this.checkDuplicateOutcomeNames(state, violations);
     this.checkTooManyOutcomes(state, violations);
+    this.checkMissingFallbackRoute(state, violations);
 
     return violations;
   }
@@ -77,11 +80,26 @@ export class ValidationService {
     }
   }
 
+  private buildReachableStepIds(
+    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>
+  ): Set<string> {
+    const reachable = new Set<string>();
+    for (const outcome of Object.values(state.outcomes)) {
+      if (!outcome.applyFilter && outcome.nextStepId !== null) {
+        reachable.add(outcome.nextStepId);
+      }
+    }
+    for (const route of Object.values(state.routes)) {
+      if (route.nextStepId) reachable.add(route.nextStepId);
+    }
+    return reachable;
+  }
+
   private checkEndNodes(
     state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
     violations: Violation[]
   ): void {
-    const allNextStepIds = new Set(Object.values(state.routes).map((r) => r.nextStepId));
+    const allNextStepIds = this.buildReachableStepIds(state);
     const stepsWithOutcomes = new Set(Object.values(state.outcomes).map((o) => o.stepId));
 
     for (const step of Object.values(state.steps)) {
@@ -101,10 +119,10 @@ export class ValidationService {
   }
 
   private checkOrphanSteps(
-    state: Pick<WorkflowDesignerState, 'steps' | 'routes'>,
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
     violations: Violation[]
   ): void {
-    const allNextStepIds = new Set(Object.values(state.routes).map((r) => r.nextStepId));
+    const allNextStepIds = this.buildReachableStepIds(state);
     const steps = Object.values(state.steps);
 
     for (const step of steps) {
@@ -389,15 +407,36 @@ export class ValidationService {
     state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'outcomeOrder'>,
     violations: Violation[]
   ): void {
-    const THRESHOLD = 5;
     for (const stepId of Object.keys(state.steps)) {
       const count = (state.outcomeOrder[stepId] ?? []).length;
-      if (count >= THRESHOLD) {
+      if (count >= ValidationService.MAX_OUTCOMES_PER_STEP) {
         violations.push({
           code: 'TOO_MANY_OUTCOMES',
           message: `Step "${state.steps[stepId]?.name}" has ${count} outcomes — consider simplifying or splitting the step.`,
           nodeId: stepId,
           nodeType: 'step',
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
+  private checkMissingFallbackRoute(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
+    violations: Violation[]
+  ): void {
+    for (const outcome of Object.values(state.outcomes)) {
+      if (!outcome.applyFilter) continue;
+      const outcomeRoutes = Object.values(state.routes).filter((r) => r.outcomeId === outcome.crmId);
+      if (outcomeRoutes.length < 2) continue; // single route — missing FetchXML caught elsewhere
+      const hasFallback = outcomeRoutes.some((r) => !r.filter.trim());
+      if (!hasFallback) {
+        const stepName = state.steps[outcome.stepId]?.name ?? outcome.stepId;
+        violations.push({
+          code: 'MISSING_FALLBACK_ROUTE',
+          message: `Outcome "${outcome.name}" on step "${stepName}" has ${outcomeRoutes.length} conditional routes but no fallback (else) route — records not matching any condition will be stranded.`,
+          nodeId: outcome.crmId,
+          nodeType: 'outcome',
           severity: 'warning',
         });
       }

@@ -1,10 +1,11 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
+import { computeEditLayout } from '@/services/EditGraphLayout';
 
 interface UseEditModeResult {
   nodes: Node[];
@@ -15,6 +16,7 @@ interface UseEditModeResult {
   onEdgeClick: (event: MouseEvent, edge: Edge) => void;
   onPaneClick: () => void;
   addStep: () => void;
+  reLayout: () => void;
 }
 
 const START_NODE_ID = 'edit_start';
@@ -25,6 +27,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     steps,
     stepOrder,
     outcomes,
+    routeOrder,
     nodePositions,
     selectedId,
     process,
@@ -34,10 +37,12 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     selectNode,
     clearSelection,
     updateNodePosition,
+    setNodePositions,
   } = useWorkflowStore((s) => ({
     steps: s.steps,
     stepOrder: s.stepOrder,
     outcomes: s.outcomes,
+    routeOrder: s.routeOrder,
     nodePositions: s.nodePositions,
     selectedId: s.selectedId,
     process: s.process,
@@ -47,6 +52,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     selectNode: s.selectNode,
     clearSelection: s.clearSelection,
     updateNodePosition: s.updateNodePosition,
+    setNodePositions: s.setNodePositions,
   }));
 
   const nodes = useMemo<Node[]>(() => {
@@ -60,14 +66,14 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
 
     const stepCount = stepOrder.length;
 
-    const startPosition = nodePositions[START_NODE_ID] ?? { x: 300, y: -80 };
-    const endPosition = nodePositions[END_NODE_ID] ?? { x: 300, y: stepCount * 160 + 80 };
+    const startPosition = nodePositions[START_NODE_ID] ?? { x: -80, y: 0 };
+    const endPosition = nodePositions[END_NODE_ID] ?? { x: stepCount * 340 + 80, y: 0 };
 
     const startNode: Node = {
       id: START_NODE_ID,
       type: 'viewStart',
       position: startPosition,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: 'LR' },
       draggable: false,
       selectable: false,
     };
@@ -76,7 +82,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       id: END_NODE_ID,
       type: 'viewEnd',
       position: endPosition,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: 'LR' },
       draggable: false,
       selectable: false,
     };
@@ -114,8 +120,6 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];
 
-    // Entry step = lowest sequenceNo (first in stepOrder, sorted on load).
-    // Using "no incoming" heuristic breaks when back-edges point back to step 1.
     const entryStepId = stepOrder[0];
     if (entryStepId) {
       result.push(buildStartEdge(entryStepId));
@@ -127,17 +131,17 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       const isBackEdge = Boolean(
         targetStep && sourceStep && targetStep.sequenceNo < sourceStep.sequenceNo
       );
-
       const sourceNodeId = `step_${outcome.stepId}`;
-      const targetNodeId = outcome.nextStepId
-        ? `step_${outcome.nextStepId}`
-        : END_NODE_ID;
+      const targetNodeId = outcome.nextStepId ? `step_${outcome.nextStepId}` : END_NODE_ID;
+      const routeCount = outcome.applyFilter
+        ? (routeOrder[outcome.crmId] ?? []).length
+        : 0;
 
-      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge));
+      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge, routeCount));
     }
 
     return result;
-  }, [outcomes, steps, stepOrder]);
+  }, [outcomes, steps, stepOrder, routeOrder]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -170,13 +174,10 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
-        if (
-          change.type === 'position' &&
-          'position' in change &&
-          change.position != null &&
-          change.id.startsWith('step_')
-        ) {
-          updateNodePosition(change.id, change.position);
+        if (change.type === 'position' && 'position' in change && change.position != null) {
+          if (change.id.startsWith('step_') || change.id.startsWith('gateway_')) {
+            updateNodePosition(change.id, change.position);
+          }
         }
       }
     },
@@ -201,6 +202,30 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const onPaneClick = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
+
+  const reLayout = useCallback(() => {
+    const outcomeList = Object.values(outcomes);
+    const positions = computeEditLayout(stepOrder, outcomeList);
+    setNodePositions(positions);
+  }, [stepOrder, outcomes, setNodePositions]);
+
+  const nodePositionsRef = useRef(nodePositions);
+  nodePositionsRef.current = nodePositions;
+
+  const outcomesRef = useRef(outcomes);
+  outcomesRef.current = outcomes;
+
+  const autoLayoutDone = useRef(false);
+  useEffect(() => {
+    if (autoLayoutDone.current || stepOrder.length === 0) return;
+    autoLayoutDone.current = true;
+    const hasAnyPosition = stepOrder.some((id) => !!nodePositionsRef.current[`step_${id}`]);
+    if (!hasAnyPosition) {
+      const outcomeList = Object.values(outcomesRef.current);
+      const positions = computeEditLayout(stepOrder, outcomeList);
+      setNodePositions(positions);
+    }
+  }, [stepOrder, setNodePositions]);
 
   const handleAddStep = useCallback(() => {
     if (!process) return;
@@ -242,6 +267,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     onEdgeClick,
     onPaneClick,
     addStep: handleAddStep,
+    reLayout,
   };
 }
 
@@ -269,9 +295,29 @@ function buildOutcomeEdge(
   outcome: WorkflowOutcome,
   sourceNodeId: string,
   targetNodeId: string,
-  isBackEdge: boolean
+  isBackEdge: boolean,
+  _routeCount = 0
 ): Edge {
-  const stroke = isBackEdge ? '#f59e0b' : '#64748b';
+  const isConditional = outcome.applyFilter;
+
+  if (isBackEdge) {
+    return {
+      id: `outcome_${outcome.crmId}`,
+      source: sourceNodeId,
+      target: targetNodeId,
+      sourceHandle: 'out',
+      targetHandle: 'in',
+      type: 'editBack',
+      animated: false,
+      style: { stroke: '#d97706', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.45 },
+      data: { isBackEdge: true, isConditional },
+      markerEnd: { type: 'arrowclosed' as const, color: '#d97706' },
+    };
+  }
+
+  const stroke = isConditional ? '#3b82f6' : '#64748b';
+  const strokeWidth = isConditional ? 1.5 : 1;
+
   return {
     id: `outcome_${outcome.crmId}`,
     source: sourceNodeId,
@@ -279,8 +325,9 @@ function buildOutcomeEdge(
     sourceHandle: 'out',
     targetHandle: 'in',
     type: 'outcome',
-    style: { stroke, strokeDasharray: isBackEdge ? '5 4' : undefined },
-    data: { label: outcome.name, isBackEdge },
+    animated: false,
+    style: { stroke, strokeWidth },
+    data: { isBackEdge: false, isConditional },
     markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };
 }
