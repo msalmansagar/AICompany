@@ -58,6 +58,11 @@ export function FormNumericField({ field, control }: Props) {
           ? formatDecimal(rawString, decimalPlaces)
           : rawString;
 
+        const effectivePrefix = currencySymbol ?? field.prefix;
+        const defaultPlaceholder = isDecimal
+          ? `0.${'0'.repeat(decimalPlaces)}`
+          : `Enter ${field.displayLabel.toLowerCase()}`;
+
         return (
           <View style={fieldStyles.container}>
             <Text style={fieldStyles.label}>
@@ -66,26 +71,27 @@ export function FormNumericField({ field, control }: Props) {
             </Text>
 
             <View style={[styles.inputRow, error && styles.inputRowError]}>
-              {currencySymbol && (
+              {effectivePrefix ? (
                 <View style={styles.prefixBox}>
-                  <Text style={styles.prefixText}>{currencySymbol}</Text>
+                  <Text style={styles.prefixText}>{effectivePrefix}</Text>
                 </View>
-              )}
+              ) : null}
               <TextInput
-                style={[styles.input, currencySymbol ? styles.inputWithPrefix : null]}
+                style={[styles.input, effectivePrefix ? styles.inputWithPrefix : null]}
                 value={displayValue}
                 onChangeText={handleChangeText}
                 onBlur={handleBlur}
                 onFocus={handleFocus}
                 keyboardType={isDecimal ? 'decimal-pad' : 'number-pad'}
-                placeholder={
-                  isDecimal
-                    ? `0.${'0'.repeat(decimalPlaces)}`
-                    : `Enter ${field.displayLabel.toLowerCase()}`
-                }
+                placeholder={field.placeholder ?? defaultPlaceholder}
                 placeholderTextColor="#999"
-                textAlign={currencySymbol ? 'right' : 'left'}
+                textAlign={effectivePrefix ? 'right' : 'left'}
               />
+              {field.suffix ? (
+                <View style={styles.prefixBox}>
+                  <Text style={styles.prefixText}>{field.suffix}</Text>
+                </View>
+              ) : null}
             </View>
 
             {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}

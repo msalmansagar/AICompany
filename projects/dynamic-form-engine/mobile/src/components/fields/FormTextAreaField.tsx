@@ -44,7 +44,7 @@ export function FormTextAreaField({ field, control }: Props) {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
-              placeholder={`Enter ${field.displayLabel.toLowerCase()}`}
+              placeholder={field.placeholder ?? `Enter ${field.displayLabel.toLowerCase()}`}
               placeholderTextColor="#999"
             />
             {error && <Text style={fieldStyles.errorText}>{error.message}</Text>}

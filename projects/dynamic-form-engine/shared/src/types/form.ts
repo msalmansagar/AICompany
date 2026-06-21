@@ -18,6 +18,7 @@ export interface OptionValue {
   displayOrder: number;
   description?: string;
   iconName?: string;
+  notes?: string;
 }
 
 export type BooleanRenderStyle = 'toggle' | 'radio';
@@ -27,12 +28,23 @@ export type GridSelectionMode = 'single' | 'multi';
 export type GridMode = 'selection' | 'entry';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
+export interface GridColumnOptionValue {
+  value: string;
+  label: string;
+}
+
 export interface GridColumnConfig {
   columnId: string;
   targetAttribute: string;
   columnLabel: string;
   displayOrder: number;
   columnFieldType: string;
+  filterType?: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+  options?: GridColumnOptionValue[];
 }
 
 export interface GridFieldConfig {
@@ -109,6 +121,10 @@ export interface FieldDefinition {
   fieldKey: string;
   fieldType: FieldType;
   displayLabel: string;
+  placeholder?: string;
+  prefix?: string;
+  suffix?: string;
+  tooltip?: string;
   displayOrder: number;
   isRequiredDefault: boolean;
   isReadonlyDefault: boolean;
@@ -132,6 +148,8 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
   gridConfig?: GridFieldConfig;
 }
 
@@ -183,6 +201,7 @@ export interface FormDefinition {
   description: string;
   version: number;
   allowSaveDraft: boolean;
+  showSummaryStep?: boolean;
   confirmationMessage: string;
   tabs: TabDefinition[];
   buttons: FormButton[];

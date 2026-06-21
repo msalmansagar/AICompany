@@ -1,5 +1,5 @@
-import React from 'react';
-import { Text } from 'react-native';
+import React, { useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Control } from 'react-hook-form';
 import type { FieldDefinition } from '@qdb/shared';
 import { FormTextField } from './FormTextField';
@@ -29,6 +29,121 @@ interface Props {
   isTabActive?: boolean;
 }
 
+function TooltipIcon({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <Pressable
+        onPress={() => setVisible(true)}
+        style={tooltipStyles.icon}
+        accessibilityRole="button"
+        accessibilityLabel={`Info: ${text}`}
+      >
+        <Text style={tooltipStyles.iconText}>ℹ</Text>
+      </Pressable>
+      <Modal transparent visible={visible} animationType="fade" onRequestClose={() => setVisible(false)}>
+        <Pressable style={tooltipStyles.backdrop} onPress={() => setVisible(false)}>
+          <View style={tooltipStyles.bubble}>
+            <Text style={tooltipStyles.bubbleText}>{text}</Text>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+const tooltipStyles = StyleSheet.create({
+  icon: { paddingHorizontal: 4, paddingVertical: 2 },
+  iconText: { fontSize: 14, color: '#0078d4' },
+  backdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' },
+  bubble: { backgroundColor: '#fff', borderRadius: 8, padding: 16, maxWidth: '80%', elevation: 8, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8 },
+  bubbleText: { fontSize: 14, color: '#1a1a2e', lineHeight: 20 },
+  hintRow: { flexDirection: 'row', alignItems: 'center', marginTop: -6, marginBottom: 2, paddingHorizontal: 2 },
+  hintText: { fontSize: 12, color: '#555', flex: 1, lineHeight: 16 },
+});
+
+function resolveFieldComponent(
+  field: FieldDefinition,
+  control: Control<Record<string, unknown>>,
+  accessToken: string,
+  isTabActive: boolean,
+): React.ReactElement | null {
+  switch (field.fieldType) {
+    case 'text':
+      return <FormTextField field={field} control={control} />;
+    case 'email':
+      return <FormTextField field={field} control={control} keyboardType="email-address" />;
+    case 'phone':
+      return <FormTextField field={field} control={control} keyboardType="phone-pad" />;
+    case 'number':
+      return <FormNumericField field={field} control={control} />;
+    case 'currency':
+    case 'decimal':
+      return <FormNumericField field={field} control={control} />;
+    case 'textarea':
+      return <FormTextAreaField field={field} control={control} />;
+    case 'richtext':
+      return <FormRichTextField field={field} control={control} />;
+    case 'date':
+    case 'datetime':
+      return <FormDateField field={field} control={control} />;
+    case 'dropdown':
+      return <FormDropdownField field={field} control={control} />;
+    case 'multiselect':
+      return field.multiselectRenderStyle === 'checkboxes'
+        ? <FormCheckboxGroupField field={field} control={control} />
+        : <FormDropdownField field={field} control={control} />;
+    case 'checkbox':
+      return <FormCheckboxField field={field} control={control} />;
+    case 'radio':
+      return field.radioRenderStyle === 'cards'
+        ? <FormRadioCardField field={field} control={control} />
+        : <FormRadioField field={field} control={control} />;
+    case 'lookup':
+      return <FormLookupField field={field} control={control} />;
+    case 'file':
+      return <FormFileField field={field} control={control} />;
+    case 'grid':
+      return field.gridConfig?.mode === 'selection'
+        ? (
+          <FormSelectionGridField
+            field={field}
+            control={control}
+            accessToken={accessToken}
+            isTabActive={isTabActive}
+          />
+        )
+        : <FormRepeatingGridField field={field} control={control} />;
+    case 'boolean':
+      return <FormBooleanField field={field} control={control} />;
+    case 'interactive-grid':
+      return (
+        <FormInteractiveGridField
+          field={field}
+          control={control}
+          accessToken={accessToken}
+          isTabActive={isTabActive}
+        />
+      );
+    case 'info-card':
+      return <FormInfoCardField field={field} />;
+    case 'custom': {
+      const customKey = (field as FieldDefinition & { componentKey?: string }).componentKey ?? '';
+      const CustomField = ComponentRegistry.resolve(customKey);
+      if (CustomField) return <CustomField field={field} control={control} />;
+      return null;
+    }
+    default: {
+      const exhaustive: never = field.fieldType;
+      return (
+        <Text style={{ color: '#999', fontSize: 13 }}>
+          Unsupported field type: {String(exhaustive)}
+        </Text>
+      );
+    }
+  }
+}
+
 export function FieldRenderer({ field, control, accessToken = '', isTabActive = false }: Props) {
   const { ruleState } = useMobileFormContext();
 
@@ -46,78 +161,19 @@ export function FieldRenderer({ field, control, accessToken = '', isTabActive = 
     isReadonlyDefault: ruleState.readonlyMap.get(field.fieldKey) ?? field.isReadonlyDefault,
   };
 
-  switch (effectiveField.fieldType) {
-    case 'text':
-      return <FormTextField field={effectiveField} control={control} />;
-    case 'email':
-      return <FormTextField field={effectiveField} control={control} keyboardType="email-address" />;
-    case 'phone':
-      return <FormTextField field={effectiveField} control={control} keyboardType="phone-pad" />;
-    case 'number':
-      return <FormNumericField field={effectiveField} control={control} />;
-    case 'currency':
-    case 'decimal':
-      return <FormNumericField field={effectiveField} control={control} />;
-    case 'textarea':
-      return <FormTextAreaField field={effectiveField} control={control} />;
-    case 'richtext':
-      return <FormRichTextField field={effectiveField} control={control} />;
-    case 'date':
-    case 'datetime':
-      return <FormDateField field={effectiveField} control={control} />;
-    case 'dropdown':
-      return <FormDropdownField field={effectiveField} control={control} />;
-    case 'multiselect':
-      return effectiveField.multiselectRenderStyle === 'checkboxes'
-        ? <FormCheckboxGroupField field={effectiveField} control={control} />
-        : <FormDropdownField field={effectiveField} control={control} />;
-    case 'checkbox':
-      return <FormCheckboxField field={effectiveField} control={control} />;
-    case 'radio':
-      return effectiveField.radioRenderStyle === 'cards'
-        ? <FormRadioCardField field={effectiveField} control={control} />
-        : <FormRadioField field={effectiveField} control={control} />;
-    case 'lookup':
-      return <FormLookupField field={effectiveField} control={control} />;
-    case 'file':
-      return <FormFileField field={effectiveField} control={control} />;
-    case 'grid':
-      return effectiveField.gridConfig?.mode === 'selection'
-        ? (
-          <FormSelectionGridField
-            field={effectiveField}
-            control={control}
-            accessToken={accessToken}
-            isTabActive={isTabActive}
-          />
-        )
-        : <FormRepeatingGridField field={effectiveField} control={control} />;
-    case 'boolean':
-      return <FormBooleanField field={effectiveField} control={control} />;
-    case 'interactive-grid':
-      return (
-        <FormInteractiveGridField
-          field={effectiveField}
-          control={control}
-          accessToken={accessToken}
-          isTabActive={isTabActive}
-        />
-      );
-    case 'info-card':
-      return <FormInfoCardField field={effectiveField} />;
-    case 'custom': {
-      const customKey = (effectiveField as FieldDefinition & { componentKey?: string }).componentKey ?? '';
-      const CustomField = ComponentRegistry.resolve(customKey);
-      if (CustomField) return <CustomField field={effectiveField} control={control} />;
-      return null;
-    }
-    default: {
-      const exhaustive: never = effectiveField.fieldType;
-      return (
-        <Text style={{ color: '#999', fontSize: 13 }}>
-          Unsupported field type: {String(exhaustive)}
-        </Text>
-      );
-    }
+  const component = resolveFieldComponent(effectiveField, control, accessToken, isTabActive);
+
+  if (!effectiveField.tooltip) {
+    return component;
   }
+
+  return (
+    <View>
+      {component}
+      <View style={tooltipStyles.hintRow}>
+        <TooltipIcon text={effectiveField.tooltip} />
+        <Text style={tooltipStyles.hintText}>{effectiveField.tooltip}</Text>
+      </View>
+    </View>
+  );
 }

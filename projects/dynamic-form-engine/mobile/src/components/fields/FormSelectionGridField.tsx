@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Controller, useWatch, type Control } from 'react-hook-form';
 import type { FieldDefinition, GridColumnConfig, GridRecord } from '@qdb/shared';
 import { apiGet } from '../../services/apiClient';
@@ -66,12 +66,29 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
   const hasLoadedRef = useRef(false);
   const cookieMapRef = useRef(new Map<number, string>());
 
-  // ── search / sort / view ─────────────────────────────────────
+  // ── search / sort / view / column filters ────────────────────
   const [searchText, setSearchText] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState<string | undefined>();
   const [sortDir, setSortDir] = useState<SortDir | undefined>();
   const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [columnFilterInputs, setColumnFilterInputs] = useState<Record<string, string>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const colFilterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  function handleColumnFilterChange(attribute: string, value: string): void {
+    setColumnFilterInputs((prev) => ({ ...prev, [attribute]: value }));
+    clearTimeout(colFilterDebounceRef.current);
+    colFilterDebounceRef.current = setTimeout(() => {
+      setColumnFilters((prev) => {
+        const next = { ...prev, [attribute]: value };
+        if (!value.trim()) delete next[attribute];
+        return next;
+      });
+    }, 300);
+  }
+
+  const activeFilterCount = Object.keys(columnFilters).length;
 
   // Debounce search input by 300 ms.
   useEffect(() => {
@@ -80,8 +97,8 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
   }, [searchText]);
 
   // Stable ref holding the latest filter params so fetchRecords stays stable.
-  const filterRef = useRef({ dependsOnValue, debouncedSearch, sortBy, sortDir });
-  filterRef.current = { dependsOnValue, debouncedSearch, sortBy, sortDir };
+  const filterRef = useRef({ dependsOnValue, debouncedSearch, sortBy, sortDir, columnFilters });
+  filterRef.current = { dependsOnValue, debouncedSearch, sortBy, sortDir, columnFilters };
 
   const fetchRecords = useCallback(async (requestedPage: number): Promise<void> => {
     if (isLoadingRef.current) return;
@@ -89,7 +106,7 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
     setIsLoading(true);
     setLoadError(undefined);
 
-    const { dependsOnValue: dov, debouncedSearch: ds, sortBy: sb, sortDir: sd } = filterRef.current;
+    const { dependsOnValue: dov, debouncedSearch: ds, sortBy: sb, sortDir: sd, columnFilters: cf } = filterRef.current;
     const pagingCookie = requestedPage > 1 ? cookieMapRef.current.get(requestedPage - 1) : undefined;
 
     const params = new URLSearchParams({ page: String(requestedPage), pageSize: String(PAGE_SIZE) });
@@ -98,6 +115,7 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
     if (sb) params.set('sortBy', sb);
     if (sd) params.set('sortDirection', sd);
     if (pagingCookie) params.set('pagingCookie', pagingCookie);
+    if (Object.keys(cf).length > 0) params.set('columnFilters', JSON.stringify(cf));
 
     try {
       const resp = await apiGet<GridPageResponse>(
@@ -127,7 +145,7 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
   }, [isTabActive, fetchRecords]);
 
   // Re-fetch page 1 when any filter changes.
-  const filterKey = [dependsOnValue ?? '', debouncedSearch, sortBy ?? '', sortDir ?? ''].join('\0');
+  const filterKey = [dependsOnValue ?? '', debouncedSearch, sortBy ?? '', sortDir ?? '', JSON.stringify(columnFilters)].join('\0');
   const prevFilterKeyRef = useRef(filterKey);
   useEffect(() => {
     if (prevFilterKeyRef.current === filterKey) return;
@@ -285,6 +303,9 @@ export function FormSelectionGridField({ field, control, accessToken, isTabActiv
                       onSort={handleSort}
                       isSelected={isSelected}
                       onSelect={handleSelect}
+                      columnFilterInputs={columnFilterInputs}
+                      onColumnFilterChange={handleColumnFilterChange}
+                      activeFilterCount={activeFilterCount}
                     />
                   )
                   : (
@@ -348,48 +369,118 @@ interface TableViewProps {
   onSort: (attr: string) => void;
   isSelected: (id: string) => boolean;
   onSelect: (id: string) => void;
+  columnFilterInputs: Record<string, string>;
+  onColumnFilterChange: (attribute: string, value: string) => void;
+  activeFilterCount: number;
 }
 
-function TableView({ records, columns, isMulti, sortBy, sortDir, onSort, isSelected, onSelect }: TableViewProps) {
-  return (
-    <View>
-      {/* Sortable column headers */}
-      <View style={styles.tableHeaderRow}>
-        <View style={styles.checkCell} />
-        {columns.map((col) => {
-          const isSorted = sortBy === col.targetAttribute;
-          return (
-            <Pressable
-              key={col.targetAttribute}
-              style={styles.tableHeaderCell}
-              onPress={() => onSort(col.targetAttribute)}
-              accessibilityRole="button"
-              accessibilityLabel={`Sort by ${col.columnLabel}`}
-            >
-              <Text style={styles.headerText} numberOfLines={1}>{col.columnLabel}</Text>
-              <Text style={styles.sortIndicator}>
-                {isSorted ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+function TableView({ records, columns, isMulti, sortBy, sortDir, onSort, isSelected, onSelect, columnFilterInputs, onColumnFilterChange, activeFilterCount }: TableViewProps) {
+  const filterableColumns = columns.filter(
+    (col) => col.filterType === 'text' || col.filterType === 'lookup' || col.filterType === 'optionset',
+  );
+  const hasFilters = filterableColumns.length > 0;
 
-      <FlatList
-        data={records}
-        keyExtractor={(item) => item.id}
-        scrollEnabled={false}
-        renderItem={({ item }) => (
-          <TableRow
-            record={item}
-            columns={columns}
-            selected={isSelected(item.id)}
-            isMulti={isMulti}
-            onPress={() => onSelect(item.id)}
-          />
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View>
+        {/* Sortable column headers */}
+        <View style={styles.tableHeaderRow}>
+          <View style={styles.checkCell} />
+          {columns.map((col) => {
+            const isSorted = sortBy === col.targetAttribute;
+            return (
+              <Pressable
+                key={col.targetAttribute}
+                style={styles.tableHeaderCell}
+                onPress={() => onSort(col.targetAttribute)}
+                accessibilityRole="button"
+                accessibilityLabel={`Sort by ${col.columnLabel}`}
+              >
+                <Text style={styles.headerText} numberOfLines={1}>{col.columnLabel}</Text>
+                <Text style={styles.sortIndicator}>
+                  {isSorted ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ' ⇅'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* Per-column filter row */}
+        {hasFilters && (
+          <View style={styles.tableHeaderRow}>
+            <View style={styles.checkCell} />
+            {columns.map((col) => {
+              const filterType = col.filterType ?? 'none';
+              const currentValue = columnFilterInputs[col.targetAttribute] ?? '';
+
+              if (filterType === 'text' || filterType === 'lookup') {
+                return (
+                  <View key={`filter-${col.targetAttribute}`} style={[styles.tableHeaderCell, styles.filterCell]}>
+                    <TextInput
+                      style={styles.filterInput}
+                      value={currentValue}
+                      onChangeText={(v) => onColumnFilterChange(col.targetAttribute, v)}
+                      placeholder="Filter…"
+                      placeholderTextColor="#bbb"
+                      clearButtonMode="while-editing"
+                      accessibilityLabel={`Filter ${col.columnLabel}`}
+                    />
+                  </View>
+                );
+              }
+
+              if (filterType === 'optionset' && col.options && col.options.length > 0) {
+                return (
+                  <View key={`filter-${col.targetAttribute}`} style={[styles.tableHeaderCell, styles.filterCell]}>
+                    <Pressable
+                      style={styles.filterSelect}
+                      onPress={() => {
+                        // Cycle through options (empty → opt1 → opt2 → ... → empty)
+                        const opts = col.options ?? [];
+                        const idx = opts.findIndex((o) => o.value === currentValue);
+                        const next = idx < opts.length - 1 ? opts[idx + 1] : { value: '' };
+                        onColumnFilterChange(col.targetAttribute, next.value);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Filter ${col.columnLabel}`}
+                    >
+                      <Text style={styles.filterSelectText} numberOfLines={1}>
+                        {currentValue
+                          ? (col.options?.find((o) => o.value === currentValue)?.label ?? currentValue)
+                          : 'All'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              }
+
+              return <View key={`filter-${col.targetAttribute}`} style={[styles.tableHeaderCell, styles.filterCell]} />;
+            })}
+          </View>
         )}
-      />
-    </View>
+
+        {activeFilterCount > 0 && (
+          <View style={styles.activeFilterBanner}>
+            <Text style={styles.activeFilterText}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
+          </View>
+        )}
+
+        <FlatList
+          data={records}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          renderItem={({ item }) => (
+            <TableRow
+              record={item}
+              columns={columns}
+              selected={isSelected(item.id)}
+              isMulti={isMulti}
+              onPress={() => onSelect(item.id)}
+            />
+          )}
+        />
+      </View>
+    </ScrollView>
   );
 }
 
@@ -521,6 +612,46 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 8,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+  },
+  filterCell: {
+    backgroundColor: '#fafafa',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+  },
+  filterInput: {
+    height: 30,
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    fontSize: 12,
+    color: '#1a1a2e',
+    backgroundColor: '#fff',
+    minWidth: 80,
+  },
+  filterSelect: {
+    height: 30,
+    borderWidth: 1,
+    borderColor: '#d0d0d0',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    minWidth: 80,
+  },
+  filterSelectText: {
+    fontSize: 12,
+    color: '#1a1a2e',
+  },
+  activeFilterBanner: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#e8f2fb',
+  },
+  activeFilterText: {
+    fontSize: 11,
+    color: '#0078d4',
+    fontWeight: '600',
   },
   tableHeaderCell: {
     flex: 1,

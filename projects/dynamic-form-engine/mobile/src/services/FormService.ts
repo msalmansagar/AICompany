@@ -44,6 +44,9 @@ interface BackendOptionValue {
   displayOrder: number;
   isDefault: boolean;
   isActive: boolean;
+  description?: string;
+  iconName?: string;
+  notes?: string;
 }
 
 interface BackendValidationRule {
@@ -69,6 +72,9 @@ interface BackendGridColumnConfig {
   columnLabel: string;
   targetAttribute: string;
   columnFieldType: string;
+  filterType?: string;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
   options?: unknown[];
 }
 
@@ -95,6 +101,8 @@ interface BackendFieldDefinition {
   label: string;
   placeholder?: string;
   tooltip?: string;
+  prefix?: string;
+  suffix?: string;
   defaultValue?: unknown;
   displayOrder: number;
   columnSpan: number;
@@ -118,6 +126,12 @@ interface BackendFieldDefinition {
   gridConfig?: BackendGridConfig;
   radioRenderStyle?: string;
   multiselectRenderStyle?: string;
+  infoCardStyle?: string;
+  infoCardTitle?: string;
+  infoCardBody?: string;
+  infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
 }
 
 interface BackendSectionDefinition {
@@ -223,7 +237,14 @@ function normalizeFieldType(raw: string): FieldType {
 // â”€â”€ Mapping functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function mapOptionValue(opt: BackendOptionValue): OptionValue {
-  return { value: opt.value, label: opt.label, displayOrder: opt.displayOrder };
+  return {
+    value: opt.value,
+    label: opt.label,
+    displayOrder: opt.displayOrder,
+    ...(opt.description !== undefined ? { description: opt.description } : {}),
+    ...(opt.iconName !== undefined ? { iconName: opt.iconName } : {}),
+    ...(opt.notes !== undefined ? { notes: opt.notes } : {}),
+  };
 }
 
 function mapValidationRule(rule: BackendValidationRule): ValidationRule {
@@ -251,6 +272,10 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
     fieldKey: field.schemaName,
     fieldType: normalizeFieldType(field.fieldType),
     displayLabel: field.label,
+    ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
+    ...(field.tooltip !== undefined ? { tooltip: field.tooltip } : {}),
+    ...(field.prefix !== undefined ? { prefix: field.prefix } : {}),
+    ...(field.suffix !== undefined ? { suffix: field.suffix } : {}),
     displayOrder: field.displayOrder,
     isRequiredDefault: field.isRequired,
     isReadonlyDefault: field.isReadonly,
@@ -281,6 +306,8 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
             columnLabel: col.columnLabel,
             targetAttribute: col.targetAttribute,
             columnFieldType: col.columnFieldType,
+            ...(col.filterType !== undefined ? { filterType: col.filterType as 'text' | 'optionset' | 'lookup' | 'none' } : {}),
+            ...(col.options !== undefined ? { options: col.options as { value: string; label: string }[] } : {}),
           })),
           maxRows: field.gridConfig.maxRows,
           minRows: field.gridConfig.minRows,
@@ -292,6 +319,12 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
       : undefined,
     radioRenderStyle: field.radioRenderStyle as 'list' | 'cards' | undefined,
     multiselectRenderStyle: field.multiselectRenderStyle as 'dropdown' | 'checkboxes' | undefined,
+    infoCardStyle: field.infoCardStyle as 'info' | 'warning' | 'success' | 'error' | undefined,
+    infoCardTitle: field.infoCardTitle,
+    infoCardBody: field.infoCardBody,
+    infoCardIcon: field.infoCardIcon,
+    infoCardDownloadUrl: field.infoCardDownloadUrl,
+    infoCardDownloadLabel: field.infoCardDownloadLabel,
   };
 }
 
