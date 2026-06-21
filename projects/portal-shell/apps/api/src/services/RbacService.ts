@@ -69,6 +69,11 @@ export interface AuditLogFilters {
   top?: number | undefined;
 }
 
+export interface ServiceCallContext {
+  correlationId: string;
+  actorIp: string;
+}
+
 // ---------------------------------------------------------------------------
 // Dataverse record shapes
 // ---------------------------------------------------------------------------
@@ -154,12 +159,12 @@ export class RbacService {
   async assignRole(
     body: AssignRoleBody,
     actorId: string,
-    correlationId: string,
+    ctx: ServiceCallContext,
   ): Promise<RbacUserRole> {
     guardPortalAdminDirectAssign(body.roleSlug);
 
     const incomingPopulation = resolvePopulation(body.roleSlug);
-    const existingRoles = await this.getActiveRoles(body.userId, correlationId);
+    const existingRoles = await this.getActiveRoles(body.userId, ctx.correlationId);
     validateCrossPopulation(incomingPopulation, existingRoles);
 
     const nextVersion = existingRoles.reduce((max, r) => Math.max(max, r.rbacVersion), 0) + 1;
@@ -176,17 +181,17 @@ export class RbacService {
         ...(body.expiresAt !== undefined && { qdb_expires_at: body.expiresAt }),
         qdb_rbac_version: nextVersion,
       },
-      { correlationId },
+      { correlationId: ctx.correlationId },
     );
 
-    const created = await this.fetchRoleByUserAndSlug(body.userId, body.roleSlug, correlationId);
+    const created = await this.fetchRoleByUserAndSlug(body.userId, body.roleSlug, ctx.correlationId);
 
     await this.audit.logRoleAssigned({
       actorUserId: actorId,
       targetUserId: body.userId,
       roleSlug: body.roleSlug,
-      correlationId,
-      ipAddress: '',
+      correlationId: ctx.correlationId,
+      ipAddress: ctx.actorIp,
     });
 
     return created;
@@ -195,36 +200,36 @@ export class RbacService {
   async revokeRole(
     assignmentId: string,
     actorId: string,
-    correlationId: string,
+    ctx: ServiceCallContext,
   ): Promise<void> {
-    const record = await this.fetchRoleById(assignmentId, correlationId);
+    const record = await this.fetchRoleById(assignmentId, ctx.correlationId);
 
     if (record.qdb_role_slug === 'portal-admin') {
-      await this.guardLastPortalAdmin(correlationId);
+      await this.guardLastPortalAdmin(ctx.correlationId);
     }
 
     await this.dataverse.update(
       USER_ROLES_ENTITY,
       assignmentId,
       { statecode: 1, statuscode: 2 },
-      { correlationId },
+      { correlationId: ctx.correlationId },
     );
 
-    await this.bumpRbacVersionForUser(record.qdb_user_id, correlationId);
+    await this.bumpRbacVersionForUser(record.qdb_user_id, ctx.correlationId);
 
     await this.audit.logRoleRevoked({
       actorUserId: actorId,
       targetUserId: record.qdb_user_id,
       roleSlug: record.qdb_role_slug,
-      correlationId,
-      ipAddress: '',
+      correlationId: ctx.correlationId,
+      ipAddress: ctx.actorIp,
     });
   }
 
   async initiatePromotion(
     body: InitiatePromotionBody,
     initiatorId: string,
-    correlationId: string,
+    ctx: ServiceCallContext,
   ): Promise<PromotionRequest> {
     if (body.targetRole !== 'portal-admin') {
       throw new RbacError(
@@ -234,7 +239,7 @@ export class RbacService {
       );
     }
 
-    await this.guardNoPendingPromotion(body.targetUserId, body.targetRole, correlationId);
+    await this.guardNoPendingPromotion(body.targetUserId, body.targetRole, ctx.correlationId);
 
     const expiresAt = new Date(Date.now() + PROMOTION_TTL_MS).toISOString();
 
@@ -247,21 +252,21 @@ export class RbacService {
         qdb_status: PROMOTION_STATUS_CODE.pending,
         qdb_expires_at: expiresAt,
       },
-      { correlationId },
+      { correlationId: ctx.correlationId },
     );
 
     const created = await this.fetchLatestPendingPromotion(
       body.targetUserId,
       body.targetRole,
-      correlationId,
+      ctx.correlationId,
     );
 
     await this.audit.logPromotionInitiated({
       actorUserId: initiatorId,
       targetUserId: body.targetUserId,
       roleSlug: body.targetRole,
-      correlationId,
-      ipAddress: '',
+      correlationId: ctx.correlationId,
+      ipAddress: ctx.actorIp,
     });
 
     return created;
@@ -270,9 +275,9 @@ export class RbacService {
   async approvePromotion(
     promotionId: string,
     approverId: string,
-    correlationId: string,
+    ctx: ServiceCallContext,
   ): Promise<RbacUserRole> {
-    const promotion = await this.fetchPromotionById(promotionId, correlationId);
+    const promotion = await this.fetchPromotionById(promotionId, ctx.correlationId);
 
     validatePromotionIsPending(promotion);
     validatePromotionNotExpired(promotion);
@@ -282,22 +287,22 @@ export class RbacService {
       PROMOTIONS_ENTITY,
       promotionId,
       { qdb_status: PROMOTION_STATUS_CODE.approved, qdb_approved_by: approverId },
-      { correlationId },
+      { correlationId: ctx.correlationId },
     );
 
     const role = await this.assignRoleDirectly(
       promotion.qdb_target_user_id,
       promotion.qdb_target_role,
       approverId,
-      correlationId,
+      ctx.correlationId,
     );
 
     await this.audit.logPromotionApproved({
       actorUserId: approverId,
       targetUserId: promotion.qdb_target_user_id,
       roleSlug: promotion.qdb_target_role,
-      correlationId,
-      ipAddress: '',
+      correlationId: ctx.correlationId,
+      ipAddress: ctx.actorIp,
     });
 
     return role;
@@ -307,9 +312,9 @@ export class RbacService {
     promotionId: string,
     rejectorId: string,
     reason: string,
-    correlationId: string,
+    ctx: ServiceCallContext,
   ): Promise<void> {
-    const promotion = await this.fetchPromotionById(promotionId, correlationId);
+    const promotion = await this.fetchPromotionById(promotionId, ctx.correlationId);
 
     validatePromotionIsPending(promotion);
     validatePromotionNotExpired(promotion);
@@ -323,15 +328,15 @@ export class RbacService {
         qdb_approved_by: rejectorId,
         qdb_rejection_reason: reason,
       },
-      { correlationId },
+      { correlationId: ctx.correlationId },
     );
 
     await this.audit.logPromotionRejected({
       actorUserId: rejectorId,
       targetUserId: promotion.qdb_target_user_id,
       roleSlug: promotion.qdb_target_role,
-      correlationId,
-      ipAddress: '',
+      correlationId: ctx.correlationId,
+      ipAddress: ctx.actorIp,
     });
   }
 
@@ -568,11 +573,12 @@ export class RbacService {
     targetRole: string,
     correlationId: string,
   ): Promise<void> {
+    const now = new Date().toISOString();
     const result = await this.dataverse.getList<{ qdb_rbac_promotion_requestid: string }>(
       PROMOTIONS_ENTITY,
       {
         select: ['qdb_rbac_promotion_requestid'],
-        filter: `qdb_target_user_id eq '${escapeODataString(targetUserId)}' and qdb_target_role eq '${escapeODataString(targetRole)}' and qdb_status eq ${PROMOTION_STATUS_CODE.pending}`,
+        filter: `qdb_target_user_id eq '${escapeODataString(targetUserId)}' and qdb_target_role eq '${escapeODataString(targetRole)}' and qdb_status eq ${PROMOTION_STATUS_CODE.pending} and qdb_expires_at gt ${now}`,
         top: 1,
       },
       { correlationId },

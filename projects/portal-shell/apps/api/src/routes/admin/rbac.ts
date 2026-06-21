@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { DataverseNotFoundError } from '@portal/dataverse-client';
-import type { RbacService } from '../../services/RbacService.js';
+import type { RbacService, ServiceCallContext } from '../../services/RbacService.js';
 import { RbacError } from '../../services/RbacService.js';
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,8 @@ export async function adminRbacRoutes(
       });
 
       try {
-        const role = await rbacService.assignRole(body, request.userId ?? '', request.correlationId);
+        const ctx: ServiceCallContext = { correlationId: request.correlationId, actorIp: request.ip };
+        const role = await rbacService.assignRole(body, request.userId ?? '', ctx);
         return reply.status(201).send({ data: role });
       } catch (error) {
         return handleRbacError(error, reply);
@@ -152,7 +153,8 @@ export async function adminRbacRoutes(
       });
 
       try {
-        await rbacService.revokeRole(assignmentId, request.userId ?? '', request.correlationId);
+        const ctx: ServiceCallContext = { correlationId: request.correlationId, actorIp: request.ip };
+        await rbacService.revokeRole(assignmentId, request.userId ?? '', ctx);
         return reply.status(204).send();
       } catch (error) {
         return handleRbacError(error, reply);
@@ -176,10 +178,11 @@ export async function adminRbacRoutes(
       });
 
       try {
+        const ctx: ServiceCallContext = { correlationId: request.correlationId, actorIp: request.ip };
         const promotion = await rbacService.initiatePromotion(
           body,
           request.userId ?? '',
-          request.correlationId,
+          ctx,
         );
         return reply.status(201).send({ data: promotion });
       } catch (error) {
@@ -242,10 +245,11 @@ export async function adminRbacRoutes(
       });
 
       try {
+        const ctx: ServiceCallContext = { correlationId: request.correlationId, actorIp: request.ip };
         const role = await rbacService.approvePromotion(
           id,
           request.userId ?? '',
-          request.correlationId,
+          ctx,
         );
         return reply.status(200).send({ data: role });
       } catch (error) {
@@ -270,11 +274,12 @@ export async function adminRbacRoutes(
       });
 
       try {
+        const ctx: ServiceCallContext = { correlationId: request.correlationId, actorIp: request.ip };
         await rbacService.rejectPromotion(
           id,
           request.userId ?? '',
           body.reason,
-          request.correlationId,
+          ctx,
         );
         return reply.status(204).send();
       } catch (error) {

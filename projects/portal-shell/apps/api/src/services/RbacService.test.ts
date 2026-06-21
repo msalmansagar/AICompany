@@ -1,4 +1,4 @@
-// RED → GREEN → REFACTOR — RbacService unit tests
+﻿// RED â†’ GREEN â†’ REFACTOR â€” RbacService unit tests
 //
 // DataverseClient and RbacAuditWriter are injected as constructor args and
 // mocked with vi.fn() so no real Dataverse calls are made.
@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RbacService, RbacError } from './RbacService.js';
+import type { ServiceCallContext } from './RbacService.js';
 import type { DataverseClient } from '@portal/dataverse-client';
 import type { RbacAuditWriter } from './RbacAuditWriter.js';
 import type { RbacUserRole, PromotionRequest } from '@portal/types';
@@ -15,6 +16,7 @@ import type { RbacUserRole, PromotionRequest } from '@portal/types';
 // ---------------------------------------------------------------------------
 
 const CORRELATION_ID = 'test-correlation-id';
+const TEST_CTX: ServiceCallContext = { correlationId: CORRELATION_ID, actorIp: '127.0.0.1' };
 const ACTOR_ID = 'actor-user-001';
 const TARGET_USER_ID = 'target-user-002';
 const ASSIGNMENT_ID = 'aaaaaaaa-0000-0000-0000-000000000001';
@@ -98,7 +100,7 @@ function makeMockAuditWriter(): RbacAuditWriter {
 }
 
 // ---------------------------------------------------------------------------
-// RbacError — preserved from original 2-test stub
+// RbacError â€” preserved from original 2-test stub
 // ---------------------------------------------------------------------------
 
 describe('RbacError', () => {
@@ -134,7 +136,7 @@ describe('RbacService.assignRole', () => {
 
   beforeEach(() => {
     dataverse = makeMockDataverse({
-      // getActiveRoles (getCurrentRbacVersion) returns empty list → version 0
+      // getActiveRoles (getCurrentRbacVersion) returns empty list â†’ version 0
       getList: vi
         .fn()
         .mockResolvedValueOnce({ value: [] }) // getCurrentRbacVersion call
@@ -149,7 +151,7 @@ describe('RbacService.assignRole', () => {
     const body = { userId: TARGET_USER_ID, roleSlug: 'staff-viewer' };
 
     // Act
-    const result = await service.assignRole(body, ACTOR_ID, CORRELATION_ID);
+    const result = await service.assignRole(body, ACTOR_ID, TEST_CTX);
 
     // Assert
     expect(result.userId).toBe(TARGET_USER_ID);
@@ -162,7 +164,7 @@ describe('RbacService.assignRole', () => {
     const body = { userId: TARGET_USER_ID, roleSlug: 'staff-viewer' };
 
     // Act
-    await service.assignRole(body, ACTOR_ID, CORRELATION_ID);
+    await service.assignRole(body, ACTOR_ID, TEST_CTX);
 
     // Assert
     expect(audit.logRoleAssigned).toHaveBeenCalledOnce();
@@ -174,12 +176,12 @@ describe('RbacService.assignRole', () => {
 
   it('assignRole_crossPopulationGuard_throws400ForUnknownOrCitizenRole', async () => {
     // Arrange
-    // 'registered-citizen' is a citizen role — not in the valid enum for assignRole
+    // 'registered-citizen' is a citizen role â€” not in the valid enum for assignRole
     // The service throws unknown_role for any slug not in STAFF_ROLE_SLUGS or CITIZEN_ROLE_SLUGS
     // and portal_admin_requires_promotion for portal-admin. For citizen slugs it throws unknown_role
     // because they pass through validateCrossPopulation (which doesn't block citizen slugs
     // but guardPortalAdminDirectAssign doesn't trigger). The route-level Zod schema blocks
-    // citizen slugs before they reach the service — this tests the service-layer guard independently.
+    // citizen slugs before they reach the service â€” this tests the service-layer guard independently.
     const ds = makeMockDataverse({
       getList: vi.fn().mockResolvedValue({ value: [] }),
     });
@@ -188,7 +190,7 @@ describe('RbacService.assignRole', () => {
     // Act & Assert
     // 'completely-unknown' is not in STAFF_ROLE_SLUGS or CITIZEN_ROLE_SLUGS
     await expect(
-      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'completely-unknown' }, ACTOR_ID, CORRELATION_ID),
+      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'completely-unknown' }, ACTOR_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'unknown_role', statusCode: 400 });
   });
 
@@ -201,7 +203,7 @@ describe('RbacService.assignRole', () => {
 
     // Act & Assert
     await expect(
-      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'portal-admin' }, ACTOR_ID, CORRELATION_ID),
+      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'portal-admin' }, ACTOR_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'portal_admin_requires_promotion', statusCode: 400 });
   });
 
@@ -216,7 +218,7 @@ describe('RbacService.assignRole', () => {
 
     // Act & Assert
     await expect(
-      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'staff-viewer' }, ACTOR_ID, CORRELATION_ID),
+      svc.assignRole({ userId: TARGET_USER_ID, roleSlug: 'staff-viewer' }, ACTOR_ID, TEST_CTX),
     ).rejects.toThrow('Dataverse 503');
   });
 });
@@ -238,7 +240,7 @@ describe('RbacService.revokeRole', () => {
     const service = new RbacService(dataverse, audit);
 
     // Act
-    await service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, CORRELATION_ID);
+    await service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, TEST_CTX);
 
     // Assert
     const updateCalls = (dataverse.update as ReturnType<typeof vi.fn>).mock.calls;
@@ -264,7 +266,7 @@ describe('RbacService.revokeRole', () => {
 
     // Act & Assert
     await expect(
-      service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, CORRELATION_ID),
+      service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'last_portal_admin', statusCode: 409 });
   });
 
@@ -281,9 +283,9 @@ describe('RbacService.revokeRole', () => {
     const service = new RbacService(dataverse, makeMockAuditWriter());
 
     // Act
-    await service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, CORRELATION_ID).catch(() => undefined);
+    await service.revokeRole(ASSIGNMENT_ID, ACTOR_ID, TEST_CTX).catch(() => undefined);
 
-    // Assert — update must not have been called (guard fires before update)
+    // Assert â€” update must not have been called (guard fires before update)
     expect(dataverse.update).not.toHaveBeenCalled();
   });
 });
@@ -311,7 +313,7 @@ describe('RbacService.initiatePromotion', () => {
     const result = await service.initiatePromotion(
       { targetUserId: TARGET_USER_ID, targetRole: 'portal-admin' },
       ACTOR_ID,
-      CORRELATION_ID,
+      TEST_CTX,
     );
 
     // Assert
@@ -334,7 +336,7 @@ describe('RbacService.initiatePromotion', () => {
       service.initiatePromotion(
         { targetUserId: TARGET_USER_ID, targetRole: 'staff-viewer' as 'portal-admin' },
         ACTOR_ID,
-        CORRELATION_ID,
+        TEST_CTX,
       ),
     ).rejects.toMatchObject({ code: 'unsupported_promotion_role', statusCode: 400 });
   });
@@ -354,7 +356,7 @@ describe('RbacService.initiatePromotion', () => {
       service.initiatePromotion(
         { targetUserId: TARGET_USER_ID, targetRole: 'portal-admin' },
         ACTOR_ID,
-        CORRELATION_ID,
+        TEST_CTX,
       ),
     ).rejects.toMatchObject({ code: 'promotion_already_pending', statusCode: 409 });
   });
@@ -373,7 +375,7 @@ describe('RbacService.initiatePromotion', () => {
       .initiatePromotion(
         { targetUserId: TARGET_USER_ID, targetRole: 'portal-admin' },
         ACTOR_ID,
-        CORRELATION_ID,
+        TEST_CTX,
       )
       .catch(() => undefined);
 
@@ -414,7 +416,7 @@ describe('RbacService.approvePromotion', () => {
     const service = new RbacService(dataverse, audit);
 
     // Act
-    const result = await service.approvePromotion(PROMOTION_ID, APPROVER_ID, CORRELATION_ID);
+    const result = await service.approvePromotion(PROMOTION_ID, APPROVER_ID, TEST_CTX);
 
     // Assert
     expect(result.roleSlug).toBe('portal-admin');
@@ -443,7 +445,7 @@ describe('RbacService.approvePromotion', () => {
     const service = new RbacService(dataverse, audit);
 
     // Act
-    await service.approvePromotion(PROMOTION_ID, APPROVER_ID, CORRELATION_ID);
+    await service.approvePromotion(PROMOTION_ID, APPROVER_ID, TEST_CTX);
 
     // Assert
     const [auditArgs] = (audit.logPromotionApproved as ReturnType<typeof vi.fn>).mock.calls[0]!;
@@ -452,7 +454,7 @@ describe('RbacService.approvePromotion', () => {
   });
 
   it('approvePromotion_selfApprovalProhibited_throws409', async () => {
-    // Arrange — approverId === initiatedBy
+    // Arrange â€” approverId === initiatedBy
     const dataverse = makeMockDataverse({
       getById: vi.fn().mockResolvedValue(makePendingPromotion({ qdb_initiated_by: APPROVER_ID })),
     });
@@ -460,12 +462,12 @@ describe('RbacService.approvePromotion', () => {
 
     // Act & Assert
     await expect(
-      service.approvePromotion(PROMOTION_ID, APPROVER_ID, CORRELATION_ID),
+      service.approvePromotion(PROMOTION_ID, APPROVER_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'self_approval_prohibited', statusCode: 409 });
   });
 
   it('approvePromotion_promotionNotPending_throws409', async () => {
-    // Arrange — status = approved (2)
+    // Arrange â€” status = approved (2)
     const dataverse = makeMockDataverse({
       getById: vi.fn().mockResolvedValue(
         makePendingPromotion({ qdb_status: 2, qdb_initiated_by: INITIATOR_ID }),
@@ -475,12 +477,12 @@ describe('RbacService.approvePromotion', () => {
 
     // Act & Assert
     await expect(
-      service.approvePromotion(PROMOTION_ID, APPROVER_ID, CORRELATION_ID),
+      service.approvePromotion(PROMOTION_ID, APPROVER_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'promotion_not_pending', statusCode: 409 });
   });
 
   it('approvePromotion_promotionExpired_throws409', async () => {
-    // Arrange — expiresAt is in the past
+    // Arrange â€” expiresAt is in the past
     const pastExpiry = new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago
     const dataverse = makeMockDataverse({
       getById: vi.fn().mockResolvedValue(
@@ -491,7 +493,7 @@ describe('RbacService.approvePromotion', () => {
 
     // Act & Assert
     await expect(
-      service.approvePromotion(PROMOTION_ID, APPROVER_ID, CORRELATION_ID),
+      service.approvePromotion(PROMOTION_ID, APPROVER_ID, TEST_CTX),
     ).rejects.toMatchObject({ code: 'promotion_expired', statusCode: 409 });
   });
 });
@@ -516,7 +518,7 @@ describe('RbacService.rejectPromotion', () => {
     const service = new RbacService(dataverse, audit);
 
     // Act
-    await service.rejectPromotion(PROMOTION_ID, REJECTOR_ID, 'Insufficient justification', CORRELATION_ID);
+    await service.rejectPromotion(PROMOTION_ID, REJECTOR_ID, 'Insufficient justification', TEST_CTX);
 
     // Assert
     expect(dataverse.update).toHaveBeenCalledOnce();
@@ -529,7 +531,7 @@ describe('RbacService.rejectPromotion', () => {
   });
 
   it('rejectPromotion_selfApprovalProhibited_throws409', async () => {
-    // Arrange — rejector === initiator
+    // Arrange â€” rejector === initiator
     const dataverse = makeMockDataverse({
       getById: vi.fn().mockResolvedValue(
         makeDataversePromotion({ qdb_initiated_by: REJECTOR_ID }),
@@ -539,19 +541,19 @@ describe('RbacService.rejectPromotion', () => {
 
     // Act & Assert
     await expect(
-      service.rejectPromotion(PROMOTION_ID, REJECTOR_ID, 'reason', CORRELATION_ID),
+      service.rejectPromotion(PROMOTION_ID, REJECTOR_ID, 'reason', TEST_CTX),
     ).rejects.toMatchObject({ code: 'self_approval_prohibited', statusCode: 409 });
   });
 });
 
 // ---------------------------------------------------------------------------
 // RbacAuditWriter append-only contract
-// (Uses RbacAuditWriter directly — validates AC-RBAC-004)
+// (Uses RbacAuditWriter directly â€” validates AC-RBAC-004)
 // ---------------------------------------------------------------------------
 
 describe('RbacAuditWriter_appendOnlyContract', () => {
   it('auditWriter_never_calls_update_or_delete_on_any_log_method', async () => {
-    // Arrange — import inline to avoid circular dep in test; cast is fine for mock
+    // Arrange â€” import inline to avoid circular dep in test; cast is fine for mock
     const { RbacAuditWriter } = await import('./RbacAuditWriter.js');
     const dvMock = {
       create: vi.fn().mockResolvedValue(undefined),
@@ -563,7 +565,7 @@ describe('RbacAuditWriter_appendOnlyContract', () => {
     } as unknown as DataverseClient;
     const writer = new RbacAuditWriter(dvMock);
 
-    // Act — call all 7 log methods
+    // Act â€” call all 7 log methods
     const baseParams = { actorUserId: 'u1', correlationId: 'c1', ipAddress: '127.0.0.1' };
     await writer.logRoleAssigned(baseParams);
     await writer.logRoleRevoked(baseParams);

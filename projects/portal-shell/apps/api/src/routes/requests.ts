@@ -2,9 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { DataverseClient } from '@portal/dataverse-client';
 import type { UserRequest, RequestDetail, RequestTimelineEntry, RequestDocument } from '@portal/types';
+import type { RbacAuditWriter } from '../services/RbacAuditWriter.js';
 
 interface RequestRouteOptions {
   dataverse: DataverseClient;
+  rbacAuditWriter: RbacAuditWriter;
 }
 
 const REQUEST_ENTITY = 'qdb_portal_requests';
@@ -41,7 +43,7 @@ interface DataverseRequest {
  */
 export async function requestRoutes(
   app: FastifyInstance,
-  { dataverse }: RequestRouteOptions,
+  { dataverse, rbacAuditWriter }: RequestRouteOptions,
 ): Promise<void> {
   // GET /api/requests
   app.get<{ Reply: { data: UserRequest[] } }>(
@@ -72,10 +74,10 @@ export async function requestRoutes(
   );
 
   // GET /api/requests/:id
-  app.get<{ Params: { id: string }; Reply: { data: RequestDetail } }>(
+  app.get<{ Params: { id: string }; Reply: { data: RequestDetail } | { code: string; message: string } }>(
     '/api/requests/:id',
     {
-      preHandler: [app.authenticate],
+      preHandler: [app.authenticate, app.requirePermission('read', 'CitizenPII')],
       schema: { tags: ['Requests'], summary: 'Get a request detail including timeline and documents' },
     },
     async (request, reply) => {
@@ -114,6 +116,15 @@ export async function requestRoutes(
         timeline,
         documents,
       };
+
+      // AC-RBAC-001: every read of CitizenPII fields must be audit-logged
+      rbacAuditWriter.logPiiAccessed({
+        actorUserId: userId,
+        resourceId: id,
+        subject: 'CitizenPII',
+        correlationId,
+        ipAddress: request.ip,
+      }).catch(() => {}); // audit failure must not break the response
 
       return reply.status(200).send({ data: detail });
     },

@@ -111,7 +111,9 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       await entityRoutes(instance, { entityService });
       await notificationRoutes(instance, { notificationService });
       await serviceRoutes(instance, { dataverse: instance.dataverse });
-      await requestRoutes(instance, { dataverse: instance.dataverse });
+
+      const rbacAuditWriter = new RbacAuditWriter(instance.dataverse);
+      await requestRoutes(instance, { dataverse: instance.dataverse, rbacAuditWriter });
       await widgetRoutes(instance, { dataverse: instance.dataverse });
       await adminPortalConfigRoutes(instance, { portalConfigService });
       await adminNavRoutes(instance, { navService });
@@ -124,7 +126,6 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       const componentRegistryService = new ComponentRegistryService(instance.dataverse);
       await adminComponentRoutes(instance, { componentRegistryService });
 
-      const rbacAuditWriter = new RbacAuditWriter(instance.dataverse);
       const rbacService = new RbacService(instance.dataverse, rbacAuditWriter);
       instance.decorate('rbacAuditWriter', rbacAuditWriter);
       instance.decorate('rbacService', rbacService);
