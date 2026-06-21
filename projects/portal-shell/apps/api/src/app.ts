@@ -38,6 +38,20 @@ import { RbacAuditWriter } from './services/RbacAuditWriter.js';
 import { RbacService } from './services/RbacService.js';
 import { adminRbacRoutes } from './routes/admin/rbac.js';
 
+// DXP-P1-003: Theme Token System
+import { createTokenCacheService } from './services/tokens/createTokenCacheService.js';
+import { DataverseTokenDefinitionRepository } from './services/tokens/TokenDefinitionRepository.js';
+import { DataverseTokenValueRepository } from './services/tokens/TokenValueRepository.js';
+import { TokenResolutionService } from './services/tokens/TokenResolutionService.js';
+import { TokenDefinitionService } from './services/tokens/TokenDefinitionService.js';
+import { TokenValueService } from './services/tokens/TokenValueService.js';
+import { tokenResolveRoutes } from './routes/tokens/resolve.js';
+import { adminTokenDefinitionRoutes } from './routes/admin/tokens/definitions.js';
+import { adminTokenValueRoutes } from './routes/admin/tokens/values.js';
+import { adminTokenPublishRoutes } from './routes/admin/tokens/publish.js';
+import { adminTokenPreviewRoutes } from './routes/admin/tokens/preview.js';
+import { serviceTokenRoutes } from './routes/service/tokens.js';
+
 /**
  * Builds and configures the Fastify application instance.
  *
@@ -130,6 +144,51 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       instance.decorate('rbacAuditWriter', rbacAuditWriter);
       instance.decorate('rbacService', rbacService);
       await adminRbacRoutes(instance, { rbacService });
+
+      // DXP-P1-003: Theme Token System
+      const tokenCacheService = createTokenCacheService(config.REDIS_URL);
+      const tokenDefinitionRepo = new DataverseTokenDefinitionRepository(instance.dataverse);
+      const tokenValueRepo = new DataverseTokenValueRepository(instance.dataverse);
+      const tokenResolutionService = new TokenResolutionService();
+      const tokenDefinitionService = new TokenDefinitionService(
+        tokenDefinitionRepo,
+        tokenValueRepo,
+        tokenCacheService,
+        config.TOKEN_DEFINITION_SOFT_LIMIT,
+      );
+      const tokenValueService = new TokenValueService(
+        tokenDefinitionRepo,
+        tokenValueRepo,
+        tokenCacheService,
+      );
+
+      await tokenResolveRoutes(instance, {
+        cacheService: tokenCacheService,
+        tokenResolutionService,
+        definitionRepo: tokenDefinitionRepo,
+        valueRepo: tokenValueRepo,
+      });
+      await adminTokenDefinitionRoutes(instance, { tokenDefinitionService });
+      await adminTokenValueRoutes(instance, { tokenValueService });
+      await adminTokenPublishRoutes(instance, {
+        cacheService: tokenCacheService,
+        definitionRepo: tokenDefinitionRepo,
+        valueRepo: tokenValueRepo,
+        publishMinIntervalMs: config.TOKEN_PUBLISH_MIN_INTERVAL_MS,
+      });
+      await adminTokenPreviewRoutes(instance, {
+        cacheService: tokenCacheService,
+        tokenResolutionService,
+        definitionRepo: tokenDefinitionRepo,
+        valueRepo: tokenValueRepo,
+      });
+      await serviceTokenRoutes(instance, {
+        cacheService: tokenCacheService,
+        tokenResolutionService,
+        tokenValueService,
+        definitionRepo: tokenDefinitionRepo,
+        valueRepo: tokenValueRepo,
+      });
     }),
   );
 
@@ -154,6 +213,13 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
         message: 'Request validation failed',
         details: err.issues,
       });
+    }
+
+    // TokenPublishRateLimitedError carries retryAfterMs — emit the RFC 7231 Retry-After header.
+    const extErr = err as Error & { code?: string; statusCode?: number; retryAfterMs?: number };
+    if (extErr.code === 'publish_rate_limited' && extErr.retryAfterMs !== undefined) {
+      const retryAfterSec = Math.ceil(extErr.retryAfterMs / 1000);
+      void reply.header('Retry-After', String(retryAfterSec));
     }
 
     const statusCode = err.statusCode ?? 500;

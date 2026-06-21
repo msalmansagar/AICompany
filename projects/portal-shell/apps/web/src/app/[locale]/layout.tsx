@@ -1,16 +1,13 @@
 import React from 'react';
 import type { Metadata } from 'next';
-import { FluentProvider, webLightTheme } from '@fluentui/react-components';
-import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
-import { SessionProvider } from 'next-auth/react';
-import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
-import { auth } from '../../lib/auth';
+import { dehydrate } from '@tanstack/react-query';
+import { getCachedAuth } from '../../lib/cached-auth';
 import { getPortalConfig, getPortalId } from '../../lib/portal-config';
 import { makeQueryClient } from '../../lib/query-client';
-import { PortalConfigProvider } from '../../contexts/PortalConfigContext';
-import { ActiveEntityProvider } from '../../contexts/ActiveEntityContext';
-import { QueryClientProviderWrapper } from '../../components/providers/QueryClientProviderWrapper';
+import { Providers } from '../../components/providers/Providers';
+import { resolveTokensForSSR } from '../../lib/tokens/resolveTokens';
+import { buildCSSCustomProperties } from '../../lib/tokens/injectTokenStyles';
 import type { PortalConfig } from '@portal/types';
 
 interface LocaleLayoutProps {
@@ -50,7 +47,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
 
   const messages = await getMessages();
   const portalId = getPortalId();
-  const session = await auth();
+  const session = await getCachedAuth();
 
   let portalConfig: PortalConfig | null = null;
   try {
@@ -59,30 +56,42 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
     // Portal config failed — render with a null-safe fallback in children
   }
 
-  const isRtl = locale === 'ar';
+  // Resolve the token map at SSR time (ADR-003-004).
+  // layout-level call omits service/category/componentSlug — covers Levels 1 and 2.
+  // On API failure resolveTokensForSSR returns {} so the portal renders without CSS vars.
+  const tokenMap = await resolveTokensForSSR({
+    renderTarget: 'portal',
+    locale: locale === 'ar' ? 'ar' : 'en',
+  });
+
+  const cssVars = buildCSSCustomProperties(tokenMap);
+
+  // Derive text direction: prefer token value so the token system controls it;
+  // fall back to locale-based heuristic so the page is never directionless.
+  const textDirection = tokenMap['text-direction'] ?? (locale === 'ar' ? 'rtl' : 'ltr');
+  const isRtl = textDirection === 'rtl';
+
   const queryClient = makeQueryClient();
   const dehydratedState = dehydrate(queryClient);
 
   return (
-    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} suppressHydrationWarning>
+    <html lang={locale} dir={textDirection} suppressHydrationWarning>
+      <head>
+        {cssVars.length > 0 && (
+          <style dangerouslySetInnerHTML={{ __html: `:root { ${cssVars} }` }} />
+        )}
+      </head>
       <body>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <FluentProvider theme={webLightTheme} dir={isRtl ? 'rtl' : 'ltr'}>
-            <SessionProvider session={session}>
-              <QueryClientProviderWrapper dehydratedState={dehydratedState}>
-                {portalConfig ? (
-                  <PortalConfigProvider value={portalConfig}>
-                    <ActiveEntityProvider>
-                      {children}
-                    </ActiveEntityProvider>
-                  </PortalConfigProvider>
-                ) : (
-                  children
-                )}
-              </QueryClientProviderWrapper>
-            </SessionProvider>
-          </FluentProvider>
-        </NextIntlClientProvider>
+        <Providers
+          locale={locale}
+          messages={messages}
+          session={session}
+          dehydratedState={dehydratedState}
+          portalConfig={portalConfig}
+          isRtl={isRtl}
+        >
+          {children}
+        </Providers>
       </body>
     </html>
   );

@@ -30,6 +30,11 @@ const EnvironmentSchema = z.object({
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(3600),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().min(3600).max(2592000).default(86400),
   RESET_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(86400).default(900),
+
+  // DXP-P1-003: Theme Token System (ADR-003-001, ADR-003-006, ADR-003-007)
+  REDIS_URL: z.string().url().optional(),
+  TOKEN_DEFINITION_SOFT_LIMIT: z.coerce.number().int().default(200),
+  TOKEN_PUBLISH_MIN_INTERVAL_MS: z.coerce.number().int().default(10000),
 });
 
 export type AppConfig = z.infer<typeof EnvironmentSchema>;
