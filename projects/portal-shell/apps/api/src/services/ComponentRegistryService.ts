@@ -35,6 +35,9 @@ interface DataverseVersion {
   qdb_component_versionsid: string;
   qdb_versionnumber: string;
   qdb_propsschema: string | null;
+  qdb_defaultprops: string | null;
+  qdb_bundleurl: string | null;
+  qdb_deprecatedon: string | null;
   qdb_islatest: boolean;
   qdb_changelog: string | null;
   '_qdb_definitionid_value': string;
@@ -71,11 +74,15 @@ export interface PatchDefinitionBody {
 export interface CreateVersionBody {
   versionNumber: string;
   propsSchema?: string | undefined;
+  defaultProps?: string | undefined;
+  bundleUrl?: string | undefined;
   changeLog?: string | undefined;
 }
 
 export interface PatchVersionBody {
   changeLog?: string | undefined;
+  bundleUrl?: string | undefined;
+  deprecatedOn?: string | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +264,8 @@ export class ComponentRegistryService {
           'qdb_versionnumber',
           'qdb_islatest',
           'qdb_changelog',
+          'qdb_bundleurl',
+          'qdb_deprecatedon',
           '_qdb_definitionid_value',
           'statecode',
           'createdon',
@@ -288,6 +297,9 @@ export class ComponentRegistryService {
           'qdb_component_versionsid',
           'qdb_versionnumber',
           'qdb_propsschema',
+          'qdb_defaultprops',
+          'qdb_bundleurl',
+          'qdb_deprecatedon',
           'qdb_islatest',
           'qdb_changelog',
           '_qdb_definitionid_value',
@@ -342,6 +354,8 @@ export class ComponentRegistryService {
       {
         qdb_versionnumber: body.versionNumber,
         ...(body.propsSchema !== undefined && { qdb_propsschema: body.propsSchema }),
+        ...(body.defaultProps !== undefined && { qdb_defaultprops: body.defaultProps }),
+        ...(body.bundleUrl !== undefined && { qdb_bundleurl: body.bundleUrl }),
         ...(body.changeLog !== undefined && { qdb_changelog: body.changeLog }),
         qdb_islatest: false,
         // Navigation property bind uses SchemaName (PascalCase), not logical name
@@ -353,7 +367,11 @@ export class ComponentRegistryService {
     const newVersionList = await this.dataverse.getList<DataverseVersion>(
       VERSIONS_ENTITY,
       {
-        select: ['qdb_component_versionsid', 'qdb_versionnumber', 'qdb_propsschema', 'qdb_islatest', 'qdb_changelog', '_qdb_definitionid_value', 'statecode', 'createdon'],
+        select: [
+          'qdb_component_versionsid', 'qdb_versionnumber', 'qdb_propsschema',
+          'qdb_defaultprops', 'qdb_bundleurl', 'qdb_deprecatedon',
+          'qdb_islatest', 'qdb_changelog', '_qdb_definitionid_value', 'statecode', 'createdon',
+        ],
         filter: `_qdb_definitionid_value eq ${definitionId} and qdb_versionnumber eq '${escapeODataString(body.versionNumber)}' and statecode eq 0`,
         top: 1,
       },
@@ -375,14 +393,14 @@ export class ComponentRegistryService {
   ): Promise<void> {
     await this.getVersionById(definitionId, versionId, correlationId);
 
-    if (body.changeLog === undefined) return;
+    const patch: Record<string, unknown> = {};
+    if (body.changeLog !== undefined) patch['qdb_changelog'] = body.changeLog;
+    if (body.bundleUrl !== undefined) patch['qdb_bundleurl'] = body.bundleUrl;
+    if (body.deprecatedOn !== undefined) patch['qdb_deprecatedon'] = body.deprecatedOn;
 
-    await this.dataverse.update(
-      VERSIONS_ENTITY,
-      versionId,
-      { qdb_changelog: body.changeLog },
-      { correlationId },
-    );
+    if (Object.keys(patch).length === 0) return;
+
+    await this.dataverse.update(VERSIONS_ENTITY, versionId, patch, { correlationId });
   }
 
   async deactivateVersion(
@@ -453,6 +471,32 @@ export class ComponentRegistryService {
     );
   }
 
+  async getLatestVersion(
+    definitionId: string,
+    correlationId: string,
+  ): Promise<ComponentVersionDetail> {
+    const result = await this.dataverse.getList<DataverseVersion>(
+      VERSIONS_ENTITY,
+      {
+        select: [
+          'qdb_component_versionsid', 'qdb_versionnumber', 'qdb_propsschema',
+          'qdb_defaultprops', 'qdb_bundleurl', 'qdb_deprecatedon',
+          'qdb_islatest', 'qdb_changelog', '_qdb_definitionid_value', 'statecode', 'createdon',
+        ],
+        filter: `_qdb_definitionid_value eq ${definitionId} and qdb_islatest eq true and statecode eq 0 and qdb_deprecatedon eq null`,
+        top: 1,
+      },
+      { correlationId },
+    );
+
+    const version = result.value[0];
+    if (version === undefined) {
+      throw new RegistryError('no_active_latest_version', 'No active latest version found for this component', 404);
+    }
+
+    return mapToVersionDetail(version);
+  }
+
   private async findDefinitionByName(
     name: string,
     correlationId: string,
@@ -521,6 +565,8 @@ function mapToVersionSummary(record: DataverseVersion): ComponentVersionSummary 
     versionNumber: record.qdb_versionnumber,
     isLatest: record.qdb_islatest,
     changeLog: record.qdb_changelog ?? null,
+    bundleUrl: record.qdb_bundleurl ?? null,
+    deprecatedOn: record.qdb_deprecatedon ?? null,
     definitionId: record['_qdb_definitionid_value'],
     createdOn: record.createdon,
   };
@@ -530,6 +576,7 @@ function mapToVersionDetail(record: DataverseVersion): ComponentVersionDetail {
   return {
     ...mapToVersionSummary(record),
     propsSchema: record.qdb_propsschema ?? null,
+    defaultProps: record.qdb_defaultprops ?? null,
   };
 }
 

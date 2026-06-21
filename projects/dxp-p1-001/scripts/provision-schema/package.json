@@ -6,6 +6,8 @@
   "scripts": {
     "provision": "tsx src/index.ts",
     "provision:dry": "DRY_RUN=true tsx src/index.ts",
+    "migrate:add-version-fields": "tsx src/migrations/AddVersionFields.ts",
+    "migrate:add-version-fields:dry": "DRY_RUN=true tsx src/migrations/AddVersionFields.ts",
     "migrate:fix-props-schema-maxlength": "tsx src/migrations/FixPropsSchemaMaxLength.ts",
     "migrate:fix-props-schema-maxlength:dry": "DRY_RUN=true tsx src/migrations/FixPropsSchemaMaxLength.ts",
     "test": "vitest run",

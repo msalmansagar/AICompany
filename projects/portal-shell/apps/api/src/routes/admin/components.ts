@@ -42,13 +42,18 @@ const PatchDefinitionSchema = z.object({
 const CreateVersionSchema = z.object({
   versionNumber: z.string().min(1).max(50),
   propsSchema: z.string().max(1048576).optional(),
+  defaultProps: z.string().max(1048576).optional(),
+  bundleUrl: z.string().url().max(2048).optional(),
   changeLog: z.string().max(4000).optional(),
 });
 
-// isLatest, propsSchema, versionNumber are immutable after creation (BRD C-005, C-006).
-// .strict() ensures sending them returns 400, not a silent strip.
+// isLatest, propsSchema, versionNumber, defaultProps are immutable after creation (BRD C-005, C-006).
+// deprecatedOn cannot be cleared once set to a non-null value.
+// .strict() ensures sending immutable fields returns 400, not a silent strip.
 const PatchVersionSchema = z.object({
   changeLog: z.string().max(4000).optional(),
+  bundleUrl: z.string().url().max(2048).optional(),
+  deprecatedOn: z.string().datetime().optional(),
 }).strict();
 
 type AuthHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
@@ -64,7 +69,8 @@ type AuthHandler = (request: FastifyRequest, reply: FastifyReply) => Promise<voi
  *   DELETE /api/admin/components/:id                                    — deactivate definition
  *   GET    /api/admin/components/:id/versions                           — list versions
  *   POST   /api/admin/components/:id/versions                           — create version
- *   GET    /api/admin/components/:id/versions/:versionId                — get version
+ *   GET    /api/admin/components/:id/versions/latest                    — get current latest non-deprecated version
+ *   GET    /api/admin/components/:id/versions/:versionId                — get version by ID
  *   PATCH  /api/admin/components/:id/versions/:versionId                — update version
  *   DELETE /api/admin/components/:id/versions/:versionId                — deactivate version
  *   POST   /api/admin/components/:id/versions/:versionId/set-latest     — promote version to latest
@@ -246,6 +252,30 @@ export async function adminComponentRoutes(
       try {
         const created = await registry.createVersion(id, body, request.correlationId);
         return reply.status(201).send({ data: created });
+      } catch (error) {
+        return handleRegistryError(error, reply);
+      }
+    },
+  );
+
+  // GET /api/admin/components/:id/versions/latest
+  // Registered before /:versionId so Fastify matches the static segment first.
+  app.get(
+    '/api/admin/components/:id/versions/latest',
+    { preHandler: authGuard },
+    async (request, reply) => {
+      const { id } = IdParamSchema.parse(request.params);
+
+      app.log.info({
+        operation: 'admin.components.versions.getLatest',
+        correlationId: request.correlationId,
+        userId: request.userId,
+        componentId: id,
+      });
+
+      try {
+        const version = await registry.getLatestVersion(id, request.correlationId);
+        return reply.status(200).send({ data: version });
       } catch (error) {
         return handleRegistryError(error, reply);
       }
