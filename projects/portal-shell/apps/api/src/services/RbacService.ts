@@ -156,11 +156,14 @@ export class RbacService {
     actorId: string,
     correlationId: string,
   ): Promise<RbacUserRole> {
-    validateCrossPopulation(body.userId, body.roleSlug);
     guardPortalAdminDirectAssign(body.roleSlug);
 
-    const nextVersion = (await this.getCurrentRbacVersion(body.userId, correlationId)) + 1;
-    const population = resolvePopulation(body.roleSlug);
+    const incomingPopulation = resolvePopulation(body.roleSlug);
+    const existingRoles = await this.getActiveRoles(body.userId, correlationId);
+    validateCrossPopulation(incomingPopulation, existingRoles);
+
+    const nextVersion = existingRoles.reduce((max, r) => Math.max(max, r.rbacVersion), 0) + 1;
+    const population = incomingPopulation;
 
     await this.dataverse.create<unknown>(
       USER_ROLES_ENTITY,
@@ -606,20 +609,18 @@ export class RbacService {
 // Validation helpers — pure functions, no side effects
 // ---------------------------------------------------------------------------
 
-function validateCrossPopulation(userId: string, roleSlug: string): void {
-  // The actual population of the userId would require a Dataverse lookup.
-  // The guard enforces that staff roles cannot be assigned alongside citizen roles
-  // for the same account. Population is derived from the role slug itself
-  // (AC-RBAC-006 — client-supplied population is rejected).
-  if (!STAFF_ROLE_SLUGS.has(roleSlug) && !CITIZEN_ROLE_SLUGS.has(roleSlug)) {
-    throw new RbacError('unknown_role', `Unknown role slug '${roleSlug}'`, 400);
+function validateCrossPopulation(
+  incomingPopulation: 'staff' | 'citizen',
+  existingRoles: RbacUserRole[],
+): void {
+  const conflict = existingRoles.find((r) => r.population !== incomingPopulation);
+  if (conflict !== undefined) {
+    throw new RbacError(
+      'cross_population_role_prohibited',
+      'Cannot mix staff and citizen roles on the same user account',
+      400,
+    );
   }
-  // Cross-population detection at assignment time: the service layer validates
-  // the population derived from the slug, not from client input.
-  // Actual cross-population check (staff user getting citizen role and vice versa)
-  // requires knowing the user's current population — enforced via the Dataverse
-  // alternate key qdb_UserRoleKey which prevents (userId, roleSlug) duplicates.
-  void userId;
 }
 
 function guardPortalAdminDirectAssign(roleSlug: string): void {

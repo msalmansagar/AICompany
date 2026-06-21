@@ -286,7 +286,7 @@ export async function adminRbacRoutes(
   // GET /api/admin/rbac/audit
   app.get(
     '/api/admin/rbac/audit',
-    { preHandler: authOnly },
+    { preHandler: adminGuard },
     async (request, reply) => {
       const query = AuditLogQuerySchema.parse(request.query);
 
