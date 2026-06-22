@@ -138,12 +138,25 @@ const downloadDocumentSetting = JSON.stringify({
 // qdb_templateguid is the lookup on qdb_edms that points to the document template.
 // The OData bind uses /documenttemplates (not /qdb_documenttemplates) because
 // documenttemplates is a standard Dataverse entity, not a custom qdb_* one.
+//
+// {submissionId} and {annotationId} are template variables resolved at runtime by
+// CrmSubmissionService.buildEdmsPayload — they are not literal GUIDs.
 const uploadDocumentSetting = JSON.stringify({
   entityName:      'qdb_edms',
   attributeConfig: [
     {
       attributeName:  'qdb_templateguid@odata.bind',
       attributeValue: `/documenttemplates(${INVOICE_TEMPLATE_ID})`,
+      type:           'lookup',
+    },
+    {
+      attributeName:  'qdb_submissionid@odata.bind',
+      attributeValue: '/qdb_form_submission_logs({submissionId})',
+      type:           'lookup',
+    },
+    {
+      attributeName:  'qdb_annotationid@odata.bind',
+      attributeValue: '/annotations({annotationId})',
       type:           'lookup',
     },
   ],
@@ -169,7 +182,11 @@ console.log('\n[4] Field patched ✓');
 console.log('\n=== Done ===');
 console.log('\nField demo_bank_statement on doc_template_demo now has:');
 console.log(`  qdb_download_document_setting → documentName: "${INVOICE_TEMPLATE_NAME}"`);
-console.log(`  qdb_upload_document_setting   → qdb_templateguid@odata.bind: /documenttemplates(${INVOICE_TEMPLATE_ID})`);
-console.log('\nThe download button will call CrmDocumentService which fetches the Invoice template');
-console.log('from /documenttemplates and streams it as an Excel file.');
-console.log('The upload setting carries the real template GUID for the EDMS service to use on submission.');
+console.log(`  qdb_upload_document_setting   → 3 bindings:`);
+console.log(`    qdb_templateguid@odata.bind  = /documenttemplates(${INVOICE_TEMPLATE_ID})`);
+console.log(`    qdb_submissionid@odata.bind  = /qdb_form_submission_logs({submissionId})`);
+console.log(`    qdb_annotationid@odata.bind  = /annotations({annotationId})`);
+console.log('\nOn submission, CrmSubmissionService.processFileUploadSettings will:');
+console.log('  1. Detect the file field has uploadDocumentSetting');
+console.log('  2. Substitute {submissionId} and {annotationId} with real runtime IDs');
+console.log('  3. POST to /qdb_edmss to create the EDMS record with all three bindings');

@@ -1,9 +1,24 @@
 ﻿import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
-import { CrmApiError } from '../utils/errors.js';
+import { CrmApiError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
+
+interface UploadAttributeConfig {
+  attributeName: string;
+  attributeValue: string;
+  type: string;
+}
+
+interface UploadDocumentSetting {
+  entityName: string;
+  attributeConfig: UploadAttributeConfig[];
+}
+
+interface UploadedFileRef {
+  fileId: string;
+}
 
 export class CrmSubmissionService extends CrmBaseService {
   constructor(
@@ -35,6 +50,11 @@ export class CrmSubmissionService extends CrmBaseService {
       const parentPayload = this.buildPayload(parentMappings, fieldValues, fieldIdToSchemaName);
       const parentRecordId = await this.createRecord(parentEntityName, parentPayload);
       createdRecords.push({ entity: parentEntityName, id: parentRecordId });
+
+      // Create EDMS records for any file fields that carry an uploadDocumentSetting.
+      await this.processFileUploadSettings(
+        formDefinition, fieldValues, parentRecordId, parentEntityName, createdRecords,
+      );
 
       // Create child records grouped by entity + relationship
       const childMappings = formDefinition.submissionMappings.filter(
@@ -163,12 +183,26 @@ export class CrmSubmissionService extends CrmBaseService {
       const value = fieldValues[schemaName];
       if (value === undefined || value === null) continue;
 
+      const normalized = this.normalizeFieldValue(value);
       payload[mapping.targetAttributeLogicalName] = mapping.transformExpression
-        ? this.applyTransform(value, mapping.transformExpression)
-        : value;
+        ? this.applyTransform(normalized, mapping.transformExpression)
+        : normalized;
     }
 
     return payload;
+  }
+
+  private normalizeFieldValue(value: unknown): unknown {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === 'object' &&
+      value[0] !== null &&
+      'fileId' in (value[0] as object)
+    ) {
+      return (value as Array<{ fileId: string }>).map((ref) => ref.fileId);
+    }
+    return value;
   }
 
   private applyTransform(value: unknown, expression: string): unknown {
@@ -197,6 +231,103 @@ export class CrmSubmissionService extends CrmBaseService {
 
     return groups;
   }
+
+  // ── Upload document setting ───────────────────────────────────────────────────
+
+  private async processFileUploadSettings(
+    formDefinition: FormDefinition,
+    fieldValues: FormFieldValues,
+    parentRecordId: string,
+    parentEntityLogicalName: string,
+    createdRecords: Array<{ entity: string; id: string }>,
+  ): Promise<void> {
+    const allFields = this.collectAllFields(formDefinition);
+
+    for (const field of allFields) {
+      if (!field.uploadDocumentSetting) continue;
+
+      const rawValue = fieldValues[field.schemaName];
+      if (!rawValue || !Array.isArray(rawValue) || rawValue.length === 0) continue;
+
+      const fileRefs = rawValue as UploadedFileRef[];
+      if (!fileRefs[0]?.fileId) continue;
+
+      const setting = this.parseUploadSetting(field.uploadDocumentSetting, field.schemaName);
+
+      for (const fileRef of fileRefs) {
+        const payload = this.buildEdmsPayload(setting.attributeConfig, {
+          submissionId: parentRecordId,
+          parentEntityLogicalName,
+          annotationId: fileRef.fileId,
+        });
+
+        const edmsId = await this.createRecord(setting.entityName, payload);
+        createdRecords.push({ entity: setting.entityName, id: edmsId });
+
+        logger.info(
+          { edmsId, entityName: setting.entityName, fieldSchema: field.schemaName, annotationId: fileRef.fileId },
+          'EDMS record created for uploaded file',
+        );
+      }
+    }
+  }
+
+  private collectAllFields(formDefinition: FormDefinition): FieldDefinition[] {
+    const fields: FieldDefinition[] = [];
+    for (const tab of formDefinition.tabs) {
+      for (const section of tab.sections) {
+        for (const field of section.fields) {
+          fields.push(field);
+          if (field.childFields) fields.push(...field.childFields);
+        }
+      }
+    }
+    return fields;
+  }
+
+  private parseUploadSetting(json: string, fieldSchema: string): UploadDocumentSetting {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new ValidationError(
+        `uploadDocumentSetting on field '${fieldSchema}' contains invalid JSON`,
+      );
+    }
+
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof (parsed as Record<string, unknown>).entityName !== 'string' ||
+      !Array.isArray((parsed as Record<string, unknown>).attributeConfig)
+    ) {
+      throw new ValidationError(
+        `uploadDocumentSetting on field '${fieldSchema}' must have shape { entityName: string, attributeConfig: [...] }`,
+      );
+    }
+
+    return parsed as UploadDocumentSetting;
+  }
+
+  private buildEdmsPayload(
+    configs: UploadAttributeConfig[],
+    vars: { submissionId: string; parentEntityLogicalName: string; annotationId: string },
+  ): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+
+    for (const config of configs) {
+      const value = config.attributeValue
+        .replace('{submissionId}', vars.submissionId)
+        .replace('{parentEntityName}', vars.parentEntityLogicalName)
+        .replace('{annotationId}', vars.annotationId);
+
+      payload[config.attributeName] = value;
+    }
+
+    return payload;
+  }
+
+  // ── CRM record operations ─────────────────────────────────────────────────────
 
   private async createRecord(
     entityLogicalName: string,
