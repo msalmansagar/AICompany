@@ -102,7 +102,7 @@ function resolveFieldComponent(
     case 'lookup':
       return <FormLookupField field={field} control={control} />;
     case 'file':
-      return <FormFileField field={field} control={control} />;
+      return <FormFileField field={field} control={control} accessToken={accessToken} />;
     case 'grid':
       return field.gridConfig?.mode === 'selection'
         ? (

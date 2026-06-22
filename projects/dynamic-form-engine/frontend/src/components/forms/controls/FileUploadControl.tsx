@@ -246,11 +246,13 @@ export function FileUploadControl({
   const formattedMaxSize = formatBytes(maxSize);
   const allowedTypes = resolveAllowedTypesLabel(config?.allowedFileExtensions, config?.allowedMimeTypes);
 
+  const [isDownloading, setIsDownloading] = useState(false);
+
   function handleTemplateDownload() {
     const setting = field.downloadDocumentSetting;
-    if (!setting) return;
-    // TODO: call backend download endpoint with parsed setting
-    // For now open a placeholder — backend resolves document by documentName
+    if (!setting || isDownloading) return;
+    setIsDownloading(true);
+    filesApi.downloadTemplate(setting).finally(() => setIsDownloading(false));
   }
 
   const hasDownloadSection = !!(field.fileDownloadIcon ?? field.fileDownloadLabel ?? field.downloadDocumentSetting);
@@ -262,14 +264,16 @@ export function FileUploadControl({
           type="button"
           className={styles.downloadButton}
           onClick={handleTemplateDownload}
+          disabled={isDownloading}
           aria-label={field.fileDownloadLabel ?? 'Download template'}
+          aria-busy={isDownloading}
         >
           {field.fileDownloadIcon ? (
             <DynamicIcon iconName={field.fileDownloadIcon} size={16} />
           ) : (
             <>
               <ArrowDownloadRegular fontSize={14} />
-              {field.fileDownloadLabel || 'Download Template'}
+              {isDownloading ? 'Downloading…' : (field.fileDownloadLabel || 'Download Template')}
             </>
           )}
         </button>

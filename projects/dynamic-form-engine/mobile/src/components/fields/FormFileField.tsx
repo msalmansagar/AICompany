@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ActionSheetIOS, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,6 +7,7 @@ import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
 import { InfoCardIcon } from '../info-card/InfoCardIcon';
+import { appConfig } from '../../config/appConfig';
 
 interface PickedFile {
   uri: string;
@@ -18,31 +19,74 @@ interface PickedFile {
 interface Props {
   field: FieldDefinition;
   control: Control<Record<string, unknown>>;
+  accessToken?: string;
 }
 
-function TemplateDownloadButton({ field }: { field: FieldDefinition }) {
+interface TemplateDownloadProps {
+  field: FieldDefinition;
+  accessToken?: string;
+}
+
+function TemplateDownloadButton({ field, accessToken }: TemplateDownloadProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
   const hasDownload = !!(field.fileDownloadIcon ?? field.fileDownloadLabel ?? field.downloadDocumentSetting);
   if (!hasDownload) return null;
 
-  function handlePress(): void {
-    // TODO: call backend with parsed downloadDocumentSetting to stream the document
-    void Linking.openURL('about:blank');
+  async function handlePress(): Promise<void> {
+    const setting = field.downloadDocumentSetting;
+    if (!setting || !accessToken || isDownloading) return;
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`${appConfig.apiBaseUrl}/api/files/document-template`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ downloadDocumentSetting: setting }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      // expo-file-system is not installed — notify the user the file is ready
+      // and instruct them to use the web portal for full download capability.
+      Alert.alert(
+        'Template Ready',
+        'The document template was retrieved successfully. ' +
+        'To save and open it on your device, use the web portal or contact your administrator to enable mobile file downloads.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Download Failed',
+        error instanceof Error ? error.message : 'Unable to download the template. Please try again.',
+      );
+    } finally {
+      setIsDownloading(false);
+    }
   }
 
   return (
-    <Pressable style={styles.downloadButton} onPress={handlePress} accessibilityRole="button">
+    <Pressable
+      style={[styles.downloadButton, isDownloading && styles.downloadButtonDisabled]}
+      onPress={() => { void handlePress(); }}
+      accessibilityRole="button"
+      disabled={isDownloading}
+    >
       {field.fileDownloadIcon ? (
         <InfoCardIcon iconName={field.fileDownloadIcon} size={18} color="#0078d4" />
       ) : (
         <Text style={styles.downloadButtonText}>
-          {'⬇  '}{field.fileDownloadLabel || 'Download Template'}
+          {isDownloading ? 'Downloading…' : `⬇  ${field.fileDownloadLabel || 'Download Template'}`}
         </Text>
       )}
     </Pressable>
   );
 }
 
-export function FormFileField({ field, control }: Props) {
+export function FormFileField({ field, control, accessToken }: Props) {
   const [cameraPermissionRequested, setCameraPermissionRequested] = useState(false);
 
   return (
@@ -129,7 +173,7 @@ export function FormFileField({ field, control }: Props) {
               {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
-            <TemplateDownloadButton field={field} />
+            <TemplateDownloadButton field={field} accessToken={accessToken} />
 
             {picked ? (
               <View style={[styles.fileRow, error && styles.fileRowError]}>
@@ -186,6 +230,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginBottom: 8,
     backgroundColor: '#f0f7ff',
+  },
+  downloadButtonDisabled: {
+    opacity: 0.5,
   },
   downloadButtonText: {
     fontSize: 14,

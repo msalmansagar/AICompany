@@ -24,6 +24,7 @@ import { CrmDesignerProxyService } from './services/CrmDesignerProxyService.js';
 import { AccessPolicyService } from './services/AccessPolicyService.js';
 import { CrmInfoCardService } from './services/CrmInfoCardService.js';
 import { CrmInfoCardAdminService } from './services/CrmInfoCardAdminService.js';
+import { CrmDocumentService } from './services/CrmDocumentService.js';
 import { CrmGridDataService } from './services/CrmGridDataService.js';
 import { CssSanitiserService } from './utils/cssSanitiser.js';
 import {
@@ -107,6 +108,8 @@ const designService = config.MOCK_CRM
   ? (new MockDesignService() as unknown as CrmDesignService)
   : new CrmDesignService(authService, designCache, cssSanitiser);
 
+const documentService = config.MOCK_CRM ? null : new CrmDocumentService(authService);
+
 const cloneService = new CrmFormCloneService(authService);
 const designerProxyService = config.MOCK_CRM
   ? null
@@ -133,7 +136,7 @@ if (gridDataService) {
   app.use('/api/grids', createGridsRouter(gridDataService));
 }
 app.use('/api/options', createOptionsRouter(metadataService));
-app.use('/api/files', createFilesRouter(fileService));
+app.use('/api/files', createFilesRouter(fileService, documentService));
 app.use('/api/themes', createThemesRouter(designService));
 app.use('/api/form-design', createFormDesignRouter(designService));
 app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
@@ -159,7 +162,7 @@ app.listen(config.PORT, () => {
 export {
   app, metadataCache, designCache, policyCache,
   authService, auditService, dataService, lookupService,
-  submissionService, metadataService, fileService,
+  submissionService, metadataService, fileService, documentService,
   designService, cloneService, designerProxyService, policyService,
   infoCardService, infoCardAdminService, gridDataService,
 };
