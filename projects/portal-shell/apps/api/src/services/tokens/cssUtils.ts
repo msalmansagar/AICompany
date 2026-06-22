@@ -20,8 +20,10 @@ const DISALLOWED_PATTERNS = [
 /**
  * Sanitises a single CSS value string at read time.
  *
- * Strips semicolons (which would terminate the CSS property and inject new rules)
- * and neutralises disallowed CSS functions (url, expression, import).
+ * Strips semicolons (which would terminate the CSS property and inject new rules),
+ * neutralises disallowed CSS functions (url, expression, import), and HTML-encodes
+ * angle brackets to prevent </style><script> injection when values are SSR-injected
+ * via dangerouslySetInnerHTML in layout.tsx (Audit A-003-003).
  *
  * Unlike the write-time sanitiser (TokenValueService.sanitizeCssValue), this
  * function does NOT throw — it neutralises silently. Throwing at read time would
@@ -30,7 +32,10 @@ const DISALLOWED_PATTERNS = [
  * Pure function — no side effects.
  */
 function sanitiseCssValue(value: string): string {
-  let sanitised = value.replace(/;/g, '');
+  let sanitised = value
+    .replace(/;/g, '')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
   for (const { pattern, replacement } of DISALLOWED_PATTERNS) {
     sanitised = sanitised.replace(pattern, replacement);
   }

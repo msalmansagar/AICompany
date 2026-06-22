@@ -74,8 +74,15 @@ export class TokenValueService {
   }
 
   /**
-   * Returns a list of token values from Dataverse.
-   * Filtering by definition slug first resolves the definition GUID.
+   * Returns a paginated list of token values from Dataverse.
+   *
+   * When a definition slug filter is provided, the definition GUID is resolved
+   * first. Pagination (top/skip) is forwarded to the repository so the Dataverse
+   * query is bounded.
+   *
+   * The cache-warming path (TokenQueryService.fetchRawRecords) calls
+   * valueRepo.findAllActive() directly — without pagination — to ensure all
+   * active records are cached. This method is for the admin list route only.
    */
   async listValues(filters: {
     slug?: string;
@@ -88,10 +95,14 @@ export class TokenValueService {
     if (filters.slug !== undefined) {
       const definition = await this.definitionRepo.findBySlug(filters.slug);
       if (!definition) throw new TokenNotFoundError(filters.slug);
-      return this.valueRepo.findByDefinitionId(definition.id, filters.activeOnly);
+      // Slug-scoped listing: active-only path (admin never needs the inactive+slug combo here)
+      return filters.activeOnly
+        ? this.valueRepo.findActiveByDefinitionId(definition.id)
+        : this.valueRepo.findAllByDefinitionId(definition.id);
     }
 
-    return this.valueRepo.findAllActive();
+    // Full list with pagination forwarded to Dataverse
+    return this.valueRepo.findAllActive({ top: filters.top, skip: filters.skip });
   }
 
   /**
@@ -292,6 +303,11 @@ export class TokenValueService {
     }
     if (value.includes('import(')) {
       throw new TokenCssValueValidationError("CSS value must not contain 'import()'");
+    }
+    // Reject angle brackets — they allow </style><script> injection when the value
+    // is SSR-injected via dangerouslySetInnerHTML in layout.tsx (Audit A-003-003).
+    if (value.includes('<') || value.includes('>')) {
+      throw new TokenCssValueValidationError('CSS value must not contain < or >');
     }
 
     return value.replace(/;/g, '');

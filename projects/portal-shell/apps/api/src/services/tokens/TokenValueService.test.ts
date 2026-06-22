@@ -83,7 +83,8 @@ function makeMockDefinitionRepo(
 function makeMockValueRepo(overrides: Partial<ITokenValueRepository> = {}): ITokenValueRepository {
   return {
     findAllActive: vi.fn().mockResolvedValue([]),
-    findByDefinitionId: vi.fn().mockResolvedValue([]),
+    findActiveByDefinitionId: vi.fn().mockResolvedValue([]),
+    findAllByDefinitionId: vi.fn().mockResolvedValue([]),
     findById: vi.fn().mockResolvedValue(makeValue()),
     findMatchingContext: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue(makeValue()),
@@ -299,6 +300,18 @@ describe('TokenValueService.sanitizeCssValue', () => {
 
   it('should_throw_TokenCssValueValidationError_when_value_contains_import_function', () => {
     expect(() => TokenValueService.sanitizeCssValue('@import(styles.css)')).toThrow(
+      TokenCssValueValidationError,
+    );
+  });
+
+  it('should_throw_TokenCssValueValidationError_when_value_contains_lt_angle_bracket', () => {
+    expect(() => TokenValueService.sanitizeCssValue('</style><script>alert(1)')).toThrow(
+      TokenCssValueValidationError,
+    );
+  });
+
+  it('should_throw_TokenCssValueValidationError_when_value_contains_gt_angle_bracket', () => {
+    expect(() => TokenValueService.sanitizeCssValue('10px > 5px')).toThrow(
       TokenCssValueValidationError,
     );
   });
