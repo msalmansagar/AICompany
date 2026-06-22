@@ -20,6 +20,12 @@ interface UploadedFileRef {
   fileId: string;
 }
 
+interface DownloadDocumentSetting {
+  downloadSetting: {
+    attributeConfig: Array<{ attributeName: string; attributeValue: string; type: string }>;
+  };
+}
+
 export class CrmSubmissionService extends CrmBaseService {
   constructor(
     authService: CrmAuthService,
@@ -261,6 +267,15 @@ export class CrmSubmissionService extends CrmBaseService {
           annotationId: fileRef.fileId,
         });
 
+        // If downloadDocumentSetting is present and no template GUID was already
+        // supplied in uploadDocumentSetting, resolve the GUID by name and inject it.
+        if (field.downloadDocumentSetting && !payload['qdb_templateguid@odata.bind']) {
+          const guid = await this.resolveTemplateGuid(field.downloadDocumentSetting, field.schemaName);
+          if (guid) {
+            payload['qdb_templateguid@odata.bind'] = `/documenttemplates(${guid})`;
+          }
+        }
+
         const edmsId = await this.createRecord(setting.entityName, payload);
         createdRecords.push({ entity: setting.entityName, id: edmsId });
 
@@ -307,6 +322,65 @@ export class CrmSubmissionService extends CrmBaseService {
     }
 
     return parsed as UploadDocumentSetting;
+  }
+
+  private parseDownloadSetting(json: string, fieldSchema: string): DownloadDocumentSetting {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new ValidationError(
+        `downloadDocumentSetting on field '${fieldSchema}' contains invalid JSON`,
+      );
+    }
+
+    const root = parsed as Record<string, unknown>;
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof root.downloadSetting !== 'object' ||
+      !Array.isArray((root.downloadSetting as Record<string, unknown>).attributeConfig)
+    ) {
+      throw new ValidationError(
+        `downloadDocumentSetting on field '${fieldSchema}' must have shape { downloadSetting: { attributeConfig: [...] } }`,
+      );
+    }
+
+    return parsed as DownloadDocumentSetting;
+  }
+
+  // Resolves a document template GUID by name. Non-fatal: logs a warning and returns
+  // null when the template is not found so the EDMS record is still created.
+  private async resolveTemplateGuid(downloadSettingJson: string, fieldSchema: string): Promise<string | null> {
+    let setting: DownloadDocumentSetting;
+    try {
+      setting = this.parseDownloadSetting(downloadSettingJson, fieldSchema);
+    } catch (error) {
+      logger.warn({ error, fieldSchema }, 'Could not parse downloadDocumentSetting — skipping template GUID resolution');
+      return null;
+    }
+
+    const entry = setting.downloadSetting.attributeConfig.find(
+      (c) => c.attributeName === 'documentName',
+    );
+    if (!entry?.attributeValue) return null;
+
+    const escapedName = entry.attributeValue.replace(/'/g, "''");
+    try {
+      const result = await this.crmFetch<{ value: Array<{ documenttemplateid: string }> }>(
+        `/documenttemplates?$filter=name eq '${escapedName}'&$select=documenttemplateid&$top=1`,
+      );
+      const guid = result.value[0]?.documenttemplateid ?? null;
+      if (guid) {
+        logger.info({ templateGuid: guid, documentName: entry.attributeValue, fieldSchema }, 'Resolved document template GUID from downloadDocumentSetting');
+      } else {
+        logger.warn({ documentName: entry.attributeValue, fieldSchema }, 'Document template not found — qdb_templateguid will not be set on EDMS record');
+      }
+      return guid;
+    } catch (error) {
+      logger.warn({ error, documentName: entry.attributeValue, fieldSchema }, 'Template GUID resolution failed — skipping');
+      return null;
+    }
   }
 
   private buildEdmsPayload(
