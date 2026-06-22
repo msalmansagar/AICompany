@@ -15,6 +15,7 @@ export interface DesignerFormModel {
   themeId: string | null;
   allowSaveDraft: boolean;
   draftExpiryDays: number | null;
+  showSummaryStep: boolean;
   powerAutomateFlowId: string | null;
   confirmationMessage: string | null;
   confirmationRecordRefAttribute: string | null;
@@ -55,6 +56,7 @@ export interface DesignerOptionValue {
   value: string;
   sortOrder: number;
   isDefault: boolean;
+  notes: string | null;
 }
 
 export interface DesignerLookupConfig {
@@ -66,6 +68,8 @@ export interface DesignerLookupConfig {
   maxResults: number;
 }
 
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
 export interface DesignerGridColumnConfig {
   /** CRM GUID or 'tmp_col_<timestamp>' for unsaved columns */
   id: string;
@@ -75,6 +79,9 @@ export interface DesignerGridColumnConfig {
   displayOrder: number;
   isEditable: boolean;
   optionsJson: string | null;
+  filterType: GridColumnFilterType;
+  lookupTargetEntity: string | null;
+  lookupDisplayAttribute: string | null;
 }
 
 export interface DesignerFieldModel {
@@ -110,6 +117,17 @@ export interface DesignerFieldModel {
   infoCardTitle: string | null;
   infoCardBody: string | null;
   infoCardIcon: string | null;
+  infoCardDownloadUrl: string | null;
+  infoCardDownloadLabel: string | null;
+  infoCardDownloadIcon: string | null;
+  // File field — template download before upload
+  fileDownloadLabel: string | null;
+  fileDownloadIcon: string | null;
+  uploadDocumentSetting: string | null;
+  downloadDocumentSetting: string | null;
+  // Prefix / suffix decorators
+  prefix: string | null;
+  suffix: string | null;
   // Sprint 5 — interactive-grid / repeating-grid config
   gridMode: 'selection' | 'entry' | null;
   gridEntityName: string | null;

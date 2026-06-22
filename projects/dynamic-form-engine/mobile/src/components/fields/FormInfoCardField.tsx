@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import type { FieldDefinition } from '@qdb/shared';
 import { InfoCardIcon } from '../info-card/InfoCardIcon';
 
@@ -46,6 +46,12 @@ export function FormInfoCardField({ field }: Props) {
   const cardStyle = resolveStyle(field.infoCardStyle);
   const borderColor = BORDER_COLORS[cardStyle];
 
+  const handleDownload = useCallback(() => {
+    if (field.infoCardDownloadUrl) {
+      void Linking.openURL(field.infoCardDownloadUrl);
+    }
+  }, [field.infoCardDownloadUrl]);
+
   return (
     <View
       style={[styles.container, { borderLeftColor: borderColor }]}
@@ -61,6 +67,22 @@ export function FormInfoCardField({ field }: Props) {
         ) : null}
         {field.infoCardBody ? (
           <Text style={styles.body}>{field.infoCardBody}</Text>
+        ) : null}
+        {field.infoCardDownloadUrl ? (
+          <TouchableOpacity
+            onPress={handleDownload}
+            style={styles.downloadRow}
+            accessibilityRole="link"
+            accessibilityLabel={field.infoCardDownloadLabel ?? 'Download'}
+          >
+            {field.infoCardDownloadIcon ? (
+              <InfoCardIcon iconName={field.infoCardDownloadIcon} size={18} color={borderColor} />
+            ) : (
+              <Text style={[styles.downloadText, { color: borderColor }]}>
+                {'⬇  '}{field.infoCardDownloadLabel || 'Download'}
+              </Text>
+            )}
+          </TouchableOpacity>
         ) : null}
       </View>
     </View>
@@ -99,5 +121,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555',
     lineHeight: 18,
+  },
+  downloadRow: {
+    marginTop: 6,
+  },
+  downloadText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -5,12 +5,14 @@ import {
   makeStyles,
   tokens,
   Text,
+  Link,
 } from '@fluentui/react-components';
 import {
   InfoRegular,
   WarningRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
+  ArrowDownloadRegular,
 } from '@fluentui/react-icons';
 import type { FieldDefinition } from '@qdb/shared';
 import { DynamicIcon } from '../DynamicIcon';
@@ -91,6 +93,13 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
     lineHeight: tokens.lineHeightBase300,
   },
+  downloadLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    fontSize: tokens.fontSizeBase200,
+    marginTop: tokens.spacingVerticalXS,
+  },
 });
 
 // ── Style helpers ──────────────────────────────────────────────
@@ -151,6 +160,24 @@ export function InfoCardField({ field }: Props) {
         )}
         {field.infoCardBody && (
           <Text className={styles.body}>{field.infoCardBody}</Text>
+        )}
+        {field.infoCardDownloadUrl && (
+          <Link
+            href={field.infoCardDownloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            className={styles.downloadLink}
+          >
+            {field.infoCardDownloadIcon ? (
+              <DynamicIcon iconName={field.infoCardDownloadIcon} size={16} />
+            ) : (
+              <>
+                <ArrowDownloadRegular fontSize={14} />
+                {field.infoCardDownloadLabel || 'Download'}
+              </>
+            )}
+          </Link>
         )}
       </div>
     </div>

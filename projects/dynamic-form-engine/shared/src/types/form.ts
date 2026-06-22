@@ -150,6 +150,12 @@ export interface FieldDefinition {
   infoCardIcon?: string;
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+  // File field — template download before upload
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
   gridConfig?: GridFieldConfig;
 }
 

@@ -120,6 +120,7 @@ export interface OptionValue {
   isActive: boolean;
   description?: string;  // shown below the label in radio-card mode
   iconName?: string;     // Fluent UI icon name (e.g. "PersonRegular")
+  notes?: string;        // highlighted callout text rendered on the radio card
 }
 
 // ── Lookup configuration ──────────────────────────────────────
@@ -226,6 +227,8 @@ export interface FieldDefinition {
   label: string;
   placeholder?: string;
   tooltip?: string;
+  prefix?: string;                 // static text shown before the input (e.g. "$", "https://")
+  suffix?: string;                 // static text shown after the input (e.g. "kg", ".com")
   defaultValue?: unknown;
   displayOrder: number;
   columnSpan: 1 | 2 | 3 | 4;     // out of 4-column grid
@@ -265,6 +268,15 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+
+  // File field — template download before upload
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
 
   // DFE-ADD-002: Interactive Grid config
   gridConfig?: GridFieldConfig;
@@ -350,6 +362,8 @@ export interface InfoCardScreen {
 export type GridMode = 'selection' | 'entry';
 export type GridSelectionMode = 'single' | 'multi';
 
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
 export interface GridColumnOptionValue {
   value: string;
   label: string;
@@ -361,6 +375,10 @@ export interface GridColumnConfig {
   columnLabel: string;
   targetAttribute: string;
   columnFieldType: string;
+  filterType?: GridColumnFilterType;
+  // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
 }
@@ -431,6 +449,8 @@ export interface FormDefinition {
   infocardStartLabel?: string;
   infocardSkipLabel?: string;
   infoCards: InfoCardScreen[];
+  // DFE-ADD-003: show a read-only summary of all answers on the last step before submit.
+  showSummaryStep: boolean;
   submissionMappings: SubmissionMapping[];
   buttons: FormButton[];
   tabs: TabDefinition[];

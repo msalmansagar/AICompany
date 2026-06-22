@@ -35,6 +35,7 @@ const FLUENT_TO_MCO: Record<string, string> = {
   WarningRegular:           'alert-outline',
   AttachRegular:            'paperclip',
   DownloadRegular:          'download-outline',
+  ArrowDownloadRegular:     'download-outline',
   ShareRegular:             'share-variant-outline',
   LocationRegular:          'map-marker-outline',
   MoneyRegular:             'currency-usd',

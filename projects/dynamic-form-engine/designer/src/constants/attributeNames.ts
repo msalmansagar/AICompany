@@ -11,6 +11,7 @@ export const FORM_DEFINITION_ATTRS = {
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',
   DRAFT_EXPIRY_DAYS: 'qdb_draft_expiry_days',
+  SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
@@ -109,6 +110,16 @@ export const FORM_FIELD_ATTRS = {
   INFO_CARD_TITLE: 'qdb_info_card_title',
   INFO_CARD_BODY: 'qdb_info_card_body',
   INFO_CARD_ICON: 'qdb_info_card_icon',
+  INFO_CARD_DOWNLOAD_URL: 'qdb_info_card_download_url',
+  INFO_CARD_DOWNLOAD_LABEL: 'qdb_info_card_download_label',
+  INFO_CARD_DOWNLOAD_ICON: 'qdb_info_card_download_icon',
+  // File field — template download before upload
+  FILE_DOWNLOAD_LABEL: 'qdb_file_download_label',
+  FILE_DOWNLOAD_ICON: 'qdb_file_download_icon',
+  UPLOAD_DOCUMENT_SETTING: 'qdb_upload_document_setting',
+  DOWNLOAD_DOCUMENT_SETTING: 'qdb_download_document_setting',
+  PREFIX: 'qdb_prefix',
+  SUFFIX: 'qdb_suffix',
   // Sprint 5 — interactive-grid / repeating-grid config
   GRID_MODE: 'qdb_grid_mode',
   GRID_ENTITY_NAME: 'qdb_grid_entity_name',
@@ -260,6 +271,7 @@ export const FORM_OPTION_VALUE_ATTRS = {
   IS_DEFAULT: 'qdb_is_default',
   PARENT_OPTION_VALUE: 'qdb_parent_option_value',
   IS_ACTIVE: 'qdb_is_active',
+  NOTES: 'qdb_notes',
 } as const;
 
 export const FORM_LOOKUP_CONFIG_ATTRS = {
@@ -315,6 +327,7 @@ export const FORM_DESIGN_ATTRS = {
   FORM_ID: 'qdb_form_definition_id',
   THEME_ID: 'qdb_theme_id',
   CUSTOM_CSS: 'qdb_custom_css',
+  TAB_STYLE: 'qdb_tab_style',
 } as const;
 
 export const FORM_AUDIT_LOG_ATTRS = {

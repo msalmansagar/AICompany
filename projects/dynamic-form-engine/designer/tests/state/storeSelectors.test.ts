@@ -39,6 +39,7 @@ const STUB_FORM: DesignerFormModel = {
   themeId: null,
   allowSaveDraft: true,
   draftExpiryDays: null,
+  showSummaryStep: false,
   powerAutomateFlowId: null,
   confirmationMessage: null,
   confirmationRecordRefAttribute: null,
@@ -56,9 +57,10 @@ const SECTION_A1: DesignerSectionModel = { id: 'sec-a1', tabId: 'tab-a', label: 
 const SECTION_A2: DesignerSectionModel = { id: 'sec-a2', tabId: 'tab-a', label: 'A Section 2', description: null, columnCount: 1, isCollapsible: false, isExpandedByDefault: true, isVisible: true, sortOrder: 1 };
 const SECTION_B1: DesignerSectionModel = { id: 'sec-b1', tabId: 'tab-b', label: 'B Section 1', description: null, columnCount: 1, isCollapsible: false, isExpandedByDefault: true, isVisible: true, sortOrder: 0 };
 
-const FIELD_A1_1: DesignerFieldModel = { id: 'fld-a1-1', sectionId: 'sec-a1', label: 'Field 1', code: 'field_1', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 0, columnSpan: 1, options: [], lookupConfig: null, componentKey: null };
-const FIELD_A1_2: DesignerFieldModel = { id: 'fld-a1-2', sectionId: 'sec-a1', label: 'Field 2', code: 'field_2', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 1, columnSpan: 1, options: [], lookupConfig: null, componentKey: null };
-const FIELD_B1_1: DesignerFieldModel = { id: 'fld-b1-1', sectionId: 'sec-b1', label: 'Field 3', code: 'field_3', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 0, columnSpan: 1, options: [], lookupConfig: null, componentKey: null };
+const SPRINT45_NULLS = { boolRenderStyle: null, trueLabel: null, falseLabel: null, infoCardStyle: null, infoCardTitle: null, infoCardBody: null, infoCardIcon: null, infoCardDownloadUrl: null, infoCardDownloadLabel: null, infoCardDownloadIcon: null, fileDownloadLabel: null, fileDownloadIcon: null, uploadDocumentSetting: null, downloadDocumentSetting: null, prefix: null, suffix: null, gridMode: null, gridEntityName: null, gridSelectionMode: null, gridMinRows: null, gridSavedViewId: null, gridFilterExpression: null, gridDependsOnFieldId: null, gridDependsOnFilterTemplate: null, gridColumns: [] };
+const FIELD_A1_1: DesignerFieldModel = { id: 'fld-a1-1', sectionId: 'sec-a1', label: 'Field 1', code: 'field_1', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 0, columnSpan: 1, options: [], lookupConfig: null, componentKey: null, ...SPRINT45_NULLS };
+const FIELD_A1_2: DesignerFieldModel = { id: 'fld-a1-2', sectionId: 'sec-a1', label: 'Field 2', code: 'field_2', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 1, columnSpan: 1, options: [], lookupConfig: null, componentKey: null, ...SPRINT45_NULLS };
+const FIELD_B1_1: DesignerFieldModel = { id: 'fld-b1-1', sectionId: 'sec-b1', label: 'Field 3', code: 'field_3', fieldType: 'text', placeholder: '', helpText: '', isRequired: false, isReadOnly: false, isHidden: false, defaultValue: null, currencyCode: null, decimalPlaces: null, maxRows: null, sortOrder: 0, columnSpan: 1, options: [], lookupConfig: null, componentKey: null, ...SPRINT45_NULLS };
 
 // ---------------------------------------------------------------------------
 

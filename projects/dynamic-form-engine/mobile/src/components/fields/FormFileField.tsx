@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Controller, type Control } from 'react-hook-form';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
+import { InfoCardIcon } from '../info-card/InfoCardIcon';
 
 interface PickedFile {
   uri: string;
@@ -17,6 +18,28 @@ interface PickedFile {
 interface Props {
   field: FieldDefinition;
   control: Control<Record<string, unknown>>;
+}
+
+function TemplateDownloadButton({ field }: { field: FieldDefinition }) {
+  const hasDownload = !!(field.fileDownloadIcon ?? field.fileDownloadLabel ?? field.downloadDocumentSetting);
+  if (!hasDownload) return null;
+
+  function handlePress(): void {
+    // TODO: call backend with parsed downloadDocumentSetting to stream the document
+    void Linking.openURL('about:blank');
+  }
+
+  return (
+    <Pressable style={styles.downloadButton} onPress={handlePress} accessibilityRole="button">
+      {field.fileDownloadIcon ? (
+        <InfoCardIcon iconName={field.fileDownloadIcon} size={18} color="#0078d4" />
+      ) : (
+        <Text style={styles.downloadButtonText}>
+          {'⬇  '}{field.fileDownloadLabel || 'Download Template'}
+        </Text>
+      )}
+    </Pressable>
+  );
 }
 
 export function FormFileField({ field, control }: Props) {
@@ -106,6 +129,8 @@ export function FormFileField({ field, control }: Props) {
               {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
+            <TemplateDownloadButton field={field} />
+
             {picked ? (
               <View style={[styles.fileRow, error && styles.fileRowError]}>
                 <Text style={styles.fileIcon}>📄</Text>
@@ -149,6 +174,24 @@ function formatBytes(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#0078d4',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: '#f0f7ff',
+  },
+  downloadButtonText: {
+    fontSize: 14,
+    color: '#0078d4',
+    fontWeight: '600',
+  },
   emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',

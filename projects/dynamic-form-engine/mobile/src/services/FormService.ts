@@ -132,6 +132,11 @@ interface BackendFieldDefinition {
   infoCardIcon?: string;
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
 }
 
 interface BackendSectionDefinition {
@@ -325,6 +330,11 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
     infoCardIcon: field.infoCardIcon,
     infoCardDownloadUrl: field.infoCardDownloadUrl,
     infoCardDownloadLabel: field.infoCardDownloadLabel,
+    infoCardDownloadIcon: field.infoCardDownloadIcon,
+    fileDownloadLabel: field.fileDownloadLabel,
+    fileDownloadIcon: field.fileDownloadIcon,
+    uploadDocumentSetting: field.uploadDocumentSetting,
+    downloadDocumentSetting: field.downloadDocumentSetting,
   };
 }
 

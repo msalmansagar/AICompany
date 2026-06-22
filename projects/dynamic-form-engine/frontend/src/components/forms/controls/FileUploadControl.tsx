@@ -14,12 +14,31 @@ import {
   DocumentRegular,
   DeleteRegular,
   ArrowUploadRegular,
+  ArrowDownloadRegular,
 } from '@fluentui/react-icons';
+import { DynamicIcon } from '../DynamicIcon';
 import { useFormContext } from '../../../contexts/FormContext';
 import { filesApi, UploadedFileReference } from '../../../api/filesApi';
 import type { ControlProps } from '../FieldRenderer';
 
 const useStyles = makeStyles({
+  downloadButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+    border: `1px solid ${tokens.colorBrandStroke1}`,
+    borderRadius: tokens.borderRadiusMedium,
+    color: tokens.colorBrandForeground1,
+    cursor: 'pointer',
+    fontSize: tokens.fontSizeBase300,
+    fontWeight: tokens.fontWeightSemibold,
+    backgroundColor: 'transparent',
+    marginBottom: tokens.spacingVerticalS,
+    ':hover': {
+      backgroundColor: tokens.colorBrandBackground2,
+    },
+  },
   dropzone: {
     border: `2px dashed ${tokens.colorNeutralStroke1}`,
     borderRadius: tokens.borderRadiusMedium,
@@ -89,10 +108,12 @@ const useStyles = makeStyles({
 });
 
 interface FileUploadEntry {
-  file: File;
+  fileName: string;
+  file: File | undefined;
   progress: number;
   uploadedRef: UploadedFileReference | null;
   error: string | null;
+  previewUrl: string;
 }
 
 export function FileUploadControl({
@@ -103,22 +124,44 @@ export function FileUploadControl({
   errorId,
 }: ControlProps) {
   const styles = useStyles();
-  const { updateFieldValue } = useFormContext();
+  const { updateFieldValue, fieldValues } = useFormContext();
   const [uploadEntries, setUploadEntries] = useState<FileUploadEntry[]>([]);
 
   // Track whether the user has interacted — avoids marking the form dirty on mount.
   const hasInteracted = useRef(false);
+
+  // Re-hydrate entries from FormContext on mount (e.g. after tab switch causes remount).
+  const isHydrated = useRef(false);
+  useEffect(() => {
+    if (isHydrated.current) return;
+    isHydrated.current = true;
+
+    const stored = fieldValues[field.schemaName];
+    if (!Array.isArray(stored) || stored.length === 0) return;
+
+    const hydratedEntries: FileUploadEntry[] = (stored as UploadedFileReference[]).map((ref) => ({
+      fileName: ref.fileName,
+      file: undefined,
+      progress: 100,
+      uploadedRef: ref,
+      error: null,
+      previewUrl: ref.previewUrl ?? ref.url,
+    }));
+
+    setUploadEntries(hydratedEntries);
+    // hasInteracted stays false — hydration must not re-trigger updateFieldValue
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync uploaded file IDs into FormContext whenever entries change.
   // Using useEffect (not a side effect inside a state updater) is the correct pattern.
   useEffect(() => {
     if (!hasInteracted.current) return;
 
-    const uploadedIds = uploadEntries
+    const uploadedRefs = uploadEntries
       .filter((e) => e.uploadedRef !== null)
-      .map((e) => e.uploadedRef!.fileId);
+      .map((e) => ({ ...e.uploadedRef!, previewUrl: e.previewUrl }));
 
-    updateFieldValue(field.schemaName, uploadedIds);
+    updateFieldValue(field.schemaName, uploadedRefs);
   }, [uploadEntries, field.schemaName, updateFieldValue]);
 
   const config = field.fileUploadConfig;
@@ -143,22 +186,24 @@ export function FileUploadControl({
 
       const startIndex = uploadEntries.length;
       const newEntries: FileUploadEntry[] = acceptedFiles.map((file) => ({
+        fileName: file.name,
         file,
         progress: 0,
         uploadedRef: null,
         error: null,
+        previewUrl: URL.createObjectURL(file),
       }));
 
       setUploadEntries((prev) => [...prev, ...newEntries]);
 
       await Promise.all(
-        newEntries.map(async (entry, relativeIndex) => {
+        acceptedFiles.map(async (file, relativeIndex) => {
           const entryIndex = startIndex + relativeIndex;
 
           try {
             const response = await filesApi.upload(
               field.id,
-              entry.file,
+              file,
               (progress) => updateEntry(entryIndex, { progress }),
             );
 
@@ -179,6 +224,10 @@ export function FileUploadControl({
 
   function removeFile(index: number) {
     hasInteracted.current = true;
+    const previewUrl = uploadEntries[index].previewUrl;
+    if (previewUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(previewUrl);
+    }
     setUploadEntries((prev) => prev.filter((_, i) => i !== index));
   }
 
@@ -197,8 +246,34 @@ export function FileUploadControl({
   const formattedMaxSize = formatBytes(maxSize);
   const allowedTypes = resolveAllowedTypesLabel(config?.allowedFileExtensions, config?.allowedMimeTypes);
 
+  function handleTemplateDownload() {
+    const setting = field.downloadDocumentSetting;
+    if (!setting) return;
+    // TODO: call backend download endpoint with parsed setting
+    // For now open a placeholder — backend resolves document by documentName
+  }
+
+  const hasDownloadSection = !!(field.fileDownloadIcon ?? field.fileDownloadLabel ?? field.downloadDocumentSetting);
+
   return (
     <div>
+      {hasDownloadSection && (
+        <button
+          type="button"
+          className={styles.downloadButton}
+          onClick={handleTemplateDownload}
+          aria-label={field.fileDownloadLabel ?? 'Download template'}
+        >
+          {field.fileDownloadIcon ? (
+            <DynamicIcon iconName={field.fileDownloadIcon} size={16} />
+          ) : (
+            <>
+              <ArrowDownloadRegular fontSize={14} />
+              {field.fileDownloadLabel || 'Download Template'}
+            </>
+          )}
+        </button>
+      )}
       {canAddMore && (
         <div
           {...getRootProps()}
@@ -234,7 +309,7 @@ export function FileUploadControl({
         <MessageBar intent="error" style={{ marginTop: tokens.spacingVerticalS }}>
           <MessageBarBody>
             {failedEntries.length === 1
-              ? `Upload failed for "${failedEntries[0].file.name}". Remove it and try again.`
+              ? `Upload failed for "${failedEntries[0].fileName}". Remove it and try again.`
               : `${failedEntries.length} uploads failed. Remove the failed files and try again.`}
           </MessageBarBody>
         </MessageBar>
@@ -249,13 +324,13 @@ export function FileUploadControl({
               role="listitem"
             >
               <DocumentRegular className={styles.fileIcon} aria-hidden="true" />
-              <span className={styles.fileName}>{entry.file.name}</span>
+              <span className={styles.fileName}>{entry.fileName}</span>
 
               {entry.progress > 0 && entry.progress < 100 && !entry.error && (
                 <ProgressBar
                   className={styles.progress}
                   value={entry.progress / 100}
-                  aria-label={`Uploading ${entry.file.name}: ${entry.progress}%`}
+                  aria-label={`Uploading ${entry.fileName}: ${entry.progress}%`}
                 />
               )}
 
@@ -270,7 +345,7 @@ export function FileUploadControl({
                   appearance="transparent"
                   icon={<DeleteRegular />}
                   onClick={() => removeFile(index)}
-                  aria-label={`Remove ${entry.file.name}`}
+                  aria-label={`Remove ${entry.fileName}`}
                 />
               )}
             </div>

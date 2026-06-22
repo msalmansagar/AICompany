@@ -104,8 +104,34 @@ export function InfoCardFieldPanel({ field }: Props): React.ReactElement {
         />
       </Field>
 
+      <Field label="Download URL" hint="Optional link shown at the bottom of the card">
+        <Input
+          value={field.infoCardDownloadUrl ?? ''}
+          placeholder="https://example.com/document.pdf"
+          onChange={(_, d) => updateField(field.id, { infoCardDownloadUrl: d.value || null })}
+          type="url"
+        />
+      </Field>
+
+      <Field label="Download Label" hint='Button text — defaults to "Download" when left blank. Hidden when Download Icon is set.'>
+        <Input
+          value={field.infoCardDownloadLabel ?? ''}
+          placeholder="Download"
+          onChange={(_, d) => updateField(field.id, { infoCardDownloadLabel: d.value || null })}
+        />
+      </Field>
+
+      <Field label="Download Icon" hint="Icon name — if set, the icon is shown instead of the label (icon wins)">
+        <Input
+          value={field.infoCardDownloadIcon ?? ''}
+          placeholder="e.g. ArrowDownloadRegular"
+          onChange={(_, d) => updateField(field.id, { infoCardDownloadIcon: d.value || null })}
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
       {/* Live preview */}
-      {(field.infoCardTitle || field.infoCardBody) && (
+      {(field.infoCardTitle || field.infoCardBody || field.infoCardDownloadUrl) && (
         <div
           className={styles.preview}
           style={{ borderLeftColor: colours.border, backgroundColor: colours.bg }}
@@ -116,6 +142,11 @@ export function InfoCardFieldPanel({ field }: Props): React.ReactElement {
           )}
           {field.infoCardBody && (
             <div className={styles.previewBody}>{field.infoCardBody}</div>
+          )}
+          {field.infoCardDownloadUrl && (
+            <div style={{ marginTop: '6px', fontSize: '12px', color: colours.border }}>
+              ⬇ {field.infoCardDownloadLabel || 'Download'}
+            </div>
           )}
         </div>
       )}

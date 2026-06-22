@@ -21,6 +21,7 @@ import type {
   LogicalOperator,
   GridColumnConfig,
   GridColumnOptionValue,
+  GridColumnFilterType,
   FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
@@ -141,6 +142,7 @@ export class CrmMetadataService extends CrmBaseService {
       status: this.mapFormStatus(raw.qdb_status),
       version: raw.qdb_version ?? 1,
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
+      showSummaryStep: raw.qdb_show_summary_step ?? false,
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
@@ -281,6 +283,15 @@ export class CrmMetadataService extends CrmBaseService {
       infoCardTitle: field.qdb_info_card_title,
       infoCardBody: field.qdb_info_card_body,
       infoCardIcon: field.qdb_info_card_icon,
+      infoCardDownloadUrl: field.qdb_info_card_download_url,
+      infoCardDownloadLabel: field.qdb_info_card_download_label,
+      infoCardDownloadIcon: field.qdb_info_card_download_icon,
+      fileDownloadLabel: field.qdb_file_download_label,
+      fileDownloadIcon: field.qdb_file_download_icon,
+      uploadDocumentSetting: field.qdb_upload_document_setting,
+      downloadDocumentSetting: field.qdb_download_document_setting,
+      prefix: field.qdb_prefix,
+      suffix: field.qdb_suffix,
       fileUploadConfig: this.buildFileUploadConfig(field),
       gridConfig: field.qdb_grid_mode != null ? {
         // Canonical names (read by SelectionGridField / EntryGridField)
@@ -319,13 +330,18 @@ export class CrmMetadataService extends CrmBaseService {
     for (const col of response.value) {
       const fieldId = col._qdb_form_field_id_value;
       const existing = map.get(fieldId) ?? [];
+      const meta = parseColumnMeta(col.qdb_column_options_json);
+      const columnFieldType = col.qdb_column_field_type ?? 'text';
       existing.push({
         columnId: col.qdb_grid_column_configid,
         displayOrder: col.qdb_display_order,
         columnLabel: col.qdb_column_label,
         targetAttribute: col.qdb_column_attribute,
-        columnFieldType: col.qdb_column_field_type ?? 'text',
-        options: parseColumnOptions(col.qdb_column_options_json),
+        columnFieldType,
+        options: meta.options,
+        filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
+        lookupTargetEntity: meta.lookupTargetEntity,
+        lookupDisplayAttribute: meta.lookupDisplayAttribute,
       });
       map.set(fieldId, existing);
     }
@@ -350,7 +366,7 @@ export class CrmMetadataService extends CrmBaseService {
       const response = await this.crmFetch<ODataCollection<RawOption>>(
         `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true` +
         `&$orderby=qdb_display_order asc` +
-        `&$select=_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name`,
+        `&$select=_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name,qdb_notes`,
       );
       for (const opt of response.value) {
         const fieldId = opt._qdb_form_field_id_value;
@@ -364,6 +380,7 @@ export class CrmMetadataService extends CrmBaseService {
           isActive: opt.qdb_is_active ?? true,
           description: opt.qdb_description ?? undefined,
           iconName: opt.qdb_icon_name ?? undefined,
+          notes: opt.qdb_notes ?? undefined,
         });
         map.set(fieldId, existing);
       }
@@ -877,6 +894,8 @@ interface RawFormDefinition {
   qdb_infocard_continue_label?: string;
   qdb_infocard_start_label?: string;
   qdb_infocard_skip_label?: string;
+  // DFE-ADD-003 summary step
+  qdb_show_summary_step?: boolean;
   createdon: string;
   modifiedon: string;
 }
@@ -929,6 +948,17 @@ interface RawField {
   qdb_info_card_title?: string;
   qdb_info_card_body?: string;
   qdb_info_card_icon?: string;
+  qdb_info_card_download_url?: string;
+  qdb_info_card_download_label?: string;
+  qdb_info_card_download_icon?: string;
+  // File field — template download before upload
+  qdb_file_download_label?: string;
+  qdb_file_download_icon?: string;
+  qdb_upload_document_setting?: string;
+  qdb_download_document_setting?: string;
+  // Prefix / suffix decorators
+  qdb_prefix?: string;
+  qdb_suffix?: string;
   // DFE-ADD-002 interactive-grid field
   qdb_saved_view_id?: string;
   qdb_grid_entity_name?: string;
@@ -964,6 +994,7 @@ interface RawOption {
   qdb_is_active?: boolean;
   qdb_description?: string;
   qdb_icon_name?: string;
+  qdb_notes?: string;
 }
 
 interface RawValidationRule {
@@ -1076,14 +1107,40 @@ interface RawGridColumnConfig {
   qdb_column_options_json?: string;
 }
 
-function parseColumnOptions(json: string | null | undefined): GridColumnOptionValue[] | undefined {
-  if (!json) return undefined;
+function deriveColumnFilterType(fieldType: string): GridColumnFilterType {
+  if (['text', 'email', 'phone', 'textarea'].includes(fieldType)) return 'text';
+  if (['dropdown', 'status', 'picklist'].includes(fieldType)) return 'optionset';
+  if (fieldType === 'lookup') return 'lookup';
+  return 'none';
+}
+
+interface ParsedColumnMeta {
+  options?: GridColumnOptionValue[];
+  filterType?: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+}
+
+function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
+  if (!json) return {};
   try {
     const parsed = JSON.parse(json) as unknown;
-    if (!Array.isArray(parsed)) return undefined;
-    return parsed as GridColumnOptionValue[];
+    if (Array.isArray(parsed)) return { options: parsed as GridColumnOptionValue[] };
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      const VALID_FILTER_TYPES = new Set(['text', 'optionset', 'lookup', 'none']);
+      return {
+        options: Array.isArray(obj['options']) ? (obj['options'] as GridColumnOptionValue[]) : undefined,
+        filterType: VALID_FILTER_TYPES.has(obj['filterType'] as string)
+          ? (obj['filterType'] as GridColumnFilterType)
+          : undefined,
+        lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
+        lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
+      };
+    }
+    return {};
   } catch {
-    return undefined;
+    return {};
   }
 }
 

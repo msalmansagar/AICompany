@@ -44,6 +44,16 @@ export interface CreateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardDownloadUrl?: string | null;
+  infoCardDownloadLabel?: string | null;
+  infoCardDownloadIcon?: string | null;
+  fileDownloadLabel?: string | null;
+  fileDownloadIcon?: string | null;
+  uploadDocumentSetting?: string | null;
+  downloadDocumentSetting?: string | null;
+  // Prefix / suffix
+  prefix?: string | null;
+  suffix?: string | null;
   // Sprint 5 — grid config
   gridMode?: 'selection' | 'entry' | null;
   gridEntityName?: string | null;
@@ -79,6 +89,16 @@ export interface UpdateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardDownloadUrl?: string | null;
+  infoCardDownloadLabel?: string | null;
+  infoCardDownloadIcon?: string | null;
+  fileDownloadLabel?: string | null;
+  fileDownloadIcon?: string | null;
+  uploadDocumentSetting?: string | null;
+  downloadDocumentSetting?: string | null;
+  // Prefix / suffix
+  prefix?: string | null;
+  suffix?: string | null;
   // Sprint 5 — grid config
   gridMode?: 'selection' | 'entry' | null;
   gridEntityName?: string | null;
@@ -123,6 +143,15 @@ export class FieldService {
     if (dto.infoCardTitle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle;
     if (dto.infoCardBody != null) payload[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody;
     if (dto.infoCardIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon;
+    if (dto.infoCardDownloadUrl != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl;
+    if (dto.infoCardDownloadLabel != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel;
+    if (dto.infoCardDownloadIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon;
+    if (dto.fileDownloadLabel != null) payload[FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL] = dto.fileDownloadLabel;
+    if (dto.fileDownloadIcon != null) payload[FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON] = dto.fileDownloadIcon;
+    if (dto.uploadDocumentSetting != null) payload[FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING] = dto.uploadDocumentSetting;
+    if (dto.downloadDocumentSetting != null) payload[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] = dto.downloadDocumentSetting;
+    if (dto.prefix != null) payload[FORM_FIELD_ATTRS.PREFIX] = dto.prefix;
+    if (dto.suffix != null) payload[FORM_FIELD_ATTRS.SUFFIX] = dto.suffix;
     if (dto.gridMode != null) payload[FORM_FIELD_ATTRS.GRID_MODE] = GRID_MODE_TO_PICKLIST[dto.gridMode];
     if (dto.gridEntityName != null) payload[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName;
     if (dto.gridSelectionMode != null) payload[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode];
@@ -164,6 +193,15 @@ export class FieldService {
     if (dto.infoCardTitle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle ?? null;
     if (dto.infoCardBody !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody ?? null;
     if (dto.infoCardIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon ?? null;
+    if (dto.infoCardDownloadUrl !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl ?? null;
+    if (dto.infoCardDownloadLabel !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel ?? null;
+    if (dto.infoCardDownloadIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon ?? null;
+    if (dto.fileDownloadLabel !== undefined) data[FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL] = dto.fileDownloadLabel ?? null;
+    if (dto.fileDownloadIcon !== undefined) data[FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON] = dto.fileDownloadIcon ?? null;
+    if (dto.uploadDocumentSetting !== undefined) data[FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING] = dto.uploadDocumentSetting ?? null;
+    if (dto.downloadDocumentSetting !== undefined) data[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] = dto.downloadDocumentSetting ?? null;
+    if (dto.prefix !== undefined) data[FORM_FIELD_ATTRS.PREFIX] = dto.prefix ?? null;
+    if (dto.suffix !== undefined) data[FORM_FIELD_ATTRS.SUFFIX] = dto.suffix ?? null;
     if (dto.gridMode !== undefined) data[FORM_FIELD_ATTRS.GRID_MODE] = dto.gridMode != null ? GRID_MODE_TO_PICKLIST[dto.gridMode] : null;
     if (dto.gridEntityName !== undefined) data[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName ?? null;
     if (dto.gridSelectionMode !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = dto.gridSelectionMode != null ? GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode] : null;
@@ -189,7 +227,8 @@ export class FieldService {
   }
 
   async listFieldsForSection(sectionId: string): Promise<DesignerFieldModel[]> {
-    const select = [
+    // Core columns — always present in Dataverse.
+    const CORE_SELECT = [
       FORM_FIELD_ATTRS.ID,
       FORM_FIELD_ATTRS.SECTION_ID_VALUE,
       FORM_FIELD_ATTRS.LABEL,
@@ -207,6 +246,10 @@ export class FieldService {
       FORM_FIELD_ATTRS.DECIMAL_PLACES,
       FORM_FIELD_ATTRS.MAX_ROWS,
       FORM_FIELD_ATTRS.COMPONENT_KEY,
+    ];
+
+    // Extended columns added in Sprint 4/5 — only available after schema deployment.
+    const EXTENDED_SELECT = [
       FORM_FIELD_ATTRS.BOOL_RENDER_STYLE,
       FORM_FIELD_ATTRS.TRUE_LABEL,
       FORM_FIELD_ATTRS.FALSE_LABEL,
@@ -214,6 +257,15 @@ export class FieldService {
       FORM_FIELD_ATTRS.INFO_CARD_TITLE,
       FORM_FIELD_ATTRS.INFO_CARD_BODY,
       FORM_FIELD_ATTRS.INFO_CARD_ICON,
+      FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL,
+      FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL,
+      FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON,
+      FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL,
+      FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON,
+      FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING,
+      FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING,
+      FORM_FIELD_ATTRS.PREFIX,
+      FORM_FIELD_ATTRS.SUFFIX,
       FORM_FIELD_ATTRS.GRID_MODE,
       FORM_FIELD_ATTRS.GRID_ENTITY_NAME,
       FORM_FIELD_ATTRS.GRID_SELECTION_MODE,
@@ -222,19 +274,30 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE,
-    ].join(',');
+    ];
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
     const orderBy = `${FORM_FIELD_ATTRS.SORT_ORDER} asc`;
 
-    const result = await withRetry(
-      () =>
-        this.webApi.retrieveMultipleRecords(
-          ENTITY_NAMES.FORM_FIELD,
-          `?$select=${select}&$filter=${filter}&$orderby=${orderBy}`
-        ),
-      'listFieldsForSection'
-    );
+    const buildQuery = (columns: string[]) =>
+      this.webApi.retrieveMultipleRecords(
+        ENTITY_NAMES.FORM_FIELD,
+        `?$select=${columns.join(',')}&$filter=${filter}&$orderby=${orderBy}`
+      );
+
+    let result;
+    try {
+      result = await withRetry(
+        () => buildQuery([...CORE_SELECT, ...EXTENDED_SELECT]),
+        'listFieldsForSection'
+      );
+    } catch {
+      // Extended columns not yet deployed to this environment — fall back to core only.
+      result = await withRetry(
+        () => buildQuery(CORE_SELECT),
+        'listFieldsForSection'
+      );
+    }
 
     return result.entities.map(record => this.mapRecordToModel(record));
   }
@@ -287,6 +350,15 @@ export class FieldService {
       infoCardTitle: record[FORM_FIELD_ATTRS.INFO_CARD_TITLE] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_TITLE]) : null,
       infoCardBody: record[FORM_FIELD_ATTRS.INFO_CARD_BODY] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_BODY]) : null,
       infoCardIcon: record[FORM_FIELD_ATTRS.INFO_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_ICON]) : null,
+      infoCardDownloadUrl: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL]) : null,
+      infoCardDownloadLabel: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL]) : null,
+      infoCardDownloadIcon: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON]) : null,
+      fileDownloadLabel: record[FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL] != null ? String(record[FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL]) : null,
+      fileDownloadIcon: record[FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON] != null ? String(record[FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON]) : null,
+      uploadDocumentSetting: record[FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING] != null ? String(record[FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING]) : null,
+      downloadDocumentSetting: record[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] != null ? String(record[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING]) : null,
+      prefix: record[FORM_FIELD_ATTRS.PREFIX] != null ? String(record[FORM_FIELD_ATTRS.PREFIX]) : null,
+      suffix: record[FORM_FIELD_ATTRS.SUFFIX] != null ? String(record[FORM_FIELD_ATTRS.SUFFIX]) : null,
       gridMode: record[FORM_FIELD_ATTRS.GRID_MODE] != null
         ? (PICKLIST_TO_GRID_MODE[Number(record[FORM_FIELD_ATTRS.GRID_MODE])] ?? null)
         : null,
