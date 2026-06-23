@@ -1,6 +1,6 @@
 ---
 name: architect
-model: claude-opus-4-6
+model: claude-opus-4-8
 description: >
   End-to-end solution architecture, system boundary definition,
   component design, technology stack justification, ADR authoring,

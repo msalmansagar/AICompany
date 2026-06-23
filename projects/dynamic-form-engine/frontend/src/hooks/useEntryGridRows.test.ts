@@ -1,5 +1,5 @@
 // RED — failing until useEntryGridRows is implemented.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useEntryGridRows } from './useEntryGridRows';
 import type { FieldDefinition, GridFieldConfig } from '@qdb/shared';

@@ -25,6 +25,23 @@ export const MOCK_LOAN_APPLICATION: FormDefinition = {
     'Your loan application has been submitted successfully. Our team will contact you within 2 business days.',
   confirmationRecordRefAttribute: 'ticketnumber',
   accessGroupId: undefined,
+  allowInfocardSkip: false,
+  infocardCountsInProgress: false,
+  infoCards: [],
+  showSummaryStep: false,
+  buttons: [
+    {
+      id: 'btn-submit',
+      formDefinitionId: 'fd-loan-application-001',
+      label: 'Submit Application',
+      action: 'submit',
+      displayOrder: 1,
+      isVisible: true,
+      isPrimary: true,
+      confirmationRequired: false,
+      isActive: true,
+    },
+  ],
   submissionMappings: [
     {
       id: 'sm-001',
@@ -486,7 +503,7 @@ export const MOCK_LOAN_APPLICATION: FormDefinition = {
             {
               id: 'fld-declaration-text',
               sectionId: 'sec-declaration',
-              fieldType: 'richtext',
+              fieldType: 'richText',
               schemaName: 'qdb_declaration_text',
               label: 'Declaration',
               displayOrder: 1,

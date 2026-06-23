@@ -22,7 +22,7 @@ const useStyles = makeStyles({
     borderRadius: tokens.borderRadiusMedium,
     overflow: 'hidden',
     ':focus-within': {
-      borderColor: tokens.colorBrandStroke1,
+      border: `1px solid ${tokens.colorBrandStroke1}`,
       outlineStyle: 'solid',
       outlineWidth: '2px',
       outlineColor: tokens.colorBrandStroke1,

@@ -27,7 +27,7 @@ function errorResponse(status: number, code = '') {
 }
 
 function makeMetadataCache() {
-  return new LRUCache<string, unknown>({ max: 100, ttl: 60_000 });
+  return new LRUCache<string, object>({ max: 100, ttl: 60_000 });
 }
 
 function makeGridField(overrides: Record<string, unknown> = {}) {
@@ -58,7 +58,7 @@ const BASE_FETCH_XML = '<fetch><entity name="qdb_product"><attribute name="qdb_n
 
 describe('CrmGridDataService', () => {
   let service: CrmGridDataService;
-  let metadataCache: LRUCache<string, unknown>;
+  let metadataCache: LRUCache<string, object>;
 
   beforeEach(() => {
     vi.clearAllMocks();

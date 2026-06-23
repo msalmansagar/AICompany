@@ -1,7 +1,6 @@
 // RED — failing until DesignContext is implemented
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import React, { useContext } from 'react';
 import { DesignContext, DEFAULT_DESIGN_PAYLOAD, useDesignContext } from './DesignContext';
 
 function DesignConsumer() {

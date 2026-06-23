@@ -105,7 +105,7 @@ export function createFilesRouter(
       url: fileUrl,
     };
 
-    const response: ApiResponse<UploadedFileReference> = { data: fileRef };
+    const response: ApiResponse<UploadedFileReference> = { success: true, data: fileRef };
     res.status(201).json(response);
   });
 
