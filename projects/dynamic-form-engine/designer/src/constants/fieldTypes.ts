@@ -62,6 +62,11 @@ export interface FieldTypeDefinition {
   hasLookup: boolean;
   /** Whether this type is a layout container (not a data field) */
   isLayout: boolean;
+  /**
+   * When true, the toolbox item is shown as disabled — no Dataverse option set
+   * code exists yet for this type, so dragging it would silently save as `text`.
+   */
+  comingSoon?: boolean;
 }
 
 export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
@@ -92,11 +97,11 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.INFO_TEXT]: { type: FIELD_TYPE.INFO_TEXT, category: 'layout', label: 'Info Text', iconName: 'Info', hasOptions: false, hasLookup: false, isLayout: true },
   [FIELD_TYPE.HEADER_TEXT]: { type: FIELD_TYPE.HEADER_TEXT, category: 'layout', label: 'Header Text', iconName: 'Header1', hasOptions: false, hasLookup: false, isLayout: true },
   [FIELD_TYPE.REPEATING_GRID]: { type: FIELD_TYPE.REPEATING_GRID, category: 'advanced', label: 'Repeating Grid', iconName: 'TableComputed', hasOptions: false, hasLookup: false, isLayout: false },
-  [FIELD_TYPE.CHILD_ENTITY_GRID]: { type: FIELD_TYPE.CHILD_ENTITY_GRID, category: 'advanced', label: 'Child Entity Grid', iconName: 'GridViewSmall', hasOptions: false, hasLookup: true, isLayout: false },
-  [FIELD_TYPE.DOCUMENT_UPLOAD]: { type: FIELD_TYPE.DOCUMENT_UPLOAD, category: 'advanced', label: 'Document Upload', iconName: 'DocumentApproval', hasOptions: false, hasLookup: false, isLayout: false },
-  [FIELD_TYPE.TERMS_BLOCK]: { type: FIELD_TYPE.TERMS_BLOCK, category: 'advanced', label: 'Terms & Conditions', iconName: 'Compliance', hasOptions: false, hasLookup: false, isLayout: false },
-  [FIELD_TYPE.DECLARATION_BLOCK]: { type: FIELD_TYPE.DECLARATION_BLOCK, category: 'advanced', label: 'Declaration Block', iconName: 'Assign', hasOptions: false, hasLookup: false, isLayout: false },
-  [FIELD_TYPE.SUMMARY_BLOCK]: { type: FIELD_TYPE.SUMMARY_BLOCK, category: 'advanced', label: 'Summary Block', iconName: 'StackedBarChart', hasOptions: false, hasLookup: false, isLayout: false },
+  [FIELD_TYPE.CHILD_ENTITY_GRID]: { type: FIELD_TYPE.CHILD_ENTITY_GRID, category: 'advanced', label: 'Child Entity Grid', iconName: 'GridViewSmall', hasOptions: false, hasLookup: true, isLayout: false, comingSoon: true },
+  [FIELD_TYPE.DOCUMENT_UPLOAD]: { type: FIELD_TYPE.DOCUMENT_UPLOAD, category: 'advanced', label: 'Document Upload', iconName: 'DocumentApproval', hasOptions: false, hasLookup: false, isLayout: false, comingSoon: true },
+  [FIELD_TYPE.TERMS_BLOCK]: { type: FIELD_TYPE.TERMS_BLOCK, category: 'advanced', label: 'Terms & Conditions', iconName: 'Compliance', hasOptions: false, hasLookup: false, isLayout: false, comingSoon: true },
+  [FIELD_TYPE.DECLARATION_BLOCK]: { type: FIELD_TYPE.DECLARATION_BLOCK, category: 'advanced', label: 'Declaration Block', iconName: 'Assign', hasOptions: false, hasLookup: false, isLayout: false, comingSoon: true },
+  [FIELD_TYPE.SUMMARY_BLOCK]: { type: FIELD_TYPE.SUMMARY_BLOCK, category: 'advanced', label: 'Summary Block', iconName: 'StackedBarChart', hasOptions: false, hasLookup: false, isLayout: false, comingSoon: true },
   // Sprint 3
   [FIELD_TYPE.CUSTOM]: { type: FIELD_TYPE.CUSTOM, category: 'advanced', label: 'Custom Component', iconName: 'Code', hasOptions: false, hasLookup: false, isLayout: false },
   // Sprint 4

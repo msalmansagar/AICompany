@@ -6,8 +6,8 @@ import { FieldRenderer } from '../components/fields/FieldRenderer';
 import type { FieldDefinition } from '@qdb/shared';
 
 jest.mock('../services/apiClient', () => ({
-  apiGet: jest.fn().mockResolvedValue({ records: [], totalCount: 0 }),
-  apiPost: jest.fn().mockResolvedValue(undefined),
+  apiGet: jest.fn(() => Promise.resolve({ records: [], totalCount: 0 })),
+  apiPost: jest.fn(() => Promise.resolve(undefined)),
 }));
 
 function buildField(overrides: Partial<FieldDefinition>): FieldDefinition {
@@ -33,13 +33,13 @@ function Wrapper({ field }: { field: FieldDefinition }) {
 
 describe('FieldRenderer', () => {
   it('renders_switch_for_boolean_toggle_field', () => {
-    const field = buildField({ fieldType: 'boolean', booleanRenderStyle: 'toggle' });
+    const field = buildField({ fieldType: 'boolean', boolRenderStyle: 'toggle' });
     render(<Wrapper field={field} />);
     expect(screen.getByRole('switch')).toBeTruthy();
   });
 
   it('renders_radio_buttons_for_boolean_radio_field', () => {
-    const field = buildField({ fieldType: 'boolean', booleanRenderStyle: 'radio' });
+    const field = buildField({ fieldType: 'boolean', boolRenderStyle: 'radio' });
     render(<Wrapper field={field} />);
     expect(screen.getAllByRole('radio')).toHaveLength(2);
   });
@@ -49,7 +49,7 @@ describe('FieldRenderer', () => {
       fieldType: 'interactive-grid',
       gridConfig: {
         mode: 'entry',
-        columns: [{ columnAttribute: 'val', columnLabel: 'Value', isVisible: true, displayOrder: 1 }],
+        columnConfigs: [{ columnId: 'col-1', targetAttribute: 'val', columnLabel: 'Value', displayOrder: 1, columnFieldType: 'text' }],
       },
     });
     render(<Wrapper field={field} />);
@@ -62,7 +62,7 @@ describe('FieldRenderer', () => {
       gridConfig: {
         mode: 'selection',
         selectionMode: 'single',
-        columns: [{ columnAttribute: 'name', columnLabel: 'Name', isVisible: true, displayOrder: 1 }],
+        columnConfigs: [{ columnId: 'col-1', targetAttribute: 'name', columnLabel: 'Name', displayOrder: 1, columnFieldType: 'text' }],
       },
     });
     render(<Wrapper field={field} />);

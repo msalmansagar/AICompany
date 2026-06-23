@@ -66,7 +66,6 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
     case 'textarea':
     case 'email':
     case 'phone':
-    case 'url':
       return <TextFieldPanel field={field} />;
     case 'number':
       return <NumberFieldPanel field={field} />;
@@ -102,6 +101,12 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
 
 // Display-only field types that have no input value — hide irrelevant controls.
 const DISPLAY_ONLY_TYPES = new Set(['info-card']);
+
+// Field types that support inline prefix/suffix decorators.
+const FIELD_TYPES_WITH_AFFIX = new Set([
+  'text', 'textarea', 'email', 'phone', 'url',
+  'number', 'decimal',
+]);
 
 function CustomFieldPanel({ field }: { field: DesignerFieldModel }): React.ReactElement {
   const updateField = useDesignerStore(s => s.updateField);
@@ -239,6 +244,24 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
                 placeholder="e.g. Must match your ID document"
               />
             </Field>
+            {FIELD_TYPES_WITH_AFFIX.has(field.fieldType) && (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Field label="Prefix" style={{ flex: 1 }}>
+                  <Input
+                    value={field.prefix ?? ''}
+                    onChange={(_, data) => updateField(fieldId, { prefix: data.value || null })}
+                    placeholder="e.g. $"
+                  />
+                </Field>
+                <Field label="Suffix" style={{ flex: 1 }}>
+                  <Input
+                    value={field.suffix ?? ''}
+                    onChange={(_, data) => updateField(fieldId, { suffix: data.value || null })}
+                    placeholder="e.g. kg"
+                  />
+                </Field>
+              </div>
+            )}
             <Field label="Column Span">
               <ColumnSpanButtons value={field.columnSpan} onChange={handleColumnSpanChange} />
             </Field>

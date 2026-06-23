@@ -32,22 +32,22 @@ describe('FormBooleanField', () => {
     expect(screen.getByRole('switch')).toBeTruthy();
   });
 
-  it('renders_radio_mode_when_booleanRenderStyle_is_radio', () => {
-    const field = buildField({ booleanRenderStyle: 'radio' });
+  it('renders_radio_mode_when_boolRenderStyle_is_radio', () => {
+    const field = buildField({ boolRenderStyle: 'radio' });
     render(<Wrapper field={field} />);
     const radios = screen.getAllByRole('radio');
     expect(radios).toHaveLength(2);
   });
 
   it('shows_custom_trueLabel_in_radio_mode', () => {
-    const field = buildField({ booleanRenderStyle: 'radio', trueLabel: 'Agree', falseLabel: 'Disagree' });
+    const field = buildField({ boolRenderStyle: 'radio', trueLabel: 'Agree', falseLabel: 'Disagree' });
     render(<Wrapper field={field} />);
     expect(screen.getByLabelText('Agree')).toBeTruthy();
     expect(screen.getByLabelText('Disagree')).toBeTruthy();
   });
 
   it('radio_mode_Yes_option_is_pressable', () => {
-    const field = buildField({ booleanRenderStyle: 'radio' });
+    const field = buildField({ boolRenderStyle: 'radio' });
     render(<Wrapper field={field} />);
     const [yesBtn] = screen.getAllByRole('radio');
     expect(() => fireEvent.press(yesBtn)).not.toThrow();

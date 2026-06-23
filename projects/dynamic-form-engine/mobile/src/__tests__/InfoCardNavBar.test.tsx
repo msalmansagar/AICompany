@@ -17,7 +17,7 @@ const DEFAULT_PROPS = {
 };
 
 describe('InfoCardNavBar', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => { jest.clearAllMocks(); });
 
   it('renders_Continue_button_when_not_last_screen', () => {
     render(<InfoCardNavBar {...DEFAULT_PROPS} isLastScreen={false} />);

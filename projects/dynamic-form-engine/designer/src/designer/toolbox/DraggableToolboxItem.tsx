@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { makeStyles, mergeClasses, shorthands, tokens, Text } from '@fluentui/react-components';
+import { makeStyles, mergeClasses, shorthands, tokens, Text, Tooltip } from '@fluentui/react-components';
 import type { FieldTypeDefinition } from '@/constants/fieldTypes';
 import { FIELD_TYPE_ICONS } from './fieldTypeIcons';
 
@@ -33,6 +33,20 @@ const useStyles = makeStyles({
     opacity: 0.5,
     cursor: 'grabbing',
   },
+  itemDisabled: {
+    opacity: 0.45,
+    cursor: 'not-allowed',
+    ':hover': {
+      backgroundColor: tokens.colorNeutralBackground1,
+      ...shorthands.borderColor(tokens.colorNeutralStroke1),
+    },
+  },
+  comingSoonBadge: {
+    fontSize: '9px',
+    lineHeight: '12px',
+    color: tokens.colorNeutralForeground4,
+    fontStyle: 'italic',
+  },
   // Wrapper span — sets font-size so the SVG icon's width="1em" resolves correctly
   iconWrapper: {
     display: 'flex',
@@ -55,8 +69,11 @@ interface DraggableToolboxItemProps {
 
 export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): React.ReactElement {
   const styles = useStyles();
+  const isDisabled = fieldDef.comingSoon === true;
+
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `toolbox-${fieldDef.type}`,
+    disabled: isDisabled,
     data: {
       source: 'toolbox',
       fieldType: fieldDef.type,
@@ -65,21 +82,40 @@ export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): R
 
   const Icon = FIELD_TYPE_ICONS[fieldDef.type];
 
-  return (
+  const content = (
     <div
       ref={setNodeRef}
-      className={mergeClasses(styles.item, isDragging && styles.itemDragging)}
-      {...listeners}
-      {...attributes}
+      className={mergeClasses(
+        styles.item,
+        isDragging && styles.itemDragging,
+        isDisabled && styles.itemDisabled,
+      )}
+      {...(isDisabled ? {} : listeners)}
+      {...(isDisabled ? {} : attributes)}
       role="button"
-      tabIndex={0}
-      aria-label={`Drag ${fieldDef.label} field`}
+      tabIndex={isDisabled ? -1 : 0}
+      aria-label={`${fieldDef.label}${isDisabled ? ' (coming soon)' : ' field — drag to add'}`}
       aria-grabbed={isDragging}
+      aria-disabled={isDisabled}
     >
       <span className={styles.iconWrapper}>
         <Icon />
       </span>
       <Text className={styles.label}>{fieldDef.label}</Text>
+      {isDisabled && <Text className={styles.comingSoonBadge}>coming soon</Text>}
     </div>
   );
+
+  if (isDisabled) {
+    return (
+      <Tooltip
+        content="Not yet available — this field type is planned for a future sprint"
+        relationship="description"
+      >
+        {content}
+      </Tooltip>
+    );
+  }
+
+  return content;
 }

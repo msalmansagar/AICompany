@@ -5,10 +5,11 @@ import { useEntryGridRows } from './useEntryGridRows';
 import type { FieldDefinition, GridFieldConfig } from '@qdb/shared';
 
 const mockUpdateFieldValue = vi.fn();
+let mockFieldValues: Record<string, unknown> = { gridField: [] };
 
 vi.mock('../contexts/FormContext', () => ({
   useFormContext: () => ({
-    fieldValues: { gridField: [] },
+    fieldValues: mockFieldValues,
     updateFieldValue: mockUpdateFieldValue,
   }),
 }));
@@ -50,6 +51,7 @@ function makeGridField(gridConfig: Partial<GridFieldConfig> = {}): FieldDefiniti
 describe('useEntryGridRows', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFieldValues = { gridField: [] };
   });
 
   it('returns_emptyRows_initially', () => {
@@ -93,12 +95,8 @@ describe('useEntryGridRows', () => {
   });
 
   it('updateCell_updatesCorrectCellValue', () => {
+    mockFieldValues = { gridField: [{ qdb_name: '' }] };
     const field = makeGridField();
-
-    vi.mocked(vi.fn()).mockImplementation(() => ({
-      fieldValues: { gridField: [{ qdb_name: '' }] },
-      updateFieldValue: mockUpdateFieldValue,
-    }));
 
     const { result } = renderHook(() => useEntryGridRows(field));
 

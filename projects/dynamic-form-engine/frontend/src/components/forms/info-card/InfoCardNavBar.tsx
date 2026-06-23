@@ -65,7 +65,6 @@ export function InfoCardNavBar({
             appearance="secondary"
             icon={<ArrowLeftRegular />}
             onClick={onBack}
-            aria-label="Go to previous screen"
           >
             {backLabel}
           </Button>

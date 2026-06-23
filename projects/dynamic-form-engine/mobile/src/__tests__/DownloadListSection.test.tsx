@@ -18,7 +18,7 @@ function buildItem(overrides: Partial<InfoCardItem> = {}): InfoCardItem {
 }
 
 describe('DownloadListSection', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => { jest.clearAllMocks(); });
 
   it('renders_section_title', () => {
     render(<DownloadListSection sectionTitle="Resources" items={[buildItem()]} />);

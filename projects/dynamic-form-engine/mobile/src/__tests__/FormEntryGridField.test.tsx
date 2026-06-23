@@ -19,10 +19,10 @@ function buildField(overrides: Partial<FieldDefinition> = {}): FieldDefinition {
     optionValues: [],
     gridConfig: {
       mode: 'entry',
-      columns: [
-        { columnAttribute: 'name', columnLabel: 'Name', isVisible: true, displayOrder: 1 },
-        { columnAttribute: 'qty', columnLabel: 'Quantity', isVisible: true, displayOrder: 2 },
-        { columnAttribute: 'hidden', columnLabel: 'Hidden', isVisible: false, displayOrder: 3 },
+      // Backend pre-filters to visible columns only — include only the two visible ones.
+      columnConfigs: [
+        { columnId: 'col-1', targetAttribute: 'name', columnLabel: 'Name', displayOrder: 1, columnFieldType: 'text' },
+        { columnId: 'col-2', targetAttribute: 'qty', columnLabel: 'Quantity', displayOrder: 2, columnFieldType: 'number' },
       ],
       maxRows: 10,
     },
@@ -40,7 +40,6 @@ describe('FormEntryGridField', () => {
     render(<Wrapper field={buildField()} />);
     expect(screen.getByText('Name')).toBeTruthy();
     expect(screen.getByText('Quantity')).toBeTruthy();
-    expect(screen.queryByText('Hidden')).toBeNull();
   });
 
   it('renders_field_label', () => {
@@ -54,7 +53,7 @@ describe('FormEntryGridField', () => {
   });
 
   it('shows_empty_config_message_when_no_columns_defined', () => {
-    const field = buildField({ gridConfig: { mode: 'entry', columns: [], maxRows: 10 } });
+    const field = buildField({ gridConfig: { mode: 'entry', columnConfigs: [], maxRows: 10 } });
     render(<Wrapper field={field} />);
     expect(screen.getByText(/Grid not configured/i)).toBeTruthy();
   });

@@ -5,7 +5,7 @@ import { InfoCardFlow } from '../components/info-card/InfoCardFlow';
 import type { FormDefinition, InfoCardScreen } from '@qdb/shared';
 
 jest.mock('../services/apiClient', () => ({
-  apiPost: jest.fn().mockResolvedValue(undefined),
+  apiPost: jest.fn(() => Promise.resolve(undefined)),
 }));
 
 function buildScreen(overrides: Partial<InfoCardScreen> = {}): InfoCardScreen {
