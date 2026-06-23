@@ -1,0 +1,128 @@
+// BRD FR-SCHEMA-013: qdb_cms_contents
+// Primary name: qdb_title (BRD-authoritative from CmsService.ts DataverseCmsContent)
+// BRD field names: qdb_slug, qdb_title, qdb_content_type, qdb_body_html, qdb_body_html_ar,
+// qdb_status, qdb_published_on — these are what the CmsService OData queries use.
+// qdb_content_type uses 100000xxx codes (BRD authoritative over brief).
+import type { EntityMetadataPayload } from '../../types/DataverseMetadata.js';
+import { label, requiredLevel, globalPicklist } from './shared.js';
+
+export const cmsContentsDefinition: EntityMetadataPayload = {
+  '@odata.type': 'Microsoft.Dynamics.CRM.EntityMetadata',
+  SchemaName: 'qdb_Cms_Contents',
+  DisplayName: label('CMS Content'),
+  DisplayCollectionName: label('CMS Contents'),
+  Description: label('Published content items (blog, news, announcements, pages) for the citizen portal.'),
+  OwnershipType: 'OrganizationOwned',
+  HasActivities: false,
+  HasNotes: false,
+  IsActivity: false,
+  PrimaryNameAttribute: 'qdb_title',
+  Attributes: [
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_Title',
+      LogicalName: 'qdb_title',
+      DisplayName: label('Title (EN)'),
+      RequiredLevel: requiredLevel('ApplicationRequired'),
+      MaxLength: 255,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_TitleAr',
+      LogicalName: 'qdb_title_ar',
+      DisplayName: label('Title (AR)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 255,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_Slug',
+      LogicalName: 'qdb_slug',
+      DisplayName: label('Slug'),
+      RequiredLevel: requiredLevel('ApplicationRequired'),
+      MaxLength: 100,
+    },
+    {
+      ...globalPicklist('qdb_ContentType', 'qdb_content_type', 'Content Type', 'qdb_cms_content_type'),
+      RequiredLevel: requiredLevel('ApplicationRequired'),
+      DefaultFormValue: 100000001,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.MemoAttributeMetadata',
+      SchemaName: 'qdb_BodyHtml',
+      LogicalName: 'qdb_body_html',
+      DisplayName: label('Body HTML (EN)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 100000,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.MemoAttributeMetadata',
+      SchemaName: 'qdb_BodyHtmlAr',
+      LogicalName: 'qdb_body_html_ar',
+      DisplayName: label('Body HTML (AR)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 100000,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_Excerpt',
+      LogicalName: 'qdb_excerpt',
+      DisplayName: label('Excerpt (EN)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 500,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_ExcerptAr',
+      LogicalName: 'qdb_excerpt_ar',
+      DisplayName: label('Excerpt (AR)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 500,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_CoverImageUrl',
+      LogicalName: 'qdb_cover_image_url',
+      DisplayName: label('Cover Image URL'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 500,
+    },
+    {
+      ...globalPicklist('qdb_Status', 'qdb_status', 'CMS Status', 'qdb_cms_status'),
+      RequiredLevel: requiredLevel('ApplicationRequired'),
+      DefaultFormValue: 100000001,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.DateTimeAttributeMetadata',
+      SchemaName: 'qdb_PublishedOn',
+      LogicalName: 'qdb_published_on',
+      DisplayName: label('Published On'),
+      RequiredLevel: requiredLevel('None'),
+      DateTimeBehavior: { Value: 'UserLocal' },
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_AuthorName',
+      LogicalName: 'qdb_author_name',
+      DisplayName: label('Author Name'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 255,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_Tags',
+      LogicalName: 'qdb_tags',
+      DisplayName: label('Tags (comma-separated)'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 1000,
+    },
+    {
+      '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName: 'qdb_MetaDescription',
+      LogicalName: 'qdb_meta_description',
+      DisplayName: label('Meta Description'),
+      RequiredLevel: requiredLevel('None'),
+      MaxLength: 500,
+    },
+  ],
+};

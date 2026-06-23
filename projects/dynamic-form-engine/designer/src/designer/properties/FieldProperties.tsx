@@ -21,6 +21,10 @@ import { DateFieldPanel } from './panels/DateFieldPanel';
 import { CheckboxFieldPanel } from './panels/CheckboxFieldPanel';
 import { FileUploadFieldPanel } from './panels/FileUploadFieldPanel';
 import { RichTextFieldPanel } from './panels/RichTextFieldPanel';
+import { BooleanFieldPanel } from './panels/BooleanFieldPanel';
+import { InfoCardFieldPanel } from './panels/InfoCardFieldPanel';
+import { InteractiveGridFieldPanel } from './panels/InteractiveGridFieldPanel';
+import { RepeatingGridFieldPanel } from './panels/RepeatingGridFieldPanel';
 
 const useStyles = makeStyles({
   root: {
@@ -81,12 +85,23 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
       return <FileUploadFieldPanel field={field} />;
     case 'rich_text':
       return <RichTextFieldPanel field={field} />;
+    case 'boolean':
+      return <BooleanFieldPanel field={field} />;
+    case 'info-card':
+      return <InfoCardFieldPanel field={field} />;
+    case 'interactive-grid':
+      return <InteractiveGridFieldPanel field={field} />;
+    case 'repeating_grid':
+      return <RepeatingGridFieldPanel field={field} />;
     case 'custom':
       return <CustomFieldPanel field={field} />;
     default:
       return null;
   }
 }
+
+// Display-only field types that have no input value — hide irrelevant controls.
+const DISPLAY_ONLY_TYPES = new Set(['info-card']);
 
 function CustomFieldPanel({ field }: { field: DesignerFieldModel }): React.ReactElement {
   const updateField = useDesignerStore(s => s.updateField);
@@ -177,6 +192,7 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
   }
 
   const typePanel = resolveTypePanel(field);
+  const isDisplayOnly = DISPLAY_ONLY_TYPES.has(field.fieldType);
 
   return (
     <div className={styles.root}>
@@ -205,57 +221,78 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
 
       <Divider />
 
-      <SectionHeading label="Display" />
-      <div className={styles.fieldGroup}>
-        <Field label="Placeholder">
-          <Input
-            value={field.placeholder}
-            onChange={(_, data) => updateField(fieldId, { placeholder: data.value })}
-            placeholder="e.g. Enter your first name"
-          />
-        </Field>
-        <Field label="Help Text" hint="Shown below the field as guidance">
-          <Input
-            value={field.helpText}
-            onChange={(_, data) => updateField(fieldId, { helpText: data.value })}
-            placeholder="e.g. Must match your ID document"
-          />
-        </Field>
-        <Field label="Column Span">
-          <ColumnSpanButtons value={field.columnSpan} onChange={handleColumnSpanChange} />
-        </Field>
-      </div>
+      {!isDisplayOnly && (
+        <>
+          <SectionHeading label="Display" />
+          <div className={styles.fieldGroup}>
+            <Field label="Placeholder">
+              <Input
+                value={field.placeholder}
+                onChange={(_, data) => updateField(fieldId, { placeholder: data.value })}
+                placeholder="e.g. Enter your first name"
+              />
+            </Field>
+            <Field label="Help Text" hint="Shown below the field as guidance">
+              <Input
+                value={field.helpText}
+                onChange={(_, data) => updateField(fieldId, { helpText: data.value })}
+                placeholder="e.g. Must match your ID document"
+              />
+            </Field>
+            <Field label="Column Span">
+              <ColumnSpanButtons value={field.columnSpan} onChange={handleColumnSpanChange} />
+            </Field>
+          </div>
+          <Divider />
+        </>
+      )}
 
-      <Divider />
+      {isDisplayOnly && (
+        <>
+          <SectionHeading label="Display" />
+          <div className={styles.fieldGroup}>
+            <Field label="Column Span">
+              <ColumnSpanButtons value={field.columnSpan} onChange={handleColumnSpanChange} />
+            </Field>
+          </div>
+          <Divider />
+        </>
+      )}
 
       <SectionHeading label="Behaviour" />
       <div className={styles.fieldGroup}>
         <div className={styles.switchRow}>
-          <Switch
-            label="Required"
-            checked={field.isRequired}
-            onChange={(_, data) => updateField(fieldId, { isRequired: data.checked })}
-          />
-          <Switch
-            label="Read Only"
-            checked={field.isReadOnly}
-            onChange={(_, data) => updateField(fieldId, { isReadOnly: data.checked })}
-          />
+          {!isDisplayOnly && (
+            <>
+              <Switch
+                label="Required"
+                checked={field.isRequired}
+                onChange={(_, data) => updateField(fieldId, { isRequired: data.checked })}
+              />
+              <Switch
+                label="Read Only"
+                checked={field.isReadOnly}
+                onChange={(_, data) => updateField(fieldId, { isReadOnly: data.checked })}
+              />
+            </>
+          )}
           <Switch
             label="Hidden"
             checked={field.isHidden}
             onChange={(_, data) => updateField(fieldId, { isHidden: data.checked })}
           />
         </div>
-        <Field label="Default Value">
-          <Input
-            value={field.defaultValue ?? ''}
-            onChange={(_, data) =>
-              updateField(fieldId, { defaultValue: data.value || null })
-            }
-            placeholder="Optional default value"
-          />
-        </Field>
+        {!isDisplayOnly && (
+          <Field label="Default Value">
+            <Input
+              value={field.defaultValue ?? ''}
+              onChange={(_, data) =>
+                updateField(fieldId, { defaultValue: data.value || null })
+              }
+              placeholder="Optional default value"
+            />
+          </Field>
+        )}
         {(field.fieldType === 'currency') && (
           <Field label="Currency Code" hint="ISO 4217, e.g. QAR, USD">
             <Input
@@ -277,18 +314,6 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
             />
           </Field>
         )}
-        {field.fieldType === 'repeating_grid' && (
-          <Field label="Max Rows" hint="Leave blank for no limit">
-            <Input
-              type="number"
-              value={field.maxRows != null ? String(field.maxRows) : ''}
-              onChange={(_, data) =>
-                updateField(fieldId, { maxRows: data.value ? parseInt(data.value, 10) : null })
-              }
-              placeholder="e.g. 10"
-            />
-          </Field>
-        )}
       </div>
 
       {typePanel !== null && (
@@ -299,10 +324,13 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
         </>
       )}
 
-      <Divider />
-
-      <SectionHeading label="Validation Rules" />
-      <ValidationRulesPanel fieldId={field.id} />
+      {!isDisplayOnly && (
+        <>
+          <Divider />
+          <SectionHeading label="Validation Rules" />
+          <ValidationRulesPanel fieldId={field.id} />
+        </>
+      )}
 
       <Divider />
       <FieldMappingSummary field={field} />

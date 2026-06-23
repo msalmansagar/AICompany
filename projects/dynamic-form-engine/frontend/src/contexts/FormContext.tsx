@@ -3,6 +3,7 @@
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -262,26 +263,35 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     }
   }, [formDefinition, ruleState, fieldValues, formCode]);
 
-  const contextValue: FormContextValue = {
-    formCode,
-    formDefinition,
-    isLoading,
-    error,
-    fieldValues,
-    ruleState,
-    validationErrors,
-    isDirty,
-    isSubmitting,
-    draftId,
-    activeTabIndex,
-    setActiveTabIndex,
-    submissionReference,
-    isSubmitted,
-    updateFieldValue,
-    saveDraft,
-    submitForm,
-    resetForm,
-  };
+  // Memoize contextValue so consumers only re-render when something they
+  // actually care about changes — not on every internal FormProvider re-render.
+  const contextValue = useMemo<FormContextValue>(
+    () => ({
+      formCode,
+      formDefinition,
+      isLoading,
+      error,
+      fieldValues,
+      ruleState,
+      validationErrors,
+      isDirty,
+      isSubmitting,
+      draftId,
+      activeTabIndex,
+      setActiveTabIndex,
+      submissionReference,
+      isSubmitted,
+      updateFieldValue,
+      saveDraft,
+      submitForm,
+      resetForm,
+    }),
+    [
+      formCode, formDefinition, isLoading, error, fieldValues, ruleState,
+      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
+      submissionReference, isSubmitted, updateFieldValue, saveDraft, submitForm, resetForm,
+    ],
+  );
 
   return (
     <FormContext.Provider value={contextValue}>

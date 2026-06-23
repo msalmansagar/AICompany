@@ -152,6 +152,43 @@ export class ValidationEngine {
           : z.array(z.record(z.unknown())).optional();
         break;
 
+      // DFE-ADD-002: Boolean field — value must be true or false (not undefined) when required.
+      // BC-010 enforcement for boolean: required validation applies regardless of tab visit state.
+      case 'boolean':
+        schema = isRequired
+          ? z
+              .boolean()
+              .optional()
+              .refine(
+                (val) => val !== undefined,
+                'This field is required',
+              )
+          : z.boolean().optional();
+        break;
+
+      // DFE-ADD-002: Interactive Grid — required validation applies even if tab was never visited.
+      // BC-010 enforcement: Zod schema built at form level, not on interaction.
+      case 'interactive-grid': {
+        const selectionSchema = z.union([z.string(), z.array(z.string())]);
+        const entrySchema = z.array(z.record(z.unknown()));
+        // Accept either selection or entry format; required check is non-empty.
+        schema = isRequired
+          ? z
+              .union([selectionSchema, entrySchema])
+              .optional()
+              .refine(
+                (val) => {
+                  if (val === undefined || val === null) return false;
+                  if (Array.isArray(val)) return val.length > 0;
+                  if (typeof val === 'string') return val.length > 0;
+                  return false;
+                },
+                'Please make a selection or add at least one row',
+              )
+          : z.union([selectionSchema, entrySchema]).optional();
+        break;
+      }
+
       default:
         schema = isRequired ? z.unknown() : z.unknown().optional();
     }
@@ -252,6 +289,9 @@ export class ValidationEngine {
 
   private validateRequired(value: unknown, errorMessage: string): string | null {
     if (value === null || value === undefined || value === '') return errorMessage;
+
+    // Boolean false is a valid required answer — only undefined/null signals missing.
+    if (typeof value === 'boolean') return null;
 
     if (Array.isArray(value) && value.length === 0) return errorMessage;
 

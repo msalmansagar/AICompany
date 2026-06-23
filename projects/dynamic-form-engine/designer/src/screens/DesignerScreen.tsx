@@ -19,7 +19,7 @@ import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
 import { PropertiesPanel } from '@/designer/properties/PropertiesPanel';
 import { DesignerCommandBar } from '@/designer/commandbar/DesignerCommandBar';
 import { CrmContext } from '@/app/App';
-import { FormSaveService } from '@/services/FormSaveService';
+import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { validateForDraftSave } from '@/validation/draftValidation';
 import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
 import { FIELD_TYPE, FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
@@ -75,6 +75,7 @@ export function DesignerScreen(): React.ReactElement {
     fields,
     businessRules,
     validationRules,
+    style,
     tabOrder,
     sectionOrder,
     fieldOrder,
@@ -93,6 +94,7 @@ export function DesignerScreen(): React.ReactElement {
     reorderTabs,
     markSaving,
     markSaved,
+    markResolved,
     navigateTo,
   } = useDesignerStore();
 
@@ -114,13 +116,14 @@ export function DesignerScreen(): React.ReactElement {
       const userContext = crmService.getUserContext();
       const saveService = new FormSaveService(webApi, userContext);
 
-      const { resolvedIds } = await saveService.save({
+      const { resolvedIds, resolvedThemeId } = await saveService.save({
         form,
         tabs,
         sections,
         fields,
         validationRules,
         businessRules,
+        style,
         tabOrder,
         sectionOrder,
         fieldOrder,
@@ -130,17 +133,22 @@ export function DesignerScreen(): React.ReactElement {
         deletedEntityTypes,
       });
 
-      markSaved(resolvedIds);
+      markSaved(resolvedIds, resolvedThemeId);
     } catch (error) {
-      console.error('Save draft failed:', error);
+      if (error instanceof PartialSaveError && Object.keys(error.resolvedIds).length > 0) {
+        // Some records were created before the failure. Resolve their IDs now so a retry
+        // doesn't re-create them, eliminating duplicate records in Dataverse.
+        markResolved(error.resolvedIds);
+      }
+      console.error('Save draft failed:', error instanceof PartialSaveError ? error.message : error);
       useDesignerStore.setState({ isSaving: false });
     }
   }, [
     form, crmService, isSaving,
-    tabs, sections, fields, validationRules, businessRules,
+    tabs, sections, fields, validationRules, businessRules, style,
     tabOrder, sectionOrder, fieldOrder,
     newIds, dirtyIds, deletedIds, deletedEntityTypes,
-    markSaving, markSaved,
+    markSaving, markSaved, markResolved,
   ]);
 
   // Fixed: stable dep array so the listener is not re-registered on every render
@@ -243,6 +251,31 @@ export function DesignerScreen(): React.ReactElement {
           options: [],
           lookupConfig: null,
           componentKey: null,
+          boolRenderStyle: null,
+          trueLabel: null,
+          falseLabel: null,
+          infoCardStyle: null,
+          infoCardTitle: null,
+          infoCardBody: null,
+          infoCardIcon: null,
+          infoCardDownloadUrl: null,
+          infoCardDownloadLabel: null,
+          infoCardDownloadIcon: null,
+          fileDownloadLabel: null,
+          fileDownloadIcon: null,
+          uploadDocumentSetting: null,
+          downloadDocumentSetting: null,
+          prefix: null,
+          suffix: null,
+          gridMode: null,
+          gridEntityName: null,
+          gridSelectionMode: null,
+          gridMinRows: null,
+          gridSavedViewId: null,
+          gridFilterExpression: null,
+          gridDependsOnFieldId: null,
+          gridDependsOnFilterTemplate: null,
+          gridColumns: [],
         };
         addField(newField);
         return;

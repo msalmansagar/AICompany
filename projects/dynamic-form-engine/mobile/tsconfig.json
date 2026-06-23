@@ -7,7 +7,8 @@
       "@qdb/shared": ["../shared/src/index.ts"],
       "zod": ["./node_modules/zod/index.d.ts"],
       "json-rules-engine": ["./node_modules/json-rules-engine/types/index.d.ts"]
-    }
+    },
+    "types": ["@jest/globals"]
   },
   "include": ["src", "app", "*.ts", "*.tsx"]
 }

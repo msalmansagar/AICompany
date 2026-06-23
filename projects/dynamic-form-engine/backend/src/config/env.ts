@@ -27,6 +27,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error']).default('info'),
   DESIGN_CACHE_TTL_SECONDS: z.coerce.number().default(300),
   QDB_CSS_ALLOWED_DOMAINS: z.string().default(''),
+  // DFE-ADD-002: maximum operations in a single $batch changeset (Dataverse hard limit is 1000).
+  MAX_BATCH_OPERATIONS: z.coerce.number().default(500),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -11,6 +11,12 @@ import type {
   AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
 
+export interface AttributeMeta {
+  logicalName: string;
+  displayName: string;
+  attributeType: string;
+}
+
 export interface ICrmAdapter {
   // Process (qdb_work_item_record_type)
   getProcessList(): Promise<WorkflowProcess[]>;
@@ -40,12 +46,25 @@ export interface ICrmAdapter {
   // Metadata lookups
   getEntities(): Promise<EntityOption[]>;
   getAttributes(entityLogicalName: string): Promise<AttributeOption[]>;
+  getAttributesMeta(entityLogicalName: string): Promise<AttributeMeta[]>;
+  getOptionSetLabels(entityLogicalName: string, attributeLogicalName: string): Promise<Map<number, string>>;
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
+  getRoundRobinTeams(): Promise<TeamOption[]>;
   getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
   getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 
   // Workflow lifecycle
   publishProcess(id: string): Promise<void>;
   cloneProcess(id: string): Promise<string>;
+
+  // Audit
+  logAuditEntry(entry: AuditLogEntry): Promise<void>;
+}
+
+export interface AuditLogEntry {
+  action: string;
+  entityId: string;
+  detail: string | undefined;
+  timestamp: string;
 }

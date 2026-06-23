@@ -55,17 +55,23 @@ projects:
 
   - name: crm-workflow-designer
     type: crm
-    phase: build
-    started: 2026-04-29
-    last_updated: 2026-04-30
-    last_agent: architect + build
-    ceo_approved_phases: [ba]
+    phase: delivered
+    started: 2026-06-01
+    last_updated: 2026-06-12
+    last_agent: ceo (phase-6-final)
+    ceo_approved_phases: [ba, architecture, build, qa, audit, delivered]
     output_dir: projects/crm-workflow-designer/
-    status: in_progress
+    status: approved_with_conditions
     notes: >
-      Architecture complete. Build complete (React 18 + @xyflow/react v12 + Zustand + Vite).
-      3 HIGH risks still require client input before production deployment:
-      R1 plugin JSON schema, R2 field size confirmation, R3 allowed-list config entity.
+      CWFD-001 — Enterprise Visual Workflow Designer — Phase 4 build COMPLETE.
+      CWFD-002 — SOP Designer (Two-Tier Process Design System) — FULL ENGAGEMENT COMPLETE (2026-06-12).
+      All 10 engagement steps completed. CEO final decision: APPROVED WITH CONDITIONS.
+      6 release conditions (C-CEO-SOP-01 through C-CEO-SOP-06) must be resolved before UAT.
+      Critical: DEFECT-SOP-001 (cross-SOP StepId injection in plugin) must be fixed before UAT.
+      Output dir for SOP feature: projects/crm-workflow-designer/sop-feature/
+      Key artefacts: brd.md, phase-2-arch.md (ADR-008/ADR-009), phase-3-tech.md,
+      code-review.md, phase-4-qa.md, phase-5-audit.md, phase-6-ceo.md.
+      Zero new npm dependencies. Bundle delta: +55 KB lazy, +4 KB eager.
 
   - name: form-designer-webresource
     type: crm

@@ -17,6 +17,8 @@ import { DateControl } from './controls/DateControl';
 import { DateTimeControl } from './controls/DateTimeControl';
 import { DropdownControl } from './controls/DropdownControl';
 import { MultiSelectControl } from './controls/MultiSelectControl';
+import { CheckboxGroupControl } from './controls/CheckboxGroupControl';
+import { RadioCardControl } from './controls/RadioCardControl';
 import { LookupControl } from './controls/LookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
@@ -27,6 +29,9 @@ import { PhoneControl } from './controls/PhoneControl';
 import { FileUploadControl } from './controls/FileUploadControl';
 import { RepeatingGridControl } from './controls/RepeatingGridControl';
 import { RichTextControl } from './controls/RichTextControl';
+import { BooleanControl } from './fields/BooleanControl';
+import { InfoCardField } from './fields/InfoCardField';
+import { InteractiveGridField } from './fields/InteractiveGridField';
 import { DynamicIcon } from './DynamicIcon';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
@@ -87,6 +92,8 @@ export interface FieldRendererProps {
   isRequired: boolean;
   isReadonly: boolean;
   error?: string;
+  // Passed through for interactive-grid lazy loading (ADR-ADD-003).
+  isTabActive?: boolean;
 }
 
 // FieldRenderer is NOT wrapped in React.memo â€” conflicts with RHF Controller subscriptions.
@@ -96,6 +103,7 @@ export function FieldRenderer({
   isRequired,
   isReadonly,
   error,
+  isTabActive = false,
 }: FieldRendererProps) {
   const styles = useStyles();
   const inputId = useId();
@@ -118,6 +126,11 @@ export function FieldRenderer({
 
   if (!isVisible) return null;
 
+  // info-card is purely presentational — skip the label/error wrapper entirely.
+  if (field.fieldType === 'info-card') {
+    return <InfoCardField field={field} />;
+  }
+
   const controlProps = {
     field,
     inputId,
@@ -125,6 +138,8 @@ export function FieldRenderer({
     isReadonly,
     errorId: error ? errorId : undefined,
     appearance: resolvedProps.appearance,
+    // Forwarded to interactive-grid for lazy tab-activation loading (ADR-ADD-003).
+    isTabActive,
   };
 
   const labelElement = field.fieldType !== 'checkbox' && (
@@ -182,7 +197,7 @@ export function FieldRenderer({
         )}
       </div>
 
-      {!isFloating && tooltipElement === false && null}
+      {!isFloating && !tooltipElement && null}
 
       {error && (
         <Text
@@ -205,6 +220,8 @@ export interface ControlProps {
   isReadonly: boolean;
   errorId?: string;
   appearance?: 'outline' | 'filled-darker' | 'underline';
+  // Forwarded to interactive-grid for lazy tab-activation loading (ADR-ADD-003).
+  isTabActive?: boolean;
 }
 
 function FieldControl({ controlProps }: { controlProps: ControlProps }) {
@@ -224,13 +241,17 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'dropdown':
       return <DropdownControl {...controlProps} />;
     case 'multiselect':
-      return <MultiSelectControl {...controlProps} />;
+      return field.multiselectRenderStyle === 'checkboxes'
+        ? <CheckboxGroupControl {...controlProps} />
+        : <MultiSelectControl {...controlProps} />;
     case 'lookup':
       return <LookupControl {...controlProps} />;
     case 'checkbox':
       return <CheckboxControl {...controlProps} />;
     case 'radio':
-      return <RadioControl {...controlProps} />;
+      return field.radioRenderStyle === 'cards'
+        ? <RadioCardControl {...controlProps} />
+        : <RadioControl {...controlProps} />;
     case 'currency':
       return <CurrencyControl {...controlProps} />;
     case 'decimal':
@@ -241,15 +262,30 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
       return <PhoneControl {...controlProps} />;
     case 'file':
       return <FileUploadControl {...controlProps} />;
-    case 'repeatingGrid':
+    case 'grid':
       return <RepeatingGridControl {...controlProps} />;
-    case 'richText':
+    case 'richtext':
       return <RichTextControl {...controlProps} />;
+    // DFE-ADD-002: Boolean field type.
+    case 'boolean':
+      return <BooleanControl {...controlProps} />;
+    // DFE-ADD-002: Info-card field type (display-only, handled by early-return in FieldRenderer).
+    // Included here so the switch remains exhaustive for direct FieldControl callers.
+    case 'info-card':
+      return <InfoCardField field={controlProps.field} />;
+    // DFE-ADD-002: Interactive Grid field type (Selection + Entry modes).
+    case 'interactive-grid':
+      return (
+        <InteractiveGridField
+          {...controlProps}
+          isTabActive={controlProps.isTabActive ?? false}
+        />
+      );
     case 'custom': {
       const key = field.componentKey ?? '';
       const CustomComponent = ComponentRegistry.resolve(key);
       if (!CustomComponent) {
-        return <Text>Custom component '{key}' is not registered</Text>;
+        return <Text>Custom component &apos;{key}&apos; is not registered</Text>;
       }
       return <CustomComponent {...controlProps} />;
     }

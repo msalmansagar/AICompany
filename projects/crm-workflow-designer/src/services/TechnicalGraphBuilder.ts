@@ -1,15 +1,22 @@
 import dagre from '@dagrejs/dagre';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
-import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
+import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { StepOutcomeRow, LayoutDir } from './WorkflowGraphBuilder';
-import { STEP_W, MARKER_SIZE } from './WorkflowGraphBuilder';
+import { STEP_W, MARKER_SIZE, GATEWAY_SIZE, conditionLabel, branchRouteDestinations } from './WorkflowGraphBuilder';
+
+export interface BackHandleInfo {
+  outcomeId: string;
+  offset: number;
+}
 
 export interface TechStepData extends Record<string, unknown> {
   step: CrmStep;
   outcomeRows: StepOutcomeRow[];
   nodeHeight: number;
   layoutDir: LayoutDir;
+  backOutHandles: BackHandleInfo[];
+  backInHandles: BackHandleInfo[];
 }
 
 const TECH_BASE_H = 90;
@@ -18,7 +25,6 @@ const TECH_TASK_ROW_H = 18;
 const TECH_ENTITY_ROW_H = 18;
 const TECH_OUTCOME_ROW_H = 22;
 const TECH_DIVIDER_H = 12;
-// Technical nodes always show the schema row (even if empty), so we reserve that height.
 const TECH_ALWAYS_H = TECH_SCHEMA_ROW_H;
 
 export function computeTechStepHeight(step: CrmStep, outcomeCount: number): number {
@@ -35,7 +41,8 @@ const END_NODE_ID = 'node_end';
 export function buildTechnicalGraph(
   steps: CrmStep[],
   outcomes: CrmOutcome[],
-  dir: LayoutDir = 'TB'
+  dir: LayoutDir = 'TB',
+  routes: CrmRoute[] = []
 ): { nodes: Node[]; edges: Edge[] } {
   const stepById = new Map(steps.map((s) => [s.id, s]));
 
@@ -49,10 +56,29 @@ export function buildTechnicalGraph(
     }
   }
 
+  const backOutsByStep = new Map<string, string[]>();
+  const backInsByStep  = new Map<string, string[]>();
+  for (const o of outcomes) {
+    if (!backEdgeOutcomeIds.has(o.id)) continue;
+    if (!backOutsByStep.has(o.stepId))     backOutsByStep.set(o.stepId, []);
+    if (!backInsByStep.has(o.nextStepId!)) backInsByStep.set(o.nextStepId!, []);
+    backOutsByStep.get(o.stepId)!.push(o.id);
+    backInsByStep.get(o.nextStepId!)!.push(o.id);
+  }
+
   const outcomesByStep = new Map<string, CrmOutcome[]>();
   for (const step of steps) outcomesByStep.set(step.id, []);
   for (const o of outcomes) outcomesByStep.get(o.stepId)?.push(o);
   for (const list of outcomesByStep.values()) {
+    list.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  }
+
+  const routesByOutcome = new Map<string, CrmRoute[]>();
+  for (const r of routes) {
+    if (!routesByOutcome.has(r.outcomeId)) routesByOutcome.set(r.outcomeId, []);
+    routesByOutcome.get(r.outcomeId)!.push(r);
+  }
+  for (const list of routesByOutcome.values()) {
     list.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
   }
 
@@ -82,11 +108,30 @@ export function buildTechnicalGraph(
       id: `step_${step.id}`,
       type: 'techStep',
       position: { x: 0, y: 0 },
-      data: { step, outcomeRows, nodeHeight, layoutDir: dir } as TechStepData,
+      data: {
+        step, outcomeRows, nodeHeight, layoutDir: dir,
+        backOutHandles: spreadHandles(backOutsByStep.get(step.id) ?? []),
+        backInHandles:  spreadHandles(backInsByStep.get(step.id)  ?? []),
+      } as TechStepData,
       draggable: true,
       selectable: true,
     };
   });
+
+  const gatewayNodes: Node[] = [];
+  for (const o of outcomes) {
+    if (!o.applyFilter) continue;
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    if (outcomeRoutes.length === 0) continue;
+    gatewayNodes.push({
+      id: `gw_${o.id}`,
+      type: 'routeGateway',
+      position: { x: 0, y: 0 },
+      data: { outcomeName: o.name, outcomeId: o.id, routeCount: outcomeRoutes.length, isSelected: false },
+      draggable: true,
+      selectable: true,
+    });
+  }
 
   const startNode: Node = {
     id: START_NODE_ID, type: 'viewStart', position: { x: 0, y: 0 },
@@ -97,7 +142,7 @@ export function buildTechnicalGraph(
     data: { layoutDir: dir }, draggable: false, selectable: false,
   };
 
-  const nodes: Node[] = [startNode, ...stepNodes, endNode];
+  const nodes: Node[] = [startNode, ...stepNodes, ...gatewayNodes, endNode];
 
   const startEdges: Edge[] = firstSteps.map((s) => ({
     id: `e_start_${s.id}`,
@@ -111,23 +156,77 @@ export function buildTechnicalGraph(
 
   const forwardEdges: Edge[] = [];
   const seenPairs = new Set<string>();
+
   for (const o of outcomes) {
-    if (!o.nextStepId || backEdgeOutcomeIds.has(o.id)) continue;
-    const key = `${o.stepId}→${o.nextStepId}`;
-    if (seenPairs.has(key)) continue;
-    seenPairs.add(key);
-    forwardEdges.push({
-      id: `e_fwd_${o.stepId}_${o.nextStepId}`,
-      source: `step_${o.stepId}`, target: `step_${o.nextStepId}`,
-      sourceHandle: 'out', targetHandle: 'in',
-      type: 'smoothstep',
-      style: { stroke: '#64748b', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
-      selectable: false,
-    });
+    if (backEdgeOutcomeIds.has(o.id)) continue;
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    const hasGateway = o.applyFilter && outcomeRoutes.length > 0;
+
+    if (hasGateway) {
+      const entryKey = `${o.stepId}→gw_${o.id}`;
+      if (!seenPairs.has(entryKey)) {
+        seenPairs.add(entryKey);
+        forwardEdges.push({
+          id: `e_tech_entry_${o.id}`,
+          source: `step_${o.stepId}`, target: `gw_${o.id}`,
+          sourceHandle: 'out', targetHandle: 'in',
+          type: 'smoothstep',
+          style: { stroke: '#d97706', strokeWidth: 1.5, strokeDasharray: '5 3' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#d97706' },
+          selectable: false,
+        });
+      }
+
+      for (const route of outcomeRoutes) {
+        const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
+        const isFallback = !route.filter?.trim();
+        const stroke = isFallback ? '#16a34a' : '#d97706';
+        const cond = conditionLabel(route.filter);
+        const label = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+
+        forwardEdges.push({
+          id: `e_tech_route_${route.id}`,
+          source: `gw_${o.id}`, target: targetId,
+          sourceHandle: 'out', targetHandle: 'in',
+          type: 'smoothstep',
+          animated: !isFallback,
+          label,
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? '#166534' : '#92400e' },
+          labelBgStyle: { fill: isFallback ? '#f0fdf4' : '#fef3c7', fillOpacity: 1 },
+          style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
+          markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+          selectable: true,
+        });
+      }
+    } else if (o.nextStepId) {
+      const key = `${o.stepId}→${o.nextStepId}`;
+      if (seenPairs.has(key)) continue;
+      seenPairs.add(key);
+      forwardEdges.push({
+        id: `e_fwd_${o.stepId}_${o.nextStepId}`,
+        source: `step_${o.stepId}`, target: `step_${o.nextStepId}`,
+        sourceHandle: 'out', targetHandle: 'in',
+        type: 'smoothstep',
+        style: { stroke: '#64748b', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+        selectable: false,
+      });
+    }
   }
 
-  const terminalStepIds = new Set(outcomes.filter((o) => !o.nextStepId).map((o) => o.stepId));
+  const terminalStepIds = new Set<string>();
+  for (const o of outcomes) {
+    if (o.applyFilter) continue;
+    if (!o.nextStepId) terminalStepIds.add(o.stepId);
+  }
+  for (const o of outcomes) {
+    if (!o.applyFilter) continue;
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    if (outcomeRoutes.length > 0 && outcomeRoutes.every((r) => !r.nextStepId)) {
+      terminalStepIds.add(o.stepId);
+    }
+  }
+
   const lastTerminalStep = [...terminalStepIds]
     .map((id) => stepById.get(id))
     .filter((s): s is CrmStep => s !== undefined)
@@ -149,14 +248,13 @@ export function buildTechnicalGraph(
     };
   });
 
-  // Back-edges with full outcome name (no truncation for technical view).
   const backEdges: Edge[] = outcomes
     .filter((o) => backEdgeOutcomeIds.has(o.id))
     .map((o) => ({
       id: `e_back_${o.id}`,
       source: `step_${o.stepId}`, target: `step_${o.nextStepId!}`,
-      sourceHandle: 'back-out', targetHandle: 'back-in',
-      type: 'smoothstep',
+      sourceHandle: `back-out-${o.id}`, targetHandle: `back-in-${o.id}`,
+      type: 'bezier',
       label: `↩ ${o.name}${o.applyFilter ? ' ◈' : ''}`,
       labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
       labelBgStyle: { fill: '#f5f3ff', fillOpacity: 1, rx: 4 },
@@ -167,18 +265,30 @@ export function buildTechnicalGraph(
     }));
 
   const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges];
-  const positionedNodes = applyTechLayout(nodes, layoutEdges, dir);
+  let positionedNodes = applyTechLayout(nodes, layoutEdges, dir);
+
+  if (dir === 'TB' && routes.length > 0) {
+    positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, STEP_W);
+  }
+
   return { nodes: positionedNodes, edges: [...layoutEdges, ...backEdges] };
+}
+
+function spreadHandles(ids: string[]): BackHandleInfo[] {
+  const n = ids.length;
+  return ids.map((id, i) => ({
+    outcomeId: id,
+    offset: n === 1 ? 50 : 15 + (i / (n - 1)) * 70,
+  }));
 }
 
 function applyTechLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): Node[] {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: dir, nodesep: 120, ranksep: 70, marginx: 80, marginy: 60 });
+  g.setGraph({ rankdir: dir, nodesep: 120, ranksep: 100, marginx: 80, marginy: 60 });
 
   for (const node of nodes) {
-    const w = node.type === 'techStep' ? STEP_W : MARKER_SIZE;
-    const h = node.type === 'techStep' ? (node.data as TechStepData).nodeHeight : MARKER_SIZE;
+    const { w, h } = techNodeDimensions(node);
     g.setNode(node.id, { width: w, height: h });
   }
   for (const edge of edges) {
@@ -189,8 +299,7 @@ function applyTechLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): N
   dagre.layout(g);
 
   const positioned = nodes.map((node) => {
-    const w = node.type === 'techStep' ? STEP_W : MARKER_SIZE;
-    const h = node.type === 'techStep' ? (node.data as TechStepData).nodeHeight : MARKER_SIZE;
+    const { w, h } = techNodeDimensions(node);
     const pos = g.node(node.id);
     if (!pos) return node;
     return { ...node, position: { x: pos.x - w / 2, y: pos.y - h / 2 } };
@@ -223,4 +332,10 @@ function applyTechLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 'TB'): N
       return node;
     });
   }
+}
+
+function techNodeDimensions(node: Node): { w: number; h: number } {
+  if (node.type === 'techStep') return { w: STEP_W, h: (node.data as TechStepData).nodeHeight };
+  if (node.type === 'routeGateway') return { w: GATEWAY_SIZE, h: GATEWAY_SIZE };
+  return { w: MARKER_SIZE, h: MARKER_SIZE };
 }

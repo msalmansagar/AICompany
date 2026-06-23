@@ -1,4 +1,5 @@
 ﻿import { useCallback, useState } from 'react';
+import { logger } from '../../utils/logger';
 import {
   Button,
   Dialog,
@@ -27,6 +28,8 @@ import type { FormButton, ButtonAction } from '@qdb/shared';
 
 interface FormActionBarProps {
   sticky?: boolean;
+  // When false the submit button is hidden (user is not on the final tab yet).
+  showSubmit?: boolean;
 }
 
 const DEFAULT_BUTTON: FormButton = {
@@ -84,7 +87,7 @@ const useStyles = makeStyles({
   },
 });
 
-export function FormActionBar({ sticky = false }: FormActionBarProps) {
+export function FormActionBar({ sticky = false, showSubmit = true }: FormActionBarProps) {
   const styles = useStyles();
   const {
     formDefinition,
@@ -108,9 +111,13 @@ export function FormActionBar({ sticky = false }: FormActionBarProps) {
 
   const visibleButtons = (formDefinition?.buttons ?? [])
     .filter((b) => b.isVisible && b.isActive)
+    .filter((b) => b.action !== 'submit' || showSubmit)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
-  const buttons = visibleButtons.length > 0 ? visibleButtons : [DEFAULT_BUTTON];
+  // Only show the default submit button when no Dataverse buttons exist AND submit is allowed.
+  const buttons = visibleButtons.length > 0
+    ? visibleButtons
+    : showSubmit ? [DEFAULT_BUTTON] : [];
 
   const handleSaveDraft = useCallback(async () => {
     setSaveDraftState('saving');
@@ -118,7 +125,11 @@ export function FormActionBar({ sticky = false }: FormActionBarProps) {
       await saveDraft();
       setSaveDraftState('saved');
       setTimeout(() => setSaveDraftState('idle'), 2500);
-    } catch {
+    } catch (error) {
+      logger.error('save_draft_failed', {
+        operation: 'handleSaveDraft',
+        error: error instanceof Error ? error.message : String(error),
+      });
       setSaveDraftState('error');
       setTimeout(() => setSaveDraftState('idle'), 2500);
     }
@@ -194,9 +205,9 @@ function FormButtonItem({
           disabled={isSubmitting}
           onClick={onSubmit}
           aria-busy={isSubmitting}
-          aria-label={isSubmitting ? 'Submittingâ€¦' : button.label}
+          aria-label={isSubmitting ? 'Submitting…' : button.label}
         >
-          {isSubmitting ? 'Submittingâ€¦' : button.label}
+          {isSubmitting ? 'Submitting…' : button.label}
         </Button>
         {errorCount > 0 && !isSubmitting && (
           <Badge
@@ -227,7 +238,7 @@ function FormButtonItem({
         onClick={onSaveDraft}
         aria-label={button.label}
       >
-        {isSaving ? 'Savingâ€¦' : isSaved ? 'Saved' : button.label}
+        {isSaving ? 'Saving…' : isSaved ? 'Saved' : button.label}
       </Button>
     );
   }

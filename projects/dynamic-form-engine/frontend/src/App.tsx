@@ -58,6 +58,10 @@ export function App() {
   const formCode = formCodeIndex >= 0 ? (pathParts[formCodeIndex + 1] ?? '') : '';
   const recordId = new URLSearchParams(window.location.search).get('recordId') ?? undefined;
 
+  function handleLogin() {
+    void msalInstance.loginPopup(loginRequest);
+  }
+
   if (import.meta.env.VITE_SKIP_AUTH === 'true') {
     return (
       <div className={styles.appWrapper}>
@@ -68,10 +72,6 @@ export function App() {
         )}
       </div>
     );
-  }
-
-  function handleLogin() {
-    void msalInstance.loginPopup(loginRequest);
   }
 
   return (

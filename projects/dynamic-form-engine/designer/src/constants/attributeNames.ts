@@ -11,6 +11,7 @@ export const FORM_DEFINITION_ATTRS = {
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',
   DRAFT_EXPIRY_DAYS: 'qdb_draft_expiry_days',
+  SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
@@ -100,6 +101,34 @@ export const FORM_FIELD_ATTRS = {
   PARENT_FIELD_ID_VALUE: '_qdb_parent_field_id_value',
   // Sprint 3 — custom field type
   COMPONENT_KEY: 'qdb_component_key',
+  // Sprint 4 — boolean field type
+  BOOL_RENDER_STYLE: 'qdb_bool_render_style',
+  TRUE_LABEL: 'qdb_true_label',
+  FALSE_LABEL: 'qdb_false_label',
+  // Sprint 4 — info-card inline field
+  INFO_CARD_STYLE: 'qdb_info_card_style',
+  INFO_CARD_TITLE: 'qdb_info_card_title',
+  INFO_CARD_BODY: 'qdb_info_card_body',
+  INFO_CARD_ICON: 'qdb_info_card_icon',
+  INFO_CARD_DOWNLOAD_URL: 'qdb_info_card_download_url',
+  INFO_CARD_DOWNLOAD_LABEL: 'qdb_info_card_download_label',
+  INFO_CARD_DOWNLOAD_ICON: 'qdb_info_card_download_icon',
+  // File field — template download before upload
+  FILE_DOWNLOAD_LABEL: 'qdb_file_download_label',
+  FILE_DOWNLOAD_ICON: 'qdb_file_download_icon',
+  UPLOAD_DOCUMENT_SETTING: 'qdb_upload_document_setting',
+  DOWNLOAD_DOCUMENT_SETTING: 'qdb_download_document_setting',
+  PREFIX: 'qdb_prefix',
+  SUFFIX: 'qdb_suffix',
+  // Sprint 5 — interactive-grid / repeating-grid config
+  GRID_MODE: 'qdb_grid_mode',
+  GRID_ENTITY_NAME: 'qdb_grid_entity_name',
+  GRID_SELECTION_MODE: 'qdb_selection_mode',
+  GRID_MIN_ROWS: 'qdb_grid_min_rows',
+  GRID_SAVED_VIEW_ID: 'qdb_saved_view_id',
+  GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
+  GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
+  GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
 } as const;
 
 // Picklist codes for qdb_field_type
@@ -123,7 +152,11 @@ export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
   repeating_grid:100000016,
   rich_text:     100000017,
   // Sprint 3
-  custom:        100000018,
+  custom:          100000018,
+  // Sprint 4
+  boolean:         100000019,
+  'info-card':     100000020,
+  'interactive-grid': 100000021,
 };
 export const PICKLIST_TO_FIELD_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(FIELD_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])
@@ -138,6 +171,64 @@ export const PICKLIST_TO_COLUMN_SPAN: Record<number, 1 | 2 | 3> = {
   100000001: 1, 100000002: 2, 100000003: 3, 100000004: 3,
   1: 1, 2: 2, 3: 3,
 };
+
+// Boolean render style — qdb_bool_render_style picklist
+export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
+  toggle: 100000000,
+  radio:  100000001,
+};
+export const PICKLIST_TO_BOOL_RENDER_STYLE: Record<number, 'toggle' | 'radio'> = {
+  100000000: 'toggle',
+  100000001: 'radio',
+};
+
+// Info-card style — qdb_info_card_style picklist
+export const INFO_CARD_STYLE_TO_PICKLIST: Record<string, number> = {
+  info:    100000000,
+  warning: 100000001,
+  success: 100000002,
+  error:   100000003,
+};
+export const PICKLIST_TO_INFO_CARD_STYLE: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
+  100000000: 'info',
+  100000001: 'warning',
+  100000002: 'success',
+  100000003: 'error',
+};
+
+// Grid mode picklist — qdb_grid_mode
+export const GRID_MODE_TO_PICKLIST: Record<string, number> = {
+  selection: 100000000,
+  entry:     100000001,
+};
+export const PICKLIST_TO_GRID_MODE: Record<number, 'selection' | 'entry'> = {
+  100000000: 'selection',
+  100000001: 'entry',
+};
+
+// Grid selection mode — qdb_selection_mode
+export const GRID_SELECTION_MODE_TO_PICKLIST: Record<string, number> = {
+  single: 100000000,
+  multi:  100000001,
+};
+export const PICKLIST_TO_GRID_SELECTION_MODE: Record<number, 'single' | 'multi'> = {
+  100000000: 'single',
+  100000001: 'multi',
+};
+
+// Grid column config attributes — qdb_grid_column_configs entity
+export const GRID_COLUMN_CONFIG_ATTRS = {
+  ID:             'qdb_grid_column_configid',
+  FIELD_ID:       'qdb_form_field_id',
+  FIELD_ID_VALUE: '_qdb_form_field_id_value',
+  COLUMN_LABEL:   'qdb_column_label',
+  TARGET_ATTR:    'qdb_column_attribute',
+  COLUMN_TYPE:    'qdb_column_field_type',
+  DISPLAY_ORDER:  'qdb_display_order',
+  IS_VISIBLE:     'qdb_is_visible',
+  IS_EDITABLE:    'qdb_is_editable',
+  OPTIONS_JSON:   'qdb_column_options_json',
+} as const;
 
 export const FORM_VALIDATION_RULE_ATTRS = {
   ID: 'qdb_form_validation_ruleid',
@@ -180,6 +271,7 @@ export const FORM_OPTION_VALUE_ATTRS = {
   IS_DEFAULT: 'qdb_is_default',
   PARENT_OPTION_VALUE: 'qdb_parent_option_value',
   IS_ACTIVE: 'qdb_is_active',
+  NOTES: 'qdb_notes',
 } as const;
 
 export const FORM_LOOKUP_CONFIG_ATTRS = {
@@ -235,6 +327,7 @@ export const FORM_DESIGN_ATTRS = {
   FORM_ID: 'qdb_form_definition_id',
   THEME_ID: 'qdb_theme_id',
   CUSTOM_CSS: 'qdb_custom_css',
+  TAB_STYLE: 'qdb_tab_style',
 } as const;
 
 export const FORM_AUDIT_LOG_ATTRS = {

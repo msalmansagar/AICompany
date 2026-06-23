@@ -2,6 +2,8 @@
 // Shared TypeScript contracts — used by both frontend and backend
 // ─────────────────────────────────────────────────────────────
 
+import type { DesignPayload } from './design.types';
+
 // ── Field type enumeration ────────────────────────────────────
 
 export type FieldType =
@@ -22,7 +24,11 @@ export type FieldType =
   | 'file'
   | 'repeatingGrid'
   | 'richText'
-  | 'custom';
+  | 'custom'
+  // DFE-ADD-002: new field types
+  | 'boolean'
+  | 'info-card'
+  | 'interactive-grid';
 
 export type ValidationRuleType =
   | 'required'
@@ -112,6 +118,9 @@ export interface OptionValue {
   isDefault: boolean;
   parentOptionValue?: string; // for dependent dropdowns
   isActive: boolean;
+  description?: string;  // shown below the label in radio-card mode
+  iconName?: string;     // Fluent UI icon name (e.g. "PersonRegular")
+  notes?: string;        // highlighted callout text rendered on the radio card
 }
 
 // ── Lookup configuration ──────────────────────────────────────
@@ -186,6 +195,12 @@ export interface FileUploadConfig {
   sharePointLibraryUrl?: string;
   sharePointFolderPath?: string;
   maxFiles: number;
+  documentType?: number;            // qdb_document_type picklist value
+  /** Raw MultiSelect option values from qdb_allowed_file_extensions.
+   *  Present when the field was configured via the structured multiselect;
+   *  absent when only the legacy qdb_allowed_mime_types memo was used.
+   *  The portal does not need to inspect these — use allowedMimeTypes instead. */
+  allowedFileExtensions?: number[];
 }
 
 // ── Submission mapping ────────────────────────────────────────
@@ -212,6 +227,8 @@ export interface FieldDefinition {
   label: string;
   placeholder?: string;
   tooltip?: string;
+  prefix?: string;                 // static text shown before the input (e.g. "$", "https://")
+  suffix?: string;                 // static text shown after the input (e.g. "kg", ".com")
   defaultValue?: unknown;
   displayOrder: number;
   columnSpan: 1 | 2 | 3 | 4;     // out of 4-column grid
@@ -229,6 +246,40 @@ export interface FieldDefinition {
   decimalPlaces?: number;          // decimal / currency fields
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
+
+  // DFE-ADD-002: Boolean field config (qdb_true_label, qdb_false_label, qdb_bool_render_style)
+  trueLabel?: string;
+  falseLabel?: string;
+  boolRenderStyle?: 'toggle' | 'radio';
+
+  // Multiselect render style (dropdown = default Combobox, checkboxes = visible checkbox list)
+  multiselectRenderStyle?: 'dropdown' | 'checkboxes';
+
+  // Radio render style (list = vertical radio buttons, cards = selectable card grid)
+  radioRenderStyle?: 'list' | 'cards';
+
+  // Option source from CRM optionset — when set, options come from the CRM attribute's OptionSet
+  // instead of qdb_form_option_value records. Falls back to manual options when not set.
+  optionSourceEntity?: string;     // e.g. 'qdb_form_definition'
+  optionSourceAttribute?: string;  // e.g. 'qdb_status'
+
+  // DFE-ADD-002: Info-card field config
+  infoCardStyle?: 'info' | 'warning' | 'success' | 'error';
+  infoCardTitle?: string;
+  infoCardBody?: string;
+  infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+
+  // File field — template download before upload
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
+
+  // DFE-ADD-002: Interactive Grid config
+  gridConfig?: GridFieldConfig;
 
   validationRules: ValidationRule[];
   businessRules: BusinessRule[];   // rules where this field is the trigger
@@ -274,6 +325,107 @@ export interface FormVersion {
   isCurrentVersion: boolean;
 }
 
+// ── Info-card screen types (DFE-ADD-001) ─────────────────────
+
+export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
+
+export interface InfoCardItem {
+  itemId: string;
+  displayOrder: number;
+  itemTitle: string;
+  itemDescription: string | null;
+  iconReference: string | null;
+  downloadUrl: string | null;
+}
+
+export interface InfoCardSection {
+  sectionId: string;
+  displayOrder: number;
+  sectionTitle: string | null;
+  sectionType: InfoCardSectionType;
+  noteText: string | null;
+  items: InfoCardItem[];
+}
+
+export interface InfoCardScreen {
+  screenId: string;
+  displayOrder: number;
+  iconUrl: string | null;
+  iconAltText: string | null;
+  heading: string;
+  subHeading: string | null;
+  sections: InfoCardSection[];
+}
+
+// ── Grid types (DFE-ADD-002) ──────────────────────────────────
+
+export type GridMode = 'selection' | 'entry';
+export type GridSelectionMode = 'single' | 'multi';
+
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
+export interface GridColumnOptionValue {
+  value: string;
+  label: string;
+}
+
+export interface GridColumnConfig {
+  columnId: string;
+  displayOrder: number;
+  columnLabel: string;
+  targetAttribute: string;
+  columnFieldType: string;
+  filterType?: GridColumnFilterType;
+  // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+  // Options for dropdown-type columns within a grid.
+  options?: GridColumnOptionValue[];
+}
+
+export interface GridFieldConfig {
+  gridMode: GridMode;
+  targetEntity: string;
+  savedViewId?: string;            // Mode A: Dataverse saved view GUID
+  selectionMode?: GridSelectionMode; // Mode A
+  relationshipAttribute?: string;  // Mode B: parent lookup attribute
+  minRows?: number;                // Mode B
+  maxRows: number;
+  columnConfigs: GridColumnConfig[];
+  columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
+  // DFE-ADD-002: flat mapper aliases used by CrmMetadataService
+  mode?: GridMode;
+  entityName?: string;
+  // Grid filtering
+  filterExpression?: string;           // static OData $filter appended to every query
+  dependsOnFieldId?: string;           // schema name of the field whose value drives the dynamic filter
+  dependsOnFilterTemplate?: string;    // OData filter template — {dependsOnValue} is substituted at runtime
+}
+
+export interface GridRecord {
+  id: string;
+  values: Record<string, unknown>;
+}
+
+export interface GridRecordPage {
+  records: GridRecord[];
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;      // true when more records exist beyond this page
+  nextPageCookie?: string;   // opaque base64 cursor — pass back as pagingCookie for page+1
+  isCapped: boolean;
+  totalCount?: number;       // total matching records capped at maxRows; absent when Dataverse count limit exceeded
+  totalPages?: number;       // Math.ceil(totalCount / pageSize); absent when totalCount is unavailable
+}
+
+// ── Grid schema hash validation result (DFE-ADD-002) ─────────
+
+export interface GridSchemaHashResult {
+  gridFieldId: string;
+  invalidated: boolean;
+  reason: string;
+}
+
 // ── Form definition (root) ────────────────────────────────────
 
 export interface FormDefinition {
@@ -289,9 +441,21 @@ export interface FormDefinition {
   confirmationMessage: string;
   confirmationRecordRefAttribute?: string; // CRM attribute to show as ref number
   accessGroupId?: string;          // Azure AD group ID for form-level access
+  // DFE-ADD-001: Info-card screens (empty array when no screens configured).
+  allowInfocardSkip: boolean;
+  infocardCountsInProgress: boolean;
+  infocardBackLabel?: string;
+  infocardContinueLabel?: string;
+  infocardStartLabel?: string;
+  infocardSkipLabel?: string;
+  infoCards: InfoCardScreen[];
+  // DFE-ADD-003: show a read-only summary of all answers on the last step before submit.
+  showSummaryStep: boolean;
   submissionMappings: SubmissionMapping[];
   buttons: FormButton[];
   tabs: TabDefinition[];
+  // DFE-DESIGN: optional design payload embedded by the backend on the form definition response.
+  design?: DesignPayload;
   createdAt: string;
   modifiedAt: string;
 }
@@ -308,6 +472,10 @@ export interface DraftSubmission {
   currentTabIndex: number;
   savedAt: string;
   expiresAt: string;
+  // DFE-ADD-002: grid schema hashes for Entry Grid invalidation on resume.
+  gridSchemaHash?: Record<string, string> | null;
+  // DFE-ADD-001: first-view flag for draft-present users.
+  infoCardViewed?: boolean;
 }
 
 // ── Submission log ────────────────────────────────────────────
@@ -338,7 +506,9 @@ export interface AuditLogEntry {
     | 'formSubmitted'
     | 'formSubmissionFailed'
     | 'documentUploaded'
-    | 'adminConfigChanged';
+    | 'adminConfigChanged'
+    // DFE-ADD-001 events
+    | 'info_card_screen_viewed';
   formDefinitionId?: string;
   formDefinitionName?: string;
   userId: string;

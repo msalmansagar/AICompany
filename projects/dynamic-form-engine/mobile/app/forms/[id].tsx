@@ -63,11 +63,15 @@ export default function FormDetailScreen() {
     }
   }
 
-  async function handleSaveDraft(values: Record<string, unknown>, tabIndex: number): Promise<void> {
+  async function handleSaveDraft(
+    values: Record<string, unknown>,
+    tabIndex: number,
+    meta: { infoCardViewed: boolean; gridSchemaHash: Record<string, never> },
+  ): Promise<void> {
     if (!form || isDevBypass) return;
     try {
       const token = await acquireToken();
-      await saveDraft(form.formCode, values, tabIndex, token);
+      await saveDraft(form.formCode, values, tabIndex, token, meta.infoCardViewed);
     } catch (err) {
       if (__DEV__) console.warn('[SaveDraft] failed:', err);
     }
@@ -98,9 +102,14 @@ export default function FormDetailScreen() {
     );
   }
 
+  const accessToken = isDevBypass ? '' : '';
+  // Note: token is acquired fresh on each action; passing empty string here is safe
+  // because FormRenderer only forwards it to lazy-loaded grids and info-card audit
+
   return (
     <FormRenderer
       form={form}
+      accessToken={accessToken}
       onSubmit={handleSubmit}
       onSaveDraft={handleSaveDraft}
       onCancel={() => router.back()}

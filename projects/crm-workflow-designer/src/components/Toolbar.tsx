@@ -34,20 +34,22 @@ export function Toolbar({
     showToast: s.showToast,
   }));
 
+  const validationResults = useWorkflowStore((s) => s.validationResults);
   const { save, isSaving, error: saveError } = useWorkflowSave();
-  const { publish, isPublishing, violations } = usePublish();
+  const { publish, isPublishing } = usePublish();
   const { applyAutoLayout } = useAutoLayout();
   const { exportJson, exportPng } = useExport();
   const { loadProcess, loadProcessList, isLoading: isLoadingProcess } = useLoadWorkflow();
 
   const [processList, setProcessList] = useState<Array<{ id: string; name: string; state: string }>>([]);
+  const [listError, setListError] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
   const [isLoadingList, setIsLoadingList] = useState(false);
 
   const processName = process?.name ?? 'Untitled Workflow';
   const versionLabel = process ? `v${process.versionMajor}.${process.versionMinor} — ${process.workflowState}` : '';
-  const hasErrors = violations.filter((v) => v.severity === 'error').length > 0;
+  const hasErrors = validationResults.filter((v) => v.severity === 'error').length > 0;
 
   // Show save error via toast when it changes
   useEffect(() => {
@@ -59,11 +61,18 @@ export function Toolbar({
   const handleOpen = useCallback(async () => {
     onRequestOpen?.();
     setIsLoadingList(true);
+    setListError(null);
     try {
       const list = await loadProcessList();
       setProcessList(list);
     } catch (err) {
+      const msg = err instanceof Error
+        ? err.message
+        : (typeof err === 'object' && err !== null && 'message' in err)
+          ? String((err as Record<string, unknown>)['message'])
+          : 'Failed to load workflows.';
       console.error('[Toolbar] Failed to load process list:', err);
+      setListError(msg);
       setProcessList([]);
     } finally {
       setIsLoadingList(false);
@@ -89,7 +98,9 @@ export function Toolbar({
     const newProcess: WorkflowProcess = {
       crmId: tmpId,
       name: newName.trim(),
-      recordEntity: '', regardingField: '', parentEntity: '',
+      recordEntity: '', recordEntityName: null,
+      regardingField: '',
+      parentEntity: '', parentEntityName: null,
       versionMajor: 1, versionMinor: 0,
       workflowState: 'draft', snapshot: null,
     };
@@ -179,6 +190,11 @@ export function Toolbar({
             <h3 style={dialogTitle}>Open Workflow</h3>
             {isLoadingList ? (
               <p style={{ color: '#6b7280', fontSize: 13 }}>Loading workflows…</p>
+            ) : listError ? (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 10px' }}>
+                <p style={{ color: '#991b1b', fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>Failed to load workflows</p>
+                <p style={{ color: '#7f1d1d', fontSize: 11, margin: 0, fontFamily: 'monospace', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{listError}</p>
+              </div>
             ) : processList.length === 0 ? (
               <p style={{ color: '#6b7280', fontSize: 13 }}>No workflows found.</p>
             ) : (

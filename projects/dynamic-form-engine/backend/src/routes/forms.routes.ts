@@ -7,6 +7,7 @@ import type { CrmSubmissionService } from '../services/CrmSubmissionService.js';
 import type { CrmDesignService } from '../services/CrmDesignService.js';
 import type { CrmFormCloneService } from '../services/CrmFormCloneService.js';
 import type { AccessPolicyService, AccessType } from '../services/AccessPolicyService.js';
+import type { CrmInfoCardService } from '../services/CrmInfoCardService.js';
 import { assertFormAccess } from '../middleware/role.middleware.js';
 import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload } from '@qdb/shared';
 import { ForbiddenError } from '../utils/errors.js';
@@ -23,6 +24,14 @@ const saveDraftSchema = z.object({
   formCode: z.string().min(1),
   formData: z.record(z.unknown()),
   currentTabIndex: z.number().int().min(0),
+  // DFE-ADD-002: grid schema hash for Entry Grid draft invalidation (optional).
+  gridSchemaHash: z.record(z.string()).optional(),
+  // DFE-ADD-001: first-view flag for draft-present users (optional).
+  infoCardViewed: z.boolean().optional(),
+});
+
+const infoCardViewedSchema = z.object({
+  userAadObjectId: z.string().min(1, 'userAadObjectId is required'),
 });
 
 const submitSchema = z.object({
@@ -36,6 +45,7 @@ export function createFormsRouter(
   designService: CrmDesignService,
   cloneService: CrmFormCloneService,
   policyService: AccessPolicyService | null,
+  infoCardService: CrmInfoCardService | null = null,
 ): Router {
   const router = Router();
 
@@ -203,6 +213,53 @@ export function createFormsRouter(
     const versions = await metadataService.getFormVersions(formCode);
     const response: ApiResponse<typeof versions> = { success: true, data: versions };
     res.json(response);
+  });
+
+  // GET /api/forms/:formCode/infocard-view-status
+  // Checks whether the authenticated user has previously viewed the Info-Card screens
+  // for this form. Result is cached client-side for the session duration.
+  // Latency target: < 100ms (single Dataverse lookup by alternate key).
+  router.get('/:formCode/infocard-view-status', async (req: Request, res: Response) => {
+    const formCode = SAFE_FORM_CODE.parse(req.params.formCode);
+    const user = req.user!;
+
+    const form = await metadataService.getFormDefinition(formCode);
+    assertFormAccess(form, user);
+
+    const hasViewed = infoCardService
+      ? await infoCardService.hasUserViewedInfoCard(user.oid, form.id, req.correlationId)
+      : false;
+
+    const response: ApiResponse<{ hasViewed: boolean }> = { success: true, data: { hasViewed } };
+    res.json(response);
+  });
+
+  // POST /api/forms/:formCode/info-card-viewed
+  // Fire-and-forget audit endpoint. Records the first view of Info-Card screens.
+  // CEO condition BC-006: duplicate alternate key (concurrent-open race) treated as success.
+  // Responds within 200ms — Dataverse write is async (non-blocking).
+  router.post('/:formCode/info-card-viewed', async (req: Request, res: Response) => {
+    const formCode = SAFE_FORM_CODE.parse(req.params.formCode);
+    const body = infoCardViewedSchema.parse(req.body);
+
+    const form = await metadataService.getFormDefinition(formCode);
+    assertFormAccess(form, req.user!);
+
+    // Respond immediately — Dataverse write is fire-and-forget.
+    const response: ApiResponse<{ success: boolean }> = { success: true, data: { success: true } };
+    res.json(response);
+
+    // Non-blocking: write the view record after response is sent.
+    if (infoCardService) {
+      infoCardService
+        .recordInfoCardView(body.userAadObjectId, form.id, req.correlationId)
+        .catch((error) =>
+          logger.error(
+            { error, formCode, correlationId: req.correlationId, operation: 'infoCardViewed' },
+            'Info card view record write failed (post-response)',
+          ),
+        );
+    }
   });
 
   // POST /api/forms/:formCode/clone

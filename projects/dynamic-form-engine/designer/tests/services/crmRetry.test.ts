@@ -38,9 +38,11 @@ describe('withRetry', () => {
     const operation = vi.fn().mockRejectedValue(new Error('persistent failure'));
 
     const resultPromise = withRetry(operation, 'testOp');
+    // Attach rejection handler before timers fire to avoid unhandled rejection
+    const rejectCheck = expect(resultPromise).rejects.toBeInstanceOf(CrmApiError);
     await vi.runAllTimersAsync();
+    await rejectCheck;
 
-    await expect(resultPromise).rejects.toBeInstanceOf(CrmApiError);
     // MAX_RETRIES is 3, so total calls = initial + 3 retries = 4
     expect(operation).toHaveBeenCalledTimes(4);
   });
@@ -49,11 +51,12 @@ describe('withRetry', () => {
     const operation = vi.fn().mockRejectedValue(new Error('network error'));
 
     const resultPromise = withRetry(operation, 'myOperation');
-    await vi.runAllTimersAsync();
-
-    await expect(resultPromise).rejects.toMatchObject({
+    // Attach rejection handler before timers fire to avoid unhandled rejection
+    const rejectCheck = expect(resultPromise).rejects.toMatchObject({
       name: 'CrmApiError',
       operation: 'myOperation',
     });
+    await vi.runAllTimersAsync();
+    await rejectCheck;
   });
 });

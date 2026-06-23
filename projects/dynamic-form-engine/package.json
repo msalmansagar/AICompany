@@ -11,7 +11,7 @@
     "designer"
   ],
   "scripts": {
-    "dev": "turbo run dev --parallel --filter=backend --filter=frontend",
+    "dev": "turbo run dev --parallel --filter=@qdb/api --filter=@qdb/portal",
     "dev:all": "turbo run dev --parallel",
     "build": "turbo run build",
     "build:backend": "turbo run build --filter=backend",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "turbo": "^2.3.0"
   },
+  "packageManager": "npm@10.0.0",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"

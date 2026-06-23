@@ -39,6 +39,10 @@ export const FIELD_TYPE = {
   SUMMARY_BLOCK: 'summary_block',
   // Sprint 3 — developer-registered custom component
   CUSTOM: 'custom',
+  // Sprint 4 — previously missing from toolbox
+  BOOLEAN: 'boolean',
+  INFO_CARD: 'info-card',
+  INTERACTIVE_GRID: 'interactive-grid',
 } as const;
 
 export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
@@ -95,6 +99,10 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.SUMMARY_BLOCK]: { type: FIELD_TYPE.SUMMARY_BLOCK, category: 'advanced', label: 'Summary Block', iconName: 'StackedBarChart', hasOptions: false, hasLookup: false, isLayout: false },
   // Sprint 3
   [FIELD_TYPE.CUSTOM]: { type: FIELD_TYPE.CUSTOM, category: 'advanced', label: 'Custom Component', iconName: 'Code', hasOptions: false, hasLookup: false, isLayout: false },
+  // Sprint 4
+  [FIELD_TYPE.BOOLEAN]: { type: FIELD_TYPE.BOOLEAN, category: 'basic', label: 'Yes / No', iconName: 'ToggleLeft', hasOptions: false, hasLookup: false, isLayout: false },
+  [FIELD_TYPE.INFO_CARD]: { type: FIELD_TYPE.INFO_CARD, category: 'basic', label: 'Info Banner', iconName: 'Info', hasOptions: false, hasLookup: false, isLayout: false },
+  [FIELD_TYPE.INTERACTIVE_GRID]: { type: FIELD_TYPE.INTERACTIVE_GRID, category: 'advanced', label: 'Interactive Grid', iconName: 'Table', hasOptions: false, hasLookup: false, isLayout: false },
 };
 
 export const BASIC_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'basic');

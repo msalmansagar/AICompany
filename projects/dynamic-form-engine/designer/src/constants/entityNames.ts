@@ -23,6 +23,8 @@ export const ENTITY_NAMES = {
   RULE_TEMPLATE: 'qdb_rule_template',
   FIELD_LABEL: 'qdb_fieldlabel',
   FORM_ACCESS_POLICY: 'qdb_form_access_policy',
+  // Sprint 5 — grid column config
+  GRID_COLUMN_CONFIG: 'qdb_grid_column_configs',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

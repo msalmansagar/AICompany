@@ -23,10 +23,10 @@ export const formApi = {
     apiClient.post<DraftSubmission>(`/forms/${formCode}/draft`, draft),
 
   submit: (formCode: string, data: FormFieldValues) =>
-    apiClient.post<{ referenceNumber: string }>(`/forms/${formCode}/submit`, data),
+    apiClient.post<{ referenceNumber: string }>(`/forms/${formCode}/submit`, { formData: data }),
 
   validate: (formCode: string, data: FormFieldValues) =>
-    apiClient.post<Record<string, string[]>>(`/forms/${formCode}/validate`, data),
+    apiClient.post<Record<string, string[]>>(`/forms/${formCode}/validate`, { formData: data }),
 
   getVersions: (formCode: string) =>
     apiClient.get<FormVersion[]>(`/forms/${formCode}/versions`),

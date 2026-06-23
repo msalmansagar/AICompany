@@ -13,22 +13,26 @@ function buildIconLoader(
   iconName: string,
   size: number,
 ): ComponentType<FluentIconsProps> | null {
-  // The iconName is expected in the format the backend stores it, e.g. "CalendarRegular"
-  // We wrap the lazy import in a try/catch via the component boundary.
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     const Icon = lazy(() =>
       import('@fluentui/react-icons').then((mod) => {
-        const key = `${iconName}${size}` as keyof typeof mod;
-        const component = (mod[key] ?? mod[iconName as keyof typeof mod]) as
-          | ComponentType<FluentIconsProps>
-          | undefined;
+        // Resolution order:
+        //   1. "PersonRegular20" (name + size)
+        //   2. "PersonRegular"   (name as-is — already has Regular/Filled suffix)
+        //   3. "Person20Regular" (size-suffixed variant)
+        //   4. "PersonRegular"   (bare name + Regular appended)
+        const candidates = [
+          `${iconName}${size}`,
+          iconName,
+          `${iconName}${size}Regular`,
+          `${iconName}Regular`,
+        ] as (keyof typeof mod)[];
 
-        if (!component) {
-          return { default: () => null };
-        }
+        const component = candidates
+          .map((k) => mod[k] as ComponentType<FluentIconsProps> | undefined)
+          .find(Boolean);
 
-        return { default: component };
+        return { default: component ?? (() => null) };
       }),
     );
 

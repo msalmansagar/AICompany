@@ -1,9 +1,30 @@
 ﻿import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
-import { CrmApiError } from '../utils/errors.js';
+import { CrmApiError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
+
+interface UploadAttributeConfig {
+  attributeName: string;
+  attributeValue: string;
+  type: string;
+}
+
+interface UploadDocumentSetting {
+  entityName: string;
+  attributeConfig: UploadAttributeConfig[];
+}
+
+interface UploadedFileRef {
+  fileId: string;
+}
+
+interface DownloadDocumentSetting {
+  downloadSetting: {
+    attributeConfig: Array<{ attributeName: string; attributeValue: string; type: string }>;
+  };
+}
 
 export class CrmSubmissionService extends CrmBaseService {
   constructor(
@@ -35,6 +56,11 @@ export class CrmSubmissionService extends CrmBaseService {
       const parentPayload = this.buildPayload(parentMappings, fieldValues, fieldIdToSchemaName);
       const parentRecordId = await this.createRecord(parentEntityName, parentPayload);
       createdRecords.push({ entity: parentEntityName, id: parentRecordId });
+
+      // Create EDMS records for any file fields that carry an uploadDocumentSetting.
+      await this.processFileUploadSettings(
+        formDefinition, fieldValues, parentRecordId, parentEntityName, createdRecords,
+      );
 
       // Create child records grouped by entity + relationship
       const childMappings = formDefinition.submissionMappings.filter(
@@ -163,21 +189,36 @@ export class CrmSubmissionService extends CrmBaseService {
       const value = fieldValues[schemaName];
       if (value === undefined || value === null) continue;
 
+      const normalized = this.normalizeFieldValue(value);
       payload[mapping.targetAttributeLogicalName] = mapping.transformExpression
-        ? this.applyTransform(value, mapping.transformExpression)
-        : value;
+        ? this.applyTransform(normalized, mapping.transformExpression)
+        : normalized;
     }
 
     return payload;
   }
 
+  private normalizeFieldValue(value: unknown): unknown {
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === 'object' &&
+      value[0] !== null &&
+      'fileId' in (value[0] as object)
+    ) {
+      return (value as Array<{ fileId: string }>).map((ref) => ref.fileId);
+    }
+    return value;
+  }
+
   private applyTransform(value: unknown, expression: string): unknown {
-    // Phase 1: only simple transforms supported (uppercase, lowercase, trim, toString)
     switch (expression) {
       case 'uppercase': return String(value).toUpperCase();
       case 'lowercase': return String(value).toLowerCase();
       case 'trim': return String(value).trim();
       case 'toString': return String(value);
+      // Serialize arrays or objects (e.g. entry-grid rows) to a JSON string
+      case 'toJson': return typeof value === 'string' ? value : JSON.stringify(value);
       default: return value;
     }
   }
@@ -196,6 +237,171 @@ export class CrmSubmissionService extends CrmBaseService {
 
     return groups;
   }
+
+  // ── Upload document setting ───────────────────────────────────────────────────
+
+  private async processFileUploadSettings(
+    formDefinition: FormDefinition,
+    fieldValues: FormFieldValues,
+    parentRecordId: string,
+    parentEntityLogicalName: string,
+    createdRecords: Array<{ entity: string; id: string }>,
+  ): Promise<void> {
+    const allFields = this.collectAllFields(formDefinition);
+
+    for (const field of allFields) {
+      if (!field.uploadDocumentSetting) continue;
+
+      const rawValue = fieldValues[field.schemaName];
+      if (!rawValue || !Array.isArray(rawValue) || rawValue.length === 0) continue;
+
+      const fileRefs = rawValue as UploadedFileRef[];
+      if (!fileRefs[0]?.fileId) continue;
+
+      const setting = this.parseUploadSetting(field.uploadDocumentSetting, field.schemaName);
+
+      for (const fileRef of fileRefs) {
+        const payload = this.buildEdmsPayload(setting.attributeConfig, {
+          submissionId: parentRecordId,
+          parentEntityLogicalName,
+          annotationId: fileRef.fileId,
+        });
+
+        // If downloadDocumentSetting is present and no template GUID was already
+        // supplied in uploadDocumentSetting, resolve the GUID by name and inject it.
+        if (field.downloadDocumentSetting && !payload['qdb_templateguid@odata.bind']) {
+          const guid = await this.resolveTemplateGuid(field.downloadDocumentSetting, field.schemaName);
+          if (guid) {
+            payload['qdb_templateguid@odata.bind'] = `/documenttemplates(${guid})`;
+          }
+        }
+
+        const edmsId = await this.createRecord(setting.entityName, payload);
+        createdRecords.push({ entity: setting.entityName, id: edmsId });
+
+        logger.info(
+          { edmsId, entityName: setting.entityName, fieldSchema: field.schemaName, annotationId: fileRef.fileId },
+          'EDMS record created for uploaded file',
+        );
+      }
+    }
+  }
+
+  private collectAllFields(formDefinition: FormDefinition): FieldDefinition[] {
+    const fields: FieldDefinition[] = [];
+    for (const tab of formDefinition.tabs) {
+      for (const section of tab.sections) {
+        for (const field of section.fields) {
+          fields.push(field);
+          if (field.childFields) fields.push(...field.childFields);
+        }
+      }
+    }
+    return fields;
+  }
+
+  private parseUploadSetting(json: string, fieldSchema: string): UploadDocumentSetting {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new ValidationError(
+        `uploadDocumentSetting on field '${fieldSchema}' contains invalid JSON`,
+      );
+    }
+
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof (parsed as Record<string, unknown>).entityName !== 'string' ||
+      !Array.isArray((parsed as Record<string, unknown>).attributeConfig)
+    ) {
+      throw new ValidationError(
+        `uploadDocumentSetting on field '${fieldSchema}' must have shape { entityName: string, attributeConfig: [...] }`,
+      );
+    }
+
+    return parsed as UploadDocumentSetting;
+  }
+
+  private parseDownloadSetting(json: string, fieldSchema: string): DownloadDocumentSetting {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      throw new ValidationError(
+        `downloadDocumentSetting on field '${fieldSchema}' contains invalid JSON`,
+      );
+    }
+
+    const root = parsed as Record<string, unknown>;
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof root.downloadSetting !== 'object' ||
+      !Array.isArray((root.downloadSetting as Record<string, unknown>).attributeConfig)
+    ) {
+      throw new ValidationError(
+        `downloadDocumentSetting on field '${fieldSchema}' must have shape { downloadSetting: { attributeConfig: [...] } }`,
+      );
+    }
+
+    return parsed as DownloadDocumentSetting;
+  }
+
+  // Resolves a document template GUID by name. Non-fatal: logs a warning and returns
+  // null when the template is not found so the EDMS record is still created.
+  private async resolveTemplateGuid(downloadSettingJson: string, fieldSchema: string): Promise<string | null> {
+    let setting: DownloadDocumentSetting;
+    try {
+      setting = this.parseDownloadSetting(downloadSettingJson, fieldSchema);
+    } catch (error) {
+      logger.warn({ error, fieldSchema }, 'Could not parse downloadDocumentSetting — skipping template GUID resolution');
+      return null;
+    }
+
+    const entry = setting.downloadSetting.attributeConfig.find(
+      (c) => c.attributeName === 'documentName',
+    );
+    if (!entry?.attributeValue) return null;
+
+    const escapedName = entry.attributeValue.replace(/'/g, "''");
+    try {
+      const result = await this.crmFetch<{ value: Array<{ documenttemplateid: string }> }>(
+        `/documenttemplates?$filter=name eq '${escapedName}'&$select=documenttemplateid&$top=1`,
+      );
+      const guid = result.value[0]?.documenttemplateid ?? null;
+      if (guid) {
+        logger.info({ templateGuid: guid, documentName: entry.attributeValue, fieldSchema }, 'Resolved document template GUID from downloadDocumentSetting');
+      } else {
+        logger.warn({ documentName: entry.attributeValue, fieldSchema }, 'Document template not found — qdb_templateguid will not be set on EDMS record');
+      }
+      return guid;
+    } catch (error) {
+      logger.warn({ error, documentName: entry.attributeValue, fieldSchema }, 'Template GUID resolution failed — skipping');
+      return null;
+    }
+  }
+
+  private buildEdmsPayload(
+    configs: UploadAttributeConfig[],
+    vars: { submissionId: string; parentEntityLogicalName: string; annotationId: string },
+  ): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+
+    for (const config of configs) {
+      const value = config.attributeValue
+        .replace('{submissionId}', vars.submissionId)
+        .replace('{parentEntityName}', vars.parentEntityLogicalName)
+        .replace('{annotationId}', vars.annotationId);
+
+      payload[config.attributeName] = value;
+    }
+
+    return payload;
+  }
+
+  // ── CRM record operations ─────────────────────────────────────────────────────
 
   private async createRecord(
     entityLogicalName: string,

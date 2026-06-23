@@ -2,7 +2,8 @@ export type FieldType =
   | 'text' | 'textarea' | 'number' | 'currency' | 'decimal'
   | 'date' | 'datetime' | 'dropdown' | 'multiselect' | 'lookup'
   | 'checkbox' | 'radio' | 'email' | 'phone' | 'file'
-  | 'richtext' | 'grid';
+  | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid'
+  | 'custom';
 
 export interface ValidationRule {
   ruleId: string;
@@ -15,6 +16,104 @@ export interface OptionValue {
   value: string;
   label: string;
   displayOrder: number;
+  description?: string;
+  iconName?: string;
+  notes?: string;
+}
+
+export type BooleanRenderStyle = 'toggle' | 'radio';
+export type MultiselectRenderStyle = 'dropdown' | 'checkboxes';
+export type RadioRenderStyle = 'list' | 'cards';
+export type GridSelectionMode = 'single' | 'multi';
+export type GridMode = 'selection' | 'entry';
+export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
+
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
+export interface GridColumnOptionValue {
+  value: string;
+  label: string;
+}
+
+export interface GridColumnConfig {
+  columnId: string;
+  targetAttribute: string;
+  columnLabel: string;
+  displayOrder: number;
+  columnFieldType: string;
+  filterType?: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+  options?: GridColumnOptionValue[];
+}
+
+export interface GridFieldConfig {
+  mode: GridMode;
+  selectionMode?: GridSelectionMode;
+  // Backend pre-filters to visible columns only; absent if no column configs are defined.
+  columnConfigs?: GridColumnConfig[];
+  maxRows?: number;
+  savedViewId?: string;
+  entityName?: string;
+  minRows?: number;
+  filterExpression?: string;
+  dependsOnFieldId?: string;
+  dependsOnFilterTemplate?: string;
+}
+
+export interface GridRecord {
+  id: string;
+  values: Record<string, unknown>;
+}
+
+export interface GridRecordPage {
+  records: GridRecord[];
+  page: number;
+  pageSize: number;
+  hasNextPage: boolean;
+  nextPageCookie?: string;
+  isCapped: boolean;
+}
+
+export type UploadDestination = 'crmNotes' | 'sharePoint';
+
+export interface FileUploadConfig {
+  id: string;
+  fieldId: string;
+  allowedMimeTypes: string[];
+  maxFileSizeBytes: number;
+  destination: UploadDestination;
+  sharePointLibraryUrl?: string;
+  sharePointFolderPath?: string;
+  maxFiles: number;
+}
+
+export interface InfoCardItem {
+  itemId: string;
+  displayOrder: number;
+  itemTitle: string;
+  itemDescription?: string;
+  iconReference?: string;
+  downloadUrl?: string;
+}
+
+export interface InfoCardSection {
+  sectionId: string;
+  displayOrder: number;
+  sectionTitle: string;
+  sectionType: InfoCardSectionType;
+  noteText?: string;
+  items: InfoCardItem[];
+}
+
+export interface InfoCardScreen {
+  screenId: string;
+  displayOrder: number;
+  iconUrl?: string;
+  iconAltText?: string;
+  heading: string;
+  subHeading?: string;
+  sections: InfoCardSection[];
 }
 
 export interface FieldDefinition {
@@ -22,6 +121,10 @@ export interface FieldDefinition {
   fieldKey: string;
   fieldType: FieldType;
   displayLabel: string;
+  placeholder?: string;
+  prefix?: string;
+  suffix?: string;
+  tooltip?: string;
   displayOrder: number;
   isRequiredDefault: boolean;
   isReadonlyDefault: boolean;
@@ -35,6 +138,25 @@ export interface FieldDefinition {
   decimalPlaces?: number;
   currencySymbol?: string;
   childFields?: FieldDefinition[];
+  boolRenderStyle?: BooleanRenderStyle;
+  multiselectRenderStyle?: MultiselectRenderStyle;
+  radioRenderStyle?: RadioRenderStyle;
+  trueLabel?: string;
+  falseLabel?: string;
+  // DFE-ADD-002: info-card field config
+  infoCardStyle?: 'info' | 'warning' | 'success' | 'error';
+  infoCardTitle?: string;
+  infoCardBody?: string;
+  infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+  // File field — template download before upload
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
+  gridConfig?: GridFieldConfig;
 }
 
 export interface SectionDefinition {
@@ -42,6 +164,7 @@ export interface SectionDefinition {
   displayLabel: string;
   displayOrder: number;
   isCollapsible: boolean;
+  isCollapsedByDefault?: boolean;
   fields: FieldDefinition[];
 }
 
@@ -84,9 +207,16 @@ export interface FormDefinition {
   description: string;
   version: number;
   allowSaveDraft: boolean;
+  showSummaryStep?: boolean;
   confirmationMessage: string;
   tabs: TabDefinition[];
   buttons: FormButton[];
   businessRules: BusinessRule[];
   submissionMappings: SubmissionMapping[];
+  infoCards: InfoCardScreen[];
+  allowInfocardSkip: boolean;
+  infocardBackLabel?: string;
+  infocardContinueLabel?: string;
+  infocardStartLabel?: string;
+  infocardSkipLabel?: string;
 }

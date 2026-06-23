@@ -1,8 +1,7 @@
 import type { ICrmAdapter } from './ICrmAdapter';
 
 /**
- * Logs workflow designer actions.
- * Attempts to write to qdb_form_audit_log if available.
+ * Logs workflow designer actions to qdb_form_audit_log.
  * Falls back silently — audit failure must never block user operations.
  */
 export class AuditService {
@@ -14,34 +13,17 @@ export class AuditService {
 
   async log(action: string, entityId: string, detail?: object): Promise<void> {
     try {
-      await this.writeAuditEntry(action, entityId, detail);
+      await this.adapter.logAuditEntry({
+        action,
+        entityId,
+        detail: detail ? JSON.stringify(detail) : undefined,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
-      // Audit logging is best-effort. Surface to structured error channel, not user.
+      // Audit logging is best-effort — 404 from missing entity is expected in some envs.
       reportAuditFailure(action, entityId, error);
     }
   }
-
-  private async writeAuditEntry(
-    action: string,
-    entityId: string,
-    detail: object | undefined
-  ): Promise<void> {
-    // Attempt via adapter — if qdb_form_audit_log is not deployed this will 404
-    // The 404 is caught above and suppressed.
-    await (this.adapter as unknown as { _auditLog?: (e: AuditEntry) => Promise<void> })._auditLog?.({
-      action,
-      entityId,
-      detail: detail ? JSON.stringify(detail) : undefined,
-      timestamp: new Date().toISOString(),
-    });
-  }
-}
-
-interface AuditEntry {
-  action: string;
-  entityId: string;
-  detail: string | undefined;
-  timestamp: string;
 }
 
 function reportAuditFailure(action: string, entityId: string, error: unknown): void {

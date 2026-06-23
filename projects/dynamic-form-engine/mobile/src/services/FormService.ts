@@ -23,6 +23,7 @@ import type {
   ValidationRule,
   OptionValue,
   FieldType,
+  BusinessRule,
 } from '@qdb/shared';
 
 // ── Backend response shapes (as returned by @qdb/shared) ──────
@@ -43,6 +44,9 @@ interface BackendOptionValue {
   displayOrder: number;
   isDefault: boolean;
   isActive: boolean;
+  description?: string;
+  iconName?: string;
+  notes?: string;
 }
 
 interface BackendValidationRule {
@@ -62,6 +66,33 @@ interface BackendValidationRule {
   priority: number;
 }
 
+interface BackendGridColumnConfig {
+  columnId: string;
+  displayOrder: number;
+  columnLabel: string;
+  targetAttribute: string;
+  columnFieldType: string;
+  filterType?: string;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+  options?: unknown[];
+}
+
+interface BackendGridConfig {
+  mode?: string;
+  gridMode?: string;
+  selectionMode?: string;
+  entityName?: string;
+  targetEntity?: string;
+  columnConfigs?: BackendGridColumnConfig[];
+  minRows?: number;
+  maxRows?: number;
+  savedViewId?: string;
+  filterExpression?: string;
+  dependsOnFieldId?: string;
+  dependsOnFilterTemplate?: string;
+}
+
 interface BackendFieldDefinition {
   id: string;
   sectionId: string;
@@ -70,6 +101,8 @@ interface BackendFieldDefinition {
   label: string;
   placeholder?: string;
   tooltip?: string;
+  prefix?: string;
+  suffix?: string;
   defaultValue?: unknown;
   displayOrder: number;
   columnSpan: number;
@@ -90,6 +123,20 @@ interface BackendFieldDefinition {
     searchMinChars: number;
     maxResults: number;
   };
+  gridConfig?: BackendGridConfig;
+  radioRenderStyle?: string;
+  multiselectRenderStyle?: string;
+  infoCardStyle?: string;
+  infoCardTitle?: string;
+  infoCardBody?: string;
+  infoCardIcon?: string;
+  infoCardDownloadUrl?: string;
+  infoCardDownloadLabel?: string;
+  infoCardDownloadIcon?: string;
+  fileDownloadLabel?: string;
+  fileDownloadIcon?: string;
+  uploadDocumentSetting?: string;
+  downloadDocumentSetting?: string;
 }
 
 interface BackendSectionDefinition {
@@ -136,6 +183,34 @@ interface BackendFormButton {
   isActive: boolean;
 }
 
+interface BackendInfoCardItem {
+  itemId: string;
+  displayOrder: number;
+  itemTitle: string;
+  itemDescription: string | null;
+  iconReference: string | null;
+  downloadUrl: string | null;
+}
+
+interface BackendInfoCardSection {
+  sectionId: string;
+  displayOrder: number;
+  sectionTitle: string | null;
+  sectionType: 'numbered-steps' | 'icon-list' | 'download-list';
+  noteText: string | null;
+  items: BackendInfoCardItem[];
+}
+
+interface BackendInfoCardScreen {
+  screenId: string;
+  displayOrder: number;
+  iconUrl: string | null;
+  iconAltText: string | null;
+  heading: string;
+  subHeading: string | null;
+  sections: BackendInfoCardSection[];
+}
+
 interface BackendFormDefinition {
   id: string;
   formCode: string;
@@ -148,23 +223,33 @@ interface BackendFormDefinition {
   buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
   tabs: BackendTabDefinition[];
+  businessRules?: unknown[];
+  // DFE-ADD-001 fields
+  infoCards: BackendInfoCardScreen[];
+  allowInfocardSkip: boolean;
+  infocardBackLabel?: string;
+  infocardContinueLabel?: string;
+  infocardStartLabel?: string;
+  infocardSkipLabel?: string;
 }
 
 // â”€â”€ Type normalization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-const FIELD_TYPE_MAP: Record<string, FieldType> = {
-  richText: 'richtext',
-  repeatingGrid: 'grid',
-};
-
 function normalizeFieldType(raw: string): FieldType {
-  return (FIELD_TYPE_MAP[raw] ?? raw) as FieldType;
+  return raw as FieldType;
 }
 
 // â”€â”€ Mapping functions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function mapOptionValue(opt: BackendOptionValue): OptionValue {
-  return { value: opt.value, label: opt.label, displayOrder: opt.displayOrder };
+  return {
+    value: opt.value,
+    label: opt.label,
+    displayOrder: opt.displayOrder,
+    ...(opt.description !== undefined ? { description: opt.description } : {}),
+    ...(opt.iconName !== undefined ? { iconName: opt.iconName } : {}),
+    ...(opt.notes !== undefined ? { notes: opt.notes } : {}),
+  };
 }
 
 function mapValidationRule(rule: BackendValidationRule): ValidationRule {
@@ -192,6 +277,10 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
     fieldKey: field.schemaName,
     fieldType: normalizeFieldType(field.fieldType),
     displayLabel: field.label,
+    ...(field.placeholder !== undefined ? { placeholder: field.placeholder } : {}),
+    ...(field.tooltip !== undefined ? { tooltip: field.tooltip } : {}),
+    ...(field.prefix !== undefined ? { prefix: field.prefix } : {}),
+    ...(field.suffix !== undefined ? { suffix: field.suffix } : {}),
     displayOrder: field.displayOrder,
     isRequiredDefault: field.isRequired,
     isReadonlyDefault: field.isReadonly,
@@ -211,6 +300,41 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
           field.lookupConfig.maxResults ?? 10,
         ].join('|')
       : undefined,
+    gridConfig: field.gridConfig
+      ? {
+          mode: (field.gridConfig.mode ?? field.gridConfig.gridMode ?? 'entry') as 'selection' | 'entry',
+          selectionMode: (field.gridConfig.selectionMode ?? 'single') as 'single' | 'multi',
+          entityName: field.gridConfig.entityName ?? field.gridConfig.targetEntity,
+          columnConfigs: (field.gridConfig.columnConfigs ?? []).map((col) => ({
+            columnId: col.columnId,
+            displayOrder: col.displayOrder,
+            columnLabel: col.columnLabel,
+            targetAttribute: col.targetAttribute,
+            columnFieldType: col.columnFieldType,
+            ...(col.filterType !== undefined ? { filterType: col.filterType as 'text' | 'optionset' | 'lookup' | 'none' } : {}),
+            ...(col.options !== undefined ? { options: col.options as { value: string; label: string }[] } : {}),
+          })),
+          maxRows: field.gridConfig.maxRows,
+          minRows: field.gridConfig.minRows,
+          savedViewId: field.gridConfig.savedViewId,
+          filterExpression: field.gridConfig.filterExpression,
+          dependsOnFieldId: field.gridConfig.dependsOnFieldId,
+          dependsOnFilterTemplate: field.gridConfig.dependsOnFilterTemplate,
+        }
+      : undefined,
+    radioRenderStyle: field.radioRenderStyle as 'list' | 'cards' | undefined,
+    multiselectRenderStyle: field.multiselectRenderStyle as 'dropdown' | 'checkboxes' | undefined,
+    infoCardStyle: field.infoCardStyle as 'info' | 'warning' | 'success' | 'error' | undefined,
+    infoCardTitle: field.infoCardTitle,
+    infoCardBody: field.infoCardBody,
+    infoCardIcon: field.infoCardIcon,
+    infoCardDownloadUrl: field.infoCardDownloadUrl,
+    infoCardDownloadLabel: field.infoCardDownloadLabel,
+    infoCardDownloadIcon: field.infoCardDownloadIcon,
+    fileDownloadLabel: field.fileDownloadLabel,
+    fileDownloadIcon: field.fileDownloadIcon,
+    uploadDocumentSetting: field.uploadDocumentSetting,
+    downloadDocumentSetting: field.downloadDocumentSetting,
   };
 }
 
@@ -220,6 +344,7 @@ function mapSectionDefinition(section: BackendSectionDefinition): SectionDefinit
     displayLabel: section.label,
     displayOrder: section.displayOrder,
     isCollapsible: section.isCollapsible,
+    isCollapsedByDefault: section.isCollapsedByDefault,
     fields: section.fields.map(mapFieldDefinition),
   };
 }
@@ -257,12 +382,40 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     confirmationMessage: backend.confirmationMessage,
     buttons: (backend.buttons ?? []).map(mapFormButton),
     tabs: backend.tabs.map(mapTabDefinition),
-    businessRules: [],
+    businessRules: (backend.businessRules ?? []) as BusinessRule[],
     submissionMappings: backend.submissionMappings.map((m) => ({
       mappingId: m.id,
       targetEntity: m.targetEntityLogicalName,
       fieldMappings: { [m.fieldId]: m.targetAttributeLogicalName },
     })),
+    infoCards: (backend.infoCards ?? []).map((s) => ({
+      screenId: s.screenId,
+      displayOrder: s.displayOrder,
+      iconUrl: s.iconUrl ?? undefined,
+      iconAltText: s.iconAltText ?? undefined,
+      heading: s.heading,
+      subHeading: s.subHeading ?? undefined,
+      sections: (s.sections ?? []).map((sec) => ({
+        sectionId: sec.sectionId,
+        displayOrder: sec.displayOrder,
+        sectionTitle: sec.sectionTitle ?? '',
+        sectionType: sec.sectionType,
+        noteText: sec.noteText ?? undefined,
+        items: (sec.items ?? []).map((item) => ({
+          itemId: item.itemId,
+          displayOrder: item.displayOrder,
+          itemTitle: item.itemTitle,
+          itemDescription: item.itemDescription ?? undefined,
+          iconReference: item.iconReference ?? undefined,
+          downloadUrl: item.downloadUrl ?? undefined,
+        })),
+      })),
+    })),
+    allowInfocardSkip: backend.allowInfocardSkip ?? false,
+    infocardBackLabel: backend.infocardBackLabel,
+    infocardContinueLabel: backend.infocardContinueLabel,
+    infocardStartLabel: backend.infocardStartLabel,
+    infocardSkipLabel: backend.infocardSkipLabel,
   };
 }
 
@@ -355,15 +508,29 @@ export async function submitForm(
   return 'submitted';
 }
 
+interface SaveDraftPayload {
+  formData: Record<string, unknown>;
+  currentTabIndex: number;
+  infoCardViewed: boolean;
+  gridSchemaHash: Record<string, never>;
+}
+
 export async function saveDraft(
   formCode: string,
   formData: Record<string, unknown>,
   currentTabIndex: number,
   accessToken: string,
+  infoCardViewed: boolean = false,
 ): Promise<void> {
-  await apiPost<{ formData: Record<string, unknown>; currentTabIndex: number }, unknown>(
+  const payload: SaveDraftPayload = {
+    formData,
+    currentTabIndex,
+    infoCardViewed,
+    gridSchemaHash: {},
+  };
+  await apiPost<SaveDraftPayload, unknown>(
     `/api/forms/${formCode}/draft`,
-    { formData, currentTabIndex },
+    payload,
     accessToken,
   );
 }

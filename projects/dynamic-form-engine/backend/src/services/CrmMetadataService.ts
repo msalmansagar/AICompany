@@ -19,11 +19,17 @@ import type {
   BusinessRuleAction,
   ConditionOperator,
   LogicalOperator,
+  GridColumnConfig,
+  GridColumnOptionValue,
+  GridColumnFilterType,
+  FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
+import { logger } from '../utils/logger.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
+import type { CrmInfoCardService, InfoCardScreen } from './CrmInfoCardService.js';
 
 const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 
@@ -37,6 +43,7 @@ export class CrmMetadataService extends CrmBaseService {
   constructor(
     authService: CrmAuthService,
     private readonly cache: LRUCache<string, FormDefinition>,
+    private readonly infoCardService: CrmInfoCardService | null = null,
   ) {
     super(authService);
   }
@@ -118,10 +125,13 @@ export class CrmMetadataService extends CrmBaseService {
 
     const formId = raw.qdb_form_definitionid;
 
-    const [tabs, submissionMappings, buttons] = await Promise.all([
+    const [tabs, submissionMappings, buttons, infoCards] = await Promise.all([
       this.fetchTabsWithChildren(formId, locale),
       this.fetchSubmissionMappings(formId),
       this.fetchFormButtons(formId),
+      this.infoCardService
+        ? this.infoCardService.fetchInfoCardScreens(formId, formId)
+        : Promise.resolve<InfoCardScreen[]>([]),
     ]);
 
     return {
@@ -132,11 +142,20 @@ export class CrmMetadataService extends CrmBaseService {
       status: this.mapFormStatus(raw.qdb_status),
       version: raw.qdb_version ?? 1,
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
+      showSummaryStep: raw.qdb_show_summary_step ?? false,
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
       confirmationRecordRefAttribute: raw.qdb_confirmation_record_ref_attribute,
       accessGroupId: raw.qdb_access_group_id,
+      // DFE-ADD-001 extensions (backward-compatible — defaults to false / empty).
+      allowInfocardSkip: raw.qdb_allow_infocard_skip ?? false,
+      infocardCountsInProgress: raw.qdb_infocard_counts_in_progress ?? false,
+      infocardBackLabel: raw.qdb_infocard_back_label,
+      infocardContinueLabel: raw.qdb_infocard_continue_label,
+      infocardStartLabel: raw.qdb_infocard_start_label,
+      infocardSkipLabel: raw.qdb_infocard_skip_label,
+      infoCards,
       submissionMappings,
       buttons,
       tabs,
@@ -224,11 +243,12 @@ export class CrmMetadataService extends CrmBaseService {
       fields.map((f) => [f.qdb_form_fieldid, f.qdb_schema_name]),
     );
 
-    const [optionsMap, validationMap, lookupMap, businessRulesMap] = await Promise.all([
-      this.fetchOptions(fieldIds),
+    const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap] = await Promise.all([
+      this.fetchOptions(fields),
       this.fetchValidationRules(fieldIds),
       this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
+      this.fetchGridColumnConfigs(fieldIds),
     ]);
 
     const definitions = fields.map((field) => ({
@@ -247,11 +267,48 @@ export class CrmMetadataService extends CrmBaseService {
       isHidden: field.qdb_is_hidden ?? false,
       isVisible: !field.qdb_is_hidden,
       options: optionsMap.get(field.qdb_form_fieldid),
+      optionSourceEntity: field.qdb_option_source_entity,
+      optionSourceAttribute: field.qdb_option_source_attribute,
       lookupConfig: lookupMap.get(field.qdb_form_fieldid),
       currencyCode: field.qdb_currency_code,
       decimalPlaces: field.qdb_decimal_places,
       maxRows: field.qdb_max_rows,
       componentKey: field.qdb_component_key,
+      trueLabel: field.qdb_true_label,
+      falseLabel: field.qdb_false_label,
+      boolRenderStyle: this.mapBooleanRenderStyle(field.qdb_boolean_render_style),
+      multiselectRenderStyle: this.mapMultiselectRenderStyle(field.qdb_multiselect_render_style),
+      radioRenderStyle: this.mapRadioRenderStyle(field.qdb_radio_render_style),
+      infoCardStyle: this.mapInfoCardStyle(field.qdb_info_card_style),
+      infoCardTitle: field.qdb_info_card_title,
+      infoCardBody: field.qdb_info_card_body,
+      infoCardIcon: field.qdb_info_card_icon,
+      infoCardDownloadUrl: field.qdb_info_card_download_url,
+      infoCardDownloadLabel: field.qdb_info_card_download_label,
+      infoCardDownloadIcon: field.qdb_info_card_download_icon,
+      fileDownloadLabel: field.qdb_file_download_label,
+      fileDownloadIcon: field.qdb_file_download_icon,
+      uploadDocumentSetting: field.qdb_upload_document_setting,
+      downloadDocumentSetting: field.qdb_download_document_setting,
+      prefix: field.qdb_prefix,
+      suffix: field.qdb_suffix,
+      fileUploadConfig: this.buildFileUploadConfig(field),
+      gridConfig: field.qdb_grid_mode != null ? {
+        // Canonical names (read by SelectionGridField / EntryGridField)
+        gridMode: this.mapGridMode(field.qdb_grid_mode),
+        targetEntity: field.qdb_grid_entity_name ?? '',
+        columnConfigs: columnConfigMap.get(field.qdb_form_fieldid) ?? [],
+        selectionMode: this.mapSelectionMode(field.qdb_selection_mode),
+        minRows: field.qdb_grid_min_rows ?? undefined,
+        maxRows: field.qdb_max_rows ?? 200,
+        savedViewId: field.qdb_saved_view_id ?? undefined,
+        // Alias names (used by new mapper references)
+        mode: this.mapGridMode(field.qdb_grid_mode),
+        entityName: field.qdb_grid_entity_name ?? undefined,
+        filterExpression: field.qdb_grid_filter_expression ?? undefined,
+        dependsOnFieldId: field.qdb_grid_depends_on_field_schema ?? undefined,
+        dependsOnFilterTemplate: field.qdb_grid_depends_on_filter_template ?? undefined,
+      } : undefined,
       validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
     }));
@@ -264,28 +321,104 @@ export class CrmMetadataService extends CrmBaseService {
     return definitions;
   }
 
-  private async fetchOptions(fieldIds: string[]): Promise<Map<string, OptionValue[]>> {
+  private async fetchGridColumnConfigs(fieldIds: string[]): Promise<Map<string, GridColumnConfig[]>> {
     const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
-    const response = await this.crmFetch<ODataCollection<RawOption>>(
-      `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true&$orderby=qdb_display_order asc`,
+    const response = await this.crmFetch<ODataCollection<RawGridColumnConfig>>(
+      `/qdb_grid_column_configs?$filter=(${filter}) and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
     );
-
-    const map = new Map<string, OptionValue[]>();
-    for (const opt of response.value) {
-      const fieldId = opt._qdb_form_field_id_value;
+    const map = new Map<string, GridColumnConfig[]>();
+    for (const col of response.value) {
+      const fieldId = col._qdb_form_field_id_value;
       const existing = map.get(fieldId) ?? [];
+      const meta = parseColumnMeta(col.qdb_column_options_json);
+      const columnFieldType = col.qdb_column_field_type ?? 'text';
       existing.push({
-        value: opt.qdb_value,
-        label: opt.qdb_label,
-        displayOrder: opt.qdb_display_order,
-        isDefault: opt.qdb_is_default ?? false,
-        parentOptionValue: opt.qdb_parent_option_value,
-        isActive: opt.qdb_is_active ?? true,
+        columnId: col.qdb_grid_column_configid,
+        displayOrder: col.qdb_display_order,
+        columnLabel: col.qdb_column_label,
+        targetAttribute: col.qdb_column_attribute,
+        columnFieldType,
+        options: meta.options,
+        filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
+        lookupTargetEntity: meta.lookupTargetEntity,
+        lookupDisplayAttribute: meta.lookupDisplayAttribute,
       });
       map.set(fieldId, existing);
     }
+    return map;
+  }
+
+  private async fetchOptions(fields: RawField[]): Promise<Map<string, OptionValue[]>> {
+    const map = new Map<string, OptionValue[]>();
+
+    // Partition fields: those with a CRM optionset source vs. those with manual option values
+    const crmSourceFields = fields.filter(
+      (f) => f.qdb_option_source_entity && f.qdb_option_source_attribute,
+    );
+    const manualFields = fields.filter(
+      (f) => !f.qdb_option_source_entity || !f.qdb_option_source_attribute,
+    );
+
+    // Fetch manual options from qdb_form_option_values
+    if (manualFields.length > 0) {
+      const fieldIds = manualFields.map((f) => f.qdb_form_fieldid);
+      const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+      const response = await this.crmFetch<ODataCollection<RawOption>>(
+        `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true` +
+        `&$orderby=qdb_display_order asc` +
+        `&$select=_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name,qdb_notes`,
+      );
+      for (const opt of response.value) {
+        const fieldId = opt._qdb_form_field_id_value;
+        const existing = map.get(fieldId) ?? [];
+        existing.push({
+          value: opt.qdb_value,
+          label: opt.qdb_label,
+          displayOrder: opt.qdb_display_order,
+          isDefault: opt.qdb_is_default ?? false,
+          parentOptionValue: opt.qdb_parent_option_value,
+          isActive: opt.qdb_is_active ?? true,
+          description: opt.qdb_description ?? undefined,
+          iconName: opt.qdb_icon_name ?? undefined,
+          notes: opt.qdb_notes ?? undefined,
+        });
+        map.set(fieldId, existing);
+      }
+    }
+
+    // Fetch options from CRM attribute OptionSet metadata for source-linked fields
+    await Promise.all(
+      crmSourceFields.map(async (field) => {
+        const options = await this.fetchCrmOptionSetValues(
+          field.qdb_option_source_entity!,
+          field.qdb_option_source_attribute!,
+        );
+        if (options.length > 0) map.set(field.qdb_form_fieldid, options);
+      }),
+    );
 
     return map;
+  }
+
+  private async fetchCrmOptionSetValues(entity: string, attribute: string): Promise<OptionValue[]> {
+    try {
+      const response = await this.crmFetch<CrmPicklistAttributeResponse>(
+        `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet`,
+      );
+      const options = response.OptionSet?.Options ?? [];
+      return options
+        .filter((o) => o.Value != null)
+        .map((o, index) => ({
+          value: String(o.Value),
+          label: o.Label?.LocalizedLabels?.[0]?.Label ?? String(o.Value),
+          displayOrder: index + 1,
+          isDefault: false,
+          isActive: true,
+        }));
+    } catch {
+      logger.warn({ entity, attribute }, 'Failed to fetch CRM optionset values — returning empty list');
+      return [];
+    }
   }
 
   private async fetchValidationRules(fieldIds: string[]): Promise<Map<string, ValidationRule[]>> {
@@ -554,9 +687,113 @@ export class CrmMetadataService extends CrmBaseService {
       100000007: 'multiselect',   100000008: 'lookup',     100000009: 'checkbox',
       100000010: 'radio',         100000011: 'currency',   100000012: 'decimal',
       100000013: 'email',         100000014: 'phone',      100000015: 'file',
-      100000016: 'repeatingGrid', 100000017: 'richText',   100000018: 'custom',
+      100000016: 'grid',          100000017: 'richtext',    100000018: 'custom',
+      100000019: 'boolean',
+      100000020: 'info-card',
+      100000021: 'interactive-grid',
     };
     return map[code] ?? 'text';
+  }
+
+  private mapBooleanRenderStyle(code: number | undefined): 'toggle' | 'radio' {
+    return code === 100000001 ? 'radio' : 'toggle';
+  }
+
+  private mapMultiselectRenderStyle(code: number | undefined): 'dropdown' | 'checkboxes' {
+    return code === 100000001 ? 'checkboxes' : 'dropdown';
+  }
+
+  private mapRadioRenderStyle(code: number | undefined): 'list' | 'cards' {
+    return code === 100000001 ? 'cards' : 'list';
+  }
+
+  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' {
+    const map: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
+      100000000: 'info', 100000001: 'warning', 100000002: 'success', 100000003: 'error',
+    };
+    return map[code ?? 0] ?? 'info';
+  }
+
+  private mapGridMode(code: number | undefined): 'selection' | 'entry' {
+    return code === 100000001 ? 'entry' : 'selection';
+  }
+
+  // Maps each qdb_allowed_file_extensions option value to its MIME type(s).
+  // Values are the Dataverse MultiSelect integer codes defined during provisioning.
+  private static readonly FILE_EXTENSION_MIME_MAP: Record<number, string[]> = {
+    100000000: ['application/pdf'],
+    100000001: ['image/jpeg'],
+    100000002: ['image/png'],
+    100000003: ['image/gif'],
+    100000004: ['image/webp'],
+    100000005: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    100000006: ['application/msword'],
+    100000007: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    100000008: ['application/vnd.ms-excel'],
+    100000009: ['application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    100000010: ['text/plain'],
+    100000011: ['text/csv'],
+    100000012: ['application/zip'],
+    100000013: ['video/mp4'],
+    100000014: ['audio/mpeg'],
+  };
+
+  private buildFileUploadConfig(field: RawField): FileUploadConfig | undefined {
+    if (field.qdb_field_type !== 100000015) return undefined; // file field only
+
+    const extensionCodes = this.parseExtensionCodes(field.qdb_allowed_file_extensions);
+    const allowedMimeTypes = this.resolveAllowedMimeTypes(
+      field.qdb_allowed_file_extensions,
+      field.qdb_allowed_mime_types,
+    );
+
+    return {
+      id: field.qdb_form_fieldid,
+      fieldId: field.qdb_form_fieldid,
+      allowedMimeTypes,
+      maxFileSizeBytes: (field.qdb_max_file_size_mb ?? 10) * 1024 * 1024,
+      destination: 'crmNotes',
+      maxFiles: field.qdb_max_files ?? 1,
+      ...(field.qdb_document_type !== undefined && { documentType: field.qdb_document_type }),
+      ...(extensionCodes.length > 0 && { allowedFileExtensions: extensionCodes }),
+    };
+  }
+
+  // Parses the Dataverse comma-separated MultiSelect string into a number array.
+  private parseExtensionCodes(raw: string | undefined): number[] {
+    if (!raw) return [];
+    return raw.split(',').map(Number).filter((n) => !isNaN(n));
+  }
+
+  // Resolves the final MIME type array.
+  // Priority: structured MultiSelect values → legacy JSON memo → hardcoded defaults.
+  private resolveAllowedMimeTypes(
+    extensionRaw: string | undefined,
+    mimeJson: string | undefined,
+  ): string[] {
+    const codes = this.parseExtensionCodes(extensionRaw);
+    if (codes.length > 0) {
+      return codes.flatMap(
+        (code) => CrmMetadataService.FILE_EXTENSION_MIME_MAP[code] ?? [],
+      );
+    }
+    return this.parseAllowedMimeTypes(mimeJson);
+  }
+
+  private parseAllowedMimeTypes(json: string | null | undefined): string[] {
+    const defaults = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!json) return defaults;
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      return Array.isArray(parsed) ? (parsed as string[]) : defaults;
+    } catch {
+      return defaults;
+    }
+  }
+
+  private mapSelectionMode(code: number | undefined): 'single' | 'multi' {
+    return code === 100000001 ? 'multi' : 'single';
   }
 
   private mapFormStatus(code: number): 'draft' | 'active' | 'inactive' | 'archived' {
@@ -650,6 +887,15 @@ interface RawFormDefinition {
   qdb_confirmation_message?: string;
   qdb_confirmation_record_ref_attribute?: string;
   qdb_access_group_id?: string;
+  // DFE-ADD-001 additions
+  qdb_allow_infocard_skip?: boolean;
+  qdb_infocard_counts_in_progress?: boolean;
+  qdb_infocard_back_label?: string;
+  qdb_infocard_continue_label?: string;
+  qdb_infocard_start_label?: string;
+  qdb_infocard_skip_label?: string;
+  // DFE-ADD-003 summary step
+  qdb_show_summary_step?: boolean;
   createdon: string;
   modifiedon: string;
 }
@@ -693,6 +939,49 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
   qdb_component_key?: string;
+  // DFE-ADD-002 boolean field
+  qdb_true_label?: string;
+  qdb_false_label?: string;
+  qdb_boolean_render_style?: number;
+  // DFE-ADD-002 info-card field
+  qdb_info_card_style?: number;
+  qdb_info_card_title?: string;
+  qdb_info_card_body?: string;
+  qdb_info_card_icon?: string;
+  qdb_info_card_download_url?: string;
+  qdb_info_card_download_label?: string;
+  qdb_info_card_download_icon?: string;
+  // File field — template download before upload
+  qdb_file_download_label?: string;
+  qdb_file_download_icon?: string;
+  qdb_upload_document_setting?: string;
+  qdb_download_document_setting?: string;
+  // Prefix / suffix decorators
+  qdb_prefix?: string;
+  qdb_suffix?: string;
+  // DFE-ADD-002 interactive-grid field
+  qdb_saved_view_id?: string;
+  qdb_grid_entity_name?: string;
+  qdb_selection_mode?: number;
+  qdb_grid_mode?: number;
+  qdb_grid_min_rows?: number;
+  // File upload config
+  qdb_allowed_mime_types?: string;
+  qdb_allowed_file_extensions?: string; // Dataverse MultiSelect returns comma-separated string
+  qdb_max_file_size_mb?: number;
+  qdb_max_files?: number;
+  qdb_document_type?: number;
+  // Multiselect render style
+  qdb_multiselect_render_style?: number;
+  // Radio render style
+  qdb_radio_render_style?: number;
+  // Option source from CRM optionset
+  qdb_option_source_entity?: string;
+  qdb_option_source_attribute?: string;
+  // Grid filtering
+  qdb_grid_filter_expression?: string;
+  qdb_grid_depends_on_field_schema?: string;
+  qdb_grid_depends_on_filter_template?: string;
 }
 
 interface RawOption {
@@ -703,6 +992,9 @@ interface RawOption {
   qdb_is_default?: boolean;
   qdb_parent_option_value?: string;
   qdb_is_active?: boolean;
+  qdb_description?: string;
+  qdb_icon_name?: string;
+  qdb_notes?: string;
 }
 
 interface RawValidationRule {
@@ -801,4 +1093,65 @@ interface RawFieldLabel {
   qdb_label?: string;
   qdb_placeholder?: string;
   qdb_tooltip?: string;
+}
+
+interface RawGridColumnConfig {
+  qdb_grid_column_configid: string;
+  _qdb_form_field_id_value: string;
+  qdb_column_attribute: string;
+  qdb_column_label: string;
+  qdb_column_field_type?: string;
+  qdb_display_order: number;
+  qdb_is_visible?: boolean;
+  qdb_is_editable?: boolean;
+  qdb_column_options_json?: string;
+}
+
+function deriveColumnFilterType(fieldType: string): GridColumnFilterType {
+  if (['text', 'email', 'phone', 'textarea'].includes(fieldType)) return 'text';
+  if (['dropdown', 'status', 'picklist'].includes(fieldType)) return 'optionset';
+  if (fieldType === 'lookup') return 'lookup';
+  return 'none';
+}
+
+interface ParsedColumnMeta {
+  options?: GridColumnOptionValue[];
+  filterType?: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+}
+
+function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (Array.isArray(parsed)) return { options: parsed as GridColumnOptionValue[] };
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      const VALID_FILTER_TYPES = new Set(['text', 'optionset', 'lookup', 'none']);
+      return {
+        options: Array.isArray(obj['options']) ? (obj['options'] as GridColumnOptionValue[]) : undefined,
+        filterType: VALID_FILTER_TYPES.has(obj['filterType'] as string)
+          ? (obj['filterType'] as GridColumnFilterType)
+          : undefined,
+        lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
+        lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
+      };
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+
+interface CrmPicklistAttributeResponse {
+  OptionSet?: {
+    Options?: Array<{
+      Value: number;
+      Label?: {
+        LocalizedLabels?: Array<{ Label: string; LanguageCode: number }>;
+      };
+    }>;
+  };
 }

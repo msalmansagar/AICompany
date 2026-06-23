@@ -6,6 +6,8 @@ import * as ImagePicker from 'expo-image-picker';
 import type { FieldDefinition } from '@qdb/shared';
 import { fieldStyles } from './fieldStyles';
 import { buildValidationRules, isFieldRequired } from '../../utils/buildValidationRules';
+import { InfoCardIcon } from '../info-card/InfoCardIcon';
+import { appConfig } from '../../config/appConfig';
 
 interface PickedFile {
   uri: string;
@@ -17,9 +19,74 @@ interface PickedFile {
 interface Props {
   field: FieldDefinition;
   control: Control<Record<string, unknown>>;
+  accessToken?: string;
 }
 
-export function FormFileField({ field, control }: Props) {
+interface TemplateDownloadProps {
+  field: FieldDefinition;
+  accessToken?: string;
+}
+
+function TemplateDownloadButton({ field, accessToken }: TemplateDownloadProps) {
+  const [isDownloading, setIsDownloading] = useState(false);
+  const hasDownload = !!(field.fileDownloadIcon ?? field.fileDownloadLabel ?? field.downloadDocumentSetting);
+  if (!hasDownload) return null;
+
+  async function handlePress(): Promise<void> {
+    const setting = field.downloadDocumentSetting;
+    if (!setting || !accessToken || isDownloading) return;
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(`${appConfig.apiBaseUrl}/api/files/document-template`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ downloadDocumentSetting: setting }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
+      }
+
+      // expo-file-system is not installed — notify the user the file is ready
+      // and instruct them to use the web portal for full download capability.
+      Alert.alert(
+        'Template Ready',
+        'The document template was retrieved successfully. ' +
+        'To save and open it on your device, use the web portal or contact your administrator to enable mobile file downloads.',
+      );
+    } catch (error) {
+      Alert.alert(
+        'Download Failed',
+        error instanceof Error ? error.message : 'Unable to download the template. Please try again.',
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
+  return (
+    <Pressable
+      style={[styles.downloadButton, isDownloading && styles.downloadButtonDisabled]}
+      onPress={() => { void handlePress(); }}
+      accessibilityRole="button"
+      disabled={isDownloading}
+    >
+      {field.fileDownloadIcon ? (
+        <InfoCardIcon iconName={field.fileDownloadIcon} size={18} color="#0078d4" />
+      ) : (
+        <Text style={styles.downloadButtonText}>
+          {isDownloading ? 'Downloading…' : `⬇  ${field.fileDownloadLabel || 'Download Template'}`}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
+export function FormFileField({ field, control, accessToken }: Props) {
   const [cameraPermissionRequested, setCameraPermissionRequested] = useState(false);
 
   return (
@@ -106,6 +173,8 @@ export function FormFileField({ field, control }: Props) {
               {isFieldRequired(field) && <Text style={fieldStyles.required}> *</Text>}
             </Text>
 
+            <TemplateDownloadButton field={field} accessToken={accessToken} />
+
             {picked ? (
               <View style={[styles.fileRow, error && styles.fileRowError]}>
                 <Text style={styles.fileIcon}>📄</Text>
@@ -149,6 +218,27 @@ function formatBytes(bytes: number): string {
 }
 
 const styles = StyleSheet.create({
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#0078d4',
+    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+    backgroundColor: '#f0f7ff',
+  },
+  downloadButtonDisabled: {
+    opacity: 0.5,
+  },
+  downloadButtonText: {
+    fontSize: 14,
+    color: '#0078d4',
+    fontWeight: '600',
+  },
   emptyButton: {
     flexDirection: 'row',
     alignItems: 'center',
