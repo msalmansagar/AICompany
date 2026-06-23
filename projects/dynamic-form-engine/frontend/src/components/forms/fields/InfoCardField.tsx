@@ -46,7 +46,7 @@ const useStyles = makeStyles({
   },
   cardWarning: {
     backgroundColor: tokens.colorPaletteGoldBackground2,
-    borderLeftColor: tokens.colorPaletteGoldForeground1,
+    borderLeftColor: tokens.colorPaletteGoldForeground2,
   },
   cardSuccess: {
     backgroundColor: tokens.colorPaletteGreenBackground2,
@@ -62,7 +62,7 @@ const useStyles = makeStyles({
     paddingTop: '2px',
   },
   iconWarning: {
-    color: tokens.colorPaletteGoldForeground1,
+    color: tokens.colorPaletteGoldForeground2,
     flexShrink: 0,
     paddingTop: '2px',
   },

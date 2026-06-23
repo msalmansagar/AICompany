@@ -11,6 +11,7 @@ import {
   ClockRegular,
   PersonCircleRegular,
   LockClosedRegular,
+  InfoRegular,
 } from '@fluentui/react-icons';
 import type { OptionValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
@@ -114,6 +115,27 @@ const useStyles = makeStyles({
   descriptionSelected: {
     color: tokens.colorNeutralForeground2,
   },
+  // Highlighted notes callout
+  notesBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: tokens.spacingHorizontalXS,
+    padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+    backgroundColor: tokens.colorBrandBackground2,
+    borderRadius: tokens.borderRadiusSmall,
+    marginTop: tokens.spacingVerticalXS,
+  },
+  notesIcon: {
+    fontSize: '12px',
+    color: tokens.colorBrandForeground1,
+    flexShrink: '0',
+    marginTop: '1px',
+  },
+  notesText: {
+    fontSize: tokens.fontSizeBase100,
+    color: tokens.colorBrandForeground1,
+    lineHeight: tokens.lineHeightBase200,
+  },
 });
 
 export function RadioCardControl({
@@ -209,6 +231,14 @@ export function RadioCardControl({
                 >
                   {option.description}
                 </Text>
+              )}
+
+              {/* Notes — highlighted info callout */}
+              {option.notes && (
+                <div className={styles.notesBox}>
+                  <InfoRegular className={styles.notesIcon} />
+                  <Text className={styles.notesText}>{option.notes}</Text>
+                </div>
               )}
             </div>
           );

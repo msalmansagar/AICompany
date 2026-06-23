@@ -82,7 +82,7 @@ describe('CrmInfoCardService', () => {
               qdb_info_card_sectionid: 'section-001',
               _qdb_info_card_screen_id_value: 'screen-001',
               qdb_display_order: 1,
-              qdb_section_type: 100000001,
+              qdb_section_type: 100000000,
               qdb_note_text: null,
             },
           ],

@@ -6,12 +6,17 @@ import type { CrmAuthService } from './CrmAuthService.js';
 
 // ── Types ──────────────────────────────────────────────────────
 
+export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
+
 export interface GridColumnConfig {
   columnId: string;
   displayOrder: number;
   columnLabel: string;
   targetAttribute: string;
   columnFieldType: string;
+  filterType: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
 }
 
 export interface GridFieldConfig {
@@ -85,6 +90,8 @@ interface BuildFetchXmlParams {
   searchAttributes: string[];
   sortBy: string | undefined;
   sortDirection: 'asc' | 'desc' | undefined;
+  columnFilters: Record<string, string> | undefined;
+  columnConfigs: GridColumnConfig[];
 }
 
 // View querytype: 0 = System View. CEO condition BC-011: only System Views permitted.
@@ -97,7 +104,7 @@ export class CrmGridDataService extends CrmBaseService {
 
   constructor(
     authService: CrmAuthService,
-    private readonly metadataCache: LRUCache<string, unknown>,
+    private readonly metadataCache: LRUCache<string, object>,
   ) {
     super(authService);
     this.viewCache = new LRUCache<string, string>({
@@ -116,6 +123,7 @@ export class CrmGridDataService extends CrmBaseService {
     searchText?: string,
     sortBy?: string,
     sortDirection?: 'asc' | 'desc',
+    columnFilters?: Record<string, string>,
   ): Promise<GridRecordPage> {
     const fieldConfig = await this.resolveFieldConfig(fieldId, correlationId);
 
@@ -127,6 +135,7 @@ export class CrmGridDataService extends CrmBaseService {
     const validatedSortBy = this.validateSortAttribute(sortBy, fieldConfig);
 
     const searchAttributes = resolveSearchAttributes(fieldConfig.columnConfigs);
+    const validatedColumnFilters = validateColumnFilters(columnFilters, fieldConfig.columnConfigs);
 
     const baseFetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
 
@@ -142,6 +151,8 @@ export class CrmGridDataService extends CrmBaseService {
       searchAttributes,
       sortBy: validatedSortBy,
       sortDirection,
+      columnFilters: validatedColumnFilters,
+      columnConfigs: fieldConfig.columnConfigs,
     });
 
     const url = `/${fieldConfig.targetEntity}s?fetchXml=${encodeURIComponent(fetchXml)}`;
@@ -191,6 +202,7 @@ export class CrmGridDataService extends CrmBaseService {
         latencyMs,
         hasSearch: !!searchText,
         hasSortBy: !!validatedSortBy,
+        hasColumnFilters: validatedColumnFilters ? Object.keys(validatedColumnFilters).length > 0 : false,
         operation: 'fetchGridRecords',
       },
       'selection_grid_load',
@@ -233,17 +245,23 @@ export class CrmGridDataService extends CrmBaseService {
       maxRows: rawField.qdb_grid_max_rows ?? 200,
       filterExpression: rawField.qdb_grid_filter_expression ?? undefined,
       dependsOnFilterTemplate: rawField.qdb_grid_depends_on_filter_template ?? undefined,
-      columnConfigs: columnsResponse.value.map((c) => ({
-        columnId: c.qdb_grid_column_configid,
-        displayOrder: c.qdb_display_order,
-        columnLabel: c.qdb_column_label,
-        targetAttribute: c.qdb_column_attribute,
-        columnFieldType: c.qdb_column_field_type,
-        options: parseGridColumnOptions(c.qdb_column_options_json),
-      })),
+      columnConfigs: columnsResponse.value.map((c) => {
+        const meta = parseColumnMetadata(c.qdb_column_options_json);
+        return {
+          columnId: c.qdb_grid_column_configid,
+          displayOrder: c.qdb_display_order,
+          columnLabel: c.qdb_column_label,
+          targetAttribute: c.qdb_column_attribute,
+          columnFieldType: c.qdb_column_field_type,
+          filterType: meta.filterType ?? deriveFilterType(c.qdb_column_field_type),
+          lookupTargetEntity: meta.lookupTargetEntity,
+          lookupDisplayAttribute: meta.lookupDisplayAttribute,
+          options: meta.options,
+        };
+      }),
     };
 
-    this.metadataCache.set(cacheKey, fieldConfig as unknown);
+    this.metadataCache.set(cacheKey, fieldConfig as object);
     logger.info({ correlationId, fieldId, operation: 'resolveFieldConfig' }, 'Grid field config resolved and cached');
 
     return fieldConfig;
@@ -307,10 +325,21 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     baseXml, page, pageSize, pagingCookie,
     filterExpression, dependsOnFilterTemplate, dependsOnValue,
     searchText, searchAttributes, sortBy, sortDirection,
+    columnFilters, columnConfigs,
   } = params;
 
+  // Step 0: Ensure every configured column attribute is present in the FetchXML select list.
+  // The saved view may not include all columns the grid layout needs to display.
+  let xml = baseXml;
+  for (const col of columnConfigs) {
+    const attr = col.targetAttribute;
+    if (!new RegExp(`<attribute[^>]+name="${attr}"`).test(xml)) {
+      xml = xml.replace('</entity>', `<attribute name="${attr}"/></entity>`);
+    }
+  }
+
   // Step 1: Strip existing page/count/top/paging-cookie/order attrs; inject fresh ones.
-  let xml = baseXml.replace(
+  xml = xml.replace(
     /<fetch([^>]*)>/,
     (_match, existingAttrs: string) => {
       const cleaned = existingAttrs
@@ -364,7 +393,48 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     conditions.push(`<filter type="or">${orConditions}</filter>`);
   }
 
-  // Step 5: Inject conditions into existing <filter> or wrap in a new one.
+  // Step 5b: Per-column filter conditions (text and optionset).
+  const linkEntityClauses: string[] = [];
+  if (columnFilters && columnConfigs) {
+    for (const [attrName, filterValue] of Object.entries(columnFilters)) {
+      const trimmed = filterValue.trim();
+      if (!trimmed) continue;
+      const col = columnConfigs.find((c) => c.targetAttribute === attrName);
+      if (!col) continue;
+
+      switch (col.filterType) {
+        case 'text': {
+          const escaped = escapeXmlAttribute(`%${trimmed}%`);
+          conditions.push(`<condition attribute="${attrName}" operator="like" value="${escaped}"/>`);
+          break;
+        }
+        case 'optionset': {
+          const intVal = parseInt(trimmed, 10);
+          if (!isNaN(intVal)) {
+            conditions.push(`<condition attribute="${attrName}" operator="eq" value="${intVal}"/>`);
+          }
+          break;
+        }
+        case 'lookup': {
+          if (col.lookupTargetEntity && col.lookupDisplayAttribute) {
+            const escaped = escapeXmlAttribute(`%${trimmed}%`);
+            // Unique alias: truncate to 20 chars to stay within FetchXML alias limits.
+            const alias = `lnk_${attrName.replace(/\W/g, '_').slice(0, 15)}`;
+            linkEntityClauses.push(
+              `<link-entity name="${col.lookupTargetEntity}" ` +
+              `from="${col.lookupTargetEntity}id" to="${attrName}" ` +
+              `alias="${alias}" link-type="inner">` +
+              `<filter><condition attribute="${col.lookupDisplayAttribute}" operator="like" value="${escaped}"/></filter>` +
+              `</link-entity>`,
+            );
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Step 5c: Inject filter conditions into existing <filter> or wrap in a new one.
   if (conditions.length > 0) {
     const conditionsXml = conditions.join('');
     if (/<filter/.test(xml)) {
@@ -372,6 +442,11 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     } else {
       xml = xml.replace('</entity>', `<filter type="and">${conditionsXml}</filter></entity>`);
     }
+  }
+
+  // Step 5d: Inject link-entity joins before </entity>.
+  if (linkEntityClauses.length > 0) {
+    xml = xml.replace('</entity>', `${linkEntityClauses.join('')}</entity>`);
   }
 
   return xml;
@@ -418,6 +493,30 @@ function resolveSearchAttributes(columns: GridColumnConfig[]): string[] {
     .map((c) => c.targetAttribute);
 }
 
+function deriveFilterType(fieldType: string): GridColumnFilterType {
+  if (TEXT_SEARCHABLE_FIELD_TYPES.has(fieldType)) return 'text';
+  if (['dropdown', 'status', 'picklist'].includes(fieldType)) return 'optionset';
+  if (fieldType === 'lookup') return 'lookup';
+  return 'none';
+}
+
+// Validates columnFilters: keys must match a known targetAttribute.
+// Silently drops unknown attributes to prevent FetchXML injection.
+function validateColumnFilters(
+  filters: Record<string, string> | undefined,
+  columns: GridColumnConfig[],
+): Record<string, string> | undefined {
+  if (!filters) return undefined;
+  const knownAttrs = new Set(columns.map((c) => c.targetAttribute));
+  const validated: Record<string, string> = {};
+  for (const [attr, value] of Object.entries(filters)) {
+    if (knownAttrs.has(attr) && value && value.trim()) {
+      validated[attr] = value.slice(0, 200);
+    }
+  }
+  return Object.keys(validated).length > 0 ? validated : undefined;
+}
+
 function assertGridFieldHasView(field: RawGridField, fieldId: string): void {
   if (!field.qdb_grid_entity_name) {
     throw new ValidationError(`Grid field '${fieldId}' has no target entity configured.`);
@@ -448,10 +547,26 @@ function buildRestrictedValues(
   const columnSet = new Set(allowedColumns);
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(raw)) {
+    // Direct attribute match (text, number, optionset).
     if (columnSet.has(key)) { result[key] = value; continue; }
+
     if (key.endsWith(ODATA_ANNOTATION_SUFFIX)) {
       const baseKey = key.slice(0, -ODATA_ANNOTATION_SUFFIX.length);
-      if (columnSet.has(baseKey)) result[key] = value;
+      // Annotation on a direct attribute (e.g. gendercode@...FormattedValue).
+      if (columnSet.has(baseKey)) { result[key] = value; continue; }
+      // Annotation on a lookup navigation property (_parentcustomerid_value@...FormattedValue)
+      // → remap to parentcustomerid@...FormattedValue for the frontend.
+      if (baseKey.startsWith('_') && baseKey.endsWith('_value')) {
+        const attrName = baseKey.slice(1, -6);
+        if (columnSet.has(attrName)) result[`${attrName}${ODATA_ANNOTATION_SUFFIX}`] = value;
+      }
+      continue;
+    }
+
+    // Lookup navigation property (_parentcustomerid_value → parentcustomerid).
+    if (key.startsWith('_') && key.endsWith('_value')) {
+      const attrName = key.slice(1, -6);
+      if (columnSet.has(attrName)) result[attrName] = value;
     }
   }
   return result;
@@ -461,12 +576,40 @@ function buildEmptyPage(page: number, pageSize: number): GridRecordPage {
   return { records: [], page, pageSize, hasNextPage: false, isCapped: true };
 }
 
-function parseGridColumnOptions(json: string | null | undefined): Array<{ value: string; label: string }> | undefined {
-  if (!json) return undefined;
+interface ColumnMetadata {
+  options?: Array<{ value: string; label: string }>;
+  filterType?: GridColumnFilterType;
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+}
+
+// Parses the qdb_column_options_json field which uses one of two formats:
+//   v1 (legacy): a JSON array — [{"value":"1","label":"Active"}]
+//   v2 (extended): a JSON object — {"v":2,"options":[...],"filterType":"optionset",...}
+function parseColumnMetadata(json: string | null | undefined): ColumnMetadata {
+  if (!json) return {};
   try {
     const parsed = JSON.parse(json) as unknown;
-    return Array.isArray(parsed) ? (parsed as Array<{ value: string; label: string }>) : undefined;
+    if (Array.isArray(parsed)) {
+      return { options: parsed as Array<{ value: string; label: string }> };
+    }
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      return {
+        options: Array.isArray(obj['options'])
+          ? (obj['options'] as Array<{ value: string; label: string }>)
+          : undefined,
+        filterType: isValidFilterType(obj['filterType']) ? obj['filterType'] : undefined,
+        lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
+        lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
+      };
+    }
+    return {};
   } catch {
-    return undefined;
+    return {};
   }
+}
+
+function isValidFilterType(value: unknown): value is GridColumnFilterType {
+  return value === 'text' || value === 'optionset' || value === 'lookup' || value === 'none';
 }

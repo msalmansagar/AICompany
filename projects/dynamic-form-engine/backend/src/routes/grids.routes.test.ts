@@ -88,6 +88,12 @@ describe('GET /api/grids/:fieldId/records', () => {
         1,
         50,
         expect.any(String),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
       );
     });
   });

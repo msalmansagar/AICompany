@@ -262,9 +262,9 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
       return <PhoneControl {...controlProps} />;
     case 'file':
       return <FileUploadControl {...controlProps} />;
-    case 'grid':
+    case 'repeatingGrid':
       return <RepeatingGridControl {...controlProps} />;
-    case 'richtext':
+    case 'richText':
       return <RichTextControl {...controlProps} />;
     // DFE-ADD-002: Boolean field type.
     case 'boolean':

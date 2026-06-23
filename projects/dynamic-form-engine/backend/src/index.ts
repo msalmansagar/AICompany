@@ -76,7 +76,7 @@ const infoCardService = config.MOCK_CRM ? null : new CrmInfoCardService(authServ
 const infoCardAdminService = config.MOCK_CRM ? null : new CrmInfoCardAdminService(authService);
 const gridDataService = config.MOCK_CRM
   ? null
-  : new CrmGridDataService(authService, metadataCache as LRUCache<string, unknown>);
+  : new CrmGridDataService(authService, metadataCache as LRUCache<string, object>);
 
 // When MOCK_CRM=true, swap all CRM services for in-memory mocks.
 // This allows full local development without a Dataverse environment.
