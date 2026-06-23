@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Badge,
   Field,
@@ -9,6 +9,51 @@ import {
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
+
+function validateUploadSetting(value: string): string | null {
+  if (!value.trim()) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return 'Invalid JSON — check for missing quotes, commas, or brackets.';
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof (parsed as Record<string, unknown>).entityName !== 'string' ||
+    !Array.isArray((parsed as Record<string, unknown>).attributeConfig)
+  ) {
+    return 'Must have shape: { "entityName": "...", "attributeConfig": [...] }';
+  }
+  return null;
+}
+
+function validateDownloadSetting(value: string): string | null {
+  if (!value.trim()) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return 'Invalid JSON — check for missing quotes, commas, or brackets.';
+  }
+  const root = parsed as Record<string, unknown>;
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    typeof root.downloadSetting !== 'object' ||
+    root.downloadSetting === null ||
+    !Array.isArray((root.downloadSetting as Record<string, unknown>).attributeConfig)
+  ) {
+    return 'Must have shape: { "downloadSetting": { "attributeConfig": [...] } }';
+  }
+  const configs = (root.downloadSetting as Record<string, unknown>).attributeConfig as Array<Record<string, unknown>>;
+  const hasDocumentName = configs.some((c) => c.attributeName === 'documentName');
+  if (!hasDocumentName) {
+    return 'attributeConfig must include an entry with "attributeName": "documentName".';
+  }
+  return null;
+}
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -51,6 +96,13 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
   const styles = useStyles();
   const updateField = useDesignerStore(s => s.updateField);
 
+  const [uploadError, setUploadError] = useState<string | null>(
+    () => validateUploadSetting(field.uploadDocumentSetting ?? ''),
+  );
+  const [downloadError, setDownloadError] = useState<string | null>(
+    () => validateDownloadSetting(field.downloadDocumentSetting ?? ''),
+  );
+
   const handleChange = useCallback(
     (key: keyof DesignerFieldModel, value: string | null) => {
       updateField(field.id, { [key]: value } as Partial<DesignerFieldModel>);
@@ -90,12 +142,15 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
       <Field
         label="Upload Document Setting"
         hint="JSON — tells the backend which CRM entity/attributes to create when the user uploads a file"
+        validationState={uploadError ? 'error' : 'none'}
+        validationMessage={uploadError ?? undefined}
       >
         <Textarea
           value={field.uploadDocumentSetting ?? ''}
           placeholder={UPLOAD_SETTING_PLACEHOLDER}
           rows={6}
           onChange={(_, d) => handleChange('uploadDocumentSetting', d.value || null)}
+          onBlur={(e) => setUploadError(validateUploadSetting(e.target.value))}
           style={{ fontFamily: 'monospace', fontSize: '12px' }}
         />
       </Field>
@@ -103,12 +158,15 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
       <Field
         label="Download Document Setting"
         hint="JSON — tells the backend which CRM document to generate when the user clicks the download button"
+        validationState={downloadError ? 'error' : 'none'}
+        validationMessage={downloadError ?? undefined}
       >
         <Textarea
           value={field.downloadDocumentSetting ?? ''}
           placeholder={DOWNLOAD_SETTING_PLACEHOLDER}
           rows={6}
           onChange={(_, d) => handleChange('downloadDocumentSetting', d.value || null)}
+          onBlur={(e) => setDownloadError(validateDownloadSetting(e.target.value))}
           style={{ fontFamily: 'monospace', fontSize: '12px' }}
         />
       </Field>
