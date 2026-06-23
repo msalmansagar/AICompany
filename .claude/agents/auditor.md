@@ -1,6 +1,6 @@
 ---
 name: auditor
-model: claude-opus-4-6
+model: claude-opus-4-8
 description: >
   Security review, compliance assessment, governance gap analysis,
   data residency concerns, regulatory alignment, and audit trail
