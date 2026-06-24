@@ -530,6 +530,7 @@ export function NewFormWizardScreen(): React.ReactElement {
           sortOrder: i,
           isVisible: true,
           requiresPreviousTabComplete: false,
+          hideTabBar: false,
         });
 
         const sectionId = await sectionService.createSection({
@@ -571,6 +572,7 @@ export function NewFormWizardScreen(): React.ReactElement {
         themeId: wizardState.themeId,
         allowSaveDraft: true,
         draftExpiryDays: null,
+        showSummaryStep: false,
         powerAutomateFlowId: null,
         confirmationMessage: null,
         confirmationRecordRefAttribute: null,

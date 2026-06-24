@@ -18,6 +18,7 @@ function makeForm(overrides: Partial<DesignerFormModel> = {}): DesignerFormModel
     themeId: null,
     allowSaveDraft: true,
     draftExpiryDays: null,
+    showSummaryStep: false,
     powerAutomateFlowId: null,
     confirmationMessage: null,
     confirmationRecordRefAttribute: null,

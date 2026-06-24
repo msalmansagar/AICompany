@@ -43,7 +43,7 @@ describe('AuditLogService', () => {
     const [entityName, data] = vi.mocked(webApi.createRecord).mock.calls[0];
 
     expect(entityName).toBe('qdb_form_audit_log');
-    expect(data[FORM_AUDIT_LOG_ATTRS.FORM_ID]).toBe(formId);
+    expect(data[`${FORM_AUDIT_LOG_ATTRS.FORM_ID}@odata.bind`]).toBe(`/qdb_form_definitions(${formId})`);
     expect(data[FORM_AUDIT_LOG_ATTRS.ACTION]).toBe('PUBLISH');
     expect(data[FORM_AUDIT_LOG_ATTRS.ACTOR_ID]).toBe(TEST_USER_CONTEXT.userId);
     expect(data[FORM_AUDIT_LOG_ATTRS.ACTOR_NAME]).toBe(TEST_USER_CONTEXT.userFullName);

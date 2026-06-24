@@ -191,6 +191,7 @@ export function DesignerScreen(): React.ReactElement {
             sortOrder: tabOrder.length,
             isVisible: true,
             requiresPreviousTabComplete: false,
+            hideTabBar: false,
           };
           addTab(newTab);
           return;
@@ -417,6 +418,7 @@ function EmptyCanvasPrompt(): React.ReactElement {
       sortOrder: tabOrder.length,
       isVisible: true,
       requiresPreviousTabComplete: false,
+      hideTabBar: false,
     });
   }, [addTab, tabOrder.length]);
 

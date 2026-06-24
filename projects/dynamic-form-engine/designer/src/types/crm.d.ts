@@ -1,6 +1,15 @@
 // Xrm namespace type augmentation for CRM web resource context.
 // Provides type safety for Xrm.WebApi calls used throughout the service layer.
-// Minimum API level: Dynamics 365 v9.2 on-premise and Online.
+//
+// Minimum on-premise version: Dynamics 365 9.0 (on-prem) with Unified Interface.
+// Xrm.WebApi (createRecord / updateRecord / deleteRecord / retrieveRecord /
+// retrieveMultipleRecords) was introduced in Dynamics CRM 8.2 and is available
+// on all D365 9.x on-prem builds. Xrm.Utility.getGlobalContext() requires 9.x.
+// Recommend D365 9.1 on-prem minimum for full UCI stability.
+//
+// RestWebApiAdapter (standalone/dev mode) targets /api/data/v9.1 by default via
+// VITE_API_BASE_URL. In CRM-hosted mode Xrm.WebApi abstracts the version so the
+// target API version is transparent.
 
 declare namespace Xrm {
   namespace WebApi {

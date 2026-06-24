@@ -65,10 +65,9 @@ const useStyles = makeStyles({
 interface SectionContainerProps {
   section: DesignerSectionModel;
   fields: DesignerFieldModel[];
-  fieldOrder: string[];
 }
 
-export function SectionContainer({ section, fields, fieldOrder }: SectionContainerProps): React.ReactElement {
+export function SectionContainer({ section, fields }: SectionContainerProps): React.ReactElement {
   const styles = useStyles();
   const { selectItem, deleteSection } = useDesignerStore();
 
@@ -153,11 +152,9 @@ export function SectionContainer({ section, fields, fieldOrder }: SectionContain
           </div>
         ) : (
           <div className={gridClassName}>
-            {fieldOrder.map(fieldId => {
-              const field = fields.find(f => f.id === fieldId);
-              if (!field) return null;
-              return <FieldSlot key={fieldId} field={field} />;
-            })}
+            {fields.map(field => (
+              <FieldSlot key={field.id} field={field} />
+            ))}
           </div>
         )}
       </div>

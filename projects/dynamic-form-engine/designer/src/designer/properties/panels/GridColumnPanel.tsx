@@ -12,7 +12,7 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, ArrowUpRegular, ArrowDownRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
-import type { DesignerGridColumnConfig } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType } from '@/state/models/DesignerFormModel';
 
 const COLUMN_FIELD_TYPES = [
   { value: 'text',    label: 'Text' },
@@ -20,7 +20,23 @@ const COLUMN_FIELD_TYPES = [
   { value: 'date',    label: 'Date' },
   { value: 'boolean', label: 'Yes / No' },
   { value: 'dropdown', label: 'Dropdown' },
+  { value: 'lookup',  label: 'Lookup' },
 ];
+
+const FILTER_TYPES: { value: GridColumnFilterType | 'auto'; label: string }[] = [
+  { value: 'auto',      label: 'Auto (from field type)' },
+  { value: 'text',      label: 'Text search' },
+  { value: 'optionset', label: 'Option set' },
+  { value: 'lookup',    label: 'Lookup (by name)' },
+  { value: 'none',      label: 'No filter' },
+];
+
+function deriveDefaultFilterType(fieldType: string): GridColumnFilterType {
+  if (['text', 'email', 'phone', 'textarea'].includes(fieldType)) return 'text';
+  if (fieldType === 'dropdown') return 'optionset';
+  if (fieldType === 'lookup') return 'lookup';
+  return 'none';
+}
 
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', gap: '10px' },
@@ -71,6 +87,9 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       displayOrder: columns.length,
       isEditable: false,
       optionsJson: null,
+      filterType: 'text',
+      lookupTargetEntity: null,
+      lookupDisplayAttribute: null,
     };
     updateField(fieldId, { gridColumns: [...columns, newCol] });
   }, [fieldId, columns, updateField]);
@@ -192,9 +211,32 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
               <Select
                 size="small"
                 value={col.columnFieldType}
-                onChange={(_, d) => handleUpdate(col.id, { columnFieldType: d.value })}
+                onChange={(_, d) => {
+                  const newFieldType = d.value;
+                  handleUpdate(col.id, {
+                    columnFieldType: newFieldType,
+                    filterType: deriveDefaultFilterType(newFieldType),
+                  });
+                }}
               >
                 {COLUMN_FIELD_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Filter Type" className={styles.fieldRowItem}>
+              <Select
+                size="small"
+                value={col.filterType ?? 'auto'}
+                onChange={(_, d) => {
+                  const ft = d.value === 'auto'
+                    ? deriveDefaultFilterType(col.columnFieldType)
+                    : d.value as GridColumnFilterType;
+                  handleUpdate(col.id, { filterType: ft });
+                }}
+              >
+                {FILTER_TYPES.map(t => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </Select>
@@ -210,6 +252,29 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
               </Field>
             )}
           </div>
+
+          {col.filterType === 'lookup' && (
+            <div className={styles.fieldRow}>
+              <Field label="Lookup Entity" className={styles.fieldRowItem} hint="e.g. contact">
+                <Input
+                  size="small"
+                  value={col.lookupTargetEntity ?? ''}
+                  placeholder="contact"
+                  onChange={(_, d) => handleUpdate(col.id, { lookupTargetEntity: d.value || null })}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+              <Field label="Display Attribute" className={styles.fieldRowItem} hint="e.g. fullname">
+                <Input
+                  size="small"
+                  value={col.lookupDisplayAttribute ?? ''}
+                  placeholder="fullname"
+                  onChange={(_, d) => handleUpdate(col.id, { lookupDisplayAttribute: d.value || null })}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+            </div>
+          )}
 
           {col.columnFieldType === 'dropdown' && (
             <Field

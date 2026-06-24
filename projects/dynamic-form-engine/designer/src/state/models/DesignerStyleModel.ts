@@ -1,5 +1,6 @@
 export type LabelPosition = 'above' | 'beside';
 export type ButtonStyle = 'filled' | 'outline' | 'subtle';
+export type NavStyle = 'tabs' | 'stepper' | 'accordion' | 'sidebar';
 
 export interface DesignerStyleModel {
   themeId: string | null;
@@ -13,6 +14,7 @@ export interface DesignerStyleModel {
   fieldSpacing: number;
   labelPosition: LabelPosition;
   buttonStyle: ButtonStyle;
+  navStyle?: NavStyle;
   customCss: string;
 }
 
@@ -28,5 +30,6 @@ export const DEFAULT_STYLE: DesignerStyleModel = {
   fieldSpacing: 16,
   labelPosition: 'above',
   buttonStyle: 'filled',
+  navStyle: 'tabs',
   customCss: '',
 };

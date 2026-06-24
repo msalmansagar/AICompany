@@ -17,7 +17,7 @@ import {
 import { ArrowLeftRegular, SaveRegular } from '@fluentui/react-icons';
 import { CrmContext } from '@/app/App';
 import { useDesignerStore } from '@/state/designerStore';
-import type { ButtonStyle, DesignerStyleModel, LabelPosition } from '@/state/models/DesignerStyleModel';
+import type { ButtonStyle, DesignerStyleModel, LabelPosition, NavStyle } from '@/state/models/DesignerStyleModel';
 
 const useStyles = makeStyles({
   root: {
@@ -332,6 +332,7 @@ export function ThemeEditorScreen(): React.ReactElement {
           formId: form.id,
           themeId,
           customCss: style.customCss,
+          navStyle: style.navStyle ?? 'tabs',
         });
       }
 
@@ -481,6 +482,21 @@ export function ThemeEditorScreen(): React.ReactElement {
               ]}
               value={style.buttonStyle}
               onChange={v => patch({ buttonStyle: v })}
+            />
+          </div>
+
+          <div>
+            <Text weight="semibold" size={300} className={styles.sectionTitle} block>Navigation Style</Text>
+            <ToggleGroup<NavStyle>
+              label=""
+              options={[
+                { value: 'tabs', label: 'Tabs' },
+                { value: 'stepper', label: 'Stepper' },
+                { value: 'accordion', label: 'Accordion' },
+                { value: 'sidebar', label: 'Sidebar' },
+              ]}
+              value={style.navStyle ?? 'tabs'}
+              onChange={v => patch({ navStyle: v })}
             />
           </div>
 

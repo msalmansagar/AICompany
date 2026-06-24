@@ -30,6 +30,7 @@ export interface UpsertFormDesignDto {
   formId: string;
   themeId: string | null;
   customCss: string;
+  navStyle?: 'tabs' | 'stepper' | 'accordion' | 'sidebar';
 }
 
 export interface UpsertSectionDesignDto {
@@ -88,11 +89,19 @@ export class DesignService {
       FORM_DESIGN_ATTRS.ID
     );
 
+    const NAV_STYLE_PICKLIST: Record<string, number> = {
+      tabs: 100000001,
+      stepper: 100000002,
+      accordion: 100000003,
+      sidebar: 100000004,
+    };
+
     const payload: Record<string, unknown> = {
       [FORM_DESIGN_ATTRS.CUSTOM_CSS]: dto.customCss,
       [`${FORM_DESIGN_ATTRS.THEME_ID}@odata.bind`]: dto.themeId
         ? `/qdb_themes(${dto.themeId})`
         : null,
+      [FORM_DESIGN_ATTRS.TAB_STYLE]: NAV_STYLE_PICKLIST[dto.navStyle ?? 'tabs'] ?? 100000001,
     };
 
     if (existingId !== null) {

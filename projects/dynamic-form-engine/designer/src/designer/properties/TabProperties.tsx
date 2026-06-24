@@ -1,15 +1,21 @@
 import React from 'react';
 import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
   Button,
   Checkbox,
   Divider,
   Field,
   Input,
+  Switch,
   Text,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -45,6 +51,7 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
   const sectionIds = useDesignerStore(state => state.sectionOrder[tabId] ?? []);
   const sections = useDesignerStore(state => state.sections);
   const updateSection = useDesignerStore(state => state.updateSection);
+  const formCode = useDesignerStore(state => state.form?.code ?? '');
 
   if (!tab) return <></>;
 
@@ -80,6 +87,16 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
         }
       />
 
+      <Field
+        hint="When enabled, the navigation bar is hidden while this tab is active. All sections and fields on this tab still render normally."
+      >
+        <Switch
+          label="Hide tab bar (show tab content full-screen)"
+          checked={tab.hideTabBar}
+          onChange={(_, data) => updateTab(tabId, { hideTabBar: data.checked })}
+        />
+      </Field>
+
       {sectionIds.length > 0 && (
         <>
           <Divider />
@@ -112,6 +129,21 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
           })}
         </>
       )}
+
+      <Divider />
+      <Accordion collapsible>
+        <AccordionItem value="translations">
+          <AccordionHeader>Translations</AccordionHeader>
+          <AccordionPanel>
+            <TranslationsPanel
+              entityName="qdb_form_tab"
+              recordId={tabId}
+              entityLabel="Tab"
+              formCode={formCode}
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

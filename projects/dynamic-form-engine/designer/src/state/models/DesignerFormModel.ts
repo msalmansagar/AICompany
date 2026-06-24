@@ -35,6 +35,8 @@ export interface DesignerTabModel {
   sortOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
+  /** When true the tab navigation bar is hidden while this tab is active. Sections and fields still render. */
+  hideTabBar: boolean;
 }
 
 export interface DesignerSectionModel {

@@ -9,6 +9,13 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// 4xx errors are deterministic client mistakes — retrying won't help.
+function isClientError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') return false;
+  const msg = String((error as Record<string, unknown>).message ?? '');
+  return /\(4\d{2}\)/.test(msg);
+}
+
 export class CrmApiError extends Error {
   constructor(
     message: string,
@@ -31,6 +38,8 @@ export async function withRetry<T>(
       return await operation();
     } catch (error) {
       lastError = error;
+
+      if (isClientError(error)) break;
 
       if (attempt < MAX_RETRIES) {
         const backoffMs = BASE_DELAY_MS * Math.pow(2, attempt);

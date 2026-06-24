@@ -1,12 +1,18 @@
 import React, { useCallback } from 'react';
 import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
   Checkbox,
+  Divider,
   Field,
   Input,
   Select,
   makeStyles,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -20,6 +26,7 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
   const styles = useStyles();
   const section = useDesignerStore(state => state.sections[sectionId]);
   const updateSection = useDesignerStore(state => state.updateSection);
+  const formCode = useDesignerStore(state => state.form?.code ?? '');
 
   const handleColumnCountChange = useCallback(
     (_: React.ChangeEvent<HTMLSelectElement>, data: { value: string }) => {
@@ -80,6 +87,21 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
           }
         />
       )}
+
+      <Divider />
+      <Accordion collapsible>
+        <AccordionItem value="translations">
+          <AccordionHeader>Translations</AccordionHeader>
+          <AccordionPanel>
+            <TranslationsPanel
+              entityName="qdb_form_section"
+              recordId={sectionId}
+              entityLabel="Section"
+              formCode={formCode}
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

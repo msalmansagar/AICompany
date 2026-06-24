@@ -11,6 +11,7 @@ export interface CreateTabDto {
   iconName?: string | null;
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
+  hideTabBar?: boolean;
 }
 
 export interface UpdateTabDto {
@@ -19,6 +20,7 @@ export interface UpdateTabDto {
   iconName?: string | null;
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
+  hideTabBar?: boolean;
 }
 
 export class TabService {
@@ -33,6 +35,7 @@ export class TabService {
           [FORM_TAB_ATTRS.SORT_ORDER]: dto.sortOrder,
           [FORM_TAB_ATTRS.IS_VISIBLE]: dto.isVisible ?? true,
           [FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]: dto.requiresPreviousTabComplete ?? false,
+          [FORM_TAB_ATTRS.HIDE_TAB_BAR]: dto.hideTabBar ?? false,
           ...(dto.iconName != null ? { [FORM_TAB_ATTRS.ICON_NAME]: dto.iconName } : {}),
         }),
       'createTab'
@@ -49,6 +52,7 @@ export class TabService {
       data[FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE] = dto.requiresPreviousTabComplete;
     }
     if (dto.iconName !== undefined) data[FORM_TAB_ATTRS.ICON_NAME] = dto.iconName;
+    if (dto.hideTabBar !== undefined) data[FORM_TAB_ATTRS.HIDE_TAB_BAR] = dto.hideTabBar;
 
     if (Object.keys(data).length === 0) return;
 
@@ -74,6 +78,7 @@ export class TabService {
       FORM_TAB_ATTRS.SORT_ORDER,
       FORM_TAB_ATTRS.IS_VISIBLE,
       FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE,
+      FORM_TAB_ATTRS.HIDE_TAB_BAR,
     ].join(',');
 
     const filter = `${FORM_TAB_ATTRS.FORM_ID_VALUE} eq ${formId}`;
@@ -100,6 +105,7 @@ export class TabService {
       sortOrder: Number(record[FORM_TAB_ATTRS.SORT_ORDER] ?? 0),
       isVisible: record[FORM_TAB_ATTRS.IS_VISIBLE] !== false,
       requiresPreviousTabComplete: Boolean(record[FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]),
+      hideTabBar: Boolean(record[FORM_TAB_ATTRS.HIDE_TAB_BAR]),
     };
   }
 }

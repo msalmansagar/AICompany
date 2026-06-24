@@ -25,6 +25,9 @@ export const ENTITY_NAMES = {
   FORM_ACCESS_POLICY: 'qdb_form_access_policy',
   // Sprint 5 — grid column config
   GRID_COLUMN_CONFIG: 'qdb_grid_column_configs',
+  // i18n
+  TRANSLATION: 'qdb_translation',
+  LANGUAGE_CONFIG: 'qdb_language_config',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

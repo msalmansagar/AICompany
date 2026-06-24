@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Divider,
@@ -200,10 +200,22 @@ interface RuleEditorProps {
   onDelete: (id: string) => void;
 }
 
+function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): BusinessRuleDefinition {
+  const fallbackCondition = { field_code: '', operator: 'equals' as ConditionOperator, value: '' };
+  const fallbackAction = { action_type: 'show_field' as RuleActionType, target_field_code: '' };
+  return {
+    version: raw?.version ?? '1.0',
+    trigger_field_code: raw?.trigger_field_code ?? '',
+    trigger_event: raw?.trigger_event ?? 'on_change',
+    condition_group: raw?.condition_group ?? { logical_operator: 'AND', conditions: [fallbackCondition] },
+    actions: Array.isArray(raw?.actions) && raw.actions.length > 0 ? raw.actions : [fallbackAction],
+  };
+}
+
 function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
-  const [name, setName] = useState(rule.name);
-  const [definition, setDefinition] = useState<BusinessRuleDefinition>(rule.definition);
+  const [name, setName] = useState(rule.name ?? '');
+  const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
 
   const updateTriggerField = useCallback((code: string) => {
     setDefinition(prev => ({ ...prev, trigger_field_code: code }));
@@ -435,18 +447,47 @@ export function RuleConfigScreen(): React.ReactElement {
   const fields = useDesignerStore(s => s.fields);
   const form = useDesignerStore(s => s.form);
 
-  const fieldCodes = Object.values(fields).map(f => f.code).filter(Boolean);
+  const fieldCodes = useMemo(
+    () => Object.values(fields).map(f => f.code).filter(Boolean),
+    [fields],
+  );
 
   const [localRules, setLocalRules] = useState<DesignerBusinessRule[]>(
-    () => Object.values(storeBusinessRules).sort((a, b) => a.sortOrder - b.sortOrder)
+    () => Object.values(storeBusinessRules).sort((a, b) => a.sortOrder - b.sortOrder),
   );
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(
-    localRules.length > 0 ? (localRules[0]?.id ?? null) : null
+    () => (localRules.length > 0 ? (localRules[0]?.id ?? null) : null),
   );
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSavingAll, setIsSavingAll] = useState(false);
   const [saveAllError, setSaveAllError] = useState<string | null>(null);
   const [saveAllSuccess, setSaveAllSuccess] = useState(false);
+
+  // Load rules from CRM on mount so the list always reflects the latest saved state,
+  // not just what was in the Zustand store when the form was opened.
+  const loadFromCrm = useCallback(async () => {
+    if (!crmService || !form?.id || form.id.startsWith('tmp_')) return;
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const svc = new BusinessRuleService(crmService.getWebApi());
+      const freshRules = await svc.listRulesForForm(form.id);
+      const sorted = freshRules.sort((a, b) => a.sortOrder - b.sortOrder);
+      setLocalRules(sorted);
+      setSelectedRuleId(prev => {
+        if (prev && sorted.some(r => r.id === prev)) return prev;
+        return sorted.length > 0 ? (sorted[0]?.id ?? null) : null;
+      });
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load rules');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [crmService, form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { void loadFromCrm(); }, [loadFromCrm]);
 
   const handleBack = useCallback(() => {
     navigateTo('designer');
@@ -505,15 +546,17 @@ export function RuleConfigScreen(): React.ReactElement {
     setSaveAllError(null);
     setSaveAllSuccess(false);
     try {
-      const service = new BusinessRuleService(crmService.getWebApi());
-      await service.syncRules(form.id, localRules);
+      const svc = new BusinessRuleService(crmService.getWebApi());
+      await svc.syncRules(form.id, localRules);
       setSaveAllSuccess(true);
+      // Refetch so tmp_ IDs are replaced with real Dataverse IDs
+      await loadFromCrm();
     } catch (err) {
       setSaveAllError(err instanceof Error ? err.message : 'Failed to save rules');
     } finally {
       setIsSavingAll(false);
     }
-  }, [crmService, form, localRules]);
+  }, [crmService, form, localRules, loadFromCrm]);
 
   const selectedRule = localRules.find(r => r.id === selectedRuleId) ?? null;
 
@@ -525,13 +568,23 @@ export function RuleConfigScreen(): React.ReactElement {
         </Button>
         <Text size={400} weight="semibold">Business Rules</Text>
         <div style={{ flex: 1 }} />
+        {loadError && <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{loadError}</Text>}
         {saveAllError && <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>{saveAllError}</Text>}
         {saveAllSuccess && <Text size={200} style={{ color: tokens.colorPaletteGreenForeground1 }}>Saved to Dataverse</Text>}
+        <Button
+          appearance="subtle"
+          icon={isLoading ? <Spinner size="tiny" /> : undefined}
+          onClick={() => void loadFromCrm()}
+          disabled={isLoading || isSavingAll}
+          aria-label="Refresh rules"
+        >
+          {isLoading ? 'Loading...' : 'Refresh'}
+        </Button>
         <Button
           appearance="primary"
           icon={isSavingAll ? <Spinner size="tiny" /> : <SaveRegular />}
           onClick={() => void handleSaveAllToCrm()}
-          disabled={isSavingAll || localRules.length === 0}
+          disabled={isSavingAll || isLoading || localRules.length === 0}
         >
           {isSavingAll ? 'Saving...' : 'Save to Dataverse'}
         </Button>
@@ -551,7 +604,11 @@ export function RuleConfigScreen(): React.ReactElement {
             </Button>
           </div>
 
-          {localRules.length === 0 ? (
+          {isLoading ? (
+            <div style={{ padding: '20px', display: 'flex', justifyContent: 'center' }}>
+              <Spinner size="small" label="Loading rules..." />
+            </div>
+          ) : localRules.length === 0 ? (
             <div style={{ padding: '20px', textAlign: 'center', color: tokens.colorNeutralForeground3 }}>
               <Text size={200}>No rules yet. Click Add to create one.</Text>
             </div>

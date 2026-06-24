@@ -7,10 +7,15 @@
 // Output: deploy/FormDesignerWebResource_<version>.zip
 //
 // WHY this script exists:
-//   Vite adds content-hash suffixes to chunk filenames (vendor-react-BHvl9KQs.js).
-//   The static customizations.xml committed to source control cannot know those hashes
-//   in advance, so this script generates a fresh customizations.xml from the actual
-//   build output on every package run.
+//   The set of emitted chunks depends on Vite's manualChunks config and can change
+//   between builds (a vendor split added/removed, a lazy chunk introduced). Rather than
+//   hand-maintain the WebResource + RootComponent manifest, this script walks the actual
+//   build output and generates customizations.xml, solution.xml RootComponents, and
+//   [Content_Types].xml fresh on every run — so the manifest always matches what was
+//   built. Each web resource gets a deterministic GUID (name-derived) so re-imports
+//   update the same records instead of creating duplicates.
+//   On-prem note: individual RootComponents are emitted per file (no folder wildcards),
+//   which the on-prem CRM solution importer requires.
 
 const fs = require('fs');
 const path = require('path');

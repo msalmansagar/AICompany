@@ -112,18 +112,20 @@ export function DesignerCanvas({
             const section = sections[sectionId];
             if (!section) return null;
             const sectionFieldIds = fieldOrder[sectionId] ?? [];
-            const sectionFields = sectionFieldIds.map(id => fields[id]).filter(Boolean) as DesignerFieldModel[];
+            // Filter to only IDs that exist in the fields map — keeps SortableContext items
+            // and the rendered FieldSlots in sync so no field renders as null.
+            const validFieldIds = sectionFieldIds.filter(id => id in fields);
+            const sectionFields = validFieldIds.map(id => fields[id] as DesignerFieldModel);
 
             return (
               <SortableContext
                 key={sectionId}
-                items={sectionFieldIds}
+                items={validFieldIds}
                 strategy={verticalListSortingStrategy}
               >
                 <SectionContainer
                   section={section}
                   fields={sectionFields}
-                  fieldOrder={sectionFieldIds}
                 />
               </SortableContext>
             );

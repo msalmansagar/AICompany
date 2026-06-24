@@ -11,8 +11,19 @@ import { ValidationRuleService } from './ValidationRuleService';
 import { BusinessRuleService } from './BusinessRuleService';
 import { AuditLogService } from './AuditLogService';
 import { GridColumnConfigService } from './GridColumnConfigService';
+import { DesignService } from './DesignService';
 import type { CrmUserContext } from './CrmContextService';
 import { withRetry } from './crmRetry';
+
+export class PartialSaveError extends Error {
+  constructor(
+    public readonly resolvedIds: Record<string, string>,
+    public readonly resolvedThemeId: string | null,
+    cause: unknown,
+  ) {
+    super(cause instanceof Error ? cause.message : 'Save failed');
+  }
+}
 
 const OPTION_FIELD_TYPES = new Set(['dropdown', 'multi_select', 'radio']);
 const LOOKUP_FIELD_TYPES = new Set(['lookup', 'child_entity_grid']);
@@ -33,10 +44,12 @@ type SaveableState = Pick<
   | 'deletedEntityTypes'
   | 'validationRules'
   | 'businessRules'
+  | 'style'
 >;
 
 export interface FormSaveResult {
   resolvedIds: Record<string, string>;
+  resolvedThemeId: string | null;
 }
 
 export class FormSaveService {
@@ -49,6 +62,7 @@ export class FormSaveService {
   private readonly validationRuleService: ValidationRuleService;
   private readonly businessRuleService: BusinessRuleService;
   private readonly gridColumnService: GridColumnConfigService;
+  private readonly designService: DesignService;
 
   constructor(
     private readonly webApi: IWebApiAdapter,
@@ -63,16 +77,19 @@ export class FormSaveService {
     this.validationRuleService = new ValidationRuleService(webApi);
     this.businessRuleService = new BusinessRuleService(webApi);
     this.gridColumnService = new GridColumnConfigService(webApi);
+    this.designService = new DesignService(webApi);
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, style } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
+    let resolvedThemeId: string | null = null;
     const newIdSet = new Set(newIds);
     const deletedIdSet = new Set(deletedIds);
 
+    try {
     // Step 1: Create new tabs in display order
     for (const tempTabId of tabOrder.filter(id => newIdSet.has(id))) {
       const tab = tabs[tempTabId];
@@ -84,6 +101,7 @@ export class FormSaveService {
         iconName: tab.iconName,
         isVisible: tab.isVisible,
         requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
+        hideTabBar: tab.hideTabBar,
       });
       resolvedIds[tempTabId] = realId;
     }
@@ -140,6 +158,10 @@ export class FormSaveService {
           infoCardTitle: field.infoCardTitle,
           infoCardBody: field.infoCardBody,
           infoCardIcon: field.infoCardIcon,
+          infoCardDownloadUrl: field.infoCardDownloadUrl,
+          infoCardDownloadLabel: field.infoCardDownloadLabel,
+          prefix: field.prefix,
+          suffix: field.suffix,
           gridMode: field.gridMode,
           gridEntityName: field.gridEntityName,
           gridSelectionMode: field.gridSelectionMode,
@@ -207,6 +229,7 @@ export class FormSaveService {
           iconName: tab.iconName,
           isVisible: tab.isVisible,
           requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
+          hideTabBar: tab.hideTabBar,
         });
       } else if (sections[id]) {
         const section = sections[id];
@@ -242,6 +265,10 @@ export class FormSaveService {
           infoCardTitle: field.infoCardTitle,
           infoCardBody: field.infoCardBody,
           infoCardIcon: field.infoCardIcon,
+          infoCardDownloadUrl: field.infoCardDownloadUrl,
+          infoCardDownloadLabel: field.infoCardDownloadLabel,
+          prefix: field.prefix,
+          suffix: field.suffix,
           gridMode: field.gridMode,
           gridEntityName: field.gridEntityName,
           gridSelectionMode: field.gridSelectionMode,
@@ -299,33 +326,58 @@ export class FormSaveService {
       }
     }
 
-    // Step 6: Sync business rules for the form
-    if (form.id && !form.id.startsWith('tmp_')) {
-      await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
+      // Step 6: Sync business rules for the form
+      if (form.id && !form.id.startsWith('tmp_')) {
+        await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
+      }
+
+      // Step 7: Update form definition header
+      await this.formService.updateForm(form.id, {
+        name: form.name,
+        code: form.code,
+        description: form.description,
+        allowSaveDraft: form.allowSaveDraft,
+        draftExpiryDays: form.draftExpiryDays,
+        showSummaryStep: form.showSummaryStep,
+        powerAutomateFlowId: form.powerAutomateFlowId,
+        confirmationMessage: form.confirmationMessage,
+        confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,
+        accessGroupId: form.accessGroupId,
+      });
+
+      // Step 8: Save theme and form design
+      if (form.id && !form.id.startsWith('tmp_') && style) {
+        resolvedThemeId = await this.designService.upsertTheme(
+          {
+            name: style.themeName,
+            primaryColor: style.primaryColor,
+            accentColor: style.accentColor,
+            backgroundColor: style.backgroundColor,
+            fontFamily: style.fontFamily,
+            fontSizeBase: style.fontSizeBase,
+            borderRadius: style.borderRadius,
+          },
+          style.themeId ?? undefined,
+        );
+        await this.designService.upsertFormDesign({
+          formId: form.id,
+          themeId: resolvedThemeId,
+          customCss: style.customCss,
+        });
+      }
+
+      // Step 9: Write audit log
+      const auditService = new AuditLogService(this.webApi, this.userContext);
+      await auditService.logAction(form.id, 'SAVE_DRAFT', {
+        fieldCount: Object.keys(fields).length,
+        tabCount: tabOrder.length,
+      });
+
+      return { resolvedIds, resolvedThemeId };
+    } catch (error) {
+      // Propagate partial progress so the caller can prevent duplicate creates on retry.
+      throw new PartialSaveError(resolvedIds, resolvedThemeId, error);
     }
-
-    // Step 7: Update form definition header
-    await this.formService.updateForm(form.id, {
-      name: form.name,
-      code: form.code,
-      description: form.description,
-      // entityLogicalName not written — field not deployed on qdb_form_definition
-      allowSaveDraft: form.allowSaveDraft,
-      draftExpiryDays: form.draftExpiryDays,
-      powerAutomateFlowId: form.powerAutomateFlowId,
-      confirmationMessage: form.confirmationMessage,
-      confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,
-      accessGroupId: form.accessGroupId,
-    });
-
-    // Step 8: Write audit log
-    const auditService = new AuditLogService(this.webApi, this.userContext);
-    await auditService.logAction(form.id, 'SAVE_DRAFT', {
-      fieldCount: Object.keys(fields).length,
-      tabCount: tabOrder.length,
-    });
-
-    return { resolvedIds };
   }
 
   // entityTypeMap is built by save() so each ID resolves to the correct entity without

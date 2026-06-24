@@ -26,6 +26,7 @@ export interface UpdateFormDto {
   themeId?: string | null;
   allowSaveDraft?: boolean;
   draftExpiryDays?: number | null;
+  showSummaryStep?: boolean;
   powerAutomateFlowId?: string | null;
   confirmationMessage?: string | null;
   confirmationRecordRefAttribute?: string | null;
@@ -92,6 +93,7 @@ export class FormDefinitionService {
     }
     if (dto.allowSaveDraft !== undefined) data[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] = dto.allowSaveDraft;
     if (dto.draftExpiryDays !== undefined) data[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] = dto.draftExpiryDays;
+    if (dto.showSummaryStep !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP] = dto.showSummaryStep;
     if (dto.powerAutomateFlowId !== undefined) {
       data[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID] = dto.powerAutomateFlowId;
     }
@@ -122,6 +124,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
       FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
+      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
       FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
       FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
       FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
@@ -209,6 +212,7 @@ export class FormDefinitionService {
       draftExpiryDays: record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] != null
         ? Number(record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS])
         : null,
+      showSummaryStep: Boolean(record[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP]),
       powerAutomateFlowId: record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID]
         ? String(record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID])
         : null,

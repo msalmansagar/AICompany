@@ -1,5 +1,9 @@
 import React, { useCallback } from 'react';
 import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
   Checkbox,
   Divider,
   Field,
@@ -10,6 +14,7 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
 const useStyles = makeStyles({
   form: {
@@ -94,6 +99,12 @@ export function FormProperties(): React.ReactElement {
       <SectionHeading label="Submission" />
 
       <Checkbox
+        label="Show Summary Step"
+        checked={form.showSummaryStep}
+        onChange={(_, data) => updateForm({ showSummaryStep: data.checked === true })}
+      />
+
+      <Checkbox
         label="Allow Save as Draft"
         checked={form.allowSaveDraft}
         onChange={(_, data) => updateForm({ allowSaveDraft: data.checked === true })}
@@ -158,6 +169,21 @@ export function FormProperties(): React.ReactElement {
           style={{ fontFamily: 'monospace' }}
         />
       </Field>
+
+      <Divider />
+      <Accordion collapsible>
+        <AccordionItem value="translations">
+          <AccordionHeader>Translations</AccordionHeader>
+          <AccordionPanel>
+            <TranslationsPanel
+              entityName="qdb_form_definition"
+              recordId={form.id}
+              entityLabel="Form"
+              formCode={form.code}
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

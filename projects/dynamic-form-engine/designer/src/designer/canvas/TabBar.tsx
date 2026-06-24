@@ -74,6 +74,7 @@ export function TabBar({
       sortOrder: tabOrder.length,
       isVisible: true,
       requiresPreviousTabComplete: false,
+      hideTabBar: false,
     };
     addTab(newTab);
     onSelectTab(newTab.id);

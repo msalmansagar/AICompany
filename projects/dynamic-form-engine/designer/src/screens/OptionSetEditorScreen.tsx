@@ -5,6 +5,7 @@ import {
   Field,
   Input,
   Text,
+  Textarea,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -56,15 +57,23 @@ const useStyles = makeStyles({
     alignItems: 'center',
   },
   tableRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    padding: '6px 12px 10px',
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderRadius: '4px',
+    border: `1px solid ${tokens.colorNeutralStroke2}`,
+    marginBottom: '4px',
+  },
+  rowMain: {
     display: 'grid',
     gridTemplateColumns: '32px 1fr 1fr 120px 48px',
     gap: '8px',
-    padding: '6px 12px',
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderRadius: '4px',
     alignItems: 'center',
-    border: `1px solid ${tokens.colorNeutralStroke2}`,
-    marginBottom: '4px',
+  },
+  rowNotes: {
+    paddingLeft: '40px',
   },
   orderButtons: {
     display: 'flex',
@@ -98,7 +107,7 @@ function generateOptionId(): string {
 }
 
 function buildNewOption(sortOrder: number): DesignerOptionValue {
-  return { id: generateOptionId(), label: '', value: '', sortOrder, isDefault: false };
+  return { id: generateOptionId(), label: '', value: '', sortOrder, isDefault: false, notes: null };
 }
 
 interface OptionRowProps {
@@ -121,57 +130,71 @@ function OptionRow({ option, isFirst, isLast, onChange, onDelete, onMoveUp, onMo
 
   return (
     <div className={styles.tableRow} role="row">
-      <div className={styles.orderButtons}>
+      <div className={styles.rowMain}>
+        <div className={styles.orderButtons}>
+          <Button
+            size="small"
+            appearance="subtle"
+            icon={<ArrowUpRegular />}
+            onClick={onMoveUp}
+            disabled={isFirst}
+            aria-label="Move option up"
+            style={{ minWidth: 0, padding: '2px' }}
+          />
+          <Button
+            size="small"
+            appearance="subtle"
+            icon={<ArrowDownRegular />}
+            onClick={onMoveDown}
+            disabled={isLast}
+            aria-label="Move option down"
+            style={{ minWidth: 0, padding: '2px' }}
+          />
+        </div>
+        <Field>
+          <Input
+            value={option.label}
+            onChange={handleLabelChange}
+            placeholder="Option label"
+            aria-label="Option label"
+          />
+        </Field>
+        <Field>
+          <Input
+            value={option.value}
+            onChange={(_, data) => onChange({ value: data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
+            placeholder="option_value"
+            style={{ fontFamily: 'monospace' }}
+            aria-label="Option value"
+          />
+        </Field>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Checkbox
+            checked={option.isDefault}
+            onChange={(_, data) => onChange({ isDefault: data.checked === true })}
+            aria-label="Set as default"
+          />
+        </div>
         <Button
           size="small"
           appearance="subtle"
-          icon={<ArrowUpRegular />}
-          onClick={onMoveUp}
-          disabled={isFirst}
-          aria-label="Move option up"
-          style={{ minWidth: 0, padding: '2px' }}
-        />
-        <Button
-          size="small"
-          appearance="subtle"
-          icon={<ArrowDownRegular />}
-          onClick={onMoveDown}
-          disabled={isLast}
-          aria-label="Move option down"
-          style={{ minWidth: 0, padding: '2px' }}
+          icon={<DeleteRegular />}
+          onClick={onDelete}
+          aria-label="Delete option"
         />
       </div>
-      <Field>
-        <Input
-          value={option.label}
-          onChange={handleLabelChange}
-          placeholder="Option label"
-          aria-label="Option label"
-        />
-      </Field>
-      <Field>
-        <Input
-          value={option.value}
-          onChange={(_, data) => onChange({ value: data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') })}
-          placeholder="option_value"
-          style={{ fontFamily: 'monospace' }}
-          aria-label="Option value"
-        />
-      </Field>
-      <div style={{ display: 'flex', justifyContent: 'center' }}>
-        <Checkbox
-          checked={option.isDefault}
-          onChange={(_, data) => onChange({ isDefault: data.checked === true })}
-          aria-label="Set as default"
-        />
+      <div className={styles.rowNotes}>
+        <Field label="Notes (optional highlight shown on card)">
+          <Textarea
+            value={option.notes ?? ''}
+            onChange={(_, data) => onChange({ notes: data.value || null })}
+            placeholder="e.g. Note: This option requires additional documents"
+            resize="vertical"
+            rows={2}
+            aria-label="Option notes"
+          />
+        </Field>
       </div>
-      <Button
-        size="small"
-        appearance="subtle"
-        icon={<DeleteRegular />}
-        onClick={onDelete}
-        aria-label="Delete option"
-      />
     </div>
   );
 }

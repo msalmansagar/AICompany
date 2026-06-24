@@ -21,12 +21,17 @@ import { CrmContext } from '@/app/App';
 import { SubmissionMappingService } from '@/services/SubmissionMappingService';
 import type { SubmissionMapping } from '@/services/SubmissionMappingService';
 
+// Spacing between sections in the body (replaces the removed flex gap)
+const SECTION_SPACING = '16px';
+
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: tokens.colorNeutralBackground3 },
   topBar: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', backgroundColor: tokens.colorNeutralBackground1, borderBottom: `1px solid ${tokens.colorNeutralStroke1}`, flexShrink: 0 },
-  body: { flex: 1, overflow: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '900px', margin: '0 auto', width: '100%' },
-  infoBox: { padding: '12px 16px', backgroundColor: tokens.colorNeutralBackground2, borderRadius: '6px', border: `1px solid ${tokens.colorNeutralStroke1}` },
-  card: { backgroundColor: tokens.colorNeutralBackground1, borderRadius: '6px', border: `1px solid ${tokens.colorNeutralStroke2}`, overflow: 'hidden' },
+  // Body uses block layout so cards expand to their natural height and scroll correctly.
+  // Flex layout with a fixed-height parent causes cards to collapse when there are many rows.
+  body: { flex: 1, overflowY: 'auto', padding: '24px', maxWidth: '900px', margin: '0 auto', width: '100%' },
+  infoBox: { padding: '12px 16px', backgroundColor: tokens.colorNeutralBackground2, borderRadius: '6px', border: `1px solid ${tokens.colorNeutralStroke1}`, marginBottom: '16px' },
+  card: { backgroundColor: tokens.colorNeutralBackground1, borderRadius: '6px', border: `1px solid ${tokens.colorNeutralStroke2}`, overflow: 'hidden', marginBottom: '12px' },
   cardHeader: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', backgroundColor: tokens.colorNeutralBackground2, borderBottom: `1px solid ${tokens.colorNeutralStroke2}` },
   cardBody: { padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' },
   fieldRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
@@ -140,9 +145,7 @@ export function SubmissionMappingScreen(): React.ReactElement {
   const [mappings, setMappings] = useState<SubmissionMapping[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const service = crmService ? new SubmissionMappingService(crmService.getWebApi()) : null;
-
-  // Flatten all fields in display order
+  // Flatten all fields in display order (block-scoped so it doesn't affect callbacks below)
   const orderedFields = tabOrder.flatMap(tabId =>
     (sectionOrder[tabId] ?? []).flatMap(sectionId =>
       (fieldOrder[sectionId] ?? []).map(fieldId => fields[fieldId]).filter(Boolean)
@@ -150,33 +153,36 @@ export function SubmissionMappingScreen(): React.ReactElement {
   );
 
   const load = useCallback(async () => {
-    if (!service || !form) return;
+    if (!crmService || !form) return;
+    const svc = new SubmissionMappingService(crmService.getWebApi());
     setIsLoading(true);
     try {
-      setMappings(await service.listMappingsForForm(form.id));
+      setMappings(await svc.listMappingsForForm(form.id));
     } finally {
       setIsLoading(false);
     }
-  }, [form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [crmService, form?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void load(); }, [load]);
 
   const handleSave = useCallback(async (fieldId: string, data: Omit<SubmissionMapping, 'id' | 'formId' | 'fieldId'>) => {
-    if (!service || !form) return;
+    if (!crmService || !form) return;
+    const svc = new SubmissionMappingService(crmService.getWebApi());
     const existing = mappings.find(m => m.fieldId === fieldId);
     if (existing) {
-      await service.updateMapping(existing.id, data);
+      await svc.updateMapping(existing.id, data);
     } else {
-      await service.createMapping({ formId: form.id, fieldId, ...data });
+      await svc.createMapping({ formId: form.id, fieldId, ...data });
     }
     await load();
-  }, [service, form, mappings, load]);
+  }, [crmService, form, mappings, load]);
 
   const handleDelete = useCallback(async (mappingId: string) => {
-    if (!service) return;
-    await service.deleteMapping(mappingId);
+    if (!crmService) return;
+    const svc = new SubmissionMappingService(crmService.getWebApi());
+    await svc.deleteMapping(mappingId);
     await load();
-  }, [service, load]);
+  }, [crmService, load]);
 
   if (!form) {
     return (
@@ -211,10 +217,16 @@ export function SubmissionMappingScreen(): React.ReactElement {
           </Text>
         </div>
 
-        {isLoading && <Text style={{ color: tokens.colorNeutralForeground3 }}>Loading mappings…</Text>}
+        {isLoading && (
+          <Text style={{ color: tokens.colorNeutralForeground3, display: 'block', marginBottom: SECTION_SPACING }}>
+            Loading mappings…
+          </Text>
+        )}
 
         {!isLoading && orderedFields.length === 0 && (
-          <div className={styles.emptyState}><Text size={300}>No fields in this form yet. Add fields in the designer first.</Text></div>
+          <div className={styles.emptyState}>
+            <Text size={300}>No fields in this form yet. Add fields in the designer first.</Text>
+          </div>
         )}
 
         {!isLoading && orderedFields.map(field => (

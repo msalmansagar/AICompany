@@ -1,0 +1,1 @@
+export { TranslationsPanel } from './TranslationsPanel';

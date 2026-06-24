@@ -40,6 +40,7 @@ function makeTab(overrides: Partial<DesignerTabModel> = {}): DesignerTabModel {
     sortOrder: 0,
     isVisible: true,
     requiresPreviousTabComplete: false,
+    hideTabBar: false,
     ...overrides,
   };
 }

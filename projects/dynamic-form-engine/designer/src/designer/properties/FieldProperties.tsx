@@ -1,5 +1,9 @@
 import React from 'react';
 import {
+  Accordion,
+  AccordionHeader,
+  AccordionItem,
+  AccordionPanel,
   Button,
   Divider,
   Field,
@@ -11,6 +15,7 @@ import {
 } from '@fluentui/react-components';
 import { TableRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { ValidationRulesPanel } from './panels/ValidationRulesPanel';
 import { TextFieldPanel } from './panels/TextFieldPanel';
@@ -172,6 +177,7 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
   const styles = useStyles();
   const field = useDesignerStore(s => s.fields[fieldId] ?? null);
   const updateField = useDesignerStore(s => s.updateField);
+  const formCode = useDesignerStore(s => s.form?.code ?? '');
 
   const handleLabelChange = (
     _: React.ChangeEvent<HTMLInputElement>,
@@ -357,6 +363,21 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
 
       <Divider />
       <FieldMappingSummary field={field} />
+
+      <Divider />
+      <Accordion collapsible>
+        <AccordionItem value="translations">
+          <AccordionHeader>Translations</AccordionHeader>
+          <AccordionPanel>
+            <TranslationsPanel
+              entityName="qdb_form_field"
+              recordId={fieldId}
+              entityLabel="Field"
+              formCode={formCode}
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

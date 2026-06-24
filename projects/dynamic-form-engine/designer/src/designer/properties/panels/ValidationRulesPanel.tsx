@@ -174,18 +174,27 @@ export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): Re
 
   const handleSaveRule = useCallback((newRule: DesignerValidationRule) => {
     const state = useDesignerStore.getState();
+    const dirtyIds = state.dirtyIds.includes(newRule.fieldId)
+      ? state.dirtyIds
+      : [...state.dirtyIds, newRule.fieldId];
     useDesignerStore.setState({
       validationRules: { ...state.validationRules, [newRule.id]: newRule },
       isDirty: true,
+      dirtyIds,
     });
     setShowAddForm(false);
   }, []);
 
   const handleDeleteRule = useCallback((ruleId: string) => {
     const state = useDesignerStore.getState();
+    const rule = state.validationRules[ruleId];
     const updated = { ...state.validationRules };
     delete updated[ruleId];
-    useDesignerStore.setState({ validationRules: updated, isDirty: true });
+    const dirtyIds =
+      rule && !state.dirtyIds.includes(rule.fieldId)
+        ? [...state.dirtyIds, rule.fieldId]
+        : state.dirtyIds;
+    useDesignerStore.setState({ validationRules: updated, isDirty: true, dirtyIds });
   }, []);
 
   return (

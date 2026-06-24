@@ -128,7 +128,8 @@ export interface DesignerState {
 
   // Save state
   markSaving: () => void;
-  markSaved: (resolvedIds?: Record<string, string>) => void;
+  markSaved: (resolvedIds?: Record<string, string>, resolvedThemeId?: string | null) => void;
+  markResolved: (resolvedIds: Record<string, string>) => void;
   markPublishing: () => void;
   markPublished: () => void;
   markDirty: (id: string, isNew?: boolean) => void;
@@ -142,6 +143,46 @@ export interface DesignerState {
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
+
+function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
+  for (const [tempId, realId] of Object.entries(resolvedIds)) {
+    if (state.tabs[tempId]) {
+      state.tabs[realId] = { ...state.tabs[tempId], id: realId };
+      delete state.tabs[tempId];
+      state.tabOrder = state.tabOrder.map(id => (id === tempId ? realId : id));
+      if (state.sectionOrder[tempId]) {
+        state.sectionOrder[realId] = state.sectionOrder[tempId];
+        delete state.sectionOrder[tempId];
+      }
+    }
+    if (state.sections[tempId]) {
+      state.sections[realId] = { ...state.sections[tempId], id: realId };
+      delete state.sections[tempId];
+      if (state.fieldOrder[tempId]) {
+        state.fieldOrder[realId] = state.fieldOrder[tempId];
+        delete state.fieldOrder[tempId];
+      }
+    }
+    if (state.fields[tempId]) {
+      state.fields[realId] = { ...state.fields[tempId], id: realId };
+      delete state.fields[tempId];
+    }
+  }
+  for (const [tempId, realId] of Object.entries(resolvedIds)) {
+    for (const tabId of Object.keys(state.sectionOrder)) {
+      state.sectionOrder[tabId] = state.sectionOrder[tabId].map(id => (id === tempId ? realId : id));
+    }
+    for (const sectionId of Object.keys(state.fieldOrder)) {
+      state.fieldOrder[sectionId] = state.fieldOrder[sectionId].map(id => (id === tempId ? realId : id));
+    }
+    for (const section of Object.values(state.sections)) {
+      if (section.tabId === tempId) section.tabId = realId;
+    }
+    for (const field of Object.values(state.fields)) {
+      if (field.sectionId === tempId) field.sectionId = realId;
+    }
+  }
+}
 
 function captureSnapshot(state: DesignerState): DesignerStateSnapshot {
   return {
@@ -604,54 +645,24 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
   markSaving: () => set({ isSaving: true }),
 
-  markSaved: (resolvedIds) =>
+  // Applies partial ID resolutions after a failed mid-save, removing already-created
+  // records from newIds so a retry doesn't re-create them (duplication prevention).
+  markResolved: (resolvedIds) =>
     set(
       produce((state: DesignerState) => {
-        if (resolvedIds) {
-          // Pass 1: rename keys in all maps
-          for (const [tempId, realId] of Object.entries(resolvedIds)) {
-            if (state.tabs[tempId]) {
-              state.tabs[realId] = { ...state.tabs[tempId], id: realId };
-              delete state.tabs[tempId];
-              state.tabOrder = state.tabOrder.map(id => (id === tempId ? realId : id));
-              if (state.sectionOrder[tempId]) {
-                state.sectionOrder[realId] = state.sectionOrder[tempId];
-                delete state.sectionOrder[tempId];
-              }
-            }
-            if (state.sections[tempId]) {
-              state.sections[realId] = { ...state.sections[tempId], id: realId };
-              delete state.sections[tempId];
-              if (state.fieldOrder[tempId]) {
-                state.fieldOrder[realId] = state.fieldOrder[tempId];
-                delete state.fieldOrder[tempId];
-              }
-            }
-            if (state.fields[tempId]) {
-              state.fields[realId] = { ...state.fields[tempId], id: realId };
-              delete state.fields[tempId];
-            }
-          }
+        applyResolvedIds(state, resolvedIds);
+        state.newIds = state.newIds.filter(id => !(id in resolvedIds));
+        // Keep isDirty=true and dirtyIds intact — the save hasn't finished
+      })
+    ),
 
-          // Pass 2: fix temp ID references still embedded in ordering arrays and model FK fields.
-          // Pass 1 moves the map keys but leaves old temp IDs inside sectionOrder/fieldOrder value
-          // arrays and inside section.tabId / field.sectionId — these must also be replaced.
-          for (const [tempId, realId] of Object.entries(resolvedIds)) {
-            for (const tabId of Object.keys(state.sectionOrder)) {
-              state.sectionOrder[tabId] = state.sectionOrder[tabId].map(id => (id === tempId ? realId : id));
-            }
-            for (const sectionId of Object.keys(state.fieldOrder)) {
-              state.fieldOrder[sectionId] = state.fieldOrder[sectionId].map(id => (id === tempId ? realId : id));
-            }
-            for (const section of Object.values(state.sections)) {
-              if (section.tabId === tempId) section.tabId = realId;
-            }
-            for (const field of Object.values(state.fields)) {
-              if (field.sectionId === tempId) field.sectionId = realId;
-            }
-          }
+  markSaved: (resolvedIds, resolvedThemeId) =>
+    set(
+      produce((state: DesignerState) => {
+        if (resolvedIds) applyResolvedIds(state, resolvedIds);
+        if (resolvedThemeId !== undefined && resolvedThemeId !== null) {
+          state.style.themeId = resolvedThemeId;
         }
-
         state.isSaving = false;
         state.isDirty = false;
         state.dirtyIds = [];

@@ -106,14 +106,37 @@ export class BusinessRuleService {
   }
 
   private mapRecordToModel(record: Record<string, unknown>): DesignerBusinessRule {
-    const rawDefinition = String(record[FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION] ?? '{}');
+    const rawDefinition = record[FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION];
+    let definition: BusinessRuleDefinition;
+    try {
+      const parsed = rawDefinition != null ? JSON.parse(String(rawDefinition)) : null;
+      definition = this.normaliseDefinition(parsed);
+    } catch {
+      definition = this.normaliseDefinition(null);
+    }
     return {
       id: String(record[FORM_BUSINESS_RULE_ATTRS.ID] ?? ''),
       formId: String(record[FORM_BUSINESS_RULE_ATTRS.FORM_ID_VALUE] ?? ''),
       name: String(record[FORM_BUSINESS_RULE_ATTRS.NAME] ?? ''),
       isActive: Boolean(record[FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE]),
       sortOrder: Number(record[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] ?? 0),
-      definition: JSON.parse(rawDefinition) as BusinessRuleDefinition,
+      definition,
+    };
+  }
+
+  private normaliseDefinition(raw: unknown): BusinessRuleDefinition {
+    const r = raw as Partial<BusinessRuleDefinition> | null | undefined;
+    return {
+      version: r?.version ?? '1.0',
+      trigger_field_code: r?.trigger_field_code ?? '',
+      trigger_event: r?.trigger_event ?? 'on_change',
+      condition_group: r?.condition_group ?? {
+        logical_operator: 'AND',
+        conditions: [{ field_code: '', operator: 'equals', value: '' }],
+      },
+      actions: Array.isArray(r?.actions) && r.actions.length > 0
+        ? r.actions
+        : [{ action_type: 'show_field', target_field_code: '' }],
     };
   }
 }
