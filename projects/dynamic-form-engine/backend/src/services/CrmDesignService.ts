@@ -440,7 +440,7 @@ export class CrmDesignService extends CrmBaseService {
 
   private mapTabStyle(code: number): TabStyleType {
     const map: Record<number, TabStyleType> = {
-      100000001: 'Tabs', 100000002: 'Stepper', 100000003: 'Accordion',
+      100000001: 'Tabs', 100000002: 'Stepper', 100000003: 'Accordion', 100000004: 'Sidebar',
     };
     return map[code] ?? 'Tabs';
   }

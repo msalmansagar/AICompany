@@ -58,3 +58,12 @@ export class FormInactiveError extends AppError {
     super(`Form '${formCode}' is not active`, 404, 'FORM_INACTIVE');
   }
 }
+
+export class UnsupportedLanguageError extends AppError {
+  public readonly supportedCodes: string[];
+
+  constructor(code: string, supportedCodes: string[]) {
+    super(`Language code '${code}' is not supported`, 400, 'INVALID_LANGUAGE_CODE');
+    this.supportedCodes = supportedCodes;
+  }
+}

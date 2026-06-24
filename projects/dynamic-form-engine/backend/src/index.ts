@@ -26,6 +26,10 @@ import { CrmInfoCardService } from './services/CrmInfoCardService.js';
 import { CrmInfoCardAdminService } from './services/CrmInfoCardAdminService.js';
 import { CrmDocumentService } from './services/CrmDocumentService.js';
 import { CrmGridDataService } from './services/CrmGridDataService.js';
+import { CrmLanguageConfigService } from './services/CrmLanguageConfigService.js';
+import { CrmTranslationQueryService } from './services/CrmTranslationQueryService.js';
+import { CrmTranslationWriteService } from './services/CrmTranslationWriteService.js';
+import { TranslationResolutionService } from './services/TranslationResolutionService.js';
 import { CssSanitiserService } from './utils/cssSanitiser.js';
 import {
   MockMetadataService,
@@ -38,6 +42,8 @@ import {
 } from './services/MockCrmService.js';
 import { createLookupsRouter } from './routes/lookups.routes.js';
 import { createFormsRouter } from './routes/forms.routes.js';
+import { createLanguagesRouter } from './routes/languages.routes.js';
+import { createInternalCacheRouter } from './routes/internal-cache.routes.js';
 import { createOptionsRouter } from './routes/options.routes.js';
 import { createFilesRouter } from './routes/files.routes.js';
 import { createThemesRouter, createFormDesignRouter, createDesignCacheRouter } from './routes/design.routes.js';
@@ -45,7 +51,8 @@ import { createAdminRouter } from './routes/admin.routes.js';
 import { createGridsRouter } from './routes/grids.routes.js';
 import { createInfoCardsAdminRouter } from './routes/info-cards.admin.routes.js';
 import { createDesignerProxyRouter } from './routes/designer-proxy.routes.js';
-import type { FormDefinition, DesignPayload, ThemeDefinition } from '@qdb/shared';
+import { createTranslationsRouter } from './routes/translations.routes.js';
+import type { FormDefinition, DesignPayload, ThemeDefinition, LanguageConfig } from '@qdb/shared';
 
 // â”€â”€ Service wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // TTL=0 means no caching (every request hits Dataverse â€” useful for local dev).
@@ -69,8 +76,20 @@ const policyCache = new LRUCache<string, string[]>(
     : { max: 1,    ttl: 1 },
 );
 
+// DFE-i18n-001: language config cache (60-min TTL by default — list changes rarely)
+const languageConfigCache = new LRUCache<string, LanguageConfig[]>({
+  max: 10,
+  ttl: config.LANGUAGE_CONFIG_CACHE_TTL_MS,
+});
+
 const authService = new CrmAuthService();
 const policyService = config.MOCK_CRM ? null : new AccessPolicyService(authService, policyCache);
+const languageConfigService = config.MOCK_CRM
+  ? null
+  : new CrmLanguageConfigService(authService, languageConfigCache);
+const translationQueryService = config.MOCK_CRM ? null : new CrmTranslationQueryService(authService);
+const translationWriteService = config.MOCK_CRM ? null : new CrmTranslationWriteService(authService);
+const translationResolutionService = new TranslationResolutionService();
 const cssSanitiser = new CssSanitiserService();
 const infoCardService = config.MOCK_CRM ? null : new CrmInfoCardService(authService);
 const infoCardAdminService = config.MOCK_CRM ? null : new CrmInfoCardAdminService(authService);
@@ -98,7 +117,14 @@ const submissionService = config.MOCK_CRM
 
 const metadataService = config.MOCK_CRM
   ? (new MockMetadataService() as unknown as CrmMetadataService)
-  : new CrmMetadataService(authService, metadataCache, infoCardService);
+  : new CrmMetadataService(
+      authService,
+      metadataCache,
+      infoCardService,
+      translationQueryService,
+      translationResolutionService,
+      languageConfigService,
+    );
 
 const fileService = config.MOCK_CRM
   ? (new MockFileService() as unknown as CrmFileService)
@@ -125,13 +151,17 @@ app.use(pinoHttp({ logger }));
 app.use(correlationMiddleware);
 app.use(inputSanitiserMiddleware);
 
-// â”€â”€ Public routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Public routes ──────────────────────────────────────────────────────────────
 app.use('/api/health', healthRouter);
+// GET /api/languages — public, no auth required (language toggle must render before auth in some flows)
+if (languageConfigService) {
+  app.use('/api/languages', createLanguagesRouter(languageConfigService));
+}
 
 // â”€â”€ Authenticated routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use('/api', authMiddleware);
 app.use('/api/lookups', createLookupsRouter(lookupService));
-app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService, infoCardService));
+app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService, infoCardService, languageConfigService));
 if (gridDataService) {
   app.use('/api/grids', createGridsRouter(gridDataService));
 }
@@ -147,6 +177,14 @@ if (infoCardAdminService) {
 if (designerProxyService) {
   app.use('/api/designer/records', createDesignerProxyRouter(designerProxyService));
 }
+// PUT|GET|DELETE /api/design/translations — designer translation authoring (auth-gated)
+if (translationWriteService && languageConfigService) {
+  app.use('/api/design/translations', createTranslationsRouter(translationWriteService, languageConfigService));
+}
+// POST /api/internal/cache/invalidate — auth-required internal endpoint (loopback restriction can be added later)
+if (languageConfigService) {
+  app.use('/api/internal/cache', createInternalCacheRouter(metadataService, languageConfigService));
+}
 
 // â”€â”€ Error handler (must be last) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use(errorMiddleware);
@@ -160,9 +198,10 @@ app.listen(config.PORT, () => {
 });
 
 export {
-  app, metadataCache, designCache, policyCache,
+  app, metadataCache, designCache, policyCache, languageConfigCache,
   authService, auditService, dataService, lookupService,
   submissionService, metadataService, fileService, documentService,
   designService, cloneService, designerProxyService, policyService,
   infoCardService, infoCardAdminService, gridDataService,
+  languageConfigService, translationQueryService, translationWriteService, translationResolutionService,
 };

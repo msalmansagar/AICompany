@@ -8,11 +8,15 @@ import type { CrmDesignService } from '../services/CrmDesignService.js';
 import type { CrmFormCloneService } from '../services/CrmFormCloneService.js';
 import type { AccessPolicyService, AccessType } from '../services/AccessPolicyService.js';
 import type { CrmInfoCardService } from '../services/CrmInfoCardService.js';
+import type { CrmLanguageConfigService } from '../services/CrmLanguageConfigService.js';
 import { assertFormAccess } from '../middleware/role.middleware.js';
 import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload } from '@qdb/shared';
-import { ForbiddenError } from '../utils/errors.js';
+import { ForbiddenError, UnsupportedLanguageError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+
+// BCP-47 short code pattern — character-level defence-in-depth (C-007, NFR-007 Layer 1)
+const LANG_PARAM_REGEX = z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/).max(10);
 
 const SAFE_FORM_CODE = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/, 'Invalid form code');
 const SAFE_RECORD_ID = z.string().uuid('recordId must be a valid UUID');
@@ -46,6 +50,7 @@ export function createFormsRouter(
   cloneService: CrmFormCloneService,
   policyService: AccessPolicyService | null,
   infoCardService: CrmInfoCardService | null = null,
+  languageConfigService: CrmLanguageConfigService | null = null,
 ): Router {
   const router = Router();
 
@@ -60,11 +65,11 @@ export function createFormsRouter(
 
   // GET /api/forms/:formCode/metadata
   // Fetches form definition and design payload in parallel.
-  // Design failures are non-fatal â€” the DEFAULT_LIGHT_THEME is used as fallback.
+  // Design failures are non-fatal — the DEFAULT_LIGHT_THEME is used as fallback.
   router.get('/:formCode/metadata', async (req: Request, res: Response) => {
     const formCode = SAFE_FORM_CODE.parse(req.params.formCode);
-    const locale = extractLocale(req);
-    const form = await metadataService.getFormDefinition(formCode, locale);
+    const lang = await extractLang(req, languageConfigService);
+    const form = await metadataService.getFormDefinition(formCode, lang);
     assertFormAccess(form, req.user!);
     await assertPolicyAccess(policyService, form.id, req.user!.roles ?? [], 'view');
 
@@ -284,11 +289,47 @@ export function createFormsRouter(
   return router;
 }
 
-function extractLocale(req: Request): string | undefined {
-  const header = req.headers['accept-language'];
-  if (!header) return undefined;
-  const primary = header.split(',')[0]?.split(';')[0]?.trim();
-  return primary || undefined;
+async function extractLang(
+  req: Request,
+  languageConfigService: CrmLanguageConfigService | null,
+): Promise<string> {
+  const rawLang = readRawLang(req);
+  if (!rawLang) return 'en';
+
+  const parseResult = LANG_PARAM_REGEX.safeParse(rawLang);
+  if (!parseResult.success) {
+    return throwUnsupportedLanguage(rawLang, languageConfigService);
+  }
+
+  const code = parseResult.data;
+  if (code === 'en') return 'en'; // always valid
+
+  if (languageConfigService) {
+    const supported = await languageConfigService.isLanguageCodeSupported(code);
+    if (!supported) {
+      return throwUnsupportedLanguage(code, languageConfigService);
+    }
+  }
+
+  return code;
+}
+
+function readRawLang(req: Request): string | undefined {
+  const fromQuery = req.query.lang;
+  if (typeof fromQuery === 'string' && fromQuery.length > 0) return fromQuery;
+  const fromHeader = req.headers['x-preferred-language'];
+  if (typeof fromHeader === 'string' && fromHeader.length > 0) return fromHeader;
+  return undefined;
+}
+
+async function throwUnsupportedLanguage(
+  code: string,
+  languageConfigService: CrmLanguageConfigService | null,
+): Promise<never> {
+  const supported = languageConfigService
+    ? (await languageConfigService.getSupportedLanguages()).map((l) => l.code)
+    : ['en'];
+  throw new UnsupportedLanguageError(code, supported);
 }
 
 async function assertPolicyAccess(

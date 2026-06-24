@@ -1,6 +1,6 @@
 ﻿import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
-import { AppError } from '../utils/errors.js';
+import { AppError, UnsupportedLanguageError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { ApiResponse, ApiError } from '@qdb/shared';
 
@@ -27,6 +27,21 @@ export function errorMiddleware(
     };
 
     const response: ApiResponse<never> = { success: false, error: apiError };
+    res.status(400).json(response);
+    return;
+  }
+
+  if (error instanceof UnsupportedLanguageError) {
+    logger.warn({ correlationId, code: error.code, message: error.message }, 'Unsupported language');
+    const response = {
+      success: false,
+      error: {
+        code: error.code,
+        message: error.message,
+        supportedCodes: error.supportedCodes,
+        correlationId,
+      },
+    };
     res.status(400).json(response);
     return;
   }

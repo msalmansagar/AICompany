@@ -30,6 +30,9 @@ import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmInfoCardService, InfoCardScreen } from './CrmInfoCardService.js';
+import type { CrmTranslationQueryService } from './CrmTranslationQueryService.js';
+import type { TranslationResolutionService } from './TranslationResolutionService.js';
+import type { CrmLanguageConfigService } from './CrmLanguageConfigService.js';
 
 const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 
@@ -44,20 +47,24 @@ export class CrmMetadataService extends CrmBaseService {
     authService: CrmAuthService,
     private readonly cache: LRUCache<string, FormDefinition>,
     private readonly infoCardService: CrmInfoCardService | null = null,
+    private readonly translationQueryService: CrmTranslationQueryService | null = null,
+    private readonly translationResolutionService: TranslationResolutionService | null = null,
+    private readonly languageConfigService: CrmLanguageConfigService | null = null,
   ) {
     super(authService);
   }
 
-  async getFormDefinition(formCode: string, locale?: string): Promise<FormDefinition> {
+  async getFormDefinition(formCode: string, lang = 'en'): Promise<FormDefinition> {
     if (!SAFE_FORM_CODE_PATTERN.test(formCode)) {
       throw new ValidationError(`Invalid form code: '${formCode}'`);
     }
 
-    const cacheKey = locale ? `${formCode}:${locale}` : formCode;
+    // AG-002: cache key is formCode:languageCode — no-lang callers default to "en"
+    const cacheKey = `${formCode}:${lang}`;
     const cached = this.cache.get(cacheKey);
     if (cached) return cached;
 
-    const form = await this.fetchAndAssembleForm(formCode, locale);
+    const form = await this.fetchAndAssembleForm(formCode, lang);
     this.cache.set(cacheKey, form);
 
     const keys = this.cacheKeysByFormCode.get(formCode) ?? new Set();
@@ -114,7 +121,7 @@ export class CrmMetadataService extends CrmBaseService {
     this.cacheKeysByFormCode.delete(formCode);
   }
 
-  private async fetchAndAssembleForm(formCode: string, locale?: string): Promise<FormDefinition> {
+  private async fetchAndAssembleForm(formCode: string, lang = 'en'): Promise<FormDefinition> {
     const response = await this.crmFetch<ODataCollection<RawFormDefinition>>(
       `/qdb_form_definitions?$filter=qdb_form_code eq '${formCode}' and statecode eq 0&$top=1`,
     );
@@ -126,7 +133,7 @@ export class CrmMetadataService extends CrmBaseService {
     const formId = raw.qdb_form_definitionid;
 
     const [tabs, submissionMappings, buttons, infoCards] = await Promise.all([
-      this.fetchTabsWithChildren(formId, locale),
+      this.fetchTabsWithChildren(formId, lang),
       this.fetchSubmissionMappings(formId),
       this.fetchFormButtons(formId),
       this.infoCardService
@@ -134,7 +141,7 @@ export class CrmMetadataService extends CrmBaseService {
         : Promise.resolve<InfoCardScreen[]>([]),
     ]);
 
-    return {
+    const englishForm: FormDefinition = {
       id: formId,
       formCode: raw.qdb_form_code,
       title: raw.qdb_title,
@@ -162,9 +169,64 @@ export class CrmMetadataService extends CrmBaseService {
       createdAt: raw.createdon,
       modifiedAt: raw.modifiedon,
     };
+
+    return lang !== 'en'
+      ? this.applyTranslations(englishForm, lang, formCode)
+      : englishForm;
   }
 
-  private async fetchTabsWithChildren(formId: string, locale?: string): Promise<TabDefinition[]> {
+  private async applyTranslations(
+    form: FormDefinition,
+    lang: string,
+    formCode: string,
+  ): Promise<FormDefinition> {
+    if (!this.translationQueryService || !this.translationResolutionService) {
+      return form;
+    }
+
+    const recordIds = this.collectRecordIds(form);
+    const translationMap = await this.translationQueryService.fetchTranslationMap(
+      recordIds,
+      lang,
+      formCode,
+    );
+
+    return this.translationResolutionService.resolveTranslations(form, translationMap);
+  }
+
+  private collectRecordIds(form: FormDefinition): Set<string> {
+    const ids = new Set<string>();
+    ids.add(form.id);
+
+    for (const btn of form.buttons) ids.add(btn.id);
+    for (const screen of form.infoCards) {
+      ids.add(screen.screenId);
+      for (const sec of screen.sections) {
+        ids.add(sec.sectionId);
+        for (const item of sec.items) ids.add(item.itemId);
+      }
+    }
+
+    for (const tab of form.tabs) {
+      ids.add(tab.id);
+      for (const section of tab.sections) {
+        ids.add(section.id);
+        for (const field of section.fields) {
+          ids.add(field.id);
+          for (const rule of field.validationRules) ids.add(rule.id);
+          for (const opt of field.options ?? []) {
+            if (opt.optionRecordId) ids.add(opt.optionRecordId);
+          }
+          const cols = field.gridConfig?.columnConfigs ?? [];
+          for (const col of cols) ids.add(col.columnId);
+        }
+      }
+    }
+
+    return ids;
+  }
+
+  private async fetchTabsWithChildren(formId: string, lang: string): Promise<TabDefinition[]> {
     const response = await this.crmFetch<ODataCollection<RawTab>>(
       `/qdb_form_tabs?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0&$orderby=qdb_display_order asc`,
     );
@@ -173,7 +235,7 @@ export class CrmMetadataService extends CrmBaseService {
     if (tabs.length === 0) return [];
 
     const tabIds = tabs.map((t) => t.qdb_form_tabid);
-    const sections = await this.fetchSectionsWithChildren(tabIds, formId, locale);
+    const sections = await this.fetchSectionsWithChildren(tabIds, formId, lang);
 
     const sectionsByTab = new Map<string, SectionDefinition[]>();
     for (const section of sections) {
@@ -190,11 +252,12 @@ export class CrmMetadataService extends CrmBaseService {
       displayOrder: tab.qdb_display_order,
       isVisible: tab.qdb_is_visible ?? true,
       requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
+      hideTabBar: tab.qdb_hide_tab_bar ?? false,
       sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
     }));
   }
 
-  private async fetchSectionsWithChildren(tabIds: string[], formId: string, locale?: string): Promise<SectionDefinition[]> {
+  private async fetchSectionsWithChildren(tabIds: string[], formId: string, lang: string): Promise<SectionDefinition[]> {
     const filter = tabIds.map((id) => `_qdb_form_tab_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawSection>>(
       `/qdb_form_sections?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
@@ -204,7 +267,7 @@ export class CrmMetadataService extends CrmBaseService {
     if (sections.length === 0) return [];
 
     const sectionIds = sections.map((s) => s.qdb_form_sectionid);
-    const fields = await this.fetchFieldsWithMetadata(sectionIds, formId, locale);
+    const fields = await this.fetchFieldsWithMetadata(sectionIds, formId, lang);
 
     const fieldsBySection = new Map<string, FieldDefinition[]>();
     for (const field of fields) {
@@ -227,7 +290,7 @@ export class CrmMetadataService extends CrmBaseService {
     }));
   }
 
-  private async fetchFieldsWithMetadata(sectionIds: string[], formId: string, locale?: string): Promise<FieldDefinition[]> {
+  private async fetchFieldsWithMetadata(sectionIds: string[], formId: string, lang: string): Promise<FieldDefinition[]> {
     const filter = sectionIds.map((id) => `_qdb_form_section_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawField>>(
       `/qdb_form_fields?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
@@ -243,8 +306,12 @@ export class CrmMetadataService extends CrmBaseService {
       fields.map((f) => [f.qdb_form_fieldid, f.qdb_schema_name]),
     );
 
+    const requestedLcid = lang !== 'en' && this.languageConfigService
+      ? await this.languageConfigService.getLcidForLanguageCode(lang)
+      : undefined;
+
     const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap] = await Promise.all([
-      this.fetchOptions(fields),
+      this.fetchOptions(fields, requestedLcid),
       this.fetchValidationRules(fieldIds),
       this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
@@ -313,11 +380,6 @@ export class CrmMetadataService extends CrmBaseService {
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
     }));
 
-    if (locale) {
-      const labelMap = await this.fetchLocalizedLabels(fieldIds, locale);
-      return this.applyLocalizedLabels(definitions, labelMap);
-    }
-
     return definitions;
   }
 
@@ -348,10 +410,9 @@ export class CrmMetadataService extends CrmBaseService {
     return map;
   }
 
-  private async fetchOptions(fields: RawField[]): Promise<Map<string, OptionValue[]>> {
+  private async fetchOptions(fields: RawField[], requestedLcid?: number): Promise<Map<string, OptionValue[]>> {
     const map = new Map<string, OptionValue[]>();
 
-    // Partition fields: those with a CRM optionset source vs. those with manual option values
     const crmSourceFields = fields.filter(
       (f) => f.qdb_option_source_entity && f.qdb_option_source_attribute,
     );
@@ -359,14 +420,13 @@ export class CrmMetadataService extends CrmBaseService {
       (f) => !f.qdb_option_source_entity || !f.qdb_option_source_attribute,
     );
 
-    // Fetch manual options from qdb_form_option_values
     if (manualFields.length > 0) {
       const fieldIds = manualFields.map((f) => f.qdb_form_fieldid);
       const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
       const response = await this.crmFetch<ODataCollection<RawOption>>(
         `/qdb_form_option_values?$filter=(${filter}) and qdb_is_active eq true` +
         `&$orderby=qdb_display_order asc` +
-        `&$select=_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name,qdb_notes`,
+        `&$select=qdb_form_option_valueid,_qdb_form_field_id_value,qdb_value,qdb_label,qdb_display_order,qdb_is_default,qdb_parent_option_value,qdb_is_active,qdb_description,qdb_icon_name,qdb_notes`,
       );
       for (const opt of response.value) {
         const fieldId = opt._qdb_form_field_id_value;
@@ -381,17 +441,20 @@ export class CrmMetadataService extends CrmBaseService {
           description: opt.qdb_description ?? undefined,
           iconName: opt.qdb_icon_name ?? undefined,
           notes: opt.qdb_notes ?? undefined,
+          // DFE-i18n-001: expose the Dataverse record GUID so TranslationResolutionService
+          // can key into qdb_translation for FR-009 manual option translations.
+          optionRecordId: opt.qdb_form_option_valueid,
         });
         map.set(fieldId, existing);
       }
     }
 
-    // Fetch options from CRM attribute OptionSet metadata for source-linked fields
     await Promise.all(
       crmSourceFields.map(async (field) => {
         const options = await this.fetchCrmOptionSetValues(
           field.qdb_option_source_entity!,
           field.qdb_option_source_attribute!,
+          requestedLcid,
         );
         if (options.length > 0) map.set(field.qdb_form_fieldid, options);
       }),
@@ -400,7 +463,18 @@ export class CrmMetadataService extends CrmBaseService {
     return map;
   }
 
-  private async fetchCrmOptionSetValues(entity: string, attribute: string): Promise<OptionValue[]> {
+  // FR-010: resolves OptionSet labels using LCID for the requested language.
+  // C-003 fallback: if Arabic Language Pack (LCID 1025) is absent from the Dataverse
+  // environment, localizedLabels for LCID 1025 will be missing. The fallback chain
+  // (requestedLcid → EN 1033 → String(value)) handles this transparently.
+  // QDB must confirm Arabic Language Pack installation per CEO condition C-003 before
+  // expecting native Arabic OptionSet labels to appear. Until confirmed, CRM-sourced
+  // option values will show English labels even when lang=ar is requested.
+  private async fetchCrmOptionSetValues(
+    entity: string,
+    attribute: string,
+    requestedLcid?: number,
+  ): Promise<OptionValue[]> {
     try {
       const response = await this.crmFetch<CrmPicklistAttributeResponse>(
         `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet`,
@@ -410,7 +484,7 @@ export class CrmMetadataService extends CrmBaseService {
         .filter((o) => o.Value != null)
         .map((o, index) => ({
           value: String(o.Value),
-          label: o.Label?.LocalizedLabels?.[0]?.Label ?? String(o.Value),
+          label: resolveOptionSetLabel(o, requestedLcid),
           displayOrder: index + 1,
           isDefault: false,
           isActive: true,
@@ -482,34 +556,6 @@ export class CrmMetadataService extends CrmBaseService {
       isActive: true,
       priority: rule.qdb_priority ?? 100,
     };
-  }
-
-  private async fetchLocalizedLabels(
-    fieldIds: string[],
-    locale: string,
-  ): Promise<Map<string, RawFieldLabel>> {
-    const safeLocale = locale.replace(/'/g, "''");
-    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
-    const response = await this.crmFetch<ODataCollection<RawFieldLabel>>(
-      `/qdb_fieldlabels?$filter=(${filter}) and qdb_locale eq '${safeLocale}'`,
-    );
-    return new Map(response.value.map((l) => [l._qdb_form_field_id_value, l]));
-  }
-
-  private applyLocalizedLabels(
-    fields: FieldDefinition[],
-    labelMap: Map<string, RawFieldLabel>,
-  ): FieldDefinition[] {
-    return fields.map((field) => {
-      const override = labelMap.get(field.id);
-      if (!override) return field;
-      return {
-        ...field,
-        ...(override.qdb_label ? { label: override.qdb_label } : {}),
-        ...(override.qdb_placeholder ? { placeholder: override.qdb_placeholder } : {}),
-        ...(override.qdb_tooltip ? { tooltip: override.qdb_tooltip } : {}),
-      };
-    });
   }
 
   private async fetchLookupConfigs(
@@ -907,6 +953,7 @@ interface RawTab {
   qdb_display_order: number;
   qdb_is_visible?: boolean;
   qdb_requires_previous_tab_complete?: boolean;
+  qdb_hide_tab_bar?: boolean;
 }
 
 interface RawSection {
@@ -985,6 +1032,7 @@ interface RawField {
 }
 
 interface RawOption {
+  qdb_form_option_valueid: string;
   _qdb_form_field_id_value: string;
   qdb_value: string;
   qdb_label: string;
@@ -1145,13 +1193,29 @@ function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
 }
 
 
+interface CrmPicklistOption {
+  Value: number;
+  Label?: {
+    LocalizedLabels?: Array<{ Label: string; LanguageCode: number }>;
+  };
+}
+
 interface CrmPicklistAttributeResponse {
   OptionSet?: {
-    Options?: Array<{
-      Value: number;
-      Label?: {
-        LocalizedLabels?: Array<{ Label: string; LanguageCode: number }>;
-      };
-    }>;
+    Options?: CrmPicklistOption[];
   };
+}
+
+// FR-010: resolve OptionSet label by LCID — falls back to EN (1033) then to String(Value).
+// C-003: if the Arabic Language Pack is not installed, LCID 1025 labels will be absent;
+//        the fallback to EN applies silently. Document installation status per C-003.
+function resolveOptionSetLabel(option: CrmPicklistOption, requestedLcid?: number): string {
+  const labels = option.Label?.LocalizedLabels;
+  if (!labels) return String(option.Value);
+  if (requestedLcid) {
+    const match = labels.find((l) => l.LanguageCode === requestedLcid);
+    if (match) return match.Label;
+  }
+  const english = labels.find((l) => l.LanguageCode === 1033);
+  return english?.Label ?? String(option.Value);
 }

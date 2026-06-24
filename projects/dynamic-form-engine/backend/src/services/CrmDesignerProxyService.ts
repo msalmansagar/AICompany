@@ -2,22 +2,41 @@ import { CrmBaseService } from './CrmBaseService.js';
 import { ValidationError } from '../utils/errors.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 
-const ALLOWED_ENTITIES = new Set([
-  'qdb_form_definitions',
-  'qdb_form_tabs',
-  'qdb_form_sections',
-  'qdb_form_fields',
-  'qdb_form_option_values',
-  'qdb_form_validation_rules',
-  'qdb_form_lookup_configs',
-  'qdb_form_submission_mappings',
-  'qdb_form_business_rules',
-  'qdb_rule_conditions',
-  'qdb_form_designs',
-  'qdb_form_design_overrides',
-  'qdb_form_versions',
-  'qdb_form_buttons',
-]);
+// Maps entity logical names (singular — used by Xrm.WebApi) to OData entity set
+// names (plural — required by Dataverse REST API).  Both forms are accepted; the
+// singular form is normalised to plural before forwarding to Dataverse.
+const ENTITY_SET_MAP: Record<string, string> = {
+  // singular → plural
+  qdb_form_definition:        'qdb_form_definitions',
+  qdb_form_tab:               'qdb_form_tabs',
+  qdb_form_section:           'qdb_form_sections',
+  qdb_form_field:             'qdb_form_fields',
+  qdb_form_option_value:      'qdb_form_option_values',
+  qdb_form_validation_rule:   'qdb_form_validation_rules',
+  qdb_form_lookup_config:     'qdb_form_lookup_configs',
+  qdb_form_submission_mapping:'qdb_form_submission_mappings',
+  qdb_form_business_rule:     'qdb_form_business_rules',
+  qdb_rule_condition:         'qdb_rule_conditions',
+  qdb_form_design:            'qdb_form_designs',
+  qdb_form_design_override:   'qdb_form_design_overrides',
+  qdb_form_version:           'qdb_form_versions',
+  qdb_form_button:            'qdb_form_buttons',
+  qdb_grid_column_config:     'qdb_grid_column_configs',
+  qdb_rule_template:          'qdb_rule_templates',
+  qdb_fieldlabel:             'qdb_fieldlabels',
+  qdb_theme:                  'qdb_themes',
+  qdb_form_access_policy:     'qdb_form_access_policies',
+  qdb_form_audit_log:         'qdb_form_audit_logs',
+};
+
+// Resolve to the canonical OData entity set name, accepting both singular and plural.
+function resolveEntitySetName(name: string): string | undefined {
+  if (ENTITY_SET_MAP[name]) return ENTITY_SET_MAP[name];
+  const isKnownPlural = Object.values(ENTITY_SET_MAP).includes(name);
+  return isKnownPlural ? name : undefined;
+}
+
+const ALLOWED_ENTITIES = new Set(Object.values(ENTITY_SET_MAP));
 
 export interface DesignerProxyCreateResult {
   id: string;
@@ -34,16 +53,18 @@ export class CrmDesignerProxyService extends CrmBaseService {
     super(authService);
   }
 
-  assertEntityAllowed(entityLogicalName: string): void {
-    if (!ALLOWED_ENTITIES.has(entityLogicalName)) {
+  resolveAllowed(entityLogicalName: string): string {
+    const setName = resolveEntitySetName(entityLogicalName);
+    if (!setName || !ALLOWED_ENTITIES.has(setName)) {
       throw new ValidationError(`Entity '${entityLogicalName}' is not accessible via the designer proxy`);
     }
+    return setName;
   }
 
   async listRecords(entityLogicalName: string, rawOdataQuery: string): Promise<{ entities: Record<string, unknown>[]; nextLink?: string }> {
-    this.assertEntityAllowed(entityLogicalName);
+    const setName = this.resolveAllowed(entityLogicalName);
     const query = rawOdataQuery ? `?${rawOdataQuery}` : '';
-    const raw = await this.crmFetch<ODataCollection<Record<string, unknown>>>(`/${entityLogicalName}${query}`);
+    const raw = await this.crmFetch<ODataCollection<Record<string, unknown>>>(`/${setName}${query}`);
     return {
       entities: raw.value ?? [],
       nextLink: raw['@odata.nextLink'],
@@ -51,15 +72,15 @@ export class CrmDesignerProxyService extends CrmBaseService {
   }
 
   async getRecord(entityLogicalName: string, id: string, rawOdataQuery: string): Promise<Record<string, unknown>> {
-    this.assertEntityAllowed(entityLogicalName);
+    const setName = this.resolveAllowed(entityLogicalName);
     const query = rawOdataQuery ? `?${rawOdataQuery}` : '';
-    return this.crmFetch<Record<string, unknown>>(`/${entityLogicalName}(${id})${query}`);
+    return this.crmFetch<Record<string, unknown>>(`/${setName}(${id})${query}`);
   }
 
   async createRecord(entityLogicalName: string, data: Record<string, unknown>): Promise<DesignerProxyCreateResult> {
-    this.assertEntityAllowed(entityLogicalName);
+    const setName = this.resolveAllowed(entityLogicalName);
     const token = await this.authService.getAccessToken();
-    const response = await fetch(`${this.baseUrl}/${entityLogicalName}`, {
+    const response = await fetch(`${this.baseUrl}/${setName}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -84,15 +105,15 @@ export class CrmDesignerProxyService extends CrmBaseService {
   }
 
   async updateRecord(entityLogicalName: string, id: string, data: Record<string, unknown>): Promise<void> {
-    this.assertEntityAllowed(entityLogicalName);
-    await this.crmFetch<void>(`/${entityLogicalName}(${id})`, {
+    const setName = this.resolveAllowed(entityLogicalName);
+    await this.crmFetch<void>(`/${setName}(${id})`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
 
   async deleteRecord(entityLogicalName: string, id: string): Promise<void> {
-    this.assertEntityAllowed(entityLogicalName);
-    await this.crmFetch<void>(`/${entityLogicalName}(${id})`, { method: 'DELETE' });
+    const setName = this.resolveAllowed(entityLogicalName);
+    await this.crmFetch<void>(`/${setName}(${id})`, { method: 'DELETE' });
   }
 }

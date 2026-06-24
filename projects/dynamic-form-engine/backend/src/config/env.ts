@@ -29,6 +29,12 @@ const envSchema = z.object({
   QDB_CSS_ALLOWED_DOMAINS: z.string().default(''),
   // DFE-ADD-002: maximum operations in a single $batch changeset (Dataverse hard limit is 1000).
   MAX_BATCH_OPERATIONS: z.coerce.number().default(500),
+  // DFE-i18n-001: language config cache TTL (60 min default — language list changes rarely).
+  LANGUAGE_CONFIG_CACHE_TTL_MS: z.coerce.number().default(3_600_000),
+  // DFE-i18n-001: Dataverse translation query timeout.
+  TRANSLATION_QUERY_TIMEOUT_MS: z.coerce.number().default(5_000),
+  // DFE-i18n-001: per-language form definition cache TTL (5 min default).
+  FORM_CACHE_TTL_MS: z.coerce.number().default(300_000),
 });
 
 const parsed = envSchema.safeParse(process.env);
