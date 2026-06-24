@@ -172,6 +172,10 @@ export interface TabDefinition {
   tabId: string;
   displayLabel: string;
   displayOrder: number;
+  // When true and this tab is active, the renderer hides the tab navigation bar
+  // but still renders the tab's sections and fields at full width.
+  // Absent/undefined is treated as false (bar shown).
+  hideTabBar?: boolean;
   sections: SectionDefinition[];
 }
 

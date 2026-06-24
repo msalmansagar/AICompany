@@ -121,6 +121,8 @@ export interface OptionValue {
   description?: string;  // shown below the label in radio-card mode
   iconName?: string;     // Fluent UI icon name (e.g. "PersonRegular")
   notes?: string;        // highlighted callout text rendered on the radio card
+  // DFE-i18n-001: Dataverse record GUID for qdb_translation keying (FR-009)
+  optionRecordId?: string;
 }
 
 // ── Lookup configuration ──────────────────────────────────────
@@ -310,6 +312,10 @@ export interface TabDefinition {
   displayOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
+  // When true and this tab is the active tab, the renderer hides the tab
+  // navigation bar but still renders this tab's sections and fields.
+  // Absent/undefined is treated as false (bar shown).
+  hideTabBar?: boolean;
   sections: SectionDefinition[];
 }
 

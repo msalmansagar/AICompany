@@ -16,7 +16,7 @@ export type LabelPosition = 'Top' | 'Left' | 'Floating';
 
 export type SectionStyleType = 'Card' | 'Flat' | 'Outlined';
 
-export type TabStyleType = 'Tabs' | 'Stepper' | 'Accordion';
+export type TabStyleType = 'Tabs' | 'Stepper' | 'Accordion' | 'Sidebar';
 
 export type ButtonStyleType = 'Primary' | 'Outline' | 'Text';
 
