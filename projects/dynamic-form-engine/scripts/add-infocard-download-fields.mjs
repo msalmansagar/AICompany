@@ -1,15 +1,11 @@
 /**
- * Adds five new columns to qdb_form_field for the info-card download icon,
- * file-field download section, and document-template download settings.
+ * Adds two new columns to qdb_form_field for the info-card download link feature.
  *
- *   qdb_info_card_download_icon   — Fluent UI icon name; overrides label when set (200 chars)
- *   qdb_file_download_label       — Download button label on file fields (200 chars)
- *   qdb_file_download_icon        — Fluent UI icon name for file-field download button (200 chars)
- *   qdb_upload_document_setting   — JSON blob: { entityName, attributeConfig[] } (Memo, 4000)
- *   qdb_download_document_setting — JSON blob: { downloadSetting: { attributeConfig[] } } (Memo, 4000)
+ *   qdb_info_card_download_url    — URL of the file to download (up to 2048 chars)
+ *   qdb_info_card_download_label  — Display text for the link (up to 200 chars)
  *
- * Run:  node scripts/add-file-download-document-fields.mjs
- * Safe: checks existence before creating — re-running is a no-op.
+ * Run:  node scripts/add-infocard-download-fields.mjs
+ * Safe: checks for existence before creating — re-running is a no-op.
  */
 
 const TENANT_ID     = 'd79e793c-f6de-4204-8508-7980a63df957';
@@ -41,11 +37,11 @@ async function acquireToken() {
 
 function headers(token) {
   return {
-    Authorization:      `Bearer ${token}`,
+    Authorization:    `Bearer ${token}`,
     'OData-MaxVersion': '4.0',
     'OData-Version':    '4.0',
-    Accept:             'application/json',
-    'Content-Type':     'application/json',
+    Accept:           'application/json',
+    'Content-Type':   'application/json',
   };
 }
 
@@ -54,8 +50,8 @@ function crmLabel(text) {
     '@odata.type': 'Microsoft.Dynamics.CRM.Label',
     LocalizedLabels: [{
       '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel',
-      Label:         text,
-      LanguageCode:  1033,
+      Label:        text,
+      LanguageCode: 1033,
     }],
   };
 }
@@ -68,12 +64,45 @@ async function attributeExists(token, logicalName) {
   return r.ok;
 }
 
-async function addString(token, schemaName, displayName, description, maxLength) {
+async function addUrlAttribute(token, schemaName, displayName) {
   const logicalName = schemaName.toLowerCase();
   if (await attributeExists(token, logicalName)) {
     console.log(`  ↷ ${logicalName} already exists — skipping`);
     return;
   }
+
+  const r = await fetch(
+    `${API_BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes`,
+    {
+      method:  'POST',
+      headers: headers(token),
+      body: JSON.stringify({
+        '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+        SchemaName:    schemaName,
+        LogicalName:   logicalName,
+        MaxLength:     2048,
+        FormatName:    { Value: 'Url' },
+        RequiredLevel: { Value: 'None' },
+        DisplayName:   crmLabel(displayName),
+        Description:   crmLabel('URL of the downloadable file shown on the info-card field.'),
+      }),
+    },
+  );
+
+  if (!r.ok) {
+    const j = await r.json();
+    throw new Error(`Failed to create ${schemaName}: ${j.error?.message ?? await r.text()}`);
+  }
+  console.log(`  ✓ Created ${logicalName}`);
+}
+
+async function addStringAttribute(token, schemaName, displayName, maxLength) {
+  const logicalName = schemaName.toLowerCase();
+  if (await attributeExists(token, logicalName)) {
+    console.log(`  ↷ ${logicalName} already exists — skipping`);
+    return;
+  }
+
   const r = await fetch(
     `${API_BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes`,
     {
@@ -86,44 +115,16 @@ async function addString(token, schemaName, displayName, description, maxLength)
         MaxLength:     maxLength,
         RequiredLevel: { Value: 'None' },
         DisplayName:   crmLabel(displayName),
-        Description:   crmLabel(description),
+        Description:   crmLabel('Display label for the download link on the info-card field.'),
       }),
     },
   );
-  if (!r.ok) {
-    const j = await r.json();
-    throw new Error(`Failed to create ${schemaName}: ${j.error?.message ?? await r.text()}`);
-  }
-  console.log(`  ✓ Created ${logicalName} (String ${maxLength})`);
-}
 
-async function addMemo(token, schemaName, displayName, description, maxLength) {
-  const logicalName = schemaName.toLowerCase();
-  if (await attributeExists(token, logicalName)) {
-    console.log(`  ↷ ${logicalName} already exists — skipping`);
-    return;
-  }
-  const r = await fetch(
-    `${API_BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes`,
-    {
-      method:  'POST',
-      headers: headers(token),
-      body: JSON.stringify({
-        '@odata.type': 'Microsoft.Dynamics.CRM.MemoAttributeMetadata',
-        SchemaName:    schemaName,
-        LogicalName:   logicalName,
-        MaxLength:     maxLength,
-        RequiredLevel: { Value: 'None' },
-        DisplayName:   crmLabel(displayName),
-        Description:   crmLabel(description),
-      }),
-    },
-  );
   if (!r.ok) {
     const j = await r.json();
     throw new Error(`Failed to create ${schemaName}: ${j.error?.message ?? await r.text()}`);
   }
-  console.log(`  ✓ Created ${logicalName} (Memo ${maxLength})`);
+  console.log(`  ✓ Created ${logicalName}`);
 }
 
 async function publishEntity(token) {
@@ -142,66 +143,24 @@ async function publishEntity(token) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('\n=== Adding file-download and document-template columns to qdb_form_field ===\n');
+  console.log('\n=== Adding info-card download link columns to qdb_form_field ===\n');
 
   const token = await acquireToken();
   console.log('✓ Token acquired\n');
 
-  console.log('[1] qdb_info_card_download_icon');
-  await addString(
-    token,
-    'qdb_info_card_download_icon',
-    'Info Card Download Icon',
-    'Fluent UI icon name. When set, shown instead of the download label (icon wins).',
-    200,
-  );
+  console.log('[1] qdb_info_card_download_url');
+  await addUrlAttribute(token, 'qdb_info_card_download_url', 'Info Card Download URL');
 
-  console.log('\n[2] qdb_file_download_label');
-  await addString(
-    token,
-    'qdb_file_download_label',
-    'File Download Label',
-    'Button label for the template download section above the file upload dropzone.',
-    200,
-  );
+  console.log('\n[2] qdb_info_card_download_label');
+  await addStringAttribute(token, 'qdb_info_card_download_label', 'Info Card Download Label', 200);
 
-  console.log('\n[3] qdb_file_download_icon');
-  await addString(
-    token,
-    'qdb_file_download_icon',
-    'File Download Icon',
-    'Fluent UI icon name for the file-field download button. Overrides the label when set.',
-    200,
-  );
-
-  console.log('\n[4] qdb_upload_document_setting');
-  await addMemo(
-    token,
-    'qdb_upload_document_setting',
-    'Upload Document Setting',
-    'JSON: { "entityName": "qdb_edms", "attributeConfig": [{ "attributeName": "...", "attributeValue": "...", "type": "lookup" }] }',
-    4000,
-  );
-
-  console.log('\n[5] qdb_download_document_setting');
-  await addMemo(
-    token,
-    'qdb_download_document_setting',
-    'Download Document Setting',
-    'JSON: { "downloadSetting": { "attributeConfig": [{ "attributeName": "documentName", "attributeValue": "...", "type": "string" }] } }',
-    4000,
-  );
-
-  console.log('\n[6] Publishing');
+  console.log('\n[3] Publishing');
   await publishEntity(token);
 
   console.log('\n=== Done ✓ ===');
   console.log('\nNew columns on qdb_form_field:');
-  console.log('  qdb_info_card_download_icon    String(200) — Fluent icon name, overrides info-card download label');
-  console.log('  qdb_file_download_label        String(200) — File-field download button label');
-  console.log('  qdb_file_download_icon         String(200) — Fluent icon name, overrides file-field download label');
-  console.log('  qdb_upload_document_setting    Memo(4000)  — JSON upload config blob');
-  console.log('  qdb_download_document_setting  Memo(4000)  — JSON download config blob');
+  console.log('  qdb_info_card_download_url   — URL string (2048), format: Url');
+  console.log('  qdb_info_card_download_label — Text string (200)');
 }
 
 main().catch(e => {

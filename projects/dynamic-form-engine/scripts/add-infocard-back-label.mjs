@@ -1,6 +1,6 @@
 const TENANT_ID     = 'd79e793c-f6de-4204-8508-7980a63df957';
 const CLIENT_ID     = '08e80e93-0bab-45ef-8372-2e554fa9af9b';
-const CLIENT_SECRET = 'zMp8Q~~kJW3l3h_HOKbkYdH56c5ALU-Pxc3X_ct6';
+const CLIENT_SECRET = process.env.DV_CLIENT_SECRET;
 const DATAVERSE_URL = 'https://org5869857f.crm4.dynamics.com';
 const API_BASE      = `${DATAVERSE_URL}/api/data/v9.2`;
 

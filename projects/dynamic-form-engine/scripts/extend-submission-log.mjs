@@ -1,4 +1,4 @@
-const TENANT_ID='d79e793c-f6de-4204-8508-7980a63df957',CLIENT_ID='08e80e93-0bab-45ef-8372-2e554fa9af9b',CLIENT_SECRET='zMp8Q~~kJW3l3h_HOKbkYdH56c5ALU-Pxc3X_ct6',DV='https://org5869857f.crm4.dynamics.com',BASE=`${DV}/api/data/v9.2`;
+const TENANT_ID='d79e793c-f6de-4204-8508-7980a63df957',CLIENT_ID='08e80e93-0bab-45ef-8372-2e554fa9af9b',CLIENT_SECRET=process.env.DV_CLIENT_SECRET,DV='https://org5869857f.crm4.dynamics.com',BASE=`${DV}/api/data/v9.2`;
 const body=new URLSearchParams({grant_type:'client_credentials',client_id:CLIENT_ID,client_secret:CLIENT_SECRET,scope:`${DV}/.default`});
 const t=await fetch(`https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body}).then(r=>r.json()).then(j=>j.access_token);
 const h={Authorization:`Bearer ${t}`,'OData-MaxVersion':'4.0','OData-Version':'4.0',Accept:'application/json','Content-Type':'application/json'};

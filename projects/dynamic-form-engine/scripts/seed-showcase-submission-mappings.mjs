@@ -2,7 +2,7 @@
  * Adds submission mappings + hidden form-code field to the Feature Showcase form.
  * Run: node scripts/seed-showcase-submission-mappings.mjs
  */
-const TENANT_ID='d79e793c-f6de-4204-8508-7980a63df957',CLIENT_ID='08e80e93-0bab-45ef-8372-2e554fa9af9b',CLIENT_SECRET='zMp8Q~~kJW3l3h_HOKbkYdH56c5ALU-Pxc3X_ct6';
+const TENANT_ID='d79e793c-f6de-4204-8508-7980a63df957',CLIENT_ID='08e80e93-0bab-45ef-8372-2e554fa9af9b',CLIENT_SECRET=process.env.DV_CLIENT_SECRET;
 const DV='https://org5869857f.crm4.dynamics.com',BASE=`${DV}/api/data/v9.2`;
 
 const bdy=new URLSearchParams({grant_type:'client_credentials',client_id:CLIENT_ID,client_secret:CLIENT_SECRET,scope:`${DV}/.default`});
