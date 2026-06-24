@@ -47,6 +47,11 @@ export function FormRadioCardField({ field, control }: Props) {
                       {option.description}
                     </Text>
                   ) : null}
+                  {option.notes ? (
+                    <View style={styles.notesBox}>
+                      <Text style={styles.notesText}>{option.notes}</Text>
+                    </View>
+                  ) : null}
                   <View style={[styles.radioIndicator, selected && styles.radioIndicatorSelected]}>
                     {selected && <View style={styles.radioDot} />}
                   </View>
@@ -94,4 +99,13 @@ const styles = StyleSheet.create({
   },
   radioIndicatorSelected: { borderColor: '#0078d4' },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#0078d4' },
+  notesBox: {
+    backgroundColor: '#e8f4fd',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0078d4',
+    padding: 8,
+    marginTop: 6,
+  },
+  notesText: { fontSize: 12, color: '#00537a', lineHeight: 17 },
 });

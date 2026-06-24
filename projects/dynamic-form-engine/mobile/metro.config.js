@@ -10,7 +10,7 @@ const config = getDefaultConfig(projectRoot);
 config.watchFolders = [sharedRoot];
 
 config.resolver.extraNodeModules = {
-  '@qdb/form-engine-shared': sharedRoot,
+  '@qdb/shared': sharedRoot,
 };
 
 // Force every require('react') / require('react-dom') anywhere in the bundle

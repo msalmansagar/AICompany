@@ -36,7 +36,7 @@
       "expo-web-browser"
     ],
     "extra": {
-      "apiBaseUrl": "http://192.168.1.14:4000",
+      "apiBaseUrl": "http://localhost:4000",
       "msalClientId": "a2cd767a-ade7-4d04-a797-b1a45c584a02",
       "backendAppClientId": "1d51784e-6701-4016-bce6-aa2d1c8ca6c2",
       "azureAdTenantId": "d79e793c-f6de-4204-8508-7980a63df957",

@@ -5,9 +5,10 @@ import { useForm, type FieldErrors } from 'react-hook-form';
 import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 import { InfoCardFlow } from './info-card/InfoCardFlow';
+import { FormSummaryScreen } from './FormSummaryScreen';
 import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
 
-type Phase = 'info-cards' | 'form';
+type Phase = 'info-cards' | 'form' | 'summary';
 
 interface Props {
   form: FormDefinition;
@@ -198,18 +199,35 @@ export function FormRenderer({
     );
   }
 
+  const showSummaryStep = form.showSummaryStep ?? false;
+  const draftMeta: DraftMeta = { infoCardViewed, gridSchemaHash: {} };
+
+  if (phase === 'summary') {
+    return (
+      <FormSummaryScreen
+        form={form}
+        values={getValues()}
+        isSubmitting={isSubmitting}
+        onBack={() => setPhase('form')}
+        onEditTab={(tabIndex) => {
+          setPhase('form');
+          setActiveTabIndex(tabIndex);
+        }}
+        onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
+      />
+    );
+  }
+
   const visibleButtons = (form.buttons ?? [])
     .filter((b) => b.isVisible)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const buttons = visibleButtons.length > 0 ? visibleButtons : [DEFAULT_BUTTON];
 
-  const draftMeta: DraftMeta = { infoCardViewed, gridSchemaHash: {} };
-
   return (
     <MobileFormProvider form={form} control={control} setValue={setValue}>
       <View style={styles.container}>
-        {tabs.length > 1 && (
+        {tabs.length > 1 && activeTab?.hideTabBar !== true && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
             {tabs.map((tab, index) => (
               <Pressable
@@ -249,7 +267,9 @@ export function FormRenderer({
                 button={button}
                 isSubmitting={isSubmitting}
                 isOnFinalTab={isOnFinalTab}
+                showSummaryStep={showSummaryStep}
                 onSubmit={() => void handleSubmit(handleFormSubmit, handleInvalidSubmit)()}
+                onEnterSummary={() => setPhase('summary')}
                 onSaveDraft={
                   onSaveDraft
                     ? () => void onSaveDraft(getValues(), activeTabIndex, draftMeta)
@@ -270,7 +290,9 @@ interface TabAwareFormButtonProps {
   button: FormButton;
   isSubmitting: boolean;
   isOnFinalTab: boolean;
+  showSummaryStep: boolean;
   onSubmit: () => void;
+  onEnterSummary: () => void;
   onSaveDraft?: () => void;
   onCancel?: () => void;
   onReset: () => void;
@@ -280,7 +302,9 @@ function TabAwareFormButton({
   button,
   isSubmitting,
   isOnFinalTab,
+  showSummaryStep,
   onSubmit,
+  onEnterSummary,
   onSaveDraft,
   onCancel,
   onReset,
@@ -303,10 +327,16 @@ function TabAwareFormButton({
   }
 
   function executeAction(): void {
-    if (button.action === 'submit') onSubmit();
-    else if (button.action === 'saveDraft') onSaveDraft?.();
-    else if (button.action === 'cancel') onCancel?.();
-    else if (button.action === 'reset') onReset();
+    if (button.action === 'submit') {
+      if (showSummaryStep && isOnFinalTab) onEnterSummary();
+      else onSubmit();
+    } else if (button.action === 'saveDraft') {
+      onSaveDraft?.();
+    } else if (button.action === 'cancel') {
+      onCancel?.();
+    } else if (button.action === 'reset') {
+      onReset();
+    }
   }
 
   const isPrimary = button.isPrimary;
@@ -328,7 +358,11 @@ function TabAwareFormButton({
       accessibilityState={{ disabled: isDisabled }}
     >
       <Text style={textStyle}>
-        {isSubmitting && button.action === 'submit' ? 'Submitting…' : button.label}
+        {isSubmitting && button.action === 'submit'
+          ? 'Submitting…'
+          : button.action === 'submit' && showSummaryStep && isOnFinalTab
+          ? 'Review & Submit'
+          : button.label}
       </Text>
     </Pressable>
   );

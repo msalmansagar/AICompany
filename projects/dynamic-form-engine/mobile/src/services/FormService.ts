@@ -450,7 +450,7 @@ export interface SyncResult {
 
 // ── Public API ────────────────────────────────────────────────
 
-export async function listForms(accessToken: string, locale?: string): Promise<FormListItem[]> {
+export async function listForms(accessToken: string, lang?: string): Promise<FormListItem[]> {
   const online = await isOnline();
 
   if (!online) {
@@ -459,7 +459,7 @@ export async function listForms(accessToken: string, locale?: string): Promise<F
     throw new OfflineError('No cached form list — connect to network first');
   }
 
-  const summaries = await apiGet<BackendFormSummary[]>('/api/forms', accessToken, { locale });
+  const summaries = await apiGet<BackendFormSummary[]>('/api/forms', accessToken, { lang });
   const items = summaries.map(mapFormSummaryToListItem);
   await cacheFormList(items);
   return items;
@@ -468,7 +468,7 @@ export async function listForms(accessToken: string, locale?: string): Promise<F
 export async function getFormDefinition(
   formCode: string,
   accessToken: string,
-  locale?: string,
+  lang?: string,
 ): Promise<FormDefinition> {
   const online = await isOnline();
 
@@ -481,7 +481,7 @@ export async function getFormDefinition(
   const backend = await apiGet<BackendFormDefinition>(
     `/api/forms/${formCode}/metadata`,
     accessToken,
-    { locale },
+    { lang },
   );
   const def = mapFormDefinition(backend);
   await cacheFormDefinition(formCode, def);
