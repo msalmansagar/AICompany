@@ -11,6 +11,7 @@ export interface GridPageRequest {
   searchText?: string;
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
+  columnFilters?: Record<string, string>;
 }
 
 export async function fetchGridPage({
@@ -23,6 +24,7 @@ export async function fetchGridPage({
   searchText,
   sortBy,
   sortDirection,
+  columnFilters,
 }: GridPageRequest): Promise<GridRecordPage> {
   const params = new URLSearchParams({
     page: String(page),
@@ -41,6 +43,15 @@ export async function fetchGridPage({
   if (sortBy) {
     params.set('sortBy', sortBy);
     params.set('sortDirection', sortDirection ?? 'asc');
+  }
+  if (columnFilters) {
+    const activeFilters: Record<string, string> = {};
+    for (const [k, v] of Object.entries(columnFilters)) {
+      if (v.trim()) activeFilters[k] = v;
+    }
+    if (Object.keys(activeFilters).length > 0) {
+      params.set('columnFilters', JSON.stringify(activeFilters));
+    }
   }
 
   const response = await apiClient.get<GridRecordPage>(

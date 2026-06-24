@@ -38,6 +38,7 @@ function makeFormDefinition(
     version: 1,
     allowSaveDraft: false,
     draftExpiryDays: 7,
+    showSummaryStep: false,
     confirmationMessage: 'Thank you',
     allowInfocardSkip: false,
     infocardCountsInProgress: false,

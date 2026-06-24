@@ -1,13 +1,21 @@
-﻿import {
+import {
+  Button,
   Card,
   CardHeader,
+  Link,
   makeStyles,
   tokens,
   Text,
   Badge,
 } from '@fluentui/react-components';
+import { DocumentRegular, EditRegular } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
-import type { FieldDefinition } from '@qdb/shared';
+import type { UploadedFileReference } from '../../api/filesApi';
+import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
+
+interface FormSummaryProps {
+  onEditTab: (tabIndex: number) => void;
+}
 
 const useStyles = makeStyles({
   wrapper: {
@@ -18,23 +26,21 @@ const useStyles = makeStyles({
   summaryHeader: {
     fontSize: tokens.fontSizeBase500,
     fontWeight: tokens.fontWeightSemibold,
-    marginBottom: tokens.spacingVerticalM,
   },
   stats: {
     display: 'flex',
     gap: tokens.spacingHorizontalM,
     flexWrap: 'wrap',
-    marginBottom: tokens.spacingVerticalL,
-  },
-  statBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: tokens.spacingHorizontalXS,
   },
   tabSection: {
     display: 'flex',
     flexDirection: 'column',
     gap: tokens.spacingVerticalM,
+  },
+  tabHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   tabTitle: {
     fontSize: tokens.fontSizeBase400,
@@ -48,6 +54,10 @@ const useStyles = makeStyles({
     padding: `${tokens.spacingVerticalXS} 0`,
     borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
   },
+  gridFieldRow: {
+    padding: `${tokens.spacingVerticalS} 0`,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+  },
   fieldLabel: {
     fontWeight: tokens.fontWeightSemibold,
     color: tokens.colorNeutralForeground2,
@@ -58,13 +68,75 @@ const useStyles = makeStyles({
     fontSize: tokens.fontSizeBase300,
     wordBreak: 'break-word',
   },
-  emptyValue: {
+  fileList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalXS,
+  },
+  fileItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalS,
+  },
+  fileIcon: {
+    flexShrink: 0,
+    color: tokens.colorNeutralForeground2,
+  },
+  fileName: {
+    flex: '1 1 0',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  fileSize: {
+    flexShrink: 0,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground3,
+  },
+  gridTable: {
+    borderCollapse: 'collapse' as const,
+    width: '100%',
+    fontSize: tokens.fontSizeBase200,
+    marginTop: tokens.spacingVerticalXS,
+  },
+  gridTh: {
+    textAlign: 'left' as const,
+    padding: '5px 8px',
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground2,
+    borderBottom: `2px solid ${tokens.colorNeutralStroke1}`,
+    backgroundColor: tokens.colorNeutralBackground2,
+    whiteSpace: 'nowrap' as const,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+  },
+  gridTd: {
+    padding: '5px 8px',
+    color: tokens.colorNeutralForeground1,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    overflow: 'hidden' as const,
+    textOverflow: 'ellipsis' as const,
+    whiteSpace: 'nowrap' as const,
+  },
+  gridMore: {
+    padding: '4px 8px',
+    fontSize: tokens.fontSizeBase100,
     color: tokens.colorNeutralForeground3,
     fontStyle: 'italic',
   },
 });
 
-export function FormSummary() {
+function isDisplayable(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+}
+
+const GRID_TYPES = new Set(['grid', 'repeatingGrid', 'interactive-grid']);
+// File and richText fields expand to full width (they can't be squeezed into a 2-column grid cell)
+const FULL_WIDTH_TYPES = new Set(['file', 'richText', 'richtext']);
+
+export function FormSummary({ onEditTab }: FormSummaryProps) {
   const styles = useStyles();
   const { formDefinition, fieldValues, ruleState } = useFormContext();
 
@@ -74,28 +146,19 @@ export function FormSummary() {
     .filter((tab) => ruleState.tabVisibility[tab.id] ?? tab.isVisible)
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
-  let totalSections = 0;
   let requiredFilled = 0;
   let requiredTotal = 0;
 
   for (const tab of visibleTabs) {
     for (const section of tab.sections) {
-      const sectionVisible = ruleState.sectionVisibility[section.id] ?? section.isVisible;
-      if (!sectionVisible) continue;
-
-      totalSections++;
-
+      if (!(ruleState.sectionVisibility[section.id] ?? section.isVisible)) continue;
       for (const field of section.fields) {
-        const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-        if (!fieldVisible || field.isHidden) continue;
-
+        if (!(ruleState.fieldVisibility[field.id] ?? field.isVisible)) continue;
+        if (field.isHidden || field.fieldType === 'info-card') continue;
         const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
         if (!isRequired) continue;
-
         requiredTotal++;
-
-        const value = fieldValues[field.schemaName];
-        if (value !== null && value !== undefined && value !== '') requiredFilled++;
+        if (isDisplayable(fieldValues[field.schemaName])) requiredFilled++;
       }
     }
   }
@@ -105,53 +168,93 @@ export function FormSummary() {
       <div className={styles.summaryHeader}>Review your answers</div>
 
       <div className={styles.stats} aria-live="polite">
-        <div className={styles.statBadge}>
-          <Badge appearance="outline" color="informative">
-            {totalSections} sections
-          </Badge>
-        </div>
-        <div className={styles.statBadge}>
-          <Badge
-            appearance="outline"
-            color={requiredFilled === requiredTotal ? 'success' : 'warning'}
-          >
-            {requiredFilled} / {requiredTotal} required fields filled
-          </Badge>
-        </div>
+        <Badge
+          appearance="outline"
+          color={requiredFilled === requiredTotal ? 'success' : 'warning'}
+        >
+          {requiredFilled} / {requiredTotal} required fields filled
+        </Badge>
       </div>
 
-      {visibleTabs.map((tab) => {
+      {visibleTabs.map((tab, tabIndex) => {
         const visibleSections = tab.sections
           .filter((s) => ruleState.sectionVisibility[s.id] ?? s.isVisible)
           .sort((a, b) => a.displayOrder - b.displayOrder);
 
+        const tabHasAnyFilledField = visibleSections.some((section) =>
+          section.fields.some((f) => {
+            if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
+            if (f.isHidden || f.fieldType === 'info-card') return false;
+            return isDisplayable(fieldValues[f.schemaName]);
+          }),
+        );
+
+        if (!tabHasAnyFilledField) return null;
+
         return (
           <div key={tab.id} className={styles.tabSection}>
-            <div className={styles.tabTitle}>{tab.label}</div>
+            <div className={styles.tabHeader}>
+              <div className={styles.tabTitle}>{tab.label}</div>
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<EditRegular />}
+                onClick={() => onEditTab(tabIndex)}
+                aria-label={`Edit ${tab.label}`}
+              >
+                Edit
+              </Button>
+            </div>
 
             {visibleSections.map((section) => {
-              const visibleFields = section.fields
+              const filledFields = section.fields
                 .filter((f) => {
-                  const visible = ruleState.fieldVisibility[f.id] ?? f.isVisible;
-                  return visible && !f.isHidden;
+                  if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
+                  if (f.isHidden || f.fieldType === 'info-card') return false;
+                  return isDisplayable(fieldValues[f.schemaName]);
                 })
                 .sort((a, b) => a.displayOrder - b.displayOrder);
+
+              if (filledFields.length === 0) return null;
 
               return (
                 <Card key={section.id} aria-label={section.label}>
                   <CardHeader header={<Text weight="semibold">{section.label}</Text>} />
                   <div aria-label={`${section.label} fields`}>
-                    {visibleFields.map((field) => (
-                      <div key={field.id} className={styles.fieldRow}>
-                        <span className={styles.fieldLabel}>{field.label}</span>
-                        <span className={styles.fieldValue}>
-                          <FieldValueDisplay
-                            field={field}
-                            value={fieldValues[field.schemaName]}
-                          />
-                        </span>
-                      </div>
-                    ))}
+                    {filledFields.map((field) => {
+                      const value = fieldValues[field.schemaName];
+
+                      if (GRID_TYPES.has(field.fieldType)) {
+                        return (
+                          <div key={field.id} className={styles.gridFieldRow}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>
+                              {field.label}
+                            </div>
+                            <GridMiniTable field={field} value={value} styles={styles} />
+                          </div>
+                        );
+                      }
+
+                      if (FULL_WIDTH_TYPES.has(field.fieldType)) {
+                        return (
+                          <div key={field.id} className={styles.gridFieldRow}>
+                            <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>
+                              {field.label}
+                            </div>
+                            <FieldValueDisplay field={field} value={value} />
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={field.id} className={styles.fieldRow}>
+                          <span className={styles.fieldLabel}>{field.label}</span>
+                          <span className={styles.fieldValue}>
+                            <FieldValueDisplay field={field} value={value} />
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </Card>
               );
@@ -163,20 +266,143 @@ export function FormSummary() {
   );
 }
 
+// ─── Grid mini-table ─────────────────────────────────────────────────────────
+
+interface GridMiniTableProps {
+  field: FieldDefinition;
+  value: unknown;
+  styles: ReturnType<typeof useStyles>;
+}
+
+const MAX_GRID_ROWS = 5;
+const MAX_GRID_COLS = 5;
+
+function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
+  const rows = Array.isArray(value) ? (value as Array<unknown>) : [];
+  const isSelection = field.gridConfig?.mode === 'selection';
+  const rowWord = isSelection ? 'record' : 'row';
+
+  if (rows.length === 0) {
+    return (
+      <span style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>
+        No {rowWord}s
+      </span>
+    );
+  }
+
+  const cols: GridColumnConfig[] = [...(field.gridConfig?.columnConfigs ?? [])]
+    .sort((a, b) => a.displayOrder - b.displayOrder)
+    .slice(0, MAX_GRID_COLS);
+
+  if (cols.length === 0) {
+    return (
+      <span>
+        {rows.length} {rowWord}{rows.length !== 1 ? 's' : ''}{isSelection ? ' selected' : ' entered'}
+      </span>
+    );
+  }
+
+  const displayRows = rows.slice(0, MAX_GRID_ROWS);
+  const overflow = rows.length - MAX_GRID_ROWS;
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table className={styles.gridTable}>
+        <thead>
+          <tr>
+            {cols.map((col) => (
+              <th key={col.columnId} className={styles.gridTh}>
+                {col.columnLabel}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {displayRows.map((row, i) => {
+            const rowVals = extractRowValues(row);
+            return (
+              <tr
+                key={i}
+                style={{
+                  backgroundColor:
+                    i % 2 === 0
+                      ? tokens.colorNeutralBackground1
+                      : tokens.colorNeutralBackground2,
+                }}
+              >
+                {cols.map((col) => (
+                  <td key={col.columnId} className={styles.gridTd}>
+                    {formatCellValue(rowVals[col.targetAttribute], col.columnFieldType)}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {overflow > 0 && (
+        <div className={styles.gridMore}>
+          …and {overflow} more {rowWord}{overflow !== 1 ? 's' : ''}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function extractRowValues(row: unknown): Record<string, unknown> {
+  if (row === null || row === undefined || typeof row !== 'object') return {};
+  const r = row as Record<string, unknown>;
+  if (r['values'] && typeof r['values'] === 'object') {
+    return r['values'] as Record<string, unknown>;
+  }
+  return r;
+}
+
+function formatCellValue(value: unknown, columnFieldType?: string): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (columnFieldType === 'boolean') return value ? 'Yes' : 'No';
+  if (columnFieldType === 'date') {
+    const d = new Date(String(value));
+    return isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+  }
+  if (columnFieldType === 'datetime') {
+    const d = new Date(String(value));
+    return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  }
+  if (typeof value === 'number') return value.toLocaleString();
+  return String(value);
+}
+
+// ─── Scalar field value display ───────────────────────────────────────────────
+
 interface FieldValueDisplayProps {
   field: FieldDefinition;
   value: unknown;
 }
 
+function isFileRefArray(value: unknown): value is UploadedFileReference[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    typeof value[0] === 'object' &&
+    value[0] !== null &&
+    'fileId' in (value[0] as object) &&
+    'fileName' in (value[0] as object)
+  );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${bytes} B`;
+}
+
 function FieldValueDisplay({ field, value }: FieldValueDisplayProps) {
   const styles = useStyles();
 
-  if (value === null || value === undefined || value === '') {
-    return <span className={styles.emptyValue}>Not provided</span>;
-  }
-
   switch (field.fieldType) {
     case 'checkbox':
+    case 'boolean':
       return <span>{Boolean(value) ? 'Yes' : 'No'}</span>;
 
     case 'dropdown':
@@ -186,8 +412,8 @@ function FieldValueDisplay({ field, value }: FieldValueDisplayProps) {
     }
 
     case 'multiselect': {
-      const selectedValues = Array.isArray(value) ? value.map(String) : [];
-      const labels = selectedValues.map(
+      const selected = Array.isArray(value) ? value.map(String) : [];
+      const labels = selected.map(
         (v) => field.options?.find((o) => o.value === v)?.label ?? v,
       );
       return <span>{labels.join(', ') || 'None selected'}</span>;
@@ -198,34 +424,78 @@ function FieldValueDisplay({ field, value }: FieldValueDisplayProps) {
       return <span>{lookupVal?.displayName ?? String(value)}</span>;
     }
 
-    case 'currency': {
-      const currencyCode = field.currencyCode ?? 'USD';
+    case 'number':
+    case 'decimal': {
       const num = Number(value);
-
       if (isNaN(num)) return <span>{String(value)}</span>;
-
+      const decimals = field.decimalPlaces ?? (field.fieldType === 'decimal' ? 2 : 0);
       return (
         <span>
-          {new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: currencyCode,
+          {new Intl.NumberFormat(undefined, {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
           }).format(num)}
         </span>
       );
     }
 
-    case 'file': {
-      const files = Array.isArray(value) ? value : [value];
-      return <span>{files.length} file(s) uploaded</span>;
+    case 'currency': {
+      const code = field.currencyCode ?? 'USD';
+      const num = Number(value);
+      if (isNaN(num)) return <span>{String(value)}</span>;
+      return (
+        <span>
+          {new Intl.NumberFormat(undefined, { style: 'currency', currency: code }).format(num)}
+        </span>
+      );
     }
 
-    case 'repeatingGrid': {
-      const rows = Array.isArray(value) ? value : [];
-      return <span>{rows.length} row(s)</span>;
+    case 'date': {
+      const d = new Date(String(value));
+      return (
+        <span>
+          {isNaN(d.getTime()) ? String(value) : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        </span>
+      );
+    }
+
+    case 'datetime': {
+      const d = new Date(String(value));
+      return (
+        <span>
+          {isNaN(d.getTime())
+            ? String(value)
+            : d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      );
+    }
+
+    case 'file': {
+      if (!isFileRefArray(value)) {
+        return <span>{Array.isArray(value) ? value.length : 1} file(s)</span>;
+      }
+      return (
+        <div className={styles.fileList}>
+          {value.map((ref) => (
+            <div key={ref.fileId} className={styles.fileItem}>
+              <DocumentRegular className={styles.fileIcon} aria-hidden="true" />
+              <Link
+                href={ref.previewUrl ?? ref.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.fileName}
+                title={ref.fileName}
+              >
+                {ref.fileName}
+              </Link>
+              <span className={styles.fileSize}>{formatFileSize(ref.sizeBytes)}</span>
+            </div>
+          ))}
+        </div>
+      );
     }
 
     case 'richText':
-      // Render as plain text in the summary to avoid XSS from stored HTML
       return <span>{String(value).replace(/<[^>]*>/g, ' ').trim()}</span>;
 
     default:

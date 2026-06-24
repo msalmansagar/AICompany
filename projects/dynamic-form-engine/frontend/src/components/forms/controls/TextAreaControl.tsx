@@ -18,21 +18,33 @@ export function TextAreaControl({
     updateFieldValue(field.schemaName, event.target.value);
   }
 
+  const affixStyle: React.CSSProperties = {
+    paddingTop: '6px',
+    fontSize: '14px',
+    color: '#616161',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  };
+
   return (
-    <Textarea
-      id={inputId}
-      value={value}
-      onChange={handleChange}
-      placeholder={field.placeholder}
-      readOnly={isReadonly}
-      disabled={isReadonly}
-      required={isRequired}
-      aria-required={isRequired}
-      aria-describedby={errorId}
-      aria-invalid={!!errorId}
-      resize="vertical"
-      appearance="outline"
-      style={{ width: '100%' }}
-    />
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+      {field.prefix && <span style={affixStyle}>{field.prefix}</span>}
+      <Textarea
+        id={inputId}
+        value={value}
+        onChange={handleChange}
+        placeholder={field.placeholder}
+        readOnly={isReadonly}
+        disabled={isReadonly}
+        required={isRequired}
+        aria-required={isRequired}
+        aria-describedby={errorId}
+        aria-invalid={!!errorId}
+        resize="vertical"
+        appearance="outline"
+        style={{ flex: 1 }}
+      />
+      {field.suffix && <span style={affixStyle}>{field.suffix}</span>}
+    </div>
   );
 }

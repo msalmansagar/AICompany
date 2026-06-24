@@ -181,6 +181,7 @@ describe('ValidationEngine', () => {
         version: 1,
         allowSaveDraft: true,
         draftExpiryDays: 7,
+        showSummaryStep: false,
         confirmationMessage: 'Done',
         allowInfocardSkip: false,
         infocardCountsInProgress: false,

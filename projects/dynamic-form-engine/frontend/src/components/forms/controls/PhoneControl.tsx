@@ -31,6 +31,8 @@ export function PhoneControl({
       aria-required={isRequired}
       aria-describedby={errorId}
       aria-invalid={!!errorId}
+      contentBefore={field.prefix ? <span>{field.prefix}</span> : undefined}
+      contentAfter={field.suffix ? <span>{field.suffix}</span> : undefined}
       appearance="outline"
       style={{ width: '100%' }}
     />

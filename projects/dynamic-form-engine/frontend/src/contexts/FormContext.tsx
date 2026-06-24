@@ -54,10 +54,12 @@ const FormContext = createContext<FormContextValue | null>(null);
 export interface FormProviderProps {
   formCode: string;
   recordId?: string;
+  /** BCP-47 language code passed as ?lang= to the metadata API (FR-023). */
+  lang?: string;
   children: React.ReactNode;
 }
 
-export function FormProvider({ formCode, recordId, children }: FormProviderProps) {
+export function FormProvider({ formCode, recordId, lang, children }: FormProviderProps) {
   const { accounts } = useMsal();
   const currentUser = import.meta.env.VITE_SKIP_AUTH === 'true'
     ? ({ localAccountId: 'dev-user-id', name: 'Dev User', username: 'dev@local.dev' } as unknown as typeof accounts[number])
@@ -79,6 +81,17 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Track whether this is the first load for the current formCode so we apply
+  // initial field values on first fetch but preserve them on language switches.
+  const isFirstLoadRef = useRef(true);
+  const prevFormCodeRef = useRef(formCode);
+
+  // Reset first-load sentinel when the form itself changes (not just lang).
+  if (prevFormCodeRef.current !== formCode) {
+    prevFormCodeRef.current = formCode;
+    isFirstLoadRef.current = true;
+  }
+
   // â”€â”€ Load form metadata and initial data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     let cancelled = false;
@@ -88,24 +101,30 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
       setError(null);
 
       try {
-        const metaResponse = await formApi.getMetadata(formCode);
+        const metaResponse = await formApi.getMetadata(formCode, lang);
         const definition = (metaResponse as unknown as { data: FormDefinition }).data;
 
         if (cancelled) return;
 
         setFormDefinition(definition);
 
-        const initialValues = buildInitialValues(definition);
+        // Only re-initialise field values on first load or when formCode changes.
+        // Language switches must NOT reset entered values (AC-007 / FR-015).
+        if (isFirstLoadRef.current) {
+          isFirstLoadRef.current = false;
 
-        if (recordId) {
-          const dataResponse = await formApi.getData(formCode, recordId);
-          const existingData = (dataResponse as unknown as { data: FormFieldValues }).data;
+          const initialValues = buildInitialValues(definition);
 
-          if (!cancelled) {
-            setFieldValues({ ...initialValues, ...existingData });
+          if (recordId) {
+            const dataResponse = await formApi.getData(formCode, recordId);
+            const existingData = (dataResponse as unknown as { data: FormFieldValues }).data;
+
+            if (!cancelled) {
+              setFieldValues({ ...initialValues, ...existingData });
+            }
+          } else {
+            setFieldValues(initialValues);
           }
-        } else {
-          setFieldValues(initialValues);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -125,7 +144,11 @@ export function FormProvider({ formCode, recordId, children }: FormProviderProps
     return () => {
       cancelled = true;
     };
-  }, [formCode, recordId]);
+    // lang is intentionally included so metadata re-fetches on language switch.
+    // recordId is excluded from the dependency array after first load to avoid
+    // double-fetching; the isFirstLoadRef guards the data fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formCode, lang]);
 
   // â”€â”€ Debounced rule evaluation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {

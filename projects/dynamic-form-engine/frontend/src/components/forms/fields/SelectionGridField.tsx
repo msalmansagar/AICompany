@@ -3,7 +3,7 @@
 // Selection state persists across page navigation using a Set<string>.
 // BC-010: required validation applies even if the tab was never visited.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -14,6 +14,7 @@ import {
   Button,
   Checkbox,
   Input,
+  Select,
   makeStyles,
   tokens,
   Text,
@@ -33,13 +34,13 @@ import {
   GridRegular,
   TableRegular,
   CheckmarkCircleRegular,
-  SearchRegular,
+  FilterRegular,
   ArrowSortRegular,
   ArrowSortUpRegular,
   ArrowSortDownRegular,
   DismissRegular,
 } from '@fluentui/react-icons';
-import type { GridRecord } from '@qdb/shared';
+import type { GridColumnConfig, GridRecord } from '@qdb/shared';
 
 type ViewMode = 'table' | 'card';
 import { useFormContext } from '../../../contexts/FormContext';
@@ -187,16 +188,34 @@ const useStyles = makeStyles({
   contentDimmed: {
     opacity: '0.5',
   },
-  searchRow: {
+  // Toolbar: view toggles only (search replaced by per-column filter row)
+  toolbarRow: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: tokens.spacingHorizontalS,
+    justifyContent: 'flex-end',
+    gap: tokens.spacingHorizontalXS,
     paddingBottom: tokens.spacingVerticalXS,
   },
-  searchInput: {
-    minWidth: '220px',
-    flex: '0 0 auto',
+  activeFilterBadge: {
+    marginRight: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorBrandForeground1,
+  },
+  filterCell: {
+    padding: `${tokens.spacingVerticalXXS} ${tokens.spacingHorizontalXS}`,
+    backgroundColor: tokens.colorNeutralBackground3,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+  },
+  filterInput: {
+    width: '100%',
+    minWidth: '80px',
+  },
+  filterSelect: {
+    width: '100%',
+    minWidth: '80px',
   },
   thSortable: {
     display: 'flex',
@@ -217,6 +236,72 @@ const useStyles = makeStyles({
     color: tokens.colorBrandForeground1,
   },
 });
+
+// ── Per-column filter cell ────────────────────────────────────────────────────
+
+type FilterCellStyles = ReturnType<typeof useStyles>;
+
+function renderColumnFilter(
+  col: GridColumnConfig,
+  filterInputs: Record<string, string>,
+  onChange: (attribute: string, value: string) => void,
+  isReadonly: boolean,
+  styles: FilterCellStyles,
+): React.ReactNode {
+  const filterType = col.filterType ?? 'none';
+  const currentValue = filterInputs[col.targetAttribute] ?? '';
+
+  if (filterType === 'text' || filterType === 'lookup') {
+    return (
+      <Input
+        className={styles.filterInput}
+        size="small"
+        placeholder="Filter…"
+        value={currentValue}
+        onChange={(_, d) => onChange(col.targetAttribute, d.value)}
+        disabled={isReadonly}
+        contentAfter={
+          currentValue
+            ? (
+              <Button
+                appearance="transparent"
+                size="small"
+                icon={<DismissRegular />}
+                onClick={() => onChange(col.targetAttribute, '')}
+                aria-label={`Clear filter for ${col.columnLabel}`}
+              />
+            )
+            : undefined
+        }
+        aria-label={`Filter ${col.columnLabel}`}
+      />
+    );
+  }
+
+  if (filterType === 'optionset' && col.options && col.options.length > 0) {
+    return (
+      <Select
+        className={styles.filterSelect}
+        size="small"
+        value={currentValue}
+        onChange={(_, d) => onChange(col.targetAttribute, d.value)}
+        disabled={isReadonly}
+        aria-label={`Filter ${col.columnLabel}`}
+      >
+        <option value="">All</option>
+        {col.options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </Select>
+    );
+  }
+
+  return null;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────────
 
 interface SelectionGridFieldProps extends ControlProps {
   isTabActive: boolean;
@@ -247,24 +332,32 @@ export function SelectionGridField({
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
 
-  // Search state: searchInput is the live value; searchText is the debounced value sent to the backend.
-  const [searchInput, setSearchInput] = useState('');
-  const [searchText, setSearchText] = useState('');
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  // Per-column filter state:
+  //   columnFilterInputs — live values (updated on every keystroke / select change)
+  //   columnFilters      — debounced values sent to the backend
+  const [columnFilterInputs, setColumnFilterInputs] = useState<Record<string, string>>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchInput(value);
-    clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setSearchText(value.trim());
+  const handleColumnFilterChange = useCallback((attribute: string, value: string) => {
+    setColumnFilterInputs((prev) => ({ ...prev, [attribute]: value }));
+    clearTimeout(filterDebounceRef.current);
+    filterDebounceRef.current = setTimeout(() => {
+      setColumnFilters((prev) => {
+        const next = { ...prev, [attribute]: value };
+        if (!value.trim()) delete next[attribute];
+        return next;
+      });
     }, 300);
   }, []);
 
-  const clearSearch = useCallback(() => {
-    clearTimeout(searchDebounceRef.current);
-    setSearchInput('');
-    setSearchText('');
+  const clearAllFilters = useCallback(() => {
+    clearTimeout(filterDebounceRef.current);
+    setColumnFilterInputs({});
+    setColumnFilters({});
   }, []);
+
+  const activeFilterCount = Object.keys(columnFilters).length;
 
   // Sort state: column = null means no override (view default order).
   const [sortState, setSortState] = useState<{ column: string | null; direction: 'asc' | 'desc' }>({
@@ -293,9 +386,10 @@ export function SelectionGridField({
     field.id,
     50,
     dependsOnValue,
-    searchText,
+    undefined,
     sortState.column ?? undefined,
     sortState.column ? sortState.direction : undefined,
+    activeFilterCount > 0 ? columnFilters : undefined,
   );
 
   // Track whether we have records from a previous load so we can show a
@@ -530,53 +624,41 @@ export function SelectionGridField({
         </Text>
       )}
 
-      {/* Search + view toggle row */}
-      <div className={styles.searchRow}>
-        <Input
-          className={styles.searchInput}
+      {/* Toolbar: active filter count + view toggle */}
+      <div className={styles.toolbarRow}>
+        {activeFilterCount > 0 && (
+          <div className={styles.activeFilterBadge}>
+            <FilterRegular />
+            <Text size={200}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
+            <Button
+              appearance="transparent"
+              size="small"
+              icon={<DismissRegular />}
+              onClick={clearAllFilters}
+              aria-label="Clear all filters"
+            />
+          </div>
+        )}
+        <ToggleButton
+          icon={<TableRegular />}
+          checked={viewMode === 'table'}
+          onClick={() => setViewMode('table')}
           size="small"
-          placeholder="Search records…"
-          value={searchInput}
-          onChange={(_, data) => handleSearchChange(data.value)}
-          disabled={isReadonly}
-          contentBefore={<SearchRegular />}
-          contentAfter={
-            searchInput
-              ? (
-                <Button
-                  appearance="transparent"
-                  size="small"
-                  icon={<DismissRegular />}
-                  onClick={clearSearch}
-                  aria-label="Clear search"
-                />
-              )
-              : undefined
-          }
-          aria-label={`Search ${field.label} records`}
-        />
-        <div className={styles.toolbar}>
-          <ToggleButton
-            icon={<TableRegular />}
-            checked={viewMode === 'table'}
-            onClick={() => setViewMode('table')}
-            size="small"
-            aria-label="Table view"
-            appearance={viewMode === 'table' ? 'primary' : 'subtle'}
-          >
-            Table
-          </ToggleButton>
-          <ToggleButton
-            icon={<GridRegular />}
-            checked={viewMode === 'card'}
-            onClick={() => setViewMode('card')}
-            size="small"
-            aria-label="Card view"
-            appearance={viewMode === 'card' ? 'primary' : 'subtle'}
-          >
-            Cards
-          </ToggleButton>
-        </div>
+          aria-label="Table view"
+          appearance={viewMode === 'table' ? 'primary' : 'subtle'}
+        >
+          Table
+        </ToggleButton>
+        <ToggleButton
+          icon={<GridRegular />}
+          checked={viewMode === 'card'}
+          onClick={() => setViewMode('card')}
+          size="small"
+          aria-label="Card view"
+          appearance={viewMode === 'card' ? 'primary' : 'subtle'}
+        >
+          Cards
+        </ToggleButton>
       </div>
 
       {/* Card view */}
@@ -668,6 +750,16 @@ export function SelectionGridField({
                 ))}
               </tr>
             ))}
+            <tr role="row" aria-label="Column filters">
+              {selectionMode === 'multi' && (
+                <td className={styles.filterCell} />
+              )}
+              {sortedCols.map((col) => (
+                <td key={`filter-${col.columnId}`} className={styles.filterCell}>
+                  {renderColumnFilter(col, columnFilterInputs, handleColumnFilterChange, isReadonly, styles)}
+                </td>
+              ))}
+            </tr>
           </thead>
           <tbody>
             {table.getRowModel().rows.length === 0 ? (

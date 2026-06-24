@@ -1,0 +1,12 @@
+{
+  "toggle": {
+    "en": "EN",
+    "ar": "AR",
+    "label": "Language"
+  },
+  "loading": "Loading form…",
+  "error": {
+    "formNotFound": "Form definition not found.",
+    "loadFailed": "Failed to load form"
+  }
+}

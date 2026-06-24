@@ -13,8 +13,10 @@ export const formApi = {
   clone: (formCode: string) =>
     apiClient.post<{ newFormId: string; newFormCode: string }>(`/forms/${formCode}/clone`, {}),
 
-  getMetadata: (formCode: string) =>
-    apiClient.get<FormDefinition>(`/forms/${formCode}/metadata`),
+  getMetadata: (formCode: string, lang?: string) => {
+    const qs = lang ? `?lang=${encodeURIComponent(lang)}` : '';
+    return apiClient.get<FormDefinition>(`/forms/${formCode}/metadata${qs}`);
+  },
 
   getData: (formCode: string, recordId: string) =>
     apiClient.get<FormFieldValues>(`/forms/${formCode}/data/${recordId}`),

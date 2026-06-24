@@ -53,6 +53,8 @@ export function DecimalControl({
       min={minRule?.minValue}
       max={maxRule?.maxValue}
       step={Math.pow(10, -precision)}
+      contentBefore={field.prefix ? <span>{field.prefix}</span> : undefined}
+      contentAfter={field.suffix ? <span>{field.suffix}</span> : undefined}
       appearance="outline"
       style={{ width: '100%' }}
     />

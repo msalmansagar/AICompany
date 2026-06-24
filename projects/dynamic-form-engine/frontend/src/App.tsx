@@ -11,6 +11,7 @@ import {
 import { msalInstance, loginRequest } from './auth/msalConfig';
 import { DynamicFormRenderer } from './components/forms/DynamicFormRenderer';
 import { FormCatalogue } from './components/forms/FormCatalogue';
+import { LanguageProvider } from './i18n';
 
 const useStyles = makeStyles({
   loginScreen: {
@@ -62,16 +63,18 @@ export function App() {
     void msalInstance.loginPopup(loginRequest);
   }
 
+  // Language + RTL are scoped to the form view only (OQ-001). The catalogue
+  // and portal shell are intentionally NOT wrapped, so they stay English/LTR.
+  const content = formCode ? (
+    <LanguageProvider>
+      <DynamicFormRenderer formCode={formCode} recordId={recordId} />
+    </LanguageProvider>
+  ) : (
+    <FormCatalogue />
+  );
+
   if (import.meta.env.VITE_SKIP_AUTH === 'true') {
-    return (
-      <div className={styles.appWrapper}>
-        {formCode ? (
-          <DynamicFormRenderer formCode={formCode} recordId={recordId} />
-        ) : (
-          <FormCatalogue />
-        )}
-      </div>
-    );
+    return <div className={styles.appWrapper}>{content}</div>;
   }
 
   return (
@@ -98,13 +101,7 @@ export function App() {
       </UnauthenticatedTemplate>
 
       <AuthenticatedTemplate>
-        <div className={styles.appWrapper}>
-          {formCode ? (
-            <DynamicFormRenderer formCode={formCode} recordId={recordId} />
-          ) : (
-            <FormCatalogue />
-          )}
-        </div>
+        <div className={styles.appWrapper}>{content}</div>
       </AuthenticatedTemplate>
     </>
   );

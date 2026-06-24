@@ -54,7 +54,8 @@ export function NumberControl({
       aria-invalid={!!errorId}
       min={minRule?.minValue}
       max={maxRule?.maxValue}
-      contentBefore={prefix ? <span>{prefix}</span> : undefined}
+      contentBefore={(prefix ?? field.prefix) ? <span>{prefix ?? field.prefix}</span> : undefined}
+      contentAfter={field.suffix ? <span>{field.suffix}</span> : undefined}
       appearance="outline"
       style={{ width: '100%' }}
     />

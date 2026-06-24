@@ -30,6 +30,9 @@ interface FormActionBarProps {
   sticky?: boolean;
   // When false the submit button is hidden (user is not on the final tab yet).
   showSubmit?: boolean;
+  // When true, the submit button becomes "Review & Submit" which calls onReview instead of submitting.
+  reviewMode?: boolean;
+  onReview?: () => void;
 }
 
 const DEFAULT_BUTTON: FormButton = {
@@ -87,7 +90,7 @@ const useStyles = makeStyles({
   },
 });
 
-export function FormActionBar({ sticky = false, showSubmit = true }: FormActionBarProps) {
+export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = false, onReview }: FormActionBarProps) {
   const styles = useStyles();
   const {
     formDefinition,
@@ -151,7 +154,8 @@ export function FormActionBar({ sticky = false, showSubmit = true }: FormActionB
           isDirty={isDirty}
           validationErrors={validationErrors}
           saveDraftState={saveDraftState}
-          onSubmit={() => { void submitForm(); }}
+          reviewMode={reviewMode}
+          onSubmit={reviewMode && onReview ? onReview : () => { void submitForm(); }}
           onSaveDraft={() => { void handleSaveDraft(); }}
           onCancel={() => { window.history.back(); }}
           onReset={resetForm}
@@ -167,6 +171,7 @@ interface FormButtonItemProps {
   isDirty: boolean;
   validationErrors: Record<string, string[]>;
   saveDraftState: 'idle' | 'saving' | 'saved' | 'error';
+  reviewMode: boolean;
   onSubmit: () => void;
   onSaveDraft: () => void;
   onCancel: () => void;
@@ -179,6 +184,7 @@ function FormButtonItem({
   isDirty,
   validationErrors,
   saveDraftState,
+  reviewMode,
   onSubmit,
   onSaveDraft,
   onCancel,
@@ -195,6 +201,7 @@ function FormButtonItem({
   if (button.action === 'submit') {
     const errorCount = Object.values(validationErrors).reduce((n, errs) => n + errs.length, 0);
     const icon = isSubmitting ? <Spinner size="tiny" /> : ACTION_ICON.submit;
+    const label = reviewMode ? 'Review & Submit' : button.label;
 
     return (
       <div className={styles.submitWrapper}>
@@ -205,9 +212,9 @@ function FormButtonItem({
           disabled={isSubmitting}
           onClick={onSubmit}
           aria-busy={isSubmitting}
-          aria-label={isSubmitting ? 'Submitting…' : button.label}
+          aria-label={isSubmitting ? 'Submitting…' : label}
         >
-          {isSubmitting ? 'Submitting…' : button.label}
+          {isSubmitting ? 'Submitting…' : label}
         </Button>
         {errorCount > 0 && !isSubmitting && (
           <Badge
