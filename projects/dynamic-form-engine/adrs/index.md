@@ -17,3 +17,4 @@
 | ADR-ADD-002 | Entry Grid atomic transaction via Dataverse $batch changeset | Accepted | 2026-06-06 | Architect |
 | ADR-ADD-003 | Selection Grid lazy loading on tab activation (NFR-001 protection) | Accepted | 2026-06-06 | Architect |
 | ADR-ADD-004 | Info-Card first-view audit via dedicated qdb_info_card_view_record entity | Accepted | 2026-06-06 | Architect |
+| ADR-i18n-001 | Universal translation table (qdb_translation) over sibling columns or per-entity child tables | Accepted | 2026-06-24 | Architect |
