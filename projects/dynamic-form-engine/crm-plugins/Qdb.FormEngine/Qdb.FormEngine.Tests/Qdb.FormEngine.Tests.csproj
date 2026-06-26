@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>Qdb.FormEngine.Tests</RootNamespace>
+    <AssemblyName>Qdb.FormEngine.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.7.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Moq" Version="4.20.70" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.49" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Qdb.FormEngine.Core\Qdb.FormEngine.Core.csproj" />
+    <ProjectReference Include="..\Qdb.FormEngine.Data\Qdb.FormEngine.Data.csproj" />
+    <ProjectReference Include="..\Qdb.FormEngine.Plugins\Qdb.FormEngine.Plugins.csproj" />
+  </ItemGroup>
+
+</Project>

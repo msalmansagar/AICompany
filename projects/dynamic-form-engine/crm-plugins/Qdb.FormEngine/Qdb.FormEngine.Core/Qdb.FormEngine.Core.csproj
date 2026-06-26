@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{A1111111-0000-0000-0000-000000000001}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Qdb.FormEngine.Core</RootNamespace>
+    <AssemblyName>Qdb.FormEngine.Core</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Xrm.Sdk, Version=9.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.CrmSdk.CoreAssemblies.9.0.2.49\lib\net462\Microsoft.Xrm.Sdk.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Abstractions\FormRawData.cs" />
+    <Compile Include="Abstractions\IMetadataReader.cs" />
+    <Compile Include="Abstractions\IRenderCacheRepository.cs" />
+    <Compile Include="Abstractions\IPublishJobRepository.cs" />
+    <Compile Include="Abstractions\RenderCacheWriteRequest.cs" />
+    <Compile Include="Generation\EntityHelper.cs" />
+    <Compile Include="Generation\FieldBuilder.cs" />
+    <Compile Include="Generation\IFormJsonGenerator.cs" />
+    <Compile Include="Generation\FormJsonGenerator.cs" />
+    <Compile Include="Generation\ITranslationResolver.cs" />
+    <Compile Include="Generation\TranslationResolver.cs" />
+    <Compile Include="Generation\ISecurityStripper.cs" />
+    <Compile Include="Generation\SecurityStripper.cs" />
+    <Compile Include="Hashing\HashService.cs" />
+    <Compile Include="Models\FormDefinitionModel.cs" />
+    <Compile Include="Models\PicklistMapper.cs" />
+    <Compile Include="Models\TranslationMap.cs" />
+    <Compile Include="Serialization\IJsonSerializer.cs" />
+    <Compile Include="Serialization\NewtonsoftJsonSerializer.cs" />
+    <Compile Include="Serialization\GzipCompressor.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\Newtonsoft.Json.13.0.3\build\net45\Newtonsoft.Json.targets" Condition="Exists('..\packages\Newtonsoft.Json.13.0.3\build\net45\Newtonsoft.Json.targets')" />
+</Project>

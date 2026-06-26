@@ -1,0 +1,7 @@
+# Build outputs and restored packages for the C# plugin solution
+[Bb]in/
+[Oo]bj/
+packages/
+dist/
+.vs/
+*.user
