@@ -17,8 +17,12 @@ import { CrmContext } from '@/app/App';
 import { FormDefinitionService } from '@/services/FormDefinitionService';
 import { VersionService } from '@/services/VersionService';
 import { AuditLogService } from '@/services/AuditLogService';
+import { PublishService } from '@/services/PublishService';
+import { PUBLISH_JOB_STATUS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
 import { validateForPublish, type ValidationIssue } from '@/validation/publishValidation';
+
+type RenderCacheStatus = 'idle' | 'generating' | 'complete' | 'failed';
 
 const PUBLISH_GATE_DESCRIPTIONS: Record<string, string> = {
   'PV-001': 'Form name is present and valid',
@@ -110,6 +114,13 @@ const useStyles = makeStyles({
     gap: '8px',
     alignItems: 'center',
   },
+  renderCacheStatusRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '12px',
+    color: tokens.colorNeutralForeground3,
+  },
 });
 
 interface GateRowProps {
@@ -165,6 +176,9 @@ export function PublishValidationScreen(): React.ReactElement {
   const [isValidating, setIsValidating] = useState(true);
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [renderCacheStatus, setRenderCacheStatus] = useState<RenderCacheStatus>('idle');
+  const [renderCacheError, setRenderCacheError] = useState<string | null>(null);
+  const [publishJobId, setPublishJobId] = useState<string | null>(null);
 
   useEffect(() => {
     const state = useDesignerStore.getState();
@@ -205,6 +219,30 @@ export function PublishValidationScreen(): React.ReactElement {
       );
 
       await auditService.logAction(form.id, 'PUBLISH', { versionNumber: newVersion });
+
+      // Phase 5 — trigger render cache generation (non-blocking UI)
+      if (!crmService.isRestMode()) {
+        const publishService = new PublishService(webApi);
+        const jobId = await publishService.publish({
+          formDefinitionId: form.id,
+          formCode: form.code,
+          targetVersion: newVersion,
+        });
+        setPublishJobId(jobId);
+        setRenderCacheStatus('generating');
+        // Poll in the background — do not block UI navigation
+        void publishService.pollUntilComplete(jobId).then((finalStatus) => {
+          if (finalStatus.status === PUBLISH_JOB_STATUS.COMPLETED) {
+            setRenderCacheStatus('complete');
+          } else {
+            setRenderCacheStatus('failed');
+            setRenderCacheError(finalStatus.errorDetails ?? 'Render cache generation failed.');
+          }
+        }).catch((err: unknown) => {
+          setRenderCacheStatus('failed');
+          setRenderCacheError(err instanceof Error ? err.message : 'Render cache generation failed.');
+        });
+      }
 
       markPublished();
       navigateTo('designer');
@@ -279,6 +317,27 @@ export function PublishValidationScreen(): React.ReactElement {
             <Text size={300} style={{ color: tokens.colorPaletteRedForeground1 }} role="alert">
               {publishError}
             </Text>
+          )}
+
+          {(publishJobId !== null || renderCacheStatus !== 'idle') && (
+            <div className={styles.renderCacheStatusRow} role="status" aria-live="polite">
+              {renderCacheStatus === 'generating' && (
+                <>
+                  <Spinner size="tiny" />
+                  <Text size={200}>Generating render cache...</Text>
+                </>
+              )}
+              {renderCacheStatus === 'complete' && (
+                <Text size={200} style={{ color: tokens.colorPaletteGreenForeground1 }}>
+                  Render cache generated successfully.
+                </Text>
+              )}
+              {renderCacheStatus === 'failed' && (
+                <Text size={200} style={{ color: tokens.colorPaletteRedForeground1 }}>
+                  {renderCacheError ?? 'Render cache generation failed.'}
+                </Text>
+              )}
+            </div>
           )}
 
           <div className={styles.footerActions}>

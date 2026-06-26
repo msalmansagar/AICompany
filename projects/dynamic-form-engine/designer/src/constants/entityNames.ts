@@ -28,6 +28,9 @@ export const ENTITY_NAMES = {
   // i18n
   TRANSLATION: 'qdb_translation',
   LANGUAGE_CONFIG: 'qdb_language_config',
+  // Phase 5 — render cache
+  PUBLISH_JOB: 'qdb_publish_job',
+  FORM_RENDER_CACHE: 'qdb_form_render_cache',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

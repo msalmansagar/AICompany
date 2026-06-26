@@ -22,6 +22,10 @@ declare namespace Xrm {
       options?: string,
       maxPageSize?: number
     ): Promise<{ entities: Array<Record<string, unknown>>; nextLink?: string }>;
+
+    namespace online {
+      function execute(request: unknown): Promise<unknown>;
+    }
   }
 
   namespace Utility {

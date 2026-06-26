@@ -3,6 +3,8 @@ import type {
   WebApiRecord,
   WebApiCreateResult,
   WebApiRetrieveMultipleResult,
+  ActionParameters,
+  ActionResult,
 } from './IWebApiAdapter';
 
 // Thin adapter wrapping Xrm.WebApi so it satisfies IWebApiAdapter.
@@ -37,5 +39,21 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
       entities: result.entities as WebApiRecord[],
       nextLink: result.nextLink,
     };
+  }
+
+  async executeAction(actionName: string, parameters: ActionParameters): Promise<ActionResult> {
+    const request = {
+      ...parameters,
+      getMetadata: () => ({
+        boundParameter: null,
+        operationType: 0,           // 0 = Action
+        operationName: actionName,
+        parameterTypes: {}          // Xrm infers types at runtime
+      }),
+    };
+    const xrmResult = await (this.xrmWebApi as typeof Xrm.WebApi & {
+      online: { execute(request: unknown): Promise<unknown> }
+    }).online.execute(request);
+    return (xrmResult ?? {}) as ActionResult;
   }
 }

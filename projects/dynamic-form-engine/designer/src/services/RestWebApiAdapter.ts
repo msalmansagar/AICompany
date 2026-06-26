@@ -3,6 +3,8 @@ import type {
   WebApiRecord,
   WebApiCreateResult,
   WebApiRetrieveMultipleResult,
+  ActionParameters,
+  ActionResult,
 } from './IWebApiAdapter';
 
 const PROXY_BASE = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/designer/records`;
@@ -15,6 +17,15 @@ export class RestWebApiAdapterError extends Error {
   ) {
     super(message);
     this.name = 'RestWebApiAdapterError';
+  }
+}
+
+export class CrmActionNotAvailableError extends Error {
+  constructor(actionName: string) {
+    super(
+      `CRM action '${actionName}' requires the designer to run inside Dynamics CRM UCI. Standalone REST mode does not support CRM actions.`
+    );
+    this.name = 'CrmActionNotAvailableError';
   }
 }
 
@@ -59,6 +70,10 @@ export class RestWebApiAdapter implements IWebApiAdapter {
     options = '',
   ): Promise<WebApiRetrieveMultipleResult> {
     return this.request<WebApiRetrieveMultipleResult>(`/${entityLogicalName}${options}`);
+  }
+
+  async executeAction(actionName: string, _parameters: ActionParameters): Promise<ActionResult> {
+    throw new CrmActionNotAvailableError(actionName);
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

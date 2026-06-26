@@ -37,6 +37,14 @@ export class CrmContextService {
     return import.meta.env.VITE_API_BASE_URL ?? '';
   }
 
+  /**
+   * Returns true when running in standalone REST mode (outside Dynamics CRM UCI).
+   * CRM custom actions (executeAction) are not available in REST mode.
+   */
+  isRestMode(): boolean {
+    return this.xrm === null;
+  }
+
   getUserContext(): CrmUserContext {
     if (this.xrm) {
       const globalContext = this.xrm.Utility.getGlobalContext();
