@@ -35,6 +35,12 @@ const envSchema = z.object({
   TRANSLATION_QUERY_TIMEOUT_MS: z.coerce.number().default(5_000),
   // DFE-i18n-001: per-language form definition cache TTL (5 min default).
   FORM_CACHE_TTL_MS: z.coerce.number().default(300_000),
+  // DFE-RC-001: feature flag to serve form JSON from the Dataverse render cache entity.
+  USE_RENDER_CACHE: z.string().default('false').transform((v) => v === 'true'),
+  // DFE-RC-001: TTL for in-process render cache entries (seconds).
+  RENDER_CACHE_TTL_SECONDS: z.coerce.number().default(300),
+  // DFE-RC-001: optional Redis URL — when set, RedisRenderCacheStore is used instead of MemoryRenderCacheStore.
+  REDIS_URL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

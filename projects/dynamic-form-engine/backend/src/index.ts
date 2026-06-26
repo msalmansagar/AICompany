@@ -1,4 +1,4 @@
-﻿import 'express-async-errors';
+import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -31,6 +31,9 @@ import { CrmTranslationQueryService } from './services/CrmTranslationQueryServic
 import { CrmTranslationWriteService } from './services/CrmTranslationWriteService.js';
 import { TranslationResolutionService } from './services/TranslationResolutionService.js';
 import { CssSanitiserService } from './utils/cssSanitiser.js';
+import { PublishedFormService } from './services/PublishedFormService.js';
+import { createRenderCacheStore } from './services/RenderCacheStore.js';
+import type { IRenderCacheStore } from './services/RenderCacheStore.js';
 import {
   MockMetadataService,
   MockDataService,
@@ -54,8 +57,8 @@ import { createDesignerProxyRouter } from './routes/designer-proxy.routes.js';
 import { createTranslationsRouter } from './routes/translations.routes.js';
 import type { FormDefinition, DesignPayload, ThemeDefinition, LanguageConfig } from '@qdb/shared';
 
-// â”€â”€ Service wiring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// TTL=0 means no caching (every request hits Dataverse â€” useful for local dev).
+// ── Service wiring ─────────────────────────────────────────────────────────────
+// TTL=0 means no caching (every request hits Dataverse — useful for local dev).
 const metadataCache = new LRUCache<string, FormDefinition>(
   config.METADATA_CACHE_TTL_SECONDS > 0
     ? { max: 500, ttl: config.METADATA_CACHE_TTL_SECONDS * 1000 }
@@ -141,7 +144,24 @@ const designerProxyService = config.MOCK_CRM
   ? null
   : new CrmDesignerProxyService(authService);
 
-// â”€â”€ Express app â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── DFE-RC-001: Render cache store and service ─────────────────────────────────
+// Resolved asynchronously; app start deferred until store is ready.
+let renderCacheStore: IRenderCacheStore | null = null;
+let publishedFormService: PublishedFormService | null = null;
+
+async function initRenderCacheServices(): Promise<void> {
+  if (!config.USE_RENDER_CACHE || config.MOCK_CRM) return;
+
+  renderCacheStore = await createRenderCacheStore(config.RENDER_CACHE_TTL_SECONDS, config.REDIS_URL);
+  publishedFormService = new PublishedFormService(authService, renderCacheStore, languageConfigService);
+
+  logger.info(
+    { ttlSeconds: config.RENDER_CACHE_TTL_SECONDS, redis: Boolean(config.REDIS_URL) },
+    'Render cache enabled',
+  );
+}
+
+// ── Express app ────────────────────────────────────────────────────────────────
 const app = express();
 
 app.use(helmet());
@@ -158,43 +178,66 @@ if (languageConfigService) {
   app.use('/api/languages', createLanguagesRouter(languageConfigService));
 }
 
-// â”€â”€ Authenticated routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.use('/api', authMiddleware);
-app.use('/api/lookups', createLookupsRouter(lookupService));
-app.use('/api/forms', createFormsRouter(metadataService, dataService, submissionService, designService, cloneService, policyService, infoCardService, languageConfigService));
-if (gridDataService) {
-  app.use('/api/grids', createGridsRouter(gridDataService));
-}
-app.use('/api/options', createOptionsRouter(metadataService));
-app.use('/api/files', createFilesRouter(fileService, documentService));
-app.use('/api/themes', createThemesRouter(designService));
-app.use('/api/form-design', createFormDesignRouter(designService));
-app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
-app.use('/api/admin', createAdminRouter(metadataService, designService));
-if (infoCardAdminService) {
-  app.use('/api/admin', createInfoCardsAdminRouter(infoCardAdminService));
-}
-if (designerProxyService) {
-  app.use('/api/designer/records', createDesignerProxyRouter(designerProxyService));
-}
-// PUT|GET|DELETE /api/design/translations — designer translation authoring (auth-gated)
-if (translationWriteService && languageConfigService) {
-  app.use('/api/design/translations', createTranslationsRouter(translationWriteService, languageConfigService));
-}
-// POST /api/internal/cache/invalidate — auth-required internal endpoint (loopback restriction can be added later)
-if (languageConfigService) {
-  app.use('/api/internal/cache', createInternalCacheRouter(metadataService, languageConfigService));
+// ── Authenticated routes + server start ────────────────────────────────────────
+// The render-cache services are resolved asynchronously, so the authenticated
+// routers (forms, internal-cache) MUST be registered AFTER initRenderCacheServices()
+// completes — otherwise they capture null publishedFormService/renderCacheStore and
+// the render-cache hot path never engages.
+async function bootstrap(): Promise<void> {
+  await initRenderCacheServices();
+
+  app.use('/api', authMiddleware);
+  app.use('/api/lookups', createLookupsRouter(lookupService));
+  app.use('/api/forms', createFormsRouter(
+    metadataService,
+    dataService,
+    submissionService,
+    designService,
+    cloneService,
+    policyService,
+    infoCardService,
+    languageConfigService,
+    publishedFormService,
+    config.USE_RENDER_CACHE,
+  ));
+  if (gridDataService) {
+    app.use('/api/grids', createGridsRouter(gridDataService));
+  }
+  app.use('/api/options', createOptionsRouter(metadataService));
+  app.use('/api/files', createFilesRouter(fileService, documentService));
+  app.use('/api/themes', createThemesRouter(designService));
+  app.use('/api/form-design', createFormDesignRouter(designService));
+  app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
+  app.use('/api/admin', createAdminRouter(metadataService, designService));
+  if (infoCardAdminService) {
+    app.use('/api/admin', createInfoCardsAdminRouter(infoCardAdminService));
+  }
+  if (designerProxyService) {
+    app.use('/api/designer/records', createDesignerProxyRouter(designerProxyService));
+  }
+  // PUT|GET|DELETE /api/design/translations — designer translation authoring (auth-gated)
+  if (translationWriteService && languageConfigService) {
+    app.use('/api/design/translations', createTranslationsRouter(translationWriteService, languageConfigService));
+  }
+  // POST /api/internal/cache/invalidate — auth-required internal endpoint (loopback restriction can be added later)
+  if (languageConfigService) {
+    app.use('/api/internal/cache', createInternalCacheRouter(metadataService, languageConfigService, renderCacheStore));
+  }
+
+  // Error handler must be registered last.
+  app.use(errorMiddleware);
+
+  app.listen(config.PORT, () => {
+    logger.info(
+      { port: config.PORT, env: config.NODE_ENV, mockCrm: config.MOCK_CRM, renderCache: config.USE_RENDER_CACHE },
+      'Dynamic Form Engine API started',
+    );
+  });
 }
 
-// â”€â”€ Error handler (must be last) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.use(errorMiddleware);
-
-// â”€â”€ Start server â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-app.listen(config.PORT, () => {
-  logger.info(
-    { port: config.PORT, env: config.NODE_ENV, mockCrm: config.MOCK_CRM },
-    'Dynamic Form Engine API started',
-  );
+bootstrap().catch((error: unknown) => {
+  logger.error({ error }, 'Failed to initialise render cache — aborting startup');
+  process.exit(1);
 });
 
 export {
@@ -204,4 +247,5 @@ export {
   designService, cloneService, designerProxyService, policyService,
   infoCardService, infoCardAdminService, gridDataService,
   languageConfigService, translationQueryService, translationWriteService, translationResolutionService,
+  renderCacheStore, publishedFormService,
 };

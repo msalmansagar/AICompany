@@ -67,3 +67,9 @@ export class UnsupportedLanguageError extends AppError {
     this.supportedCodes = supportedCodes;
   }
 }
+
+export class CacheMissError extends AppError {
+  constructor(message = 'Render cache miss — no published record found') {
+    super(message, 503, 'RENDER_CACHE_MISS');
+  }
+}

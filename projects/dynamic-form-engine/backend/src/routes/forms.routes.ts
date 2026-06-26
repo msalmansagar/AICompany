@@ -11,9 +11,10 @@ import type { CrmInfoCardService } from '../services/CrmInfoCardService.js';
 import type { CrmLanguageConfigService } from '../services/CrmLanguageConfigService.js';
 import { assertFormAccess } from '../middleware/role.middleware.js';
 import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload } from '@qdb/shared';
-import { ForbiddenError, UnsupportedLanguageError } from '../utils/errors.js';
+import { ForbiddenError, UnsupportedLanguageError, CacheMissError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import type { PublishedFormService } from '../services/PublishedFormService.js';
 
 // BCP-47 short code pattern — character-level defence-in-depth (C-007, NFR-007 Layer 1)
 const LANG_PARAM_REGEX = z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/).max(10);
@@ -51,6 +52,8 @@ export function createFormsRouter(
   policyService: AccessPolicyService | null,
   infoCardService: CrmInfoCardService | null = null,
   languageConfigService: CrmLanguageConfigService | null = null,
+  publishedFormService: PublishedFormService | null = null,
+  renderCacheEnabled: boolean = false,
 ): Router {
   const router = Router();
 
@@ -66,10 +69,21 @@ export function createFormsRouter(
   // GET /api/forms/:formCode/metadata
   // Fetches form definition and design payload in parallel.
   // Design failures are non-fatal — the DEFAULT_LIGHT_THEME is used as fallback.
+  // When USE_RENDER_CACHE=true, attempts the render cache first and falls back
+  // to live multi-table assembly on CacheMissError.
   router.get('/:formCode/metadata', async (req: Request, res: Response) => {
     const formCode = SAFE_FORM_CODE.parse(req.params.formCode);
     const lang = await extractLang(req, languageConfigService);
-    const form = await metadataService.getFormDefinition(formCode, lang);
+
+    const form = await resolveFormDefinition(
+      formCode,
+      lang,
+      renderCacheEnabled,
+      publishedFormService,
+      metadataService,
+      req.correlationId,
+    );
+
     assertFormAccess(form, req.user!);
     await assertPolicyAccess(policyService, form.id, req.user!.roles ?? [], 'view');
 
@@ -343,8 +357,37 @@ async function assertPolicyAccess(
   }
 }
 
+// Resolves a FormDefinition via the render cache hot path when enabled, falling
+// back transparently to the live multi-table CrmMetadataService assembly on a
+// CacheMissError.  Other errors propagate unchanged.
+async function resolveFormDefinition(
+  formCode: string,
+  lang: string,
+  renderCacheEnabled: boolean,
+  publishedFormService: PublishedFormService | null,
+  metadataService: CrmMetadataService,
+  correlationId: string,
+): Promise<FormDefinition> {
+  if (renderCacheEnabled && publishedFormService) {
+    try {
+      return await publishedFormService.getPublishedJson(formCode, lang);
+    } catch (error) {
+      if (error instanceof CacheMissError) {
+        logger.warn(
+          { formCode, lang, correlationId },
+          'Render cache miss — falling back to live Dataverse assembly',
+        );
+        // Intentional fall-through to live assembly below.
+      } else {
+        throw error;
+      }
+    }
+  }
+  return metadataService.getFormDefinition(formCode, lang);
+}
+
 // Design fetch is intentionally separated so a Dataverse design service failure
-// does not prevent the form from rendering â€” the frontend can use default styles.
+// does not prevent the form from rendering — the frontend can use default styles.
 async function fetchDesignWithFallback(
   designService: CrmDesignService,
   formCode: string,
