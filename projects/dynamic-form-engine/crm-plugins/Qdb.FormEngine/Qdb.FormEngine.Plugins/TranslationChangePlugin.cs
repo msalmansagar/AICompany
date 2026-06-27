@@ -146,18 +146,18 @@ namespace Qdb.FormEngine.Plugins
             // For section/field/option entities that link through tab -> form, walk the chain.
             if (string.Equals(entityName, "qdb_form_section", StringComparison.OrdinalIgnoreCase))
             {
-                var section = service.Retrieve(entityName, recordId, new ColumnSet("_qdb_form_tab_id_value"));
-                var tabRef = section.GetAttributeValue<EntityReference>("_qdb_form_tab_id_value");
+                var section = service.Retrieve(entityName, recordId, new ColumnSet("qdb_form_tab_id"));
+                var tabRef = section.GetAttributeValue<EntityReference>("qdb_form_tab_id");
                 if (tabRef == null) return Guid.Empty;
-                var tab = service.Retrieve("qdb_form_tab", tabRef.Id, new ColumnSet("_qdb_form_definition_id_value"));
-                var formRef = tab.GetAttributeValue<EntityReference>("_qdb_form_definition_id_value");
+                var tab = service.Retrieve("qdb_form_tab", tabRef.Id, new ColumnSet("qdb_form_definition_id"));
+                var formRef = tab.GetAttributeValue<EntityReference>("qdb_form_definition_id");
                 return formRef?.Id ?? Guid.Empty;
             }
 
             if (string.Equals(entityName, "qdb_form_field", StringComparison.OrdinalIgnoreCase))
             {
-                var field = service.Retrieve(entityName, recordId, new ColumnSet("_qdb_form_section_id_value"));
-                var sectionRef = field.GetAttributeValue<EntityReference>("_qdb_form_section_id_value");
+                var field = service.Retrieve(entityName, recordId, new ColumnSet("qdb_form_section_id"));
+                var sectionRef = field.GetAttributeValue<EntityReference>("qdb_form_section_id");
                 if (sectionRef == null) return Guid.Empty;
                 return ResolveViaTab(service, "qdb_form_section", sectionRef.Id);
             }
@@ -169,11 +169,11 @@ namespace Qdb.FormEngine.Plugins
         {
             switch (entityName.ToLowerInvariant())
             {
-                case "qdb_form_tab": return "_qdb_form_definition_id_value";
-                case "qdb_form_button": return "_qdb_form_definition_id_value";
-                case "qdb_form_submission_mapping": return "_qdb_form_definition_id_value";
-                case "qdb_form_business_rule": return "_qdb_form_definition_id_value";
-                case "qdb_info_card_screen": return "_qdb_form_definition_id_value";
+                case "qdb_form_tab": return "qdb_form_definition_id";
+                case "qdb_form_button": return "qdb_form_definition_id";
+                case "qdb_form_submission_mapping": return "qdb_form_definition_id";
+                case "qdb_form_business_rule": return "qdb_form_definition_id";
+                case "qdb_info_card_screen": return "qdb_form_definition_id";
                 default: return null;
             }
         }

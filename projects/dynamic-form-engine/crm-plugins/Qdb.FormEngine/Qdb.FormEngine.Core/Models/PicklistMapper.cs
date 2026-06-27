@@ -146,6 +146,18 @@ namespace Qdb.FormEngine.Core.Models
             }
         }
 
+        /// <summary>Maps qdb_section_type option set values for info-card sections.</summary>
+        public static string ToInfoCardSectionType(int? value)
+        {
+            switch (value)
+            {
+                case 100000000: return "numbered-steps";
+                case 100000001: return "icon-list";
+                case 100000002: return "download-list";
+                default: return "numbered-steps";
+            }
+        }
+
         /// <summary>Maps qdb_action option set values for business rules.</summary>
         public static string ToBusinessRuleAction(int? value)
         {

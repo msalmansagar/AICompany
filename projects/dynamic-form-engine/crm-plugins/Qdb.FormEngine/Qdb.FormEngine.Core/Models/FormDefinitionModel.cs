@@ -196,8 +196,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("maxFileSizeBytes")] public long MaxFileSizeBytes { get; set; }
         [JsonProperty("destination")] public string Destination { get; set; }
         [JsonProperty("maxFiles")] public int MaxFiles { get; set; }
-        [JsonProperty("documentType")] public string DocumentType { get; set; }
-        [JsonProperty("allowedFileExtensions")] public List<string> AllowedFileExtensions { get; set; }
+        [JsonProperty("documentType")] public int? DocumentType { get; set; }
+        [JsonProperty("allowedFileExtensions")] public List<int> AllowedFileExtensions { get; set; }
     }
 
     /// <summary>Maps a form field value to a CRM entity attribute during submission.</summary>

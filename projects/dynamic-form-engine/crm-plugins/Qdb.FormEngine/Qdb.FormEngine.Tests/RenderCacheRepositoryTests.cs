@@ -103,6 +103,24 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal((long)gzipBytes.Length, capturedEntity.GetAttributeValue<long>("qdb_json_size_bytes"));
         }
 
+        // ── Oversized payload guard ───────────────────────────────────────────
+
+        [Fact]
+        public void WriteCache_WhenPayloadExceedsMemoLimit_ThrowsBeforeWriting()
+        {
+            // Arrange — a payload whose Base64 length exceeds the qdb_runtime_json safe limit.
+            // 800,000 bytes -> ~1.07M Base64 chars, beyond 90% of the 1,048,576 Memo cap.
+            var serviceMock = new Mock<IOrganizationService>();
+            var oversizedBytes = new byte[800000];
+            var request = BuildWriteRequest(oversizedBytes);
+            var repository = new RenderCacheRepository(serviceMock.Object);
+
+            // Act / Assert — rejected with an actionable message and no write attempted.
+            var error = Assert.Throws<InvalidOperationException>(() => repository.WriteCache(request));
+            Assert.Contains("too large", error.Message);
+            serviceMock.Verify(s => s.Create(It.IsAny<Entity>()), Times.Never);
+        }
+
         // ── Full round-trip: gzip → Base64 → store → read → Base64-decode → gunzip → JSON ───
 
         [Fact]

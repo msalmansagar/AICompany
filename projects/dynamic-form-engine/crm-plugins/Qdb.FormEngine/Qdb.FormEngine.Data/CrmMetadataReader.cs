@@ -89,7 +89,10 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_language_code", ConditionOperator.Equal, languageCode);
-            query.Criteria.AddCondition("qdb_record_id", ConditionOperator.In, recordIds.Cast<object>().ToArray());
+            // qdb_record_id is a string column; match against the standard "D" GUID format
+            // ("xxxxxxxx-xxxx-..."), not raw Guid values, or the In filter matches nothing.
+            var recordIdStrings = recordIds.Select(id => (object)id.ToString()).ToArray();
+            query.Criteria.AddCondition("qdb_record_id", ConditionOperator.In, recordIdStrings);
 
             var results = RetrieveAll(query);
             var map = new TranslationMap();
@@ -127,11 +130,11 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_tab")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_icon_name", "qdb_display_order", "qdb_is_visible",
-                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "_qdb_form_definition_id_value"),
+                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "qdb_form_definition_id"),
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -142,11 +145,11 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_section")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_description", "qdb_display_order", "qdb_columns",
-                    "qdb_is_collapsible", "qdb_is_collapsed_by_default", "qdb_is_visible", "_qdb_form_tab_id_value"),
+                    "qdb_is_collapsible", "qdb_is_collapsed_by_default", "qdb_is_visible", "qdb_form_tab_id"),
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_tab_id_value", ConditionOperator.In, tabIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_tab_id", ConditionOperator.In, tabIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -160,7 +163,7 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_section_id_value", ConditionOperator.In, sectionIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_section_id", ConditionOperator.In, sectionIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -172,12 +175,12 @@ namespace Qdb.FormEngine.Data
             {
                 ColumnSet = new ColumnSet("qdb_value", "qdb_label", "qdb_display_order", "qdb_is_default",
                     "qdb_parent_option_value", "qdb_is_active", "qdb_description", "qdb_icon_name",
-                    "qdb_notes", "_qdb_form_field_id_value"),
+                    "qdb_notes", "qdb_form_field_id"),
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_field_id_value", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -191,7 +194,7 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
-            query.Criteria.AddCondition("_qdb_form_field_id_value", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             query.AddOrder("qdb_priority", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -204,7 +207,7 @@ namespace Qdb.FormEngine.Data
                 ColumnSet = new ColumnSet(true),
                 NoLock = true
             };
-            query.Criteria.AddCondition("_qdb_form_field_id_value", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             return RetrieveAll(query);
         }
 
@@ -217,7 +220,7 @@ namespace Qdb.FormEngine.Data
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             return RetrieveAll(query);
         }
 
@@ -230,7 +233,7 @@ namespace Qdb.FormEngine.Data
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
-            query.Criteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -243,7 +246,7 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
-            query.Criteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_priority", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -257,7 +260,7 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_is_visible", ConditionOperator.Equal, true);
-            query.Criteria.AddCondition("_qdb_form_field_id_value", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
+            query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -270,7 +273,7 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            query.Criteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }
@@ -284,8 +287,8 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             screenQuery.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            var screenLink = screenQuery.AddLink("qdb_info_card_screen", "_qdb_info_card_screen_id_value", "qdb_info_card_screenid", JoinOperator.Inner);
-            screenLink.LinkCriteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            var screenLink = screenQuery.AddLink("qdb_info_card_screen", "qdb_info_card_screen_id", "qdb_info_card_screenid", JoinOperator.Inner);
+            screenLink.LinkCriteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             screenLink.LinkCriteria.AddCondition("statecode", ConditionOperator.Equal, 0);
             screenQuery.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(screenQuery);
@@ -299,10 +302,10 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            var sectionLink = query.AddLink("qdb_info_card_section", "_qdb_info_card_section_id_value", "qdb_info_card_sectionid", JoinOperator.Inner);
+            var sectionLink = query.AddLink("qdb_info_card_section", "qdb_info_card_section_id", "qdb_info_card_sectionid", JoinOperator.Inner);
             sectionLink.LinkCriteria.AddCondition("statecode", ConditionOperator.Equal, 0);
-            var screenLink = sectionLink.AddLink("qdb_info_card_screen", "_qdb_info_card_screen_id_value", "qdb_info_card_screenid", JoinOperator.Inner);
-            screenLink.LinkCriteria.AddCondition("_qdb_form_definition_id_value", ConditionOperator.Equal, formId);
+            var screenLink = sectionLink.AddLink("qdb_info_card_screen", "qdb_info_card_screen_id", "qdb_info_card_screenid", JoinOperator.Inner);
+            screenLink.LinkCriteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
         }

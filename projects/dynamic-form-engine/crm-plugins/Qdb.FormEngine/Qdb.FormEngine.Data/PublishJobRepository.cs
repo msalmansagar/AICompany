@@ -7,13 +7,15 @@ namespace Qdb.FormEngine.Data
 {
     /// <summary>
     /// Manages qdb_publish_job records that track progress and outcome of form publish runs.
-    /// Status codes: 1=Generating, 2=Completed, 3=Failed.
+    /// Lifecycle is stored in the custom qdb_status picklist:
+    /// 1=Queued, 2=Running, 3=Completed, 4=PartiallyCompleted, 5=Failed.
     /// </summary>
     public sealed class PublishJobRepository : IPublishJobRepository
     {
-        private const int STATUS_GENERATING = 1;
-        private const int STATUS_COMPLETED = 2;
-        private const int STATUS_FAILED = 3;
+        private const int STATUS_RUNNING = 2;
+        private const int STATUS_COMPLETED = 3;
+        private const int STATUS_PARTIALLY_COMPLETED = 4;
+        private const int STATUS_FAILED = 5;
 
         private readonly IOrganizationService _service;
 
@@ -27,11 +29,11 @@ namespace Qdb.FormEngine.Data
         }
 
         /// <summary>
-        /// Creates a new publish job record in the Generating (1) status.
+        /// Creates a new publish job record in the Running (2) status.
         /// </summary>
         /// <param name="formCode">The form code being published.</param>
         /// <param name="targetVersion">The version being targeted.</param>
-        /// <param name="triggerReason">Human-readable reason for the publish.</param>
+        /// <param name="triggerReason">Reserved for future use; qdb_trigger_reason is an option set and is left unset here.</param>
         /// <param name="languagesRequested">Comma-separated language codes.</param>
         /// <param name="formDefinitionId">GUID of the parent form definition.</param>
         /// <returns>GUID of the newly created publish job record.</returns>
@@ -40,11 +42,10 @@ namespace Qdb.FormEngine.Data
             var entity = new Entity("qdb_publish_job");
             entity["qdb_form_code"] = formCode;
             entity["qdb_target_version"] = targetVersion;
-            entity["qdb_trigger_reason"] = triggerReason;
             entity["qdb_languages_requested"] = languagesRequested;
             entity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formDefinitionId);
             entity["qdb_started_on"] = DateTime.UtcNow;
-            entity["statuscode"] = new OptionSetValue(STATUS_GENERATING);
+            entity["qdb_status"] = new OptionSetValue(STATUS_RUNNING);
             return _service.Create(entity);
         }
 
@@ -85,26 +86,39 @@ namespace Qdb.FormEngine.Data
         }
 
         /// <summary>
-        /// Sets the publish job status to Completed (2).
+        /// Sets the publish job status to Completed (3).
         /// </summary>
         /// <param name="jobId">GUID of the publish job.</param>
         public void CompleteJob(Guid jobId)
         {
             var update = new Entity("qdb_publish_job", jobId);
-            update["statuscode"] = new OptionSetValue(STATUS_COMPLETED);
+            update["qdb_status"] = new OptionSetValue(STATUS_COMPLETED);
             update["qdb_completed_on"] = DateTime.UtcNow;
             _service.Update(update);
         }
 
         /// <summary>
-        /// Sets the publish job status to Failed (3) and records error details.
+        /// Sets the publish job status to PartiallyCompleted (4) when some languages
+        /// succeeded and others failed.
+        /// </summary>
+        /// <param name="jobId">GUID of the publish job.</param>
+        public void PartiallyCompleteJob(Guid jobId)
+        {
+            var update = new Entity("qdb_publish_job", jobId);
+            update["qdb_status"] = new OptionSetValue(STATUS_PARTIALLY_COMPLETED);
+            update["qdb_completed_on"] = DateTime.UtcNow;
+            _service.Update(update);
+        }
+
+        /// <summary>
+        /// Sets the publish job status to Failed (5) and records error details.
         /// </summary>
         /// <param name="jobId">GUID of the publish job.</param>
         /// <param name="errorDetails">Full error details for diagnostics.</param>
         public void FailJob(Guid jobId, string errorDetails)
         {
             var update = new Entity("qdb_publish_job", jobId);
-            update["statuscode"] = new OptionSetValue(STATUS_FAILED);
+            update["qdb_status"] = new OptionSetValue(STATUS_FAILED);
             update["qdb_completed_on"] = DateTime.UtcNow;
             update["qdb_error_details"] = errorDetails;
             _service.Update(update);

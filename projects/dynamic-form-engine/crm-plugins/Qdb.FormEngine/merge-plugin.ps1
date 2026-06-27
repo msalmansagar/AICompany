@@ -35,7 +35,17 @@ $inputs = @(
   (Join-Path $binDir "Newtonsoft.Json.dll")
 )
 
-& $ilrepack.FullName /target:library /internalize "/lib:$binDir" "/out:$out" @inputs
+# Dataverse requires plugin assemblies to be strong-named. Sign the merged output
+# with Qdb.FormEngine.snk if present (keep this key so re-registrations keep the
+# same public key token = update, not duplicate).
+$keyfile = Join-Path $base "Qdb.FormEngine.snk"
+
+if (Test-Path $keyfile) {
+  & $ilrepack.FullName /target:library /internalize "/keyfile:$keyfile" "/lib:$binDir" "/out:$out" @inputs
+} else {
+  Write-Warning "Qdb.FormEngine.snk not found - output will be UNSIGNED and Dataverse will reject it."
+  & $ilrepack.FullName /target:library /internalize "/lib:$binDir" "/out:$out" @inputs
+}
 if ($LASTEXITCODE -ne 0) { throw "ILRepack failed (exit $LASTEXITCODE)" }
 
 $sizeKb = [math]::Round((Get-Item $out).Length / 1KB, 1)

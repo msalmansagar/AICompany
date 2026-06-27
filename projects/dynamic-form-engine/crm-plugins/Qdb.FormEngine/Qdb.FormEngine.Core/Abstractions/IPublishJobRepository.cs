@@ -36,13 +36,20 @@ namespace Qdb.FormEngine.Core.Abstractions
         void MarkLanguageFailed(Guid jobId, string languageCode, string error);
 
         /// <summary>
-        /// Sets the publish job status to Completed (2) and records the completion timestamp.
+        /// Sets the publish job status to Completed (3) and records the completion timestamp.
         /// </summary>
         /// <param name="jobId">GUID of the publish job record.</param>
         void CompleteJob(Guid jobId);
 
         /// <summary>
-        /// Sets the publish job status to Failed (3) and records the error details.
+        /// Sets the publish job status to PartiallyCompleted (4) when some languages
+        /// succeeded and others failed, and records the completion timestamp.
+        /// </summary>
+        /// <param name="jobId">GUID of the publish job record.</param>
+        void PartiallyCompleteJob(Guid jobId);
+
+        /// <summary>
+        /// Sets the publish job status to Failed (5) and records the error details.
         /// </summary>
         /// <param name="jobId">GUID of the publish job record.</param>
         /// <param name="errorDetails">Full error details for diagnostics.</param>

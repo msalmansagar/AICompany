@@ -40,13 +40,15 @@ namespace Qdb.FormEngine.Plugins
         {
             var formCode = ReadRequiredStringParameter(context, "FormCode");
             var targetVersion = ReadIntParameter(context, "TargetVersion");
-            var publishJobIdStr = ReadRequiredStringParameter(context, "PublishJobId");
+            var publishJobIdStr = ReadOptionalStringParameter(context, "PublishJobId");
 
             context.TracingService.Trace("PublishFormPlugin: FormCode={0}, TargetVersion={1}, PublishJobId={2}",
-                formCode, targetVersion, publishJobIdStr);
+                formCode, targetVersion, string.IsNullOrEmpty(publishJobIdStr) ? "(auto-create)" : publishJobIdStr);
 
-            Guid publishJobId;
-            if (!Guid.TryParse(publishJobIdStr, out publishJobId))
+            // PublishJobId is optional: when omitted (e.g. invoked from a command button),
+            // the orchestrator creates the publish job itself once the form is resolved.
+            var publishJobId = Guid.Empty;
+            if (!string.IsNullOrWhiteSpace(publishJobIdStr) && !Guid.TryParse(publishJobIdStr, out publishJobId))
             {
                 context.TracingService.Trace("Invalid PublishJobId: {0}", publishJobIdStr);
                 throw new InvalidPluginExecutionException(string.Format(
@@ -89,6 +91,13 @@ namespace Qdb.FormEngine.Plugins
                     "Input parameter '{0}' must not be null or empty.", parameterName));
             }
             return value;
+        }
+
+        private static string ReadOptionalStringParameter(LocalPluginContext context, string parameterName)
+        {
+            if (!context.Context.InputParameters.Contains(parameterName))
+                return null;
+            return context.Context.InputParameters[parameterName] as string;
         }
 
         private static int ReadIntParameter(LocalPluginContext context, string parameterName)

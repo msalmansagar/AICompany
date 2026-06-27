@@ -124,7 +124,7 @@ namespace Qdb.FormEngine.Tests
 
             var tabId = Guid.NewGuid();
             var tabEntity = new Entity("qdb_form_tab", tabId);
-            tabEntity["_qdb_form_definition_id_value"] = new EntityReference("qdb_form_definition", formId);
+            tabEntity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
             tabEntity["qdb_label"] = "Tab One";
             tabEntity["qdb_display_order"] = 1;
             tabEntity["qdb_is_visible"] = true;
@@ -134,7 +134,7 @@ namespace Qdb.FormEngine.Tests
 
             var sectionId = Guid.NewGuid();
             var sectionEntity = new Entity("qdb_form_section", sectionId);
-            sectionEntity["_qdb_form_tab_id_value"] = new EntityReference("qdb_form_tab", tabId);
+            sectionEntity["qdb_form_tab_id"] = new EntityReference("qdb_form_tab", tabId);
             sectionEntity["qdb_label"] = "Section One";
             sectionEntity["qdb_display_order"] = 1;
             sectionEntity["qdb_columns"] = new OptionSetValue(100000001);
@@ -145,7 +145,7 @@ namespace Qdb.FormEngine.Tests
 
             var fieldId = Guid.NewGuid();
             var fieldEntity = new Entity("qdb_form_field", fieldId);
-            fieldEntity["_qdb_form_section_id_value"] = new EntityReference("qdb_form_section", sectionId);
+            fieldEntity["qdb_form_section_id"] = new EntityReference("qdb_form_section", sectionId);
             fieldEntity["qdb_field_type"] = new OptionSetValue(100000001);
             fieldEntity["qdb_schema_name"] = "qdb_hidden_field";
             fieldEntity["qdb_label"] = "Hidden Field";

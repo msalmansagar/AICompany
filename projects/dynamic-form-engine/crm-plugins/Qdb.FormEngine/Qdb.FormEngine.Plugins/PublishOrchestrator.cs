@@ -69,6 +69,13 @@ namespace Qdb.FormEngine.Plugins
                 languages = BuildDefaultLanguageList();
             }
 
+            var effectiveVersion = targetVersion > 0
+                ? targetVersion
+                : rawData.FormEntity.GetAttributeValue<int>("qdb_version");
+            if (effectiveVersion <= 0) effectiveVersion = 1;
+
+            publishJobId = EnsurePublishJob(publishJobId, formCode, effectiveVersion, languages, rawData.FormEntity.Id);
+
             var successCount = 0;
             var failureCount = 0;
 
@@ -79,7 +86,7 @@ namespace Qdb.FormEngine.Plugins
 
                 try
                 {
-                    PublishLanguage(rawData, formCode, targetVersion, publishJobId, languageCode, lcid);
+                    PublishLanguage(rawData, formCode, effectiveVersion, publishJobId, languageCode, lcid);
                     _publishJobRepository.MarkLanguageSucceeded(publishJobId, languageCode);
                     successCount++;
                     _tracingService.Trace("Language '{0}' published successfully.", languageCode);
@@ -92,9 +99,14 @@ namespace Qdb.FormEngine.Plugins
                 }
             }
 
-            if (failureCount == 0 || successCount > 0)
+            if (successCount > 0 && failureCount == 0)
             {
                 _publishJobRepository.CompleteJob(publishJobId);
+            }
+            else if (successCount > 0)
+            {
+                _publishJobRepository.PartiallyCompleteJob(publishJobId);
+                _tracingService.Trace("Publish partially completed: {0} succeeded, {1} failed.", successCount, failureCount);
             }
             else
             {
@@ -103,6 +115,22 @@ namespace Qdb.FormEngine.Plugins
                 _tracingService.Trace(errorSummary);
                 throw new InvalidPluginExecutionException(errorSummary);
             }
+        }
+
+        /// <summary>
+        /// Returns the supplied publish job id, or creates a new publish job when none was
+        /// provided (e.g. when invoked from a command button with only a form code).
+        /// </summary>
+        private Guid EnsurePublishJob(Guid publishJobId, string formCode, int version, List<Microsoft.Xrm.Sdk.Entity> languages, Guid formDefinitionId)
+        {
+            if (publishJobId != Guid.Empty) return publishJobId;
+
+            var requestedLanguages = string.Join(",", languages
+                .Select(language => language.GetAttributeValue<string>("qdb_language_code"))
+                .Where(code => !string.IsNullOrEmpty(code)));
+            var createdJobId = _publishJobRepository.CreateJob(formCode, version, "CommandButton", requestedLanguages, formDefinitionId);
+            _tracingService.Trace("Auto-created publish job {0} for form '{1}'.", createdJobId, formCode);
+            return createdJobId;
         }
 
         private void PublishLanguage(FormRawData rawData, string formCode, int targetVersion, Guid publishJobId, string languageCode, int lcid)
@@ -148,6 +176,8 @@ namespace Qdb.FormEngine.Plugins
             AddIds(ids, rawData.Sections);
             AddIds(ids, rawData.Fields);
             AddIds(ids, rawData.OptionValues);
+            AddIds(ids, rawData.ValidationRules);
+            AddIds(ids, rawData.GridColumnConfigs);
             AddIds(ids, rawData.Buttons);
             AddIds(ids, rawData.InfoCardScreens);
             AddIds(ids, rawData.InfoCardSections);

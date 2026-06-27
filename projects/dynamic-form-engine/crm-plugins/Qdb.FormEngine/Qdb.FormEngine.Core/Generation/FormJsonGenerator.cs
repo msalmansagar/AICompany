@@ -86,7 +86,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.Tabs == null) return new List<TabDefinition>();
             return rawData.Tabs
-                .Where(t => EntityHelper.GetLookupId(t, "_qdb_form_definition_id_value") == formId)
+                .Where(t => EntityHelper.GetLookupId(t, "qdb_form_definition_id") == formId)
                 .OrderBy(t => t.GetAttributeValue<int>("qdb_display_order"))
                 .Select(t => BuildTab(rawData, t, fieldBuilder))
                 .ToList();
@@ -98,11 +98,11 @@ namespace Qdb.FormEngine.Core.Generation
             return new TabDefinition
             {
                 Id = tabId,
-                FormDefinitionId = EntityHelper.GetLookupId(tab, "_qdb_form_definition_id_value"),
+                FormDefinitionId = EntityHelper.GetLookupId(tab, "qdb_form_definition_id"),
                 Label = Resolve(rawData, "qdb_form_tab", tabId, "qdb_label", tab.GetAttributeValue<string>("qdb_label")),
                 IconName = tab.GetAttributeValue<string>("qdb_icon_name"),
                 DisplayOrder = tab.GetAttributeValue<int>("qdb_display_order"),
-                IsVisible = tab.GetAttributeValue<bool>("qdb_is_visible"),
+                IsVisible = EntityHelper.GetBoolOrTrue(tab, "qdb_is_visible"),
                 RequiresPreviousTabComplete = tab.GetAttributeValue<bool>("qdb_requires_previous_tab_complete"),
                 HideTabBar = tab.GetAttributeValue<bool>("qdb_hide_tab_bar"),
                 Sections = BuildSections(rawData, tabId, fieldBuilder)
@@ -113,7 +113,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.Sections == null) return new List<SectionDefinition>();
             return rawData.Sections
-                .Where(s => EntityHelper.GetLookupId(s, "_qdb_form_tab_id_value") == tabId)
+                .Where(s => EntityHelper.GetLookupId(s, "qdb_form_tab_id") == tabId)
                 .OrderBy(s => s.GetAttributeValue<int>("qdb_display_order"))
                 .Select(s => BuildSection(rawData, s, fieldBuilder))
                 .ToList();
@@ -125,14 +125,14 @@ namespace Qdb.FormEngine.Core.Generation
             return new SectionDefinition
             {
                 Id = sectionId,
-                TabId = EntityHelper.GetLookupId(section, "_qdb_form_tab_id_value"),
+                TabId = EntityHelper.GetLookupId(section, "qdb_form_tab_id"),
                 Label = Resolve(rawData, "qdb_form_section", sectionId, "qdb_label", section.GetAttributeValue<string>("qdb_label")),
                 Description = Resolve(rawData, "qdb_form_section", sectionId, "qdb_description", section.GetAttributeValue<string>("qdb_description")),
                 DisplayOrder = section.GetAttributeValue<int>("qdb_display_order"),
                 Columns = PicklistMapper.ToColumnCount(EntityHelper.GetOptionSetValue(section, "qdb_columns")),
                 IsCollapsible = section.GetAttributeValue<bool>("qdb_is_collapsible"),
                 IsCollapsedByDefault = section.GetAttributeValue<bool>("qdb_is_collapsed_by_default"),
-                IsVisible = section.GetAttributeValue<bool>("qdb_is_visible"),
+                IsVisible = EntityHelper.GetBoolOrTrue(section, "qdb_is_visible"),
                 Fields = fieldBuilder.BuildFields(sectionId)
             };
         }
@@ -141,15 +141,15 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.SubmissionMappings == null) return new List<SubmissionMapping>();
             return rawData.SubmissionMappings
-                .Where(m => EntityHelper.GetLookupId(m, "_qdb_form_definition_id_value") == formId)
+                .Where(m => EntityHelper.GetLookupId(m, "qdb_form_definition_id") == formId)
                 .Select(m => new SubmissionMapping
                 {
                     Id = m.Id,
                     FormDefinitionId = formId,
-                    FieldId = EntityHelper.GetLookupId(m, "_qdb_form_field_id_value"),
+                    FieldId = EntityHelper.GetLookupId(m, "qdb_form_field_id"),
                     TargetEntityLogicalName = m.GetAttributeValue<string>("qdb_target_entity_logical_name"),
                     TargetAttributeLogicalName = m.GetAttributeValue<string>("qdb_target_attribute_logical_name"),
-                    IsMappedToChildEntity = m.GetAttributeValue<bool>("qdb_is_mapped_to_child_entity"),
+                    IsMappedToChildEntity = m.GetAttributeValue<bool>("qdb_is_child_entity"),
                     ChildEntityRelationshipName = m.GetAttributeValue<string>("qdb_child_entity_relationship_name"),
                     TransformExpression = m.GetAttributeValue<string>("qdb_transform_expression"),
                     IsActive = m.GetAttributeValue<bool>("qdb_is_active")
@@ -161,19 +161,19 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.Buttons == null) return new List<FormButton>();
             return rawData.Buttons
-                .Where(b => EntityHelper.GetLookupId(b, "_qdb_form_definition_id_value") == formId)
+                .Where(b => EntityHelper.GetLookupId(b, "qdb_form_definition_id") == formId)
                 .OrderBy(b => b.GetAttributeValue<int>("qdb_display_order"))
                 .Select(b => new FormButton
                 {
                     Id = b.Id,
                     FormDefinitionId = formId,
-                    Label = b.GetAttributeValue<string>("qdb_label"),
+                    Label = Resolve(rawData, "qdb_form_button", b.Id, "qdb_label", b.GetAttributeValue<string>("qdb_label")),
                     Action = PicklistMapper.ToButtonAction(EntityHelper.GetOptionSetValue(b, "qdb_action")),
                     DisplayOrder = b.GetAttributeValue<int>("qdb_display_order"),
-                    IsVisible = b.GetAttributeValue<bool>("qdb_is_visible"),
+                    IsVisible = EntityHelper.GetBoolOrTrue(b, "qdb_is_visible"),
                     IsPrimary = b.GetAttributeValue<bool>("qdb_is_primary"),
                     ConfirmationRequired = b.GetAttributeValue<bool>("qdb_confirmation_required"),
-                    ConfirmationMessage = b.GetAttributeValue<string>("qdb_confirmation_message"),
+                    ConfirmationMessage = Resolve(rawData, "qdb_form_button", b.Id, "qdb_confirmation_message", b.GetAttributeValue<string>("qdb_confirmation_message")),
                     IsActive = b.GetAttributeValue<bool>("qdb_is_active")
                 })
                 .ToList();
@@ -183,7 +183,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.InfoCardScreens == null) return new List<InfoCardScreen>();
             return rawData.InfoCardScreens
-                .Where(s => EntityHelper.GetLookupId(s, "_qdb_form_definition_id_value") == formId)
+                .Where(s => EntityHelper.GetLookupId(s, "qdb_form_definition_id") == formId)
                 .OrderBy(s => s.GetAttributeValue<int>("qdb_display_order"))
                 .Select(s => BuildInfoCardScreen(rawData, s))
                 .ToList();
@@ -196,9 +196,9 @@ namespace Qdb.FormEngine.Core.Generation
                 ScreenId = screen.Id,
                 DisplayOrder = screen.GetAttributeValue<int>("qdb_display_order"),
                 IconUrl = screen.GetAttributeValue<string>("qdb_icon_url"),
-                IconAltText = screen.GetAttributeValue<string>("qdb_icon_alt_text"),
-                Heading = screen.GetAttributeValue<string>("qdb_heading"),
-                SubHeading = screen.GetAttributeValue<string>("qdb_sub_heading"),
+                IconAltText = Resolve(rawData, "qdb_info_card_screen", screen.Id, "qdb_icon_alt_text", screen.GetAttributeValue<string>("qdb_icon_alt_text")),
+                Heading = Resolve(rawData, "qdb_info_card_screen", screen.Id, "qdb_heading", screen.GetAttributeValue<string>("qdb_heading")),
+                SubHeading = Resolve(rawData, "qdb_info_card_screen", screen.Id, "qdb_sub_heading", screen.GetAttributeValue<string>("qdb_sub_heading")),
                 Sections = BuildInfoCardSections(rawData, screen.Id)
             };
         }
@@ -207,15 +207,15 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.InfoCardSections == null) return new List<InfoCardSection>();
             return rawData.InfoCardSections
-                .Where(s => EntityHelper.GetLookupId(s, "_qdb_info_card_screen_id_value") == screenId)
+                .Where(s => EntityHelper.GetLookupId(s, "qdb_info_card_screen_id") == screenId)
                 .OrderBy(s => s.GetAttributeValue<int>("qdb_display_order"))
                 .Select(s => new InfoCardSection
                 {
                     SectionId = s.Id,
                     DisplayOrder = s.GetAttributeValue<int>("qdb_display_order"),
-                    SectionTitle = s.GetAttributeValue<string>("qdb_section_title"),
-                    SectionType = s.GetAttributeValue<string>("qdb_section_type"),
-                    NoteText = s.GetAttributeValue<string>("qdb_note_text"),
+                    SectionTitle = Resolve(rawData, "qdb_info_card_section", s.Id, "qdb_section_title", s.GetAttributeValue<string>("qdb_section_title")),
+                    SectionType = PicklistMapper.ToInfoCardSectionType(EntityHelper.GetOptionSetValue(s, "qdb_section_type")),
+                    NoteText = Resolve(rawData, "qdb_info_card_section", s.Id, "qdb_note_text", s.GetAttributeValue<string>("qdb_note_text")),
                     Items = BuildInfoCardItems(rawData, s.Id)
                 })
                 .ToList();
@@ -225,14 +225,14 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (rawData.InfoCardItems == null) return new List<InfoCardItem>();
             return rawData.InfoCardItems
-                .Where(i => EntityHelper.GetLookupId(i, "_qdb_info_card_section_id_value") == sectionId)
+                .Where(i => EntityHelper.GetLookupId(i, "qdb_info_card_section_id") == sectionId)
                 .OrderBy(i => i.GetAttributeValue<int>("qdb_display_order"))
                 .Select(i => new InfoCardItem
                 {
                     ItemId = i.Id,
                     DisplayOrder = i.GetAttributeValue<int>("qdb_display_order"),
-                    ItemTitle = i.GetAttributeValue<string>("qdb_item_title"),
-                    ItemDescription = i.GetAttributeValue<string>("qdb_item_description"),
+                    ItemTitle = Resolve(rawData, "qdb_info_card_item", i.Id, "qdb_item_title", i.GetAttributeValue<string>("qdb_item_title")),
+                    ItemDescription = Resolve(rawData, "qdb_info_card_item", i.Id, "qdb_item_description", i.GetAttributeValue<string>("qdb_item_description")),
                     IconReference = i.GetAttributeValue<string>("qdb_icon_reference"),
                     DownloadUrl = i.GetAttributeValue<string>("qdb_download_url")
                 })

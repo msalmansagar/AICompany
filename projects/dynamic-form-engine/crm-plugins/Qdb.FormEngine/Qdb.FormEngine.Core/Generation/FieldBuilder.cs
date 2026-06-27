@@ -37,7 +37,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (_rawData.Fields == null) return new List<FieldDefinition>();
             return _rawData.Fields
-                .Where(f => EntityHelper.GetLookupId(f, "_qdb_form_section_id_value") == sectionId)
+                .Where(f => EntityHelper.GetLookupId(f, "qdb_form_section_id") == sectionId)
                 .OrderBy(f => f.GetAttributeValue<int>("qdb_display_order"))
                 .Select(BuildField)
                 .ToList();
@@ -52,28 +52,28 @@ namespace Qdb.FormEngine.Core.Generation
             return new FieldDefinition
             {
                 Id = fieldId,
-                SectionId = EntityHelper.GetLookupId(field, "_qdb_form_section_id_value"),
+                SectionId = EntityHelper.GetLookupId(field, "qdb_form_section_id"),
                 FieldType = fieldTypeStr,
                 SchemaName = field.GetAttributeValue<string>("qdb_schema_name"),
                 Label = Resolve(fieldId, "qdb_form_field", "qdb_label", field.GetAttributeValue<string>("qdb_label")),
                 Placeholder = Resolve(fieldId, "qdb_form_field", "qdb_placeholder", field.GetAttributeValue<string>("qdb_placeholder")),
                 Tooltip = Resolve(fieldId, "qdb_form_field", "qdb_tooltip", field.GetAttributeValue<string>("qdb_tooltip")),
-                Prefix = field.GetAttributeValue<string>("qdb_prefix"),
-                Suffix = field.GetAttributeValue<string>("qdb_suffix"),
+                Prefix = Resolve(fieldId, "qdb_form_field", "qdb_prefix", field.GetAttributeValue<string>("qdb_prefix")),
+                Suffix = Resolve(fieldId, "qdb_form_field", "qdb_suffix", field.GetAttributeValue<string>("qdb_suffix")),
                 DefaultValue = field.GetAttributeValue<string>("qdb_default_value"),
                 DisplayOrder = field.GetAttributeValue<int>("qdb_display_order"),
                 ColumnSpan = PicklistMapper.ToColumnCount(EntityHelper.GetOptionSetValue(field, "qdb_column_span")),
                 IsRequired = field.GetAttributeValue<bool>("qdb_is_required"),
                 IsReadonly = field.GetAttributeValue<bool>("qdb_is_readonly"),
                 IsHidden = field.GetAttributeValue<bool>("qdb_is_hidden"),
-                IsVisible = field.GetAttributeValue<bool>("qdb_is_visible"),
+                IsVisible = !field.GetAttributeValue<bool>("qdb_is_hidden"),
                 CurrencyCode = field.GetAttributeValue<string>("qdb_currency_code"),
                 DecimalPlaces = field.Contains("qdb_decimal_places") ? (int?)field.GetAttributeValue<int>("qdb_decimal_places") : null,
                 MaxRows = field.Contains("qdb_max_rows") ? (int?)field.GetAttributeValue<int>("qdb_max_rows") : null,
                 ComponentKey = field.GetAttributeValue<string>("qdb_component_key"),
                 TrueLabel = Resolve(fieldId, "qdb_form_field", "qdb_true_label", field.GetAttributeValue<string>("qdb_true_label")),
                 FalseLabel = Resolve(fieldId, "qdb_form_field", "qdb_false_label", field.GetAttributeValue<string>("qdb_false_label")),
-                BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_bool_render_style")),
+                BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_boolean_render_style")),
                 MultiselectRenderStyle = PicklistMapper.ToMultiselectRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_multiselect_render_style")),
                 RadioRenderStyle = PicklistMapper.ToRadioRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_radio_render_style")),
                 OptionSourceEntity = field.GetAttributeValue<string>("qdb_option_source_entity"),
@@ -102,19 +102,19 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (_rawData.OptionValues == null) return new List<OptionValue>();
             return _rawData.OptionValues
-                .Where(o => EntityHelper.GetLookupId(o, "_qdb_form_field_id_value") == fieldId)
+                .Where(o => EntityHelper.GetLookupId(o, "qdb_form_field_id") == fieldId)
                 .OrderBy(o => o.GetAttributeValue<int>("qdb_display_order"))
                 .Select(o => new OptionValue
                 {
                     Value = o.GetAttributeValue<string>("qdb_value"),
-                    Label = o.GetAttributeValue<string>("qdb_label"),
+                    Label = Resolve(o.Id, "qdb_form_option_value", "qdb_label", o.GetAttributeValue<string>("qdb_label")),
                     DisplayOrder = o.GetAttributeValue<int>("qdb_display_order"),
                     IsDefault = o.GetAttributeValue<bool>("qdb_is_default"),
                     ParentOptionValue = o.GetAttributeValue<string>("qdb_parent_option_value"),
                     IsActive = o.GetAttributeValue<bool>("qdb_is_active"),
-                    Description = o.GetAttributeValue<string>("qdb_description"),
+                    Description = Resolve(o.Id, "qdb_form_option_value", "qdb_description", o.GetAttributeValue<string>("qdb_description")),
                     IconName = o.GetAttributeValue<string>("qdb_icon_name"),
-                    Notes = o.GetAttributeValue<string>("qdb_notes"),
+                    Notes = Resolve(o.Id, "qdb_form_option_value", "qdb_notes", o.GetAttributeValue<string>("qdb_notes")),
                     OptionRecordId = o.Id != Guid.Empty ? (Guid?)o.Id : null
                 })
                 .ToList();
@@ -123,7 +123,7 @@ namespace Qdb.FormEngine.Core.Generation
         private LookupConfig BuildLookupConfig(Guid fieldId)
         {
             if (_rawData.LookupConfigs == null) return null;
-            var config = _rawData.LookupConfigs.FirstOrDefault(l => EntityHelper.GetLookupId(l, "_qdb_form_field_id_value") == fieldId);
+            var config = _rawData.LookupConfigs.FirstOrDefault(l => EntityHelper.GetLookupId(l, "qdb_form_field_id") == fieldId);
             if (config == null) return null;
             return new LookupConfig
             {
@@ -134,7 +134,7 @@ namespace Qdb.FormEngine.Core.Generation
                 FilterExpression = config.GetAttributeValue<string>("qdb_filter_expression"),
                 SearchMinChars = config.GetAttributeValue<int>("qdb_search_min_chars"),
                 MaxResults = config.GetAttributeValue<int>("qdb_max_results"),
-                DependsOnFieldId = EntityHelper.GetNullableLookupId(config, "_qdb_depends_on_field_id_value"),
+                DependsOnFieldId = EntityHelper.GetNullableLookupId(config, "qdb_depends_on_field_id"),
                 DependsOnFilterTemplate = config.GetAttributeValue<string>("qdb_depends_on_filter_template")
             };
         }
@@ -142,38 +142,65 @@ namespace Qdb.FormEngine.Core.Generation
         private FileUploadConfig BuildFileUploadConfig(Entity field, string fieldType)
         {
             if (fieldType != "file") return null;
-            var mimeTypesRaw = field.GetAttributeValue<string>("qdb_allowed_mime_types") ?? string.Empty;
-            var extensionsRaw = field.GetAttributeValue<string>("qdb_allowed_file_extensions") ?? string.Empty;
+            var extensionCodes = EntityHelper.GetMultiSelectValues(field, "qdb_allowed_file_extensions");
             return new FileUploadConfig
             {
-                Id = Guid.NewGuid(),
+                Id = field.Id,
                 FieldId = field.Id,
-                AllowedMimeTypes = SplitCsv(mimeTypesRaw),
-                MaxFileSizeBytes = field.Contains("qdb_max_file_size_bytes") ? field.GetAttributeValue<long>("qdb_max_file_size_bytes") : 0L,
-                Destination = field.GetAttributeValue<string>("qdb_destination"),
+                AllowedMimeTypes = ResolveAllowedMimeTypes(extensionCodes, field.GetAttributeValue<string>("qdb_allowed_mime_types")),
+                MaxFileSizeBytes = ResolveMaxFileSizeBytes(field),
+                Destination = "crmNotes",
                 MaxFiles = field.Contains("qdb_max_files") ? field.GetAttributeValue<int>("qdb_max_files") : 1,
-                DocumentType = field.GetAttributeValue<string>("qdb_document_type"),
-                AllowedFileExtensions = SplitCsv(extensionsRaw)
+                DocumentType = EntityHelper.GetOptionSetValue(field, "qdb_document_type"),
+                AllowedFileExtensions = extensionCodes.Count > 0 ? extensionCodes : null
             };
+        }
+
+        private static long ResolveMaxFileSizeBytes(Entity field)
+        {
+            var sizeMb = field.Contains("qdb_max_file_size_mb") ? field.GetAttributeValue<int>("qdb_max_file_size_mb") : 10;
+            return (long)sizeMb * 1024 * 1024;
+        }
+
+        private static List<string> ResolveAllowedMimeTypes(List<int> extensionCodes, string legacyMimeJson)
+        {
+            if (extensionCodes.Count > 0)
+                return extensionCodes
+                    .SelectMany(code => FileExtensionMimeMap.ContainsKey(code) ? FileExtensionMimeMap[code] : new string[0])
+                    .ToList();
+            return ParseLegacyMimeTypes(legacyMimeJson);
+        }
+
+        private static List<string> ParseLegacyMimeTypes(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return DefaultMimeTypes.ToList();
+            try
+            {
+                var parsed = JsonConvert.DeserializeObject<List<string>>(json);
+                return parsed ?? DefaultMimeTypes.ToList();
+            }
+            catch
+            {
+                return DefaultMimeTypes.ToList();
+            }
         }
 
         private GridFieldConfig BuildGridConfig(Entity field, Guid fieldId)
         {
-            var gridTargetEntity = field.GetAttributeValue<string>("qdb_grid_target_entity");
-            if (string.IsNullOrEmpty(gridTargetEntity)) return null;
+            if (!field.Contains("qdb_grid_mode")) return null;
             var gridMode = PicklistMapper.ToGridMode(EntityHelper.GetOptionSetValue(field, "qdb_grid_mode"));
+            var entityName = field.GetAttributeValue<string>("qdb_grid_entity_name");
             return new GridFieldConfig
             {
                 GridMode = gridMode,
                 Mode = gridMode,
-                TargetEntity = gridTargetEntity,
-                EntityName = gridTargetEntity,
+                TargetEntity = entityName ?? string.Empty,
+                EntityName = entityName,
                 SavedViewId = field.GetAttributeValue<string>("qdb_grid_saved_view_id"),
-                SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_grid_selection_mode")),
+                SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_selection_mode")),
                 MinRows = field.Contains("qdb_grid_min_rows") ? field.GetAttributeValue<int>("qdb_grid_min_rows") : 0,
-                MaxRows = field.Contains("qdb_grid_max_rows") ? field.GetAttributeValue<int>("qdb_grid_max_rows") : 0,
+                MaxRows = field.Contains("qdb_max_rows") ? field.GetAttributeValue<int>("qdb_max_rows") : 200,
                 FilterExpression = field.GetAttributeValue<string>("qdb_grid_filter_expression"),
-                DependsOnFieldId = EntityHelper.GetNullableLookupId(field, "qdb_grid_depends_on_field_id"),
                 DependsOnFilterTemplate = field.GetAttributeValue<string>("qdb_grid_depends_on_filter_template"),
                 ColumnConfigs = BuildGridColumns(fieldId)
             };
@@ -183,7 +210,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (_rawData.GridColumnConfigs == null) return new List<GridColumnConfig>();
             return _rawData.GridColumnConfigs
-                .Where(c => EntityHelper.GetLookupId(c, "_qdb_form_field_id_value") == fieldId)
+                .Where(c => EntityHelper.GetLookupId(c, "qdb_form_field_id") == fieldId)
                 .OrderBy(c => c.GetAttributeValue<int>("qdb_display_order"))
                 .Select(BuildGridColumn)
                 .ToList();
@@ -200,7 +227,7 @@ namespace Qdb.FormEngine.Core.Generation
             {
                 ColumnId = column.Id,
                 DisplayOrder = column.GetAttributeValue<int>("qdb_display_order"),
-                ColumnLabel = column.GetAttributeValue<string>("qdb_column_label"),
+                ColumnLabel = Resolve(column.Id, "qdb_grid_column_config", "qdb_column_label", column.GetAttributeValue<string>("qdb_column_label")),
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
                 Options = options
@@ -211,23 +238,23 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (_rawData.ValidationRules == null) return new List<ValidationRule>();
             return _rawData.ValidationRules
-                .Where(r => EntityHelper.GetLookupId(r, "_qdb_form_field_id_value") == fieldId)
+                .Where(r => EntityHelper.GetLookupId(r, "qdb_form_field_id") == fieldId)
                 .OrderBy(r => r.GetAttributeValue<int>("qdb_priority"))
                 .Select(r => new ValidationRule
                 {
                     Id = r.Id,
                     FieldId = fieldId,
                     RuleType = PicklistMapper.ToValidationRuleType(EntityHelper.GetOptionSetValue(r, "qdb_rule_type")),
-                    ErrorMessage = r.GetAttributeValue<string>("qdb_error_message"),
+                    ErrorMessage = Resolve(r.Id, "qdb_form_validation_rule", "qdb_error_message", r.GetAttributeValue<string>("qdb_error_message")),
                     MinLength = r.Contains("qdb_min_length") ? (int?)r.GetAttributeValue<int>("qdb_min_length") : null,
                     MaxLength = r.Contains("qdb_max_length") ? (int?)r.GetAttributeValue<int>("qdb_max_length") : null,
                     MinValue = r.Contains("qdb_min_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_min_value") : null,
                     MaxValue = r.Contains("qdb_max_value") ? (decimal?)r.GetAttributeValue<decimal>("qdb_max_value") : null,
                     RegexPattern = r.GetAttributeValue<string>("qdb_regex_pattern"),
-                    CompareToFieldId = EntityHelper.GetNullableLookupId(r, "_qdb_compare_to_field_id_value"),
+                    CompareToFieldId = EntityHelper.GetNullableLookupId(r, "qdb_compare_to_field_id"),
                     CompareToValue = r.GetAttributeValue<string>("qdb_compare_to_value"),
                     CustomExpression = r.GetAttributeValue<string>("qdb_custom_expression"),
-                    RuleTemplateId = EntityHelper.GetNullableLookupId(r, "_qdb_rule_template_id_value"),
+                    RuleTemplateId = EntityHelper.GetNullableLookupId(r, "qdb_rule_template_id"),
                     IsActive = r.GetAttributeValue<bool>("qdb_is_active"),
                     Priority = r.GetAttributeValue<int>("qdb_priority")
                 })
@@ -238,7 +265,7 @@ namespace Qdb.FormEngine.Core.Generation
         {
             if (_rawData.BusinessRules == null) return new List<BusinessRule>();
             return _rawData.BusinessRules
-                .Where(r => EntityHelper.GetNullableLookupId(r, "_qdb_target_field_id_value") == fieldId)
+                .Where(r => EntityHelper.GetNullableLookupId(r, "qdb_target_field_id") == fieldId)
                 .OrderBy(r => r.GetAttributeValue<int>("qdb_priority"))
                 .Select(BuildBusinessRule)
                 .ToList();
@@ -257,11 +284,11 @@ namespace Qdb.FormEngine.Core.Generation
                 Name = rule.GetAttributeValue<string>("qdb_name"),
                 Description = rule.GetAttributeValue<string>("qdb_description"),
                 Conditions = conditions,
-                ConditionsLogic = rule.GetAttributeValue<string>("qdb_conditions_logic"),
+                ConditionsLogic = PicklistMapper.ToLogicalOperator(EntityHelper.GetOptionSetValue(rule, "qdb_conditions_logic")),
                 Action = PicklistMapper.ToBusinessRuleAction(EntityHelper.GetOptionSetValue(rule, "qdb_action")),
-                TargetFieldId = EntityHelper.GetNullableLookupId(rule, "_qdb_target_field_id_value"),
-                TargetSectionId = EntityHelper.GetNullableLookupId(rule, "_qdb_target_section_id_value"),
-                TargetTabId = EntityHelper.GetNullableLookupId(rule, "_qdb_target_tab_id_value"),
+                TargetFieldId = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id"),
+                TargetSectionId = EntityHelper.GetNullableLookupId(rule, "qdb_target_section_id"),
+                TargetTabId = EntityHelper.GetNullableLookupId(rule, "qdb_target_tab_id"),
                 ActionValue = rule.GetAttributeValue<string>("qdb_action_value"),
                 Priority = rule.GetAttributeValue<int>("qdb_priority"),
                 IsActive = rule.GetAttributeValue<bool>("qdb_is_active")
@@ -273,13 +300,34 @@ namespace Qdb.FormEngine.Core.Generation
             return _translationResolver.Resolve(_rawData.TranslationMap, entityName, recordId, fieldName, fallback);
         }
 
-        private static List<string> SplitCsv(string raw)
+        /// <summary>
+        /// Maps each qdb_allowed_file_extensions option value to its MIME type(s).
+        /// Mirrors the runtime contract produced by the live metadata service so the
+        /// cached JSON is byte-equivalent to the on-demand assembly path.
+        /// </summary>
+        private static readonly Dictionary<int, string[]> FileExtensionMimeMap = new Dictionary<int, string[]>
         {
-            if (string.IsNullOrWhiteSpace(raw)) return new List<string>();
-            return raw.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                      .Select(s => s.Trim())
-                      .Where(s => !string.IsNullOrEmpty(s))
-                      .ToList();
-        }
+            { 100000000, new[] { "application/pdf" } },
+            { 100000001, new[] { "image/jpeg" } },
+            { 100000002, new[] { "image/png" } },
+            { 100000003, new[] { "image/gif" } },
+            { 100000004, new[] { "image/webp" } },
+            { 100000005, new[] { "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } },
+            { 100000006, new[] { "application/msword" } },
+            { 100000007, new[] { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } },
+            { 100000008, new[] { "application/vnd.ms-excel" } },
+            { 100000009, new[] { "application/vnd.openxmlformats-officedocument.presentationml.presentation" } },
+            { 100000010, new[] { "text/plain" } },
+            { 100000011, new[] { "text/csv" } },
+            { 100000012, new[] { "application/zip" } },
+            { 100000013, new[] { "video/mp4" } },
+            { 100000014, new[] { "audio/mpeg" } }
+        };
+
+        private static readonly string[] DefaultMimeTypes =
+        {
+            "application/pdf", "image/jpeg", "image/png", "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        };
     }
 }
