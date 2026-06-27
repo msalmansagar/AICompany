@@ -19,6 +19,9 @@ function inCrmModuleSwap() {
         if (api[1] === 'apiClient') return path.resolve(dirname, 'webresource/stubs/apiClient.ts');
         if (xrmModules.includes(api[1])) return path.resolve(dirname, `webresource/xrm/${api[1]}.ts`);
       }
+      if (/[\\/]services[\\/]gridDataService(?:\.ts)?$/.test(source)) {
+        return path.resolve(dirname, 'webresource/xrm/gridDataService.ts');
+      }
       if (/(?:^|[\\/])auth[\\/]tokenService(?:\.ts)?$/.test(source)) {
         return path.resolve(dirname, 'webresource/stubs/tokenService.ts');
       }

@@ -120,31 +120,37 @@ Qdb.FormEngine.Commands = (function () {
     );
   }
 
-  // Opens the in-CRM form runtime web resource for a form definition GUID, in a centered
-  // dialog. navigateTo guarantees the Client API (Xrm.WebApi) is available to the runtime.
+  // Opens the in-CRM form runtime web resource for a form definition GUID. Prefers the modern
+  // navigateTo dialog (cloud / newer platforms); falls back to openWebResource for on-prem,
+  // where navigateTo with pageType "webresource" is not available. Both pass the GUID as the
+  // ?data= parameter the runtime reads.
   function openRuntime(formDefinitionId) {
     var id = (formDefinitionId || "").replace(/[{}]/g, "");
     if (!id) {
       Xrm.Navigation.openAlertDialog({ text: "No form selected." });
       return;
     }
-    var pageInput = {
-      pageType: "webresource",
-      webresourceName: "qdb_form_runtime.html",
-      data: id
-    };
-    var navigationOptions = {
-      target: 2,
-      position: 1,
-      width: { value: 85, unit: "%" },
-      height: { value: 92, unit: "%" },
-      title: "Form"
-    };
-    Xrm.Navigation.navigateTo(pageInput, navigationOptions).then(undefined, function (error) {
-      Xrm.Navigation.openErrorDialog({
-        message: "Could not open the form: " + ((error && error.message) || "Unknown error")
-      });
-    });
+
+    function openInWindow() {
+      if (Xrm.Navigation && Xrm.Navigation.openWebResource) {
+        Xrm.Navigation.openWebResource("qdb_form_runtime.html", { height: 900, width: 1200 }, id);
+      } else if (Xrm.Utility && Xrm.Utility.openWebResource) {
+        Xrm.Utility.openWebResource("qdb_form_runtime.html", id, 1200, 900);
+      } else {
+        Xrm.Navigation.openErrorDialog({ message: "This platform cannot open the form web resource." });
+      }
+    }
+
+    try {
+      var pageInput = { pageType: "webresource", webresourceName: "qdb_form_runtime.html", data: id };
+      var navigationOptions = {
+        target: 2, position: 1,
+        width: { value: 85, unit: "%" }, height: { value: 92, unit: "%" }, title: "Form"
+      };
+      Xrm.Navigation.navigateTo(pageInput, navigationOptions).then(undefined, openInWindow);
+    } catch (e) {
+      openInWindow();
+    }
   }
 
   // Form command-bar handler (button on a Form Definition record). Param: PrimaryControl.
