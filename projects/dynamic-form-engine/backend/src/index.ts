@@ -8,6 +8,7 @@ import { logger } from './utils/logger.js';
 import { correlationMiddleware } from './utils/correlation.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
+import { requireInternalSecret } from './middleware/internalSecret.middleware.js';
 import { inputSanitiserMiddleware } from './middleware/input.sanitiser.middleware.js';
 import { healthRouter } from './routes/health.routes.js';
 import { LRUCache } from 'lru-cache';
@@ -186,6 +187,17 @@ if (languageConfigService) {
 async function bootstrap(): Promise<void> {
   await initRenderCacheServices();
 
+  // When a shared secret is configured, the internal cache endpoint is authorised by the
+  // x-internal-cache-secret header (mounted BEFORE the JWT gate so non-browser callers such as
+  // the Dataverse command-bar web resource can invalidate without a user token).
+  if (config.INTERNAL_CACHE_SECRET && languageConfigService) {
+    app.use(
+      '/api/internal/cache',
+      requireInternalSecret(config.INTERNAL_CACHE_SECRET),
+      createInternalCacheRouter(metadataService, languageConfigService, renderCacheStore),
+    );
+  }
+
   app.use('/api', authMiddleware);
   app.use('/api/lookups', createLookupsRouter(lookupService));
   app.use('/api/forms', createFormsRouter(
@@ -219,8 +231,9 @@ async function bootstrap(): Promise<void> {
   if (translationWriteService && languageConfigService) {
     app.use('/api/design/translations', createTranslationsRouter(translationWriteService, languageConfigService));
   }
-  // POST /api/internal/cache/invalidate — auth-required internal endpoint (loopback restriction can be added later)
-  if (languageConfigService) {
+  // POST /api/internal/cache/invalidate — when no shared secret is configured, the endpoint
+  // stays behind JWT auth (the shared-secret mount above is skipped in that case).
+  if (!config.INTERNAL_CACHE_SECRET && languageConfigService) {
     app.use('/api/internal/cache', createInternalCacheRouter(metadataService, languageConfigService, renderCacheStore));
   }
 

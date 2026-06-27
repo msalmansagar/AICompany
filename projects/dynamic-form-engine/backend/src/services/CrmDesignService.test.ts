@@ -157,6 +157,9 @@ describe('CrmDesignService', () => {
   it('getDesignPayload_withSectionDesigns_populatesSectionDesignsMap', async () => {
     spyCrmFetch(service, async (path) => {
       if (path.includes('qdb_form_designs')) return buildFormDesignResponse();
+      if (path.includes('qdb_form_tabs')) return { value: [{ qdb_form_tabid: 'tab-1' }] };
+      if (path.includes('qdb_form_sections')) return { value: [{ qdb_form_sectionid: 'sec-abc' }] };
+      if (path.includes('qdb_form_fields')) return { value: [] };
       if (path.includes('qdb_section_designs')) {
         return {
           value: [{
@@ -182,6 +185,9 @@ describe('CrmDesignService', () => {
   it('getDesignPayload_sectionDesignFetchFails_returnsEmptySectionDesigns', async () => {
     spyCrmFetch(service, async (path) => {
       if (path.includes('qdb_form_designs')) return buildFormDesignResponse();
+      if (path.includes('qdb_form_tabs')) return { value: [{ qdb_form_tabid: 'tab-1' }] };
+      if (path.includes('qdb_form_sections')) return { value: [{ qdb_form_sectionid: 'sec-abc' }] };
+      if (path.includes('qdb_form_fields')) return { value: [] };
       if (path.includes('qdb_section_designs')) throw new Error('Dataverse unavailable');
       return { value: [] };
     });

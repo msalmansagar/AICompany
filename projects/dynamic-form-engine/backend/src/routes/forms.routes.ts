@@ -11,7 +11,7 @@ import type { CrmInfoCardService } from '../services/CrmInfoCardService.js';
 import type { CrmLanguageConfigService } from '../services/CrmLanguageConfigService.js';
 import { assertFormAccess } from '../middleware/role.middleware.js';
 import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload } from '@qdb/shared';
-import { ForbiddenError, UnsupportedLanguageError, CacheMissError } from '../utils/errors.js';
+import { ForbiddenError, UnsupportedLanguageError, CacheMissError, FormNotPublishedError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import type { PublishedFormService } from '../services/PublishedFormService.js';
@@ -357,9 +357,13 @@ async function assertPolicyAccess(
   }
 }
 
-// Resolves a FormDefinition via the render cache hot path when enabled, falling
-// back transparently to the live multi-table CrmMetadataService assembly on a
-// CacheMissError.  Other errors propagate unchanged.
+// Resolves a FormDefinition from the published render cache only. When the render
+// cache is enabled, a form is served exclusively from its pre-generated JSON in
+// qdb_form_render_cache; a cache miss is terminal (FormNotPublishedError) and the
+// live qdb_* table assembly is intentionally NOT used.
+//
+// The live multi-table CrmMetadataService.getFormDefinition assembly below is retained
+// for future use and is reached only when USE_RENDER_CACHE is disabled.
 async function resolveFormDefinition(
   formCode: string,
   lang: string,
@@ -375,14 +379,16 @@ async function resolveFormDefinition(
       if (error instanceof CacheMissError) {
         logger.warn(
           { formCode, lang, correlationId },
-          'Render cache miss — falling back to live Dataverse assembly',
+          'Render cache miss — form has no published JSON; rejecting (live assembly disabled)',
         );
-        // Intentional fall-through to live assembly below.
-      } else {
-        throw error;
+        throw new FormNotPublishedError(formCode);
       }
+      throw error;
     }
   }
+
+  // Legacy live-assembly path — preserved for later use; only runs when the render
+  // cache feature flag is off.
   return metadataService.getFormDefinition(formCode, lang);
 }
 

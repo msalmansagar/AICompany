@@ -41,6 +41,11 @@ const envSchema = z.object({
   RENDER_CACHE_TTL_SECONDS: z.coerce.number().default(300),
   // DFE-RC-001: optional Redis URL — when set, RedisRenderCacheStore is used instead of MemoryRenderCacheStore.
   REDIS_URL: z.string().optional(),
+  // DFE-RC-001: shared secret protecting POST /api/internal/cache/invalidate. When set, the
+  // endpoint authorises via the x-internal-cache-secret header instead of a user JWT (so the
+  // Dataverse command-bar web resource can invalidate after publishing). When unset, the
+  // endpoint stays behind normal JWT auth.
+  INTERNAL_CACHE_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

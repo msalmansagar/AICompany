@@ -159,10 +159,15 @@ export class CrmDesignService extends CrmBaseService {
     const rawFormDesign = formDesignResponse.value[0];
     const { formDesign, theme } = await this.resolveFormDesignAndTheme(rawFormDesign, context);
 
+    // qdb_section_design and qdb_field_design have no form lookup (only section/field), and
+    // Dataverse $filter supports at most one nested lookup — so section and field designs are
+    // fetched by the form's section/field ids, resolved by walking the form hierarchy.
+    const { sectionIds, fieldIds } = await this.resolveFormHierarchyIds(context.formDefinitionId);
+
     // Round-trips 2 and 3 run in parallel to minimise latency
     const [sectionResults, fieldResults, buttonResults, gridResults] = await Promise.allSettled([
-      this.fetchSectionDesigns(context.formDefinitionId),
-      this.fetchFieldDesigns(context.formDefinitionId),
+      this.fetchSectionDesigns(sectionIds),
+      this.fetchFieldDesigns(fieldIds),
       this.fetchButtonDesigns(context.formDefinitionId),
       this.fetchLayoutGrid(rawFormDesign?.qdb_form_designid),
     ]);
@@ -215,18 +220,48 @@ export class CrmDesignService extends CrmBaseService {
     return DEFAULT_LIGHT_THEME;
   }
 
-  private async fetchSectionDesigns(formDefinitionId: string): Promise<Record<string, SectionDesign>> {
+  private async fetchSectionDesigns(sectionIds: string[]): Promise<Record<string, SectionDesign>> {
+    if (sectionIds.length === 0) return {};
+    const sectionFilter = sectionIds.map((id) => `_qdb_form_section_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawSectionDesign>>(
-      `/qdb_section_designs?$filter=_qdb_form_definition_id_value eq '${formDefinitionId}' and qdb_is_active eq true`,
+      `/qdb_section_designs?$filter=(${sectionFilter}) and qdb_is_active eq true`,
     );
     return Object.fromEntries(
       response.value.map((s) => [s._qdb_form_section_id_value, this.mapSectionDesign(s)]),
     );
   }
 
-  private async fetchFieldDesigns(formDefinitionId: string): Promise<Record<string, FieldDesign>> {
+  // Resolves the section and field ids belonging to a form by walking
+  // form → tabs → sections → fields. Needed because section/field design records have no
+  // direct form lookup, so their designs are fetched by section/field id.
+  private async resolveFormHierarchyIds(
+    formDefinitionId: string,
+  ): Promise<{ sectionIds: string[]; fieldIds: string[] }> {
+    const tabs = await this.crmFetch<ODataCollection<{ qdb_form_tabid: string }>>(
+      `/qdb_form_tabs?$filter=_qdb_form_definition_id_value eq '${formDefinitionId}'&$select=qdb_form_tabid`,
+    );
+    const tabIds = tabs.value.map((t) => t.qdb_form_tabid);
+    if (tabIds.length === 0) return { sectionIds: [], fieldIds: [] };
+
+    const sectionFilter = tabIds.map((id) => `_qdb_form_tab_id_value eq '${id}'`).join(' or ');
+    const sections = await this.crmFetch<ODataCollection<{ qdb_form_sectionid: string }>>(
+      `/qdb_form_sections?$filter=(${sectionFilter})&$select=qdb_form_sectionid`,
+    );
+    const sectionIds = sections.value.map((s) => s.qdb_form_sectionid);
+    if (sectionIds.length === 0) return { sectionIds, fieldIds: [] };
+
+    const fieldFilter = sectionIds.map((id) => `_qdb_form_section_id_value eq '${id}'`).join(' or ');
+    const fields = await this.crmFetch<ODataCollection<{ qdb_form_fieldid: string }>>(
+      `/qdb_form_fields?$filter=(${fieldFilter})&$select=qdb_form_fieldid`,
+    );
+    return { sectionIds, fieldIds: fields.value.map((f) => f.qdb_form_fieldid) };
+  }
+
+  private async fetchFieldDesigns(fieldIds: string[]): Promise<Record<string, FieldDesign>> {
+    if (fieldIds.length === 0) return {};
+    const fieldFilter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawFieldDesign>>(
-      `/qdb_field_designs?$filter=_qdb_form_definition_id_value eq '${formDefinitionId}' and qdb_is_active eq true`,
+      `/qdb_field_designs?$filter=(${fieldFilter}) and qdb_is_active eq true`,
     );
     return Object.fromEntries(
       response.value.map((f) => [f._qdb_form_field_id_value, this.mapFieldDesign(f)]),

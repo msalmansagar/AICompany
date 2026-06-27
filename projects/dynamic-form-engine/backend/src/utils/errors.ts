@@ -59,6 +59,12 @@ export class FormInactiveError extends AppError {
   }
 }
 
+export class FormNotPublishedError extends AppError {
+  constructor(formCode: string) {
+    super(`Form '${formCode}' has not been published`, 404, 'FORM_NOT_PUBLISHED');
+  }
+}
+
 export class UnsupportedLanguageError extends AppError {
   public readonly supportedCodes: string[];
 
