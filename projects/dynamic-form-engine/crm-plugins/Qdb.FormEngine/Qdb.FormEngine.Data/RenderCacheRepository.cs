@@ -89,10 +89,12 @@ namespace Qdb.FormEngine.Data
 
         /// <summary>
         /// Finds the active cache record for the given form/version/language combination.
+        /// A non-positive <paramref name="version"/> resolves to the latest active version,
+        /// matching the qdb_GetPublishedFormJson contract (Version 0 = latest active).
         /// Returns null when no active cache exists.
         /// </summary>
         /// <param name="formCode">The unique form code.</param>
-        /// <param name="version">The form definition version.</param>
+        /// <param name="version">The form definition version, or 0 for the latest active.</param>
         /// <param name="languageCode">Two-letter language code.</param>
         /// <returns>Matching entity or null.</returns>
         public Entity FindActiveCache(string formCode, int version, string languageCode)
@@ -104,10 +106,12 @@ namespace Qdb.FormEngine.Data
                 NoLock = true
             };
             query.Criteria.AddCondition("qdb_form_code", ConditionOperator.Equal, formCode);
-            query.Criteria.AddCondition("qdb_published_version", ConditionOperator.Equal, version);
+            if (version > 0)
+                query.Criteria.AddCondition("qdb_published_version", ConditionOperator.Equal, version);
             query.Criteria.AddCondition("qdb_language_code", ConditionOperator.Equal, languageCode);
             query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
             query.Criteria.AddCondition("qdb_status", ConditionOperator.Equal, STATUS_ACTIVE);
+            query.AddOrder("qdb_published_version", OrderType.Descending);
             query.AddOrder("createdon", OrderType.Descending);
 
             var results = _service.RetrieveMultiple(query);
