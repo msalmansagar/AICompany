@@ -3,12 +3,16 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 /**
- * Appends ?v=BUILD_TIMESTAMP to every JS/CSS asset URL in the generated index.html.
- * Filenames remain stable (customizations.xml stays accurate), but browsers see a
- * new URL on every deploy and fetch fresh content instead of serving stale cache.
+ * Injects no-cache meta tags into index.html so the HTML shell is always re-fetched.
+ *
+ * Asset URLs are deliberately left WITHOUT a ?v= query string. CRM serves every web
+ * resource under an org customization-version token in the path
+ * (e.g. /BPM/{639182300580000008}/webresources/...), which already changes on every
+ * "Publish All Customizations" and busts the browser cache for all assets. A ?v= query
+ * is therefore redundant on cloud and, critically, makes the on-premise web resource
+ * handler return HTTP 500 — query strings are not allowed on on-prem web resource URLs.
  */
-function cacheBustPlugin(): Plugin {
-  const buildVersion = Date.now().toString();
+function noCacheMetaPlugin(): Plugin {
   const noCacheMeta = [
     '<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />',
     '<meta http-equiv="Pragma" content="no-cache" />',
@@ -16,16 +20,10 @@ function cacheBustPlugin(): Plugin {
   ].join('\n    ');
 
   return {
-    name: 'cache-bust-assets',
+    name: 'no-cache-meta',
     apply: 'build',
     transformIndexHtml(html) {
-      return html
-        // Inject no-cache meta tags right after <head>
-        .replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    ${noCacheMeta}`)
-        // Stamp new version on every asset URL
-        .replace(/(src="\.\/assets\/[^"?]+\.js)(")/g, `$1?v=${buildVersion}$2`)
-        .replace(/(href="\.\/assets\/[^"?]+\.js)(")/g, `$1?v=${buildVersion}$2`)
-        .replace(/(href="\.\/assets\/[^"?]+\.css)(")/g, `$1?v=${buildVersion}$2`);
+      return html.replace('<meta charset="UTF-8" />', `<meta charset="UTF-8" />\n    ${noCacheMeta}`);
     },
   };
 }
@@ -33,7 +31,7 @@ function cacheBustPlugin(): Plugin {
 // Vite config for CRM web resource bundle output.
 // Produces a self-contained bundle importable as a CRM web resource.
 export default defineConfig({
-  plugins: [react(), cacheBustPlugin()],
+  plugins: [react(), noCacheMetaPlugin()],
   // Relative base so asset paths in index.html are ./assets/... not /assets/...
   // Required for CRM web resources: served under /WebResources/qdb_/form-designer/
   // and absolute paths would resolve to the org root instead.
