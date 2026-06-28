@@ -1,7 +1,12 @@
 // Thin wrapper over Xrm.WebApi for the in-CRM form-engine web resource.
 // Replaces the portal's axios apiClient — all data flows through the CRM Web API,
 // so the web resource is self-contained (no external backend at runtime).
-import { ungzip } from 'pako';
+
+interface XrmExecuteResponse {
+  ok: boolean;
+  json(): Promise<Record<string, unknown>>;
+}
+type XrmExecute = (request: unknown) => Promise<XrmExecuteResponse>;
 
 // Minimal Xrm surface we depend on (avoids a full @types/xrm dependency).
 interface XrmWebApi {
@@ -10,6 +15,8 @@ interface XrmWebApi {
   createRecord(entityLogicalName: string, data: Record<string, unknown>): Promise<{ id: string }>;
   updateRecord(entityLogicalName: string, id: string, data: Record<string, unknown>): Promise<{ id: string }>;
   deleteRecord(entityLogicalName: string, id: string): Promise<{ id: string }>;
+  execute?: XrmExecute;
+  online?: { execute: XrmExecute };
 }
 interface XrmGlobal {
   WebApi: XrmWebApi;
@@ -50,13 +57,44 @@ export function webApi(): XrmWebApi {
   return xrm.WebApi;
 }
 
-/** Decodes the render-cache payload: Base64 → (optional) gunzip → JSON string. */
-export function decodeRuntimeJson(base64: string, isCompressed: boolean): string {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  if (!isCompressed) return new TextDecoder().decode(bytes);
-  return ungzip(bytes, { to: 'string' });
+/** A single typed argument for an unbound CRM action. structuralProperty 1 = primitive. */
+export interface ActionParameter {
+  value: unknown;
+  typeName: string;
+  structuralProperty: number;
+}
+
+/**
+ * Invokes an unbound (global) CRM action via Xrm.WebApi and returns its parsed response.
+ * Uses online.execute where present, falling back to the cross-client execute, so the same
+ * call works in a model-driven iframe and an on-prem openWebResource window.
+ */
+export async function executeUnboundAction(
+  actionName: string,
+  parameters: Record<string, ActionParameter>,
+): Promise<Record<string, unknown>> {
+  const api = webApi();
+  const execute = api.online?.execute ?? api.execute;
+  if (!execute) {
+    throw new Error('Xrm.WebApi.execute is unavailable — this page must run as a CRM web resource.');
+  }
+
+  const parameterTypes: Record<string, { typeName: string; structuralProperty: number }> = {};
+  const request: Record<string, unknown> = {
+    getMetadata: () => ({
+      boundParameter: null,
+      operationType: 0,
+      operationName: actionName,
+      parameterTypes,
+    }),
+  };
+  for (const [name, parameter] of Object.entries(parameters)) {
+    request[name] = parameter.value;
+    parameterTypes[name] = { typeName: parameter.typeName, structuralProperty: parameter.structuralProperty };
+  }
+
+  const response = await execute.call(api.online ?? api, request);
+  return response.json();
 }
 
 /** Strips braces from a CRM GUID so it can be used in OData URLs / bindings. */

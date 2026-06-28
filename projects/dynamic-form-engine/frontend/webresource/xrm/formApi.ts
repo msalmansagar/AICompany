@@ -1,17 +1,15 @@
-// Xrm-backed replacement for src/api/formApi.ts. Reads the published render-cache JSON
-// straight from CRM and submits via direct Xrm.WebApi writes. Same shape as the portal
-// formApi ({ data } envelope) so the renderer is reused unchanged.
+// Xrm-backed replacement for src/api/formApi.ts. Reads the published form JSON via the
+// qdb_GetPublishedFormJson action (CRM owns the cache lookup, active-version selection,
+// language fallback, and gzip decompression) and submits via direct Xrm.WebApi writes.
+// Same shape as the portal formApi ({ data } envelope) so the renderer is reused unchanged.
 import type { FormDefinition, FormFieldValues } from '@qdb/shared';
-import { webApi, decodeRuntimeJson } from './xrmClient';
+import { executeUnboundAction } from './xrmClient';
 import { submitForm } from './submitEngine';
 
-const RENDER_CACHE_STATUS_ACTIVE = 2;
-
-interface RenderCacheRow {
-  qdb_language_code: string;
-  qdb_runtime_json: string;
-  qdb_is_compressed: boolean;
-}
+const GET_PUBLISHED_FORM_JSON = 'qdb_GetPublishedFormJson';
+const LATEST_ACTIVE_VERSION = 0;
+const STRING_PARAMETER = 1;
+const INTEGER_PARAMETER = 1;
 
 // The definition loaded by getMetadata is kept so submit() can use its mappings without
 // a second round-trip (the renderer calls submit with only formCode + values).
@@ -26,30 +24,22 @@ export function getLoadedForm(): FormDefinition | null {
   return loadedForm;
 }
 
-async function fetchActiveRows(formCode: string): Promise<RenderCacheRow[]> {
-  const filter = `qdb_form_code eq '${formCode}' and qdb_is_active eq true and qdb_status eq ${RENDER_CACHE_STATUS_ACTIVE}`;
-  const select = 'qdb_language_code,qdb_runtime_json,qdb_is_compressed';
-  const result = await webApi().retrieveMultipleRecords(
-    'qdb_form_render_cache',
-    `?$filter=${encodeURIComponent(filter)}&$select=${select}`,
-  );
-  return result.entities as unknown as RenderCacheRow[];
-}
-
-function selectRow(rows: RenderCacheRow[], lang: string): RenderCacheRow {
-  return rows.find((r) => r.qdb_language_code === lang)
-    ?? rows.find((r) => r.qdb_language_code === 'en')
-    ?? rows[0];
+async function fetchPublishedJson(formCode: string, lang: string): Promise<string> {
+  const result = await executeUnboundAction(GET_PUBLISHED_FORM_JSON, {
+    FormCode: { value: formCode, typeName: 'Edm.String', structuralProperty: STRING_PARAMETER },
+    LanguageCode: { value: lang, typeName: 'Edm.String', structuralProperty: STRING_PARAMETER },
+    Version: { value: LATEST_ACTIVE_VERSION, typeName: 'Edm.Int32', structuralProperty: INTEGER_PARAMETER },
+  });
+  return result.RuntimeJson as string;
 }
 
 export const formApi = {
   getMetadata: async (formCode: string, lang?: string) => {
-    const rows = await fetchActiveRows(formCode);
-    if (rows.length === 0) {
+    const runtimeJson = await fetchPublishedJson(formCode, lang ?? 'en');
+    if (!runtimeJson) {
       throw new Error(`Form '${formCode}' has not been published. Publish it from the form record first.`);
     }
-    const row = selectRow(rows, lang ?? 'en');
-    const form = JSON.parse(decodeRuntimeJson(row.qdb_runtime_json, row.qdb_is_compressed)) as FormDefinition;
+    const form = JSON.parse(runtimeJson) as FormDefinition;
     loadedForm = form;
     return wrap(form);
   },

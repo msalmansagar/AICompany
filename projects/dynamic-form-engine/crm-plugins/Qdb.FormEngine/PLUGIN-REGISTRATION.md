@@ -38,6 +38,22 @@ depends on `Core.dll`, `Data.dll`, and `Newtonsoft.Json.dll`. Merge them:
 with `/internalize` (the merged-in types become internal; the three public plugin
 classes stay public). `Microsoft.Xrm.Sdk` is **not** merged — the sandbox provides it.
 
+> ⚠️ **Register `dist\Qdb.FormEngine.Plugins.dll`, NEVER the one in `bin\`.**
+> The merged `dist` DLL is **~793 KB** (Newtonsoft baked in and internalized, strong-named).
+> The `bin\Release\Qdb.FormEngine.Plugins.dll` is only **~21 KB** and holds an **external**
+> reference to `Newtonsoft.Json 13.0.0.0` plus `Qdb.FormEngine.Core/Data`. Registering the
+> `bin` DLL throws this at runtime, in the plugin **constructor** (before any business logic):
+> ```
+> System.IO.FileNotFoundException: Could not load file or assembly 'Newtonsoft.Json,
+> Version=13.0.0.0 ...' at Qdb.FormEngine.Plugins.PluginBase.ParseSecureConfig
+> ```
+> Quick sanity check before registering: the file you pick must be **~793 KB**, and
+> `[Reflection.Assembly]::ReflectionOnlyLoadFrom(path).GetReferencedAssemblies()` must show
+> **no external Newtonsoft/Qdb references**. Note the `bin` DLL is **unsigned** while `dist` is
+> **signed** — so if you previously registered the `bin` DLL, an in-place *Update* may be
+> refused for the public-key-token change; unregister and re-register the `dist` DLL, then
+> recreate the steps.
+
 ---
 
 ## 2. Register the assembly (PRT)
@@ -174,7 +190,7 @@ So that editing a translation after publish regenerates just that language's cac
 | Symptom | Cause / Fix |
 |---|---|
 | "Assembly could not be loaded" on register | Re-target plugin projects to **4.6.2**, rebuild, re-merge. |
-| `TypeLoadException` for `Qdb.FormEngine.Core/Data` at runtime | You registered the un-merged `Plugins.dll`. Register `dist\Qdb.FormEngine.Plugins.dll`. |
+| `TypeLoadException` for `Qdb.FormEngine.Core/Data`, or `FileNotFoundException` for `Newtonsoft.Json 13.0.0.0` at `PluginBase.ParseSecureConfig` | You registered the un-merged **~21 KB** `bin\Release\Plugins.dll`. Register the **~793 KB** `dist\Qdb.FormEngine.Plugins.dll` instead (see the ⚠️ warning in §1). |
 | Newtonsoft version conflict in sandbox | The merge uses `/internalize`, which avoids this; ensure you registered the merged dll. |
 | Publish job stuck at "Generating" | Check the async system job's error; confirm the step is Async PostOperation and the secure config JSON is present. |
 | `RuntimeJson` empty / cache-miss | No active cache record for that form+version+language; the backend falls back to live assembly (by design). |
