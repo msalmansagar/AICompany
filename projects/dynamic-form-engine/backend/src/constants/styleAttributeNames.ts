@@ -73,6 +73,7 @@ export const SECTION_DESIGN_ATTRS = {
   COLLAPSIBLE_STYLE: 'qdb_collapsible_style',
   HEADER_STYLE: 'qdb_header_style',
   VISIBILITY_ANIMATION: 'qdb_visibility_animation',
+  CSS_CLASS: 'qdb_css_class',
   IS_ACTIVE: 'qdb_is_active',
 } as const;
 
@@ -92,6 +93,7 @@ export const FIELD_DESIGN_ATTRS = {
   ERROR_STYLE: 'qdb_error_style',
   FOCUS_STYLE: 'qdb_focus_style',
   DISABLED_STYLE: 'qdb_disabled_style',
+  CSS_CLASS: 'qdb_field_css_class',
   IS_ACTIVE: 'qdb_is_active',
 } as const;
 

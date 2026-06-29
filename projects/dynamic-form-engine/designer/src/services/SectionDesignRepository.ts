@@ -58,7 +58,6 @@ export class SectionDesignRepository {
   async getSectionDesigns(_formDesignId: string): Promise<SectionDesign[]> {
     const select = [
       SECTION_DESIGN_ATTRS.ID, SECTION_DESIGN_ATTRS.SECTION_ID,
-      SECTION_DESIGN_ATTRS.CSS_CLASS, SECTION_DESIGN_ATTRS.CUSTOM_CSS,
       SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR, SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE,
       SECTION_DESIGN_STYLE_ATTRS.PADDING, SECTION_DESIGN_STYLE_ATTRS.MARGIN,
       SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT, SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE,
@@ -79,8 +78,7 @@ export class SectionDesignRepository {
 
   private buildPayload(dto: UpsertSectionDesignDto): Record<string, unknown> {
     return {
-      [SECTION_DESIGN_ATTRS.CSS_CLASS]: dto.cssClass ?? '',
-      [SECTION_DESIGN_ATTRS.CUSTOM_CSS]: dto.customCss ?? '',
+      [SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS]: dto.cssClass ?? null,
       [SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR]: dto.backgroundColor ?? null,
       [SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE]: dto.borderStyle ?? null,
       [SECTION_DESIGN_STYLE_ATTRS.PADDING]: dto.padding ?? null,
@@ -121,6 +119,8 @@ export class SectionDesignRepository {
       cardStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE], PICKLIST_TO_CARD, 'Flat'),
       collapsibleStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE], PICKLIST_TO_COLLAPSIBLE, 'None'),
       visibilityAnimation: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION], PICKLIST_TO_VISIBILITY, 'None'),
+      cssClassName: record[SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS] != null
+        ? String(record[SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS]) : undefined,
       isActive: true,
     };
   }

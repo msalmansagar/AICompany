@@ -2,6 +2,7 @@
 import {
   Label,
   makeStyles,
+  mergeClasses,
   tokens,
   Text,
   Tooltip,
@@ -169,7 +170,7 @@ export function FieldRenderer({
 
   return (
     <div
-      className={styles.fieldWrapper}
+      className={mergeClasses(styles.fieldWrapper, fieldDesign?.cssClassName)}
       style={fieldStyle.containerStyle as CSSProperties}
     >
       {!isFloating && (

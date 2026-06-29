@@ -131,6 +131,8 @@ export class FieldDesignRepository {
       disabledStyle: parseJsonStyle(record[FIELD_DESIGN_STYLE_ATTRS.DISABLED_STYLE_JSON]),
       placeholderStyle: parseJsonStyle(record[FIELD_DESIGN_STYLE_ATTRS.PLACEHOLDER_STYLE_JSON]),
       tooltipStyle: parseJsonStyle(record[FIELD_DESIGN_STYLE_ATTRS.TOOLTIP_STYLE_JSON]),
+      cssClassName: record[FIELD_DESIGN_STYLE_ATTRS.CSS_CLASS] != null
+        ? String(record[FIELD_DESIGN_STYLE_ATTRS.CSS_CLASS]) : undefined,
       isActive: true,
     };
   }

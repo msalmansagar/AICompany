@@ -88,6 +88,7 @@ export interface RawSectionDesign {
   qdb_collapsible_style: number;
   qdb_header_style?: string;
   qdb_visibility_animation: number;
+  qdb_css_class?: string;
   qdb_is_active?: boolean;
 }
 
@@ -106,6 +107,7 @@ export interface RawFieldDesign {
   qdb_error_style?: string;
   qdb_focus_style?: string;
   qdb_disabled_style?: string;
+  qdb_field_css_class?: string;
   qdb_is_active?: boolean;
 }
 
@@ -202,6 +204,7 @@ export function mapSectionDesign(raw: RawSectionDesign): SectionDesign {
       ? (JSON.parse(raw.qdb_header_style) as Record<string, string>)
       : undefined,
     visibilityAnimation: mapAnimationStyle(raw.qdb_visibility_animation),
+    cssClassName: raw.qdb_css_class,
     isActive: raw.qdb_is_active ?? true,
   };
 }
@@ -234,6 +237,7 @@ export function mapFieldDesign(raw: RawFieldDesign): FieldDesign {
     disabledStyle: raw.qdb_disabled_style
       ? (JSON.parse(raw.qdb_disabled_style) as Record<string, string>)
       : undefined,
+    cssClassName: raw.qdb_field_css_class,
     isActive: raw.qdb_is_active ?? true,
   };
 }

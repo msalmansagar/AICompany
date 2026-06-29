@@ -4,6 +4,7 @@ import {
   Card,
   CardHeader,
   makeStyles,
+  mergeClasses,
   tokens,
   Button,
 } from '@fluentui/react-components';
@@ -198,7 +199,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   if (sectionStyleType === 'Card') {
     return (
       <Card
-        className={styles.card}
+        className={mergeClasses(styles.card, sectionDesign?.cssClassName)}
         aria-label={section.label}
         style={sectionStyle}
       >
@@ -211,7 +212,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   if (sectionStyleType === 'Outlined') {
     return (
       <section
-        className={styles.outlinedSection}
+        className={mergeClasses(styles.outlinedSection, sectionDesign?.cssClassName)}
         aria-label={section.label}
         style={sectionStyle}
       >
@@ -223,7 +224,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
 
   return (
     <section
-      className={styles.flatSection}
+      className={mergeClasses(styles.flatSection, sectionDesign?.cssClassName)}
       aria-label={section.label}
       style={sectionStyle}
     >
