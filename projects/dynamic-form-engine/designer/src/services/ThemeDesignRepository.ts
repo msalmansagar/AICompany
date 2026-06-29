@@ -5,6 +5,17 @@ import { THEME_STYLE_ATTRS } from '@/constants/styleAttributeNames';
 import type { ThemeDefinition } from '@qdb/shared';
 import { withRetry } from './crmRetry';
 
+// Org-verified Option Set codes (qdb_shadow_style, qdb_spacing_scale).
+const SHADOW_TO_PICKLIST: Record<string, number> = { None: 100000001, Subtle: 100000002, Strong: 100000003 };
+const SPACING_TO_PICKLIST: Record<string, number> = { Compact: 100000001, Normal: 100000002, Comfortable: 100000003 };
+const PICKLIST_TO_SHADOW: Record<number, ThemeDefinition['shadowStyle']> = { 100000001: 'None', 100000002: 'Subtle', 100000003: 'Strong' };
+const PICKLIST_TO_SPACING: Record<number, ThemeDefinition['spacingScale']> = { 100000001: 'Compact', 100000002: 'Normal', 100000003: 'Comfortable' };
+
+/** Returns String(value) when present, else undefined — collapses the repeated null-guard pattern. */
+function toOptionalString(value: unknown): string | undefined {
+  return value != null ? String(value) : undefined;
+}
+
 export interface UpsertThemeDto {
   name: string;
   themeCode: string;
@@ -118,8 +129,8 @@ export class ThemeDesignRepository {
       [THEME_STYLE_ATTRS.HEADING_FONT_SIZE]: dto.headingFontSize ?? null,
       [THEME_STYLE_ATTRS.LABEL_FONT_SIZE]: dto.labelFontSize ?? null,
       [THEME_STYLE_ATTRS.INPUT_FONT_SIZE]: dto.inputFontSize ?? null,
-      [THEME_STYLE_ATTRS.SHADOW_STYLE]: dto.shadowStyle ?? null,
-      [THEME_STYLE_ATTRS.SPACING_SCALE]: dto.spacingScale ?? null,
+      [THEME_STYLE_ATTRS.SHADOW_STYLE]: dto.shadowStyle ? (SHADOW_TO_PICKLIST[dto.shadowStyle] ?? null) : null,
+      [THEME_STYLE_ATTRS.SPACING_SCALE]: dto.spacingScale ? (SPACING_TO_PICKLIST[dto.spacingScale] ?? null) : null,
       [THEME_STYLE_ATTRS.IS_DARK_MODE]: dto.isDarkMode ?? false,
     };
     if (dto.backgroundColor !== undefined) {
@@ -134,42 +145,24 @@ export class ThemeDesignRepository {
       themeCode: String(record[THEME_STYLE_ATTRS.THEME_CODE] ?? ''),
       themeName: String(record[THEME_ATTRS.NAME] ?? 'Default'),
       primaryColor: String(record[THEME_ATTRS.PRIMARY_COLOR] ?? '#0078d4'),
-      secondaryColor: record[THEME_STYLE_ATTRS.SECONDARY_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.SECONDARY_COLOR]) : undefined,
-      backgroundColor: record[THEME_ATTRS.BACKGROUND_COLOR] != null
-        ? String(record[THEME_ATTRS.BACKGROUND_COLOR]) : undefined,
-      surfaceColor: record[THEME_STYLE_ATTRS.SURFACE_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.SURFACE_COLOR]) : undefined,
-      textPrimaryColor: record[THEME_STYLE_ATTRS.TEXT_PRIMARY_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.TEXT_PRIMARY_COLOR]) : undefined,
-      textSecondaryColor: record[THEME_STYLE_ATTRS.TEXT_SECONDARY_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.TEXT_SECONDARY_COLOR]) : undefined,
-      borderColor: record[THEME_STYLE_ATTRS.BORDER_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.BORDER_COLOR]) : undefined,
-      errorColor: record[THEME_STYLE_ATTRS.ERROR_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.ERROR_COLOR]) : undefined,
-      successColor: record[THEME_STYLE_ATTRS.SUCCESS_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.SUCCESS_COLOR]) : undefined,
-      warningColor: record[THEME_STYLE_ATTRS.WARNING_COLOR] != null
-        ? String(record[THEME_STYLE_ATTRS.WARNING_COLOR]) : undefined,
-      fontFamily: record[THEME_ATTRS.FONT_FAMILY] != null
-        ? String(record[THEME_ATTRS.FONT_FAMILY]) : undefined,
-      fontUrl: record[THEME_STYLE_ATTRS.FONT_URL] != null
-        ? String(record[THEME_STYLE_ATTRS.FONT_URL]) : undefined,
-      baseFontSize: record[THEME_ATTRS.FONT_SIZE_BASE] != null
-        ? String(record[THEME_ATTRS.FONT_SIZE_BASE]) : undefined,
-      headingFontSize: record[THEME_STYLE_ATTRS.HEADING_FONT_SIZE] != null
-        ? String(record[THEME_STYLE_ATTRS.HEADING_FONT_SIZE]) : undefined,
-      labelFontSize: record[THEME_STYLE_ATTRS.LABEL_FONT_SIZE] != null
-        ? String(record[THEME_STYLE_ATTRS.LABEL_FONT_SIZE]) : undefined,
-      inputFontSize: record[THEME_STYLE_ATTRS.INPUT_FONT_SIZE] != null
-        ? String(record[THEME_STYLE_ATTRS.INPUT_FONT_SIZE]) : undefined,
-      borderRadius: record[THEME_ATTRS.BORDER_RADIUS] != null
-        ? String(record[THEME_ATTRS.BORDER_RADIUS]) : undefined,
-      shadowStyle: record[THEME_STYLE_ATTRS.SHADOW_STYLE] != null
-        ? String(record[THEME_STYLE_ATTRS.SHADOW_STYLE]) as ThemeDefinition['shadowStyle'] : undefined,
-      spacingScale: record[THEME_STYLE_ATTRS.SPACING_SCALE] != null
-        ? String(record[THEME_STYLE_ATTRS.SPACING_SCALE]) as ThemeDefinition['spacingScale'] : undefined,
+      secondaryColor: toOptionalString(record[THEME_STYLE_ATTRS.SECONDARY_COLOR]),
+      backgroundColor: toOptionalString(record[THEME_ATTRS.BACKGROUND_COLOR]),
+      surfaceColor: toOptionalString(record[THEME_STYLE_ATTRS.SURFACE_COLOR]),
+      textPrimaryColor: toOptionalString(record[THEME_STYLE_ATTRS.TEXT_PRIMARY_COLOR]),
+      textSecondaryColor: toOptionalString(record[THEME_STYLE_ATTRS.TEXT_SECONDARY_COLOR]),
+      borderColor: toOptionalString(record[THEME_STYLE_ATTRS.BORDER_COLOR]),
+      errorColor: toOptionalString(record[THEME_STYLE_ATTRS.ERROR_COLOR]),
+      successColor: toOptionalString(record[THEME_STYLE_ATTRS.SUCCESS_COLOR]),
+      warningColor: toOptionalString(record[THEME_STYLE_ATTRS.WARNING_COLOR]),
+      fontFamily: toOptionalString(record[THEME_ATTRS.FONT_FAMILY]),
+      fontUrl: toOptionalString(record[THEME_STYLE_ATTRS.FONT_URL]),
+      baseFontSize: toOptionalString(record[THEME_ATTRS.FONT_SIZE_BASE]),
+      headingFontSize: toOptionalString(record[THEME_STYLE_ATTRS.HEADING_FONT_SIZE]),
+      labelFontSize: toOptionalString(record[THEME_STYLE_ATTRS.LABEL_FONT_SIZE]),
+      inputFontSize: toOptionalString(record[THEME_STYLE_ATTRS.INPUT_FONT_SIZE]),
+      borderRadius: toOptionalString(record[THEME_ATTRS.BORDER_RADIUS]),
+      shadowStyle: PICKLIST_TO_SHADOW[Number(record[THEME_STYLE_ATTRS.SHADOW_STYLE])],
+      spacingScale: PICKLIST_TO_SPACING[Number(record[THEME_STYLE_ATTRS.SPACING_SCALE])],
       isDarkMode: Boolean(record[THEME_STYLE_ATTRS.IS_DARK_MODE] ?? false),
       isActive: true,
       _brand: 'ThemeDefinition',

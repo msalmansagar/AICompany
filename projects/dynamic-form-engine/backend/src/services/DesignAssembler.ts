@@ -151,33 +151,43 @@ export class DesignAssembler extends CrmBaseService {
     return response.value[0];
   }
 
-  private async resolveFormHierarchyIds(
-    formDefinitionId: string,
-  ): Promise<{ sectionIds: string[]; fieldIds: string[] }> {
+  private async fetchTabIds(formDefinitionId: string): Promise<string[]> {
     const tabAttr = FORM_HIERARCHY_ATTRS.TAB_FORM_DEFINITION_ID_VALUE;
     const tabs = await this.crmFetch<ODataCollection<{ qdb_form_tabid: string }>>(
-      `/qdb_form_tabs?$filter=${tabAttr} eq '${formDefinitionId}'` +
-      `&$select=${FORM_HIERARCHY_ATTRS.TAB_ID}`,
+      `/qdb_form_tabs?$filter=${tabAttr} eq '${formDefinitionId}'&$select=${FORM_HIERARCHY_ATTRS.TAB_ID}`,
     );
-    const tabIds = tabs.value.map((t) => t.qdb_form_tabid);
-    if (tabIds.length === 0) return { sectionIds: [], fieldIds: [] };
+    return tabs.value.map((t) => t.qdb_form_tabid);
+  }
 
-    const sectionTabFilter = tabIds
+  private async fetchSectionIds(tabIds: string[]): Promise<string[]> {
+    if (tabIds.length === 0) return [];
+    const filter = tabIds
       .map((id) => `${FORM_HIERARCHY_ATTRS.SECTION_TAB_ID_VALUE} eq '${id}'`)
       .join(' or ');
     const sections = await this.crmFetch<ODataCollection<{ qdb_form_sectionid: string }>>(
-      `/qdb_form_sections?$filter=(${sectionTabFilter})&$select=${FORM_HIERARCHY_ATTRS.SECTION_ID}`,
+      `/qdb_form_sections?$filter=(${filter})&$select=${FORM_HIERARCHY_ATTRS.SECTION_ID}`,
     );
-    const sectionIds = sections.value.map((s) => s.qdb_form_sectionid);
-    if (sectionIds.length === 0) return { sectionIds, fieldIds: [] };
+    return sections.value.map((s) => s.qdb_form_sectionid);
+  }
 
-    const fieldSectionFilter = sectionIds
+  private async fetchFieldIds(sectionIds: string[]): Promise<string[]> {
+    if (sectionIds.length === 0) return [];
+    const filter = sectionIds
       .map((id) => `${FORM_HIERARCHY_ATTRS.FIELD_SECTION_ID_VALUE} eq '${id}'`)
       .join(' or ');
     const fields = await this.crmFetch<ODataCollection<{ qdb_form_fieldid: string }>>(
-      `/qdb_form_fields?$filter=(${fieldSectionFilter})&$select=${FORM_HIERARCHY_ATTRS.FIELD_ID}`,
+      `/qdb_form_fields?$filter=(${filter})&$select=${FORM_HIERARCHY_ATTRS.FIELD_ID}`,
     );
-    return { sectionIds, fieldIds: fields.value.map((f) => f.qdb_form_fieldid) };
+    return fields.value.map((f) => f.qdb_form_fieldid);
+  }
+
+  private async resolveFormHierarchyIds(
+    formDefinitionId: string,
+  ): Promise<{ sectionIds: string[]; fieldIds: string[] }> {
+    const tabIds = await this.fetchTabIds(formDefinitionId);
+    const sectionIds = await this.fetchSectionIds(tabIds);
+    const fieldIds = await this.fetchFieldIds(sectionIds);
+    return { sectionIds, fieldIds };
   }
 
   private async fetchSectionDesigns(sectionIds: string[]): Promise<Record<string, SectionDesign>> {
@@ -248,11 +258,17 @@ function buildEmptyButtonDesigns(): Record<ButtonType, ButtonDesign | undefined>
   return { Submit: undefined, SaveDraft: undefined, Cancel: undefined };
 }
 
+/** Thrown when an assembled DesignPayload exceeds the render-cache size cap (NFR-004). */
+export class PayloadSizeExceededError extends Error {
+  constructor(public readonly formDefinitionId: string, public readonly byteLength: number) {
+    super(`DesignPayload for form ${formDefinitionId} exceeds 512 KB cap (${byteLength} bytes)`);
+    this.name = 'PayloadSizeExceededError';
+  }
+}
+
 function enforcePayloadSizeCap(payload: DesignPayload, formDefinitionId: string): void {
   const byteLength = JSON.stringify(payload).length;
   if (byteLength > DESIGN_PAYLOAD_SIZE_CAP) {
-    throw new Error(
-      `DesignPayload for form ${formDefinitionId} exceeds 512 KB cap (${byteLength} bytes)`,
-    );
+    throw new PayloadSizeExceededError(formDefinitionId, byteLength);
   }
 }

@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { ENTITY_NAMES } from '@/constants/entityNames';
 import { LAYOUT_GRID_ATTRS } from '@/constants/styleAttributeNames';
 import type { LayoutGrid } from '@qdb/shared';
 import { withRetry } from './crmRetry';
@@ -12,8 +13,6 @@ export interface UpsertLayoutGridDto {
   spanDesktop: number;
 }
 
-const ENTITY_NAME_LAYOUT_GRID = 'qdb_layout_grid';
-
 export class LayoutGridRepository {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
@@ -23,7 +22,7 @@ export class LayoutGridRepository {
 
     if (existingId !== null) {
       await withRetry(
-        () => this.webApi.updateRecord(ENTITY_NAME_LAYOUT_GRID, existingId, payload),
+        () => this.webApi.updateRecord(ENTITY_NAMES.LAYOUT_GRID, existingId, payload),
         'updateLayoutGrid'
       );
       return existingId;
@@ -32,7 +31,7 @@ export class LayoutGridRepository {
     payload[LAYOUT_GRID_ATTRS.FORM_DESIGN_ID] = dto.formDesignId;
     payload[LAYOUT_GRID_ATTRS.FORM_FIELD_ID] = dto.fieldId;
     const result = await withRetry(
-      () => this.webApi.createRecord(ENTITY_NAME_LAYOUT_GRID, payload),
+      () => this.webApi.createRecord(ENTITY_NAMES.LAYOUT_GRID, payload),
       'createLayoutGrid'
     );
     return result.id;
@@ -48,7 +47,7 @@ export class LayoutGridRepository {
 
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
-        ENTITY_NAME_LAYOUT_GRID,
+        ENTITY_NAMES.LAYOUT_GRID,
         `?$select=${select}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID} eq ${formDesignId}`
       ),
       'getLayoutGrids'
@@ -69,7 +68,7 @@ export class LayoutGridRepository {
   private async findExistingLayoutGridId(formDesignId: string, fieldId: string): Promise<string | null> {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
-        ENTITY_NAME_LAYOUT_GRID,
+        ENTITY_NAMES.LAYOUT_GRID,
         `?$select=${LAYOUT_GRID_ATTRS.ID}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID} eq ${formDesignId} and ${LAYOUT_GRID_ATTRS.FORM_FIELD_ID} eq ${fieldId}&$top=1`
       ),
       'findLayoutGrid'
