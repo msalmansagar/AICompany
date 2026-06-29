@@ -24,3 +24,10 @@
 | ADR-STYLE-004 | Single shared allowlist for customCss url() and fontUrl domain validation | Accepted | 2026-06-28 | Architect |
 | ADR-STYLE-005 | On-prem runtime re-sanitization via PostCSS browser build | Accepted | 2026-06-28 | Architect |
 | ADR-STYLE-006 | WCAG v1 scope limited to primary palette and button pairs | Accepted | 2026-06-28 | Architect |
+| ADR-BTN-001 | Single Combined Allowlist for External URLs and CallApi Endpoints | Accepted | 2026-06-30 | Architect |
+| ADR-BTN-002 | CallApi Authentication Model (forwarded user JWT, same-tenant) | Accepted (IT Director sign-off required) | 2026-06-30 | Architect |
+| ADR-BTN-003 | Navigate:AnotherForm Cross-Surface Behaviour | Accepted | 2026-06-30 | Architect |
+| ADR-BTN-004 | ExpressionEngine — Extend, Not Replace | Accepted | 2026-06-30 | Architect |
+| ADR-BTN-005 | ExtraParams Persistence — JSON Column on Audit Log | Accepted | 2026-06-30 | Architect |
+| ADR-BTN-006 | ScopedButton Discriminated-Union Action Type Schema | Accepted | 2026-06-30 | Architect |
+| ADR-BTN-007 | Shared-Type Dual-File Sync Mechanism (CI check) | Accepted | 2026-06-30 | Architect |
