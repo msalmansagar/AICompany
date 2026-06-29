@@ -99,6 +99,114 @@ export interface FormButton {
   isActive: boolean;
 }
 
+// ── DFE-BTN-001: Tab/Section scoped buttons, navigation & submission params ──
+// These types are defined IDENTICALLY in shared/src/types/form.types.ts and
+// shared/src/types/form.ts (mobile). The CI parity check
+// (shared/scripts/check-shared-type-sync.mjs) fails the build if their members
+// drift. Do not edit one of the two files without the other.
+
+export type ButtonPlacementScope = 'tab' | 'section';
+
+export type ScopedButtonActionType = 'navigate' | 'finalSubmit' | 'saveDraft' | 'callApi';
+
+export type NavigationTargetType =
+  | 'tab'
+  | 'section'
+  | 'nextStep'
+  | 'previousStep'
+  | 'externalUrl'
+  | 'anotherForm';
+
+export type UnsavedDataPolicy = 'warn' | 'discard' | 'block';
+
+export interface NavigateActionConfig {
+  type: 'navigate';
+  target: NavigationTargetType;
+  targetTabId?: string;        // target = 'tab'
+  targetSectionId?: string;    // target = 'section'
+  externalUrlKey?: string;     // target = 'externalUrl' — KEY into the allowlist, never a raw URL
+  targetFormCode?: string;     // target = 'anotherForm'
+  openInNewTab?: boolean;
+  requiresPreviousTabsComplete?: boolean; // OQ-006 — default false
+  unsavedDataPolicy?: UnsavedDataPolicy;  // external/anotherForm; default 'warn'
+}
+
+export type ExtraParamSource = 'static' | 'hiddenField' | 'runtimeContext' | 'computed';
+
+export type RuntimeContextKey =
+  | 'userId'
+  | 'userDisplayName'
+  | 'formId'
+  | 'formCode'
+  | 'formVersion'
+  | 'submittedAt'
+  | 'sessionId'
+  | 'tenantSegment'
+  | 'locale';
+
+export interface ExtraParamSpec {
+  key: string;                 // param name in the resolved envelope
+  source: ExtraParamSource;
+  staticValue?: string;        // source = 'static'
+  fieldSchemaName?: string;    // source = 'hiddenField'
+  contextKey?: RuntimeContextKey; // source = 'runtimeContext'
+  expression?: string;         // source = 'computed' (DSL evaluated server-side)
+}
+
+export interface FinalSubmitActionConfig {
+  type: 'finalSubmit';
+  extraParams: ExtraParamSpec[];
+}
+
+export interface SaveDraftActionConfig {
+  type: 'saveDraft';
+}
+
+export interface CallApiRequestFieldRef {
+  paramKey: string;
+  fieldSchemaName: string;
+}
+
+export interface CallApiResponseMapping {
+  responsePath: string;
+  targetFieldSchemaName: string;
+}
+
+export interface CallApiActionConfig {
+  type: 'callApi';
+  endpointKey: string;         // resolves against the server registry — never a URL
+  method: 'GET' | 'POST';
+  requestFieldRefs?: CallApiRequestFieldRef[];
+  onSuccessMessage?: string;
+  onErrorMessage?: string;
+  responseFieldMappings?: CallApiResponseMapping[];
+}
+
+export type ScopedButtonAction =
+  | NavigateActionConfig
+  | FinalSubmitActionConfig
+  | SaveDraftActionConfig
+  | CallApiActionConfig;
+
+export interface ScopedButton {
+  id: string;
+  placementScope: ButtonPlacementScope;
+  placementId: string;         // tabId (scope=tab) or sectionId (scope=section)
+  label: string;
+  displayOrder: number;
+  isPrimary: boolean;
+  isVisible: boolean;
+  confirmationRequired: boolean;
+  confirmationMessage?: string;
+  action: ScopedButtonAction;  // discriminated by action.type
+  isActive: boolean;
+}
+
+/** Resolved extra-parameter envelope produced server-side at submit time. */
+export interface ResolvedExtraParams {
+  [key: string]: string | number | boolean | null;
+}
+
 export interface FormSummary {
   id: string;
   formCode: string;
@@ -300,6 +408,8 @@ export interface SectionDefinition {
   isCollapsedByDefault: boolean;
   isVisible: boolean;
   fields: FieldDefinition[];
+  // DFE-BTN-001: section-scoped buttons (additive; defaults to [] for existing forms)
+  buttons?: ScopedButton[];
 }
 
 // ── Tab definition ────────────────────────────────────────────
@@ -317,6 +427,8 @@ export interface TabDefinition {
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
   sections: SectionDefinition[];
+  // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
+  buttons?: ScopedButton[];
 }
 
 // ── Form version ──────────────────────────────────────────────
