@@ -65,10 +65,41 @@ Additive + nullable → low-risk. To revert:
    data are unaffected.**
 No data migration runs in this engagement, so rollback never risks existing form/style data.
 
+**Provisioning env (S-06):** `provision-style-schema.mjs` no longer hardcodes the tenant/client/org.
+Set `DV_CLIENT_SECRET`, `DV_TENANT_ID`, `DV_CLIENT_ID`, `DV_DATAVERSE_URL` (and optionally
+`DV_SOLUTION_NAME`) in the gitignored `scripts/.env` before running.
+
 ## Post-deploy verification
-- [ ] `verify-style-schema.mjs` → all 56 attributes EXIST, 0 mismatches; both entities present.
-- [ ] Allowlist `default` record active with expected domains.
+- [ ] `verify-style-schema.mjs` → the 2 net-new attrs created (`qdb_css_class`, `qdb_field_css_class`);
+      `qdb_css_allowlist_config` entity present; the other design attrs pre-exist (DFE-ADD).
+- [ ] Allowlist `global` record active with expected domains (key is `global`, not `default`).
 - [ ] Publish a test form, edit a Field/Section/Button Style panel, re-publish → cache JSON
       contains the `DesignPayload`; portal and `qdb_form_runtime.html` render identically (SM-005).
 - [ ] An existing pre-engagement form renders with no visual change (SM-002).
 - [ ] WCAG gate blocks a deliberately <3:1 colour pair (SM-007).
+
+---
+
+## Known limitation — on-prem `url()` in customCss (S-07 / ADR-STYLE-005 amendment)
+The on-prem runtime (`qdb_form_runtime.html` via `customCssInjector.ts`) re-sanitizes `customCss`
+with an **empty** domain allowlist — it does **not** fetch `qdb_css_allowlist_config` via `Xrm.WebApi`
+at render time (that path is not reachable from the bundled runtime). Consequences:
+- **Security:** stronger — every `url()` in on-prem `customCss` is stripped unconditionally.
+- **Functional:** any approved-CDN `url()` (e.g. a `background-image`) renders correctly on the
+  Next.js **portal** but **renders blank on the on-prem CRM runtime**. This is an **accepted v1
+  constraint**. (ADR-STYLE-005 is amended to record this; the QA expectation for "on-prem reads the
+  allowlist via Xrm.WebApi" is updated to "on-prem uses an empty allowlist by design".)
+- **If on-prem CDN url() rendering becomes required:** wire `AllowlistService` into the on-prem
+  runtime (architecture already specifies the `Xrm.WebApi` read) — additive, no rework.
+
+## Operational procedure — revoke a CDN domain (S-08)
+When a previously approved CDN must be removed (compromise / policy change):
+1. Update the Dataverse `qdb_css_allowlist_config` `global` record (remove the domain).
+   → Designer and on-prem runtime pick this up on next page load (instant).
+2. Update `ALLOWED_CSS_DOMAINS_JSON` in the backend secret store (K8s Secret / Azure App Config).
+3. Trigger a **rolling restart** of the Fastify backend (it reads the env allowlist at startup).
+   → On startup the backend logs the **active allowed domains** at INFO (empty → ERROR in prod),
+   so operations can confirm the running state without guessing.
+4. **Revocation SLA:** target < 15 minutes from Dataverse update to full backend refresh.
+
+> Only the backend has a refresh lag (cached at startup). Designer + on-prem are instant.

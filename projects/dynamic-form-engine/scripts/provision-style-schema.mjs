@@ -17,20 +17,30 @@
 //   node --env-file=scripts/.env scripts/provision-style-schema.mjs
 //   node --env-file=scripts/.env scripts/provision-style-schema.mjs --dry-run
 //
-// Required .env entry: DV_CLIENT_SECRET=<service-principal-secret>
+// Required .env entries (S-06: no infrastructure identifiers hardcoded in source —
+// keeps them rotatable and environment-portable):
+//   DV_CLIENT_SECRET=<service-principal-secret>
+//   DV_TENANT_ID=<azure-ad-tenant-guid>
+//   DV_CLIENT_ID=<service-principal-app-id>
+//   DV_DATAVERSE_URL=https://<org>.crm<n>.dynamics.com
 
-const DV_CLIENT_SECRET = process.env.DV_CLIENT_SECRET;
-if (!DV_CLIENT_SECRET) {
-  throw new Error('DV_CLIENT_SECRET not set. Run with: node --env-file=scripts/.env scripts/provision-style-schema.mjs');
+const REQUIRED_ENV = ['DV_CLIENT_SECRET', 'DV_TENANT_ID', 'DV_CLIENT_ID', 'DV_DATAVERSE_URL'];
+const missingEnv = REQUIRED_ENV.filter((name) => !process.env[name]);
+if (missingEnv.length > 0) {
+  throw new Error(
+    `Missing required env var(s): ${missingEnv.join(', ')}. ` +
+    'Run with: node --env-file=scripts/.env scripts/provision-style-schema.mjs',
+  );
 }
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
-const TENANT_ID     = 'd79e793c-f6de-4204-8508-7980a63df957';
-const CLIENT_ID     = '08e80e93-0bab-45ef-8372-2e554fa9af9b';
-const DATAVERSE_URL = 'https://org5869857f.crm4.dynamics.com';
-const API_BASE      = `${DATAVERSE_URL}/api/data/v9.2`;
-const SOLUTION_NAME = 'QdbDynamicFormEngine';   // solution the design entities live in
+const DV_CLIENT_SECRET = process.env.DV_CLIENT_SECRET;
+const TENANT_ID        = process.env.DV_TENANT_ID;
+const CLIENT_ID        = process.env.DV_CLIENT_ID;
+const DATAVERSE_URL    = process.env.DV_DATAVERSE_URL;
+const API_BASE         = `${DATAVERSE_URL}/api/data/v9.2`;
+const SOLUTION_NAME    = process.env.DV_SOLUTION_NAME || 'QdbDynamicFormEngine';
 const LANG = 1033;
 
 // ── Auth ────────────────────────────────────────────────────────────────────

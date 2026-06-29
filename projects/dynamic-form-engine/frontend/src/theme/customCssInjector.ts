@@ -12,6 +12,15 @@
 
 import { createCssSanitiserPlugin } from '@qdb/shared';
 
+/** Minimal logging sink — no console.* in committed code; host wires a real logger if desired. */
+export interface CustomCssInjectorLogger {
+  warn(message: string, context?: Record<string, unknown>): void;
+}
+let injectorLogger: CustomCssInjectorLogger = { warn: () => { /* no-op */ } };
+export function setCustomCssInjectorLogger(logger: CustomCssInjectorLogger): void {
+  injectorLogger = logger;
+}
+
 /* eslint-disable no-var */
 declare var PostCSS: PostCssGlobal | undefined;
 /* eslint-enable no-var */
@@ -59,7 +68,11 @@ function sanitiseWithPostCss(css: string): string {
     const plugin = createCssSanitiserPlugin([]);
     const result = PostCSS.default([plugin]).process(css, { from: undefined });
     return result.css;
-  } catch {
+  } catch (error) {
+    // Fail closed (return '') AND surface the failure — never silently swallow (SEC-07).
+    injectorLogger.warn('customCss PostCSS sanitization failed — CSS cleared', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return '';
   }
 }
