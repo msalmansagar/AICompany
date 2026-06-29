@@ -7,3 +7,7 @@ export { RuleEngine } from './engines/RuleEngine';
 export { ExpressionEngine } from './engines/ExpressionEngine';
 export type { ExpressionValue, ExpressionContext } from './engines/ExpressionEngine';
 export { ExpressionError } from './engines/ExpressionEngine';
+export { calculateContrastRatio } from './utils/contrastRatio';
+export type { ContrastResult } from './utils/contrastRatio';
+export * from './validation/design.schema';
+export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin';

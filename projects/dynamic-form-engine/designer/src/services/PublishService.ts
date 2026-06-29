@@ -80,6 +80,43 @@ export class PublishService {
     return jobId;
   }
 
+  /**
+   * Triggers an async cache regeneration job for a style change (SC-03).
+   * Creates a qdb_publish_job with STYLE_CHANGE trigger reason and fires the action.
+   * Returns the job ID — the 30s cache lag target is a backend concern; caller does not poll.
+   */
+  async triggerStyleChangeCache(params: PublishParams): Promise<string> {
+    const { formDefinitionId, formCode, targetVersion } = params;
+
+    const jobResult = await withRetry(
+      () =>
+        this.webApi.createRecord(ENTITY_NAMES.PUBLISH_JOB, {
+          [`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID}@odata.bind`]: `/qdb_form_definitions(${formDefinitionId})`,
+          [PUBLISH_JOB_ATTRS.FORM_CODE]: formCode,
+          [PUBLISH_JOB_ATTRS.TARGET_VERSION]: targetVersion,
+          [PUBLISH_JOB_ATTRS.STATUS]: PUBLISH_JOB_STATUS.QUEUED,
+          [PUBLISH_JOB_ATTRS.TRIGGER_REASON]: PUBLISH_JOB_TRIGGER_REASON.STYLE_CHANGE,
+        }),
+      'createStyleChangeCacheJob',
+    );
+
+    const jobId = jobResult.id;
+
+    await withRetry(
+      () =>
+        this.webApi.executeAction(PUBLISH_ACTION_NAME, {
+          FormDefinitionId: formDefinitionId,
+          FormCode: formCode,
+          TargetVersion: targetVersion,
+          PublishJobId: jobId,
+          TriggerReason: PUBLISH_JOB_TRIGGER_REASON.STYLE_CHANGE,
+        }),
+      'executeStyleChangeCacheAction',
+    );
+
+    return jobId;
+  }
+
   async getJobStatus(jobId: string): Promise<PublishJobStatus> {
     const select = [
       PUBLISH_JOB_ATTRS.ID,

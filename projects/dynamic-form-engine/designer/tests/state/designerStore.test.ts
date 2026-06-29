@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useDesignerStore } from '@/state/designerStore';
+import { useDesignerStore, DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import type { DesignerFormModel, DesignerTabModel, DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
 
 // ---------------------------------------------------------------------------
@@ -116,20 +116,7 @@ function makeField(overrides: Partial<DesignerFieldModel> = {}): DesignerFieldMo
 
 function loadMinimalForm(): void {
   const { loadForm } = useDesignerStore.getState();
-  loadForm(makeForm(), [makeTab()], [makeSection()], [makeField()], [], [], {
-    themeId: null,
-    themeName: 'Default',
-    primaryColor: '#0078d4',
-    accentColor: '#005a9e',
-    backgroundColor: '#ffffff',
-    fontFamily: 'Segoe UI',
-    fontSizeBase: 14,
-    borderRadius: 4,
-    fieldSpacing: 16,
-    labelPosition: 'above',
-    buttonStyle: 'filled',
-    customCss: '',
-  });
+  loadForm(makeForm(), [makeTab()], [makeSection()], [makeField()], [], [], DEFAULT_DESIGN_PAYLOAD);
 }
 
 // ---------------------------------------------------------------------------
@@ -208,20 +195,7 @@ describe('useDesignerStore', () => {
     const sectionB = makeSection({ id: 'section-b', tabId: 'tab-1', label: 'Employment', sortOrder: 1 });
     const field = makeField({ id: 'field-x', sectionId: 'section-a' });
 
-    loadForm(makeForm(), [makeTab()], [sectionA, sectionB], [field], [], [], {
-      themeId: null,
-      themeName: 'Default',
-      primaryColor: '#0078d4',
-      accentColor: '#005a9e',
-      backgroundColor: '#ffffff',
-      fontFamily: 'Segoe UI',
-      fontSizeBase: 14,
-      borderRadius: 4,
-      fieldSpacing: 16,
-      labelPosition: 'above',
-      buttonStyle: 'filled',
-      customCss: '',
-    });
+    loadForm(makeForm(), [makeTab()], [sectionA, sectionB], [field], [], [], DEFAULT_DESIGN_PAYLOAD);
 
     // Act — move field-x from section-a to section-b at index 0
     useDesignerStore.getState().moveField('field-x', 'section-b', 0);
@@ -240,20 +214,7 @@ describe('useDesignerStore', () => {
     const { loadForm } = useDesignerStore.getState();
     const tabA = makeTab({ id: 'tab-a', label: 'Tab A', sortOrder: 0 });
     const tabB = makeTab({ id: 'tab-b', label: 'Tab B', sortOrder: 1 });
-    loadForm(makeForm(), [tabA, tabB], [], [], [], [], {
-      themeId: null,
-      themeName: 'Default',
-      primaryColor: '#0078d4',
-      accentColor: '#005a9e',
-      backgroundColor: '#ffffff',
-      fontFamily: 'Segoe UI',
-      fontSizeBase: 14,
-      borderRadius: 4,
-      fieldSpacing: 16,
-      labelPosition: 'above',
-      buttonStyle: 'filled',
-      customCss: '',
-    });
+    loadForm(makeForm(), [tabA, tabB], [], [], [], [], DEFAULT_DESIGN_PAYLOAD);
 
     // Act — swap the order
     useDesignerStore.getState().reorderTabs(['tab-b', 'tab-a']);

@@ -69,6 +69,8 @@ export interface ThemeDefinition {
   spacingScale?: SpacingScale;
   isDarkMode: boolean;
   isActive: boolean;
+  /** Discriminant — prevents Partial<ThemeDefinition> mixing with Partial<DesignerStyleModel>. Not persisted to Dataverse. */
+  readonly _brand?: 'ThemeDefinition';
 }
 
 export interface FormDesign {

@@ -31,6 +31,9 @@ export const ENTITY_NAMES = {
   // Phase 5 — render cache
   PUBLISH_JOB: 'qdb_publish_job',
   FORM_RENDER_CACHE: 'qdb_form_render_cache',
+  // DFE-STYLE-001 — new entities
+  LAYOUT_GRID: 'qdb_layout_grid',
+  CSS_ALLOWLIST_CONFIG: 'qdb_css_allowlist_config',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

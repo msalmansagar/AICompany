@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   Button,
   MessageBar,
@@ -11,6 +11,34 @@ import { ArrowLeftRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerSectionModel } from '@/state/models/DesignerFormModel';
 import type { DesignerStyleModel } from '@/state/models/DesignerStyleModel';
+import type { DesignPayload } from '@qdb/shared';
+
+function adaptPayloadToStyle(payload: DesignPayload): DesignerStyleModel {
+  const { theme, formDesign } = payload;
+  const labelPosition = formDesign.labelPosition === 'Left' ? 'beside' : 'above';
+  const buttonStyle =
+    formDesign.buttonStyle === 'Primary' ? 'filled'
+    : formDesign.buttonStyle === 'Outline' ? 'outline'
+    : 'subtle';
+  const navStyleMap: Record<string, DesignerStyleModel['navStyle']> = {
+    Tabs: 'tabs', Stepper: 'stepper', Accordion: 'accordion', Sidebar: 'sidebar',
+  };
+  return {
+    themeId: theme.id,
+    themeName: theme.themeName,
+    primaryColor: theme.primaryColor,
+    accentColor: theme.secondaryColor ?? theme.primaryColor,
+    backgroundColor: theme.backgroundColor ?? '#ffffff',
+    fontFamily: theme.fontFamily ?? 'Segoe UI, sans-serif',
+    fontSizeBase: theme.baseFontSize ? parseFloat(theme.baseFontSize) : 14,
+    borderRadius: theme.borderRadius ? parseFloat(theme.borderRadius) : 4,
+    fieldSpacing: 16,
+    labelPosition,
+    buttonStyle,
+    navStyle: navStyleMap[formDesign.tabStyle] ?? 'tabs',
+    customCss: formDesign.customCss ?? '',
+  };
+}
 
 type Breakpoint = 'desktop' | 'tablet' | 'mobile';
 
@@ -409,7 +437,8 @@ export function PreviewScreen(): React.ReactElement {
   const tabOrder = useDesignerStore(s => s.tabOrder);
   const sectionOrder = useDesignerStore(s => s.sectionOrder);
   const fieldOrder = useDesignerStore(s => s.fieldOrder);
-  const style = useDesignerStore(s => s.style);
+  const designPayload = useDesignerStore(s => s.designPayload);
+  const style = useMemo(() => adaptPayloadToStyle(designPayload), [designPayload]);
 
   const [breakpoint, setBreakpoint] = useState<Breakpoint>('desktop');
   const [activeTabId, setActiveTabId] = useState<string | null>(tabOrder[0] ?? null);

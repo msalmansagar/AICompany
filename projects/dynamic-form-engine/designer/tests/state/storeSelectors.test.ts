@@ -5,28 +5,9 @@ import {
   selectSectionFields,
   selectCanUndo,
   selectCanRedo,
+  DEFAULT_DESIGN_PAYLOAD,
 } from '@/state/designerStore';
 import type { DesignerFormModel, DesignerTabModel, DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
-import type { DesignerStyleModel } from '@/state/models/DesignerStyleModel';
-
-// ---------------------------------------------------------------------------
-// Minimal stubs
-// ---------------------------------------------------------------------------
-
-const STUB_STYLE: DesignerStyleModel = {
-  themeId: null,
-  themeName: 'Default',
-  primaryColor: '#0078d4',
-  accentColor: '#005a9e',
-  backgroundColor: '#ffffff',
-  fontFamily: 'Segoe UI',
-  fontSizeBase: 14,
-  borderRadius: 4,
-  fieldSpacing: 16,
-  labelPosition: 'above',
-  buttonStyle: 'filled',
-  customCss: '',
-};
 
 const STUB_FORM: DesignerFormModel = {
   id: 'form-sel',
@@ -74,7 +55,7 @@ describe('designer store selectors', () => {
       [FIELD_A1_1, FIELD_A1_2, FIELD_B1_1],
       [],
       [],
-      STUB_STYLE
+      DEFAULT_DESIGN_PAYLOAD
     );
   });
 

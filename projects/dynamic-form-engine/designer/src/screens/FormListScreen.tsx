@@ -40,7 +40,7 @@ import { FormDeleteService } from '@/services/FormDeleteService';
 import { FormCloneService } from '@/services/FormCloneService';
 import { AuditLogService } from '@/services/AuditLogService';
 import { useDesignerStore } from '@/state/designerStore';
-import { DEFAULT_STYLE } from '@/state/models/DesignerStyleModel';
+import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
 import type { DesignerValidationRule } from '@/state/models/DesignerRuleModel';
 
@@ -193,7 +193,7 @@ export function FormListScreen(): React.ReactElement {
         f => (f as typeof f & { _validationRules?: DesignerValidationRule[] })._validationRules ?? []
       );
 
-      loadForm(form, tabs, sections, fields, allValidationRules, businessRules, DEFAULT_STYLE);
+      loadForm(form, tabs, sections, fields, allValidationRules, businessRules, DEFAULT_DESIGN_PAYLOAD);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open form');
       setIsOpeningForm(false);

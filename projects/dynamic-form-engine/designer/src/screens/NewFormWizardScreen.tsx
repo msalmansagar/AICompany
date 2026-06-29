@@ -26,7 +26,7 @@ import type {
   DesignerTabModel,
   DesignerSectionModel,
 } from '@/state/models/DesignerFormModel';
-import { DEFAULT_STYLE } from '@/state/models/DesignerStyleModel';
+import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 
 const TOTAL_STEPS = 5;
 
@@ -583,7 +583,7 @@ export function NewFormWizardScreen(): React.ReactElement {
         modifiedOn: new Date(),
       };
 
-      loadForm(newForm, createdTabs, createdSections, [], [], [], DEFAULT_STYLE);
+      loadForm(newForm, createdTabs, createdSections, [], [], [], DEFAULT_DESIGN_PAYLOAD);
       navigateTo('designer');
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create form. Please try again.');

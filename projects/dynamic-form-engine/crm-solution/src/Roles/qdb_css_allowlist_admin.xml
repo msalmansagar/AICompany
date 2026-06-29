@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Security Role: QDB CSS Allowlist Admin
+  Engagement:    DFE-STYLE-001
+  SC-05:         Restricts write on qdb_css_allowlist_config to this role.
+
+  Purpose:
+    Grants create/read/write/delete on qdb_css_allowlist_config only.
+    Assign to form administrators who manage the CSS domain allowlist for the
+    Dynamic Form Engine. Do NOT assign to general form designers.
+
+  Deployment:
+    This role is exported as part of the DynamicFormEngine managed solution.
+    Import via PAC CLI: pac solution import --path ./dist/DynamicFormEngine.zip
+    After import, assign role via Dynamics > Settings > Security > Users.
+
+  Note:
+    Privilege names follow the Dataverse convention: prv<Action><EntityLogicalName>
+    with the entity logical name in camelCase (e.g. prvReadqdb_css_allowlist_config).
+    The actual privilege GUIDs are resolved by Dataverse at import time from the
+    entity registration in the same solution package — do not hardcode GUIDs here.
+-->
+<Role>
+  <name>QDB CSS Allowlist Admin</name>
+  <description>
+    Grants Create, Read, Write, Delete, Append, and AppendTo on the
+    qdb_css_allowlist_config entity. Assign to form administrators who manage
+    the CSS domain allowlist for the Dynamic Form Engine (DFE-STYLE-001).
+  </description>
+  <RolePrivileges>
+    <!--
+      qdb_css_allowlist_config — full CRUD at organisation scope for read
+      (so the admin can see all config records), Basic for write operations
+      (single-record ownership pattern: admin owns the global record).
+    -->
+    <RolePrivilege name="prvCreateqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvReadqdb_css_allowlist_config" level="Organization" />
+    <RolePrivilege name="prvWriteqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvDeleteqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvAppendqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvAppendToqdb_css_allowlist_config" level="Basic" />
+  </RolePrivileges>
+</Role>

@@ -44,7 +44,7 @@ type SaveableState = Pick<
   | 'deletedEntityTypes'
   | 'validationRules'
   | 'businessRules'
-  | 'style'
+  | 'designPayload'
 >;
 
 export interface FormSaveResult {
@@ -81,7 +81,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, style } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -346,23 +346,33 @@ export class FormSaveService {
       });
 
       // Step 8: Save theme and form design
-      if (form.id && !form.id.startsWith('tmp_') && style) {
+      if (form.id && !form.id.startsWith('tmp_') && designPayload) {
+        const { theme, formDesign } = designPayload;
         resolvedThemeId = await this.designService.upsertTheme(
           {
-            name: style.themeName,
-            primaryColor: style.primaryColor,
-            accentColor: style.accentColor,
-            backgroundColor: style.backgroundColor,
-            fontFamily: style.fontFamily,
-            fontSizeBase: style.fontSizeBase,
-            borderRadius: style.borderRadius,
+            name: theme.themeName,
+            themeCode: theme.themeCode,
+            primaryColor: theme.primaryColor,
+            secondaryColor: theme.secondaryColor,
+            backgroundColor: theme.backgroundColor,
+            fontFamily: theme.fontFamily,
+            baseFontSize: theme.baseFontSize,
+            borderRadius: theme.borderRadius,
+            isDarkMode: theme.isDarkMode,
           },
-          style.themeId ?? undefined,
+          theme.id || undefined,
         );
         await this.designService.upsertFormDesign({
           formId: form.id,
           themeId: resolvedThemeId,
-          customCss: style.customCss,
+          customCss: formDesign.customCss ?? '',
+          layoutType: formDesign.layoutType,
+          tabStyle: formDesign.tabStyle,
+          alignment: formDesign.alignment,
+          sectionStyle: formDesign.sectionStyle,
+          animationEnabled: formDesign.animationEnabled,
+          stickyActionBar: formDesign.stickyActionBar,
+          skeletonLoaderEnabled: formDesign.skeletonLoaderEnabled,
         });
       }
 

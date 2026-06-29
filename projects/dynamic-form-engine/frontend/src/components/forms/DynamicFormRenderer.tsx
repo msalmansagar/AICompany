@@ -35,6 +35,7 @@ import { DesignContext, DEFAULT_DESIGN_PAYLOAD } from '../../contexts/DesignCont
 import { useLanguageContext, LanguageToggle } from '../../i18n';
 import { ResponsiveEngine } from '../../contexts/ResponsiveContext';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import { sanitiseCustomCssForRuntime } from '../../theme/customCssInjector';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
 import { FormActionBar } from './FormActionBar';
@@ -288,7 +289,7 @@ function FormRendererInner({
       el.id = 'dfe-custom-css';
       document.head.appendChild(el);
     }
-    el.textContent = css;
+    el.textContent = sanitiseCustomCssForRuntime(css);
 
     return () => {
       document.getElementById('dfe-custom-css')?.remove();

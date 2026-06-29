@@ -23,6 +23,7 @@ import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { validateForDraftSave } from '@/validation/draftValidation';
 import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
 import { FIELD_TYPE, FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
+import { calculateContrastRatio } from '@qdb/shared';
 
 const useStyles = makeStyles({
   root: {
@@ -75,7 +76,7 @@ export function DesignerScreen(): React.ReactElement {
     fields,
     businessRules,
     validationRules,
-    style,
+    designPayload,
     tabOrder,
     sectionOrder,
     fieldOrder,
@@ -123,7 +124,7 @@ export function DesignerScreen(): React.ReactElement {
         fields,
         validationRules,
         businessRules,
-        style,
+        designPayload,
         tabOrder,
         sectionOrder,
         fieldOrder,
@@ -140,12 +141,11 @@ export function DesignerScreen(): React.ReactElement {
         // doesn't re-create them, eliminating duplicate records in Dataverse.
         markResolved(error.resolvedIds);
       }
-      console.error('Save draft failed:', error instanceof PartialSaveError ? error.message : error);
       useDesignerStore.setState({ isSaving: false });
     }
   }, [
     form, crmService, isSaving,
-    tabs, sections, fields, validationRules, businessRules, style,
+    tabs, sections, fields, validationRules, businessRules, designPayload,
     tabOrder, sectionOrder, fieldOrder,
     newIds, dirtyIds, deletedIds, deletedEntityTypes,
     markSaving, markSaved, markResolved,
@@ -320,7 +320,23 @@ export function DesignerScreen(): React.ReactElement {
 
   const handleDragOver = useCallback((_event: DragOverEvent) => {}, []);
 
-  const handlePublish = useCallback(() => navigateTo('publish-validation'), [navigateTo]);
+  const handlePublish = useCallback(async () => {
+    // SC-08: evaluate blocking WCAG pairs in-memory before navigating to publish.
+    const theme = designPayload.theme;
+    const primaryColor = theme.primaryColor;
+    const bgColor = theme.backgroundColor ?? '#ffffff';
+    const contrastResult = calculateContrastRatio(primaryColor, bgColor);
+    if (!contrastResult.passesMinimumGate) {
+      // Redirect to theme editor — WcagContrastIndicator shows the failing ratio live.
+      navigateTo('theme-editor');
+      return;
+    }
+    // SC-08: auto-save unsaved changes before entering publish flow.
+    if (isDirty) {
+      await handleSaveDraft();
+    }
+    navigateTo('publish-validation');
+  }, [designPayload, isDirty, handleSaveDraft, navigateTo]);
   const handlePreview = useCallback(() => navigateTo('preview'), [navigateTo]);
   const handleVersionHistory = useCallback(() => navigateTo('version-history'), [navigateTo]);
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
@@ -353,7 +369,7 @@ export function DesignerScreen(): React.ReactElement {
           isDirty={isDirty}
           isSaving={isSaving}
           onSaveDraft={() => void handleSaveDraft()}
-          onPublish={handlePublish}
+          onPublish={() => void handlePublish()}
           onPreview={handlePreview}
           onVersionHistory={handleVersionHistory}
           onBusinessRules={handleBusinessRules}
