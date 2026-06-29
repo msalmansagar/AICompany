@@ -16,6 +16,13 @@ const PICKLIST_TO_CARD: Record<number, SectionDesign['cardStyle']> = { 100000001
 const PICKLIST_TO_COLLAPSIBLE: Record<number, SectionDesign['collapsibleStyle']> = { 100000001: 'None', 100000002: 'Animated', 100000003: 'Instant' };
 const PICKLIST_TO_VISIBILITY: Record<number, SectionDesign['visibilityAnimation']> = { 100000001: 'None', 100000002: 'Fade', 100000003: 'Slide' };
 
+/** Parses a Memo-stored JSON style object, or undefined when absent/malformed. */
+function parseJsonRecord(raw: unknown): Record<string, string> | undefined {
+  if (raw == null) return undefined;
+  try { return JSON.parse(String(raw)) as Record<string, string>; }
+  catch { return undefined; }
+}
+
 export interface UpsertSectionDesignDto {
   sectionId: string;
   cssClass?: string;
@@ -119,6 +126,7 @@ export class SectionDesignRepository {
       cardStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE], PICKLIST_TO_CARD, 'Flat'),
       collapsibleStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE], PICKLIST_TO_COLLAPSIBLE, 'None'),
       visibilityAnimation: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION], PICKLIST_TO_VISIBILITY, 'None'),
+      headerStyle: parseJsonRecord(record[SECTION_DESIGN_STYLE_ATTRS.HEADER_STYLE_JSON]),
       cssClassName: record[SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS] != null
         ? String(record[SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS]) : undefined,
       isActive: true,
