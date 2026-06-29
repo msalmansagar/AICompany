@@ -4,6 +4,13 @@ import { FIELD_DESIGN_ATTRS } from '@/constants/designAttributeNames';
 import { FIELD_DESIGN_STYLE_ATTRS } from '@/constants/styleAttributeNames';
 import type { FieldDesign } from '@qdb/shared';
 import { withRetry } from './crmRetry';
+import { fromPicklist, toPicklist } from './picklistCodec';
+
+// Org-verified Option Set codes (qdb_width, qdb_input_style).
+const WIDTH_TO_PICKLIST: Record<string, number> = { Full: 100000001, Half: 100000002, Custom: 100000003 };
+const INPUT_STYLE_TO_PICKLIST: Record<string, number> = { Outlined: 100000001, Filled: 100000002, Standard: 100000003 };
+const PICKLIST_TO_WIDTH: Record<number, FieldDesign['width']> = { 100000001: 'Full', 100000002: 'Half', 100000003: 'Custom' };
+const PICKLIST_TO_INPUT_STYLE: Record<number, FieldDesign['inputStyle']> = { 100000001: 'Outlined', 100000002: 'Filled', 100000003: 'Standard' };
 
 export interface UpsertFieldDesignDto {
   fieldId: string;
@@ -72,8 +79,8 @@ export class FieldDesignRepository {
   private buildPayload(dto: UpsertFieldDesignDto): Record<string, unknown> {
     return {
       [FIELD_DESIGN_ATTRS.LABEL_STYLE]: dto.labelStyle ?? null,
-      [FIELD_DESIGN_ATTRS.INPUT_STYLE]: dto.inputStyle ?? 'Outlined',
-      [FIELD_DESIGN_STYLE_ATTRS.WIDTH]: dto.width ?? 'Full',
+      [FIELD_DESIGN_ATTRS.INPUT_STYLE]: toPicklist(dto.inputStyle ?? 'Outlined', INPUT_STYLE_TO_PICKLIST, 100000001),
+      [FIELD_DESIGN_STYLE_ATTRS.WIDTH]: toPicklist(dto.width ?? 'Full', WIDTH_TO_PICKLIST, 100000001),
       [FIELD_DESIGN_STYLE_ATTRS.CUSTOM_WIDTH]: dto.customWidth ?? null,
       [FIELD_DESIGN_STYLE_ATTRS.HEIGHT]: dto.height ?? null,
       [FIELD_DESIGN_STYLE_ATTRS.ICON_PREFIX]: dto.iconPrefix ?? null,
@@ -109,8 +116,8 @@ export class FieldDesignRepository {
     return {
       id: String(record[FIELD_DESIGN_ATTRS.ID] ?? ''),
       fieldId: String(record[FIELD_DESIGN_ATTRS.FIELD_ID] ?? ''),
-      inputStyle: (record[FIELD_DESIGN_ATTRS.INPUT_STYLE] as FieldDesign['inputStyle']) ?? 'Outlined',
-      width: (record[FIELD_DESIGN_STYLE_ATTRS.WIDTH] as FieldDesign['width']) ?? 'Full',
+      inputStyle: fromPicklist(record[FIELD_DESIGN_ATTRS.INPUT_STYLE], PICKLIST_TO_INPUT_STYLE, 'Outlined'),
+      width: fromPicklist(record[FIELD_DESIGN_STYLE_ATTRS.WIDTH], PICKLIST_TO_WIDTH, 'Full'),
       customWidth: record[FIELD_DESIGN_STYLE_ATTRS.CUSTOM_WIDTH] != null
         ? String(record[FIELD_DESIGN_STYLE_ATTRS.CUSTOM_WIDTH]) : undefined,
       height: record[FIELD_DESIGN_STYLE_ATTRS.HEIGHT] != null

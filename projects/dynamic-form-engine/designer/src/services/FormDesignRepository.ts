@@ -4,6 +4,7 @@ import { FORM_DESIGN_ATTRS } from '@/constants/designAttributeNames';
 import { FORM_DESIGN_STYLE_ATTRS } from '@/constants/styleAttributeNames';
 import type { FormDesign } from '@qdb/shared';
 import { withRetry } from './crmRetry';
+import { fromPicklist } from './picklistCodec';
 
 export interface UpsertFormDesignDto {
   formId: string;
@@ -44,12 +45,6 @@ const PICKLIST_TO_LABEL_POSITION: Record<number, FormDesign['labelPosition']> = 
 const PICKLIST_TO_BUTTON_STYLE: Record<number, FormDesign['buttonStyle']> = { 100000001: 'Primary', 100000002: 'Outline', 100000003: 'Text' };
 const PICKLIST_TO_ALIGNMENT: Record<number, FormDesign['alignment']> = { 100000001: 'Left', 100000002: 'Center', 100000003: 'Right' };
 const PICKLIST_TO_SECTION_STYLE: Record<number, FormDesign['sectionStyle']> = { 100000001: 'Card', 100000002: 'Flat', 100000003: 'Outlined' };
-
-/** Maps a stored picklist integer back to its typed string value, or the fallback. */
-function fromPicklist<T>(raw: unknown, map: Record<number, T>, fallback: T): T {
-  const code = typeof raw === 'number' ? raw : Number(raw);
-  return Number.isFinite(code) && map[code] !== undefined ? map[code] : fallback;
-}
 
 export class FormDesignRepository {
   constructor(private readonly webApi: IWebApiAdapter) {}

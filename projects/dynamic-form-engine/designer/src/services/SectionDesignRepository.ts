@@ -4,6 +4,17 @@ import { SECTION_DESIGN_ATTRS } from '@/constants/designAttributeNames';
 import { SECTION_DESIGN_STYLE_ATTRS } from '@/constants/styleAttributeNames';
 import type { SectionDesign } from '@qdb/shared';
 import { withRetry } from './crmRetry';
+import { fromPicklist, toPicklist } from './picklistCodec';
+
+// Org-verified Option Set codes (qdb_column_layout, qdb_card_style, qdb_collapsible_style, qdb_visibility_animation).
+const COLUMN_TO_PICKLIST: Record<string, number> = { '1': 100000001, '2': 100000002, '3': 100000003, '4': 100000004 };
+const CARD_TO_PICKLIST: Record<string, number> = { Flat: 100000001, Elevated: 100000002, Outlined: 100000003 };
+const COLLAPSIBLE_TO_PICKLIST: Record<string, number> = { None: 100000001, Animated: 100000002, Instant: 100000003 };
+const VISIBILITY_TO_PICKLIST: Record<string, number> = { None: 100000001, Fade: 100000002, Slide: 100000003 };
+const PICKLIST_TO_COLUMN: Record<number, 1 | 2 | 3 | 4> = { 100000001: 1, 100000002: 2, 100000003: 3, 100000004: 4 };
+const PICKLIST_TO_CARD: Record<number, SectionDesign['cardStyle']> = { 100000001: 'Flat', 100000002: 'Elevated', 100000003: 'Outlined' };
+const PICKLIST_TO_COLLAPSIBLE: Record<number, SectionDesign['collapsibleStyle']> = { 100000001: 'None', 100000002: 'Animated', 100000003: 'Instant' };
+const PICKLIST_TO_VISIBILITY: Record<number, SectionDesign['visibilityAnimation']> = { 100000001: 'None', 100000002: 'Fade', 100000003: 'Slide' };
 
 export interface UpsertSectionDesignDto {
   sectionId: string;
@@ -74,10 +85,10 @@ export class SectionDesignRepository {
       [SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE]: dto.borderStyle ?? null,
       [SECTION_DESIGN_STYLE_ATTRS.PADDING]: dto.padding ?? null,
       [SECTION_DESIGN_STYLE_ATTRS.MARGIN]: dto.margin ?? null,
-      [SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT]: dto.columnLayout ?? 1,
-      [SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE]: dto.cardStyle ?? 'Flat',
-      [SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE]: dto.collapsibleStyle ?? 'None',
-      [SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION]: dto.visibilityAnimation ?? 'None',
+      [SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT]: toPicklist(dto.columnLayout ?? 1, COLUMN_TO_PICKLIST, 100000001),
+      [SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE]: toPicklist(dto.cardStyle ?? 'Flat', CARD_TO_PICKLIST, 100000001),
+      [SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE]: toPicklist(dto.collapsibleStyle ?? 'None', COLLAPSIBLE_TO_PICKLIST, 100000001),
+      [SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION]: toPicklist(dto.visibilityAnimation ?? 'None', VISIBILITY_TO_PICKLIST, 100000001),
       [SECTION_DESIGN_STYLE_ATTRS.HEADER_STYLE_JSON]: dto.headerStyleJson ?? null,
     };
   }
@@ -106,10 +117,10 @@ export class SectionDesignRepository {
         ? String(record[SECTION_DESIGN_STYLE_ATTRS.PADDING]) : undefined,
       margin: record[SECTION_DESIGN_STYLE_ATTRS.MARGIN] != null
         ? String(record[SECTION_DESIGN_STYLE_ATTRS.MARGIN]) : undefined,
-      columnLayout: (Number(record[SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT] ?? 1) as 1 | 2 | 3 | 4),
-      cardStyle: (record[SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE] as SectionDesign['cardStyle']) ?? 'Flat',
-      collapsibleStyle: (record[SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE] as SectionDesign['collapsibleStyle']) ?? 'None',
-      visibilityAnimation: (record[SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION] as SectionDesign['visibilityAnimation']) ?? 'None',
+      columnLayout: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT], PICKLIST_TO_COLUMN, 1),
+      cardStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE], PICKLIST_TO_CARD, 'Flat'),
+      collapsibleStyle: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.COLLAPSIBLE_STYLE], PICKLIST_TO_COLLAPSIBLE, 'None'),
+      visibilityAnimation: fromPicklist(record[SECTION_DESIGN_STYLE_ATTRS.VISIBILITY_ANIMATION], PICKLIST_TO_VISIBILITY, 'None'),
       isActive: true,
     };
   }
