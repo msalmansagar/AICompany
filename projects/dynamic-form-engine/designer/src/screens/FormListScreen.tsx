@@ -193,7 +193,7 @@ export function FormListScreen(): React.ReactElement {
         f => (f as typeof f & { _validationRules?: DesignerValidationRule[] })._validationRules ?? []
       );
 
-      loadForm(form, tabs, sections, fields, allValidationRules, businessRules, DEFAULT_DESIGN_PAYLOAD);
+      loadForm({ form, tabs, sections, fields, validationRules: allValidationRules, businessRules, designPayload: DEFAULT_DESIGN_PAYLOAD });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open form');
       setIsOpeningForm(false);

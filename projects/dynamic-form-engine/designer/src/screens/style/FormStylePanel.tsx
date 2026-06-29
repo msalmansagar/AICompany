@@ -18,9 +18,11 @@ const useStyles = makeStyles({
   warning: { marginTop: '4px' },
 });
 
-/** Removes CSS rules containing url(), expression(), or behaviour() — basic security gate. */
+/** Removes @import rules, url(), expression(), or behaviour() — basic preview-time security gate.
+ *  This is advisory feedback only; the authoritative sanitiser runs on the backend/runtime. */
 function sanitizeCss(css: string): string {
   return css
+    .replace(/@import\b[^;]*;?/gi, '')
     .replace(/url\s*\([^)]*\)/gi, '')
     .replace(/expression\s*\([^)]*\)/gi, '')
     .replace(/behaviou?r\s*\([^)]*\)/gi, '');

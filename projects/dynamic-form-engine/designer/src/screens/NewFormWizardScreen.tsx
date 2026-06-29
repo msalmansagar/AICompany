@@ -583,7 +583,7 @@ export function NewFormWizardScreen(): React.ReactElement {
         modifiedOn: new Date(),
       };
 
-      loadForm(newForm, createdTabs, createdSections, [], [], [], DEFAULT_DESIGN_PAYLOAD);
+      loadForm({ form: newForm, tabs: createdTabs, sections: createdSections, fields: [], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
       navigateTo('designer');
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create form. Please try again.');

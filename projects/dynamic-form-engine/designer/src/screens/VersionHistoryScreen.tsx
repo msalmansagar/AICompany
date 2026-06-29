@@ -241,15 +241,15 @@ export function VersionHistoryScreen(): React.ReactElement {
       const businessRules = Object.values(snapshot.businessRules ?? {});
       const restoredDesignPayload = snapshot.designPayload ?? DEFAULT_DESIGN_PAYLOAD;
 
-      loadForm(
-        { ...restoredForm, status: 'draft' },
+      loadForm({
+        form: { ...restoredForm, status: 'draft' },
         tabs,
         sections,
         fields,
         validationRules,
         businessRules,
-        restoredDesignPayload
-      );
+        designPayload: restoredDesignPayload,
+      });
 
       await auditService.logAction(form.id, 'RESTORE_VERSION', {
         versionNumber: restoreTarget.versionNumber,

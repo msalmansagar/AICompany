@@ -73,6 +73,17 @@ export const DEFAULT_DESIGN_PAYLOAD: DesignPayload = {
   layoutGrid: [],
 };
 
+/** Parameter object for loadForm — keeps the action within the 3-parameter limit. */
+export interface LoadFormParams {
+  form: DesignerFormModel;
+  tabs: DesignerTabModel[];
+  sections: DesignerSectionModel[];
+  fields: DesignerFieldModel[];
+  validationRules: DesignerValidationRule[];
+  businessRules: DesignerBusinessRule[];
+  designPayload: DesignPayload;
+}
+
 export interface DesignerState {
   // Navigation
   currentScreen: DesignerScreen;
@@ -115,15 +126,7 @@ export interface DesignerState {
 
   // Actions
   navigateTo: (screen: DesignerScreen) => void;
-  loadForm: (
-    form: DesignerFormModel,
-    tabs: DesignerTabModel[],
-    sections: DesignerSectionModel[],
-    fields: DesignerFieldModel[],
-    validationRules: DesignerValidationRule[],
-    businessRules: DesignerBusinessRule[],
-    designPayload: DesignPayload
-  ) => void;
+  loadForm: (params: LoadFormParams) => void;
   resetDesigner: () => void;
   selectItem: (id: string, type: CanvasItemType) => void;
   clearSelection: () => void;
@@ -180,7 +183,8 @@ export interface DesignerState {
 
 const MAX_UNDO_STACK_SIZE = 50;
 
-function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
+// Pass 1: rename temp keys to server-assigned ids in the record maps and their order maps.
+function renameRecordKeys(state: DesignerState, resolvedIds: Record<string, string>): void {
   for (const [tempId, realId] of Object.entries(resolvedIds)) {
     if (state.tabs[tempId]) {
       state.tabs[realId] = { ...state.tabs[tempId], id: realId };
@@ -204,6 +208,10 @@ function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, stri
       delete state.fields[tempId];
     }
   }
+}
+
+// Pass 2: repoint cross-references (order arrays + parent ids) from temp ids to real ids.
+function updateCrossReferences(state: DesignerState, resolvedIds: Record<string, string>): void {
   for (const [tempId, realId] of Object.entries(resolvedIds)) {
     for (const tabId of Object.keys(state.sectionOrder)) {
       state.sectionOrder[tabId] = state.sectionOrder[tabId].map(id => (id === tempId ? realId : id));
@@ -218,6 +226,11 @@ function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, stri
       if (field.sectionId === tempId) field.sectionId = realId;
     }
   }
+}
+
+function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
+  renameRecordKeys(state, resolvedIds);
+  updateCrossReferences(state, resolvedIds);
 }
 
 function captureSnapshot(state: DesignerState): DesignerStateSnapshot {
@@ -292,7 +305,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
   navigateTo: (screen) => set({ currentScreen: screen }),
 
-  loadForm: (form, tabs, sections, fields, validationRules, businessRules, designPayload) => {
+  loadForm: ({ form, tabs, sections, fields, validationRules, businessRules, designPayload }) => {
     const tabMap = Object.fromEntries(tabs.map(t => [t.id, t]));
     const sectionMap = Object.fromEntries(sections.map(s => [s.id, s]));
     const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]));

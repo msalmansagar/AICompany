@@ -48,15 +48,15 @@ const FIELD_B1_1: DesignerFieldModel = { id: 'fld-b1-1', sectionId: 'sec-b1', la
 describe('designer store selectors', () => {
   beforeEach(() => {
     useDesignerStore.getState().resetDesigner();
-    useDesignerStore.getState().loadForm(
-      STUB_FORM,
-      [TAB_A, TAB_B],
-      [SECTION_A1, SECTION_A2, SECTION_B1],
-      [FIELD_A1_1, FIELD_A1_2, FIELD_B1_1],
-      [],
-      [],
-      DEFAULT_DESIGN_PAYLOAD
-    );
+    useDesignerStore.getState().loadForm({
+      form: STUB_FORM,
+      tabs: [TAB_A, TAB_B],
+      sections: [SECTION_A1, SECTION_A2, SECTION_B1],
+      fields: [FIELD_A1_1, FIELD_A1_2, FIELD_B1_1],
+      validationRules: [],
+      businessRules: [],
+      designPayload: DEFAULT_DESIGN_PAYLOAD,
+    });
   });
 
   // -------------------------------------------------------------------------

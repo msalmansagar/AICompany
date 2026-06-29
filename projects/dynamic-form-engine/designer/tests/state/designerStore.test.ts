@@ -116,7 +116,7 @@ function makeField(overrides: Partial<DesignerFieldModel> = {}): DesignerFieldMo
 
 function loadMinimalForm(): void {
   const { loadForm } = useDesignerStore.getState();
-  loadForm(makeForm(), [makeTab()], [makeSection()], [makeField()], [], [], DEFAULT_DESIGN_PAYLOAD);
+  loadForm({ form: makeForm(), tabs: [makeTab()], sections: [makeSection()], fields: [makeField()], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +195,7 @@ describe('useDesignerStore', () => {
     const sectionB = makeSection({ id: 'section-b', tabId: 'tab-1', label: 'Employment', sortOrder: 1 });
     const field = makeField({ id: 'field-x', sectionId: 'section-a' });
 
-    loadForm(makeForm(), [makeTab()], [sectionA, sectionB], [field], [], [], DEFAULT_DESIGN_PAYLOAD);
+    loadForm({ form: makeForm(), tabs: [makeTab()], sections: [sectionA, sectionB], fields: [field], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
 
     // Act — move field-x from section-a to section-b at index 0
     useDesignerStore.getState().moveField('field-x', 'section-b', 0);
@@ -214,7 +214,7 @@ describe('useDesignerStore', () => {
     const { loadForm } = useDesignerStore.getState();
     const tabA = makeTab({ id: 'tab-a', label: 'Tab A', sortOrder: 0 });
     const tabB = makeTab({ id: 'tab-b', label: 'Tab B', sortOrder: 1 });
-    loadForm(makeForm(), [tabA, tabB], [], [], [], [], DEFAULT_DESIGN_PAYLOAD);
+    loadForm({ form: makeForm(), tabs: [tabA, tabB], sections: [], fields: [], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
 
     // Act — swap the order
     useDesignerStore.getState().reorderTabs(['tab-b', 'tab-a']);
