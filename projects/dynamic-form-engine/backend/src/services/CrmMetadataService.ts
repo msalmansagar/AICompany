@@ -25,6 +25,7 @@ import type {
   FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
+import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
 import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
 import { config } from '../config/env.js';
@@ -237,6 +238,14 @@ export class CrmMetadataService extends CrmBaseService {
     const tabIds = tabs.map((t) => t.qdb_form_tabid);
     const sections = await this.fetchSectionsWithChildren(tabIds, formId, lang);
 
+    // DFE-BTN-001: fetch tab/section scoped buttons and embed them. Degrades to no
+    // buttons if the entity is not provisioned, so existing forms are unchanged.
+    const buttonIndex = await this.fetchScopedButtons(formId);
+    for (const section of sections) {
+      const sectionButtons = buttonIndex.bySectionId.get(section.id);
+      if (sectionButtons && sectionButtons.length > 0) section.buttons = sectionButtons;
+    }
+
     const sectionsByTab = new Map<string, SectionDefinition[]>();
     for (const section of sections) {
       const existing = sectionsByTab.get(section.tabId) ?? [];
@@ -244,17 +253,35 @@ export class CrmMetadataService extends CrmBaseService {
       sectionsByTab.set(section.tabId, existing);
     }
 
-    return tabs.map((tab) => ({
-      id: tab.qdb_form_tabid,
-      formDefinitionId: formId,
-      label: tab.qdb_label,
-      iconName: tab.qdb_icon_name,
-      displayOrder: tab.qdb_display_order,
-      isVisible: tab.qdb_is_visible ?? true,
-      requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
-      hideTabBar: tab.qdb_hide_tab_bar ?? false,
-      sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
-    }));
+    return tabs.map((tab) => {
+      const tabButtons = buttonIndex.byTabId.get(tab.qdb_form_tabid) ?? [];
+      return {
+        id: tab.qdb_form_tabid,
+        formDefinitionId: formId,
+        label: tab.qdb_label,
+        iconName: tab.qdb_icon_name,
+        displayOrder: tab.qdb_display_order,
+        isVisible: tab.qdb_is_visible ?? true,
+        requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
+        hideTabBar: tab.qdb_hide_tab_bar ?? false,
+        sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
+        ...(tabButtons.length > 0 ? { buttons: tabButtons } : {}),
+      };
+    });
+  }
+
+  // DFE-BTN-001: reads all scoped buttons for a form and indexes them by placement.
+  // Resilient: a missing entity (schema deploy is gated) yields empty indexes.
+  private async fetchScopedButtons(formId: string): Promise<IndexedButtons> {
+    try {
+      const response = await this.crmFetch<ODataCollection<RawScopedButton>>(
+        `/${SCOPED_BUTTON_ENTITY}s?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0&$orderby=qdb_display_order asc`,
+      );
+      return ButtonAssembler.assemble(response.value);
+    } catch (error) {
+      logger.warn({ error, formId }, 'Could not fetch scoped buttons — rendering form without them');
+      return { byTabId: new Map(), bySectionId: new Map() };
+    }
   }
 
   private async fetchSectionsWithChildren(tabIds: string[], formId: string, lang: string): Promise<SectionDefinition[]> {
