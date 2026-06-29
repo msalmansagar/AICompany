@@ -26,7 +26,7 @@ export const THEME_STYLE_ATTRS = {
 export const FORM_DESIGN_STYLE_ATTRS = {
   LAYOUT_TYPE: 'qdb_layout_type',
   LABEL_POSITION: 'qdb_label_position',
-  FORM_BUTTON_STYLE: 'qdb_form_button_style',
+  FORM_BUTTON_STYLE: 'qdb_button_style',
   ALIGNMENT: 'qdb_alignment',
   MAX_WIDTH: 'qdb_max_width',
   SECTION_STYLE: 'qdb_section_style',
@@ -45,7 +45,7 @@ export const SECTION_DESIGN_STYLE_ATTRS = {
   CARD_STYLE: 'qdb_card_style',
   COLLAPSIBLE_STYLE: 'qdb_collapsible_style',
   VISIBILITY_ANIMATION: 'qdb_visibility_animation',
-  HEADER_STYLE_JSON: 'qdb_header_style_json',
+  HEADER_STYLE_JSON: 'qdb_header_style',
   CSS_CLASS: 'qdb_css_class',
 } as const;
 
@@ -56,20 +56,20 @@ export const FIELD_DESIGN_STYLE_ATTRS = {
   HEIGHT: 'qdb_height',
   ICON_PREFIX: 'qdb_icon_prefix',
   ICON_SUFFIX: 'qdb_icon_suffix',
-  FOCUS_STYLE_JSON: 'qdb_focus_style_json',
-  ERROR_STYLE_JSON: 'qdb_error_style_json',
-  DISABLED_STYLE_JSON: 'qdb_disabled_style_json',
-  PLACEHOLDER_STYLE_JSON: 'qdb_placeholder_style_json',
-  TOOLTIP_STYLE_JSON: 'qdb_tooltip_style_json',
+  FOCUS_STYLE_JSON: 'qdb_focus_style',
+  ERROR_STYLE_JSON: 'qdb_error_style',
+  DISABLED_STYLE_JSON: 'qdb_disabled_style',
+  PLACEHOLDER_STYLE_JSON: 'qdb_placeholder_style',
+  TOOLTIP_STYLE_JSON: 'qdb_tooltip_style',
   CSS_CLASS: 'qdb_field_css_class',
 } as const;
 
 /** Extended qdb_button_design attributes — new fields added in DFE-STYLE-001 */
 export const BUTTON_DESIGN_STYLE_ATTRS = {
   COLOR: 'qdb_color',
-  BORDER_RADIUS: 'qdb_btn_border_radius',
+  BORDER_RADIUS: 'qdb_border_radius',
   SIZE: 'qdb_size',
-  ALIGNMENT: 'qdb_btn_alignment',
+  ALIGNMENT: 'qdb_alignment',
   ICON: 'qdb_icon',
   HOVER_EFFECT: 'qdb_hover_effect',
   LOADING_STYLE: 'qdb_loading_style',

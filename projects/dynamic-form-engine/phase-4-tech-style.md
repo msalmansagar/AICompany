@@ -25,16 +25,25 @@
 
 ---
 
-## Schema (verified against org5869857f)
+## Schema (reconciled against org5869857f, 2026-06-29)
 
-`scripts/provision-style-schema.mjs` (idempotent, dry-run supported; **not executed against the org**).
-Verified current state:
-- **36 / 56** design attributes already exist with correct types (0 mismatches) — pre-provisioned by DFE-ADD.
-- **20** attributes are net-new → the script creates exactly these.
-- `qdb_layout_grid` **already exists**, fully provisioned (cols, 3 spans, both lookups, `qdb_is_active`) → ensured, skipped.
-- `qdb_css_allowlist_config` is **net-new** → created with 3 attributes + a seeded `default` record (`fonts.googleapis.com`, `fonts.gstatic.com`).
+**Correction to the architecture's "56 new attributes":** that figure was wrong. The design
+entities (theme/form/section/field/button) and `qdb_layout_grid` were **already fully
+provisioned by DFE-ADD** under the names in the styleAttributeNames registries. Comparing the
+actual org attributes to the code constants, **DFE-STYLE-001 adds only**:
+- `qdb_section_design.qdb_css_class` (Text) — `SectionDesign.cssClassName`
+- `qdb_field_design.qdb_field_css_class` (Text) — `FieldDesign.cssClassName`
+- `qdb_css_allowlist_config` (new entity) + 3 attrs + a seeded **`global`** record
 
-Deployment sequencing + rollback: `DEPLOYMENT-RUNBOOK-style.md` (satisfies C-004a).
+**Attribute-name reconciliation (was a Blocker):** the **designer** `styleAttributeNames.ts`
+had wrong names for several attributes (`qdb_form_button_style`, `qdb_header_style_json`, the
+field `*_style_json` names, `qdb_btn_border_radius`, `qdb_btn_alignment`). The **backend**
+constants and the org were already correct. Fixed the designer constants → org names, so
+button/field/section styling now reads/writes real attributes. Also corrected the allowlist
+seed key to **`global`** (matches `AllowlistService`'s query) — `default` would never have matched.
+
+`scripts/provision-style-schema.mjs` rewritten to this minimal scope (idempotent, dry-run
+supported; **not executed**). Deployment sequencing + rollback: `DEPLOYMENT-RUNBOOK-style.md` (C-004a).
 
 ---
 
@@ -60,9 +69,18 @@ Removed stray debug artifacts (`frontend/screenshot.cjs`, `verify-*.cjs`, `verif
 ---
 
 ## Open before merge/deploy
-1. **Code review (Step 7)** findings — in progress; resolve before commit.
-2. Optional: confirm SC-02 in a real CRM iframe.
-3. Then: QA (Step 8) → Audit (Step 9) → CEO final (Step 10).
-4. Deploy = run `provision-style-schema.mjs` + role + publish, per the runbook (gated on user approval).
+1. **Code review (Step 7):** B-001 / B-002 / M-001 fixed + verified. Attribute-name mismatch
+   RESOLVED (see Schema above). Remaining: M-002–M-010 (file/param/fn-size splits, specific
+   exception, DI via interfaces, residual `as` casts) + 4 minors — clean-code debt.
+2. **Picklist round-trip in the other repos:** M-001's pattern (write picklist int / read via
+   reverse map) was applied to `FormDesignRepository` only. `Section/Field/ButtonDesignRepository`
+   write several **Picklist** attributes (e.g. button `qdb_alignment`, section `qdb_card_style`,
+   field `qdb_width`) — verify they don't write raw strings into Picklist columns (same bug class).
+3. **cssClassName end-to-end:** the 2 net-new attrs exist only after provisioning; the backend
+   `DesignAssembler` + backend constants don't yet read `qdb_css_class`/`qdb_field_css_class`, so
+   confirm cssClassName flows into the render-cache `DesignPayload` once provisioned.
+4. Optional: confirm SC-02 in a real CRM iframe.
+5. Then: QA (Step 8) → Audit (Step 9) → CEO final (Step 10).
+6. Deploy = run `provision-style-schema.mjs` + the CSS Allowlist Admin role + publish, per the runbook (user-approved).
 
-Nothing is committed; the live org is untouched.
+Committed to branch `feat/dfe-style-001` (pushed). The live org is untouched (nothing provisioned/deployed).
