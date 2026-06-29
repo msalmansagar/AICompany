@@ -383,6 +383,15 @@ export class FormSaveService {
         tabCount: tabOrder.length,
       });
 
+      // BR-012: record a style-change audit entry for the persisted design (theme +
+      // form design). The CSS content itself is never logged — only a changed flag.
+      if (form.id && !form.id.startsWith('tmp_') && designPayload) {
+        await auditService.logAction(form.id, 'STYLE_CHANGE', {
+          styleEntities: ['theme', 'formDesign'],
+          customCssChanged: Boolean(designPayload.formDesign.customCss),
+        });
+      }
+
       return { resolvedIds, resolvedThemeId };
     } catch (error) {
       // Propagate partial progress so the caller can prevent duplicate creates on retry.

@@ -101,6 +101,11 @@ export class DesignAssembler extends CrmBaseService {
   }
 
   async assembleDesignPayload(formDefinitionId: string): Promise<DesignPayload> {
+    // Defense-in-depth: the id is interpolated into OData $filter strings, so reject
+    // anything that is not a GUID before it reaches a query (SEC-10).
+    if (!GUID_PATTERN.test(formDefinitionId)) {
+      throw new InvalidFormDefinitionIdError(formDefinitionId);
+    }
     const rawFormDesign = await this.fetchFormDesignWithTheme(formDefinitionId);
     if (!rawFormDesign) {
       logger.debug({ formDefinitionId }, 'No form design in Dataverse — returning DEFAULT_DESIGN_PAYLOAD');
@@ -256,6 +261,17 @@ export class DesignAssembler extends CrmBaseService {
 
 function buildEmptyButtonDesigns(): Record<ButtonType, ButtonDesign | undefined> {
   return { Submit: undefined, SaveDraft: undefined, Cancel: undefined };
+}
+
+/** Accepts a standard GUID, optionally brace-wrapped (Dataverse record id). */
+const GUID_PATTERN = /^\{?[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}?$/;
+
+/** Thrown when assembleDesignPayload is called with a non-GUID form definition id (SEC-10). */
+export class InvalidFormDefinitionIdError extends Error {
+  constructor(public readonly value: string) {
+    super(`Invalid form definition id (expected GUID): ${value}`);
+    this.name = 'InvalidFormDefinitionIdError';
+  }
 }
 
 /** Thrown when an assembled DesignPayload exceeds the render-cache size cap (NFR-004). */

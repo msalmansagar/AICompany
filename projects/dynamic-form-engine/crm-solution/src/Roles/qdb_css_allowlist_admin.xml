@@ -29,13 +29,17 @@
   </description>
   <RolePrivileges>
     <!--
-      qdb_css_allowlist_config — full CRUD at organisation scope for read
-      (so the admin can see all config records), Basic for write operations
-      (single-record ownership pattern: admin owns the global record).
+      qdb_css_allowlist_config — Organization scope for create/read/write so the
+      CSS Allowlist Admin can manage the global config record regardless of
+      ownership. The 'global' record is created by the provisioning service
+      principal, so a Basic (owner-only) write would lock the admin out of it
+      (SEC-02). The entity is organisation-owned global configuration, not
+      user-specific data, so Organization scope is appropriate. Delete stays
+      Basic to discourage removing the global record (prefer qdb_is_active=false).
     -->
-    <RolePrivilege name="prvCreateqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvCreateqdb_css_allowlist_config" level="Organization" />
     <RolePrivilege name="prvReadqdb_css_allowlist_config" level="Organization" />
-    <RolePrivilege name="prvWriteqdb_css_allowlist_config" level="Basic" />
+    <RolePrivilege name="prvWriteqdb_css_allowlist_config" level="Organization" />
     <RolePrivilege name="prvDeleteqdb_css_allowlist_config" level="Basic" />
     <RolePrivilege name="prvAppendqdb_css_allowlist_config" level="Basic" />
     <RolePrivilege name="prvAppendToqdb_css_allowlist_config" level="Basic" />

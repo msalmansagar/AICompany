@@ -84,7 +84,20 @@ Removed stray debug artifacts (`frontend/screenshot.cjs`, `verify-*.cjs`, `verif
 - ✅ QA (Step 8): `phase-5-qa-style.md` (107 test cases, mapped to SM-001..008). Its "open gaps"
   framing for picklist/cssClassName/headerStyle predates the fixes above — those are implemented;
   the QA cases are the verification gate for them.
-- Audit (Step 9) → CEO final (Step 10). OQ-010 (third-party WCAG audit) is a potential Phase-7 gate.
-- Deploy (user-approved) = run `provision-style-schema.mjs` + the CSS Allowlist Admin role + publish, per the runbook.
+- Audit (Step 9): DONE (`phase-6-audit-style.md`) — PASS-style but NOT-CLEARED with 2 go-live
+  blockers, both now FIXED: SEC-01 (BR-012 style-change audit log — wired into FormSaveService +
+  ThemeStylePanel for the persisted theme/formDesign paths) and SEC-02 (CSS Allowlist Admin role
+  write elevated Basic→Organization). Plus SEC-12 (freeze FAILURE_RESULT) and SEC-10 (GUID guard
+  in DesignAssembler). Remaining audit items are non-blocking pre-release (SEC-04/06/07/08/11) or
+  client/ops conditions (OQ-007, OQ-010, enable Dataverse Auditing on qdb_css_allowlist_config,
+  deploy-time role check, real-env test runs) → carry into CEO-final conditions.
+- ⚠️ **NEWLY DISCOVERED GAP (functional, > the audit log itself):** section/field/button/layoutGrid
+  design UPSERTS ARE NEVER CALLED — FormSaveService persists only theme + formDesign; the four
+  panels update the Zustand store but their styling is **not saved to Dataverse**. So per-section/
+  field/button/responsive styling does not round-trip end-to-end yet (the repos + cssClassName +
+  picklist work is correct, but the SAVE wiring from store→DesignService for those four is missing).
+  This needs the FormSaveService design-save loop extended (and STYLE_CHANGE audit extended to them).
+- Then CEO final (Step 10) → user-approved deploy (run `provision-style-schema.mjs` + the CSS
+  Allowlist Admin role + publish, per the runbook).
 
-Committed to branch `feat/dfe-style-001` (pushed through 30ab74d). The live org is untouched (nothing provisioned/deployed).
+Committed to branch `feat/dfe-style-001` (pushed). The live org is untouched (nothing provisioned/deployed).

@@ -28,7 +28,7 @@ function spyCrmFetch(
 function buildRawFormDesign(overrides: Record<string, unknown> = {}) {
   return {
     qdb_form_designid: 'fd-001',
-    _qdb_form_definition_id_value: 'form-def-001',
+    _qdb_form_definition_id_value: '11111111-1111-4111-8111-111111111111',
     _qdb_theme_id_value: null,
     qdb_theme_id: null,
     qdb_layout_type: 100000001,
@@ -60,7 +60,7 @@ describe('DesignAssembler', () => {
   it('assembleDesignPayload_noFormDesign_returnsDefaultPayload', async () => {
     spyCrmFetch(assembler, async () => ({ value: [] }));
 
-    const result = await assembler.assembleDesignPayload('form-def-001');
+    const result = await assembler.assembleDesignPayload('11111111-1111-4111-8111-111111111111');
 
     expect(result.theme.themeCode).toBe('light');
     expect(result.theme.primaryColor).toBe('#0078d4');
@@ -92,7 +92,7 @@ describe('DesignAssembler', () => {
       return { value: [] };
     });
 
-    const result = await assembler.assembleDesignPayload('form-def-001');
+    const result = await assembler.assembleDesignPayload('11111111-1111-4111-8111-111111111111');
 
     expect(result.theme.themeCode).toBe('dark');
     expect(result.theme.isDarkMode).toBe(true);
@@ -110,7 +110,7 @@ describe('DesignAssembler', () => {
       return { value: [] };
     });
 
-    const result = await assembler.assembleDesignPayload('form-def-001');
+    const result = await assembler.assembleDesignPayload('11111111-1111-4111-8111-111111111111');
 
     expect(result.sectionDesigns).toEqual({});
     expect(result.formDesign.layoutType).toBe('SingleColumn');
@@ -135,7 +135,7 @@ describe('DesignAssembler', () => {
       return { value: [] };
     });
 
-    const result = await assembler.assembleDesignPayload('form-def-001');
+    const result = await assembler.assembleDesignPayload('11111111-1111-4111-8111-111111111111');
 
     expect(result.formDesign.layoutType).toBe('TwoColumn');
     expect(result.formDesign.labelPosition).toBe('Left');

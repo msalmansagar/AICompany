@@ -16,6 +16,7 @@ import { CrmContext } from '@/app/App';
 import { useDesignerStore } from '@/state/designerStore';
 import { DesignService } from '@/services/DesignService';
 import { PublishService } from '@/services/PublishService';
+import { AuditLogService } from '@/services/AuditLogService';
 import { WcagContrastIndicator } from '@/components/wcag/WcagContrastIndicator';
 import type { ThemeDefinition } from '@qdb/shared';
 
@@ -144,6 +145,11 @@ export function ThemeStylePanel(): React.ReactElement {
 
       if (form?.id && !form.id.startsWith('tmp_')) {
         await service.upsertFormDesign({ formId: form.id, themeId, customCss: '' });
+        // BR-012: audit the style change (theme); never log CSS content.
+        try {
+          await new AuditLogService(crmService.getWebApi(), crmService.getUserContext())
+            .logAction(form.id, 'STYLE_CHANGE', { styleEntities: ['theme'], customCssChanged: false });
+        } catch { /* audit is best-effort — never block the save */ }
       }
       setSaveSuccess(true);
       // SC-03: fire-and-forget cache regeneration job after successful style save.

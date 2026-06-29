@@ -43,12 +43,13 @@ function classifyLevel(ratio: number): ContrastResult['level'] {
   return 'Fail';
 }
 
-const FAILURE_RESULT: ContrastResult = {
+// Frozen so the shared reference returned on malformed input cannot be mutated by a caller.
+const FAILURE_RESULT: ContrastResult = Object.freeze({
   ratio: 0,
   level: 'Fail',
   passesMinimumGate: false,
   isAdvisoryWarning: false,
-};
+});
 
 /**
  * Calculates WCAG 2.1 contrast ratio between two hex colours.
