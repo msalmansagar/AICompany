@@ -68,19 +68,23 @@ Removed stray debug artifacts (`frontend/screenshot.cjs`, `verify-*.cjs`, `verif
 
 ---
 
-## Open before merge/deploy
+## Status of prior open items (all RESOLVED + re-review-confirmed 2026-06-29)
 1. **Code review (Step 7):** B-001 / B-002 / M-001 fixed + verified. Attribute-name mismatch
-   RESOLVED (see Schema above). Remaining: M-002–M-010 (file/param/fn-size splits, specific
-   exception, DI via interfaces, residual `as` casts) + 4 minors — clean-code debt.
-2. **Picklist round-trip in the other repos:** M-001's pattern (write picklist int / read via
-   reverse map) was applied to `FormDesignRepository` only. `Section/Field/ButtonDesignRepository`
-   write several **Picklist** attributes (e.g. button `qdb_alignment`, section `qdb_card_style`,
-   field `qdb_width`) — verify they don't write raw strings into Picklist columns (same bug class).
-3. **cssClassName end-to-end:** the 2 net-new attrs exist only after provisioning; the backend
-   `DesignAssembler` + backend constants don't yet read `qdb_css_class`/`qdb_field_css_class`, so
-   confirm cssClassName flows into the render-cache `DesignPayload` once provisioned.
+   RESOLVED. Contained majors/minors done: M-002, M-003, M-005, M-006, M-007, m-002, m-003.
+   Re-review = PASS WITH FOLLOWUPS; NEW-001 (section headerStyle data loss) + NEW-002 fixed.
+   Still DEFERRED (clean-code only, non-functional, pre-release tech-debt): M-004 (split
+   designerStore), M-008 (residual `as` casts), M-009/M-010 (DI via interfaces), m-001, m-004.
+2. **Picklist round-trip — DONE** (`6d5819b` + theme in `4aa7490`): all six design repos write
+   picklist integer codes and read via reverse maps (org-verified, None=100000001).
+3. **cssClassName end-to-end — DONE** (`a7ab855`): backend `DesignAssembler` + constants read
+   `qdb_css_class`/`qdb_field_css_class`; runtime applies via `mergeClasses` (portal + on-prem).
 4. Optional: confirm SC-02 in a real CRM iframe.
-5. Then: QA (Step 8) → Audit (Step 9) → CEO final (Step 10).
-6. Deploy = run `provision-style-schema.mjs` + the CSS Allowlist Admin role + publish, per the runbook (user-approved).
 
-Committed to branch `feat/dfe-style-001` (pushed). The live org is untouched (nothing provisioned/deployed).
+## Remaining pipeline
+- ✅ QA (Step 8): `phase-5-qa-style.md` (107 test cases, mapped to SM-001..008). Its "open gaps"
+  framing for picklist/cssClassName/headerStyle predates the fixes above — those are implemented;
+  the QA cases are the verification gate for them.
+- Audit (Step 9) → CEO final (Step 10). OQ-010 (third-party WCAG audit) is a potential Phase-7 gate.
+- Deploy (user-approved) = run `provision-style-schema.mjs` + the CSS Allowlist Admin role + publish, per the runbook.
+
+Committed to branch `feat/dfe-style-001` (pushed through 30ab74d). The live org is untouched (nothing provisioned/deployed).
