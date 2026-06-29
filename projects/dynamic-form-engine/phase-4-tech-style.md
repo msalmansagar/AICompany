@@ -91,12 +91,13 @@ Removed stray debug artifacts (`frontend/screenshot.cjs`, `verify-*.cjs`, `verif
   in DesignAssembler). Remaining audit items are non-blocking pre-release (SEC-04/06/07/08/11) or
   client/ops conditions (OQ-007, OQ-010, enable Dataverse Auditing on qdb_css_allowlist_config,
   deploy-time role check, real-env test runs) → carry into CEO-final conditions.
-- ⚠️ **NEWLY DISCOVERED GAP (functional, > the audit log itself):** section/field/button/layoutGrid
-  design UPSERTS ARE NEVER CALLED — FormSaveService persists only theme + formDesign; the four
-  panels update the Zustand store but their styling is **not saved to Dataverse**. So per-section/
-  field/button/responsive styling does not round-trip end-to-end yet (the repos + cssClassName +
-  picklist work is correct, but the SAVE wiring from store→DesignService for those four is missing).
-  This needs the FormSaveService design-save loop extended (and STYLE_CHANGE audit extended to them).
+- ✅ **PERSISTENCE GAP FIXED:** `FormSaveService.persistElementDesigns` now persists
+  sectionDesigns / fieldDesigns / buttonDesigns / layoutGrid from the store on save — each linked
+  to the **resolved** (temp→real) section/field id, skipping deleted/unresolved-temp ids; layoutGrid
+  uses the captured form-design id; style records (headerStyle/focus/error/etc.) JSON-serialized.
+  STYLE_CHANGE audit extended to all design entities. Per-element styling now round-trips end-to-end.
+  (Follow-up: a FormSaveService integration test for the persist loop; mapping is covered by the repo
+  unit tests + typecheck.)
 - Then CEO final (Step 10) → user-approved deploy (run `provision-style-schema.mjs` + the CSS
   Allowlist Admin role + publish, per the runbook).
 
