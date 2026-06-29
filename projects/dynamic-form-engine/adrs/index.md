@@ -18,3 +18,9 @@
 | ADR-ADD-003 | Selection Grid lazy loading on tab activation (NFR-001 protection) | Accepted | 2026-06-06 | Architect |
 | ADR-ADD-004 | Info-Card first-view audit via dedicated qdb_info_card_view_record entity | Accepted | 2026-06-06 | Architect |
 | ADR-i18n-001 | Universal translation table (qdb_translation) over sibling columns or per-entity child tables | Accepted | 2026-06-24 | Architect |
+| ADR-STYLE-001 | Inline DesignPayload in cache JSON vs. separate storage | Accepted | 2026-06-28 | Architect |
+| ADR-STYLE-002 | Tab-deferred render vs. virtualization for designer performance | Accepted | 2026-06-28 | Architect |
+| ADR-STYLE-003 | PostCSS as CSS sanitizer foundation — ADAPT with shared isomorphic plugin | Accepted | 2026-06-28 | Architect |
+| ADR-STYLE-004 | Single shared allowlist for customCss url() and fontUrl domain validation | Accepted | 2026-06-28 | Architect |
+| ADR-STYLE-005 | On-prem runtime re-sanitization via PostCSS browser build | Accepted | 2026-06-28 | Architect |
+| ADR-STYLE-006 | WCAG v1 scope limited to primary palette and button pairs | Accepted | 2026-06-28 | Architect |
