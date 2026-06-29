@@ -13,6 +13,7 @@ import {
   ChevronUp20Regular,
 } from '@fluentui/react-icons';
 import type { SectionDefinition } from '@qdb/shared';
+import { ScopedButtonBar } from './ScopedButtonBar';
 import { FieldRenderer } from './FieldRenderer';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
@@ -162,6 +163,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
 
   const fieldsGrid = (
     <div
+      id={`section-${section.id}`}
       className={styles.fieldsGrid}
       style={gridStyle}
       role="group"
@@ -193,6 +195,12 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
           </div>
         );
       })}
+      {/* DFE-BTN-001: section-scoped buttons, full width below the field grid. */}
+      {section.buttons && section.buttons.length > 0 && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <ScopedButtonBar buttons={section.buttons} />
+        </div>
+      )}
     </div>
   );
 

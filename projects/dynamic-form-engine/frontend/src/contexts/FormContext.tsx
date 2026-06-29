@@ -35,7 +35,7 @@ export interface FormContextValue {
   isSubmitted: boolean;
   updateFieldValue: (fieldId: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
-  submitForm: () => Promise<void>;
+  submitForm: (submitButtonId?: string) => Promise<void>;
   resetForm: () => void;
 }
 
@@ -248,7 +248,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   }, [formDefinition]);
 
   // â”€â”€ Submit form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const submitForm = useCallback(async () => {
+  const submitForm = useCallback(async (submitButtonId?: string) => {
     if (!formDefinition) return;
 
     // Compute visible fields before validation
@@ -275,7 +275,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       // Strip hidden field values before submitting
       const submitValues = stripHiddenFieldValues(fieldValues, visibleFieldIds, formDefinition);
 
-      const response = await formApi.submit(formCode, submitValues);
+      const response = await formApi.submit(formCode, submitValues, submitButtonId);
       const result = (response as unknown as { data: { referenceNumber: string } }).data;
 
       setSubmissionReference(result.referenceNumber ?? null);

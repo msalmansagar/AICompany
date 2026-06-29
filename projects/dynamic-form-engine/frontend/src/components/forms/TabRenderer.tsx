@@ -3,6 +3,7 @@ import type { TabDefinition } from '@qdb/shared';
 import { SectionRenderer } from './SectionRenderer';
 import { SaveDraftButton } from './SaveDraftButton';
 import { SubmitButton } from './SubmitButton';
+import { ScopedButtonBar } from './ScopedButtonBar';
 import { useFormContext } from '../../contexts/FormContext';
 
 const useStyles = makeStyles({
@@ -63,6 +64,9 @@ export function TabRenderer({
           isTabActive={isTabActive}
         />
       ))}
+
+      {/* DFE-BTN-001: tab-scoped buttons render below this tab's sections. */}
+      <ScopedButtonBar buttons={tab.buttons} />
 
       {showButtonRow && (
         <div className={styles.tabButtonRow} role="group" aria-label="Tab actions">
