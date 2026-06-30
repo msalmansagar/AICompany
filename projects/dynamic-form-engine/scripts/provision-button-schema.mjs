@@ -120,6 +120,7 @@ async function createEntity(token) {
       strAttr('qdb_Confirm_Message', 'Confirmation Message', 400),
       strAttr('qdb_Action_Type', 'Action Type', 40),
       memoAttr('qdb_Action_Config_Json', 'Action Config JSON', 16000),
+      boolAttr('qdb_Is_Active', 'Is Active', true),
     ],
   });
   console.log('  + entity qdb_form_scoped_button with attributes');
