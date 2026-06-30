@@ -492,17 +492,19 @@ export async function submitForm(
   formCode: string,
   formData: Record<string, unknown>,
   accessToken: string,
+  submitButtonId?: string,
 ): Promise<'submitted' | 'queued'> {
   const online = await isOnline();
 
   if (!online) {
-    await enqueueSubmission(formCode, formData);
+    await enqueueSubmission(formCode, formData, submitButtonId);
     return 'queued';
   }
 
-  await apiPost<{ formData: Record<string, unknown> }, unknown>(
+  // DFE-BTN-001: carry the FinalSubmit button id so the backend resolves its extra-params.
+  await apiPost<{ formData: Record<string, unknown>; submitButtonId?: string }, unknown>(
     `/api/forms/${formCode}/submit`,
-    { formData },
+    { formData, ...(submitButtonId ? { submitButtonId } : {}) },
     accessToken,
   );
   return 'submitted';
@@ -542,9 +544,9 @@ export async function syncPendingSubmissions(accessToken: string): Promise<SyncR
 
   for (const item of pending) {
     try {
-      await apiPost<{ formData: Record<string, unknown> }, unknown>(
+      await apiPost<{ formData: Record<string, unknown>; submitButtonId?: string }, unknown>(
         `/api/forms/${item.formCode}/submit`,
-        { formData: item.formData },
+        { formData: item.formData, ...(item.submitButtonId ? { submitButtonId: item.submitButtonId } : {}) },
         accessToken,
       );
       await removePending(item.id);

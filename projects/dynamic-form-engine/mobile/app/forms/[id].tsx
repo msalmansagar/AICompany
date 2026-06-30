@@ -43,12 +43,12 @@ export default function FormDetailScreen() {
     }
   }
 
-  async function handleSubmit(values: Record<string, unknown>): Promise<void> {
+  async function handleSubmit(values: Record<string, unknown>, submitButtonId?: string): Promise<void> {
     if (!form) return;
     setIsSubmitting(true);
     try {
       const token = isDevBypass ? '' : await acquireToken();
-      await submitForm(form.formCode, values, token);
+      await submitForm(form.formCode, values, token, submitButtonId);
       Alert.alert(
         'Application Submitted',
         form.confirmationMessage || `Your ${form.displayName} has been submitted successfully. You will receive a confirmation shortly.`,

@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, type FieldErrors } from 'react-hook-form';
-import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition } from '@qdb/shared';
+import type { FormButton, FormDefinition, FieldDefinition, SectionDefinition, TabDefinition, ScopedButton } from '@qdb/shared';
 import { FieldRenderer } from './fields/FieldRenderer';
 import { InfoCardFlow } from './info-card/InfoCardFlow';
 import { FormSummaryScreen } from './FormSummaryScreen';
+import { ScopedButtonBar } from './ScopedButtonBar';
+import { resolveNavigationTabIndex } from './scopedButtonNavigation';
 import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
 
 type Phase = 'info-cards' | 'form' | 'summary';
@@ -16,7 +18,7 @@ interface Props {
   draftId?: string;
   /** Pre-populate field values, e.g. when resuming a saved draft. */
   initialValues?: Record<string, unknown>;
-  onSubmit: (values: Record<string, unknown>) => void | Promise<void>;
+  onSubmit: (values: Record<string, unknown>, submitButtonId?: string) => void | Promise<void>;
   onSaveDraft?: (values: Record<string, unknown>, tabIndex: number, meta: DraftMeta) => void | Promise<void>;
   onCancel?: () => void;
   isSubmitting?: boolean;
@@ -157,6 +159,31 @@ export function FormRenderer({
     void onSubmit(values);
   }
 
+  // DFE-BTN-001: dispatch a clicked tab/section ScopedButton. Cleared scope on mobile:
+  // navigate (tab/nextStep/previousStep), finalSubmit (threading the button id so the
+  // backend resolves extra-params), and saveDraft. Section scroll is G-3 gated;
+  // externalUrl/anotherForm/callApi are gated — all no-op.
+  function dispatchScopedButton(button: ScopedButton): void {
+    const action = button.action;
+    if (action.type === 'saveDraft') {
+      if (onSaveDraft) void onSaveDraft(getValues(), activeTabIndex, { infoCardViewed, gridSchemaHash: {} });
+      return;
+    }
+    if (action.type === 'finalSubmit') {
+      const submitButtonId = button.id;
+      void handleSubmit((values) => onSubmit(values, submitButtonId), handleInvalidSubmit)();
+      return;
+    }
+    if (action.type === 'callApi') return; // gated (G-1)
+    if (action.type === 'navigate') {
+      if (action.target !== 'tab' && action.target !== 'nextStep' && action.target !== 'previousStep') {
+        return; // section scroll (G-3), externalUrl/anotherForm (gated)
+      }
+      const targetIndex = resolveNavigationTabIndex(action, tabs, activeTabIndex);
+      if (targetIndex !== null) setActiveTabIndex(targetIndex);
+    }
+  }
+
   function handleInvalidSubmit(errors: FieldErrors<Record<string, unknown>>): void {
     const errorKeys = Object.keys(errors);
 
@@ -257,8 +284,17 @@ export function FormRenderer({
               control={control}
               accessToken={accessToken}
               activeTabId={activeTabId ?? ''}
+              isSubmitting={isSubmitting}
+              onScopedButton={dispatchScopedButton}
             />
           )}
+
+          {/* DFE-BTN-001: tab-scoped buttons for the active tab. */}
+          <ScopedButtonBar
+            buttons={activeTab?.buttons}
+            disabled={isSubmitting}
+            onActivate={dispatchScopedButton}
+          />
 
           <View style={styles.actions}>
             {buttons.map((button) => (
@@ -373,9 +409,11 @@ interface TabContentProps {
   control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
   accessToken: string;
   activeTabId: string;
+  isSubmitting: boolean;
+  onScopedButton: (button: ScopedButton) => void;
 }
 
-function TabContent({ tab, control, accessToken, activeTabId }: TabContentProps) {
+function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onScopedButton }: TabContentProps) {
   const sections = [...tab.sections].sort((a, b) => a.displayOrder - b.displayOrder);
   const isActive = tab.tabId === activeTabId;
   return (
@@ -387,6 +425,8 @@ function TabContent({ tab, control, accessToken, activeTabId }: TabContentProps)
           control={control}
           accessToken={accessToken}
           isTabActive={isActive}
+          isSubmitting={isSubmitting}
+          onScopedButton={onScopedButton}
         />
       ))}
     </>
@@ -398,9 +438,11 @@ interface SectionContentProps {
   control: ReturnType<typeof useForm<Record<string, unknown>>>['control'];
   accessToken: string;
   isTabActive: boolean;
+  isSubmitting: boolean;
+  onScopedButton: (button: ScopedButton) => void;
 }
 
-function SectionContent({ section, control, accessToken, isTabActive }: SectionContentProps) {
+function SectionContent({ section, control, accessToken, isTabActive, isSubmitting, onScopedButton }: SectionContentProps) {
   const { ruleState } = useMobileFormContext();
   const [isCollapsed, setIsCollapsed] = useState(section.isCollapsedByDefault ?? false);
 
@@ -437,6 +479,13 @@ function SectionContent({ section, control, accessToken, isTabActive }: SectionC
           />
         );
       })}
+
+      {/* DFE-BTN-001: section-scoped buttons, below the section's fields. */}
+      {!isCollapsed && (
+        <View style={styles.sectionButtons}>
+          <ScopedButtonBar buttons={section.buttons} disabled={isSubmitting} onActivate={onScopedButton} />
+        </View>
+      )}
     </View>
   );
 }
@@ -462,6 +511,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 },
   chevron: { fontSize: 12, color: '#888', marginLeft: 8 },
+  sectionButtons: { paddingHorizontal: 16, paddingBottom: 12 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
   primaryButton: { flex: 1, backgroundColor: '#0078d4', borderRadius: 8, paddingVertical: 14, alignItems: 'center' },
   primaryButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },

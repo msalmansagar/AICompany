@@ -6,6 +6,9 @@ export interface PendingSubmission {
   id: string;
   formCode: string;
   formData: Record<string, unknown>;
+  // DFE-BTN-001: preserves the FinalSubmit button id so extra-params still resolve
+  // when a queued submission is flushed later.
+  submitButtonId?: string;
   queuedAt: string;
 }
 
@@ -16,11 +19,13 @@ function generateId(): string {
 export async function enqueueSubmission(
   formCode: string,
   formData: Record<string, unknown>,
+  submitButtonId?: string,
 ): Promise<PendingSubmission> {
   const item: PendingSubmission = {
     id: generateId(),
     formCode,
     formData,
+    ...(submitButtonId ? { submitButtonId } : {}),
     queuedAt: new Date().toISOString(),
   };
   const current = await getAllPending();
