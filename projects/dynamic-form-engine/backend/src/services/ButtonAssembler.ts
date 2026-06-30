@@ -12,6 +12,7 @@ import type {
   ScopedButtonAction,
   ScopedButtonActionType,
   ButtonPlacementScope,
+  NavigationTargetType,
 } from '@qdb/shared';
 import { logger } from '../utils/logger.js';
 
@@ -41,6 +42,15 @@ const VALID_ACTION_TYPES: ReadonlySet<ScopedButtonActionType> = new Set<ScopedBu
   'finalSubmit',
   'saveDraft',
   'callApi',
+]);
+
+const VALID_NAV_TARGETS: ReadonlySet<NavigationTargetType> = new Set<NavigationTargetType>([
+  'tab',
+  'section',
+  'nextStep',
+  'previousStep',
+  'externalUrl',
+  'anotherForm',
 ]);
 
 /** Buttons indexed by the tab id or section id they are placed on. */
@@ -100,16 +110,15 @@ export class ButtonAssembler {
     return index;
   }
 
-  // Parses and minimally validates the action JSON memo into a typed action.
+  // Parses and validates the action JSON memo into a typed action, returning null
+  // for any parseable-but-malformed config (validation at the read boundary).
   private static parseAction(
     actionType: string | undefined,
     actionConfigJson: string | null | undefined,
   ): ScopedButtonAction | null {
     if (!actionType || !VALID_ACTION_TYPES.has(actionType as ScopedButtonActionType)) return null;
-    if (!actionConfigJson) {
-      // SaveDraft carries no config; the others require one.
-      return actionType === 'saveDraft' ? { type: 'saveDraft' } : null;
-    }
+    if (actionType === 'saveDraft') return { type: 'saveDraft' };
+    if (!actionConfigJson) return null;
 
     let parsed: unknown;
     try {
@@ -122,10 +131,32 @@ export class ButtonAssembler {
     const config = parsed as Record<string, unknown>;
     // The stored config is authoritative for shape; force type to the record's action type.
     config['type'] = actionType;
-
     if (actionType === 'finalSubmit' && !Array.isArray(config['extraParams'])) {
       config['extraParams'] = [];
     }
+    if (!ButtonAssembler.isValidActionConfig(actionType, config)) return null;
     return config as unknown as ScopedButtonAction;
+  }
+
+  // Per-type shape validation — the required fields the renderer/backend depend on.
+  private static isValidActionConfig(actionType: string, config: Record<string, unknown>): boolean {
+    const isStr = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+    switch (actionType) {
+      case 'navigate': {
+        const target = config['target'];
+        if (!isStr(target) || !VALID_NAV_TARGETS.has(target as NavigationTargetType)) return false;
+        if (target === 'tab') return isStr(config['targetTabId']);
+        if (target === 'section') return isStr(config['targetSectionId']);
+        if (target === 'externalUrl') return isStr(config['externalUrlKey']);
+        if (target === 'anotherForm') return isStr(config['targetFormCode']);
+        return true; // nextStep / previousStep need no extra field
+      }
+      case 'finalSubmit':
+        return Array.isArray(config['extraParams']);
+      case 'callApi':
+        return isStr(config['endpointKey']) && (config['method'] === 'GET' || config['method'] === 'POST');
+      default:
+        return true;
+    }
   }
 }

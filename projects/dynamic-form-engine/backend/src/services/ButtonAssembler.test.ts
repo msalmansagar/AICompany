@@ -78,6 +78,40 @@ describe('ButtonAssembler.mapRawButton', () => {
       ButtonAssembler.mapRawButton(rawButton({ qdb_action_config_json: '{not valid json' })),
     ).toBeNull();
   });
+
+  it('drops_a_navigate_tab_button_missing_targetTabId (M2 validation)', () => {
+    expect(
+      ButtonAssembler.mapRawButton(
+        rawButton({ qdb_action_type: 'navigate', qdb_action_config_json: JSON.stringify({ target: 'tab' }) }),
+      ),
+    ).toBeNull();
+  });
+
+  it('drops_a_navigate_button_with_an_invalid_target', () => {
+    expect(
+      ButtonAssembler.mapRawButton(
+        rawButton({ qdb_action_type: 'navigate', qdb_action_config_json: JSON.stringify({ target: 'teleport' }) }),
+      ),
+    ).toBeNull();
+  });
+
+  it('drops_a_callApi_button_missing_endpointKey', () => {
+    expect(
+      ButtonAssembler.mapRawButton(
+        rawButton({ qdb_action_type: 'callApi', qdb_action_config_json: JSON.stringify({ method: 'POST' }) }),
+      ),
+    ).toBeNull();
+  });
+
+  it('keeps_a_valid_callApi_button', () => {
+    const button = ButtonAssembler.mapRawButton(
+      rawButton({
+        qdb_action_type: 'callApi',
+        qdb_action_config_json: JSON.stringify({ endpointKey: 'check-eligibility', method: 'POST' }),
+      }),
+    );
+    expect(button?.action.type).toBe('callApi');
+  });
 });
 
 describe('ButtonAssembler.assemble', () => {

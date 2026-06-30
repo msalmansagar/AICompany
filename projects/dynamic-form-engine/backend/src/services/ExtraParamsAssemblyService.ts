@@ -51,6 +51,13 @@ export interface SubmissionRuntimeContext {
   locale: string;
 }
 
+/** Bundled inputs threaded through per-spec resolution (keeps resolveOne to one param object). */
+interface ResolutionContext {
+  formData: Record<string, unknown>;
+  runtimeContext: SubmissionRuntimeContext;
+  expressionContext: ExpressionContext;
+}
+
 /** Thrown for a malformed/invalid spec or expression — surfaces as HTTP 400. */
 export class ExtraParamsError extends AppError {
   constructor(message: string) {
@@ -73,35 +80,34 @@ export class ExtraParamsAssemblyService {
   resolve(
     specs: ExtraParamSpec[],
     formData: Record<string, unknown>,
-    context: SubmissionRuntimeContext,
+    runtimeContext: SubmissionRuntimeContext,
   ): ResolvedExtraParams {
     const resolved: ResolvedExtraParams = {};
-    const expressionContext = this.toExpressionContext(formData);
+    const ctx: ResolutionContext = {
+      formData,
+      runtimeContext,
+      expressionContext: this.toExpressionContext(formData),
+    };
 
     for (const spec of specs) {
       if (!spec.key) throw new ExtraParamsError('Extra-param spec is missing a key');
-      resolved[spec.key] = this.resolveOne(spec, formData, context, expressionContext);
+      resolved[spec.key] = this.resolveOne(spec, ctx);
     }
 
-    this.assertWithinSizeLimit(resolved, context);
+    this.assertWithinSizeLimit(resolved, runtimeContext);
     return resolved;
   }
 
-  private resolveOne(
-    spec: ExtraParamSpec,
-    formData: Record<string, unknown>,
-    context: SubmissionRuntimeContext,
-    expressionContext: ExpressionContext,
-  ): string | number | boolean | null {
+  private resolveOne(spec: ExtraParamSpec, ctx: ResolutionContext): string | number | boolean | null {
     switch (spec.source) {
       case 'static':
         return spec.staticValue ?? null;
       case 'hiddenField':
-        return this.coerce(formData[spec.fieldSchemaName ?? '']);
+        return this.coerce(ctx.formData[spec.fieldSchemaName ?? '']);
       case 'runtimeContext':
-        return this.resolveContext(spec.contextKey, context);
+        return this.resolveContext(spec.contextKey, ctx.runtimeContext);
       case 'computed':
-        return this.evaluateComputed(spec.expression, expressionContext);
+        return this.evaluateComputed(spec.expression, ctx.expressionContext);
       default:
         throw new ExtraParamsError(`Unknown extra-param source '${String(spec.source)}'`);
     }

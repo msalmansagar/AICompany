@@ -27,7 +27,7 @@ import type {
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
-import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
+import { FormNotFoundError, FormInactiveError, ValidationError, CrmApiError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmInfoCardService, InfoCardScreen } from './CrmInfoCardService.js';
@@ -279,7 +279,16 @@ export class CrmMetadataService extends CrmBaseService {
       );
       return ButtonAssembler.assemble(response.value);
     } catch (error) {
-      logger.warn({ error, formId }, 'Could not fetch scoped buttons — rendering form without them');
+      // A buttons sub-query failure must never break the whole form render, so we
+      // degrade to no buttons either way — but distinguish the cases in logs so a
+      // real failure is surfaced (ERROR/alertable), not hidden as routine.
+      // A 404 is expected while the entity is unprovisioned (schema deploy is gated).
+      const status = error instanceof CrmApiError ? error.crmStatusCode : undefined;
+      if (status === 404) {
+        logger.info({ formId }, 'Scoped-button entity not present — rendering form without buttons');
+      } else {
+        logger.error({ error, formId }, 'Failed to fetch scoped buttons — rendering form without them');
+      }
       return { byTabId: new Map(), bySectionId: new Map() };
     }
   }

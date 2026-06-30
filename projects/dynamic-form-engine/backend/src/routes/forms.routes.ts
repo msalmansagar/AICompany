@@ -55,12 +55,15 @@ const submitSchema = z.object({
 
 // DFE-BTN-001: assembles the server-authoritative runtime context for extra-params
 // resolution (C-004). Security-sensitive keys are sourced here, never from the client.
-function buildSubmissionRuntimeContext(
-  form: FormDefinition,
-  user: { oid: string; name?: string; preferred_username?: string },
-  formCode: string,
-  correlationId: string | undefined,
-): SubmissionRuntimeContext {
+interface RuntimeContextInput {
+  form: FormDefinition;
+  user: { oid: string; name?: string; preferred_username?: string };
+  formCode: string;
+  correlationId: string | undefined;
+}
+
+function buildSubmissionRuntimeContext(input: RuntimeContextInput): SubmissionRuntimeContext {
+  const { form, user, formCode, correlationId } = input;
   return {
     userId: user.oid,
     userDisplayName: user.name ?? user.preferred_username ?? user.oid,
@@ -203,7 +206,7 @@ export function createFormsRouter(
     if (body.submitButtonId) {
       const button = findFinalSubmitButton(form, body.submitButtonId);
       if (button) {
-        const context = buildSubmissionRuntimeContext(form, user, formCode, req.correlationId);
+        const context = buildSubmissionRuntimeContext({ form, user, formCode, correlationId: req.correlationId });
         resolvedExtraParams = extraParamsAssembly.resolve(extraParamsOf(button), body.formData, context);
         logger.info(
           { formCode, buttonId: button.id, paramKeys: Object.keys(resolvedExtraParams) },
