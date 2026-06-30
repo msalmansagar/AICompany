@@ -39,6 +39,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      // DFE-STYLE-001 blank-page fix: resolve @qdb/shared to the server barrel at RUNTIME,
+      // matching the package "types" field and the frontend portal. The package "main" is
+      // src/index.ts (the mobile barrel), which lacks server-only value exports such as
+      // calculateContrastRatio — importing those at runtime otherwise throws a module-graph
+      // SyntaxError and blanks the whole designer.
+      '@qdb/shared': resolve(__dirname, '../shared/src/server.ts'),
     },
   },
   build: {
