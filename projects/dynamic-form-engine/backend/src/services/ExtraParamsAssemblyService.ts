@@ -65,10 +65,10 @@ export class ExtraParamsError extends AppError {
   }
 }
 
-/** Thrown when the resolved envelope exceeds the size cap — surfaces as HTTP 413. */
+/** Thrown when the resolved envelope exceeds the size cap — surfaces as HTTP 422 (FR-043). */
 export class ExtraParamsTooLargeError extends AppError {
   constructor(message: string) {
-    super(message, 413, 'EXTRA_PARAMS_TOO_LARGE');
+    super(message, 422, 'EXTRA_PARAMS_TOO_LARGE');
   }
 }
 
@@ -122,21 +122,23 @@ export class ExtraParamsAssemblyService {
     return context[key];
   }
 
-  // C-005: evaluated by the bounded, eval-free server engine.
+  // C-005 / FR-042 / NFR-006c: evaluated by the bounded, eval-free server engine.
+  // A computed expression that fails to evaluate (syntax/reference error) or times
+  // out is LOGGED and substituted with null — it MUST NOT reject the submission.
   private evaluateComputed(
     expression: string | undefined,
     expressionContext: ExpressionContext,
   ): string | number | boolean | null {
-    if (!expression) throw new ExtraParamsError('computed spec is missing expression');
+    if (!expression) {
+      logger.warn('Computed extra-param spec has no expression — substituting null');
+      return null;
+    }
     try {
       return ExpressionEngineServer.evaluate(expression, expressionContext);
     } catch (error) {
-      if (error instanceof ExpressionTimeoutError) {
-        logger.warn({ expression }, 'Computed extra-param expression exceeded limits');
-        throw new ExtraParamsError('Computed expression exceeded evaluation limits');
-      }
-      if (error instanceof ExpressionError) {
-        throw new ExtraParamsError(`Invalid computed expression: ${error.message}`);
+      if (error instanceof ExpressionTimeoutError || error instanceof ExpressionError) {
+        logger.warn({ reason: error.message }, 'Computed extra-param expression failed — substituting null');
+        return null;
       }
       throw error;
     }

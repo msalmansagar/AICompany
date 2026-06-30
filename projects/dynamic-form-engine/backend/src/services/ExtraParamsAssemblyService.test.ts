@@ -67,14 +67,14 @@ describe('ExtraParamsAssemblyService.resolve', () => {
     expect(result.fullName).toBe('Ada Lovelace');
   });
 
-  it('computed_source_rejects_a_malformed_expression_with_400', () => {
+  it('computed_source_substitutes_null_for_a_malformed_expression (FR-042)', () => {
     const specs: ExtraParamSpec[] = [{ key: 'x', source: 'computed', expression: '1 +' }];
-    expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsError);
+    expect(service.resolve(specs, {}, makeContext())).toEqual({ x: null });
   });
 
-  it('computed_source_rejects_an_over_length_expression', () => {
+  it('computed_source_substitutes_null_for_an_over_length_expression (FR-042)', () => {
     const specs: ExtraParamSpec[] = [{ key: 'x', source: 'computed', expression: `'${'a'.repeat(2000)}'` }];
-    expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsError);
+    expect(service.resolve(specs, {}, makeContext())).toEqual({ x: null });
   });
 
   it('missing_key_throws', () => {
@@ -87,7 +87,7 @@ describe('ExtraParamsAssemblyService.resolve', () => {
     expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsError);
   });
 
-  it('oversized_envelope_throws_413 (C-007)', () => {
+  it('oversized_envelope_throws_422 (C-007 / FR-043)', () => {
     const huge = 'x'.repeat(MAX_EXTRA_PARAMS_BYTES + 1);
     const specs: ExtraParamSpec[] = [{ key: 'big', source: 'static', staticValue: huge }];
     expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsTooLargeError);

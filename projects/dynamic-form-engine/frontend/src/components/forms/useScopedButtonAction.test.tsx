@@ -14,7 +14,15 @@ const setActiveTabIndex = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();
   mockUseFormContext.mockReturnValue({
-    formDefinition: { tabs: [{ id: 'tab-a' }, { id: 'tab-b' }, { id: 'tab-c' }] },
+    formDefinition: {
+      tabs: [
+        { id: 'tab-a', isVisible: true, sections: [] },
+        { id: 'tab-b', isVisible: true, sections: [] },
+        { id: 'tab-c', isVisible: true, sections: [] },
+      ],
+    },
+    ruleState: { tabVisibility: {}, fieldVisibility: {}, fieldRequired: {}, sectionVisibility: {}, fieldReadonly: {} },
+    fieldValues: {},
     activeTabIndex: 0,
     setActiveTabIndex,
     submitForm,
@@ -86,5 +94,45 @@ describe('useScopedButtonAction', () => {
     const { result } = renderHook(() => useScopedButtonAction());
     result.current(button({ type: 'navigate', target: 'externalUrl', externalUrlKey: 'k' }));
     expect(setActiveTabIndex).not.toHaveBeenCalled();
+  });
+
+  it('blocks_navigation_to_a_requiresPreviousTabComplete_tab_when_incomplete (BR-002)', () => {
+    mockUseFormContext.mockReturnValue({
+      formDefinition: {
+        tabs: [
+          { id: 't0', isVisible: true, sections: [{ id: 's0', fields: [{ id: 'f1', schemaName: 'qdb_x', isVisible: true, isRequired: true }] }] },
+          { id: 't1', isVisible: true, requiresPreviousTabComplete: true, sections: [] },
+        ],
+      },
+      ruleState: { tabVisibility: {}, fieldVisibility: {}, fieldRequired: {}, sectionVisibility: {}, fieldReadonly: {} },
+      fieldValues: {}, // required field qdb_x is empty → preceding tab incomplete
+      activeTabIndex: 0,
+      setActiveTabIndex,
+      submitForm,
+      saveDraft,
+    });
+    const { result } = renderHook(() => useScopedButtonAction());
+    result.current(button({ type: 'navigate', target: 'tab', targetTabId: 't1' }));
+    expect(setActiveTabIndex).not.toHaveBeenCalled();
+  });
+
+  it('allows_navigation_to_a_requiresPreviousTabComplete_tab_when_complete', () => {
+    mockUseFormContext.mockReturnValue({
+      formDefinition: {
+        tabs: [
+          { id: 't0', isVisible: true, sections: [{ id: 's0', fields: [{ id: 'f1', schemaName: 'qdb_x', isVisible: true, isRequired: true }] }] },
+          { id: 't1', isVisible: true, requiresPreviousTabComplete: true, sections: [] },
+        ],
+      },
+      ruleState: { tabVisibility: {}, fieldVisibility: {}, fieldRequired: {}, sectionVisibility: {}, fieldReadonly: {} },
+      fieldValues: { qdb_x: 'filled' },
+      activeTabIndex: 0,
+      setActiveTabIndex,
+      submitForm,
+      saveDraft,
+    });
+    const { result } = renderHook(() => useScopedButtonAction());
+    result.current(button({ type: 'navigate', target: 'tab', targetTabId: 't1' }));
+    expect(setActiveTabIndex).toHaveBeenCalledWith(1);
   });
 });

@@ -112,7 +112,7 @@ describe('POST /forms/:formCode/submit — extra-params wiring (DFE-BTN-001)', (
     expect(submissionService.submitForm).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects_an_invalid_computed_expression_with_400', async () => {
+  it('substitutes_null_for_an_invalid_computed_expression_and_submits (FR-042)', async () => {
     const { app, submissionService } = buildApp(
       makeForm([{ key: 'bad', source: 'computed', expression: '1 +' }]),
     );
@@ -121,11 +121,11 @@ describe('POST /forms/:formCode/submit — extra-params wiring (DFE-BTN-001)', (
       .post('/api/forms/test-form/submit')
       .send({ formData: {}, submitButtonId: 'btn-final' });
 
-    expect(res.status).toBe(400);
-    expect(submissionService.submitForm).not.toHaveBeenCalled();
+    expect(res.status).toBe(201);
+    expect(submissionService.submitForm).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects_an_oversized_envelope_with_413', async () => {
+  it('rejects_an_oversized_envelope_with_422 (FR-043)', async () => {
     const { app, submissionService } = buildApp(
       makeForm([{ key: 'big', source: 'static', staticValue: 'x'.repeat(70 * 1024) }]),
     );
@@ -134,7 +134,7 @@ describe('POST /forms/:formCode/submit — extra-params wiring (DFE-BTN-001)', (
       .post('/api/forms/test-form/submit')
       .send({ formData: {}, submitButtonId: 'btn-final' });
 
-    expect(res.status).toBe(413);
+    expect(res.status).toBe(422);
     expect(submissionService.submitForm).not.toHaveBeenCalled();
   });
 
