@@ -25,6 +25,10 @@ import { logger } from '../utils/logger.js';
 
 /** Maximum serialized size of the resolved envelope (C-007). Env-tunable for OQ-008. */
 export const MAX_EXTRA_PARAMS_BYTES = Number(process.env['MAX_EXTRA_PARAMS_BYTES'] ?? 64 * 1024);
+/** Maximum total extra-params per submission — count DoS guard (SEC-01). */
+export const MAX_TOTAL_EXTRA_PARAMS = Number(process.env['MAX_EXTRA_PARAMS_COUNT'] ?? 50);
+/** Maximum Computed extra-params per submission — CPU DoS guard (ADR-BTN-006 / SEC-01). */
+export const MAX_COMPUTED_PARAMS = Number(process.env['MAX_COMPUTED_EXTRA_PARAMS'] ?? 25);
 
 /** Context keys stamped authoritatively by the server; client values are discarded (C-004). */
 const AUTHORITATIVE_RUNTIME_KEYS: ReadonlySet<RuntimeContextKey> = new Set<RuntimeContextKey>([
@@ -82,6 +86,9 @@ export class ExtraParamsAssemblyService {
     formData: Record<string, unknown>,
     runtimeContext: SubmissionRuntimeContext,
   ): ResolvedExtraParams {
+    // SEC-01: bound the number of params before any evaluation (count/CPU DoS guard).
+    this.assertWithinCountLimits(specs);
+
     const resolved: ResolvedExtraParams = {};
     const ctx: ResolutionContext = {
       formData,
@@ -141,6 +148,20 @@ export class ExtraParamsAssemblyService {
         return null;
       }
       throw error;
+    }
+  }
+
+  private assertWithinCountLimits(specs: ExtraParamSpec[]): void {
+    if (specs.length > MAX_TOTAL_EXTRA_PARAMS) {
+      throw new ExtraParamsTooLargeError(
+        `Too many extra-params: ${specs.length} (max ${MAX_TOTAL_EXTRA_PARAMS})`,
+      );
+    }
+    const computedCount = specs.filter((spec) => spec.source === 'computed').length;
+    if (computedCount > MAX_COMPUTED_PARAMS) {
+      throw new ExtraParamsTooLargeError(
+        `Too many computed extra-params: ${computedCount} (max ${MAX_COMPUTED_PARAMS})`,
+      );
     }
   }
 

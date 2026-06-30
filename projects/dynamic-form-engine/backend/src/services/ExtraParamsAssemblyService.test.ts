@@ -93,6 +93,22 @@ describe('ExtraParamsAssemblyService.resolve', () => {
     expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsTooLargeError);
   });
 
+  it('accepts_exactly_50_params_but_rejects_51 (SEC-01)', () => {
+    const make = (n: number): ExtraParamSpec[] =>
+      Array.from({ length: n }, (_unused, i) => ({ key: `k${i}`, source: 'static' as const, staticValue: 'v' }));
+    expect(() => service.resolve(make(50), {}, makeContext())).not.toThrow();
+    expect(() => service.resolve(make(51), {}, makeContext())).toThrow(ExtraParamsTooLargeError);
+  });
+
+  it('rejects_more_than_25_computed_params (SEC-01 / ADR-BTN-006)', () => {
+    const specs: ExtraParamSpec[] = Array.from({ length: 26 }, (_unused, i) => ({
+      key: `c${i}`,
+      source: 'computed' as const,
+      expression: '1 + 1',
+    }));
+    expect(() => service.resolve(specs, {}, makeContext())).toThrow(ExtraParamsTooLargeError);
+  });
+
   it('resolves_a_mixed_envelope_end_to_end', () => {
     const specs: ExtraParamSpec[] = [
       { key: 'channel', source: 'static', staticValue: 'portal' },
