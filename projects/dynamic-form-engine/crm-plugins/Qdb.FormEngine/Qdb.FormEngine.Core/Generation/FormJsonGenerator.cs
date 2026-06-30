@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
+using Newtonsoft.Json.Linq;
 using Qdb.FormEngine.Core.Abstractions;
 using Qdb.FormEngine.Core.Models;
 
@@ -105,7 +106,8 @@ namespace Qdb.FormEngine.Core.Generation
                 IsVisible = EntityHelper.GetBoolOrTrue(tab, "qdb_is_visible"),
                 RequiresPreviousTabComplete = tab.GetAttributeValue<bool>("qdb_requires_previous_tab_complete"),
                 HideTabBar = tab.GetAttributeValue<bool>("qdb_hide_tab_bar"),
-                Sections = BuildSections(rawData, tabId, fieldBuilder)
+                Sections = BuildSections(rawData, tabId, fieldBuilder),
+                Buttons = BuildScopedButtons(rawData, "tab", tabId)
             };
         }
 
@@ -133,8 +135,71 @@ namespace Qdb.FormEngine.Core.Generation
                 IsCollapsible = section.GetAttributeValue<bool>("qdb_is_collapsible"),
                 IsCollapsedByDefault = section.GetAttributeValue<bool>("qdb_is_collapsed_by_default"),
                 IsVisible = EntityHelper.GetBoolOrTrue(section, "qdb_is_visible"),
-                Fields = fieldBuilder.BuildFields(sectionId)
+                Fields = fieldBuilder.BuildFields(sectionId),
+                Buttons = BuildScopedButtons(rawData, "section", sectionId)
             };
+        }
+
+        // DFE-BTN-001: maps qdb_form_scoped_button records placed on a tab/section.
+        // Returns null when empty so a button-less tab/section omits the "buttons" key
+        // (the cache JSON for existing forms is byte-identical). Malformed action configs
+        // drop the button rather than failing the whole form (mirrors the backend reader).
+        private List<ScopedButton> BuildScopedButtons(FormRawData rawData, string scope, Guid placementId)
+        {
+            if (rawData.ScopedButtons == null) return null;
+            var lookupName = scope == "section" ? "qdb_section_id" : "qdb_tab_id";
+            var buttons = rawData.ScopedButtons
+                .Where(b => EntityHelper.GetLookupId(b, lookupName) == placementId)
+                .OrderBy(b => b.GetAttributeValue<int>("qdb_display_order"))
+                .Select(b => BuildScopedButton(rawData, b, scope, placementId))
+                .Where(b => b != null)
+                .ToList();
+            return buttons.Count > 0 ? buttons : null;
+        }
+
+        private ScopedButton BuildScopedButton(FormRawData rawData, Entity button, string scope, Guid placementId)
+        {
+            var action = BuildScopedButtonAction(
+                button.GetAttributeValue<string>("qdb_action_type"),
+                button.GetAttributeValue<string>("qdb_action_config_json"));
+            if (action == null) return null;
+
+            return new ScopedButton
+            {
+                Id = button.Id,
+                PlacementScope = scope,
+                PlacementId = placementId,
+                Label = Resolve(rawData, "qdb_form_scoped_button", button.Id, "qdb_label", button.GetAttributeValue<string>("qdb_label")),
+                DisplayOrder = button.GetAttributeValue<int>("qdb_display_order"),
+                IsPrimary = button.GetAttributeValue<bool>("qdb_is_primary"),
+                IsVisible = EntityHelper.GetBoolOrTrue(button, "qdb_is_visible"),
+                ConfirmationRequired = button.GetAttributeValue<bool>("qdb_confirm_required"),
+                ConfirmationMessage = Resolve(rawData, "qdb_form_scoped_button", button.Id, "qdb_confirm_message", button.GetAttributeValue<string>("qdb_confirm_message")),
+                Action = action,
+                IsActive = true
+            };
+        }
+
+        // Parses the action JSON memo into the discriminated-union object the runtimes expect,
+        // forcing the type to the record's action type. Returns null for an invalid/missing config.
+        private object BuildScopedButtonAction(string actionType, string configJson)
+        {
+            if (string.IsNullOrEmpty(actionType)) return null;
+            if (actionType == "saveDraft") return new JObject { ["type"] = "saveDraft" };
+            if (string.IsNullOrEmpty(configJson)) return null;
+
+            try
+            {
+                var obj = JObject.Parse(configJson);
+                obj["type"] = actionType;
+                if (actionType == "finalSubmit" && obj["extraParams"] == null) obj["extraParams"] = new JArray();
+                return obj;
+            }
+            catch (Exception ex)
+            {
+                _tracingService.Trace("FormJsonGenerator: dropping scoped button with invalid action JSON: {0}", ex.Message);
+                return null;
+            }
         }
 
         private List<SubmissionMapping> BuildSubmissionMappings(FormRawData rawData, Guid formId)

@@ -46,6 +46,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("requiresPreviousTabComplete")] public bool RequiresPreviousTabComplete { get; set; }
         [JsonProperty("hideTabBar")] public bool HideTabBar { get; set; }
         [JsonProperty("sections")] public List<SectionDefinition> Sections { get; set; }
+        // DFE-BTN-001: tab-scoped buttons. Omitted when empty so button-less forms are byte-identical.
+        [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
     }
 
     /// <summary>A section within a tab that groups fields.</summary>
@@ -61,6 +63,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isCollapsedByDefault")] public bool IsCollapsedByDefault { get; set; }
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("fields")] public List<FieldDefinition> Fields { get; set; }
+        // DFE-BTN-001: section-scoped buttons. Omitted when empty so button-less forms are byte-identical.
+        [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
     }
 
     /// <summary>A single form field with all display, validation and layout properties.</summary>
@@ -226,6 +230,26 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isPrimary")] public bool IsPrimary { get; set; }
         [JsonProperty("confirmationRequired")] public bool ConfirmationRequired { get; set; }
         [JsonProperty("confirmationMessage")] public string ConfirmationMessage { get; set; }
+        [JsonProperty("isActive")] public bool IsActive { get; set; }
+    }
+
+    /// <summary>
+    /// DFE-BTN-001: a button scoped to a tab or section, with a discriminated-union action.
+    /// The Action is emitted as the parsed action-config object (JObject) so the serialized
+    /// shape matches the shared ScopedButtonAction contract consumed by all runtimes.
+    /// </summary>
+    public sealed class ScopedButton
+    {
+        [JsonProperty("id")] public Guid Id { get; set; }
+        [JsonProperty("placementScope")] public string PlacementScope { get; set; }
+        [JsonProperty("placementId")] public Guid PlacementId { get; set; }
+        [JsonProperty("label")] public string Label { get; set; }
+        [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
+        [JsonProperty("isPrimary")] public bool IsPrimary { get; set; }
+        [JsonProperty("isVisible")] public bool IsVisible { get; set; }
+        [JsonProperty("confirmationRequired")] public bool ConfirmationRequired { get; set; }
+        [JsonProperty("confirmationMessage", NullValueHandling = NullValueHandling.Ignore)] public string ConfirmationMessage { get; set; }
+        [JsonProperty("action")] public object Action { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
     }
 

@@ -84,6 +84,89 @@ namespace Qdb.FormEngine.Tests
             Assert.True(field.IsHidden, "Generator must preserve hidden field; stripping is SecurityStripper's job.");
         }
 
+        [Fact]
+        public void Generate_WithScopedButtons_EmbedsThemOnTabAndSection()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var sectionId = rawData.Sections[0].Id;
+            rawData.ScopedButtons = new List<Entity>
+            {
+                MakeScopedButton(formId, tabId, null, "tab", "Next", "navigate", "{\"target\":\"nextStep\"}"),
+                MakeScopedButton(formId, null, sectionId, "section", "Submit", "finalSubmit", "{\"extraParams\":[]}")
+            };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var tab = result.Tabs[0];
+            Assert.NotNull(tab.Buttons);
+            Assert.Single(tab.Buttons);
+            Assert.Equal("Next", tab.Buttons[0].Label);
+            Assert.Equal("tab", tab.Buttons[0].PlacementScope);
+
+            var section = tab.Sections[0];
+            Assert.NotNull(section.Buttons);
+            Assert.Single(section.Buttons);
+            Assert.Equal("section", section.Buttons[0].PlacementScope);
+        }
+
+        [Fact]
+        public void Generate_WithNoScopedButtons_OmitsButtonsProperty()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            rawData.ScopedButtons = new List<Entity>();
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — null so the "buttons" key is omitted (existing forms byte-identical)
+            Assert.Null(result.Tabs[0].Buttons);
+            Assert.Null(result.Tabs[0].Sections[0].Buttons);
+        }
+
+        [Fact]
+        public void Generate_WithInvalidActionJson_DropsTheButton()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            rawData.ScopedButtons = new List<Entity>
+            {
+                MakeScopedButton(formId, tabId, null, "tab", "Bad", "navigate", "{not valid json")
+            };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — the malformed button is dropped, leaving no buttons
+            Assert.Null(result.Tabs[0].Buttons);
+        }
+
+        private static Entity MakeScopedButton(
+            Guid formId, Guid? tabId, Guid? sectionId, string scope, string label, string actionType, string actionConfigJson)
+        {
+            var entity = new Entity("qdb_form_scoped_button", Guid.NewGuid());
+            entity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            if (tabId.HasValue) entity["qdb_tab_id"] = new EntityReference("qdb_form_tab", tabId.Value);
+            if (sectionId.HasValue) entity["qdb_section_id"] = new EntityReference("qdb_form_section", sectionId.Value);
+            entity["qdb_placement_scope"] = scope;
+            entity["qdb_label"] = label;
+            entity["qdb_display_order"] = 0;
+            entity["qdb_is_primary"] = true;
+            entity["qdb_is_visible"] = true;
+            entity["qdb_confirm_required"] = false;
+            entity["qdb_action_type"] = actionType;
+            entity["qdb_action_config_json"] = actionConfigJson;
+            return entity;
+        }
+
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

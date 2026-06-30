@@ -61,6 +61,7 @@ namespace Qdb.FormEngine.Data
                 LookupConfigs = FetchLookupConfigs(fieldIds),
                 SubmissionMappings = FetchSubmissionMappings(formId),
                 Buttons = FetchButtons(formId),
+                ScopedButtons = FetchScopedButtons(formId),
                 BusinessRules = FetchBusinessRules(formId),
                 GridColumnConfigs = FetchGridColumnConfigs(fieldIds),
                 InfoCardScreens = FetchInfoCardScreens(formId),
@@ -236,6 +237,30 @@ namespace Qdb.FormEngine.Data
             query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);
+        }
+
+        // DFE-BTN-001: tab/section scoped buttons. Degrades to an empty list if the entity
+        // is not provisioned (the schema deploy is gated) so form generation never fails
+        // over a buttons sub-query.
+        private List<Entity> FetchScopedButtons(Guid formId)
+        {
+            try
+            {
+                var query = new QueryExpression("qdb_form_scoped_button")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true
+                };
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+                query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
+                query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
+                query.AddOrder("qdb_display_order", OrderType.Ascending);
+                return RetrieveAll(query);
+            }
+            catch (Exception)
+            {
+                return new List<Entity>();
+            }
         }
 
         private List<Entity> FetchBusinessRules(Guid formId)

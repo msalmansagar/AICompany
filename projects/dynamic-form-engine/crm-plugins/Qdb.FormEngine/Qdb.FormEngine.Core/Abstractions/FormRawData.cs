@@ -38,6 +38,9 @@ namespace Qdb.FormEngine.Core.Abstractions
         /// <summary>All active qdb_form_button records for this form.</summary>
         public List<Entity> Buttons { get; set; }
 
+        /// <summary>All active qdb_form_scoped_button records (tab/section buttons) for this form. DFE-BTN-001.</summary>
+        public List<Entity> ScopedButtons { get; set; }
+
         /// <summary>All active qdb_form_business_rule records for this form.</summary>
         public List<Entity> BusinessRules { get; set; }
 
