@@ -34,6 +34,8 @@ export const ENTITY_NAMES = {
   // DFE-STYLE-001 — new entities
   LAYOUT_GRID: 'qdb_layout_grid',
   CSS_ALLOWLIST_CONFIG: 'qdb_css_allowlist_config',
+  // DFE-BTN-001 — tab/section scoped buttons
+  FORM_SCOPED_BUTTON: 'qdb_form_scoped_button',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];

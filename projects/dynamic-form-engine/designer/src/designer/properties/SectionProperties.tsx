@@ -13,6 +13,7 @@ import {
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
+import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -89,7 +90,13 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
       )}
 
       <Divider />
-      <Accordion collapsible>
+      <Accordion collapsible multiple>
+        <AccordionItem value="buttons">
+          <AccordionHeader>Buttons</AccordionHeader>
+          <AccordionPanel>
+            <ScopedButtonsPanel scope="section" placementId={sectionId} />
+          </AccordionPanel>
+        </AccordionItem>
         <AccordionItem value="translations">
           <AccordionHeader>Translations</AccordionHeader>
           <AccordionPanel>
