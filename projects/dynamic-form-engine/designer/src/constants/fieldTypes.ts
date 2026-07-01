@@ -43,6 +43,8 @@ export const FIELD_TYPE = {
   BOOLEAN: 'boolean',
   INFO_CARD: 'info-card',
   INTERACTIVE_GRID: 'interactive-grid',
+  // DFE-FBE-001 — read-only display field (static text or data-bound mirror)
+  LABEL: 'label',
 } as const;
 
 export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
@@ -86,6 +88,7 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.RADIO]: { type: FIELD_TYPE.RADIO, category: 'basic', label: 'Radio Group', iconName: 'RadioBullet', hasOptions: true, hasLookup: false, isLayout: false },
   [FIELD_TYPE.FILE_UPLOAD]: { type: FIELD_TYPE.FILE_UPLOAD, category: 'basic', label: 'File Upload', iconName: 'Upload', hasOptions: false, hasLookup: false, isLayout: false },
   [FIELD_TYPE.RICH_TEXT]: { type: FIELD_TYPE.RICH_TEXT, category: 'basic', label: 'Rich Text', iconName: 'Font', hasOptions: false, hasLookup: false, isLayout: false },
+  [FIELD_TYPE.LABEL]: { type: FIELD_TYPE.LABEL, category: 'basic', label: 'Label (display)', iconName: 'TextField', hasOptions: false, hasLookup: false, isLayout: false },
   [FIELD_TYPE.TAB]: { type: FIELD_TYPE.TAB, category: 'layout', label: 'Tab', iconName: 'Tab', hasOptions: false, hasLookup: false, isLayout: true },
   [FIELD_TYPE.SECTION_1COL]: { type: FIELD_TYPE.SECTION_1COL, category: 'layout', label: 'Section (1 column)', iconName: 'ColumnSingle', hasOptions: false, hasLookup: false, isLayout: true },
   [FIELD_TYPE.SECTION_2COL]: { type: FIELD_TYPE.SECTION_2COL, category: 'layout', label: 'Section (2 columns)', iconName: 'ColumnTwo', hasOptions: false, hasLookup: false, isLayout: true },

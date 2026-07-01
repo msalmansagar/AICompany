@@ -28,7 +28,14 @@ export type FieldType =
   // DFE-ADD-002: new field types
   | 'boolean'
   | 'info-card'
-  | 'interactive-grid';
+  | 'interactive-grid'
+  // DFE-FBE-001: read-only display field (static text or data-bound mirror of another field)
+  | 'label';
+
+// DFE-FBE-001: form-level summary behaviour.
+// None = no summary step; SystemGenerated = engine auto-builds the review step;
+// Manual = the designer builds a summary tab (isSummaryTab) from Label fields.
+export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 
 export type ValidationRuleType =
   | 'required'
@@ -357,6 +364,13 @@ export interface FieldDefinition {
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
+  // DFE-FBE-001: Label field config.
+  // staticContent — text shown when the Label is static (no source binding).
+  // sourceFieldSchemaName — when set, the Label mirrors this field's current value, read-only
+  // and type-aware (resolved from the loaded form definition + form state).
+  staticContent?: string;
+  sourceFieldSchemaName?: string;
+
   // DFE-ADD-002: Boolean field config (qdb_true_label, qdb_false_label, qdb_bool_render_style)
   trueLabel?: string;
   falseLabel?: string;
@@ -410,6 +424,8 @@ export interface SectionDefinition {
   fields: FieldDefinition[];
   // DFE-BTN-001: section-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
+  // DFE-FBE-001: section header icon (same format as TabDefinition.iconName)
+  iconName?: string;
 }
 
 // ── Tab definition ────────────────────────────────────────────
@@ -419,6 +435,10 @@ export interface TabDefinition {
   formDefinitionId: string;
   label: string;
   iconName?: string;               // Fluent UI icon name
+  // DFE-FBE-001: tab description, rendered in the content area above the sections
+  description?: string;
+  // DFE-FBE-001: when true (and summaryMode='Manual'), this tab is the manual summary step
+  isSummaryTab?: boolean;
   displayOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
@@ -568,7 +588,11 @@ export interface FormDefinition {
   infocardSkipLabel?: string;
   infoCards: InfoCardScreen[];
   // DFE-ADD-003: show a read-only summary of all answers on the last step before submit.
+  // Legacy — retained read-only for back-compat; superseded by summaryMode (DFE-FBE-001).
   showSummaryStep: boolean;
+  // DFE-FBE-001: None | SystemGenerated | Manual. When undefined, generators derive it from
+  // the legacy showSummaryStep flag (true → SystemGenerated, else None) — see ADR-FBE-003.
+  summaryMode?: SummaryMode;
   submissionMappings: SubmissionMapping[];
   buttons: FormButton[];
   tabs: TabDefinition[];

@@ -9,7 +9,10 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Qdb.FormEngine.Core</RootNamespace>
     <AssemblyName>Qdb.FormEngine.Core</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.1</TargetFrameworkVersion>
+    <!-- Dataverse online rejects plugin assemblies targeting > 4.7.1; the 4.7.1 dev pack is
+         not installed, so build against the NuGet reference assemblies (already restored). -->
+    <FrameworkPathOverride>$(USERPROFILE)\.nuget\packages\microsoft.netframework.referenceassemblies.net471\1.0.3\build\.NETFramework\v4.7.1</FrameworkPathOverride>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
     <NuGetPackageImportStamp>
@@ -58,6 +61,8 @@
     <Compile Include="Generation\ISecurityStripper.cs" />
     <Compile Include="Generation\SecurityStripper.cs" />
     <Compile Include="Hashing\HashService.cs" />
+    <Compile Include="Models\DesignModels.cs" />
+    <Compile Include="Models\DesignPicklistMapper.cs" />
     <Compile Include="Models\FormDefinitionModel.cs" />
     <Compile Include="Models\PicklistMapper.cs" />
     <Compile Include="Models\TranslationMap.cs" />

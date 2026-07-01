@@ -13,6 +13,7 @@ export const FORM_DEFINITION_ATTRS = {
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',
   DRAFT_EXPIRY_DAYS: 'qdb_draft_expiry_days',
   SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
+  SUMMARY_MODE: 'qdb_summary_mode',                 // DFE-FBE-001 — Picklist, see SUMMARY_MODE_TO_PICKLIST
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
@@ -52,11 +53,21 @@ export const FORM_TAB_ATTRS = {
   FORM_ID_VALUE: '_qdb_form_definition_id_value', // use for $select and read
   LABEL: 'qdb_label',
   ICON_NAME: 'qdb_icon_name',
+  DESCRIPTION: 'qdb_description',                   // DFE-FBE-001
+  IS_SUMMARY_TAB: 'qdb_is_summary_tab',             // DFE-FBE-001
   SORT_ORDER: 'qdb_display_order',
   IS_VISIBLE: 'qdb_is_visible',
   REQUIRES_PREVIOUS_TAB_COMPLETE: 'qdb_requires_previous_tab_complete',
   HIDE_TAB_BAR: 'qdb_hide_tab_bar',
 } as const;
+
+// DFE-FBE-001 — qdb_summary_mode picklist codec.
+export const SUMMARY_MODE_TO_PICKLIST: Record<string, number> = {
+  None: 100000001, SystemGenerated: 100000002, Manual: 100000003,
+};
+export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated' | 'Manual'> = {
+  100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
+};
 
 export const FORM_SECTION_ATTRS = {
   ID: 'qdb_form_sectionid',
@@ -64,6 +75,7 @@ export const FORM_SECTION_ATTRS = {
   TAB_ID_VALUE: '_qdb_form_tab_id_value',   // use for $select and read
   LABEL: 'qdb_label',
   DESCRIPTION: 'qdb_description',
+  ICON_NAME: 'qdb_icon_name',                       // DFE-FBE-001
   COLUMN_COUNT: 'qdb_columns',
   IS_COLLAPSIBLE: 'qdb_is_collapsible',
   IS_COLLAPSED_BY_DEFAULT: 'qdb_is_collapsed_by_default',
@@ -121,6 +133,9 @@ export const FORM_FIELD_ATTRS = {
   DOWNLOAD_DOCUMENT_SETTING: 'qdb_download_document_setting',
   PREFIX: 'qdb_prefix',
   SUFFIX: 'qdb_suffix',
+  // DFE-FBE-001 — Label field
+  STATIC_CONTENT: 'qdb_static_content',
+  SOURCE_FIELD_SCHEMA_NAME: 'qdb_source_field_schema_name',
   // Sprint 5 — interactive-grid / repeating-grid config
   GRID_MODE: 'qdb_grid_mode',
   GRID_ENTITY_NAME: 'qdb_grid_entity_name',
@@ -157,6 +172,7 @@ export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
   boolean:         100000019,
   'info-card':     100000020,
   'interactive-grid': 100000021,
+  label:           100000022,
 };
 export const PICKLIST_TO_FIELD_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(FIELD_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])

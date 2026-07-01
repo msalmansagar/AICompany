@@ -12,6 +12,8 @@ export interface CreateTabDto {
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
   hideTabBar?: boolean;
+  description?: string | null;
+  isSummaryTab?: boolean;
 }
 
 export interface UpdateTabDto {
@@ -21,6 +23,8 @@ export interface UpdateTabDto {
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
   hideTabBar?: boolean;
+  description?: string | null;
+  isSummaryTab?: boolean;
 }
 
 export class TabService {
@@ -36,7 +40,9 @@ export class TabService {
           [FORM_TAB_ATTRS.IS_VISIBLE]: dto.isVisible ?? true,
           [FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]: dto.requiresPreviousTabComplete ?? false,
           [FORM_TAB_ATTRS.HIDE_TAB_BAR]: dto.hideTabBar ?? false,
+          [FORM_TAB_ATTRS.IS_SUMMARY_TAB]: dto.isSummaryTab ?? false,
           ...(dto.iconName != null ? { [FORM_TAB_ATTRS.ICON_NAME]: dto.iconName } : {}),
+          ...(dto.description != null ? { [FORM_TAB_ATTRS.DESCRIPTION]: dto.description } : {}),
         }),
       'createTab'
     );
@@ -53,6 +59,8 @@ export class TabService {
     }
     if (dto.iconName !== undefined) data[FORM_TAB_ATTRS.ICON_NAME] = dto.iconName;
     if (dto.hideTabBar !== undefined) data[FORM_TAB_ATTRS.HIDE_TAB_BAR] = dto.hideTabBar;
+    if (dto.description !== undefined) data[FORM_TAB_ATTRS.DESCRIPTION] = dto.description;
+    if (dto.isSummaryTab !== undefined) data[FORM_TAB_ATTRS.IS_SUMMARY_TAB] = dto.isSummaryTab;
 
     if (Object.keys(data).length === 0) return;
 
@@ -79,6 +87,8 @@ export class TabService {
       FORM_TAB_ATTRS.IS_VISIBLE,
       FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE,
       FORM_TAB_ATTRS.HIDE_TAB_BAR,
+      FORM_TAB_ATTRS.DESCRIPTION,
+      FORM_TAB_ATTRS.IS_SUMMARY_TAB,
     ].join(',');
 
     const filter = `${FORM_TAB_ATTRS.FORM_ID_VALUE} eq ${formId}`;
@@ -106,6 +116,8 @@ export class TabService {
       isVisible: record[FORM_TAB_ATTRS.IS_VISIBLE] !== false,
       requiresPreviousTabComplete: Boolean(record[FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]),
       hideTabBar: Boolean(record[FORM_TAB_ATTRS.HIDE_TAB_BAR]),
+      description: record[FORM_TAB_ATTRS.DESCRIPTION] ? String(record[FORM_TAB_ATTRS.DESCRIPTION]) : null,
+      isSummaryTab: Boolean(record[FORM_TAB_ATTRS.IS_SUMMARY_TAB]),
     };
   }
 }

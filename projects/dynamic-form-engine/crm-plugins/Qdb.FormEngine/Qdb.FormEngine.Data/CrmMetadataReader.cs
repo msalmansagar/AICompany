@@ -50,6 +50,10 @@ namespace Qdb.FormEngine.Data
 
             var languages = FetchLanguages();
 
+            var formDesign = FetchFormDesign(formId);
+            var formDesignId = formDesign != null ? formDesign.Id : Guid.Empty;
+            var themeId = formDesign != null ? GetLookupId(formDesign, "qdb_theme_id") : Guid.Empty;
+
             return new FormRawData
             {
                 FormEntity = formEntity,
@@ -67,6 +71,12 @@ namespace Qdb.FormEngine.Data
                 InfoCardScreens = FetchInfoCardScreens(formId),
                 InfoCardSections = FetchInfoCardSections(formId),
                 InfoCardItems = FetchInfoCardItems(formId),
+                FormDesign = formDesign,
+                Theme = themeId != Guid.Empty ? FetchTheme(themeId) : null,
+                SectionDesigns = FetchSectionDesigns(sectionIds),
+                FieldDesigns = FetchFieldDesigns(fieldIds),
+                ButtonDesigns = FetchButtonDesigns(formId),
+                LayoutGrids = formDesignId != Guid.Empty ? FetchLayoutGrids(formDesignId) : new List<Entity>(),
                 TranslationMap = new TranslationMap(),
                 Languages = languages
             };
@@ -131,7 +141,8 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_tab")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_icon_name", "qdb_display_order", "qdb_is_visible",
-                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "qdb_form_definition_id"),
+                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "qdb_form_definition_id",
+                    "qdb_description", "qdb_is_summary_tab"),
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
@@ -146,7 +157,8 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_section")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_description", "qdb_display_order", "qdb_columns",
-                    "qdb_is_collapsible", "qdb_is_collapsed_by_default", "qdb_is_visible", "qdb_form_tab_id"),
+                    "qdb_is_collapsible", "qdb_is_collapsed_by_default", "qdb_is_visible", "qdb_form_tab_id",
+                    "qdb_icon_name"),
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
@@ -274,6 +286,127 @@ namespace Qdb.FormEngine.Data
             query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
             query.AddOrder("qdb_priority", OrderType.Ascending);
             return RetrieveAll(query);
+        }
+
+        // DFE-STYLE-001: design entities. Each degrades to null/empty if the design schema
+        // is not provisioned (the deploy is gated) so form generation never fails over styling.
+
+        private Entity FetchFormDesign(Guid formId)
+        {
+            try
+            {
+                var query = new QueryExpression("qdb_form_design")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true,
+                    TopCount = 1
+                };
+                query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
+                query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
+                query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
+                var results = _service.RetrieveMultiple(query);
+                return results.Entities.Count > 0 ? results.Entities[0] : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private Entity FetchTheme(Guid themeId)
+        {
+            try
+            {
+                return _service.Retrieve("qdb_theme", themeId, new ColumnSet(true));
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private List<Entity> FetchSectionDesigns(List<Guid> sectionIds)
+        {
+            if (sectionIds == null || sectionIds.Count == 0) return new List<Entity>();
+            try
+            {
+                var query = new QueryExpression("qdb_section_design")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true
+                };
+                query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
+                query.Criteria.AddCondition("qdb_form_section_id", ConditionOperator.In, sectionIds.Cast<object>().ToArray());
+                return RetrieveAll(query);
+            }
+            catch (Exception)
+            {
+                return new List<Entity>();
+            }
+        }
+
+        private List<Entity> FetchFieldDesigns(List<Guid> fieldIds)
+        {
+            if (fieldIds == null || fieldIds.Count == 0) return new List<Entity>();
+            try
+            {
+                var query = new QueryExpression("qdb_field_design")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true
+                };
+                query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
+                query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
+                return RetrieveAll(query);
+            }
+            catch (Exception)
+            {
+                return new List<Entity>();
+            }
+        }
+
+        private List<Entity> FetchButtonDesigns(Guid formId)
+        {
+            try
+            {
+                var query = new QueryExpression("qdb_button_design")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true
+                };
+                query.Criteria.AddCondition("qdb_is_active", ConditionOperator.Equal, true);
+                query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
+                return RetrieveAll(query);
+            }
+            catch (Exception)
+            {
+                return new List<Entity>();
+            }
+        }
+
+        private List<Entity> FetchLayoutGrids(Guid formDesignId)
+        {
+            try
+            {
+                var query = new QueryExpression("qdb_layout_grid")
+                {
+                    ColumnSet = new ColumnSet(true),
+                    NoLock = true
+                };
+                query.Criteria.AddCondition("qdb_form_design_id", ConditionOperator.Equal, formDesignId);
+                return RetrieveAll(query);
+            }
+            catch (Exception)
+            {
+                return new List<Entity>();
+            }
+        }
+
+        private static Guid GetLookupId(Entity entity, string attributeName)
+        {
+            if (entity == null || !entity.Contains(attributeName)) return Guid.Empty;
+            var reference = entity.GetAttributeValue<EntityReference>(attributeName);
+            return reference != null ? reference.Id : Guid.Empty;
         }
 
         private List<Entity> FetchGridColumnConfigs(List<Guid> fieldIds)

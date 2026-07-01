@@ -56,6 +56,15 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
         />
       </Field>
 
+      {/* DFE-FBE-001: section header icon (Fluent UI icon name, same as tabs). */}
+      <Field label="Icon Name" hint="Fluent UI icon name (e.g. Person, Document, Money)">
+        <Input
+          value={section.iconName ?? ''}
+          onChange={(_, data) => updateSection(sectionId, { iconName: data.value || null })}
+          placeholder="e.g. Document"
+        />
+      </Field>
+
       <Field label="Column Layout">
         <Select
           value={String(section.columnCount)}

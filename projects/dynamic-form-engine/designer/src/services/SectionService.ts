@@ -12,6 +12,7 @@ export interface CreateSectionDto {
   tabId: string;
   label: string;
   description?: string | null;
+  iconName?: string | null;
   columnCount: 1 | 2 | 3;
   isCollapsible: boolean;
   isExpandedByDefault: boolean;
@@ -22,6 +23,7 @@ export interface CreateSectionDto {
 export interface UpdateSectionDto {
   label?: string;
   description?: string | null;
+  iconName?: string | null;
   columnCount?: 1 | 2 | 3;
   isCollapsible?: boolean;
   isExpandedByDefault?: boolean;
@@ -39,6 +41,7 @@ export class SectionService {
           [`${FORM_SECTION_ATTRS.TAB_ID}@odata.bind`]: `/qdb_form_tabs(${dto.tabId})`,
           [FORM_SECTION_ATTRS.LABEL]: dto.label,
           ...(dto.description != null ? { [FORM_SECTION_ATTRS.DESCRIPTION]: dto.description } : {}),
+          ...(dto.iconName != null ? { [FORM_SECTION_ATTRS.ICON_NAME]: dto.iconName } : {}),
           [FORM_SECTION_ATTRS.COLUMN_COUNT]: COLUMN_COUNT_TO_PICKLIST[dto.columnCount] ?? COLUMN_COUNT_TO_PICKLIST[1],
           [FORM_SECTION_ATTRS.IS_COLLAPSIBLE]: dto.isCollapsible,
           [FORM_SECTION_ATTRS.IS_COLLAPSED_BY_DEFAULT]: !dto.isExpandedByDefault,
@@ -54,6 +57,7 @@ export class SectionService {
     const data: Record<string, unknown> = {};
     if (dto.label !== undefined) data[FORM_SECTION_ATTRS.LABEL] = dto.label;
     if (dto.description !== undefined) data[FORM_SECTION_ATTRS.DESCRIPTION] = dto.description;
+    if (dto.iconName !== undefined) data[FORM_SECTION_ATTRS.ICON_NAME] = dto.iconName;
     if (dto.columnCount !== undefined) {
       data[FORM_SECTION_ATTRS.COLUMN_COUNT] = COLUMN_COUNT_TO_PICKLIST[dto.columnCount] ?? COLUMN_COUNT_TO_PICKLIST[1];
     }
@@ -85,6 +89,7 @@ export class SectionService {
       FORM_SECTION_ATTRS.TAB_ID_VALUE,
       FORM_SECTION_ATTRS.LABEL,
       FORM_SECTION_ATTRS.DESCRIPTION,
+      FORM_SECTION_ATTRS.ICON_NAME,
       FORM_SECTION_ATTRS.COLUMN_COUNT,
       FORM_SECTION_ATTRS.IS_COLLAPSIBLE,
       FORM_SECTION_ATTRS.IS_COLLAPSED_BY_DEFAULT,
@@ -119,6 +124,7 @@ export class SectionService {
       description: record[FORM_SECTION_ATTRS.DESCRIPTION]
         ? String(record[FORM_SECTION_ATTRS.DESCRIPTION])
         : null,
+      iconName: record[FORM_SECTION_ATTRS.ICON_NAME] ? String(record[FORM_SECTION_ATTRS.ICON_NAME]) : null,
       columnCount,
       isCollapsible: Boolean(record[FORM_SECTION_ATTRS.IS_COLLAPSIBLE]),
       isExpandedByDefault: !isCollapsedByDefault,

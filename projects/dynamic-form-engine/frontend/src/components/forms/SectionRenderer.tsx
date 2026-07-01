@@ -15,6 +15,7 @@ import {
 import type { SectionDefinition } from '@qdb/shared';
 import { ScopedButtonBar } from './ScopedButtonBar';
 import { FieldRenderer } from './FieldRenderer';
+import { DynamicIcon } from './DynamicIcon';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
 import { StyleEngine } from '../../theme/StyleEngine';
@@ -137,7 +138,11 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   const sectionHeader = (
     <div className={styles.cardHeader}>
       <div>
-        <div className={styles.sectionTitle}>{section.label}</div>
+        <div className={styles.sectionTitle}>
+          {/* DFE-FBE-001: section header icon (reuses the tab-icon DynamicIcon system, C-004). */}
+          {section.iconName && <DynamicIcon iconName={section.iconName} size={20} />}
+          {section.label}
+        </div>
         {section.description && (
           <div className={styles.sectionDescription}>
             {section.description}

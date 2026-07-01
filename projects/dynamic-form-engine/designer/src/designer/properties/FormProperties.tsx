@@ -6,15 +6,27 @@ import {
   AccordionPanel,
   Checkbox,
   Divider,
+  Dropdown,
   Field,
   Input,
+  MessageBar,
+  MessageBarBody,
+  Option,
   Text,
   Textarea,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
+import type { SummaryMode } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
+
+// DFE-FBE-001: display label for a summary mode value.
+function summaryModeLabel(mode: SummaryMode): string {
+  if (mode === 'SystemGenerated') return 'System-generated';
+  if (mode === 'Manual') return 'Manual (summary tab)';
+  return 'None';
+}
 
 const useStyles = makeStyles({
   form: {
@@ -98,11 +110,32 @@ export function FormProperties(): React.ReactElement {
       <Divider />
       <SectionHeading label="Submission" />
 
-      <Checkbox
-        label="Show Summary Step"
-        checked={form.showSummaryStep}
-        onChange={(_, data) => updateForm({ showSummaryStep: data.checked === true })}
-      />
+      {/* DFE-FBE-001: Summary mode replaces the legacy Show Summary Step boolean. */}
+      <Field
+        label="Summary Mode"
+        hint="None = no review step · System-generated = auto review · Manual = build a summary tab"
+      >
+        <Dropdown
+          selectedOptions={[form.summaryMode ?? (form.showSummaryStep ? 'SystemGenerated' : 'None')]}
+          value={summaryModeLabel(form.summaryMode ?? (form.showSummaryStep ? 'SystemGenerated' : 'None'))}
+          onOptionSelect={(_, data) => {
+            const mode = data.optionValue as SummaryMode;
+            // Keep the legacy boolean in sync so older readers still behave correctly.
+            updateForm({ summaryMode: mode, showSummaryStep: mode === 'SystemGenerated' });
+          }}
+        >
+          <Option value="None">None</Option>
+          <Option value="SystemGenerated">System-generated</Option>
+          <Option value="Manual">Manual (summary tab)</Option>
+        </Dropdown>
+      </Field>
+      {form.summaryMode == null && form.showSummaryStep && (
+        <MessageBar intent="warning">
+          <MessageBarBody>
+            This form uses the legacy summary flag. Selecting a Summary Mode above migrates it (no data is lost).
+          </MessageBarBody>
+        </MessageBar>
+      )}
 
       <Checkbox
         label="Allow Save as Draft"

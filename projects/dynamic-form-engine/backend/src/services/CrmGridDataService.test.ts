@@ -155,6 +155,31 @@ describe('CrmGridDataService', () => {
       expect(secondCount - firstCount).toBe(1);
     });
 
+    it('fetchGridRecords_withLookupColumn_mapsValueAndFormattedLabel', async () => {
+      // Arrange — a lookup column returns _<attr>_value (GUID) + @FormattedValue (label)
+      mockFetch
+        .mockReturnValueOnce(okJson({ value: [makeGridField()] }))
+        .mockReturnValueOnce(okJson({ value: [
+          makeColumnConfig({ qdb_column_attribute: 'qdb_serviceref', qdb_column_field_type: 'lookup' }),
+        ]}))
+        .mockReturnValueOnce(okJson({ fetchxml: BASE_FETCH_XML, querytype: 0 }))
+        .mockReturnValueOnce(okJson({
+          value: [{
+            qdb_productid: 'prod-001',
+            '_qdb_serviceref_value': 'svc-guid-123',
+            '_qdb_serviceref_value@OData.Community.Display.V1.FormattedValue': 'Premium Service',
+          }],
+        }));
+
+      const result = await service.fetchGridRecords('field-grid-001', 1, 50, 'corr-001');
+
+      // The label must be present for display, the GUID kept for submission.
+      expect(result.records[0].values).toMatchObject({
+        'qdb_serviceref': 'svc-guid-123',
+        'qdb_serviceref@OData.Community.Display.V1.FormattedValue': 'Premium Service',
+      });
+    });
+
     it('fetchGridRecords_restrictsValuesToConfiguredColumns', async () => {
       // Arrange — raw record has extra attributes not in column config
       mockFetch

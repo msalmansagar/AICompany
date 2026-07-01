@@ -44,6 +44,7 @@ namespace Qdb.FormEngine.Core.Generation
                 InfoCards = model.InfoCards,
                 SubmissionMappings = model.SubmissionMappings,
                 Buttons = model.Buttons,
+                Design = model.Design,
                 CreatedAt = model.CreatedAt,
                 ModifiedAt = model.ModifiedAt,
                 Tabs = StripTabs(model.Tabs)
@@ -63,6 +64,7 @@ namespace Qdb.FormEngine.Core.Generation
                 IsVisible = tab.IsVisible,
                 RequiresPreviousTabComplete = tab.RequiresPreviousTabComplete,
                 HideTabBar = tab.HideTabBar,
+                Buttons = tab.Buttons,
                 Sections = StripSections(tab.Sections)
             }).ToList();
         }
@@ -81,6 +83,7 @@ namespace Qdb.FormEngine.Core.Generation
                 IsCollapsible = section.IsCollapsible,
                 IsCollapsedByDefault = section.IsCollapsedByDefault,
                 IsVisible = section.IsVisible,
+                Buttons = section.Buttons,
                 Fields = StripFields(section.Fields)
             }).ToList();
         }

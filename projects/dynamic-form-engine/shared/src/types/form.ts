@@ -3,7 +3,12 @@ export type FieldType =
   | 'date' | 'datetime' | 'dropdown' | 'multiselect' | 'lookup'
   | 'checkbox' | 'radio' | 'email' | 'phone' | 'file'
   | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid'
-  | 'custom';
+  | 'custom'
+  // DFE-FBE-001: read-only display field (static text or data-bound mirror of another field)
+  | 'label';
+
+// DFE-FBE-001: form-level summary behaviour (None | SystemGenerated | Manual).
+export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 
 export interface ValidationRule {
   ruleId: string;
@@ -157,6 +162,10 @@ export interface FieldDefinition {
   uploadDocumentSetting?: string;
   downloadDocumentSetting?: string;
   gridConfig?: GridFieldConfig;
+  // DFE-FBE-001: Label field — static content, or a data-bound mirror of another field's
+  // value (sourceFieldSchemaName references that field's key/schema name).
+  staticContent?: string;
+  sourceFieldSchemaName?: string;
 }
 
 export interface SectionDefinition {
@@ -168,12 +177,17 @@ export interface SectionDefinition {
   fields: FieldDefinition[];
   // DFE-BTN-001: section-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
+  // DFE-FBE-001: section header icon
+  iconName?: string;
 }
 
 export interface TabDefinition {
   tabId: string;
   displayLabel: string;
   displayOrder: number;
+  // DFE-FBE-001: tab description (rendered above sections) + manual-summary designation
+  description?: string;
+  isSummaryTab?: boolean;
   // When true and this tab is active, the renderer hides the tab navigation bar
   // but still renders the tab's sections and fields at full width.
   // Absent/undefined is treated as false (bar shown).
@@ -324,6 +338,8 @@ export interface FormDefinition {
   version: number;
   allowSaveDraft: boolean;
   showSummaryStep?: boolean;
+  // DFE-FBE-001: None | SystemGenerated | Manual (undefined → derive from showSummaryStep).
+  summaryMode?: SummaryMode;
   confirmationMessage: string;
   tabs: TabDefinition[];
   buttons: FormButton[];

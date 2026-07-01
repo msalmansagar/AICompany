@@ -26,10 +26,16 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("infocardStartLabel")] public string InfocardStartLabel { get; set; }
         [JsonProperty("infocardSkipLabel")] public string InfocardSkipLabel { get; set; }
         [JsonProperty("showSummaryStep")] public bool ShowSummaryStep { get; set; }
+        // DFE-FBE-001: None/SystemGenerated/Manual. Omitted when unset (legacy forms derive from
+        // showSummaryStep at runtime) so unaffected forms stay byte-identical.
+        [JsonProperty("summaryMode", NullValueHandling = NullValueHandling.Ignore)] public string SummaryMode { get; set; }
         [JsonProperty("infoCards")] public List<InfoCardScreen> InfoCards { get; set; }
         [JsonProperty("submissionMappings")] public List<SubmissionMapping> SubmissionMappings { get; set; }
         [JsonProperty("buttons")] public List<FormButton> Buttons { get; set; }
         [JsonProperty("tabs")] public List<TabDefinition> Tabs { get; set; }
+        // DFE-STYLE-001: design/styling payload. Omitted when the form has no design so
+        // design-less forms keep a byte-identical render-cache JSON.
+        [JsonProperty("design", NullValueHandling = NullValueHandling.Ignore)] public DesignPayload Design { get; set; }
         [JsonProperty("createdAt")] public DateTime? CreatedAt { get; set; }
         [JsonProperty("modifiedAt")] public DateTime? ModifiedAt { get; set; }
     }
@@ -41,6 +47,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("formDefinitionId")] public Guid FormDefinitionId { get; set; }
         [JsonProperty("label")] public string Label { get; set; }
         [JsonProperty("iconName")] public string IconName { get; set; }
+        // DFE-FBE-001: tab description (omitted when null) + manual-summary flag (omitted unless true).
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)] public string Description { get; set; }
+        [JsonProperty("isSummaryTab", NullValueHandling = NullValueHandling.Ignore)] public bool? IsSummaryTab { get; set; }
         [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("requiresPreviousTabComplete")] public bool RequiresPreviousTabComplete { get; set; }
@@ -57,6 +66,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("tabId")] public Guid TabId { get; set; }
         [JsonProperty("label")] public string Label { get; set; }
         [JsonProperty("description")] public string Description { get; set; }
+        // DFE-FBE-001: section header icon (omitted when null → unaffected forms byte-identical).
+        [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
         [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
         [JsonProperty("columns")] public int Columns { get; set; }
         [JsonProperty("isCollapsible")] public bool IsCollapsible { get; set; }
@@ -93,6 +104,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("decimalPlaces")] public int? DecimalPlaces { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }
+        // DFE-FBE-001: Label field — static content + optional data-bound source field.
+        [JsonProperty("staticContent", NullValueHandling = NullValueHandling.Ignore)] public string StaticContent { get; set; }
+        [JsonProperty("sourceFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string SourceFieldSchemaName { get; set; }
         [JsonProperty("trueLabel")] public string TrueLabel { get; set; }
         [JsonProperty("falseLabel")] public string FalseLabel { get; set; }
         [JsonProperty("boolRenderStyle")] public string BoolRenderStyle { get; set; }

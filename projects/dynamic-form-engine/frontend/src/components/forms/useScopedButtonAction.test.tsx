@@ -70,7 +70,25 @@ describe('useScopedButtonAction', () => {
     expect(setActiveTabIndex).toHaveBeenCalledWith(2);
   });
 
-  it('navigate_section_scrolls_to_the_section_anchor', () => {
+  function withSectionTabs() {
+    mockUseFormContext.mockReturnValue({
+      formDefinition: {
+        tabs: [
+          { id: 'tab-a', isVisible: true, sections: [{ id: 'sec-9' }] },
+          { id: 'tab-b', isVisible: true, sections: [{ id: 'sec-x' }] },
+        ],
+      },
+      ruleState: { tabVisibility: {}, fieldVisibility: {}, fieldRequired: {}, sectionVisibility: {}, fieldReadonly: {} },
+      fieldValues: {},
+      activeTabIndex: 0,
+      setActiveTabIndex,
+      submitForm,
+      saveDraft,
+    });
+  }
+
+  it('navigate_section_on_current_tab_scrolls_without_switching', () => {
+    withSectionTabs();
     const anchor = document.createElement('div');
     anchor.id = 'section-sec-9';
     anchor.scrollIntoView = vi.fn();
@@ -80,7 +98,45 @@ describe('useScopedButtonAction', () => {
     result.current(button({ type: 'navigate', target: 'section', targetSectionId: 'sec-9' }));
 
     expect(anchor.scrollIntoView).toHaveBeenCalled();
+    expect(setActiveTabIndex).not.toHaveBeenCalled(); // already on the owning tab
     document.body.removeChild(anchor);
+  });
+
+  it('navigate_section_on_another_tab_switches_to_that_tab_then_scrolls', () => {
+    withSectionTabs();
+    const anchor = document.createElement('div');
+    anchor.id = 'section-sec-x'; // sec-x lives on tab-b
+    anchor.scrollIntoView = vi.fn();
+    document.body.appendChild(anchor);
+
+    const { result } = renderHook(() => useScopedButtonAction());
+    result.current(button({ type: 'navigate', target: 'section', targetSectionId: 'sec-x' }));
+
+    expect(setActiveTabIndex).toHaveBeenCalledWith(1);
+    expect(anchor.scrollIntoView).toHaveBeenCalled();
+    document.body.removeChild(anchor);
+  });
+
+  it('navigate_section_matches_the_target_id_case_insensitively', () => {
+    withSectionTabs();
+    const anchor = document.createElement('div');
+    anchor.id = 'section-sec-9'; // definition id is lowercase
+    anchor.scrollIntoView = vi.fn();
+    document.body.appendChild(anchor);
+
+    const { result } = renderHook(() => useScopedButtonAction());
+    // stored config uses an UPPERCASE GUID-style id
+    result.current(button({ type: 'navigate', target: 'section', targetSectionId: 'SEC-9' }));
+
+    expect(anchor.scrollIntoView).toHaveBeenCalled();
+    document.body.removeChild(anchor);
+  });
+
+  it('navigate_section_not_in_any_tab_does_nothing', () => {
+    // default mock: tabs have empty sections
+    const { result } = renderHook(() => useScopedButtonAction());
+    result.current(button({ type: 'navigate', target: 'section', targetSectionId: 'missing' }));
+    expect(setActiveTabIndex).not.toHaveBeenCalled();
   });
 
   it('callApi_is_gated_and_neither_submits_nor_navigates', () => {

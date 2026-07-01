@@ -15,6 +15,7 @@ import type {
   SubmissionMapping,
   FormVersion,
   FieldType,
+  SummaryMode,
   ValidationRuleType,
   BusinessRuleAction,
   ConditionOperator,
@@ -151,6 +152,8 @@ export class CrmMetadataService extends CrmBaseService {
       version: raw.qdb_version ?? 1,
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
+      // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
+      ...(this.mapSummaryMode(raw.qdb_summary_mode) ? { summaryMode: this.mapSummaryMode(raw.qdb_summary_mode) } : {}),
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
@@ -260,6 +263,9 @@ export class CrmMetadataService extends CrmBaseService {
         formDefinitionId: formId,
         label: tab.qdb_label,
         iconName: tab.qdb_icon_name,
+        // DFE-FBE-001: tab description + manual-summary flag (flag omitted unless true).
+        description: tab.qdb_description,
+        ...(tab.qdb_is_summary_tab ? { isSummaryTab: true } : {}),
         displayOrder: tab.qdb_display_order,
         isVisible: tab.qdb_is_visible ?? true,
         requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
@@ -317,6 +323,7 @@ export class CrmMetadataService extends CrmBaseService {
       tabId: section._qdb_form_tab_id_value,
       label: section.qdb_label,
       description: section.qdb_description,
+      iconName: section.qdb_icon_name,   // DFE-FBE-001: section header icon
       displayOrder: section.qdb_display_order,
       columns: this.mapColumns(section.qdb_columns),
       isCollapsible: section.qdb_is_collapsible ?? false,
@@ -363,6 +370,9 @@ export class CrmMetadataService extends CrmBaseService {
       placeholder: field.qdb_placeholder,
       tooltip: field.qdb_tooltip,
       defaultValue: field.qdb_default_value,
+      // DFE-FBE-001: Label field — static content + optional data-bound source.
+      staticContent: field.qdb_static_content,
+      sourceFieldSchemaName: field.qdb_source_field_schema_name,
       displayOrder: field.qdb_display_order,
       columnSpan: this.mapColumnSpan(field.qdb_column_span),
       isRequired: field.qdb_is_required ?? false,
@@ -773,8 +783,18 @@ export class CrmMetadataService extends CrmBaseService {
       100000019: 'boolean',
       100000020: 'info-card',
       100000021: 'interactive-grid',
+      100000022: 'label',
     };
     return map[code] ?? 'text';
+  }
+
+  // DFE-FBE-001: qdb_summary_mode option-set → SummaryMode. Undefined when unset so the
+  // response omits it (consumers derive from showSummaryStep) — mirrors the C# generator.
+  private mapSummaryMode(code: number | undefined): SummaryMode | undefined {
+    const map: Record<number, SummaryMode> = {
+      100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
+    };
+    return code !== undefined && code !== null ? map[code] : undefined;
   }
 
   private mapBooleanRenderStyle(code: number | undefined): 'toggle' | 'radio' {
@@ -978,6 +998,8 @@ interface RawFormDefinition {
   qdb_infocard_skip_label?: string;
   // DFE-ADD-003 summary step
   qdb_show_summary_step?: boolean;
+  // DFE-FBE-001 summary mode option-set
+  qdb_summary_mode?: number;
   createdon: string;
   modifiedon: string;
 }
@@ -990,6 +1012,9 @@ interface RawTab {
   qdb_is_visible?: boolean;
   qdb_requires_previous_tab_complete?: boolean;
   qdb_hide_tab_bar?: boolean;
+  // DFE-FBE-001
+  qdb_description?: string;
+  qdb_is_summary_tab?: boolean;
 }
 
 interface RawSection {
@@ -1002,6 +1027,7 @@ interface RawSection {
   qdb_is_collapsible?: boolean;
   qdb_is_collapsed_by_default?: boolean;
   qdb_is_visible?: boolean;
+  qdb_icon_name?: string;   // DFE-FBE-001
 }
 
 interface RawField {
@@ -1022,6 +1048,9 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
   qdb_component_key?: string;
+  // DFE-FBE-001 Label field
+  qdb_static_content?: string;
+  qdb_source_field_schema_name?: string;
   // DFE-ADD-002 boolean field
   qdb_true_label?: string;
   qdb_false_label?: string;

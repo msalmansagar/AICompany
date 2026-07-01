@@ -39,6 +39,7 @@ import { FIELD_TYPE, type FieldType } from '@/constants/fieldTypes';
 
 export const FIELD_TYPE_ICONS: Record<FieldType, FluentIcon> = {
   [FIELD_TYPE.TEXT]: TextFieldRegular,
+  [FIELD_TYPE.LABEL]: TextFieldRegular,   // DFE-FBE-001 read-only display field
   [FIELD_TYPE.TEXTAREA]: AlignLeftRegular,
   [FIELD_TYPE.NUMBER]: NumberSymbolRegular,
   [FIELD_TYPE.DECIMAL]: NumberSymbolRegular,

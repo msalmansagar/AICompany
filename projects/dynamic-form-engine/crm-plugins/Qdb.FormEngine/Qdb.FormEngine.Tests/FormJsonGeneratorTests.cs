@@ -149,6 +149,83 @@ namespace Qdb.FormEngine.Tests
             Assert.Null(result.Tabs[0].Buttons);
         }
 
+        [Fact]
+        public void Generate_WithNoDesign_OmitsDesignProperty()
+        {
+            // Arrange — design-less forms must stay byte-identical (Design omitted)
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Null(result.Design);
+        }
+
+        [Fact]
+        public void Generate_WithDesign_EmbedsThemeFormAndSectionDesign()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var sectionId = rawData.Sections[0].Id;
+            var themeId = Guid.NewGuid();
+
+            rawData.Theme = MakeTheme(themeId);
+            rawData.FormDesign = MakeFormDesign(formId, themeId);
+            rawData.SectionDesigns = new List<Entity> { MakeSectionDesign(sectionId) };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.NotNull(result.Design);
+            Assert.NotNull(result.Design.Theme);
+            Assert.Equal("#2E8B6F", result.Design.Theme.PrimaryColor);
+            Assert.Equal("Subtle", result.Design.Theme.ShadowStyle);
+            Assert.Equal("1040px", result.Design.FormDesign.MaxWidth);
+            Assert.Equal(".qdb-section{border:1px solid #E2E8F0;}", result.Design.FormDesign.CustomCss);
+            Assert.True(result.Design.SectionDesigns.ContainsKey(sectionId.ToString()));
+            Assert.Equal("qdb-demo-section", result.Design.SectionDesigns[sectionId.ToString()].CssClassName);
+        }
+
+        private static Entity MakeTheme(Guid themeId)
+        {
+            var theme = new Entity("qdb_theme", themeId);
+            theme["qdb_theme_code"] = "REYADA-GREEN";
+            theme["qdb_theme_name"] = "Reyada Green";
+            theme["qdb_primary_color"] = "#2E8B6F";
+            theme["qdb_shadow_style"] = new OptionSetValue(100000002);
+            theme["qdb_spacing_scale"] = new OptionSetValue(100000002);
+            theme["qdb_is_dark_mode"] = false;
+            theme["qdb_is_active"] = true;
+            return theme;
+        }
+
+        private static Entity MakeFormDesign(Guid formId, Guid themeId)
+        {
+            var design = new Entity("qdb_form_design", Guid.NewGuid());
+            design["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            design["qdb_theme_id"] = new EntityReference("qdb_theme", themeId);
+            design["qdb_max_width"] = "1040px";
+            design["qdb_custom_css"] = ".qdb-section{border:1px solid #E2E8F0;}";
+            design["qdb_layout_type"] = new OptionSetValue(100000001);
+            design["qdb_is_active"] = true;
+            return design;
+        }
+
+        private static Entity MakeSectionDesign(Guid sectionId)
+        {
+            var section = new Entity("qdb_section_design", Guid.NewGuid());
+            section["qdb_form_section_id"] = new EntityReference("qdb_form_section", sectionId);
+            section["qdb_background_color"] = "#ede9fe";
+            section["qdb_padding"] = "20px";
+            section["qdb_css_class"] = "qdb-demo-section";
+            section["qdb_is_active"] = true;
+            return section;
+        }
+
         private static Entity MakeScopedButton(
             Guid formId, Guid? tabId, Guid? sectionId, string scope, string label, string actionType, string actionConfigJson)
         {

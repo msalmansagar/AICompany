@@ -179,8 +179,29 @@ hardcode picklist integers.
 - `cssClassName` applied in `SectionRenderer`/`FieldRenderer` via `mergeClasses`.
 
 ### On-prem
-- The on-prem runtime applies `customCss` from the cache and re-sanitizes with an empty
+- **Design is generated into the on-prem render cache** by the C# publish plugin
+  (`FormJsonGenerator.BuildDesign`). `CrmMetadataReader` fetches `qdb_form_design`,
+  its linked `qdb_theme`, and the active `qdb_section_design` / `qdb_field_design` /
+  `qdb_button_design` / `qdb_layout_grid` records; `DesignPicklistMapper` maps option-set
+  codes → enum strings, mirroring the cloud `DesignPicklistMappers.ts` one-for-one. The
+  `design` object is emitted on the cached form JSON (omitted entirely for design-less
+  forms, so their cache stays byte-identical).
+- The on-prem runtime then applies `customCss` from the cache and re-sanitizes with an empty
   allowlist (no Dataverse read at render time).
+
+> **Gap history (resolved 2026-06-30).** On-prem previously fetched **no** design entities,
+> so the render cache it produced carried styling for **buttons only** — `design` was a
+> cloud-side live merge (`forms.routes.ts` → `fetchDesignWithFallback`) absent from the
+> on-prem cache. The C# generator now produces `design` itself, closing the parity gap.
+> **Picklist parity is asserted by code, not tests across the boundary** — if a design
+> option set ever gets renumbered, update **both** `DesignPicklistMappers.ts` (cloud) and
+> `DesignPicklistMapper.cs` (on-prem). Memo-JSON state styles (`headerStyle`, `focusStyle`,
+> …) and `responsiveBehavior` are emitted as parsed objects (`JToken.Parse`); a malformed
+> value is dropped (traced), never failing the publish.
+>
+> **Requires a plugin redeploy.** The cache is written only by the C# plugin, so the cloud
+> live cache reflects on-prem design only after the rebuilt assembly is re-registered (PRT) —
+> see `DEPLOYMENT-RUNBOOK-style.md`.
 
 ---
 
@@ -224,6 +245,9 @@ CSS sanitizer tests live with the backend/shared; WCAG with shared
    `qdb_config_key eq 'global'`; the seed must match.
 7. **`qdb_button_design` table** exists but is a custom unmanaged table — set the maker
    Tables filter to **All** to find it.
+8. **Two picklist mappers, one source of truth** — design option-set codes are mapped in
+   both `DesignPicklistMappers.ts` (cloud) and `DesignPicklistMapper.cs` (on-prem). Renumber
+   an option set → update both, or cloud-live and on-prem-cache styling will diverge.
 
 ---
 
@@ -233,8 +257,12 @@ CSS sanitizer tests live with the backend/shared; WCAG with shared
 shared/src/types/design.types.ts                 # DesignPayload contract
 shared/src/utils/contrastRatio.ts                # WCAG calculateContrastRatio
 shared/src/sanitizer/CssSanitiserPlugin.ts       # PostCSS sanitizer
-backend/src/services/DesignAssembler.ts          # DesignPayload assembly
-backend/src/services/DesignPicklistMappers.ts    # code → enum mapping
+backend/src/services/DesignAssembler.ts          # DesignPayload assembly (cloud live merge)
+backend/src/services/DesignPicklistMappers.ts    # code → enum mapping (cloud)
+crm-plugins/.../Core/Generation/FormJsonGenerator.cs   # BuildDesign → cache (on-prem)
+crm-plugins/.../Core/Models/DesignModels.cs            # C# DesignPayload contract
+crm-plugins/.../Core/Models/DesignPicklistMapper.cs    # code → enum mapping (on-prem)
+crm-plugins/.../Data/CrmMetadataReader.cs              # design entity fetches (on-prem)
 backend/src/sanitizer/CssSanitiser.ts            # save-time sanitization
 frontend/src/theme/StyleEngine.ts                # DesignPayload → CSSProperties
 frontend/src/theme/customCssInjector.ts          # runtime CSS sanitize + inject

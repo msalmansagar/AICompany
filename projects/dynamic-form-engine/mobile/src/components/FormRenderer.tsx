@@ -7,7 +7,8 @@ import { FieldRenderer } from './fields/FieldRenderer';
 import { InfoCardFlow } from './info-card/InfoCardFlow';
 import { FormSummaryScreen } from './FormSummaryScreen';
 import { ScopedButtonBar } from './ScopedButtonBar';
-import { resolveNavigationTabIndex } from './scopedButtonNavigation';
+import { resolveNavigationTabIndex, resolveSectionTabIndex } from './scopedButtonNavigation';
+import { InfoCardIcon } from './info-card/InfoCardIcon';
 import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
 
 type Phase = 'info-cards' | 'form' | 'summary';
@@ -89,6 +90,29 @@ export function FormRenderer({
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [infoCardViewed, setInfoCardViewed] = useState(false);
 
+  // DFE-BTN-001 section navigation: the content ScrollView, each section's measured Y
+  // offset (keyed by lowercased sectionId), and a pending target to scroll to once the
+  // owning tab has switched and the section has laid out.
+  const contentScrollRef = useRef<ScrollView>(null);
+  const sectionOffsetsRef = useRef<Record<string, number>>({});
+  const pendingSectionScrollRef = useRef<string | null>(null);
+
+  function scrollToMeasuredSection(sectionIdLower: string): boolean {
+    const offset = sectionOffsetsRef.current[sectionIdLower];
+    if (offset === undefined) return false;
+    contentScrollRef.current?.scrollTo({ y: Math.max(offset - 8, 0), animated: true });
+    return true;
+  }
+
+  function handleSectionLayout(sectionId: string, y: number): void {
+    const key = sectionId.toLowerCase();
+    sectionOffsetsRef.current[key] = y;
+    if (pendingSectionScrollRef.current === key) {
+      pendingSectionScrollRef.current = null;
+      scrollToMeasuredSection(key);
+    }
+  }
+
   const finalTabDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finalTabId, setFinalTabId] = useState<string | undefined>(undefined);
 
@@ -160,9 +184,9 @@ export function FormRenderer({
   }
 
   // DFE-BTN-001: dispatch a clicked tab/section ScopedButton. Cleared scope on mobile:
-  // navigate (tab/nextStep/previousStep), finalSubmit (threading the button id so the
-  // backend resolves extra-params), and saveDraft. Section scroll is G-3 gated;
-  // externalUrl/anotherForm/callApi are gated — all no-op.
+  // navigate (tab/section/nextStep/previousStep), finalSubmit (threading the button id so
+  // the backend resolves extra-params), and saveDraft. Section navigation switches to the
+  // owning tab and scrolls to it; externalUrl/anotherForm/callApi are gated — all no-op.
   function dispatchScopedButton(button: ScopedButton): void {
     const action = button.action;
     if (action.type === 'saveDraft') {
@@ -176,8 +200,23 @@ export function FormRenderer({
     }
     if (action.type === 'callApi') return; // gated (G-1)
     if (action.type === 'navigate') {
+      if (action.target === 'section') {
+        if (!action.targetSectionId) return;
+        const owningTabIndex = resolveSectionTabIndex(action.targetSectionId, tabs);
+        if (owningTabIndex === null) return; // section not in this form
+        const key = action.targetSectionId.toLowerCase();
+        if (owningTabIndex !== activeTabIndex) {
+          // Switch to the owning tab; scroll once the section lays out (handleSectionLayout).
+          pendingSectionScrollRef.current = key;
+          setActiveTabIndex(owningTabIndex);
+        } else if (!scrollToMeasuredSection(key)) {
+          // Same tab but not measured yet — scroll on the next layout pass.
+          pendingSectionScrollRef.current = key;
+        }
+        return;
+      }
       if (action.target !== 'tab' && action.target !== 'nextStep' && action.target !== 'previousStep') {
-        return; // section scroll (G-3), externalUrl/anotherForm (gated)
+        return; // externalUrl/anotherForm (gated)
       }
       const targetIndex = resolveNavigationTabIndex(action, tabs, activeTabIndex);
       if (targetIndex !== null) setActiveTabIndex(targetIndex);
@@ -226,7 +265,10 @@ export function FormRenderer({
     );
   }
 
-  const showSummaryStep = form.showSummaryStep ?? false;
+  // DFE-FBE-001: honour summaryMode; derive from the legacy boolean when unset (back-compat).
+  // SystemGenerated → auto review step; None/Manual → no auto step (Manual is Wave 2).
+  const effectiveSummaryMode = form.summaryMode ?? (form.showSummaryStep ? 'SystemGenerated' : 'None');
+  const showSummaryStep = effectiveSummaryMode === 'SystemGenerated';
   const draftMeta: DraftMeta = { infoCardViewed, gridSchemaHash: {} };
 
   if (phase === 'summary') {
@@ -274,6 +316,7 @@ export function FormRenderer({
         )}
 
         <ScrollView
+          ref={contentScrollRef}
           style={styles.content}
           contentContainerStyle={[styles.contentInner, { paddingBottom: Math.max(insets.bottom + 16, 40) }]}
           showsVerticalScrollIndicator={false}
@@ -286,6 +329,7 @@ export function FormRenderer({
               activeTabId={activeTabId ?? ''}
               isSubmitting={isSubmitting}
               onScopedButton={dispatchScopedButton}
+              onSectionLayout={handleSectionLayout}
             />
           )}
 
@@ -411,13 +455,16 @@ interface TabContentProps {
   activeTabId: string;
   isSubmitting: boolean;
   onScopedButton: (button: ScopedButton) => void;
+  onSectionLayout: (sectionId: string, y: number) => void;
 }
 
-function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onScopedButton }: TabContentProps) {
+function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onScopedButton, onSectionLayout }: TabContentProps) {
   const sections = [...tab.sections].sort((a, b) => a.displayOrder - b.displayOrder);
   const isActive = tab.tabId === activeTabId;
   return (
     <>
+      {/* DFE-FBE-001: tab description above the sections (OQ-001). */}
+      {tab.description ? <Text style={styles.tabDescription}>{tab.description}</Text> : null}
       {sections.map((section) => (
         <SectionContent
           key={section.sectionId}
@@ -427,6 +474,7 @@ function TabContent({ tab, control, accessToken, activeTabId, isSubmitting, onSc
           isTabActive={isActive}
           isSubmitting={isSubmitting}
           onScopedButton={onScopedButton}
+          onSectionLayout={onSectionLayout}
         />
       ))}
     </>
@@ -440,23 +488,31 @@ interface SectionContentProps {
   isTabActive: boolean;
   isSubmitting: boolean;
   onScopedButton: (button: ScopedButton) => void;
+  onSectionLayout: (sectionId: string, y: number) => void;
 }
 
-function SectionContent({ section, control, accessToken, isTabActive, isSubmitting, onScopedButton }: SectionContentProps) {
+function SectionContent({ section, control, accessToken, isTabActive, isSubmitting, onScopedButton, onSectionLayout }: SectionContentProps) {
   const { ruleState } = useMobileFormContext();
   const [isCollapsed, setIsCollapsed] = useState(section.isCollapsedByDefault ?? false);
 
   const fields = [...section.fields].sort((a, b) => a.displayOrder - b.displayOrder);
 
   return (
-    <View style={styles.section}>
+    <View
+      style={styles.section}
+      onLayout={(e) => onSectionLayout(section.sectionId, e.nativeEvent.layout.y)}
+    >
       <Pressable
         style={styles.sectionHeader}
         onPress={section.isCollapsible ? () => setIsCollapsed((c) => !c) : undefined}
         accessibilityRole={section.isCollapsible ? 'button' : 'none'}
         accessibilityLabel={section.isCollapsible ? `${isCollapsed ? 'Expand' : 'Collapse'} ${section.displayLabel}` : undefined}
       >
-        <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
+        <View style={styles.sectionTitleRow}>
+          {/* DFE-FBE-001: section header icon (reuses InfoCardIcon's Fluent→MCO map, C-004). */}
+          {section.iconName ? <InfoCardIcon iconName={section.iconName} size={18} color="#1a1a2e" /> : null}
+          <Text style={styles.sectionTitle}>{section.displayLabel}</Text>
+        </View>
         {section.isCollapsible && (
           <Text style={styles.chevron}>{isCollapsed ? '▶' : '▼'}</Text>
         )}
@@ -509,7 +565,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', flex: 1 },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#1a1a2e', flexShrink: 1 },
+  tabDescription: { color: '#555', fontSize: 14, lineHeight: 20, marginBottom: 4 },
   chevron: { fontSize: 12, color: '#888', marginLeft: 8 },
   sectionButtons: { paddingHorizontal: 16, paddingBottom: 12 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },

@@ -19,6 +19,7 @@ import { FormSelectionGridField } from './FormSelectionGridField';
 import { FormBooleanField } from './FormBooleanField';
 import { FormInteractiveGridField } from './FormInteractiveGridField';
 import { FormInfoCardField } from './FormInfoCardField';
+import { FormLabelField } from './FormLabelField';
 import { useMobileFormContext } from '../../context/MobileFormContext';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
@@ -127,6 +128,8 @@ function resolveFieldComponent(
       );
     case 'info-card':
       return <FormInfoCardField field={field} />;
+    case 'label':
+      return <FormLabelField field={field} />;
     case 'custom': {
       const customKey = (field as FieldDefinition & { componentKey?: string }).componentKey ?? '';
       const CustomField = ComponentRegistry.resolve(customKey);

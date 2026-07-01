@@ -387,7 +387,12 @@ function FormRendererInner({
   const isOnFinalTab =
     activeTab !== undefined && finalTabId !== null && activeTab.id === finalTabId;
 
-  const showSummaryStep = formDefinition.showSummaryStep ?? false;
+  // DFE-FBE-001: effective summary mode — honour summaryMode, else derive from the legacy
+  // boolean (back-compat). SystemGenerated → the auto review step; None/Manual → no auto step
+  // (Manual's designer-built summary tab is Wave 2, C-001-gated).
+  const effectiveSummaryMode =
+    formDefinition.summaryMode ?? (formDefinition.showSummaryStep ? 'SystemGenerated' : 'None');
+  const showSummaryStep = effectiveSummaryMode === 'SystemGenerated';
   const isSummaryPhase = phaseState.phase === 'summary';
   const tabStyle = design.formDesign.tabStyle;
   const isAccordionNav = tabStyle === 'Accordion';

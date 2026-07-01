@@ -32,6 +32,7 @@ import { RepeatingGridControl } from './controls/RepeatingGridControl';
 import { RichTextControl } from './controls/RichTextControl';
 import { BooleanControl } from './fields/BooleanControl';
 import { InfoCardField } from './fields/InfoCardField';
+import { LabelField } from './fields/LabelField';
 import { InteractiveGridField } from './fields/InteractiveGridField';
 import { DynamicIcon } from './DynamicIcon';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
@@ -130,6 +131,11 @@ export function FieldRenderer({
   // info-card is purely presentational — skip the label/error wrapper entirely.
   if (field.fieldType === 'info-card') {
     return <InfoCardField field={field} />;
+  }
+
+  // DFE-FBE-001: label is a read-only display field — no input, no label/error wrapper.
+  if (field.fieldType === 'label') {
+    return <LabelField field={field} />;
   }
 
   const controlProps = {

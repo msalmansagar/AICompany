@@ -13,6 +13,19 @@ import { useFormContext } from '../../contexts/FormContext';
 import { logger } from '../../utils/logger';
 import { resolveNavigationTabIndex, arePrecedingTabsComplete } from './scopedButtonNavigation';
 
+// Scrolls to a section once it is present in the DOM. After a cross-tab switch the
+// target tab re-renders asynchronously, so retry across a few animation frames until
+// the section anchor exists (then give up rather than loop forever).
+function scrollToSectionWhenReady(sectionId: string, attempts = 0): void {
+  const element = document.getElementById(`section-${sectionId}`);
+  if (element) {
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (attempts >= 20) return;
+  requestAnimationFrame(() => scrollToSectionWhenReady(sectionId, attempts + 1));
+}
+
 export function useScopedButtonAction(): (button: ScopedButton) => void {
   const { formDefinition, ruleState, fieldValues, activeTabIndex, setActiveTabIndex, submitForm, saveDraft } =
     useFormContext();
@@ -36,20 +49,39 @@ export function useScopedButtonAction(): (button: ScopedButton) => void {
       }
 
       function dispatchNavigate(nav: NavigateActionConfig, buttonId: string): void {
+        const tabs = formDefinition?.tabs ?? [];
+
         if (nav.target === 'section') {
-          if (nav.targetSectionId) {
-            document
-              .getElementById(`section-${nav.targetSectionId}`)
-              ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (!nav.targetSectionId) return;
+          // Find the tab that owns the target section. Match case-insensitively — the stored
+          // config may use a differently-cased GUID than the form definition and DOM id — and
+          // use the definition's own id for the DOM lookup so the anchor always matches.
+          const wantedSectionId = nav.targetSectionId.toLowerCase();
+          let owningTabIndex = -1;
+          let domSectionId = nav.targetSectionId;
+          for (let index = 0; index < tabs.length; index++) {
+            const match = (tabs[index].sections ?? []).find((s) => s.id.toLowerCase() === wantedSectionId);
+            if (match) {
+              owningTabIndex = index;
+              domSectionId = match.id;
+              break;
+            }
           }
+          if (owningTabIndex === -1) {
+            logger.warn('scoped_button_nav_section_not_found', { buttonId, targetSectionId: nav.targetSectionId });
+            return;
+          }
+          // Cross-tab: switch to the section's tab first, then scroll once it has rendered.
+          if (owningTabIndex !== activeTabIndex) setActiveTabIndex(owningTabIndex);
+          scrollToSectionWhenReady(domSectionId);
           return;
         }
+
         if (nav.target === 'externalUrl' || nav.target === 'anotherForm') {
           logger.warn('scoped_button_navigation_gated', { buttonId, target: nav.target });
           return;
         }
 
-        const tabs = formDefinition?.tabs ?? [];
         const isTabVisible = (tab: TabDefinition) => ruleState.tabVisibility[tab.id] ?? tab.isVisible;
         const targetIndex = resolveNavigationTabIndex({ action: nav, tabs, activeTabIndex, isTabVisible });
         if (targetIndex === null) return;

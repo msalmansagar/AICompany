@@ -4,8 +4,11 @@ import {
   FORM_DEFINITION_ATTRS,
   PICKLIST_TO_STATUS,
   STATUS_TO_PICKLIST,
+  SUMMARY_MODE_TO_PICKLIST,
+  PICKLIST_TO_SUMMARY_MODE,
 } from '@/constants/attributeNames';
 import type { DesignerFormModel, FormStatus } from '@/state/models/DesignerFormModel';
+import type { SummaryMode } from '@qdb/shared';
 import { withRetry } from './crmRetry';
 
 export interface CreateFormDto {
@@ -27,6 +30,7 @@ export interface UpdateFormDto {
   allowSaveDraft?: boolean;
   draftExpiryDays?: number | null;
   showSummaryStep?: boolean;
+  summaryMode?: SummaryMode | null;
   powerAutomateFlowId?: string | null;
   confirmationMessage?: string | null;
   confirmationRecordRefAttribute?: string | null;
@@ -94,6 +98,9 @@ export class FormDefinitionService {
     if (dto.allowSaveDraft !== undefined) data[FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT] = dto.allowSaveDraft;
     if (dto.draftExpiryDays !== undefined) data[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS] = dto.draftExpiryDays;
     if (dto.showSummaryStep !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP] = dto.showSummaryStep;
+    if (dto.summaryMode !== undefined) {
+      data[FORM_DEFINITION_ATTRS.SUMMARY_MODE] = dto.summaryMode != null ? SUMMARY_MODE_TO_PICKLIST[dto.summaryMode] : null;
+    }
     if (dto.powerAutomateFlowId !== undefined) {
       data[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID] = dto.powerAutomateFlowId;
     }
@@ -125,6 +132,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
       FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
       FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
+      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
       FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
       FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
       FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
@@ -213,6 +221,9 @@ export class FormDefinitionService {
         ? Number(record[FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS])
         : null,
       showSummaryStep: Boolean(record[FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP]),
+      summaryMode: record[FORM_DEFINITION_ATTRS.SUMMARY_MODE] != null
+        ? (PICKLIST_TO_SUMMARY_MODE[Number(record[FORM_DEFINITION_ATTRS.SUMMARY_MODE])] ?? null)
+        : null,
       powerAutomateFlowId: record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID]
         ? String(record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID])
         : null,

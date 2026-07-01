@@ -33,7 +33,21 @@ namespace Qdb.FormEngine.Core.Models
                 case 100000019: return "boolean";
                 case 100000020: return "info-card";
                 case 100000021: return "interactive-grid";
+                case 100000022: return "label";
                 default: return "text";
+            }
+        }
+
+        /// <summary>Maps qdb_summary_mode option set values. Returns null when unset so the
+        /// generator omits it (legacy forms derive from qdb_show_summary_step at runtime).</summary>
+        public static string ToSummaryMode(int? value)
+        {
+            switch (value)
+            {
+                case 100000001: return "None";
+                case 100000002: return "SystemGenerated";
+                case 100000003: return "Manual";
+                default: return null;
             }
         }
 

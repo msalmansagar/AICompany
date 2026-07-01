@@ -20,6 +20,12 @@ const useStyles = makeStyles({
     paddingTop: tokens.spacingVerticalM,
     borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
   },
+  // DFE-FBE-001: tab description, rendered above the sections (OQ-001).
+  tabDescription: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: tokens.fontSizeBase300,
+    whiteSpace: 'pre-wrap',
+  },
 });
 
 interface TabRendererProps {
@@ -56,6 +62,9 @@ export function TabRenderer({
       aria-label={tab.label}
       className={styles.tabPanel}
     >
+      {/* DFE-FBE-001: tab description above the sections (OQ-001). */}
+      {tab.description && <div className={styles.tabDescription}>{tab.description}</div>}
+
       {visibleSections.map((section) => (
         <SectionRenderer
           key={section.id}

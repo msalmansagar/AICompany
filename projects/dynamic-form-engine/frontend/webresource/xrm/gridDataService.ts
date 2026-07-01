@@ -93,8 +93,17 @@ export async function fetchGridPage(request: GridPageRequest): Promise<GridRecor
     for (const column of columns) {
       const attribute = column.targetAttribute;
       if (!attribute) continue;
-      const formatted = row[`${attribute}${FORMATTED}`];
-      values[attribute] = formatted != null ? formatted : row[attribute];
+      // A lookup attribute is returned by CRM under _<attr>_value (GUID) plus
+      // _<attr>_value@FormattedValue (label), never under the bare <attr> key — so fall
+      // back to those forms, otherwise a lookup column renders blank (mirrors the backend's
+      // CrmGridDataService.buildRestrictedValues remap).
+      const formatted = row[`${attribute}${FORMATTED}`] ?? row[`_${attribute}_value${FORMATTED}`];
+      const rawValue = row[attribute] ?? row[`_${attribute}_value`];
+      // The grid cell renders values[attribute] directly, so prefer the label; also expose it
+      // under the FormattedValue key for the views that read it. The row's own id is preserved
+      // separately as record.id for selection/submission.
+      values[attribute] = formatted != null ? formatted : rawValue;
+      if (formatted != null) values[`${attribute}${FORMATTED}`] = formatted;
     }
     return { id: cleanGuid(String(row[idAttribute] ?? '')), values };
   });
