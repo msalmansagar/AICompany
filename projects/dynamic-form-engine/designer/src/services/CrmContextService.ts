@@ -48,8 +48,18 @@ export class CrmContextService {
       this.xrm.Navigation.openWebResource('qdb_form_runtime.html', { height: 900, width: 1200 }, id);
       return;
     }
+    // Local dev: open the SAME in-CRM runtime web resource on the cloud org, in a popup
+    // window (matches the CRM form's Open command). Requires the user to be signed in to CRM.
+    const popupFeatures = 'popup,width=1200,height=900';
+    const dataverseUrl = import.meta.env.VITE_DATAVERSE_URL as string | undefined;
+    if (dataverseUrl) {
+      const runtimeUrl = `${dataverseUrl.replace(/\/$/, '')}/WebResources/qdb_form_runtime.html?data=${id}`;
+      window.open(runtimeUrl, 'qdbFormRuntime', popupFeatures);
+      return;
+    }
+    // Fallback (no org URL configured): the portal runtime, still as a popup.
     const portalBase = import.meta.env.VITE_PORTAL_BASE_URL ?? 'http://localhost:3000';
-    window.open(`${portalBase}/forms/${encodeURIComponent(formCode)}`, '_blank', 'noopener');
+    window.open(`${portalBase}/forms/${encodeURIComponent(formCode)}`, 'qdbFormRuntime', popupFeatures);
   }
 
   /**
