@@ -116,4 +116,19 @@ export class CrmDesignerProxyService extends CrmBaseService {
     const setName = this.resolveAllowed(entityLogicalName);
     await this.crmFetch<void>(`/${setName}(${id})`, { method: 'DELETE' });
   }
+
+  /**
+   * Invokes an unbound Dataverse action (e.g. qdb_PublishForm) so the designer's Publish
+   * flow works in local dev — the proxy forwards to the same cloud org where the C# plugin runs.
+   */
+  async executeAction(actionName: string, parameters: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(actionName)) {
+      throw new ValidationError(`Invalid action name: '${actionName}'`);
+    }
+    const result = await this.crmFetch<Record<string, unknown> | undefined>(`/${actionName}`, {
+      method: 'POST',
+      body: JSON.stringify(parameters ?? {}),
+    });
+    return result ?? {};
+  }
 }

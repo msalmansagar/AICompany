@@ -38,6 +38,21 @@ export class CrmContextService {
   }
 
   /**
+   * Opens the published form in the runtime. In-CRM: the qdb_form_runtime.html web resource
+   * (reads ?data=<formDefinitionGuid>) — the same mechanism the ribbon Open command uses.
+   * Local dev: the portal runtime on the same machine.
+   */
+  openFormRuntime(formDefinitionId: string, formCode: string): void {
+    const id = formDefinitionId.replace(/[{}]/g, '');
+    if (this.xrm) {
+      this.xrm.Navigation.openWebResource('qdb_form_runtime.html', { height: 900, width: 1200 }, id);
+      return;
+    }
+    const portalBase = import.meta.env.VITE_PORTAL_BASE_URL ?? 'http://localhost:3000';
+    window.open(`${portalBase}/forms/${encodeURIComponent(formCode)}`, '_blank', 'noopener');
+  }
+
+  /**
    * Returns true when running in standalone REST mode (outside Dynamics CRM UCI).
    * CRM custom actions (executeAction) are not available in REST mode.
    */

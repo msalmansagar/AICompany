@@ -338,6 +338,10 @@ export function DesignerScreen(): React.ReactElement {
     navigateTo('publish-validation');
   }, [designPayload, isDirty, handleSaveDraft, navigateTo]);
   const handlePreview = useCallback(() => navigateTo('preview'), [navigateTo]);
+  const handleOpenForm = useCallback(() => {
+    if (!form || !crmService) return;
+    crmService.openFormRuntime(form.id, form.code);
+  }, [form, crmService]);
   const handleVersionHistory = useCallback(() => navigateTo('version-history'), [navigateTo]);
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
@@ -371,6 +375,7 @@ export function DesignerScreen(): React.ReactElement {
           onSaveDraft={() => void handleSaveDraft()}
           onPublish={() => void handlePublish()}
           onPreview={handlePreview}
+          onOpenForm={handleOpenForm}
           onVersionHistory={handleVersionHistory}
           onBusinessRules={handleBusinessRules}
           onSubmissionMapping={handleSubmissionMapping}

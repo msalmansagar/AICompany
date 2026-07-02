@@ -15,6 +15,7 @@ import {
   Save24Regular,
   Send24Regular,
   Eye24Regular,
+  Open24Regular,
   History24Regular,
   ArrowLeft24Regular,
   ArrowUndo24Regular,
@@ -66,6 +67,7 @@ interface DesignerCommandBarProps {
   onSaveDraft: () => void;
   onPublish: () => void;
   onPreview: () => void;
+  onOpenForm: () => void;
   onVersionHistory: () => void;
   onBusinessRules: () => void;
   onSubmissionMapping: () => void;
@@ -81,6 +83,7 @@ export function DesignerCommandBar({
   onSaveDraft,
   onPublish,
   onPreview,
+  onOpenForm,
   onVersionHistory,
   onBusinessRules,
   onSubmissionMapping,
@@ -140,6 +143,11 @@ export function DesignerCommandBar({
         <Tooltip content="Preview Form" relationship="label">
           <ToolbarButton icon={<Eye24Regular />} onClick={onPreview} aria-label="Preview">
             Preview
+          </ToolbarButton>
+        </Tooltip>
+        <Tooltip content="Open the published form in the runtime" relationship="label">
+          <ToolbarButton icon={<Open24Regular />} onClick={onOpenForm} aria-label="Open Form">
+            Open
           </ToolbarButton>
         </Tooltip>
         <ToolbarDivider />

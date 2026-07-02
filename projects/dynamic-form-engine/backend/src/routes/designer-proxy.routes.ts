@@ -6,6 +6,7 @@ import type { ApiResponse } from '@qdb/shared';
 
 const SAFE_ENTITY = z.string().regex(/^[a-z_]{1,100}$/, 'Invalid entity logical name');
 const SAFE_RECORD_ID = z.string().uuid('Record ID must be a valid UUID');
+const SAFE_ACTION = z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]{0,100}$/, 'Invalid action name');
 
 function extractRawQuery(req: Request): string {
   const url = req.url;
@@ -15,6 +16,15 @@ function extractRawQuery(req: Request): string {
 
 export function createDesignerProxyRouter(proxyService: CrmDesignerProxyService): Router {
   const router = Router();
+
+  // POST /api/designer/records/_actions/:actionName — invoke an unbound Dataverse action
+  // (e.g. qdb_PublishForm). Two path segments, so it never collides with POST /:entity.
+  router.post('/_actions/:actionName', async (req: Request, res: Response) => {
+    const actionName = SAFE_ACTION.parse(req.params.actionName);
+    const data = await proxyService.executeAction(actionName, req.body as Record<string, unknown>);
+    const response: ApiResponse<typeof data> = { success: true, data };
+    res.json(response);
+  });
 
   // GET /api/designer/records/:entity[?<odata options>]
   router.get('/:entity', async (req: Request, res: Response) => {
