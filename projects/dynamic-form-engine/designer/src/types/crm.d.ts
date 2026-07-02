@@ -60,6 +60,8 @@ declare namespace Xrm {
       windowOptions?: OpenWebResourceOptions,
       data?: string,
     ): void;
+    /** Navigates to a page (form, dashboard, or web resource) inline, inline dialog, or new window. */
+    function navigateTo(pageInput: unknown, navigationOptions?: unknown): Promise<unknown>;
   }
 
   interface EntityMetadata {

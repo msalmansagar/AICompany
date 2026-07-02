@@ -45,7 +45,20 @@ export class CrmContextService {
   openFormRuntime(formDefinitionId: string, formCode: string): void {
     const id = formDefinitionId.replace(/[{}]/g, '');
     if (this.xrm) {
-      this.xrm.Navigation.openWebResource('qdb_form_runtime.html', { height: 900, width: 1200 }, id);
+      const xrm = this.xrm;
+      // Modern in-app dialog (target: 2) — same as the CRM form's Open command. Falls back to
+      // a new window via openWebResource on platforms without navigateTo(webresource) (on-prem).
+      const pageInput = { pageType: 'webresource', webresourceName: 'qdb_form_runtime.html', data: id };
+      const dialogOptions = {
+        target: 2,
+        position: 1,
+        width: { value: 85, unit: '%' },
+        height: { value: 92, unit: '%' },
+        title: 'Form',
+      };
+      xrm.Navigation.navigateTo(pageInput, dialogOptions).catch(() => {
+        xrm.Navigation.openWebResource('qdb_form_runtime.html', { height: 900, width: 1200 }, id);
+      });
       return;
     }
     // Local dev: open the SAME in-CRM runtime web resource on the cloud org, in a popup
