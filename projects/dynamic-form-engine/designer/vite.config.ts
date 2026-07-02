@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
@@ -28,10 +28,33 @@ function noCacheMetaPlugin(): Plugin {
   };
 }
 
+/**
+ * Fails a production build if dev-only overrides leaked in via `.env.local`.
+ * `.env.local` is loaded by Vite in EVERY mode (including build), so REST/localhost config
+ * placed there gets baked into the deployed (in-CRM) designer — putting it in REST mode
+ * against a local proxy. Dev-only overrides must live in `.env.development.local` instead.
+ */
+function guardProductionEnvPlugin(): Plugin {
+  return {
+    name: 'guard-production-env',
+    apply: 'build',
+    config(_config, { mode }) {
+      const env = loadEnv(mode, process.cwd(), 'VITE_');
+      if (env.VITE_USE_REST_API === 'true') {
+        throw new Error(
+          'Refusing to build: VITE_USE_REST_API=true is set for a production build (likely ' +
+          'from .env.local). Move dev-only overrides to .env.development.local so they do not ' +
+          'leak into the deployed in-CRM designer, then rebuild.',
+        );
+      }
+    },
+  };
+}
+
 // Vite config for CRM web resource bundle output.
 // Produces a self-contained bundle importable as a CRM web resource.
 export default defineConfig({
-  plugins: [react(), noCacheMetaPlugin()],
+  plugins: [react(), noCacheMetaPlugin(), guardProductionEnvPlugin()],
   // Relative base so asset paths in index.html are ./assets/... not /assets/...
   // Required for CRM web resources: served under /WebResources/qdb_/form-designer/
   // and absolute paths would resolve to the org root instead.
