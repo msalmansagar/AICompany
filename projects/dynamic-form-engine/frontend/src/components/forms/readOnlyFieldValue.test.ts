@@ -24,6 +24,10 @@ describe('formatReadOnlyValue', () => {
     expect(formatReadOnlyValue(field({ fieldType: 'multiLookup' }), [])).toBe('');
   });
 
+  it('multiLookup_null_value_is_blank_and_does_not_throw', () => {
+    expect(formatReadOnlyValue(field({ fieldType: 'multiLookup' }), null)).toBe('');
+  });
+
   it('dropdown_shows_the_selected_option_label', () => {
     const dropdown = field({
       fieldType: 'dropdown',

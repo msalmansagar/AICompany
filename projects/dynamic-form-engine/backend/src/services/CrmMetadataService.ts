@@ -143,6 +143,7 @@ export class CrmMetadataService extends CrmBaseService {
         : Promise.resolve<InfoCardScreen[]>([]),
     ]);
 
+    const summaryMode = this.mapSummaryMode(raw.qdb_summary_mode);
     const englishForm: FormDefinition = {
       id: formId,
       formCode: raw.qdb_form_code,
@@ -153,7 +154,7 @@ export class CrmMetadataService extends CrmBaseService {
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
       // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
-      ...(this.mapSummaryMode(raw.qdb_summary_mode) ? { summaryMode: this.mapSummaryMode(raw.qdb_summary_mode) } : {}),
+      ...(summaryMode ? { summaryMode } : {}),
       // DFE-FBE-002: progress bar (emitted only when on).
       ...(raw.qdb_show_progress_bar ? { showProgressBar: true } : {}),
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,

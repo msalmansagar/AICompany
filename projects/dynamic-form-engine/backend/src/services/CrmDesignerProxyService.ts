@@ -38,6 +38,11 @@ function resolveEntitySetName(name: string): string | undefined {
 
 const ALLOWED_ENTITIES = new Set(Object.values(ENTITY_SET_MAP));
 
+// Only these unbound actions may be invoked via the designer proxy — mirrors the
+// ALLOWED_ENTITIES allowlist so an authenticated designer user cannot reach arbitrary
+// Dataverse actions (WhoAmI, ExportSolution, BulkDelete, …) the service principal can run.
+const ALLOWED_ACTIONS = new Set(['qdb_PublishForm']);
+
 export interface DesignerProxyCreateResult {
   id: string;
   entityType: string;
@@ -122,8 +127,8 @@ export class CrmDesignerProxyService extends CrmBaseService {
    * flow works in local dev — the proxy forwards to the same cloud org where the C# plugin runs.
    */
   async executeAction(actionName: string, parameters: Record<string, unknown>): Promise<Record<string, unknown>> {
-    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(actionName)) {
-      throw new ValidationError(`Invalid action name: '${actionName}'`);
+    if (!ALLOWED_ACTIONS.has(actionName)) {
+      throw new ValidationError(`Action '${actionName}' is not permitted via the designer proxy`);
     }
     const result = await this.crmFetch<Record<string, unknown> | undefined>(`/${actionName}`, {
       method: 'POST',

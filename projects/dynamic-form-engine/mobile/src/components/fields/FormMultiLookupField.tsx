@@ -30,18 +30,25 @@ export function FormMultiLookupField({ field, control }: Props) {
   const [searchText, setSearchText] = useState('');
   const [results, setResults] = useState<LookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchResults = useCallback(async (query?: string): Promise<void> => {
     if (!config) return;
     setIsSearching(true);
+    setSearchError(null);
     try {
       const token = isDevBypass || !account ? '' : await acquireToken();
       const params = new URLSearchParams({ displayAttribute: config.displayAttr, valueAttribute: config.valueAttr, max: String(config.maxResults) });
       if (query) params.set('search', query);
       const data = await apiGet<LookupResult[]>(`/api/lookups/${config.entity}?${params.toString()}`, token);
       setResults(data ?? []);
-    } catch { setResults([]); } finally { setIsSearching(false); }
+    } catch {
+      setResults([]);
+      setSearchError('Search failed — please try again.');
+    } finally {
+      setIsSearching(false);
+    }
   }, [config, isDevBypass, account, acquireToken]);
 
   function handleSearchChange(text: string): void {
@@ -102,7 +109,10 @@ export function FormMultiLookupField({ field, control }: Props) {
                   <TextInput style={styles.searchInput} value={searchText} onChangeText={handleSearchChange} placeholder="Search..." placeholderTextColor="#999" autoCorrect={false} autoCapitalize="none" />
                   {isSearching && <ActivityIndicator size="small" color="#0078d4" style={{ marginLeft: 8 }} />}
                 </View>
-                {!isSearching && results.length === 0 && (
+                {!isSearching && searchError && (
+                  <View style={styles.emptyState}><Text style={styles.errorText}>{searchError}</Text></View>
+                )}
+                {!isSearching && !searchError && results.length === 0 && (
                   <View style={styles.emptyState}><Text style={styles.emptyText}>{searchText ? 'No results found' : 'No records available'}</Text></View>
                 )}
                 <FlatList
@@ -145,6 +155,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: '#1a1a2e' },
   emptyState: { paddingVertical: 32, alignItems: 'center' },
   emptyText: { fontSize: 14, color: '#999' },
+  errorText: { fontSize: 14, color: '#c62828' },
   option: { paddingVertical: 14, paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   optionSelected: { backgroundColor: '#f0f7ff' },
   optionText: { fontSize: 15, color: '#1a1a2e', flex: 1 },

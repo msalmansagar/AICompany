@@ -244,6 +244,59 @@ namespace Qdb.FormEngine.Tests
             return entity;
         }
 
+        [Fact]
+        public void Generate_WithFbeFields_MapsSummaryProgressTabSectionAndMultiLookup()
+        {
+            // Arrange — FBE-001/002 form/tab/section/field generation.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            rawData.FormEntity["qdb_summary_mode"] = new OptionSetValue(100000003); // Manual
+            rawData.FormEntity["qdb_show_progress_bar"] = true;
+
+            var tab = rawData.Tabs[0];
+            tab["qdb_description"] = "Complete your details";
+            tab["qdb_is_summary_tab"] = true;
+
+            var section = rawData.Sections[0];
+            section["qdb_icon_name"] = "Person";
+
+            var mlField = new Entity("qdb_form_field", Guid.NewGuid());
+            mlField["qdb_form_section_id"] = new EntityReference("qdb_form_section", section.Id);
+            mlField["qdb_field_type"] = new OptionSetValue(100000023); // multiLookup
+            mlField["qdb_schema_name"] = "qdb_team";
+            mlField["qdb_label"] = "Team";
+            mlField["qdb_display_order"] = 2;
+            mlField["qdb_column_span"] = new OptionSetValue(100000001);
+            mlField["qdb_is_required"] = false;
+            mlField["qdb_is_readonly"] = false;
+            mlField["qdb_is_hidden"] = false;
+            mlField["qdb_is_visible"] = true;
+            rawData.Fields.Add(mlField);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal("Manual", result.SummaryMode);
+            Assert.True(result.ShowProgressBar);
+            Assert.Equal("Complete your details", result.Tabs[0].Description);
+            Assert.True(result.Tabs[0].IsSummaryTab);
+            Assert.Equal("Person", result.Tabs[0].Sections[0].IconName);
+            Assert.Contains(result.Tabs[0].Sections[0].Fields, f => f.FieldType == "multiLookup");
+        }
+
+        [Fact]
+        public void Generate_WithoutSummaryModeOrProgressBar_OmitsThem()
+        {
+            // Byte-identity for pre-FBE forms: unset fields must be null (JSON key omitted).
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            var result = _generator.Generate(rawData, "en");
+
+            Assert.Null(result.SummaryMode);
+            Assert.Null(result.ShowProgressBar);
+        }
+
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

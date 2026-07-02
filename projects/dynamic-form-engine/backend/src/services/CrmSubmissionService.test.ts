@@ -202,17 +202,54 @@ describe('CrmSubmissionService', () => {
         return Promise.resolve({ ok: true, status: 204, json: () => null, text: () => '', headers: { get: () => null } });
       });
 
+      const g1 = '11111111-1111-4111-8111-111111111111';
+      const g2 = '22222222-2222-4222-8222-222222222222';
       const form = makeFormDefinition();
       const fieldValues = {
         qdb_full_name: [
-          { id: 'g1', displayName: 'Alice' },
-          { id: 'g2', displayName: 'Bob' },
+          { id: g1, displayName: 'Alice' },
+          { id: g2, displayName: 'Bob' },
         ],
       };
 
       await service.submitForm(form, fieldValues, 'user-001', 'Test');
 
-      expect(capturedPayload).toMatchObject({ fullname: 'g1;g2' });
+      expect(capturedPayload).toMatchObject({ fullname: `${g1};${g2}` });
+    });
+
+    it('submitForm_withEmptyMultiLookup_omitsTheAttribute', async () => {
+      // DFE-FBE-002 — a cleared multi-lookup ([]) must never write a raw array to Dataverse.
+      let capturedPayload: Record<string, unknown> | null = null;
+      mockFetch.mockImplementation((_url: string, options: RequestInit) => {
+        if (options?.method === 'POST') {
+          capturedPayload = JSON.parse(options.body as string) as Record<string, unknown>;
+          return Promise.resolve({
+            ok: true, status: 201,
+            json: () => Promise.resolve({ contactid: 'c1' }),
+            text: () => Promise.resolve(''), headers: { get: () => null },
+          });
+        }
+        return Promise.resolve({ ok: true, status: 204, json: () => null, text: () => '', headers: { get: () => null } });
+      });
+
+      await service.submitForm(makeFormDefinition(), { qdb_full_name: [] }, 'user-001', 'Test');
+
+      expect(capturedPayload).not.toHaveProperty('fullname');
+    });
+
+    it('submitForm_withNonUuidMultiLookupId_rejects', async () => {
+      // DFE-FBE-002 — a non-UUID id (crafted/injected) fails validation at the boundary.
+      mockFetch.mockResolvedValue({
+        ok: true, status: 201,
+        json: () => Promise.resolve({ contactid: 'c1' }),
+        text: () => Promise.resolve(''), headers: { get: () => null },
+      });
+
+      const fieldValues = { qdb_full_name: [{ id: 'g1;injected', displayName: 'x' }] };
+
+      await expect(
+        service.submitForm(makeFormDefinition(), fieldValues, 'user-001', 'Test'),
+      ).rejects.toThrow();
     });
 
     it('submitForm_whenNoParentMapping_throwsBeforeAnyFetch', async () => {

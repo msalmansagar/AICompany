@@ -54,4 +54,14 @@ describe('POST /api/designer/records/_actions/:actionName', () => {
     expect(response.status).toBeGreaterThanOrEqual(400);
     expect(mockExecuteAction).not.toHaveBeenCalled();
   });
+
+  it('returns_5xx_when_the_service_throws', async () => {
+    mockExecuteAction.mockRejectedValueOnce(new Error('Dataverse timeout'));
+
+    const response = await request(app)
+      .post('/api/designer/records/_actions/qdb_PublishForm')
+      .send({ FormCode: 'demo' });
+
+    expect(response.status).toBeGreaterThanOrEqual(500);
+  });
 });
