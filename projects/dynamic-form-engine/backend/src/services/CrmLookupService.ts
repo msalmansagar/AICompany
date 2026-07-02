@@ -6,6 +6,19 @@ interface ODataCollection<T> {
   value: T[];
 }
 
+// Not every entity has a `statecode` column. systemuser/team are active-by-default
+// system entities that use `isdisabled`; entities without any active flag get none.
+const ACTIVE_RECORD_FILTER: Record<string, string | null> = {
+  systemuser: 'isdisabled eq false',
+  team: null,
+};
+
+function activeRecordFilter(entityLogicalName: string): string | null {
+  return entityLogicalName in ACTIVE_RECORD_FILTER
+    ? ACTIVE_RECORD_FILTER[entityLogicalName]
+    : 'statecode eq 0';
+}
+
 export class CrmLookupService extends CrmBaseService {
   constructor(authService: CrmAuthService) {
     super(authService);
@@ -28,7 +41,9 @@ export class CrmLookupService extends CrmBaseService {
     } = params;
     const valueAttribute = params.valueAttribute ?? `${entityLogicalName}id`;
 
-    const filters: string[] = ['statecode eq 0'];
+    const filters: string[] = [];
+    const activeFilter = activeRecordFilter(entityLogicalName);
+    if (activeFilter) filters.push(activeFilter);
 
     if (searchTerm) {
       filters.push(`contains(${displayAttribute},'${searchTerm.replace(/'/g, "''")}')`);
@@ -40,10 +55,10 @@ export class CrmLookupService extends CrmBaseService {
 
     const query = [
       `$select=${displayAttribute},${valueAttribute}`,
-      `$filter=${filters.join(' and ')}`,
+      filters.length > 0 ? `$filter=${filters.join(' and ')}` : null,
       `$top=${maxResults}`,
       `$orderby=${displayAttribute} asc`,
-    ].join('&');
+    ].filter(Boolean).join('&');
 
     const response = await this.crmFetch<ODataCollection<Record<string, unknown>>>(
       `/${entityLogicalName}s?${query}`,
