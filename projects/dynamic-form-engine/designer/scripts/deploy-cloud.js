@@ -90,7 +90,52 @@ function refreshAccessToken(cache, scope) {
   });
 }
 
+// Service-principal (client-credentials) token. Used when DV_TENANT_ID / DV_CLIENT_ID /
+// DV_CLIENT_SECRET are present (e.g. run with `node --env-file=../scripts/.env`), so the
+// deploy works headless / without a live pac CLI login. Returns a Promise<string>.
+function getServicePrincipalToken(orgUrl) {
+  const tenantId = process.env.DV_TENANT_ID;
+  const clientId = process.env.DV_CLIENT_ID;
+  const clientSecret = process.env.DV_CLIENT_SECRET;
+  const scope = `${orgUrl.replace(/\/$/, '')}/.default`;
+  const body = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: clientId,
+    client_secret: clientSecret,
+    scope,
+  }).toString();
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'login.microsoftonline.com',
+      path: `/${tenantId}/oauth2/v2.0/token`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body),
+      },
+    }, res => {
+      let data = '';
+      res.on('data', c => { data += c; });
+      res.on('end', () => {
+        const parsed = JSON.parse(data);
+        if (parsed.access_token) resolve(parsed.access_token);
+        else reject(new Error(`Service-principal token request failed: ${data}`));
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+}
+
 async function getBearerToken(orgUrl) {
+  // Prefer a service principal when its env vars are configured — no pac CLI dependency.
+  if (process.env.DV_TENANT_ID && process.env.DV_CLIENT_ID && process.env.DV_CLIENT_SECRET) {
+    console.log('Auth: service principal (DV_* env vars)');
+    return getServicePrincipalToken(orgUrl);
+  }
+
   const cache = readMsalCache();
   const orgHost = orgUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const key = Object.keys(cache.AccessToken || {}).find(k => k.includes(orgHost));
