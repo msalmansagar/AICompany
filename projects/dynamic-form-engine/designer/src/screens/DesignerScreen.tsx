@@ -346,6 +346,10 @@ export function DesignerScreen(): React.ReactElement {
     if (!form || !crmService) return;
     crmService.openFormRuntime(form.id, form.code);
   }, [form, crmService]);
+  const selectFormItem = useDesignerStore(state => state.selectItem);
+  const handleFormProperties = useCallback(() => {
+    if (form) selectFormItem(form.id, 'form');
+  }, [form, selectFormItem]);
   const handleVersionHistory = useCallback(() => navigateTo('version-history'), [navigateTo]);
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
@@ -380,6 +384,7 @@ export function DesignerScreen(): React.ReactElement {
           onPublish={() => void handlePublish()}
           onPreview={handlePreview}
           onOpenForm={handleOpenForm}
+          onFormProperties={handleFormProperties}
           onVersionHistory={handleVersionHistory}
           onBusinessRules={handleBusinessRules}
           onSubmissionMapping={handleSubmissionMapping}

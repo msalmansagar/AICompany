@@ -23,6 +23,7 @@ import {
   BranchRegular,
   TableRegular,
   PaintBrushRegular,
+  Settings24Regular,
 } from '@fluentui/react-icons';
 import { useDesignerStore, selectCanUndo, selectCanRedo } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
@@ -68,6 +69,7 @@ interface DesignerCommandBarProps {
   onPublish: () => void;
   onPreview: () => void;
   onOpenForm: () => void;
+  onFormProperties: () => void;
   onVersionHistory: () => void;
   onBusinessRules: () => void;
   onSubmissionMapping: () => void;
@@ -84,6 +86,7 @@ export function DesignerCommandBar({
   onPublish,
   onPreview,
   onOpenForm,
+  onFormProperties,
   onVersionHistory,
   onBusinessRules,
   onSubmissionMapping,
@@ -151,6 +154,11 @@ export function DesignerCommandBar({
           </ToolbarButton>
         </Tooltip>
         <ToolbarDivider />
+        <Tooltip content="Form Properties (progress bar, summary mode, flow, …)" relationship="label">
+          <ToolbarButton icon={<Settings24Regular />} onClick={onFormProperties} aria-label="Form Properties">
+            Form
+          </ToolbarButton>
+        </Tooltip>
         <Tooltip content="Business Rules" relationship="label">
           <ToolbarButton icon={<BranchRegular />} onClick={onBusinessRules} aria-label="Business Rules">
             Rules
