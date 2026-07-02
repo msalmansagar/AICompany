@@ -208,6 +208,17 @@ export class CrmSubmissionService extends CrmBaseService {
     ) {
       return (value as Array<{ fileId: string }>).map((ref) => ref.fileId);
     }
+    // DFE-FBE-002: multi-select lookup → semicolon-delimited list of record GUIDs
+    // written to the mapped (text) attribute. An empty selection maps to ''.
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === 'object' &&
+      value[0] !== null &&
+      'id' in (value[0] as object)
+    ) {
+      return (value as Array<{ id: string }>).map((ref) => ref.id).join(';');
+    }
     return value;
   }
 

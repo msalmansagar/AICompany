@@ -187,6 +187,34 @@ describe('CrmSubmissionService', () => {
       expect(capturedPayload).toMatchObject({ fullname: 'Fatima Khan' });
     });
 
+    it('submitForm_withMultiLookupArray_serializesToDelimitedGuids', async () => {
+      // DFE-FBE-002 — multi-lookup array of {id, displayName} → semicolon-delimited GUIDs.
+      let capturedPayload: Record<string, unknown> | null = null;
+      mockFetch.mockImplementation((_url: string, options: RequestInit) => {
+        if (options?.method === 'POST') {
+          capturedPayload = JSON.parse(options.body as string) as Record<string, unknown>;
+          return Promise.resolve({
+            ok: true, status: 201,
+            json: () => Promise.resolve({ contactid: 'c1' }),
+            text: () => Promise.resolve(''), headers: { get: () => null },
+          });
+        }
+        return Promise.resolve({ ok: true, status: 204, json: () => null, text: () => '', headers: { get: () => null } });
+      });
+
+      const form = makeFormDefinition();
+      const fieldValues = {
+        qdb_full_name: [
+          { id: 'g1', displayName: 'Alice' },
+          { id: 'g2', displayName: 'Bob' },
+        ],
+      };
+
+      await service.submitForm(form, fieldValues, 'user-001', 'Test');
+
+      expect(capturedPayload).toMatchObject({ fullname: 'g1;g2' });
+    });
+
     it('submitForm_whenNoParentMapping_throwsBeforeAnyFetch', async () => {
       // Arrange
       const form = makeFormDefinition({ submissionMappings: [] });
