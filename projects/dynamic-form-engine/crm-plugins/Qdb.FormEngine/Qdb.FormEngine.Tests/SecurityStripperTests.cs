@@ -127,6 +127,30 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal("Submit", result.Tabs[0].Sections[0].Buttons[0].Label);
         }
 
+        [Fact]
+        public void Strip_PreservesFbeFormTabSectionFields()
+        {
+            // Arrange — FBE-001/002 form/tab/section fields must survive stripping so the
+            // in-CRM render cache carries summary mode, progress bar, tab description/summary
+            // flag and section icon (regression: the stripper reconstructs these objects).
+            var model = BuildModelWithFields(BuildField(Guid.NewGuid(), isHidden: false));
+            model.SummaryMode = "Manual";
+            model.ShowProgressBar = true;
+            model.Tabs[0].Description = "Tab intro";
+            model.Tabs[0].IsSummaryTab = true;
+            model.Tabs[0].Sections[0].IconName = "Person";
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Equal("Manual", result.SummaryMode);
+            Assert.True(result.ShowProgressBar);
+            Assert.Equal("Tab intro", result.Tabs[0].Description);
+            Assert.True(result.Tabs[0].IsSummaryTab);
+            Assert.Equal("Person", result.Tabs[0].Sections[0].IconName);
+        }
+
         private static FormDefinitionModel BuildModelWithFields(params FieldDefinition[] fields)
         {
             var sectionId = Guid.NewGuid();
