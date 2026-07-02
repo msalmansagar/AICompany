@@ -1,10 +1,18 @@
 // FormLabelField (mobile) — DFE-FBE-001 read-only display field.
-// Wave 1: renders static content (staticContent) with the field label as an optional heading.
-// Wave 2 (C-001-gated): data-bound variant mirrors a source field's value read-only.
+// Static content, or (Wave 2 minimal) a data-bound mirror of another field's current value.
 import { StyleSheet, Text, View } from 'react-native';
+import { useWatch, type Control } from 'react-hook-form';
 import type { FieldDefinition } from '@qdb/shared';
 
-export function FormLabelField({ field }: { field: FieldDefinition }) {
+interface Props {
+  field: FieldDefinition;
+  control?: Control<Record<string, unknown>>;
+}
+
+export function FormLabelField({ field, control }: Props) {
+  if (field.sourceFieldSchemaName && control) {
+    return <BoundLabel field={field} control={control} sourceKey={field.sourceFieldSchemaName} />;
+  }
   const content = field.staticContent ?? '';
   return (
     <View style={styles.root}>
@@ -14,8 +22,20 @@ export function FormLabelField({ field }: { field: FieldDefinition }) {
   );
 }
 
+function BoundLabel({ field, control, sourceKey }: { field: FieldDefinition; control: Control<Record<string, unknown>>; sourceKey: string }) {
+  const value = useWatch({ control, name: sourceKey });
+  const display = value === null || value === undefined || value === '' ? '—' : String(value);
+  return (
+    <View style={styles.root}>
+      {field.displayLabel ? <Text style={styles.heading}>{field.displayLabel}</Text> : null}
+      <Text style={styles.boundValue}>{display}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { paddingVertical: 4 },
   heading: { fontWeight: '600', color: '#1a1a2e', marginBottom: 2 },
   content: { color: '#333', lineHeight: 20 },
+  boundValue: { color: '#1a1a2e', lineHeight: 20 },
 });

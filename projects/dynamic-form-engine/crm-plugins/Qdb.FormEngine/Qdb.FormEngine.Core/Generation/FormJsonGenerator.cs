@@ -70,6 +70,7 @@ namespace Qdb.FormEngine.Core.Generation
                 InfocardSkipLabel = Resolve(rawData, "qdb_form_definition", formId, "qdb_infocard_skip_label", form.GetAttributeValue<string>("qdb_infocard_skip_label")),
                 ShowSummaryStep = form.GetAttributeValue<bool>("qdb_show_summary_step"),
                 SummaryMode = PicklistMapper.ToSummaryMode(EntityHelper.GetOptionSetValue(form, "qdb_summary_mode")),
+                ShowProgressBar = form.GetAttributeValue<bool>("qdb_show_progress_bar") ? (bool?)true : null,
                 CreatedAt = form.Contains("createdon") ? (DateTime?)form.GetAttributeValue<DateTime>("createdon") : null,
                 ModifiedAt = form.Contains("modifiedon") ? (DateTime?)form.GetAttributeValue<DateTime>("modifiedon") : null,
                 Tabs = BuildTabs(rawData, formId, fieldBuilder),

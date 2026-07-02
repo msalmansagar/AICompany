@@ -80,6 +80,7 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
     case 'radio':
       return <DropdownFieldPanel field={field} />;
     case 'lookup':
+    case 'multiLookup':
       return <LookupFieldPanel field={field} />;
     case 'date':
     case 'datetime':

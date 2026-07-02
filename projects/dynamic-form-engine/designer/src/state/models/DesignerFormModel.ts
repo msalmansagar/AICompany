@@ -20,6 +20,8 @@ export interface DesignerFormModel {
   showSummaryStep: boolean;
   // DFE-FBE-001: None/SystemGenerated/Manual. Absent/null on legacy forms (derived from showSummaryStep).
   summaryMode?: SummaryMode | null;
+  // DFE-FBE-002: form-completion progress bar.
+  showProgressBar?: boolean;
   powerAutomateFlowId: string | null;
   confirmationMessage: string | null;
   confirmationRecordRefAttribute: string | null;

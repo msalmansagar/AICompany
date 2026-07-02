@@ -38,6 +38,7 @@ import { ThemeProvider } from '../../theme/ThemeProvider';
 import { sanitiseCustomCssForRuntime } from '../../theme/customCssInjector';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
+import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
 import { FormConfirmation } from './FormConfirmation';
@@ -400,6 +401,7 @@ function FormRendererInner({
   const isSidebarNav = tabStyle === 'Sidebar';
 
   const formHeader = (
+    <>
     <header className={styles.header}>
       <div className={styles.headerText}>
         <h1 className={styles.title}>{formDefinition.title}</h1>
@@ -419,6 +421,9 @@ function FormRendererInner({
         )}
       </div>
     </header>
+    {/* DFE-FBE-002: completion progress bar, above the tab strip (gated on showProgressBar). */}
+    {formDefinition.showProgressBar && <FormProgressBar />}
+    </>
   );
 
   const formNav = (

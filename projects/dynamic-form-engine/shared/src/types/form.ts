@@ -5,7 +5,9 @@ export type FieldType =
   | 'richtext' | 'grid' | 'boolean' | 'info-card' | 'interactive-grid'
   | 'custom'
   // DFE-FBE-001: read-only display field (static text or data-bound mirror of another field)
-  | 'label';
+  | 'label'
+  // DFE-FBE-002: multi-select lookup
+  | 'multiLookup';
 
 // DFE-FBE-001: form-level summary behaviour (None | SystemGenerated | Manual).
 export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
@@ -340,6 +342,8 @@ export interface FormDefinition {
   showSummaryStep?: boolean;
   // DFE-FBE-001: None | SystemGenerated | Manual (undefined → derive from showSummaryStep).
   summaryMode?: SummaryMode;
+  // DFE-FBE-002: form-completion progress bar (default off).
+  showProgressBar?: boolean;
   confirmationMessage: string;
   tabs: TabDefinition[];
   buttons: FormButton[];

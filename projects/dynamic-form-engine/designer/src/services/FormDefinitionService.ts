@@ -31,6 +31,7 @@ export interface UpdateFormDto {
   draftExpiryDays?: number | null;
   showSummaryStep?: boolean;
   summaryMode?: SummaryMode | null;
+  showProgressBar?: boolean;
   powerAutomateFlowId?: string | null;
   confirmationMessage?: string | null;
   confirmationRecordRefAttribute?: string | null;
@@ -101,6 +102,7 @@ export class FormDefinitionService {
     if (dto.summaryMode !== undefined) {
       data[FORM_DEFINITION_ATTRS.SUMMARY_MODE] = dto.summaryMode != null ? SUMMARY_MODE_TO_PICKLIST[dto.summaryMode] : null;
     }
+    if (dto.showProgressBar !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR] = dto.showProgressBar;
     if (dto.powerAutomateFlowId !== undefined) {
       data[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID] = dto.powerAutomateFlowId;
     }
@@ -133,6 +135,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
       FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
       FORM_DEFINITION_ATTRS.SUMMARY_MODE,
+      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
       FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
       FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
       FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
@@ -224,6 +227,7 @@ export class FormDefinitionService {
       summaryMode: record[FORM_DEFINITION_ATTRS.SUMMARY_MODE] != null
         ? (PICKLIST_TO_SUMMARY_MODE[Number(record[FORM_DEFINITION_ATTRS.SUMMARY_MODE])] ?? null)
         : null,
+      showProgressBar: Boolean(record[FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR]),
       powerAutomateFlowId: record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID]
         ? String(record[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID])
         : null,

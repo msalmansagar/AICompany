@@ -29,6 +29,8 @@ namespace Qdb.FormEngine.Core.Models
         // DFE-FBE-001: None/SystemGenerated/Manual. Omitted when unset (legacy forms derive from
         // showSummaryStep at runtime) so unaffected forms stay byte-identical.
         [JsonProperty("summaryMode", NullValueHandling = NullValueHandling.Ignore)] public string SummaryMode { get; set; }
+        // DFE-FBE-002: form-completion progress bar. Omitted unless true → unaffected forms byte-identical.
+        [JsonProperty("showProgressBar", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowProgressBar { get; set; }
         [JsonProperty("infoCards")] public List<InfoCardScreen> InfoCards { get; set; }
         [JsonProperty("submissionMappings")] public List<SubmissionMapping> SubmissionMappings { get; set; }
         [JsonProperty("buttons")] public List<FormButton> Buttons { get; set; }
@@ -114,7 +116,7 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("radioRenderStyle")] public string RadioRenderStyle { get; set; }
         [JsonProperty("optionSourceEntity")] public string OptionSourceEntity { get; set; }
         [JsonProperty("optionSourceAttribute")] public string OptionSourceAttribute { get; set; }
-        [JsonProperty("infoCardStyle")] public string InfoCardStyle { get; set; }
+        [JsonProperty("infoCardStyle", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardStyle { get; set; }
         [JsonProperty("infoCardTitle")] public string InfoCardTitle { get; set; }
         [JsonProperty("infoCardBody")] public string InfoCardBody { get; set; }
         [JsonProperty("infoCardIcon")] public string InfoCardIcon { get; set; }

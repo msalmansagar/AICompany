@@ -137,6 +137,13 @@ export function FormProperties(): React.ReactElement {
         </MessageBar>
       )}
 
+      {/* DFE-FBE-002: form-completion progress bar. */}
+      <Checkbox
+        label="Show completion progress bar"
+        checked={form.showProgressBar === true}
+        onChange={(_, data) => updateForm({ showProgressBar: data.checked === true })}
+      />
+
       <Checkbox
         label="Allow Save as Draft"
         checked={form.allowSaveDraft}

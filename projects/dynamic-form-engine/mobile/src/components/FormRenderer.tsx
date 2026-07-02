@@ -9,6 +9,7 @@ import { FormSummaryScreen } from './FormSummaryScreen';
 import { ScopedButtonBar } from './ScopedButtonBar';
 import { resolveNavigationTabIndex, resolveSectionTabIndex } from './scopedButtonNavigation';
 import { InfoCardIcon } from './info-card/InfoCardIcon';
+import { MobileProgressBar } from './MobileProgressBar';
 import { MobileFormProvider, useMobileFormContext } from '../context/MobileFormContext';
 
 type Phase = 'info-cards' | 'form' | 'summary';
@@ -296,6 +297,8 @@ export function FormRenderer({
   return (
     <MobileFormProvider form={form} control={control} setValue={setValue}>
       <View style={styles.container}>
+        {/* DFE-FBE-002: completion progress bar (gated on showProgressBar). */}
+        {form.showProgressBar ? <MobileProgressBar form={form} control={control} /> : null}
         {tabs.length > 1 && activeTab?.hideTabBar !== true && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
             {tabs.map((tab, index) => (

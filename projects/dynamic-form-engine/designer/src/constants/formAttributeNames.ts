@@ -14,6 +14,7 @@ export const FORM_DEFINITION_ATTRS = {
   DRAFT_EXPIRY_DAYS: 'qdb_draft_expiry_days',
   SHOW_SUMMARY_STEP: 'qdb_show_summary_step',
   SUMMARY_MODE: 'qdb_summary_mode',                 // DFE-FBE-001 — Picklist, see SUMMARY_MODE_TO_PICKLIST
+  SHOW_PROGRESS_BAR: 'qdb_show_progress_bar',        // DFE-FBE-002
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
@@ -173,6 +174,7 @@ export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
   'info-card':     100000020,
   'interactive-grid': 100000021,
   label:           100000022,
+  multiLookup:     100000023,
 };
 export const PICKLIST_TO_FIELD_TYPE: Record<number, string> = Object.fromEntries(
   Object.entries(FIELD_TYPE_TO_PICKLIST).map(([k, v]) => [v, k])

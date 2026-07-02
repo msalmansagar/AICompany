@@ -21,6 +21,7 @@ import { MultiSelectControl } from './controls/MultiSelectControl';
 import { CheckboxGroupControl } from './controls/CheckboxGroupControl';
 import { RadioCardControl } from './controls/RadioCardControl';
 import { LookupControl } from './controls/LookupControl';
+import { MultiLookupControl } from './controls/MultiLookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
 import { CurrencyControl } from './controls/CurrencyControl';
@@ -253,6 +254,8 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
         : <MultiSelectControl {...controlProps} />;
     case 'lookup':
       return <LookupControl {...controlProps} />;
+    case 'multiLookup':
+      return <MultiLookupControl {...controlProps} />;
     case 'checkbox':
       return <CheckboxControl {...controlProps} />;
     case 'radio':

@@ -355,6 +355,7 @@ export class FormSaveService {
         draftExpiryDays: form.draftExpiryDays,
         showSummaryStep: form.showSummaryStep,
         summaryMode: form.summaryMode,
+        showProgressBar: form.showProgressBar,
         powerAutomateFlowId: form.powerAutomateFlowId,
         confirmationMessage: form.confirmationMessage,
         confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,

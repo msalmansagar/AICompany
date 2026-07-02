@@ -236,6 +236,8 @@ interface BackendFormDefinition {
   // DFE-FBE-001
   showSummaryStep?: boolean;
   summaryMode?: SummaryMode;
+  // DFE-FBE-002
+  showProgressBar?: boolean;
   confirmationMessage: string;
   buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
@@ -411,6 +413,7 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     // DFE-FBE-001: summary mode (+ legacy boolean for derivation).
     ...(backend.showSummaryStep !== undefined ? { showSummaryStep: backend.showSummaryStep } : {}),
     ...(backend.summaryMode !== undefined ? { summaryMode: backend.summaryMode } : {}),
+    ...(backend.showProgressBar !== undefined ? { showProgressBar: backend.showProgressBar } : {}),
     confirmationMessage: backend.confirmationMessage,
     buttons: (backend.buttons ?? []).map(mapFormButton),
     tabs: backend.tabs.map(mapTabDefinition),

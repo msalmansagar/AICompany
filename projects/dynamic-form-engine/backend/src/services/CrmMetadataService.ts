@@ -154,6 +154,8 @@ export class CrmMetadataService extends CrmBaseService {
       showSummaryStep: raw.qdb_show_summary_step ?? false,
       // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
       ...(this.mapSummaryMode(raw.qdb_summary_mode) ? { summaryMode: this.mapSummaryMode(raw.qdb_summary_mode) } : {}),
+      // DFE-FBE-002: progress bar (emitted only when on).
+      ...(raw.qdb_show_progress_bar ? { showProgressBar: true } : {}),
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
@@ -784,6 +786,7 @@ export class CrmMetadataService extends CrmBaseService {
       100000020: 'info-card',
       100000021: 'interactive-grid',
       100000022: 'label',
+      100000023: 'multiLookup',
     };
     return map[code] ?? 'text';
   }
@@ -809,11 +812,12 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'cards' : 'list';
   }
 
-  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' {
+  // DFE: unset → undefined (omitted from the response); runtime defaults to 'info' visually.
+  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' | undefined {
     const map: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
       100000000: 'info', 100000001: 'warning', 100000002: 'success', 100000003: 'error',
     };
-    return map[code ?? 0] ?? 'info';
+    return code === undefined || code === null ? undefined : (map[code] ?? undefined);
   }
 
   private mapGridMode(code: number | undefined): 'selection' | 'entry' {
@@ -1000,6 +1004,8 @@ interface RawFormDefinition {
   qdb_show_summary_step?: boolean;
   // DFE-FBE-001 summary mode option-set
   qdb_summary_mode?: number;
+  // DFE-FBE-002 progress bar
+  qdb_show_progress_bar?: boolean;
   createdon: string;
   modifiedon: string;
 }

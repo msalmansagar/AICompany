@@ -45,6 +45,8 @@ export const FIELD_TYPE = {
   INTERACTIVE_GRID: 'interactive-grid',
   // DFE-FBE-001 — read-only display field (static text or data-bound mirror)
   LABEL: 'label',
+  // DFE-FBE-002 — multi-select lookup
+  MULTI_LOOKUP: 'multiLookup',
 } as const;
 
 export type FieldType = (typeof FIELD_TYPE)[keyof typeof FIELD_TYPE];
@@ -84,6 +86,7 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.DROPDOWN]: { type: FIELD_TYPE.DROPDOWN, category: 'basic', label: 'Dropdown', iconName: 'ChevronDownCircle', hasOptions: true, hasLookup: false, isLayout: false },
   [FIELD_TYPE.MULTI_SELECT]: { type: FIELD_TYPE.MULTI_SELECT, category: 'basic', label: 'Multi-select', iconName: 'MultiSelect', hasOptions: true, hasLookup: false, isLayout: false },
   [FIELD_TYPE.LOOKUP]: { type: FIELD_TYPE.LOOKUP, category: 'basic', label: 'Lookup', iconName: 'Search', hasOptions: false, hasLookup: true, isLayout: false },
+  [FIELD_TYPE.MULTI_LOOKUP]: { type: FIELD_TYPE.MULTI_LOOKUP, category: 'basic', label: 'Multi-select Lookup', iconName: 'Search', hasOptions: false, hasLookup: true, isLayout: false },
   [FIELD_TYPE.CHECKBOX]: { type: FIELD_TYPE.CHECKBOX, category: 'basic', label: 'Checkbox', iconName: 'CheckboxComposite', hasOptions: false, hasLookup: false, isLayout: false },
   [FIELD_TYPE.RADIO]: { type: FIELD_TYPE.RADIO, category: 'basic', label: 'Radio Group', iconName: 'RadioBullet', hasOptions: true, hasLookup: false, isLayout: false },
   [FIELD_TYPE.FILE_UPLOAD]: { type: FIELD_TYPE.FILE_UPLOAD, category: 'basic', label: 'File Upload', iconName: 'Upload', hasOptions: false, hasLookup: false, isLayout: false },

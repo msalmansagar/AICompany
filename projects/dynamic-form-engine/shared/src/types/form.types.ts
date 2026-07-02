@@ -30,7 +30,9 @@ export type FieldType =
   | 'info-card'
   | 'interactive-grid'
   // DFE-FBE-001: read-only display field (static text or data-bound mirror of another field)
-  | 'label';
+  | 'label'
+  // DFE-FBE-002: multi-select lookup (choose multiple related records; reuses lookupConfig)
+  | 'multiLookup';
 
 // DFE-FBE-001: form-level summary behaviour.
 // None = no summary step; SystemGenerated = engine auto-builds the review step;
@@ -593,6 +595,8 @@ export interface FormDefinition {
   // DFE-FBE-001: None | SystemGenerated | Manual. When undefined, generators derive it from
   // the legacy showSummaryStep flag (true → SystemGenerated, else None) — see ADR-FBE-003.
   summaryMode?: SummaryMode;
+  // DFE-FBE-002: show a form-completion progress bar above the tab strip (default off).
+  showProgressBar?: boolean;
   submissionMappings: SubmissionMapping[];
   buttons: FormButton[];
   tabs: TabDefinition[];
