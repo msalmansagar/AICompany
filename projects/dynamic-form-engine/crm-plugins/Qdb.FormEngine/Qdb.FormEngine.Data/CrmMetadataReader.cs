@@ -15,14 +15,17 @@ namespace Qdb.FormEngine.Data
     public sealed class CrmMetadataReader : IMetadataReader
     {
         private readonly IOrganizationService _service;
+        private readonly ITracingService _tracing;
 
         /// <summary>
         /// Initialises a new instance of <see cref="CrmMetadataReader"/>.
         /// </summary>
         /// <param name="service">The CRM organisation service used for all queries.</param>
-        public CrmMetadataReader(IOrganizationService service)
+        /// <param name="tracing">Optional tracing service; degraded optional-schema reads are logged to it.</param>
+        public CrmMetadataReader(IOrganizationService service, ITracingService tracing = null)
         {
             _service = service ?? throw new ArgumentNullException("service");
+            _tracing = tracing;
         }
 
         /// <summary>
@@ -269,8 +272,9 @@ namespace Qdb.FormEngine.Data
                 query.AddOrder("qdb_display_order", OrderType.Ascending);
                 return RetrieveAll(query);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return new List<Entity>();
             }
         }
@@ -307,8 +311,9 @@ namespace Qdb.FormEngine.Data
                 var results = _service.RetrieveMultiple(query);
                 return results.Entities.Count > 0 ? results.Entities[0] : null;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return null;
             }
         }
@@ -319,8 +324,9 @@ namespace Qdb.FormEngine.Data
             {
                 return _service.Retrieve("qdb_theme", themeId, new ColumnSet(true));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return null;
             }
         }
@@ -339,8 +345,9 @@ namespace Qdb.FormEngine.Data
                 query.Criteria.AddCondition("qdb_form_section_id", ConditionOperator.In, sectionIds.Cast<object>().ToArray());
                 return RetrieveAll(query);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return new List<Entity>();
             }
         }
@@ -359,8 +366,9 @@ namespace Qdb.FormEngine.Data
                 query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
                 return RetrieveAll(query);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return new List<Entity>();
             }
         }
@@ -378,8 +386,9 @@ namespace Qdb.FormEngine.Data
                 query.Criteria.AddCondition("qdb_form_definition_id", ConditionOperator.Equal, formId);
                 return RetrieveAll(query);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return new List<Entity>();
             }
         }
@@ -396,8 +405,9 @@ namespace Qdb.FormEngine.Data
                 query.Criteria.AddCondition("qdb_form_design_id", ConditionOperator.Equal, formDesignId);
                 return RetrieveAll(query);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _tracing?.Trace("CrmMetadataReader: optional-schema read degraded (schema not deployed?): {0}", ex.Message);
                 return new List<Entity>();
             }
         }

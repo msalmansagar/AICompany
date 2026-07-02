@@ -65,7 +65,7 @@ namespace Qdb.FormEngine.Plugins
         {
             var service = context.OrganizationService;
             return new PublishOrchestrator(
-                new CrmMetadataReader(service),
+                new CrmMetadataReader(service, context.TracingService),
                 new PublishJobRepository(service),
                 new RenderCacheRepository(service),
                 new Core.Generation.FormJsonGenerator(new TranslationResolver(), context.TracingService),

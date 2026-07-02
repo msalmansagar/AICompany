@@ -12,7 +12,7 @@ import {
   DragOverlay,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { makeStyles, tokens, Spinner, Text } from '@fluentui/react-components';
+import { makeStyles, tokens, Spinner, Text, MessageBar, MessageBarBody, MessageBarActions, Button } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { ComponentToolbox } from '@/designer/toolbox/ComponentToolbox';
 import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
@@ -68,6 +68,7 @@ export function DesignerScreen(): React.ReactElement {
   const styles = useStyles();
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const {
     form,
@@ -110,6 +111,7 @@ export function DesignerScreen(): React.ReactElement {
     const validation = validateForDraftSave(form);
     if (!validation.isValid) return;
 
+    setSaveError(null);
     markSaving();
 
     try {
@@ -141,6 +143,8 @@ export function DesignerScreen(): React.ReactElement {
         // doesn't re-create them, eliminating duplicate records in Dataverse.
         markResolved(error.resolvedIds);
       }
+      // Surface the failure — a silently-swallowed save leaves the user believing it succeeded.
+      setSaveError(error instanceof Error ? error.message : 'Save failed. Please try again.');
       useDesignerStore.setState({ isSaving: false });
     }
   }, [
@@ -382,6 +386,14 @@ export function DesignerScreen(): React.ReactElement {
           onThemeEditor={handleThemeEditor}
           onBack={() => useDesignerStore.getState().navigateTo('form-list')}
         />
+        {saveError && (
+          <MessageBar intent="error">
+            <MessageBarBody>Save failed: {saveError}</MessageBarBody>
+            <MessageBarActions>
+              <Button size="small" appearance="transparent" onClick={() => setSaveError(null)}>Dismiss</Button>
+            </MessageBarActions>
+          </MessageBar>
+        )}
         <div className={styles.workArea}>
           <div className={styles.toolbox}>
             <ComponentToolbox />

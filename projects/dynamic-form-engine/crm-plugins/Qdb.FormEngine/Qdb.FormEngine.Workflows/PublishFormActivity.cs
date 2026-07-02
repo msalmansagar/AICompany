@@ -114,7 +114,7 @@ namespace Qdb.FormEngine.Workflows
         private static PublishOrchestrator BuildOrchestrator(IOrganizationService service, ITracingService tracingService)
         {
             return new PublishOrchestrator(
-                new CrmMetadataReader(service),
+                new CrmMetadataReader(service, tracingService),
                 new PublishJobRepository(service),
                 new RenderCacheRepository(service),
                 new FormJsonGenerator(new TranslationResolver(), tracingService),
