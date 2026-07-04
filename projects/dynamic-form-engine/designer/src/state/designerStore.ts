@@ -7,8 +7,10 @@ import type {
   DesignerFieldModel,
 } from './models/DesignerFormModel';
 import type { DesignerValidationRule, DesignerBusinessRule } from './models/DesignerRuleModel';
-import type { DesignerStyleModel } from './models/DesignerStyleModel';
-import { DEFAULT_STYLE } from './models/DesignerStyleModel';
+import type {
+  DesignPayload, ThemeDefinition, FormDesign, SectionDesign,
+  FieldDesign, ButtonDesign, ButtonType, LayoutGrid,
+} from '@qdb/shared';
 
 export type DesignerScreen =
   | 'form-list'
@@ -42,6 +44,46 @@ interface DesignerStateSnapshot {
   fieldOrder: Record<string, string[]>;
 }
 
+export const DEFAULT_DESIGN_PAYLOAD: DesignPayload = {
+  theme: {
+    id: '',
+    themeCode: 'DEFAULT',
+    themeName: 'Default',
+    primaryColor: '#0078d4',
+    isDarkMode: false,
+    isActive: true,
+    _brand: 'ThemeDefinition',
+  },
+  formDesign: {
+    id: '',
+    layoutType: 'SingleColumn',
+    labelPosition: 'Top',
+    sectionStyle: 'Card',
+    tabStyle: 'Tabs',
+    buttonStyle: 'Primary',
+    animationEnabled: false,
+    alignment: 'Left',
+    stickyActionBar: false,
+    skeletonLoaderEnabled: false,
+    isActive: true,
+  },
+  sectionDesigns: {},
+  fieldDesigns: {},
+  buttonDesigns: { Submit: undefined, SaveDraft: undefined, Cancel: undefined },
+  layoutGrid: [],
+};
+
+/** Parameter object for loadForm — keeps the action within the 3-parameter limit. */
+export interface LoadFormParams {
+  form: DesignerFormModel;
+  tabs: DesignerTabModel[];
+  sections: DesignerSectionModel[];
+  fields: DesignerFieldModel[];
+  validationRules: DesignerValidationRule[];
+  businessRules: DesignerBusinessRule[];
+  designPayload: DesignPayload;
+}
+
 export interface DesignerState {
   // Navigation
   currentScreen: DesignerScreen;
@@ -53,7 +95,7 @@ export interface DesignerState {
   fields: Record<string, DesignerFieldModel>;
   validationRules: Record<string, DesignerValidationRule>;
   businessRules: Record<string, DesignerBusinessRule>;
-  style: DesignerStyleModel;
+  designPayload: DesignPayload;
 
   // Ordering
   tabOrder: string[];
@@ -84,15 +126,7 @@ export interface DesignerState {
 
   // Actions
   navigateTo: (screen: DesignerScreen) => void;
-  loadForm: (
-    form: DesignerFormModel,
-    tabs: DesignerTabModel[],
-    sections: DesignerSectionModel[],
-    fields: DesignerFieldModel[],
-    validationRules: DesignerValidationRule[],
-    businessRules: DesignerBusinessRule[],
-    style: DesignerStyleModel
-  ) => void;
+  loadForm: (params: LoadFormParams) => void;
   resetDesigner: () => void;
   selectItem: (id: string, type: CanvasItemType) => void;
   clearSelection: () => void;
@@ -119,8 +153,13 @@ export interface DesignerState {
   reorderFields: (sectionId: string, newOrder: string[]) => void;
   moveField: (fieldId: string, targetSectionId: string, targetIndex: number) => void;
 
-  // Style mutations
-  updateStyle: (patch: Partial<DesignerStyleModel>) => void;
+  // Design payload mutations (replaces legacy updateStyle)
+  updateTheme: (update: Partial<ThemeDefinition>) => void;
+  updateFormDesign: (update: Partial<FormDesign>) => void;
+  updateSectionDesign: (sectionId: string, update: Partial<SectionDesign>) => void;
+  updateFieldDesign: (fieldId: string, update: Partial<FieldDesign>) => void;
+  updateButtonDesign: (buttonType: ButtonType, update: Partial<ButtonDesign>) => void;
+  updateLayoutGrid: (fieldId: string, update: Partial<LayoutGrid>) => void;
 
   // Undo/redo
   undo: () => void;
@@ -144,7 +183,8 @@ export interface DesignerState {
 
 const MAX_UNDO_STACK_SIZE = 50;
 
-function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
+// Pass 1: rename temp keys to server-assigned ids in the record maps and their order maps.
+function renameRecordKeys(state: DesignerState, resolvedIds: Record<string, string>): void {
   for (const [tempId, realId] of Object.entries(resolvedIds)) {
     if (state.tabs[tempId]) {
       state.tabs[realId] = { ...state.tabs[tempId], id: realId };
@@ -168,6 +208,10 @@ function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, stri
       delete state.fields[tempId];
     }
   }
+}
+
+// Pass 2: repoint cross-references (order arrays + parent ids) from temp ids to real ids.
+function updateCrossReferences(state: DesignerState, resolvedIds: Record<string, string>): void {
   for (const [tempId, realId] of Object.entries(resolvedIds)) {
     for (const tabId of Object.keys(state.sectionOrder)) {
       state.sectionOrder[tabId] = state.sectionOrder[tabId].map(id => (id === tempId ? realId : id));
@@ -182,6 +226,11 @@ function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, stri
       if (field.sectionId === tempId) field.sectionId = realId;
     }
   }
+}
+
+function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
+  renameRecordKeys(state, resolvedIds);
+  updateCrossReferences(state, resolvedIds);
 }
 
 function captureSnapshot(state: DesignerState): DesignerStateSnapshot {
@@ -235,7 +284,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   fields: {},
   validationRules: {},
   businessRules: {},
-  style: DEFAULT_STYLE,
+  designPayload: DEFAULT_DESIGN_PAYLOAD,
   tabOrder: [],
   sectionOrder: {},
   fieldOrder: {},
@@ -256,7 +305,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
   navigateTo: (screen) => set({ currentScreen: screen }),
 
-  loadForm: (form, tabs, sections, fields, validationRules, businessRules, style) => {
+  loadForm: ({ form, tabs, sections, fields, validationRules, businessRules, designPayload }) => {
     const tabMap = Object.fromEntries(tabs.map(t => [t.id, t]));
     const sectionMap = Object.fromEntries(sections.map(s => [s.id, s]));
     const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]));
@@ -271,7 +320,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       fields: fieldMap,
       validationRules: validationRuleMap,
       businessRules: businessRuleMap,
-      style,
+      designPayload,
       ...ordering,
       dirtyIds: [],
       newIds: [],
@@ -294,7 +343,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       fields: {},
       validationRules: {},
       businessRules: {},
-      style: DEFAULT_STYLE,
+      designPayload: DEFAULT_DESIGN_PAYLOAD,
       tabOrder: [],
       sectionOrder: {},
       fieldOrder: {},
@@ -593,10 +642,82 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       })
     ),
 
-  updateStyle: (patch) =>
+  // ─── Design payload mutations ─────────────────────────────────────────────
+
+  updateTheme: (update) =>
     set(
       produce((state: DesignerState) => {
-        Object.assign(state.style, patch);
+        Object.assign(state.designPayload.theme, update);
+        state.isDirty = true;
+      })
+    ),
+
+  updateFormDesign: (update) =>
+    set(
+      produce((state: DesignerState) => {
+        Object.assign(state.designPayload.formDesign, update);
+        state.isDirty = true;
+      })
+    ),
+
+  updateSectionDesign: (sectionId, update) =>
+    set(
+      produce((state: DesignerState) => {
+        if (!state.designPayload.sectionDesigns[sectionId]) {
+          state.designPayload.sectionDesigns[sectionId] = {
+            id: '', sectionId, columnLayout: 1, cardStyle: 'Flat',
+            collapsibleStyle: 'None', visibilityAnimation: 'None', isActive: true,
+          };
+        }
+        Object.assign(state.designPayload.sectionDesigns[sectionId], update);
+        state.isDirty = true;
+      })
+    ),
+
+  updateFieldDesign: (fieldId, update) =>
+    set(
+      produce((state: DesignerState) => {
+        if (!state.designPayload.fieldDesigns[fieldId]) {
+          state.designPayload.fieldDesigns[fieldId] = {
+            id: '', fieldId, inputStyle: 'Outlined', width: 'Full', isActive: true,
+          };
+        }
+        Object.assign(state.designPayload.fieldDesigns[fieldId], update);
+        state.isDirty = true;
+      })
+    ),
+
+  updateButtonDesign: (buttonType, update) =>
+    set(
+      produce((state: DesignerState) => {
+        const existing = state.designPayload.buttonDesigns[buttonType];
+        if (existing) {
+          Object.assign(existing, update);
+        } else {
+          state.designPayload.buttonDesigns[buttonType] = {
+            id: '', formDefinitionId: state.form?.id ?? '',
+            buttonType, size: 'Medium', alignment: 'Right',
+            hoverEffect: 'None', loadingStyle: 'Spinner', isActive: true,
+            ...update,
+          } as ButtonDesign;
+        }
+        state.isDirty = true;
+      })
+    ),
+
+  updateLayoutGrid: (fieldId, update) =>
+    set(
+      produce((state: DesignerState) => {
+        const existing = state.designPayload.layoutGrid.find(g => g.fieldId === fieldId);
+        if (existing) {
+          Object.assign(existing, update);
+        } else {
+          state.designPayload.layoutGrid.push({
+            id: '', formDesignId: state.designPayload.formDesign.id,
+            fieldId, columnsTotal: 12, spanMobile: 12, spanTablet: 6, spanDesktop: 4,
+            ...update,
+          } as LayoutGrid);
+        }
         state.isDirty = true;
       })
     ),
@@ -661,7 +782,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       produce((state: DesignerState) => {
         if (resolvedIds) applyResolvedIds(state, resolvedIds);
         if (resolvedThemeId !== undefined && resolvedThemeId !== null) {
-          state.style.themeId = resolvedThemeId;
+          state.designPayload.theme.id = resolvedThemeId;
         }
         state.isSaving = false;
         state.isDirty = false;

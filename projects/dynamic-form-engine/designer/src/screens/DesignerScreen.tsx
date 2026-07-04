@@ -12,7 +12,7 @@ import {
   DragOverlay,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { makeStyles, tokens, Spinner, Text } from '@fluentui/react-components';
+import { makeStyles, tokens, Spinner, Text, MessageBar, MessageBarBody, MessageBarActions, Button } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { ComponentToolbox } from '@/designer/toolbox/ComponentToolbox';
 import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
@@ -23,6 +23,7 @@ import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { validateForDraftSave } from '@/validation/draftValidation';
 import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
 import { FIELD_TYPE, FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
+import { calculateContrastRatio } from '@qdb/shared';
 
 const useStyles = makeStyles({
   root: {
@@ -67,6 +68,7 @@ export function DesignerScreen(): React.ReactElement {
   const styles = useStyles();
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const {
     form,
@@ -75,7 +77,7 @@ export function DesignerScreen(): React.ReactElement {
     fields,
     businessRules,
     validationRules,
-    style,
+    designPayload,
     tabOrder,
     sectionOrder,
     fieldOrder,
@@ -109,6 +111,7 @@ export function DesignerScreen(): React.ReactElement {
     const validation = validateForDraftSave(form);
     if (!validation.isValid) return;
 
+    setSaveError(null);
     markSaving();
 
     try {
@@ -123,7 +126,7 @@ export function DesignerScreen(): React.ReactElement {
         fields,
         validationRules,
         businessRules,
-        style,
+        designPayload,
         tabOrder,
         sectionOrder,
         fieldOrder,
@@ -140,12 +143,13 @@ export function DesignerScreen(): React.ReactElement {
         // doesn't re-create them, eliminating duplicate records in Dataverse.
         markResolved(error.resolvedIds);
       }
-      console.error('Save draft failed:', error instanceof PartialSaveError ? error.message : error);
+      // Surface the failure — a silently-swallowed save leaves the user believing it succeeded.
+      setSaveError(error instanceof Error ? error.message : 'Save failed. Please try again.');
       useDesignerStore.setState({ isSaving: false });
     }
   }, [
     form, crmService, isSaving,
-    tabs, sections, fields, validationRules, businessRules, style,
+    tabs, sections, fields, validationRules, businessRules, designPayload,
     tabOrder, sectionOrder, fieldOrder,
     newIds, dirtyIds, deletedIds, deletedEntityTypes,
     markSaving, markSaved, markResolved,
@@ -320,8 +324,32 @@ export function DesignerScreen(): React.ReactElement {
 
   const handleDragOver = useCallback((_event: DragOverEvent) => {}, []);
 
-  const handlePublish = useCallback(() => navigateTo('publish-validation'), [navigateTo]);
+  const handlePublish = useCallback(async () => {
+    // SC-08: evaluate blocking WCAG pairs in-memory before navigating to publish.
+    const theme = designPayload.theme;
+    const primaryColor = theme.primaryColor;
+    const bgColor = theme.backgroundColor ?? '#ffffff';
+    const contrastResult = calculateContrastRatio(primaryColor, bgColor);
+    if (!contrastResult.passesMinimumGate) {
+      // Redirect to theme editor — WcagContrastIndicator shows the failing ratio live.
+      navigateTo('theme-editor');
+      return;
+    }
+    // SC-08: auto-save unsaved changes before entering publish flow.
+    if (isDirty) {
+      await handleSaveDraft();
+    }
+    navigateTo('publish-validation');
+  }, [designPayload, isDirty, handleSaveDraft, navigateTo]);
   const handlePreview = useCallback(() => navigateTo('preview'), [navigateTo]);
+  const handleOpenForm = useCallback(() => {
+    if (!form || !crmService) return;
+    crmService.openFormRuntime(form.id, form.code);
+  }, [form, crmService]);
+  const selectFormItem = useDesignerStore(state => state.selectItem);
+  const handleFormProperties = useCallback(() => {
+    if (form) selectFormItem(form.id, 'form');
+  }, [form, selectFormItem]);
   const handleVersionHistory = useCallback(() => navigateTo('version-history'), [navigateTo]);
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
@@ -353,14 +381,24 @@ export function DesignerScreen(): React.ReactElement {
           isDirty={isDirty}
           isSaving={isSaving}
           onSaveDraft={() => void handleSaveDraft()}
-          onPublish={handlePublish}
+          onPublish={() => void handlePublish()}
           onPreview={handlePreview}
+          onOpenForm={handleOpenForm}
+          onFormProperties={handleFormProperties}
           onVersionHistory={handleVersionHistory}
           onBusinessRules={handleBusinessRules}
           onSubmissionMapping={handleSubmissionMapping}
           onThemeEditor={handleThemeEditor}
           onBack={() => useDesignerStore.getState().navigateTo('form-list')}
         />
+        {saveError && (
+          <MessageBar intent="error">
+            <MessageBarBody>Save failed: {saveError}</MessageBarBody>
+            <MessageBarActions>
+              <Button size="small" appearance="transparent" onClick={() => setSaveError(null)}>Dismiss</Button>
+            </MessageBarActions>
+          </MessageBar>
+        )}
         <div className={styles.workArea}>
           <div className={styles.toolbox}>
             <ComponentToolbox />

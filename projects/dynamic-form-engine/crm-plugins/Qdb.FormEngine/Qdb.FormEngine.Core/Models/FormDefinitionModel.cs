@@ -26,10 +26,18 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("infocardStartLabel")] public string InfocardStartLabel { get; set; }
         [JsonProperty("infocardSkipLabel")] public string InfocardSkipLabel { get; set; }
         [JsonProperty("showSummaryStep")] public bool ShowSummaryStep { get; set; }
+        // DFE-FBE-001: None/SystemGenerated/Manual. Omitted when unset (legacy forms derive from
+        // showSummaryStep at runtime) so unaffected forms stay byte-identical.
+        [JsonProperty("summaryMode", NullValueHandling = NullValueHandling.Ignore)] public string SummaryMode { get; set; }
+        // DFE-FBE-002: form-completion progress bar. Omitted unless true → unaffected forms byte-identical.
+        [JsonProperty("showProgressBar", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowProgressBar { get; set; }
         [JsonProperty("infoCards")] public List<InfoCardScreen> InfoCards { get; set; }
         [JsonProperty("submissionMappings")] public List<SubmissionMapping> SubmissionMappings { get; set; }
         [JsonProperty("buttons")] public List<FormButton> Buttons { get; set; }
         [JsonProperty("tabs")] public List<TabDefinition> Tabs { get; set; }
+        // DFE-STYLE-001: design/styling payload. Omitted when the form has no design so
+        // design-less forms keep a byte-identical render-cache JSON.
+        [JsonProperty("design", NullValueHandling = NullValueHandling.Ignore)] public DesignPayload Design { get; set; }
         [JsonProperty("createdAt")] public DateTime? CreatedAt { get; set; }
         [JsonProperty("modifiedAt")] public DateTime? ModifiedAt { get; set; }
     }
@@ -41,11 +49,16 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("formDefinitionId")] public Guid FormDefinitionId { get; set; }
         [JsonProperty("label")] public string Label { get; set; }
         [JsonProperty("iconName")] public string IconName { get; set; }
+        // DFE-FBE-001: tab description (omitted when null) + manual-summary flag (omitted unless true).
+        [JsonProperty("description", NullValueHandling = NullValueHandling.Ignore)] public string Description { get; set; }
+        [JsonProperty("isSummaryTab", NullValueHandling = NullValueHandling.Ignore)] public bool? IsSummaryTab { get; set; }
         [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("requiresPreviousTabComplete")] public bool RequiresPreviousTabComplete { get; set; }
         [JsonProperty("hideTabBar")] public bool HideTabBar { get; set; }
         [JsonProperty("sections")] public List<SectionDefinition> Sections { get; set; }
+        // DFE-BTN-001: tab-scoped buttons. Omitted when empty so button-less forms are byte-identical.
+        [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
     }
 
     /// <summary>A section within a tab that groups fields.</summary>
@@ -55,12 +68,16 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("tabId")] public Guid TabId { get; set; }
         [JsonProperty("label")] public string Label { get; set; }
         [JsonProperty("description")] public string Description { get; set; }
+        // DFE-FBE-001: section header icon (omitted when null → unaffected forms byte-identical).
+        [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
         [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
         [JsonProperty("columns")] public int Columns { get; set; }
         [JsonProperty("isCollapsible")] public bool IsCollapsible { get; set; }
         [JsonProperty("isCollapsedByDefault")] public bool IsCollapsedByDefault { get; set; }
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("fields")] public List<FieldDefinition> Fields { get; set; }
+        // DFE-BTN-001: section-scoped buttons. Omitted when empty so button-less forms are byte-identical.
+        [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
     }
 
     /// <summary>A single form field with all display, validation and layout properties.</summary>
@@ -89,6 +106,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("decimalPlaces")] public int? DecimalPlaces { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }
+        // DFE-FBE-001: Label field — static content + optional data-bound source field.
+        [JsonProperty("staticContent", NullValueHandling = NullValueHandling.Ignore)] public string StaticContent { get; set; }
+        [JsonProperty("sourceFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string SourceFieldSchemaName { get; set; }
         [JsonProperty("trueLabel")] public string TrueLabel { get; set; }
         [JsonProperty("falseLabel")] public string FalseLabel { get; set; }
         [JsonProperty("boolRenderStyle")] public string BoolRenderStyle { get; set; }
@@ -96,7 +116,7 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("radioRenderStyle")] public string RadioRenderStyle { get; set; }
         [JsonProperty("optionSourceEntity")] public string OptionSourceEntity { get; set; }
         [JsonProperty("optionSourceAttribute")] public string OptionSourceAttribute { get; set; }
-        [JsonProperty("infoCardStyle")] public string InfoCardStyle { get; set; }
+        [JsonProperty("infoCardStyle", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardStyle { get; set; }
         [JsonProperty("infoCardTitle")] public string InfoCardTitle { get; set; }
         [JsonProperty("infoCardBody")] public string InfoCardBody { get; set; }
         [JsonProperty("infoCardIcon")] public string InfoCardIcon { get; set; }
@@ -226,6 +246,26 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isPrimary")] public bool IsPrimary { get; set; }
         [JsonProperty("confirmationRequired")] public bool ConfirmationRequired { get; set; }
         [JsonProperty("confirmationMessage")] public string ConfirmationMessage { get; set; }
+        [JsonProperty("isActive")] public bool IsActive { get; set; }
+    }
+
+    /// <summary>
+    /// DFE-BTN-001: a button scoped to a tab or section, with a discriminated-union action.
+    /// The Action is emitted as the parsed action-config object (JObject) so the serialized
+    /// shape matches the shared ScopedButtonAction contract consumed by all runtimes.
+    /// </summary>
+    public sealed class ScopedButton
+    {
+        [JsonProperty("id")] public Guid Id { get; set; }
+        [JsonProperty("placementScope")] public string PlacementScope { get; set; }
+        [JsonProperty("placementId")] public Guid PlacementId { get; set; }
+        [JsonProperty("label")] public string Label { get; set; }
+        [JsonProperty("displayOrder")] public int DisplayOrder { get; set; }
+        [JsonProperty("isPrimary")] public bool IsPrimary { get; set; }
+        [JsonProperty("isVisible")] public bool IsVisible { get; set; }
+        [JsonProperty("confirmationRequired")] public bool ConfirmationRequired { get; set; }
+        [JsonProperty("confirmationMessage", NullValueHandling = NullValueHandling.Ignore)] public string ConfirmationMessage { get; set; }
+        [JsonProperty("action")] public object Action { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
     }
 

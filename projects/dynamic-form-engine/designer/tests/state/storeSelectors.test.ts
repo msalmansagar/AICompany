@@ -5,28 +5,9 @@ import {
   selectSectionFields,
   selectCanUndo,
   selectCanRedo,
+  DEFAULT_DESIGN_PAYLOAD,
 } from '@/state/designerStore';
 import type { DesignerFormModel, DesignerTabModel, DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
-import type { DesignerStyleModel } from '@/state/models/DesignerStyleModel';
-
-// ---------------------------------------------------------------------------
-// Minimal stubs
-// ---------------------------------------------------------------------------
-
-const STUB_STYLE: DesignerStyleModel = {
-  themeId: null,
-  themeName: 'Default',
-  primaryColor: '#0078d4',
-  accentColor: '#005a9e',
-  backgroundColor: '#ffffff',
-  fontFamily: 'Segoe UI',
-  fontSizeBase: 14,
-  borderRadius: 4,
-  fieldSpacing: 16,
-  labelPosition: 'above',
-  buttonStyle: 'filled',
-  customCss: '',
-};
 
 const STUB_FORM: DesignerFormModel = {
   id: 'form-sel',
@@ -67,15 +48,15 @@ const FIELD_B1_1: DesignerFieldModel = { id: 'fld-b1-1', sectionId: 'sec-b1', la
 describe('designer store selectors', () => {
   beforeEach(() => {
     useDesignerStore.getState().resetDesigner();
-    useDesignerStore.getState().loadForm(
-      STUB_FORM,
-      [TAB_A, TAB_B],
-      [SECTION_A1, SECTION_A2, SECTION_B1],
-      [FIELD_A1_1, FIELD_A1_2, FIELD_B1_1],
-      [],
-      [],
-      STUB_STYLE
-    );
+    useDesignerStore.getState().loadForm({
+      form: STUB_FORM,
+      tabs: [TAB_A, TAB_B],
+      sections: [SECTION_A1, SECTION_A2, SECTION_B1],
+      fields: [FIELD_A1_1, FIELD_A1_2, FIELD_B1_1],
+      validationRules: [],
+      businessRules: [],
+      designPayload: DEFAULT_DESIGN_PAYLOAD,
+    });
   });
 
   // -------------------------------------------------------------------------

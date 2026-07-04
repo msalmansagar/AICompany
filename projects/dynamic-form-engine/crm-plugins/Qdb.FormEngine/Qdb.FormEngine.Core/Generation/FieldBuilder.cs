@@ -89,6 +89,9 @@ namespace Qdb.FormEngine.Core.Generation
                 FileDownloadIcon = field.GetAttributeValue<string>("qdb_file_download_icon"),
                 UploadDocumentSetting = field.GetAttributeValue<string>("qdb_upload_document_setting"),
                 DownloadDocumentSetting = field.GetAttributeValue<string>("qdb_download_document_setting"),
+                // DFE-FBE-001: Label field — translatable static content + optional source binding.
+                StaticContent = Resolve(fieldId, "qdb_form_field", "qdb_static_content", field.GetAttributeValue<string>("qdb_static_content")),
+                SourceFieldSchemaName = field.GetAttributeValue<string>("qdb_source_field_schema_name"),
                 Options = BuildOptions(fieldId),
                 LookupConfig = BuildLookupConfig(fieldId),
                 FileUploadConfig = BuildFileUploadConfig(field, fieldTypeStr),

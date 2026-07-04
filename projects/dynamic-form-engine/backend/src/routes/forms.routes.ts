@@ -10,7 +10,13 @@ import type { AccessPolicyService, AccessType } from '../services/AccessPolicySe
 import type { CrmInfoCardService } from '../services/CrmInfoCardService.js';
 import type { CrmLanguageConfigService } from '../services/CrmLanguageConfigService.js';
 import { assertFormAccess } from '../middleware/role.middleware.js';
-import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload } from '@qdb/shared';
+import {
+  ExtraParamsAssemblyService,
+  findFinalSubmitButton,
+  extraParamsOf,
+  type SubmissionRuntimeContext,
+} from '../services/ExtraParamsAssemblyService.js';
+import type { ApiResponse, FormDefinition, FormSummary, DraftSubmission, DesignPayload, ResolvedExtraParams } from '@qdb/shared';
 import { ForbiddenError, UnsupportedLanguageError, CacheMissError, FormNotPublishedError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
@@ -41,7 +47,35 @@ const infoCardViewedSchema = z.object({
 
 const submitSchema = z.object({
   formData: z.record(z.unknown()),
+  // DFE-BTN-001: identifies which FinalSubmit ScopedButton fired, so the backend can
+  // resolve its extra-params spec from the published definition (ADR-BTN-005). Absent
+  // for legacy form-level submit → no extra params (backward compatible).
+  submitButtonId: z.string().max(100).optional(),
 });
+
+// DFE-BTN-001: assembles the server-authoritative runtime context for extra-params
+// resolution (C-004). Security-sensitive keys are sourced here, never from the client.
+interface RuntimeContextInput {
+  form: FormDefinition;
+  user: { oid: string; name?: string; preferred_username?: string };
+  formCode: string;
+  correlationId: string | undefined;
+}
+
+function buildSubmissionRuntimeContext(input: RuntimeContextInput): SubmissionRuntimeContext {
+  const { form, user, formCode, correlationId } = input;
+  return {
+    userId: user.oid,
+    userDisplayName: user.name ?? user.preferred_username ?? user.oid,
+    formId: form.id,
+    formCode,
+    formVersion: String(form.version),
+    submittedAt: new Date().toISOString(),
+    sessionId: correlationId ?? '',
+    tenantSegment: '',
+    locale: 'en',
+  };
+}
 
 export function createFormsRouter(
   metadataService: CrmMetadataService,
@@ -56,6 +90,7 @@ export function createFormsRouter(
   renderCacheEnabled: boolean = false,
 ): Router {
   const router = Router();
+  const extraParamsAssembly = new ExtraParamsAssemblyService();
 
   // GET /api/forms[?search=query&status=active|draft|inactive|archived]
   router.get('/', async (req: Request, res: Response) => {
@@ -162,6 +197,29 @@ export function createFormsRouter(
     const form = await metadataService.getFormDefinition(formCode);
     assertFormAccess(form, user);
     await assertPolicyAccess(policyService, form.id, user.roles ?? [], 'submit');
+
+    // DFE-BTN-001: resolve a FinalSubmit button's extra-params from the PUBLISHED
+    // definition (ADR-BTN-005). Resolved BEFORE the write so an invalid/oversized
+    // envelope fails fast (400/413). Persisting the envelope to qdb_form_audit_log
+    // is the G-2-gated follow-up (pending OQ-008 on-prem memo measurement).
+    let resolvedExtraParams: ResolvedExtraParams | undefined;
+    if (body.submitButtonId) {
+      const button = findFinalSubmitButton(form, body.submitButtonId);
+      if (button) {
+        const context = buildSubmissionRuntimeContext({ form, user, formCode, correlationId: req.correlationId });
+        resolvedExtraParams = extraParamsAssembly.resolve(extraParamsOf(button), body.formData, context);
+        logger.info(
+          { formCode, buttonId: button.id, paramKeys: Object.keys(resolvedExtraParams) },
+          'Resolved FinalSubmit extra-params',
+        );
+      } else {
+        logger.warn(
+          { formCode, submitButtonId: body.submitButtonId },
+          'submitButtonId did not match a FinalSubmit button — ignoring extra-params',
+        );
+      }
+    }
+
     const result = await submissionService.submitForm(
       form,
       body.formData,

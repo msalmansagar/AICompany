@@ -1,9 +1,18 @@
-﻿import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
+﻿import { z } from 'zod';
+import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { CrmApiError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
+
+const LOOKUP_ID_SCHEMA = z.string().uuid();
+
+/** True when the array holds lookup refs ({ id, displayName }) — multi-select lookup value. */
+function isLookupRefArray(value: unknown[]): value is Array<{ id: string }> {
+  const first = value[0];
+  return typeof first === 'object' && first !== null && 'id' in first;
+}
 
 interface UploadAttributeConfig {
   attributeName: string;
@@ -190,6 +199,9 @@ export class CrmSubmissionService extends CrmBaseService {
       if (value === undefined || value === null) continue;
 
       const normalized = this.normalizeFieldValue(value);
+      // An empty selection (cleared multi-lookup / multiselect) maps to nothing on create —
+      // never write a raw [] to a Dataverse attribute.
+      if (Array.isArray(normalized) && normalized.length === 0) continue;
       payload[mapping.targetAttributeLogicalName] = mapping.transformExpression
         ? this.applyTransform(normalized, mapping.transformExpression)
         : normalized;
@@ -207,6 +219,13 @@ export class CrmSubmissionService extends CrmBaseService {
       'fileId' in (value[0] as object)
     ) {
       return (value as Array<{ fileId: string }>).map((ref) => ref.fileId);
+    }
+    // DFE-FBE-002: multi-select lookup → semicolon-delimited list of record GUIDs
+    // written to the mapped (text) attribute. Each id is validated as a UUID (fail-fast
+    // at the boundary — never write an unvalidated string to Dataverse). Empty selection
+    // is dropped in buildPayload.
+    if (Array.isArray(value) && value.length > 0 && isLookupRefArray(value)) {
+      return value.map((ref) => LOOKUP_ID_SCHEMA.parse(ref.id)).join(';');
     }
     return value;
   }

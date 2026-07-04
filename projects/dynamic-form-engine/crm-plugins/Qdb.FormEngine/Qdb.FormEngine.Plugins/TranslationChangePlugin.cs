@@ -180,7 +180,7 @@ namespace Qdb.FormEngine.Plugins
 
         private void CreatePublishJob(LocalPluginContext context, string formCode, string languageCode)
         {
-            var metadataReader = new CrmMetadataReader(context.OrganizationService);
+            var metadataReader = new CrmMetadataReader(context.OrganizationService, context.TracingService);
             var rawData = metadataReader.ReadFormRawData(formCode);
             var formVersion = rawData.FormEntity.GetAttributeValue<int>("qdb_version");
             var formDefinitionId = rawData.FormEntity.Id;

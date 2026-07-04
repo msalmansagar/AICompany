@@ -18,7 +18,7 @@ import { CrmContext } from '@/app/App';
 import { VersionService, type FormVersion } from '@/services/VersionService';
 import { AuditLogService } from '@/services/AuditLogService';
 import { useDesignerStore } from '@/state/designerStore';
-import { DEFAULT_STYLE } from '@/state/models/DesignerStyleModel';
+import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 
 const useStyles = makeStyles({
   root: {
@@ -239,17 +239,17 @@ export function VersionHistoryScreen(): React.ReactElement {
       const fields = Object.values(snapshot.fields ?? {});
       const validationRules = Object.values(snapshot.validationRules ?? {});
       const businessRules = Object.values(snapshot.businessRules ?? {});
-      const restoredStyle = snapshot.style ?? DEFAULT_STYLE;
+      const restoredDesignPayload = snapshot.designPayload ?? DEFAULT_DESIGN_PAYLOAD;
 
-      loadForm(
-        { ...restoredForm, status: 'draft' },
+      loadForm({
+        form: { ...restoredForm, status: 'draft' },
         tabs,
         sections,
         fields,
         validationRules,
         businessRules,
-        restoredStyle
-      );
+        designPayload: restoredDesignPayload,
+      });
 
       await auditService.logAction(form.id, 'RESTORE_VERSION', {
         versionNumber: restoreTarget.versionNumber,

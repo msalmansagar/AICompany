@@ -2,6 +2,7 @@
 import {
   Label,
   makeStyles,
+  mergeClasses,
   tokens,
   Text,
   Tooltip,
@@ -20,6 +21,7 @@ import { MultiSelectControl } from './controls/MultiSelectControl';
 import { CheckboxGroupControl } from './controls/CheckboxGroupControl';
 import { RadioCardControl } from './controls/RadioCardControl';
 import { LookupControl } from './controls/LookupControl';
+import { MultiLookupControl } from './controls/MultiLookupControl';
 import { CheckboxControl } from './controls/CheckboxControl';
 import { RadioControl } from './controls/RadioControl';
 import { CurrencyControl } from './controls/CurrencyControl';
@@ -31,6 +33,7 @@ import { RepeatingGridControl } from './controls/RepeatingGridControl';
 import { RichTextControl } from './controls/RichTextControl';
 import { BooleanControl } from './fields/BooleanControl';
 import { InfoCardField } from './fields/InfoCardField';
+import { LabelField } from './fields/LabelField';
 import { InteractiveGridField } from './fields/InteractiveGridField';
 import { DynamicIcon } from './DynamicIcon';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
@@ -131,6 +134,11 @@ export function FieldRenderer({
     return <InfoCardField field={field} />;
   }
 
+  // DFE-FBE-001: label is a read-only display field — no input, no label/error wrapper.
+  if (field.fieldType === 'label') {
+    return <LabelField field={field} />;
+  }
+
   const controlProps = {
     field,
     inputId,
@@ -169,7 +177,7 @@ export function FieldRenderer({
 
   return (
     <div
-      className={styles.fieldWrapper}
+      className={mergeClasses(styles.fieldWrapper, fieldDesign?.cssClassName)}
       style={fieldStyle.containerStyle as CSSProperties}
     >
       {!isFloating && (
@@ -246,6 +254,8 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
         : <MultiSelectControl {...controlProps} />;
     case 'lookup':
       return <LookupControl {...controlProps} />;
+    case 'multiLookup':
+      return <MultiLookupControl {...controlProps} />;
     case 'checkbox':
       return <CheckboxControl {...controlProps} />;
     case 'radio':

@@ -82,6 +82,12 @@
       <RootComponent type="1" id="{1A2B3C4D-0013-0000-0000-000000000013}" behavior="0" />
       <!-- dfe_auditlog -->
       <RootComponent type="1" id="{1A2B3C4D-0014-0000-0000-000000000014}" behavior="0" />
+      <!-- qdb_css_allowlist_config table (DFE-STYLE-001) -->
+      <RootComponent type="1" id="{1A2B3C4D-0015-0000-0000-000000000015}" behavior="0" />
+      <!-- qdb_layout_grid table (DFE-STYLE-001) -->
+      <RootComponent type="1" id="{1A2B3C4D-0016-0000-0000-000000000016}" behavior="0" />
+      <!-- QDB CSS Allowlist Admin security role (DFE-STYLE-001, SC-05) -->
+      <RootComponent type="9" id="{A1B2C3D4-0001-0000-0000-000000000001}" behavior="0" />
     </RootComponents>
     <MissingDependencies />
   </SolutionManifest>

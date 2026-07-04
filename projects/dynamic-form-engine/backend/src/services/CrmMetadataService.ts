@@ -15,6 +15,7 @@ import type {
   SubmissionMapping,
   FormVersion,
   FieldType,
+  SummaryMode,
   ValidationRuleType,
   BusinessRuleAction,
   ConditionOperator,
@@ -25,8 +26,9 @@ import type {
   FileUploadConfig,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
+import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
-import { FormNotFoundError, FormInactiveError, ValidationError } from '../utils/errors.js';
+import { FormNotFoundError, FormInactiveError, ValidationError, CrmApiError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmInfoCardService, InfoCardScreen } from './CrmInfoCardService.js';
@@ -141,6 +143,7 @@ export class CrmMetadataService extends CrmBaseService {
         : Promise.resolve<InfoCardScreen[]>([]),
     ]);
 
+    const summaryMode = this.mapSummaryMode(raw.qdb_summary_mode);
     const englishForm: FormDefinition = {
       id: formId,
       formCode: raw.qdb_form_code,
@@ -150,6 +153,10 @@ export class CrmMetadataService extends CrmBaseService {
       version: raw.qdb_version ?? 1,
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
+      // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
+      ...(summaryMode ? { summaryMode } : {}),
+      // DFE-FBE-002: progress bar (emitted only when on).
+      ...(raw.qdb_show_progress_bar ? { showProgressBar: true } : {}),
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
@@ -237,6 +244,14 @@ export class CrmMetadataService extends CrmBaseService {
     const tabIds = tabs.map((t) => t.qdb_form_tabid);
     const sections = await this.fetchSectionsWithChildren(tabIds, formId, lang);
 
+    // DFE-BTN-001: fetch tab/section scoped buttons and embed them. Degrades to no
+    // buttons if the entity is not provisioned, so existing forms are unchanged.
+    const buttonIndex = await this.fetchScopedButtons(formId);
+    for (const section of sections) {
+      const sectionButtons = buttonIndex.bySectionId.get(section.id);
+      if (sectionButtons && sectionButtons.length > 0) section.buttons = sectionButtons;
+    }
+
     const sectionsByTab = new Map<string, SectionDefinition[]>();
     for (const section of sections) {
       const existing = sectionsByTab.get(section.tabId) ?? [];
@@ -244,17 +259,47 @@ export class CrmMetadataService extends CrmBaseService {
       sectionsByTab.set(section.tabId, existing);
     }
 
-    return tabs.map((tab) => ({
-      id: tab.qdb_form_tabid,
-      formDefinitionId: formId,
-      label: tab.qdb_label,
-      iconName: tab.qdb_icon_name,
-      displayOrder: tab.qdb_display_order,
-      isVisible: tab.qdb_is_visible ?? true,
-      requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
-      hideTabBar: tab.qdb_hide_tab_bar ?? false,
-      sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
-    }));
+    return tabs.map((tab) => {
+      const tabButtons = buttonIndex.byTabId.get(tab.qdb_form_tabid) ?? [];
+      return {
+        id: tab.qdb_form_tabid,
+        formDefinitionId: formId,
+        label: tab.qdb_label,
+        iconName: tab.qdb_icon_name,
+        // DFE-FBE-001: tab description + manual-summary flag (flag omitted unless true).
+        description: tab.qdb_description,
+        ...(tab.qdb_is_summary_tab ? { isSummaryTab: true } : {}),
+        displayOrder: tab.qdb_display_order,
+        isVisible: tab.qdb_is_visible ?? true,
+        requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
+        hideTabBar: tab.qdb_hide_tab_bar ?? false,
+        sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
+        ...(tabButtons.length > 0 ? { buttons: tabButtons } : {}),
+      };
+    });
+  }
+
+  // DFE-BTN-001: reads all scoped buttons for a form and indexes them by placement.
+  // Resilient: a missing entity (schema deploy is gated) yields empty indexes.
+  private async fetchScopedButtons(formId: string): Promise<IndexedButtons> {
+    try {
+      const response = await this.crmFetch<ODataCollection<RawScopedButton>>(
+        `/${SCOPED_BUTTON_ENTITY}s?$filter=_qdb_form_definition_id_value eq '${formId}' and statecode eq 0&$orderby=qdb_display_order asc`,
+      );
+      return ButtonAssembler.assemble(response.value);
+    } catch (error) {
+      // A buttons sub-query failure must never break the whole form render, so we
+      // degrade to no buttons either way — but distinguish the cases in logs so a
+      // real failure is surfaced (ERROR/alertable), not hidden as routine.
+      // A 404 is expected while the entity is unprovisioned (schema deploy is gated).
+      const status = error instanceof CrmApiError ? error.crmStatusCode : undefined;
+      if (status === 404) {
+        logger.info({ formId }, 'Scoped-button entity not present — rendering form without buttons');
+      } else {
+        logger.error({ error, formId }, 'Failed to fetch scoped buttons — rendering form without them');
+      }
+      return { byTabId: new Map(), bySectionId: new Map() };
+    }
   }
 
   private async fetchSectionsWithChildren(tabIds: string[], formId: string, lang: string): Promise<SectionDefinition[]> {
@@ -281,6 +326,7 @@ export class CrmMetadataService extends CrmBaseService {
       tabId: section._qdb_form_tab_id_value,
       label: section.qdb_label,
       description: section.qdb_description,
+      iconName: section.qdb_icon_name,   // DFE-FBE-001: section header icon
       displayOrder: section.qdb_display_order,
       columns: this.mapColumns(section.qdb_columns),
       isCollapsible: section.qdb_is_collapsible ?? false,
@@ -327,6 +373,9 @@ export class CrmMetadataService extends CrmBaseService {
       placeholder: field.qdb_placeholder,
       tooltip: field.qdb_tooltip,
       defaultValue: field.qdb_default_value,
+      // DFE-FBE-001: Label field — static content + optional data-bound source.
+      staticContent: field.qdb_static_content,
+      sourceFieldSchemaName: field.qdb_source_field_schema_name,
       displayOrder: field.qdb_display_order,
       columnSpan: this.mapColumnSpan(field.qdb_column_span),
       isRequired: field.qdb_is_required ?? false,
@@ -737,8 +786,19 @@ export class CrmMetadataService extends CrmBaseService {
       100000019: 'boolean',
       100000020: 'info-card',
       100000021: 'interactive-grid',
+      100000022: 'label',
+      100000023: 'multiLookup',
     };
     return map[code] ?? 'text';
+  }
+
+  // DFE-FBE-001: qdb_summary_mode option-set → SummaryMode. Undefined when unset so the
+  // response omits it (consumers derive from showSummaryStep) — mirrors the C# generator.
+  private mapSummaryMode(code: number | undefined): SummaryMode | undefined {
+    const map: Record<number, SummaryMode> = {
+      100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
+    };
+    return code !== undefined && code !== null ? map[code] : undefined;
   }
 
   private mapBooleanRenderStyle(code: number | undefined): 'toggle' | 'radio' {
@@ -753,11 +813,12 @@ export class CrmMetadataService extends CrmBaseService {
     return code === 100000001 ? 'cards' : 'list';
   }
 
-  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' {
+  // DFE: unset → undefined (omitted from the response); runtime defaults to 'info' visually.
+  private mapInfoCardStyle(code: number | undefined): 'info' | 'warning' | 'success' | 'error' | undefined {
     const map: Record<number, 'info' | 'warning' | 'success' | 'error'> = {
       100000000: 'info', 100000001: 'warning', 100000002: 'success', 100000003: 'error',
     };
-    return map[code ?? 0] ?? 'info';
+    return code === undefined || code === null ? undefined : (map[code] ?? undefined);
   }
 
   private mapGridMode(code: number | undefined): 'selection' | 'entry' {
@@ -942,6 +1003,10 @@ interface RawFormDefinition {
   qdb_infocard_skip_label?: string;
   // DFE-ADD-003 summary step
   qdb_show_summary_step?: boolean;
+  // DFE-FBE-001 summary mode option-set
+  qdb_summary_mode?: number;
+  // DFE-FBE-002 progress bar
+  qdb_show_progress_bar?: boolean;
   createdon: string;
   modifiedon: string;
 }
@@ -954,6 +1019,9 @@ interface RawTab {
   qdb_is_visible?: boolean;
   qdb_requires_previous_tab_complete?: boolean;
   qdb_hide_tab_bar?: boolean;
+  // DFE-FBE-001
+  qdb_description?: string;
+  qdb_is_summary_tab?: boolean;
 }
 
 interface RawSection {
@@ -966,6 +1034,7 @@ interface RawSection {
   qdb_is_collapsible?: boolean;
   qdb_is_collapsed_by_default?: boolean;
   qdb_is_visible?: boolean;
+  qdb_icon_name?: string;   // DFE-FBE-001
 }
 
 interface RawField {
@@ -986,6 +1055,9 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
   qdb_component_key?: string;
+  // DFE-FBE-001 Label field
+  qdb_static_content?: string;
+  qdb_source_field_schema_name?: string;
   // DFE-ADD-002 boolean field
   qdb_true_label?: string;
   qdb_false_label?: string;

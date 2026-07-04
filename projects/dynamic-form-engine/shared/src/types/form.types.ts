@@ -28,7 +28,16 @@ export type FieldType =
   // DFE-ADD-002: new field types
   | 'boolean'
   | 'info-card'
-  | 'interactive-grid';
+  | 'interactive-grid'
+  // DFE-FBE-001: read-only display field (static text or data-bound mirror of another field)
+  | 'label'
+  // DFE-FBE-002: multi-select lookup (choose multiple related records; reuses lookupConfig)
+  | 'multiLookup';
+
+// DFE-FBE-001: form-level summary behaviour.
+// None = no summary step; SystemGenerated = engine auto-builds the review step;
+// Manual = the designer builds a summary tab (isSummaryTab) from Label fields.
+export type SummaryMode = 'None' | 'SystemGenerated' | 'Manual';
 
 export type ValidationRuleType =
   | 'required'
@@ -97,6 +106,114 @@ export interface FormButton {
   confirmationRequired: boolean;
   confirmationMessage?: string;
   isActive: boolean;
+}
+
+// ── DFE-BTN-001: Tab/Section scoped buttons, navigation & submission params ──
+// These types are defined IDENTICALLY in shared/src/types/form.types.ts and
+// shared/src/types/form.ts (mobile). The CI parity check
+// (shared/scripts/check-shared-type-sync.mjs) fails the build if their members
+// drift. Do not edit one of the two files without the other.
+
+export type ButtonPlacementScope = 'tab' | 'section';
+
+export type ScopedButtonActionType = 'navigate' | 'finalSubmit' | 'saveDraft' | 'callApi';
+
+export type NavigationTargetType =
+  | 'tab'
+  | 'section'
+  | 'nextStep'
+  | 'previousStep'
+  | 'externalUrl'
+  | 'anotherForm';
+
+export type UnsavedDataPolicy = 'warn' | 'discard' | 'block';
+
+export interface NavigateActionConfig {
+  type: 'navigate';
+  target: NavigationTargetType;
+  targetTabId?: string;        // target = 'tab'
+  targetSectionId?: string;    // target = 'section'
+  externalUrlKey?: string;     // target = 'externalUrl' — KEY into the allowlist, never a raw URL
+  targetFormCode?: string;     // target = 'anotherForm'
+  openInNewTab?: boolean;
+  requiresPreviousTabsComplete?: boolean; // OQ-006 — default false
+  unsavedDataPolicy?: UnsavedDataPolicy;  // external/anotherForm; default 'warn'
+}
+
+export type ExtraParamSource = 'static' | 'hiddenField' | 'runtimeContext' | 'computed';
+
+export type RuntimeContextKey =
+  | 'userId'
+  | 'userDisplayName'
+  | 'formId'
+  | 'formCode'
+  | 'formVersion'
+  | 'submittedAt'
+  | 'sessionId'
+  | 'tenantSegment'
+  | 'locale';
+
+export interface ExtraParamSpec {
+  key: string;                 // param name in the resolved envelope
+  source: ExtraParamSource;
+  staticValue?: string;        // source = 'static'
+  fieldSchemaName?: string;    // source = 'hiddenField'
+  contextKey?: RuntimeContextKey; // source = 'runtimeContext'
+  expression?: string;         // source = 'computed' (DSL evaluated server-side)
+}
+
+export interface FinalSubmitActionConfig {
+  type: 'finalSubmit';
+  extraParams: ExtraParamSpec[];
+}
+
+export interface SaveDraftActionConfig {
+  type: 'saveDraft';
+}
+
+export interface CallApiRequestFieldRef {
+  paramKey: string;
+  fieldSchemaName: string;
+}
+
+export interface CallApiResponseMapping {
+  responsePath: string;
+  targetFieldSchemaName: string;
+}
+
+export interface CallApiActionConfig {
+  type: 'callApi';
+  endpointKey: string;         // resolves against the server registry — never a URL
+  method: 'GET' | 'POST';
+  requestFieldRefs?: CallApiRequestFieldRef[];
+  onSuccessMessage?: string;
+  onErrorMessage?: string;
+  responseFieldMappings?: CallApiResponseMapping[];
+}
+
+export type ScopedButtonAction =
+  | NavigateActionConfig
+  | FinalSubmitActionConfig
+  | SaveDraftActionConfig
+  | CallApiActionConfig;
+
+export interface ScopedButton {
+  id: string;
+  placementScope: ButtonPlacementScope;
+  placementId: string;         // tabId (scope=tab) or sectionId (scope=section)
+  label: string;
+  displayOrder: number;
+  isPrimary: boolean;
+  isVisible: boolean;
+  confirmationRequired: boolean;
+  confirmationMessage?: string;
+  action: ScopedButtonAction;  // discriminated by action.type
+  isActive: boolean;
+}
+
+/** Resolved extra-parameter envelope produced server-side at submit time. */
+export interface ResolvedExtraParams {
+  [key: string]: string | number | boolean | null;
 }
 
 export interface FormSummary {
@@ -249,6 +366,13 @@ export interface FieldDefinition {
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
+  // DFE-FBE-001: Label field config.
+  // staticContent — text shown when the Label is static (no source binding).
+  // sourceFieldSchemaName — when set, the Label mirrors this field's current value, read-only
+  // and type-aware (resolved from the loaded form definition + form state).
+  staticContent?: string;
+  sourceFieldSchemaName?: string;
+
   // DFE-ADD-002: Boolean field config (qdb_true_label, qdb_false_label, qdb_bool_render_style)
   trueLabel?: string;
   falseLabel?: string;
@@ -300,6 +424,10 @@ export interface SectionDefinition {
   isCollapsedByDefault: boolean;
   isVisible: boolean;
   fields: FieldDefinition[];
+  // DFE-BTN-001: section-scoped buttons (additive; defaults to [] for existing forms)
+  buttons?: ScopedButton[];
+  // DFE-FBE-001: section header icon (same format as TabDefinition.iconName)
+  iconName?: string;
 }
 
 // ── Tab definition ────────────────────────────────────────────
@@ -309,6 +437,10 @@ export interface TabDefinition {
   formDefinitionId: string;
   label: string;
   iconName?: string;               // Fluent UI icon name
+  // DFE-FBE-001: tab description, rendered in the content area above the sections
+  description?: string;
+  // DFE-FBE-001: when true (and summaryMode='Manual'), this tab is the manual summary step
+  isSummaryTab?: boolean;
   displayOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
@@ -317,6 +449,8 @@ export interface TabDefinition {
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
   sections: SectionDefinition[];
+  // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
+  buttons?: ScopedButton[];
 }
 
 // ── Form version ──────────────────────────────────────────────
@@ -456,7 +590,13 @@ export interface FormDefinition {
   infocardSkipLabel?: string;
   infoCards: InfoCardScreen[];
   // DFE-ADD-003: show a read-only summary of all answers on the last step before submit.
+  // Legacy — retained read-only for back-compat; superseded by summaryMode (DFE-FBE-001).
   showSummaryStep: boolean;
+  // DFE-FBE-001: None | SystemGenerated | Manual. When undefined, generators derive it from
+  // the legacy showSummaryStep flag (true → SystemGenerated, else None) — see ADR-FBE-003.
+  summaryMode?: SummaryMode;
+  // DFE-FBE-002: show a form-completion progress bar above the tab strip (default off).
+  showProgressBar?: boolean;
   submissionMappings: SubmissionMapping[];
   buttons: FormButton[];
   tabs: TabDefinition[];

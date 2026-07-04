@@ -3,6 +3,7 @@ import type { TabDefinition } from '@qdb/shared';
 import { SectionRenderer } from './SectionRenderer';
 import { SaveDraftButton } from './SaveDraftButton';
 import { SubmitButton } from './SubmitButton';
+import { ScopedButtonBar } from './ScopedButtonBar';
 import { useFormContext } from '../../contexts/FormContext';
 
 const useStyles = makeStyles({
@@ -18,6 +19,12 @@ const useStyles = makeStyles({
     justifyContent: 'flex-end',
     paddingTop: tokens.spacingVerticalM,
     borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+  },
+  // DFE-FBE-001: tab description, rendered above the sections (OQ-001).
+  tabDescription: {
+    color: tokens.colorNeutralForeground2,
+    fontSize: tokens.fontSizeBase300,
+    whiteSpace: 'pre-wrap',
   },
 });
 
@@ -55,6 +62,9 @@ export function TabRenderer({
       aria-label={tab.label}
       className={styles.tabPanel}
     >
+      {/* DFE-FBE-001: tab description above the sections (OQ-001). */}
+      {tab.description && <div className={styles.tabDescription}>{tab.description}</div>}
+
       {visibleSections.map((section) => (
         <SectionRenderer
           key={section.id}
@@ -63,6 +73,9 @@ export function TabRenderer({
           isTabActive={isTabActive}
         />
       ))}
+
+      {/* DFE-BTN-001: tab-scoped buttons render below this tab's sections. */}
+      <ScopedButtonBar buttons={tab.buttons} />
 
       {showButtonRow && (
         <div className={styles.tabButtonRow} role="group" aria-label="Tab actions">

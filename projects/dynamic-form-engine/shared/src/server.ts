@@ -5,5 +5,16 @@ export * from './types/design.types';
 export * from './types/i18n.types';
 export { RuleEngine } from './engines/RuleEngine';
 export { ExpressionEngine } from './engines/ExpressionEngine';
-export type { ExpressionValue, ExpressionContext } from './engines/ExpressionEngine';
+export type { ExpressionValue, ExpressionContext, EvaluateOptions } from './engines/ExpressionEngine';
 export { ExpressionError } from './engines/ExpressionEngine';
+export {
+  ExpressionEngineServer,
+  ExpressionTimeoutError,
+  MAX_EXPRESSION_LENGTH,
+  MAX_EXPRESSION_OPS,
+  MAX_EXPRESSION_DURATION_MS,
+} from './engines/ExpressionEngineServer';
+export { calculateContrastRatio } from './utils/contrastRatio';
+export type { ContrastResult } from './utils/contrastRatio';
+export * from './validation/design.schema';
+export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin';

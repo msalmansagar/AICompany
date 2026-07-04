@@ -84,6 +84,219 @@ namespace Qdb.FormEngine.Tests
             Assert.True(field.IsHidden, "Generator must preserve hidden field; stripping is SecurityStripper's job.");
         }
 
+        [Fact]
+        public void Generate_WithScopedButtons_EmbedsThemOnTabAndSection()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var sectionId = rawData.Sections[0].Id;
+            rawData.ScopedButtons = new List<Entity>
+            {
+                MakeScopedButton(formId, tabId, null, "tab", "Next", "navigate", "{\"target\":\"nextStep\"}"),
+                MakeScopedButton(formId, null, sectionId, "section", "Submit", "finalSubmit", "{\"extraParams\":[]}")
+            };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var tab = result.Tabs[0];
+            Assert.NotNull(tab.Buttons);
+            Assert.Single(tab.Buttons);
+            Assert.Equal("Next", tab.Buttons[0].Label);
+            Assert.Equal("tab", tab.Buttons[0].PlacementScope);
+
+            var section = tab.Sections[0];
+            Assert.NotNull(section.Buttons);
+            Assert.Single(section.Buttons);
+            Assert.Equal("section", section.Buttons[0].PlacementScope);
+        }
+
+        [Fact]
+        public void Generate_WithNoScopedButtons_OmitsButtonsProperty()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            rawData.ScopedButtons = new List<Entity>();
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — null so the "buttons" key is omitted (existing forms byte-identical)
+            Assert.Null(result.Tabs[0].Buttons);
+            Assert.Null(result.Tabs[0].Sections[0].Buttons);
+        }
+
+        [Fact]
+        public void Generate_WithInvalidActionJson_DropsTheButton()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            rawData.ScopedButtons = new List<Entity>
+            {
+                MakeScopedButton(formId, tabId, null, "tab", "Bad", "navigate", "{not valid json")
+            };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — the malformed button is dropped, leaving no buttons
+            Assert.Null(result.Tabs[0].Buttons);
+        }
+
+        [Fact]
+        public void Generate_WithNoDesign_OmitsDesignProperty()
+        {
+            // Arrange — design-less forms must stay byte-identical (Design omitted)
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Null(result.Design);
+        }
+
+        [Fact]
+        public void Generate_WithDesign_EmbedsThemeFormAndSectionDesign()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var sectionId = rawData.Sections[0].Id;
+            var themeId = Guid.NewGuid();
+
+            rawData.Theme = MakeTheme(themeId);
+            rawData.FormDesign = MakeFormDesign(formId, themeId);
+            rawData.SectionDesigns = new List<Entity> { MakeSectionDesign(sectionId) };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.NotNull(result.Design);
+            Assert.NotNull(result.Design.Theme);
+            Assert.Equal("#2E8B6F", result.Design.Theme.PrimaryColor);
+            Assert.Equal("Subtle", result.Design.Theme.ShadowStyle);
+            Assert.Equal("1040px", result.Design.FormDesign.MaxWidth);
+            Assert.Equal(".qdb-section{border:1px solid #E2E8F0;}", result.Design.FormDesign.CustomCss);
+            Assert.True(result.Design.SectionDesigns.ContainsKey(sectionId.ToString()));
+            Assert.Equal("qdb-demo-section", result.Design.SectionDesigns[sectionId.ToString()].CssClassName);
+        }
+
+        private static Entity MakeTheme(Guid themeId)
+        {
+            var theme = new Entity("qdb_theme", themeId);
+            theme["qdb_theme_code"] = "REYADA-GREEN";
+            theme["qdb_theme_name"] = "Reyada Green";
+            theme["qdb_primary_color"] = "#2E8B6F";
+            theme["qdb_shadow_style"] = new OptionSetValue(100000002);
+            theme["qdb_spacing_scale"] = new OptionSetValue(100000002);
+            theme["qdb_is_dark_mode"] = false;
+            theme["qdb_is_active"] = true;
+            return theme;
+        }
+
+        private static Entity MakeFormDesign(Guid formId, Guid themeId)
+        {
+            var design = new Entity("qdb_form_design", Guid.NewGuid());
+            design["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            design["qdb_theme_id"] = new EntityReference("qdb_theme", themeId);
+            design["qdb_max_width"] = "1040px";
+            design["qdb_custom_css"] = ".qdb-section{border:1px solid #E2E8F0;}";
+            design["qdb_layout_type"] = new OptionSetValue(100000001);
+            design["qdb_is_active"] = true;
+            return design;
+        }
+
+        private static Entity MakeSectionDesign(Guid sectionId)
+        {
+            var section = new Entity("qdb_section_design", Guid.NewGuid());
+            section["qdb_form_section_id"] = new EntityReference("qdb_form_section", sectionId);
+            section["qdb_background_color"] = "#ede9fe";
+            section["qdb_padding"] = "20px";
+            section["qdb_css_class"] = "qdb-demo-section";
+            section["qdb_is_active"] = true;
+            return section;
+        }
+
+        private static Entity MakeScopedButton(
+            Guid formId, Guid? tabId, Guid? sectionId, string scope, string label, string actionType, string actionConfigJson)
+        {
+            var entity = new Entity("qdb_form_scoped_button", Guid.NewGuid());
+            entity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            if (tabId.HasValue) entity["qdb_tab_id"] = new EntityReference("qdb_form_tab", tabId.Value);
+            if (sectionId.HasValue) entity["qdb_section_id"] = new EntityReference("qdb_form_section", sectionId.Value);
+            entity["qdb_placement_scope"] = scope;
+            entity["qdb_label"] = label;
+            entity["qdb_display_order"] = 0;
+            entity["qdb_is_primary"] = true;
+            entity["qdb_is_visible"] = true;
+            entity["qdb_confirm_required"] = false;
+            entity["qdb_action_type"] = actionType;
+            entity["qdb_action_config_json"] = actionConfigJson;
+            return entity;
+        }
+
+        [Fact]
+        public void Generate_WithFbeFields_MapsSummaryProgressTabSectionAndMultiLookup()
+        {
+            // Arrange — FBE-001/002 form/tab/section/field generation.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            rawData.FormEntity["qdb_summary_mode"] = new OptionSetValue(100000003); // Manual
+            rawData.FormEntity["qdb_show_progress_bar"] = true;
+
+            var tab = rawData.Tabs[0];
+            tab["qdb_description"] = "Complete your details";
+            tab["qdb_is_summary_tab"] = true;
+
+            var section = rawData.Sections[0];
+            section["qdb_icon_name"] = "Person";
+
+            var mlField = new Entity("qdb_form_field", Guid.NewGuid());
+            mlField["qdb_form_section_id"] = new EntityReference("qdb_form_section", section.Id);
+            mlField["qdb_field_type"] = new OptionSetValue(100000023); // multiLookup
+            mlField["qdb_schema_name"] = "qdb_team";
+            mlField["qdb_label"] = "Team";
+            mlField["qdb_display_order"] = 2;
+            mlField["qdb_column_span"] = new OptionSetValue(100000001);
+            mlField["qdb_is_required"] = false;
+            mlField["qdb_is_readonly"] = false;
+            mlField["qdb_is_hidden"] = false;
+            mlField["qdb_is_visible"] = true;
+            rawData.Fields.Add(mlField);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal("Manual", result.SummaryMode);
+            Assert.True(result.ShowProgressBar);
+            Assert.Equal("Complete your details", result.Tabs[0].Description);
+            Assert.True(result.Tabs[0].IsSummaryTab);
+            Assert.Equal("Person", result.Tabs[0].Sections[0].IconName);
+            Assert.Contains(result.Tabs[0].Sections[0].Fields, f => f.FieldType == "multiLookup");
+        }
+
+        [Fact]
+        public void Generate_WithoutSummaryModeOrProgressBar_OmitsThem()
+        {
+            // Byte-identity for pre-FBE forms: unset fields must be null (JSON key omitted).
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            var result = _generator.Generate(rawData, "en");
+
+            Assert.Null(result.SummaryMode);
+            Assert.Null(result.ShowProgressBar);
+        }
+
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

@@ -38,6 +38,44 @@ export class CrmContextService {
   }
 
   /**
+   * Opens the published form in the runtime. In-CRM: the qdb_form_runtime.html web resource
+   * (reads ?data=<formDefinitionGuid>) — the same mechanism the ribbon Open command uses.
+   * Local dev: the portal runtime on the same machine.
+   */
+  openFormRuntime(formDefinitionId: string, formCode: string): void {
+    const id = formDefinitionId.replace(/[{}]/g, '');
+    if (this.xrm) {
+      const xrm = this.xrm;
+      // Modern in-app dialog (target: 2) — same as the CRM form's Open command. Falls back to
+      // a new window via openWebResource on platforms without navigateTo(webresource) (on-prem).
+      const pageInput = { pageType: 'webresource', webresourceName: 'qdb_form_runtime.html', data: id };
+      const dialogOptions = {
+        target: 2,
+        position: 1,
+        width: { value: 85, unit: '%' },
+        height: { value: 92, unit: '%' },
+        title: 'Form',
+      };
+      xrm.Navigation.navigateTo(pageInput, dialogOptions).catch(() => {
+        xrm.Navigation.openWebResource('qdb_form_runtime.html', { height: 900, width: 1200 }, id);
+      });
+      return;
+    }
+    // Local dev: open the SAME in-CRM runtime web resource on the cloud org, in a popup
+    // window (matches the CRM form's Open command). Requires the user to be signed in to CRM.
+    const popupFeatures = 'popup,width=1200,height=900';
+    const dataverseUrl = import.meta.env.VITE_DATAVERSE_URL as string | undefined;
+    if (dataverseUrl) {
+      const runtimeUrl = `${dataverseUrl.replace(/\/$/, '')}/WebResources/qdb_form_runtime.html?data=${id}`;
+      window.open(runtimeUrl, 'qdbFormRuntime', popupFeatures);
+      return;
+    }
+    // Fallback (no org URL configured): the portal runtime, still as a popup.
+    const portalBase = import.meta.env.VITE_PORTAL_BASE_URL ?? 'http://localhost:3000';
+    window.open(`${portalBase}/forms/${encodeURIComponent(formCode)}`, 'qdbFormRuntime', popupFeatures);
+  }
+
+  /**
    * Returns true when running in standalone REST mode (outside Dynamics CRM UCI).
    * CRM custom actions (executeAction) are not available in REST mode.
    */

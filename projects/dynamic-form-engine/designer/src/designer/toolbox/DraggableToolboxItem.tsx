@@ -2,7 +2,7 @@ import React from 'react';
 import { useDraggable } from '@dnd-kit/core';
 import { makeStyles, mergeClasses, shorthands, tokens, Text, Tooltip } from '@fluentui/react-components';
 import type { FieldTypeDefinition } from '@/constants/fieldTypes';
-import { FIELD_TYPE_ICONS } from './fieldTypeIcons';
+import { FIELD_TYPE_VISUALS, GROUP_COLORS } from './fieldTypeVisuals';
 
 const useStyles = makeStyles({
   item: {
@@ -47,14 +47,13 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground4,
     fontStyle: 'italic',
   },
-  // Wrapper span — sets font-size so the SVG icon's width="1em" resolves correctly
-  iconWrapper: {
+  // Colour chip holding the Lucide line icon; fg/bg are set inline per colour group.
+  iconChip: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '20px',
-    lineHeight: '1',
-    color: tokens.colorNeutralForeground2,
+    height: '24px',
+    flexShrink: 0,
   },
   label: {
     fontSize: '11px',
@@ -80,7 +79,11 @@ export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): R
     },
   });
 
-  const Icon = FIELD_TYPE_ICONS[fieldDef.type];
+  const visual = FIELD_TYPE_VISUALS[fieldDef.type];
+  // lucide-react's icon type resolves against its own bundled React types, tripping TS2786
+  // when used as JSX here; narrow to the app's React FC signature for the props we pass.
+  const Icon = visual.Icon as React.FC<{ size?: number; strokeWidth?: number; color?: string }>;
+  const iconColor = GROUP_COLORS[visual.group];
 
   const content = (
     <div
@@ -98,8 +101,8 @@ export function DraggableToolboxItem({ fieldDef }: DraggableToolboxItemProps): R
       aria-grabbed={isDragging}
       aria-disabled={isDisabled}
     >
-      <span className={styles.iconWrapper}>
-        <Icon />
+      <span className={styles.iconChip}>
+        <Icon size={20} strokeWidth={2} color={iconColor} />
       </span>
       <Text className={styles.label}>{fieldDef.label}</Text>
       {isDisabled && <Text className={styles.comingSoonBadge}>coming soon</Text>}

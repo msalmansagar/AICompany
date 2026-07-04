@@ -69,6 +69,8 @@ export interface ThemeDefinition {
   spacingScale?: SpacingScale;
   isDarkMode: boolean;
   isActive: boolean;
+  /** Discriminant — prevents Partial<ThemeDefinition> mixing with Partial<DesignerStyleModel>. Not persisted to Dataverse. */
+  readonly _brand?: 'ThemeDefinition';
 }
 
 export interface FormDesign {
@@ -102,6 +104,8 @@ export interface SectionDesign {
   collapsibleStyle: CollapseStyleType;
   headerStyle?: Record<string, string>;
   visibilityAnimation: AnimationStyleType;
+  /** Custom CSS class applied to the section container at render time (FR-040/FR-070). */
+  cssClassName?: string;
   isActive: boolean;
 }
 
@@ -120,6 +124,8 @@ export interface FieldDesign {
   errorStyle?: Record<string, string>;
   focusStyle?: Record<string, string>;
   disabledStyle?: Record<string, string>;
+  /** Custom CSS class applied to the field container at render time (FR-050/FR-070). */
+  cssClassName?: string;
   isActive: boolean;
 }
 

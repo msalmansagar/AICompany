@@ -83,6 +83,74 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal(visibleId, result.Tabs[0].Sections[0].Fields[0].Id);
         }
 
+        [Fact]
+        public void Strip_PreservesDesignPayload()
+        {
+            // Arrange — design must survive stripping so the render cache carries styling
+            var model = BuildModelWithFields(BuildField(Guid.NewGuid(), isHidden: false));
+            model.Design = new DesignPayload
+            {
+                Theme = new ThemeDefinition { Id = "t1", ThemeCode = "GREEN", PrimaryColor = "#2E8B6F" },
+                FormDesign = new FormDesign { Id = "d1", CustomCss = ".x{}" }
+            };
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.NotNull(result.Design);
+            Assert.Equal("#2E8B6F", result.Design.Theme.PrimaryColor);
+            Assert.Equal(".x{}", result.Design.FormDesign.CustomCss);
+        }
+
+        [Fact]
+        public void Strip_PreservesScopedButtonsOnTabAndSection()
+        {
+            // Arrange — scoped buttons must survive stripping for the cache (in-CRM engine) path
+            var model = BuildModelWithFields(BuildField(Guid.NewGuid(), isHidden: false));
+            model.Tabs[0].Buttons = new List<ScopedButton>
+            {
+                new ScopedButton { Id = Guid.NewGuid(), PlacementScope = "tab", Label = "Next" }
+            };
+            model.Tabs[0].Sections[0].Buttons = new List<ScopedButton>
+            {
+                new ScopedButton { Id = Guid.NewGuid(), PlacementScope = "section", Label = "Submit" }
+            };
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Single(result.Tabs[0].Buttons);
+            Assert.Equal("Next", result.Tabs[0].Buttons[0].Label);
+            Assert.Single(result.Tabs[0].Sections[0].Buttons);
+            Assert.Equal("Submit", result.Tabs[0].Sections[0].Buttons[0].Label);
+        }
+
+        [Fact]
+        public void Strip_PreservesFbeFormTabSectionFields()
+        {
+            // Arrange — FBE-001/002 form/tab/section fields must survive stripping so the
+            // in-CRM render cache carries summary mode, progress bar, tab description/summary
+            // flag and section icon (regression: the stripper reconstructs these objects).
+            var model = BuildModelWithFields(BuildField(Guid.NewGuid(), isHidden: false));
+            model.SummaryMode = "Manual";
+            model.ShowProgressBar = true;
+            model.Tabs[0].Description = "Tab intro";
+            model.Tabs[0].IsSummaryTab = true;
+            model.Tabs[0].Sections[0].IconName = "Person";
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Equal("Manual", result.SummaryMode);
+            Assert.True(result.ShowProgressBar);
+            Assert.Equal("Tab intro", result.Tabs[0].Description);
+            Assert.True(result.Tabs[0].IsSummaryTab);
+            Assert.Equal("Person", result.Tabs[0].Sections[0].IconName);
+        }
+
         private static FormDefinitionModel BuildModelWithFields(params FieldDefinition[] fields)
         {
             var sectionId = Guid.NewGuid();

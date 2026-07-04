@@ -11,11 +11,13 @@ import {
   Input,
   Switch,
   Text,
+  Textarea,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
+import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -72,6 +74,23 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
           placeholder="e.g. Contact"
         />
       </Field>
+
+      {/* DFE-FBE-001: tab description, rendered above the sections at runtime. */}
+      <Field label="Description" hint="Shown above the sections on this tab">
+        <Textarea
+          value={tab.description ?? ''}
+          onChange={(_, data) => updateTab(tabId, { description: data.value || null })}
+          placeholder="Optional guidance shown at the top of this tab"
+          resize="vertical"
+        />
+      </Field>
+
+      {/* DFE-FBE-001: designate this tab as the manual summary (used when Summary Mode = Manual). */}
+      <Checkbox
+        label="Use as manual summary tab"
+        checked={tab.isSummaryTab === true}
+        onChange={(_, data) => updateTab(tabId, { isSummaryTab: data.checked === true })}
+      />
 
       <Checkbox
         label="Visible by default"
@@ -131,7 +150,13 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
       )}
 
       <Divider />
-      <Accordion collapsible>
+      <Accordion collapsible multiple>
+        <AccordionItem value="buttons">
+          <AccordionHeader>Buttons</AccordionHeader>
+          <AccordionPanel>
+            <ScopedButtonsPanel scope="tab" placementId={tabId} />
+          </AccordionPanel>
+        </AccordionItem>
         <AccordionItem value="translations">
           <AccordionHeader>Translations</AccordionHeader>
           <AccordionPanel>

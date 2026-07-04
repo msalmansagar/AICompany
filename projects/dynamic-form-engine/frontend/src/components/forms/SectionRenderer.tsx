@@ -4,6 +4,7 @@ import {
   Card,
   CardHeader,
   makeStyles,
+  mergeClasses,
   tokens,
   Button,
 } from '@fluentui/react-components';
@@ -12,7 +13,9 @@ import {
   ChevronUp20Regular,
 } from '@fluentui/react-icons';
 import type { SectionDefinition } from '@qdb/shared';
+import { ScopedButtonBar } from './ScopedButtonBar';
 import { FieldRenderer } from './FieldRenderer';
+import { DynamicIcon } from './DynamicIcon';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
 import { StyleEngine } from '../../theme/StyleEngine';
@@ -135,7 +138,11 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   const sectionHeader = (
     <div className={styles.cardHeader}>
       <div>
-        <div className={styles.sectionTitle}>{section.label}</div>
+        <div className={styles.sectionTitle}>
+          {/* DFE-FBE-001: section header icon (reuses the tab-icon DynamicIcon system, C-004). */}
+          {section.iconName && <DynamicIcon iconName={section.iconName} size={20} />}
+          {section.label}
+        </div>
         {section.description && (
           <div className={styles.sectionDescription}>
             {section.description}
@@ -161,6 +168,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
 
   const fieldsGrid = (
     <div
+      id={`section-${section.id}`}
       className={styles.fieldsGrid}
       style={gridStyle}
       role="group"
@@ -192,13 +200,19 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
           </div>
         );
       })}
+      {/* DFE-BTN-001: section-scoped buttons, full width below the field grid. */}
+      {section.buttons && section.buttons.length > 0 && (
+        <div style={{ gridColumn: '1 / -1' }}>
+          <ScopedButtonBar buttons={section.buttons} />
+        </div>
+      )}
     </div>
   );
 
   if (sectionStyleType === 'Card') {
     return (
       <Card
-        className={styles.card}
+        className={mergeClasses(styles.card, sectionDesign?.cssClassName)}
         aria-label={section.label}
         style={sectionStyle}
       >
@@ -211,7 +225,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
   if (sectionStyleType === 'Outlined') {
     return (
       <section
-        className={styles.outlinedSection}
+        className={mergeClasses(styles.outlinedSection, sectionDesign?.cssClassName)}
         aria-label={section.label}
         style={sectionStyle}
       >
@@ -223,7 +237,7 @@ function SectionRendererInner({ section, isVisible, isTabActive = false }: Secti
 
   return (
     <section
-      className={styles.flatSection}
+      className={mergeClasses(styles.flatSection, sectionDesign?.cssClassName)}
       aria-label={section.label}
       style={sectionStyle}
     >

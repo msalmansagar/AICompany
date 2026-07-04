@@ -24,6 +24,8 @@ import type {
   OptionValue,
   FieldType,
   BusinessRule,
+  ScopedButton,
+  SummaryMode,
 } from '@qdb/shared';
 
 // ── Backend response shapes (as returned by @qdb/shared) ──────
@@ -137,6 +139,9 @@ interface BackendFieldDefinition {
   fileDownloadIcon?: string;
   uploadDocumentSetting?: string;
   downloadDocumentSetting?: string;
+  // DFE-FBE-001 Label field
+  staticContent?: string;
+  sourceFieldSchemaName?: string;
 }
 
 interface BackendSectionDefinition {
@@ -150,6 +155,10 @@ interface BackendSectionDefinition {
   isCollapsedByDefault: boolean;
   isVisible: boolean;
   fields: BackendFieldDefinition[];
+  // DFE-BTN-001: section-scoped buttons (same shape as the shared ScopedButton contract).
+  buttons?: ScopedButton[];
+  // DFE-FBE-001: section header icon
+  iconName?: string;
 }
 
 interface BackendTabDefinition {
@@ -159,6 +168,11 @@ interface BackendTabDefinition {
   displayOrder: number;
   isVisible: boolean;
   sections: BackendSectionDefinition[];
+  // DFE-BTN-001: tab-scoped buttons (same shape as the shared ScopedButton contract).
+  buttons?: ScopedButton[];
+  // DFE-FBE-001: tab description + manual-summary flag
+  description?: string;
+  isSummaryTab?: boolean;
 }
 
 interface BackendSubmissionMapping {
@@ -219,6 +233,11 @@ interface BackendFormDefinition {
   status: string;
   version: number;
   allowSaveDraft: boolean;
+  // DFE-FBE-001
+  showSummaryStep?: boolean;
+  summaryMode?: SummaryMode;
+  // DFE-FBE-002
+  showProgressBar?: boolean;
   confirmationMessage: string;
   buttons: BackendFormButton[];
   submissionMappings: BackendSubmissionMapping[];
@@ -285,6 +304,9 @@ function mapFieldDefinition(field: BackendFieldDefinition): FieldDefinition {
     isRequiredDefault: field.isRequired,
     isReadonlyDefault: field.isReadonly,
     isVisibleDefault: !field.isHidden,
+    // DFE-FBE-001: Label field — static content + optional data-bound source.
+    ...(field.staticContent !== undefined ? { staticContent: field.staticContent } : {}),
+    ...(field.sourceFieldSchemaName !== undefined ? { sourceFieldSchemaName: field.sourceFieldSchemaName } : {}),
     validationRules: field.validationRules.map(mapValidationRule),
     optionValues: field.options?.map(mapOptionValue) ?? [],
     decimalPlaces: field.decimalPlaces,
@@ -346,6 +368,10 @@ function mapSectionDefinition(section: BackendSectionDefinition): SectionDefinit
     isCollapsible: section.isCollapsible,
     isCollapsedByDefault: section.isCollapsedByDefault,
     fields: section.fields.map(mapFieldDefinition),
+    // DFE-BTN-001: carry section-scoped buttons through; omitted when the backend sends none.
+    ...(section.buttons ? { buttons: section.buttons } : {}),
+    // DFE-FBE-001: section header icon.
+    ...(section.iconName !== undefined ? { iconName: section.iconName } : {}),
   };
 }
 
@@ -355,6 +381,11 @@ function mapTabDefinition(tab: BackendTabDefinition): TabDefinition {
     displayLabel: tab.label,
     displayOrder: tab.displayOrder,
     sections: tab.sections.map(mapSectionDefinition),
+    // DFE-BTN-001: carry tab-scoped buttons through; omitted when the backend sends none.
+    ...(tab.buttons ? { buttons: tab.buttons } : {}),
+    // DFE-FBE-001: tab description + manual-summary flag.
+    ...(tab.description !== undefined ? { description: tab.description } : {}),
+    ...(tab.isSummaryTab ? { isSummaryTab: true } : {}),
   };
 }
 
@@ -379,6 +410,10 @@ function mapFormDefinition(backend: BackendFormDefinition): FormDefinition {
     description: backend.description ?? '',
     version: backend.version,
     allowSaveDraft: backend.allowSaveDraft,
+    // DFE-FBE-001: summary mode (+ legacy boolean for derivation).
+    ...(backend.showSummaryStep !== undefined ? { showSummaryStep: backend.showSummaryStep } : {}),
+    ...(backend.summaryMode !== undefined ? { summaryMode: backend.summaryMode } : {}),
+    ...(backend.showProgressBar !== undefined ? { showProgressBar: backend.showProgressBar } : {}),
     confirmationMessage: backend.confirmationMessage,
     buttons: (backend.buttons ?? []).map(mapFormButton),
     tabs: backend.tabs.map(mapTabDefinition),
@@ -492,17 +527,19 @@ export async function submitForm(
   formCode: string,
   formData: Record<string, unknown>,
   accessToken: string,
+  submitButtonId?: string,
 ): Promise<'submitted' | 'queued'> {
   const online = await isOnline();
 
   if (!online) {
-    await enqueueSubmission(formCode, formData);
+    await enqueueSubmission(formCode, formData, submitButtonId);
     return 'queued';
   }
 
-  await apiPost<{ formData: Record<string, unknown> }, unknown>(
+  // DFE-BTN-001: carry the FinalSubmit button id so the backend resolves its extra-params.
+  await apiPost<{ formData: Record<string, unknown>; submitButtonId?: string }, unknown>(
     `/api/forms/${formCode}/submit`,
-    { formData },
+    { formData, ...(submitButtonId ? { submitButtonId } : {}) },
     accessToken,
   );
   return 'submitted';
@@ -542,9 +579,9 @@ export async function syncPendingSubmissions(accessToken: string): Promise<SyncR
 
   for (const item of pending) {
     try {
-      await apiPost<{ formData: Record<string, unknown> }, unknown>(
+      await apiPost<{ formData: Record<string, unknown>; submitButtonId?: string }, unknown>(
         `/api/forms/${item.formCode}/submit`,
-        { formData: item.formData },
+        { formData: item.formData, ...(item.submitButtonId ? { submitButtonId: item.submitButtonId } : {}) },
         accessToken,
       );
       await removePending(item.id);

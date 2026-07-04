@@ -13,6 +13,7 @@ import {
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
+import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -55,6 +56,15 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
         />
       </Field>
 
+      {/* DFE-FBE-001: section header icon (Fluent UI icon name, same as tabs). */}
+      <Field label="Icon Name" hint="Fluent UI icon name (e.g. Person, Document, Money)">
+        <Input
+          value={section.iconName ?? ''}
+          onChange={(_, data) => updateSection(sectionId, { iconName: data.value || null })}
+          placeholder="e.g. Document"
+        />
+      </Field>
+
       <Field label="Column Layout">
         <Select
           value={String(section.columnCount)}
@@ -89,7 +99,13 @@ export function SectionProperties({ sectionId }: SectionPropertiesProps): React.
       )}
 
       <Divider />
-      <Accordion collapsible>
+      <Accordion collapsible multiple>
+        <AccordionItem value="buttons">
+          <AccordionHeader>Buttons</AccordionHeader>
+          <AccordionPanel>
+            <ScopedButtonsPanel scope="section" placementId={sectionId} />
+          </AccordionPanel>
+        </AccordionItem>
         <AccordionItem value="translations">
           <AccordionHeader>Translations</AccordionHeader>
           <AccordionPanel>

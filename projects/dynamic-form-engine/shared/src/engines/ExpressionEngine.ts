@@ -277,17 +277,29 @@ class Parser {
 
 // ── Evaluator ──────────────────────────────────────────────────
 
-function evalNode(node: Expr, ctx: ExpressionContext): ExpressionValue {
+// Bounds total evaluation work. The DSL has no loop/iteration construct, so the
+// number of evalNode invocations is bounded by the parsed AST size — counting
+// them is a sufficient guard against an oversized-expression DoS (DFE-BTN-001 C-005).
+interface EvalBudget {
+  ops: number;
+  readonly max: number;
+}
+
+function evalNode(node: Expr, ctx: ExpressionContext, budget: EvalBudget): ExpressionValue {
+  budget.ops += 1;
+  if (budget.ops > budget.max) {
+    throw new ExpressionError(`Expression exceeded the maximum of ${budget.max} operations`);
+  }
   switch (node.kind) {
     case 'num':     return node.value;
     case 'str':     return node.value;
     case 'bool':    return node.value;
     case 'null':    return null;
     case 'field':   return ctx[node.name] ?? null;
-    case 'not':     return !evalNode(node.operand, ctx);
-    case 'ternary': return evalNode(node.cond, ctx) ? evalNode(node.then, ctx) : evalNode(node.else, ctx);
-    case 'binop':   return evalBinop(node.op, evalNode(node.left, ctx), evalNode(node.right, ctx));
-    case 'call':    return evalCall(node.name, node.args.map((a) => evalNode(a, ctx)));
+    case 'not':     return !evalNode(node.operand, ctx, budget);
+    case 'ternary': return evalNode(node.cond, ctx, budget) ? evalNode(node.then, ctx, budget) : evalNode(node.else, ctx, budget);
+    case 'binop':   return evalBinop(node.op, evalNode(node.left, ctx, budget), evalNode(node.right, ctx, budget));
+    case 'call':    return evalCall(node.name, node.args.map((a) => evalNode(a, ctx, budget)));
   }
 }
 
@@ -340,6 +352,7 @@ function evalCall(name: string, args: ExpressionValue[]): ExpressionValue {
     case 'max':        return Math.max(...args.map((a) => Number(a ?? 0)));
     case 'toNumber':   return Number(args[0] ?? 0);
     case 'toString':   return String(args[0] ?? '');
+    case 'formatDate': return formatDate(args[0], args.length > 1 ? s(1) : 'iso');
     case 'if':         return args[0] ? args[1] : args[2];
     case 'isEmpty': {
       const v = args[0];
@@ -353,24 +366,43 @@ function evalCall(name: string, args: ExpressionValue[]): ExpressionValue {
   }
 }
 
+// Formats a date value. 'iso' (default) → YYYY-MM-DD; 'isoDateTime' → full ISO;
+// any other format string is treated as 'iso'. Returns '' for unparseable input.
+function formatDate(value: ExpressionValue, format: string): string {
+  if (value === null || value === undefined || value === '') return '';
+  const date = new Date(value as string | number);
+  if (Number.isNaN(date.getTime())) return '';
+  return format === 'isoDateTime' ? date.toISOString() : date.toISOString().slice(0, 10);
+}
+
 // ── Public API ─────────────────────────────────────────────────
 
+export interface EvaluateOptions {
+  /** Maximum number of AST-node evaluations before aborting (DoS guard). */
+  maxOps?: number;
+}
+
 export class ExpressionEngine {
-  static evaluate(expression: string, context: ExpressionContext): ExpressionValue {
+  static evaluate(
+    expression: string,
+    context: ExpressionContext,
+    options: EvaluateOptions = {},
+  ): ExpressionValue {
     const tokens = new Lexer(expression).tokenize();
     const ast = new Parser(tokens).parse();
-    return evalNode(ast, context);
+    const budget: EvalBudget = { ops: 0, max: options.maxOps ?? Number.MAX_SAFE_INTEGER };
+    return evalNode(ast, context, budget);
   }
 
-  static evaluateBoolean(expression: string, context: ExpressionContext): boolean {
-    return Boolean(ExpressionEngine.evaluate(expression, context));
+  static evaluateBoolean(expression: string, context: ExpressionContext, options?: EvaluateOptions): boolean {
+    return Boolean(ExpressionEngine.evaluate(expression, context, options));
   }
 
-  static evaluateString(expression: string, context: ExpressionContext): string {
-    return String(ExpressionEngine.evaluate(expression, context) ?? '');
+  static evaluateString(expression: string, context: ExpressionContext, options?: EvaluateOptions): string {
+    return String(ExpressionEngine.evaluate(expression, context, options) ?? '');
   }
 
-  static evaluateNumber(expression: string, context: ExpressionContext): number {
-    return Number(ExpressionEngine.evaluate(expression, context) ?? 0);
+  static evaluateNumber(expression: string, context: ExpressionContext, options?: EvaluateOptions): number {
+    return Number(ExpressionEngine.evaluate(expression, context, options) ?? 0);
   }
 }

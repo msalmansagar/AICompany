@@ -30,6 +30,7 @@ import { BooleanFieldPanel } from './panels/BooleanFieldPanel';
 import { InfoCardFieldPanel } from './panels/InfoCardFieldPanel';
 import { InteractiveGridFieldPanel } from './panels/InteractiveGridFieldPanel';
 import { RepeatingGridFieldPanel } from './panels/RepeatingGridFieldPanel';
+import { LabelFieldPanel } from './panels/LabelFieldPanel';
 
 const useStyles = makeStyles({
   root: {
@@ -79,6 +80,7 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
     case 'radio':
       return <DropdownFieldPanel field={field} />;
     case 'lookup':
+    case 'multiLookup':
       return <LookupFieldPanel field={field} />;
     case 'date':
     case 'datetime':
@@ -99,13 +101,15 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
       return <RepeatingGridFieldPanel field={field} />;
     case 'custom':
       return <CustomFieldPanel field={field} />;
+    case 'label':
+      return <LabelFieldPanel field={field} />;
     default:
       return null;
   }
 }
 
 // Display-only field types that have no input value — hide irrelevant controls.
-const DISPLAY_ONLY_TYPES = new Set(['info-card']);
+const DISPLAY_ONLY_TYPES = new Set(['info-card', 'label']);
 
 // Field types that support inline prefix/suffix decorators.
 const FIELD_TYPES_WITH_AFFIX = new Set([

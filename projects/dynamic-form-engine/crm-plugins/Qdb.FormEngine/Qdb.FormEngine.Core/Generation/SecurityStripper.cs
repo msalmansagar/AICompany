@@ -41,9 +41,12 @@ namespace Qdb.FormEngine.Core.Generation
                 InfocardStartLabel = model.InfocardStartLabel,
                 InfocardSkipLabel = model.InfocardSkipLabel,
                 ShowSummaryStep = model.ShowSummaryStep,
+                SummaryMode = model.SummaryMode,
+                ShowProgressBar = model.ShowProgressBar,
                 InfoCards = model.InfoCards,
                 SubmissionMappings = model.SubmissionMappings,
                 Buttons = model.Buttons,
+                Design = model.Design,
                 CreatedAt = model.CreatedAt,
                 ModifiedAt = model.ModifiedAt,
                 Tabs = StripTabs(model.Tabs)
@@ -59,10 +62,13 @@ namespace Qdb.FormEngine.Core.Generation
                 FormDefinitionId = tab.FormDefinitionId,
                 Label = tab.Label,
                 IconName = tab.IconName,
+                Description = tab.Description,
+                IsSummaryTab = tab.IsSummaryTab,
                 DisplayOrder = tab.DisplayOrder,
                 IsVisible = tab.IsVisible,
                 RequiresPreviousTabComplete = tab.RequiresPreviousTabComplete,
                 HideTabBar = tab.HideTabBar,
+                Buttons = tab.Buttons,
                 Sections = StripSections(tab.Sections)
             }).ToList();
         }
@@ -76,11 +82,13 @@ namespace Qdb.FormEngine.Core.Generation
                 TabId = section.TabId,
                 Label = section.Label,
                 Description = section.Description,
+                IconName = section.IconName,
                 DisplayOrder = section.DisplayOrder,
                 Columns = section.Columns,
                 IsCollapsible = section.IsCollapsible,
                 IsCollapsedByDefault = section.IsCollapsedByDefault,
                 IsVisible = section.IsVisible,
+                Buttons = section.Buttons,
                 Fields = StripFields(section.Fields)
             }).ToList();
         }

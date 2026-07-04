@@ -38,8 +38,29 @@ namespace Qdb.FormEngine.Core.Abstractions
         /// <summary>All active qdb_form_button records for this form.</summary>
         public List<Entity> Buttons { get; set; }
 
+        /// <summary>All active qdb_form_scoped_button records (tab/section buttons) for this form. DFE-BTN-001.</summary>
+        public List<Entity> ScopedButtons { get; set; }
+
         /// <summary>All active qdb_form_business_rule records for this form.</summary>
         public List<Entity> BusinessRules { get; set; }
+
+        /// <summary>The active qdb_form_design record for this form, or null. DFE-STYLE-001.</summary>
+        public Entity FormDesign { get; set; }
+
+        /// <summary>The qdb_theme record linked from the form design, or null. DFE-STYLE-001.</summary>
+        public Entity Theme { get; set; }
+
+        /// <summary>All active qdb_section_design records across this form's sections. DFE-STYLE-001.</summary>
+        public List<Entity> SectionDesigns { get; set; }
+
+        /// <summary>All active qdb_field_design records across this form's fields. DFE-STYLE-001.</summary>
+        public List<Entity> FieldDesigns { get; set; }
+
+        /// <summary>All active qdb_button_design records for this form. DFE-STYLE-001.</summary>
+        public List<Entity> ButtonDesigns { get; set; }
+
+        /// <summary>All qdb_layout_grid records for this form's design. DFE-STYLE-001.</summary>
+        public List<Entity> LayoutGrids { get; set; }
 
         /// <summary>All visible qdb_grid_column_config records for grid fields.</summary>
         public List<Entity> GridColumnConfigs { get; set; }

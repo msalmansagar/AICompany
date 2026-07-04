@@ -72,8 +72,13 @@ export class RestWebApiAdapter implements IWebApiAdapter {
     return this.request<WebApiRetrieveMultipleResult>(`/${entityLogicalName}${options}`);
   }
 
-  async executeAction(actionName: string, _parameters: ActionParameters): Promise<ActionResult> {
-    throw new CrmActionNotAvailableError(actionName);
+  // Local dev: forward the unbound action through the designer proxy to the same cloud org,
+  // where the C# plugin runs — so Publish works outside Dynamics CRM UCI too.
+  async executeAction(actionName: string, parameters: ActionParameters): Promise<ActionResult> {
+    return this.request<ActionResult>(`/_actions/${actionName}`, {
+      method: 'POST',
+      body: JSON.stringify(parameters ?? {}),
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

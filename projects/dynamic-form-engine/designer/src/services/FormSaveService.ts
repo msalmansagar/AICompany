@@ -13,7 +13,22 @@ import { AuditLogService } from './AuditLogService';
 import { GridColumnConfigService } from './GridColumnConfigService';
 import { DesignService } from './DesignService';
 import type { CrmUserContext } from './CrmContextService';
+import type { DesignPayload } from '@qdb/shared';
 import { withRetry } from './crmRetry';
+
+/** Resolves a temp id to its server-assigned id (or returns it unchanged). */
+function resolveRealId(id: string, resolvedIds: Record<string, string>): string {
+  return resolvedIds[id] ?? id;
+}
+
+/** True when the (resolved) id refers to a persisted, non-deleted record. */
+function isPersistableId(id: string, resolvedIds: Record<string, string>, deleted: Set<string>): boolean {
+  return !deleted.has(id) && !resolveRealId(id, resolvedIds).startsWith('tmp_');
+}
+
+function asJson(value: Record<string, string> | undefined): string | undefined {
+  return value ? JSON.stringify(value) : undefined;
+}
 
 export class PartialSaveError extends Error {
   constructor(
@@ -44,7 +59,7 @@ type SaveableState = Pick<
   | 'deletedEntityTypes'
   | 'validationRules'
   | 'businessRules'
-  | 'style'
+  | 'designPayload'
 >;
 
 export interface FormSaveResult {
@@ -81,7 +96,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, style } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -339,6 +354,8 @@ export class FormSaveService {
         allowSaveDraft: form.allowSaveDraft,
         draftExpiryDays: form.draftExpiryDays,
         showSummaryStep: form.showSummaryStep,
+        summaryMode: form.summaryMode,
+        showProgressBar: form.showProgressBar,
         powerAutomateFlowId: form.powerAutomateFlowId,
         confirmationMessage: form.confirmationMessage,
         confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,
@@ -346,24 +363,40 @@ export class FormSaveService {
       });
 
       // Step 8: Save theme and form design
-      if (form.id && !form.id.startsWith('tmp_') && style) {
+      if (form.id && !form.id.startsWith('tmp_') && designPayload) {
+        const { theme, formDesign } = designPayload;
         resolvedThemeId = await this.designService.upsertTheme(
           {
-            name: style.themeName,
-            primaryColor: style.primaryColor,
-            accentColor: style.accentColor,
-            backgroundColor: style.backgroundColor,
-            fontFamily: style.fontFamily,
-            fontSizeBase: style.fontSizeBase,
-            borderRadius: style.borderRadius,
+            name: theme.themeName,
+            themeCode: theme.themeCode,
+            primaryColor: theme.primaryColor,
+            secondaryColor: theme.secondaryColor,
+            backgroundColor: theme.backgroundColor,
+            fontFamily: theme.fontFamily,
+            baseFontSize: theme.baseFontSize,
+            borderRadius: theme.borderRadius,
+            isDarkMode: theme.isDarkMode,
           },
-          style.themeId ?? undefined,
+          theme.id || undefined,
         );
-        await this.designService.upsertFormDesign({
+        const formDesignId = await this.designService.upsertFormDesign({
           formId: form.id,
           themeId: resolvedThemeId,
-          customCss: style.customCss,
+          customCss: formDesign.customCss ?? '',
+          layoutType: formDesign.layoutType,
+          labelPosition: formDesign.labelPosition,
+          buttonStyle: formDesign.buttonStyle,
+          tabStyle: formDesign.tabStyle,
+          alignment: formDesign.alignment,
+          sectionStyle: formDesign.sectionStyle,
+          animationEnabled: formDesign.animationEnabled,
+          stickyActionBar: formDesign.stickyActionBar,
+          skeletonLoaderEnabled: formDesign.skeletonLoaderEnabled,
         });
+
+        // Persist per-element design (section/field/button/responsive). These link to the
+        // real (resolved) section/field ids; deleted/unresolved-temp ids are skipped.
+        await this.persistElementDesigns(form.id, formDesignId, designPayload, resolvedIds, deletedIdSet);
       }
 
       // Step 9: Write audit log
@@ -372,6 +405,15 @@ export class FormSaveService {
         fieldCount: Object.keys(fields).length,
         tabCount: tabOrder.length,
       });
+
+      // BR-012: record a style-change audit entry for the persisted design (theme +
+      // form design). The CSS content itself is never logged — only a changed flag.
+      if (form.id && !form.id.startsWith('tmp_') && designPayload) {
+        await auditService.logAction(form.id, 'STYLE_CHANGE', {
+          styleEntities: ['theme', 'formDesign', 'sectionDesigns', 'fieldDesigns', 'buttonDesigns', 'layoutGrid'],
+          customCssChanged: Boolean(designPayload.formDesign.customCss),
+        });
+      }
 
       return { resolvedIds, resolvedThemeId };
     } catch (error) {
@@ -387,5 +429,77 @@ export class FormSaveService {
       () => this.webApi.deleteRecord(entityName, id),
       `delete.${entityName}`
     );
+  }
+
+  // Persists per-element design from the DesignPayload. Each design record links to the
+  // real (resolved) section/field id; entries for deleted or unresolved-temp ids are skipped.
+  private async persistElementDesigns(
+    formId: string,
+    formDesignId: string,
+    designPayload: DesignPayload,
+    resolvedIds: Record<string, string>,
+    deletedIdSet: Set<string>,
+  ): Promise<void> {
+    await this.persistSectionDesigns(designPayload, resolvedIds, deletedIdSet);
+    await this.persistFieldDesigns(designPayload, resolvedIds, deletedIdSet);
+    await this.persistButtonDesigns(formId, designPayload);
+    await this.persistLayoutGrids(formDesignId, designPayload, resolvedIds, deletedIdSet);
+  }
+
+  private async persistSectionDesigns(
+    designPayload: DesignPayload, resolvedIds: Record<string, string>, deleted: Set<string>,
+  ): Promise<void> {
+    for (const [sectionId, sd] of Object.entries(designPayload.sectionDesigns)) {
+      if (!isPersistableId(sectionId, resolvedIds, deleted)) continue;
+      await this.designService.upsertSectionDesign({
+        sectionId: resolveRealId(sectionId, resolvedIds),
+        cssClass: sd.cssClassName,
+        backgroundColor: sd.backgroundColor, borderStyle: sd.borderStyle,
+        padding: sd.padding, margin: sd.margin, columnLayout: sd.columnLayout,
+        cardStyle: sd.cardStyle, collapsibleStyle: sd.collapsibleStyle,
+        visibilityAnimation: sd.visibilityAnimation, headerStyleJson: asJson(sd.headerStyle),
+      });
+    }
+  }
+
+  private async persistFieldDesigns(
+    designPayload: DesignPayload, resolvedIds: Record<string, string>, deleted: Set<string>,
+  ): Promise<void> {
+    for (const [fieldId, fd] of Object.entries(designPayload.fieldDesigns)) {
+      if (!isPersistableId(fieldId, resolvedIds, deleted)) continue;
+      await this.designService.upsertFieldDesign({
+        fieldId: resolveRealId(fieldId, resolvedIds),
+        labelStyle: asJson(fd.labelStyle), inputStyle: fd.inputStyle,
+        width: fd.width, customWidth: fd.customWidth, height: fd.height,
+        iconPrefix: fd.iconPrefix, iconSuffix: fd.iconSuffix,
+        focusStyleJson: asJson(fd.focusStyle), errorStyleJson: asJson(fd.errorStyle),
+        disabledStyleJson: asJson(fd.disabledStyle), placeholderStyleJson: asJson(fd.placeholderStyle),
+        tooltipStyleJson: asJson(fd.tooltipStyle), cssClass: fd.cssClassName,
+      });
+    }
+  }
+
+  private async persistButtonDesigns(formId: string, designPayload: DesignPayload): Promise<void> {
+    for (const bd of Object.values(designPayload.buttonDesigns)) {
+      if (!bd) continue;
+      await this.designService.upsertButtonDesign({
+        formId, buttonType: bd.buttonType, color: bd.color, size: bd.size,
+        borderRadius: bd.borderRadius, alignment: bd.alignment, icon: bd.icon,
+        hoverEffect: bd.hoverEffect, loadingStyle: bd.loadingStyle,
+      });
+    }
+  }
+
+  private async persistLayoutGrids(
+    formDesignId: string, designPayload: DesignPayload, resolvedIds: Record<string, string>, deleted: Set<string>,
+  ): Promise<void> {
+    for (const lg of designPayload.layoutGrid) {
+      if (!isPersistableId(lg.fieldId, resolvedIds, deleted)) continue;
+      await this.designService.upsertLayoutGrid({
+        formDesignId, fieldId: resolveRealId(lg.fieldId, resolvedIds),
+        columnsTotal: lg.columnsTotal, spanMobile: lg.spanMobile,
+        spanTablet: lg.spanTablet, spanDesktop: lg.spanDesktop,
+      });
+    }
   }
 }

@@ -15,13 +15,18 @@ export type AuditAction =
   | 'CLONE'
   | 'RESTORE_VERSION'
   | 'DELETE_FORM'
-  | 'ARCHIVE_FORM';
+  | 'ARCHIVE_FORM'
+  | 'STYLE_CHANGE';
 
 export interface AuditPayload {
   fieldCount?: number;
   tabCount?: number;
   versionNumber?: string;
   sourceFormId?: string;
+  /** STYLE_CHANGE: which design entities changed. */
+  styleEntities?: string[];
+  /** STYLE_CHANGE: whether customCss changed — never log the CSS content itself (BR-012). */
+  customCssChanged?: boolean;
   [key: string]: unknown;
 }
 

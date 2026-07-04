@@ -54,6 +54,9 @@ export interface CreateFieldDto {
   // Prefix / suffix
   prefix?: string | null;
   suffix?: string | null;
+  // DFE-FBE-001 — Label field
+  staticContent?: string | null;
+  sourceFieldSchemaName?: string | null;
   // Sprint 5 — grid config
   gridMode?: 'selection' | 'entry' | null;
   gridEntityName?: string | null;
@@ -99,6 +102,9 @@ export interface UpdateFieldDto {
   // Prefix / suffix
   prefix?: string | null;
   suffix?: string | null;
+  // DFE-FBE-001 — Label field
+  staticContent?: string | null;
+  sourceFieldSchemaName?: string | null;
   // Sprint 5 — grid config
   gridMode?: 'selection' | 'entry' | null;
   gridEntityName?: string | null;
@@ -152,6 +158,8 @@ export class FieldService {
     if (dto.downloadDocumentSetting != null) payload[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] = dto.downloadDocumentSetting;
     if (dto.prefix != null) payload[FORM_FIELD_ATTRS.PREFIX] = dto.prefix;
     if (dto.suffix != null) payload[FORM_FIELD_ATTRS.SUFFIX] = dto.suffix;
+    if (dto.staticContent != null) payload[FORM_FIELD_ATTRS.STATIC_CONTENT] = dto.staticContent;
+    if (dto.sourceFieldSchemaName != null) payload[FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME] = dto.sourceFieldSchemaName;
     if (dto.gridMode != null) payload[FORM_FIELD_ATTRS.GRID_MODE] = GRID_MODE_TO_PICKLIST[dto.gridMode];
     if (dto.gridEntityName != null) payload[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName;
     if (dto.gridSelectionMode != null) payload[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode];
@@ -202,6 +210,8 @@ export class FieldService {
     if (dto.downloadDocumentSetting !== undefined) data[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] = dto.downloadDocumentSetting ?? null;
     if (dto.prefix !== undefined) data[FORM_FIELD_ATTRS.PREFIX] = dto.prefix ?? null;
     if (dto.suffix !== undefined) data[FORM_FIELD_ATTRS.SUFFIX] = dto.suffix ?? null;
+    if (dto.staticContent !== undefined) data[FORM_FIELD_ATTRS.STATIC_CONTENT] = dto.staticContent ?? null;
+    if (dto.sourceFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME] = dto.sourceFieldSchemaName ?? null;
     if (dto.gridMode !== undefined) data[FORM_FIELD_ATTRS.GRID_MODE] = dto.gridMode != null ? GRID_MODE_TO_PICKLIST[dto.gridMode] : null;
     if (dto.gridEntityName !== undefined) data[FORM_FIELD_ATTRS.GRID_ENTITY_NAME] = dto.gridEntityName ?? null;
     if (dto.gridSelectionMode !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTION_MODE] = dto.gridSelectionMode != null ? GRID_SELECTION_MODE_TO_PICKLIST[dto.gridSelectionMode] : null;
@@ -266,6 +276,8 @@ export class FieldService {
       FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING,
       FORM_FIELD_ATTRS.PREFIX,
       FORM_FIELD_ATTRS.SUFFIX,
+      FORM_FIELD_ATTRS.STATIC_CONTENT,
+      FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME,
       FORM_FIELD_ATTRS.GRID_MODE,
       FORM_FIELD_ATTRS.GRID_ENTITY_NAME,
       FORM_FIELD_ATTRS.GRID_SELECTION_MODE,
@@ -359,6 +371,8 @@ export class FieldService {
       downloadDocumentSetting: record[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING] != null ? String(record[FORM_FIELD_ATTRS.DOWNLOAD_DOCUMENT_SETTING]) : null,
       prefix: record[FORM_FIELD_ATTRS.PREFIX] != null ? String(record[FORM_FIELD_ATTRS.PREFIX]) : null,
       suffix: record[FORM_FIELD_ATTRS.SUFFIX] != null ? String(record[FORM_FIELD_ATTRS.SUFFIX]) : null,
+      staticContent: record[FORM_FIELD_ATTRS.STATIC_CONTENT] != null ? String(record[FORM_FIELD_ATTRS.STATIC_CONTENT]) : null,
+      sourceFieldSchemaName: record[FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME] != null ? String(record[FORM_FIELD_ATTRS.SOURCE_FIELD_SCHEMA_NAME]) : null,
       gridMode: record[FORM_FIELD_ATTRS.GRID_MODE] != null
         ? (PICKLIST_TO_GRID_MODE[Number(record[FORM_FIELD_ATTRS.GRID_MODE])] ?? null)
         : null,

@@ -13,12 +13,14 @@ import { FormRadioField } from './FormRadioField';
 import { FormRadioCardField } from './FormRadioCardField';
 import { FormCheckboxGroupField } from './FormCheckboxGroupField';
 import { FormLookupField } from './FormLookupField';
+import { FormMultiLookupField } from './FormMultiLookupField';
 import { FormFileField } from './FormFileField';
 import { FormRepeatingGridField } from './FormRepeatingGridField';
 import { FormSelectionGridField } from './FormSelectionGridField';
 import { FormBooleanField } from './FormBooleanField';
 import { FormInteractiveGridField } from './FormInteractiveGridField';
 import { FormInfoCardField } from './FormInfoCardField';
+import { FormLabelField } from './FormLabelField';
 import { useMobileFormContext } from '../../context/MobileFormContext';
 import { ComponentRegistry } from '../../registry/ComponentRegistry';
 
@@ -101,6 +103,8 @@ function resolveFieldComponent(
         : <FormRadioField field={field} control={control} />;
     case 'lookup':
       return <FormLookupField field={field} control={control} />;
+    case 'multiLookup':
+      return <FormMultiLookupField field={field} control={control} />;
     case 'file':
       return <FormFileField field={field} control={control} accessToken={accessToken} />;
     case 'grid':
@@ -127,6 +131,8 @@ function resolveFieldComponent(
       );
     case 'info-card':
       return <FormInfoCardField field={field} />;
+    case 'label':
+      return <FormLabelField field={field} control={control} />;
     case 'custom': {
       const customKey = (field as FieldDefinition & { componentKey?: string }).componentKey ?? '';
       const CustomField = ComponentRegistry.resolve(customKey);

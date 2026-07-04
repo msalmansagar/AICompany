@@ -5,9 +5,10 @@
   "main": "src/index.ts",
   "types": "src/server.ts",
   "scripts": {
-    "build": "tsc",
+    "check:types-sync": "node scripts/check-shared-type-sync.mjs",
+    "build": "npm run check:types-sync && tsc",
     "watch": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "npm run check:types-sync && tsc --noEmit",
     "clean": "rimraf dist"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "postcss": "^8"
   }
 }

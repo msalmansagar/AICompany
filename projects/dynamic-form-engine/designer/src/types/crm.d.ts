@@ -48,6 +48,22 @@ declare namespace Xrm {
     function clearGlobalNotification(id: string): Promise<void>;
   }
 
+  namespace Navigation {
+    interface OpenWebResourceOptions {
+      height?: number;
+      width?: number;
+      openInNewWindow?: boolean;
+    }
+    /** Opens a web resource in a dialog/window, passing `data` as its ?data= query parameter. */
+    function openWebResource(
+      webResourceName: string,
+      windowOptions?: OpenWebResourceOptions,
+      data?: string,
+    ): void;
+    /** Navigates to a page (form, dashboard, or web resource) inline, inline dialog, or new window. */
+    function navigateTo(pageInput: unknown, navigationOptions?: unknown): Promise<unknown>;
+  }
+
   interface EntityMetadata {
     LogicalName: string;
     DisplayName: string;

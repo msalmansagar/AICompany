@@ -35,8 +35,10 @@ import { DesignContext, DEFAULT_DESIGN_PAYLOAD } from '../../contexts/DesignCont
 import { useLanguageContext, LanguageToggle } from '../../i18n';
 import { ResponsiveEngine } from '../../contexts/ResponsiveContext';
 import { ThemeProvider } from '../../theme/ThemeProvider';
+import { sanitiseCustomCssForRuntime } from '../../theme/customCssInjector';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
+import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
 import { FormConfirmation } from './FormConfirmation';
@@ -288,7 +290,7 @@ function FormRendererInner({
       el.id = 'dfe-custom-css';
       document.head.appendChild(el);
     }
-    el.textContent = css;
+    el.textContent = sanitiseCustomCssForRuntime(css);
 
     return () => {
       document.getElementById('dfe-custom-css')?.remove();
@@ -386,7 +388,12 @@ function FormRendererInner({
   const isOnFinalTab =
     activeTab !== undefined && finalTabId !== null && activeTab.id === finalTabId;
 
-  const showSummaryStep = formDefinition.showSummaryStep ?? false;
+  // DFE-FBE-001: effective summary mode — honour summaryMode, else derive from the legacy
+  // boolean (back-compat). SystemGenerated → the auto review step; None/Manual → no auto step
+  // (Manual's designer-built summary tab is Wave 2, C-001-gated).
+  const effectiveSummaryMode =
+    formDefinition.summaryMode ?? (formDefinition.showSummaryStep ? 'SystemGenerated' : 'None');
+  const showSummaryStep = effectiveSummaryMode === 'SystemGenerated';
   const isSummaryPhase = phaseState.phase === 'summary';
   const tabStyle = design.formDesign.tabStyle;
   const isAccordionNav = tabStyle === 'Accordion';
@@ -394,6 +401,7 @@ function FormRendererInner({
   const isSidebarNav = tabStyle === 'Sidebar';
 
   const formHeader = (
+    <>
     <header className={styles.header}>
       <div className={styles.headerText}>
         <h1 className={styles.title}>{formDefinition.title}</h1>
@@ -413,6 +421,9 @@ function FormRendererInner({
         )}
       </div>
     </header>
+    {/* DFE-FBE-002: completion progress bar, above the tab strip (gated on showProgressBar). */}
+    {formDefinition.showProgressBar && <FormProgressBar />}
+    </>
   );
 
   const formNav = (

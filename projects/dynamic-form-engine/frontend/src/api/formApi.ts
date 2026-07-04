@@ -24,8 +24,12 @@ export const formApi = {
   saveDraft: (formCode: string, draft: DraftSubmission) =>
     apiClient.post<DraftSubmission>(`/forms/${formCode}/draft`, draft),
 
-  submit: (formCode: string, data: FormFieldValues) =>
-    apiClient.post<{ referenceNumber: string }>(`/forms/${formCode}/submit`, { formData: data }),
+  submit: (formCode: string, data: FormFieldValues, submitButtonId?: string) =>
+    apiClient.post<{ referenceNumber: string }>(`/forms/${formCode}/submit`, {
+      formData: data,
+      // DFE-BTN-001: lets the backend resolve a FinalSubmit button's extra-params.
+      ...(submitButtonId ? { submitButtonId } : {}),
+    }),
 
   validate: (formCode: string, data: FormFieldValues) =>
     apiClient.post<Record<string, string[]>>(`/forms/${formCode}/validate`, { formData: data }),

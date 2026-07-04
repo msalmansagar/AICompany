@@ -1,6 +1,8 @@
 // Domain model for a form definition as held in the designer local state.
 // Temp IDs are prefixed with 'tmp_' until the record is persisted to CRM.
 
+import type { SummaryMode } from '@qdb/shared';
+
 export type FormStatus = 'draft' | 'published' | 'archived';
 
 export interface DesignerFormModel {
@@ -16,6 +18,10 @@ export interface DesignerFormModel {
   allowSaveDraft: boolean;
   draftExpiryDays: number | null;
   showSummaryStep: boolean;
+  // DFE-FBE-001: None/SystemGenerated/Manual. Absent/null on legacy forms (derived from showSummaryStep).
+  summaryMode?: SummaryMode | null;
+  // DFE-FBE-002: form-completion progress bar.
+  showProgressBar?: boolean;
   powerAutomateFlowId: string | null;
   confirmationMessage: string | null;
   confirmationRecordRefAttribute: string | null;
@@ -32,6 +38,9 @@ export interface DesignerTabModel {
   formId: string;
   label: string;
   iconName: string | null;
+  // DFE-FBE-001: tab description + manual-summary designation.
+  description?: string | null;
+  isSummaryTab?: boolean;
   sortOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
@@ -45,6 +54,8 @@ export interface DesignerSectionModel {
   tabId: string;
   label: string;
   description: string | null;
+  // DFE-FBE-001: section header icon.
+  iconName?: string | null;
   columnCount: 1 | 2 | 3;
   isCollapsible: boolean;
   isExpandedByDefault: boolean;
@@ -130,6 +141,9 @@ export interface DesignerFieldModel {
   // Prefix / suffix decorators
   prefix: string | null;
   suffix: string | null;
+  // DFE-FBE-001 — Label field: static content + optional data-bound source field schema name.
+  staticContent?: string | null;
+  sourceFieldSchemaName?: string | null;
   // Sprint 5 — interactive-grid / repeating-grid config
   gridMode: 'selection' | 'entry' | null;
   gridEntityName: string | null;
