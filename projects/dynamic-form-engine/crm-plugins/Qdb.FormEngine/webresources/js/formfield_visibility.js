@@ -59,6 +59,8 @@ DFE.FormField = (function () {
     qdb_static_content:            [FT.LABEL],
     qdb_source_field_schema_name:  [FT.LABEL],
     qdb_component_key:             [FT.CUSTOM],
+    // Parent field for dependent lookups / filtered options.
+    qdb_parent_field_id:           [FT.LOOKUP, FT.MULTI_LOOKUP, FT.DROPDOWN, FT.MULTISELECT, FT.RADIO],
   };
 
   function setSectionVisible(tab, name, visible) {
