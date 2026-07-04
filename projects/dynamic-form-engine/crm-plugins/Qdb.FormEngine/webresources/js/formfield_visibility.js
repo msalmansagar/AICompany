@@ -1,6 +1,7 @@
 // DFE — qdb_form_field form visibility controller
 // Registered on: OnLoad + qdb_field_type OnChange
-// Shows/hides typed sections based on the selected field type value.
+// Shows/hides typed sections AND type-specific fields (that live in the always-visible
+// section_core) based on the selected field type value.
 "use strict";
 
 var DFE = DFE || {};
@@ -34,8 +35,7 @@ DFE.FormField = (function () {
     MULTI_LOOKUP:    100000023,
   };
 
-  // Section name → which field types should show it.
-  // section_core is always visible and not listed here.
+  // Section name → which field types should show it. section_core is always visible.
   var SECTION_RULES = {
     section_text_input: [
       FT.TEXT, FT.TEXTAREA, FT.NUMBER, FT.DECIMAL, FT.CURRENCY,
@@ -51,26 +51,45 @@ DFE.FormField = (function () {
     // Lookup + multi-select lookup share the same lookup configuration.
     section_lookup_config: [FT.LOOKUP, FT.MULTI_LOOKUP],
     section_infocard_config: [FT.INFO_CARD],
-    // Label: static content (qdb_static_content) and/or a bound source field
-    // (qdb_source_field_schema_name).
-    section_label_config: [FT.LABEL],
-    // Custom: developer-registered component (qdb_component_key).
-    section_custom_config: [FT.CUSTOM],
   };
+
+  // Field (control) name → which field types should show it. These type-specific fields
+  // sit inside the always-visible section_core, so they are toggled individually.
+  var FIELD_RULES = {
+    qdb_static_content:            [FT.LABEL],
+    qdb_source_field_schema_name:  [FT.LABEL],
+    qdb_component_key:             [FT.CUSTOM],
+  };
+
+  function setSectionVisible(tab, name, visible) {
+    var section = tab.sections.get(name);
+    if (section) section.setVisible(visible);
+  }
+
+  function setFieldVisible(formContext, name, visible) {
+    var attr = formContext.getAttribute(name);
+    if (attr) {
+      attr.controls.forEach(function (c) { c.setVisible(visible); });
+    }
+  }
+
+  function applies(rule, fieldType) {
+    return fieldType !== null && rule.indexOf(fieldType) !== -1;
+  }
 
   function applyVisibility(formContext) {
     var fieldTypeAttr = formContext.getAttribute("qdb_field_type");
     var fieldType = fieldTypeAttr ? fieldTypeAttr.getValue() : null;
 
     var tab = formContext.ui.tabs.get("tab_general");
-    if (!tab) return;
+    if (tab) {
+      Object.keys(SECTION_RULES).forEach(function (name) {
+        setSectionVisible(tab, name, applies(SECTION_RULES[name], fieldType));
+      });
+    }
 
-    Object.keys(SECTION_RULES).forEach(function (sectionName) {
-      var section = tab.sections.get(sectionName);
-      if (!section) return;
-      var applicableTypes = SECTION_RULES[sectionName];
-      var shouldShow = fieldType !== null && applicableTypes.indexOf(fieldType) !== -1;
-      section.setVisible(shouldShow);
+    Object.keys(FIELD_RULES).forEach(function (name) {
+      setFieldVisible(formContext, name, applies(FIELD_RULES[name], fieldType));
     });
   }
 
