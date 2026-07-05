@@ -14,6 +14,7 @@ import { ComponentStyleResolver } from '../../theme/ComponentStyleResolver';
 import { TextInputControl } from './controls/TextInputControl';
 import { TextAreaControl } from './controls/TextAreaControl';
 import { NumberControl } from './controls/NumberControl';
+import { NumberBarControl } from './controls/NumberBarControl';
 import { DateControl } from './controls/DateControl';
 import { DateTimeControl } from './controls/DateTimeControl';
 import { DropdownControl } from './controls/DropdownControl';
@@ -241,7 +242,9 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
     case 'textarea':
       return <TextAreaControl {...controlProps} />;
     case 'number':
-      return <NumberControl {...controlProps} />;
+      return field.numberDisplayStyle === 'bar'
+        ? <NumberBarControl {...controlProps} />
+        : <NumberControl {...controlProps} />;
     case 'date':
       return <DateControl {...controlProps} />;
     case 'datetime':
@@ -263,9 +266,13 @@ function FieldControl({ controlProps }: { controlProps: ControlProps }) {
         ? <RadioCardControl {...controlProps} />
         : <RadioControl {...controlProps} />;
     case 'currency':
-      return <CurrencyControl {...controlProps} />;
+      return field.numberDisplayStyle === 'bar'
+        ? <NumberBarControl {...controlProps} />
+        : <CurrencyControl {...controlProps} />;
     case 'decimal':
-      return <DecimalControl {...controlProps} />;
+      return field.numberDisplayStyle === 'bar'
+        ? <NumberBarControl {...controlProps} />
+        : <DecimalControl {...controlProps} />;
     case 'email':
       return <EmailControl {...controlProps} />;
     case 'phone':
