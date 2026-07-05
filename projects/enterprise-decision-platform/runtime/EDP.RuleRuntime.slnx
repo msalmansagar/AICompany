@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EDP.RuleRuntime.Crm/EDP.RuleRuntime.Crm.csproj" />
+    <Project Path="src/EDP.RuleRuntime/EDP.RuleRuntime.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EDP.RuleRuntime.Crm.Tests/EDP.RuleRuntime.Crm.Tests.csproj" />
+    <Project Path="tests/EDP.RuleRuntime.Tests/EDP.RuleRuntime.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/EDP.RuleRuntime.DevHarness/EDP.RuleRuntime.DevHarness.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,68 @@
+// Reads CRM entity/attribute/option-set metadata via the Web API. Dual-mode:
+// CRM (Xrm or *.dynamics.com same-origin) or the local /dataverse dev proxy.
+
+function apiBase(): string {
+  const w = window as any;
+  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
+  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
+  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
+  return '/dataverse';
+}
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${apiBase()}${path}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0' },
+  });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  return json as T;
+}
+
+const label = (l: any, fallback: string) => l?.UserLocalizedLabel?.Label ?? l?.LocalizedLabels?.[0]?.Label ?? fallback;
+
+export interface EntityMeta { logicalName: string; displayName: string; }
+export interface AttributeMeta { logicalName: string; displayName: string; type: string; }
+export interface OptionMeta { value: number; label: string; }
+
+let entityCache: EntityMeta[] | null = null;
+
+/** All entities (cached), filtered client-side — EntityDefinitions doesn't support startswith. */
+export async function searchEntities(term: string): Promise<EntityMeta[]> {
+  if (!entityCache) {
+    const d = await get<{ value: any[] }>(`/EntityDefinitions?$select=LogicalName,DisplayName`);
+    entityCache = d.value
+      .map((e) => ({ logicalName: e.LogicalName as string, displayName: label(e.DisplayName, e.LogicalName) }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }
+  const t = term.trim().toLowerCase();
+  const list = t
+    ? entityCache.filter((e) => e.logicalName.toLowerCase().includes(t) || e.displayName.toLowerCase().includes(t))
+    : entityCache;
+  return list.slice(0, 100);
+}
+
+/** Non-virtual attributes of an entity, sorted by display name. */
+export async function listAttributes(entity: string): Promise<AttributeMeta[]> {
+  const d = await get<{ value: any[] }>(
+    `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType`
+  );
+  return d.value
+    .filter((a) => a.AttributeType && a.AttributeType !== 'Virtual')
+    .map((a) => ({ logicalName: a.LogicalName as string, displayName: label(a.DisplayName, a.LogicalName), type: a.AttributeType as string }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/** Option-set members for a Picklist/State/Status attribute. */
+export async function listOptions(entity: string, attribute: string): Promise<OptionMeta[]> {
+  const path = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`
+    + `/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet`;
+  try {
+    const d = await get<any>(path);
+    const opts = d?.OptionSet?.Options ?? [];
+    return opts.map((o: any) => ({ value: o.Value as number, label: label(o.Label, String(o.Value)) }));
+  } catch {
+    return [];
+  }
+}

@@ -1,0 +1,97 @@
+// Model + PCRM serialization for the metadata-bound decision-table editor (ADR-D05).
+// This authoring surface produces PCRM directly — no GoRules translation.
+
+export interface InputCol { field: string; label: string; type: string; } // field = CRM logical name
+export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
+export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; }
+export interface Row { cells: Cell[]; outputs: Record<string, string>; }
+export interface TableModel {
+  editor: 'edp-table';
+  hitPolicy: 'First' | 'Priority' | 'Unique' | 'All';
+  inputs: InputCol[];
+  outputs: OutputCol[];
+  rows: Row[];
+}
+
+export const HIT_POLICIES: TableModel['hitPolicy'][] = ['First', 'Priority', 'Unique', 'All'];
+
+export function emptyTable(): TableModel {
+  return { editor: 'edp-table', hitPolicy: 'First', inputs: [], outputs: [{ name: 'result', type: 'Text' }], rows: [newRow(0, 1)] };
+}
+export function newRow(inputCount: number, outputCount: number): Row {
+  return { cells: Array.from({ length: inputCount }, () => ({ any: true })), outputs: {} };
+}
+
+// CRM attribute type -> editor category
+export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' {
+  switch (crmType) {
+    case 'Integer': case 'BigInt': case 'Decimal': case 'Double': case 'Money': return 'number';
+    case 'DateTime': return 'date';
+    case 'Boolean': return 'boolean';
+    case 'Picklist': case 'State': case 'Status': return 'optionset';
+    default: return 'text';
+  }
+}
+
+// PCRM output type from CRM category
+export function pcrmType(crmType: string): string {
+  const c = category(crmType);
+  return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' ? 'OptionSet' : 'Text';
+}
+
+interface OpDef { op: string; label: string; arity: 0 | 1 | 2; }
+const OP = (op: string, label: string, arity: 0 | 1 | 2): OpDef => ({ op, label, arity });
+const ANY = OP('Any', '— any —', 0);
+
+export function operatorsFor(cat: string): OpDef[] {
+  switch (cat) {
+    case 'number': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('GreaterThan', '>', 1), OP('GreaterThanOrEqual', '≥', 1), OP('LessThan', '<', 1), OP('LessThanOrEqual', '≤', 1), OP('Between', 'between', 2), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
+    case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsNull', 'is empty', 0)];
+    case 'boolean': return [ANY, OP('Equals', '=', 1)];
+    case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
+    default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
+  }
+}
+export function arity(cat: string, op?: string): 0 | 1 | 2 {
+  return operatorsFor(cat).find((o) => o.op === op)?.arity ?? 0;
+}
+
+// ---- serialization to PCRM ----
+export function tableToPcrm(model: TableModel, meta: { name: string; targetEntity: string }): unknown {
+  return {
+    schemaVersion: '1.0',
+    ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
+    name: meta.name,
+    targetEntity: meta.targetEntity,
+    inputs: model.inputs.map((i) => ({ name: i.field, type: pcrmType(i.type), binding: i.field })),
+    variables: [],
+    outputs: model.outputs.map((o) => ({ name: o.name, type: o.type })),
+    logic: {
+      type: 'decisionTable',
+      hitPolicy: model.hitPolicy,
+      tableInputs: model.inputs.map((i) => ({ field: i.field })),
+      outputColumns: model.outputs.map((o) => o.name),
+      rows: model.rows.map((r, idx) => ({
+        priority: model.rows.length - idx,
+        cells: r.cells.map((c, ci) => cellToPcrm(c, model.inputs[ci])),
+        outputs: Object.fromEntries(model.outputs.map((o) => [o.name, coerce(r.outputs[o.name], o.type === 'Number' ? 'number' : o.type === 'Boolean' ? 'boolean' : 'text')])),
+      })),
+    },
+  };
+}
+
+function cellToPcrm(cell: Cell, input?: InputCol): any {
+  if (!cell || cell.any || !cell.operator || cell.operator === 'Any') return { any: true };
+  const cat = input ? category(input.type) : 'text';
+  const out: any = { operator: cell.operator, value: coerce(cell.value, cat) };
+  if (arity(cat, cell.operator) === 2) out.value2 = coerce(cell.value2, cat);
+  return out;
+}
+
+function coerce(raw: string | undefined, cat: string): unknown {
+  const s = (raw ?? '').trim();
+  if (s === '') return cat === 'boolean' ? false : null;
+  if (cat === 'number' && /^-?\d+(\.\d+)?$/.test(s)) return Number(s);
+  if (cat === 'boolean') return s === 'true' || s === 'Yes' || s === 'yes' || s === '1';
+  return s; // text, date (ISO string), optionset (value or label), or comma-list for In
+}

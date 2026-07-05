@@ -1,0 +1,89 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using EDP.RuleRuntime.Execution;
+using EDP.RuleRuntime.Metadata;
+using EDP.RuleRuntime.Operators;
+using EDP.RuleRuntime.Pcrm;
+
+namespace EDP.RuleRuntime.Compiler
+{
+    /// <summary>
+    /// Platform-owned validation (the runtime cannot rely on GoRules/WASM). Validates
+    /// metadata bindings, operators, and symbol references, returning Error/Warning
+    /// diagnostics. Specification-style: each rule is an independent check.
+    /// </summary>
+    public sealed class RuleValidator
+    {
+        private readonly IMetadataResolver _metadata;
+
+        public RuleValidator(IMetadataResolver metadata) => _metadata = metadata;
+
+        public IReadOnlyList<RuleDiagnostic> Validate(PcrmDocument doc)
+        {
+            var diagnostics = new List<RuleDiagnostic>();
+            var symbols = new HashSet<string>(
+                doc.Inputs.Select(i => i.Name).Concat(doc.Variables.Select(v => v.Name)),
+                StringComparer.OrdinalIgnoreCase);
+
+            ValidateBindings(doc, diagnostics);
+
+            if (doc.Logic.Type.Equals("decisionTable", StringComparison.OrdinalIgnoreCase))
+                ValidateTable(doc.Logic, symbols, diagnostics);
+            else
+                ValidateConditionSet(doc.Logic, symbols, diagnostics);
+
+            return diagnostics;
+        }
+
+        private void ValidateBindings(PcrmDocument doc, List<RuleDiagnostic> diagnostics)
+        {
+            if (string.IsNullOrWhiteSpace(doc.TargetEntity)) return;
+            if (!_metadata.EntityExists(doc.TargetEntity))
+            {
+                diagnostics.Add(new RuleDiagnostic("EDP001", $"Target entity '{doc.TargetEntity}' not found in metadata.", RuleErrorSeverity.Warning));
+                return;
+            }
+            foreach (var input in doc.Inputs.Where(i => !string.IsNullOrWhiteSpace(i.Binding)))
+            {
+                if (!_metadata.TryGetAttribute(doc.TargetEntity, input.Binding!, out _))
+                    diagnostics.Add(new RuleDiagnostic("EDP002", $"Field '{input.Binding}' not found on '{doc.TargetEntity}'.", RuleErrorSeverity.Error, input.Name));
+            }
+        }
+
+        private void ValidateConditionSet(PcrmLogic logic, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
+        {
+            if (logic.Rules.Count == 0 && logic.Otherwise == null)
+                diagnostics.Add(new RuleDiagnostic("EDP010", "Condition set has no rules and no otherwise branch.", RuleErrorSeverity.Warning));
+
+            foreach (var rule in logic.Rules)
+                ValidateGroup(rule.When, symbols, diagnostics);
+        }
+
+        private void ValidateGroup(PcrmGroup group, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
+        {
+            foreach (var c in group.Conditions)
+            {
+                if (!OperatorEvaluator.IsKnown(c.Operator))
+                    diagnostics.Add(new RuleDiagnostic("EDP003", $"Unknown operator '{c.Operator}'.", RuleErrorSeverity.Error, c.Field));
+                if (!string.IsNullOrWhiteSpace(c.Field) && !symbols.Contains(c.Field))
+                    diagnostics.Add(new RuleDiagnostic("EDP004", $"Condition references undeclared symbol '{c.Field}'.", RuleErrorSeverity.Error, c.Field));
+            }
+            foreach (var nested in group.Groups)
+                ValidateGroup(nested, symbols, diagnostics);
+        }
+
+        private void ValidateTable(PcrmLogic logic, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
+        {
+            if (logic.Rows.Count == 0 && logic.DefaultRow == null)
+                diagnostics.Add(new RuleDiagnostic("EDP011", "Decision table has no rows and no default row.", RuleErrorSeverity.Warning));
+
+            foreach (var input in logic.TableInputs.Where(ti => !symbols.Contains(ti.Field)))
+                diagnostics.Add(new RuleDiagnostic("EDP004", $"Table input references undeclared symbol '{input.Field}'.", RuleErrorSeverity.Error, input.Field));
+
+            foreach (var row in logic.Rows)
+                foreach (var cell in row.Cells.Where(cell => !cell.Any && !OperatorEvaluator.IsKnown(cell.Operator)))
+                    diagnostics.Add(new RuleDiagnostic("EDP003", $"Unknown operator '{cell.Operator}' in table cell.", RuleErrorSeverity.Error));
+        }
+    }
+}
