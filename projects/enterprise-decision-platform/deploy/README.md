@@ -14,6 +14,7 @@ are embedded. All are idempotent.
 | `bre-webresources.js` | Deploy the designer build (`designer/dist`) as web resources |
 | `bre-seed.js` / `bre-seed-all.js` | Seed sample rules |
 | `bre-fixopt.js` | Make a Custom API request parameter optional (delete+recreate) |
+| `bre-roles.js` | Provision the 6 EDP security roles + per-role privileges |
 
 Plugin assembly must be IL-merged first (see `../runtime/README.md`); bump the
 `AssemblyVersion` in `EDP.RuleRuntime.Crm.csproj` on every change so the sandbox reloads.
