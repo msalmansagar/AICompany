@@ -8,6 +8,7 @@ import { MetadataExplorer } from './metadata/MetadataExplorer';
 import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
+import { saveScenario, listScenarios, updateResult, outputsMatch, type Scenario } from './scenarios/scenarioService';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 
@@ -21,7 +22,9 @@ export function App() {
 
   // --- Governance state ---
   const [versionId, setVersionId] = useState<string | null>(null);
+  const [ruleId, setRuleId] = useState<string | null>(null);
   const [lifecycle, setLifecycle] = useState<string>('');
+  const [scenarios, setScenarios] = useState<Array<Scenario & { pass?: boolean }>>([]);
 
   const [showMetadata, setShowMetadata] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -48,7 +51,9 @@ export function App() {
       const pcrm = currentPcrm();
       const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
       setVersionId(res.versionId);
+      setRuleId(res.ruleId);
       setLifecycle('Draft');
+      void loadScenarios(res.ruleId);
       setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
       await refreshRules();
     } catch (e: any) {
@@ -73,7 +78,9 @@ export function App() {
       else { setAuthorMode('canvas'); if (src) setGraph(src); }
       setRuleName(v?.ruleName ?? 'Rule');
       setVersionId(v?.versionId ?? null);
+      setRuleId(ruleId);
       setLifecycle(v?.lifecycleState ?? '');
+      void loadScenarios(ruleId);
       setStatus(`Loaded ${v?.ruleName ?? ''} (version ${v?.versionNumber ?? '?'} · ${v?.lifecycleState ?? ''}).`);
     } catch (e: any) {
       setStatus(`Load failed: ${e.message}`);
@@ -95,6 +102,41 @@ export function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function loadScenarios(rid: string) {
+    try { setScenarios(await listScenarios(rid)); } catch { /* ignore */ }
+  }
+  async function saveCurrentScenario() {
+    if (!ruleId) { setStatus('Save the rule first — scenarios attach to a saved rule.'); return; }
+    if (!testResult) { setStatus('Run a test first, then save its inputs + outputs as a scenario.'); return; }
+    const name = window.prompt('Scenario name:', `Scenario ${scenarios.length + 1}`);
+    if (!name) return;
+    try {
+      let inputs: Record<string, unknown> = {};
+      try { inputs = JSON.parse(testInputs || '{}'); } catch { /* keep */ }
+      await saveScenario(ruleId, name, inputs, testResult.outputs as Record<string, unknown>);
+      await loadScenarios(ruleId);
+      setStatus(`Scenario "${name}" saved (expected = last result).`);
+    } catch (e: any) { setStatus('Save scenario failed: ' + e.message); }
+  }
+  async function runAllScenarios() {
+    if (!scenarios.length) return;
+    setBusy(true);
+    try {
+      const pcrm = currentPcrm();
+      const updated: Array<Scenario & { pass?: boolean }> = [];
+      for (const s of scenarios) {
+        try {
+          const r = await evaluate(pcrm, s.inputs);
+          const pass = outputsMatch(s.expected, r.outputs);
+          await updateResult(s.id, pass ? 'pass' : 'fail');
+          updated.push({ ...s, pass });
+        } catch { updated.push({ ...s, pass: false }); }
+      }
+      setScenarios(updated);
+      setStatus(`Regression: ${updated.filter((u) => u.pass).length}/${updated.length} scenarios passed.`);
+    } finally { setBusy(false); }
   }
 
   function openTest() {
@@ -226,6 +268,21 @@ export function App() {
                 )}
               </div>
             )}
+
+            <div className="tp-lbl">Scenario library (regression)</div>
+            <div className="sc-actions">
+              <button onClick={saveCurrentScenario} disabled={!testResult}>⭐ Save current</button>
+              <button onClick={runAllScenarios} disabled={!scenarios.length || busy}>Run all ▶</button>
+            </div>
+            {!ruleId && <p className="tp-sub">Save the rule to attach scenarios.</p>}
+            {scenarios.map((s) => (
+              <div key={s.id} className="sc-row">
+                <span className={`sc-badge ${s.pass === true ? 'ok' : s.pass === false ? 'bad' : ''}`}>
+                  {s.pass === true ? 'PASS' : s.pass === false ? 'FAIL' : (s.lastResult || '—').toUpperCase()}
+                </span>
+                <span className="sc-name">{s.name}</span>
+              </div>
+            ))}
           </aside>
         )}
       </div>
