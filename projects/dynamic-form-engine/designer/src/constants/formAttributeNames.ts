@@ -108,6 +108,8 @@ export const FORM_FIELD_ATTRS = {
   DEFAULT_VALUE: 'qdb_default_value',
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
+  NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
+  BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
@@ -193,6 +195,16 @@ export const PICKLIST_TO_COLUMN_SPAN: Record<number, 1 | 2 | 3> = {
 export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
   toggle: 100000000,
   radio:  100000001,
+};
+
+// DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
+export const NUMBER_DISPLAY_STYLE_TO_PICKLIST: Record<string, number> = {
+  textbox: 100000001,
+  bar:     100000002,
+};
+export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'> = {
+  100000001: 'textbox',
+  100000002: 'bar',
 };
 export const PICKLIST_TO_BOOL_RENDER_STYLE: Record<number, 'toggle' | 'radio'> = {
   100000000: 'toggle',

@@ -363,6 +363,10 @@ export interface FieldDefinition {
   childFields?: FieldDefinition[]; // repeatingGrid column definitions
   currencyCode?: string;           // currency fields
   decimalPlaces?: number;          // decimal / currency fields
+  // DFE-NUMBAR: number/decimal/currency display style. 'bar' = read-only utilization gauge
+  // (this field's value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
+  numberDisplayStyle?: 'textbox' | 'bar';
+  barMaxFieldSchemaName?: string;  // schema name of the field providing the bar's maximum (total)
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
