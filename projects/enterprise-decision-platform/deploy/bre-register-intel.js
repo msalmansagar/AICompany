@@ -1,29 +1,19 @@
 'use strict';
-// Register the EDS read-only metadata/schema Functions (ADR-EDS-03) in Dataverse
-// (BusinessRuleEngine solution): GetInputSchema, GetOutputSchema, GetRuleMetadata,
-// GetPublishedVersion. One shared plugin type (RuleMetadataPlugin) backs all four;
-// the plugin branches on the invoked message name. Idempotent. Then smoke-tests.
+// Register the Phase-6 Decision Intelligence read-only Functions (ADR-AI-02/05/07) in
+// Dataverse (BusinessRuleEngine): ExplainDecision, GetAnalytics. One shared plugin type
+// (DecisionIntelligencePlugin) backs both; the plugin branches on the message name.
+// Idempotent. Then smoke-tests against the latest execution log row.
 const fs = require('fs'), https = require('https');
 const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll';
 const ASSEMBLY_VERSION = '1.0.6.0';
-const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleMetadataPlugin';
-const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60'; // Loan Approval — Sample v1 (unpublished)
-const PUBLISHED_RULE = '23f45b83-be77-f111-ab0e-000d3abcff60'; // a rule with a Published version
+const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.DecisionIntelligencePlugin';
 
 const FUNCTIONS = [
-  { uniquename: 'qdb_edp_GetInputSchema', displayname: 'EDP Get Input Schema', description: 'Declared inputs (name/type/binding) of a rule version.' },
-  { uniquename: 'qdb_edp_GetOutputSchema', displayname: 'EDP Get Output Schema', description: 'Declared outputs (name/type) of a rule version.' },
-  { uniquename: 'qdb_edp_GetRuleMetadata', displayname: 'EDP Get Rule Metadata', description: 'Rule/version summary and declared-object counts.' },
-  { uniquename: 'qdb_edp_GetPublishedVersion', displayname: 'EDP Get Published Version', description: 'Resolve a business identity to its published version.' },
-];
-const REQ_PARAMS = [
-  { uniquename: 'RuleVersionId', displayname: 'Rule Version Id' },
-  { uniquename: 'RuleId', displayname: 'Rule Id' },
-  { uniquename: 'RuleName', displayname: 'Rule Name' },
-  { uniquename: 'Version', displayname: 'Version Number' },
+  { uniquename: 'qdb_edp_ExplainDecision', displayname: 'EDP Explain Decision', description: 'Business + technical explanation of a recorded decision, grounded in its step-trace.', params: [{ uniquename: 'ExecutionLogId', displayname: 'Execution Log Id', isoptional: false }] },
+  { uniquename: 'qdb_edp_GetAnalytics', displayname: 'EDP Get Analytics', description: 'Historical count/avg/max duration by outcome over the execution log.', params: [{ uniquename: 'RuleVersionId', displayname: 'Rule Version Id', isoptional: true }] },
 ];
 
 function raw(method, path, token, body, extra) {
@@ -44,23 +34,19 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
 (async () => {
   const t = await token();
 
-  // 1) assembly — PATCH content + version so the sandbox reloads.
   const asm = await first(t, 'pluginassemblies', "name eq 'EDP.RuleRuntime.Crm.Signed'", 'pluginassemblyid');
-  if (!asm) throw new Error('assembly EDP.RuleRuntime.Crm.Signed not found — run bre-register.js first.');
-  const b64 = fs.readFileSync(DLL).toString('base64');
-  await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: ASSEMBLY_VERSION });
-  console.log('assembly patched ->', ASSEMBLY_VERSION, asm.pluginassemblyid);
+  if (!asm) throw new Error('assembly not found — run bre-register.js first.');
+  await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: fs.readFileSync(DLL).toString('base64'), version: ASSEMBLY_VERSION });
+  console.log('assembly patched ->', ASSEMBLY_VERSION);
 
-  // 2) one shared plugin type (branches on message name).
   let ptype = await first(t, 'plugintypes', `typename eq '${PLUGIN_TYPENAME}'`, 'plugintypeid');
   if (!ptype) {
-    const r = await raw('POST', `${API}/plugintypes`, t, { 'pluginassemblyid@odata.bind': `/pluginassemblies(${asm.pluginassemblyid})`, typename: PLUGIN_TYPENAME, friendlyname: 'EDP Rule Metadata', name: PLUGIN_TYPENAME }, sol);
+    const r = await raw('POST', `${API}/plugintypes`, t, { 'pluginassemblyid@odata.bind': `/pluginassemblies(${asm.pluginassemblyid})`, typename: PLUGIN_TYPENAME, friendlyname: 'EDP Decision Intelligence', name: PLUGIN_TYPENAME }, sol);
     if (r.status >= 300) throw new Error('plugintype ' + r.status + ' ' + r.body.slice(0, 300));
     ptype = j(r);
   }
   console.log('plugintype:', ptype.plugintypeid);
 
-  // 3) four Custom API Functions.
   for (const fn of FUNCTIONS) {
     let capi = await first(t, 'customapis', `uniquename eq '${fn.uniquename}'`, 'customapiid');
     if (!capi) {
@@ -73,11 +59,10 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
       capi = j(r);
     }
     console.log('customapi:', fn.uniquename, capi.customapiid);
-
-    for (const p of REQ_PARAMS) {
+    for (const p of fn.params) {
       const ex = await first(t, 'customapirequestparameters', `uniquename eq '${p.uniquename}' and _customapiid_value eq ${capi.customapiid}`, 'customapirequestparameterid');
-      if (ex) { continue; }
-      const r = await raw('POST', `${API}/customapirequestparameters`, t, { uniquename: p.uniquename, name: p.uniquename, displayname: p.displayname, type: 10, isoptional: true, 'CustomAPIId@odata.bind': `/customapis(${capi.customapiid})` }, sol);
+      if (ex) { await raw('PATCH', `${API}/customapirequestparameters(${ex.customapirequestparameterid})`, t, { isoptional: p.isoptional }); continue; }
+      const r = await raw('POST', `${API}/customapirequestparameters`, t, { uniquename: p.uniquename, name: p.uniquename, displayname: p.displayname, type: 10, isoptional: p.isoptional, 'CustomAPIId@odata.bind': `/customapis(${capi.customapiid})` }, sol);
       console.log('  + req', p.uniquename, r.status >= 300 ? 'FAIL ' + r.body.slice(0, 160) : 'ok');
     }
     const rp = await first(t, 'customapiresponseproperties', `uniquename eq 'ResultJson' and _customapiid_value eq ${capi.customapiid}`, 'customapiresponsepropertyid');
@@ -87,12 +72,16 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     }
   }
 
-  // 4) SMOKE — all four resolve by RuleVersionId (direct); plus published-resolution by RuleId.
+  // SMOKE — pick the latest log row that has a trace, explain it, then aggregate.
   console.log('\n=== SMOKE ===');
-  for (const fn of FUNCTIONS) {
-    const call = await raw('GET', `${API}/${fn.uniquename}(RuleVersionId=@p)?@p=%27${SEED_VERSION}%27`, t);
-    console.log(`${fn.uniquename} [byVersionId] ${call.status}: ${call.body.slice(0, 260)}`);
+  const logs = await raw('GET', `${API}/qdb_edp_ruleexecutionlogs?$select=qdb_edp_ruleexecutionlogid,qdb_edp_outcome,qdb_edp_tracejson&$orderby=createdon%20desc&$top=20`, t);
+  const withTrace = (j(logs).value || []).find(x => x.qdb_edp_tracejson) || (j(logs).value || [])[0];
+  if (withTrace) {
+    const ex = await raw('GET', `${API}/qdb_edp_ExplainDecision(ExecutionLogId=@p)?@p=%27${withTrace.qdb_edp_ruleexecutionlogid}%27`, t);
+    console.log('ExplainDecision', ex.status + ':', ex.status === 200 ? JSON.parse(JSON.parse(ex.body).ResultJson).business : ex.body.slice(0, 200));
+  } else {
+    console.log('ExplainDecision: no log rows to explain.');
   }
-  const pub = await raw('GET', `${API}/qdb_edp_GetPublishedVersion(RuleId=@p)?@p=%27${PUBLISHED_RULE}%27`, t);
-  console.log(`qdb_edp_GetPublishedVersion [byRuleId->published] ${pub.status}: ${pub.body.slice(0, 260)}`);
+  const an = await raw('GET', `${API}/qdb_edp_GetAnalytics()`, t);
+  console.log('GetAnalytics', an.status + ':', an.status === 200 ? JSON.parse(an.body).ResultJson : an.body.slice(0, 200));
 })().catch(e => { console.error('ERR', e.message); process.exit(1); });

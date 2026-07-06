@@ -348,7 +348,8 @@ The generated table is validated (grammar + shape) and, once approved, executes 
 
 ## 8. Rule Explanation Engine
 
-**[NET-NEW]** — grounded on the existing step-trace (`qdb_edp_tracejson`).
+**[NET-NEW → PARTIAL]** — grounded on the existing step-trace (`qdb_edp_tracejson`).
+**Build status (2026-07-06):** `qdb_edp_ExplainDecision` Function is **live** — deterministic first cut that narrates a recorded decision's trace into a business + technical explanation (assembly v1.0.6.0, `DecisionIntelligencePlugin`, read-only, no AI provider, off the eval path). LLM prose enrichment via `IAiProvider` is the follow-up.
 
 ### 8.1 Explainability is mandatory (ADR-AI-05)
 
@@ -456,7 +457,8 @@ The graph is deterministic; AI provides a plain-language impact summary ("Changi
 
 ## 12. Analytics Dashboards
 
-**[NET-NEW]** — over the historical snapshots (§3).
+**[NET-NEW → PARTIAL]** — over the historical snapshots (§3).
+**Build status (2026-07-06):** `qdb_edp_GetAnalytics` Function is **live** — historical count/avg/max duration by outcome aggregated over `qdb_edp_ruleexecutionlog` (FetchXML aggregate, read-only, off the eval path). This is the raw-log first cut; the snapshot rollup tier (§3.3, ADR-AI-09) and P95/dashboards are the follow-up for portfolio scale.
 
 ### 12.1 Operational metrics
 
