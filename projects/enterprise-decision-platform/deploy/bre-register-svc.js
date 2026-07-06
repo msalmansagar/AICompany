@@ -1,19 +1,26 @@
 'use strict';
-// Register the Phase-6 Decision Intelligence read-only Functions (ADR-AI-02/05/07) in
-// Dataverse (BusinessRuleEngine): ExplainDecision, GetAnalytics. One shared plugin type
-// (DecisionIntelligencePlugin) backs both; the plugin branches on the message name.
-// Idempotent. Then smoke-tests against the latest execution log row.
+// Register the remaining Enterprise Decision Service operations (Phase 5) in Dataverse
+// (BusinessRuleEngine): ValidateRule, TestRule, ExecuteDecisionTable, ExecuteRuleSet
+// (Actions) + GetRuleHistory, GetRuleTemplates, GetRuleDocumentation (Functions). One
+// shared plugin type (RuleServicePlugin) backs all seven. Idempotent. Then smoke-tests.
 const fs = require('fs'), https = require('https');
 const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll';
 const ASSEMBLY_VERSION = '1.0.7.0';
-const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.DecisionIntelligencePlugin';
+const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleServicePlugin';
+const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60';       // Loan Approval — Sample v1 (decision table)
+const SEED_RULE = 'c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5';          // its rule
 
 const FUNCTIONS = [
-  { uniquename: 'qdb_edp_ExplainDecision', displayname: 'EDP Explain Decision', description: 'Business + technical explanation of a recorded decision, grounded in its step-trace.', params: [{ uniquename: 'ExecutionLogId', displayname: 'Execution Log Id', isoptional: false }] },
-  { uniquename: 'qdb_edp_GetAnalytics', displayname: 'EDP Get Analytics', description: 'Historical count/avg/max duration by outcome over the execution log.', params: [{ uniquename: 'RuleVersionId', displayname: 'Rule Version Id', isoptional: true }] },
+  { uniquename: 'qdb_edp_ValidateRule', displayname: 'EDP Validate Rule', isfunction: false, params: ['PcrmJson', 'RuleVersionId'] },
+  { uniquename: 'qdb_edp_TestRule', displayname: 'EDP Test Rule', isfunction: false, params: ['PcrmJson', 'RuleVersionId', 'InputsJson'] },
+  { uniquename: 'qdb_edp_ExecuteDecisionTable', displayname: 'EDP Execute Decision Table', isfunction: false, params: ['PcrmJson', 'RuleVersionId', 'InputsJson'] },
+  { uniquename: 'qdb_edp_ExecuteRuleSet', displayname: 'EDP Execute Rule Set', isfunction: false, params: ['RuleVersionIdsJson', 'InputsJson'] },
+  { uniquename: 'qdb_edp_GetRuleHistory', displayname: 'EDP Get Rule History', isfunction: true, params: ['RuleId', 'RuleName', 'RuleVersionId'] },
+  { uniquename: 'qdb_edp_GetRuleTemplates', displayname: 'EDP Get Rule Templates', isfunction: true, params: ['Industry'] },
+  { uniquename: 'qdb_edp_GetRuleDocumentation', displayname: 'EDP Get Rule Documentation', isfunction: true, params: ['RuleId', 'RuleName', 'RuleVersionId'] },
 ];
 
 function raw(method, path, token, body, extra) {
@@ -41,7 +48,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
 
   let ptype = await first(t, 'plugintypes', `typename eq '${PLUGIN_TYPENAME}'`, 'plugintypeid');
   if (!ptype) {
-    const r = await raw('POST', `${API}/plugintypes`, t, { 'pluginassemblyid@odata.bind': `/pluginassemblies(${asm.pluginassemblyid})`, typename: PLUGIN_TYPENAME, friendlyname: 'EDP Decision Intelligence', name: PLUGIN_TYPENAME }, sol);
+    const r = await raw('POST', `${API}/plugintypes`, t, { 'pluginassemblyid@odata.bind': `/pluginassemblies(${asm.pluginassemblyid})`, typename: PLUGIN_TYPENAME, friendlyname: 'EDP Rule Service', name: PLUGIN_TYPENAME }, sol);
     if (r.status >= 300) throw new Error('plugintype ' + r.status + ' ' + r.body.slice(0, 300));
     ptype = j(r);
   }
@@ -51,37 +58,37 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     let capi = await first(t, 'customapis', `uniquename eq '${fn.uniquename}'`, 'customapiid');
     if (!capi) {
       const r = await raw('POST', `${API}/customapis`, t, {
-        uniquename: fn.uniquename, name: fn.uniquename, displayname: fn.displayname, description: fn.description,
-        bindingtype: 0, boundentitylogicalname: '', isfunction: true, isprivate: false, allowedcustomprocessingsteptype: 0,
+        uniquename: fn.uniquename, name: fn.uniquename, displayname: fn.displayname, description: fn.displayname,
+        bindingtype: 0, boundentitylogicalname: '', isfunction: fn.isfunction, isprivate: false, allowedcustomprocessingsteptype: 0,
         'PluginTypeId@odata.bind': `/plugintypes(${ptype.plugintypeid})`,
       }, sol);
       if (r.status >= 300) throw new Error(`customapi ${fn.uniquename} ${r.status} ${r.body.slice(0, 300)}`);
       capi = j(r);
     }
-    console.log('customapi:', fn.uniquename, capi.customapiid);
+    console.log('customapi:', fn.uniquename, fn.isfunction ? '[Function]' : '[Action]');
     for (const p of fn.params) {
-      const ex = await first(t, 'customapirequestparameters', `uniquename eq '${p.uniquename}' and _customapiid_value eq ${capi.customapiid}`, 'customapirequestparameterid');
-      if (ex) { await raw('PATCH', `${API}/customapirequestparameters(${ex.customapirequestparameterid})`, t, { isoptional: p.isoptional }); continue; }
-      const r = await raw('POST', `${API}/customapirequestparameters`, t, { uniquename: p.uniquename, name: p.uniquename, displayname: p.displayname, type: 10, isoptional: p.isoptional, 'CustomAPIId@odata.bind': `/customapis(${capi.customapiid})` }, sol);
-      console.log('  + req', p.uniquename, r.status >= 300 ? 'FAIL ' + r.body.slice(0, 160) : 'ok');
+      const ex = await first(t, 'customapirequestparameters', `uniquename eq '${p}' and _customapiid_value eq ${capi.customapiid}`, 'customapirequestparameterid');
+      if (ex) continue;
+      const r = await raw('POST', `${API}/customapirequestparameters`, t, { uniquename: p, name: p, displayname: p, type: 10, isoptional: true, 'CustomAPIId@odata.bind': `/customapis(${capi.customapiid})` }, sol);
+      if (r.status >= 300) console.log('  FAIL req', p, r.body.slice(0, 140));
     }
     const rp = await first(t, 'customapiresponseproperties', `uniquename eq 'ResultJson' and _customapiid_value eq ${capi.customapiid}`, 'customapiresponsepropertyid');
     if (!rp) {
       const r = await raw('POST', `${API}/customapiresponseproperties`, t, { uniquename: 'ResultJson', name: 'ResultJson', displayname: 'Result JSON', type: 10, 'CustomAPIId@odata.bind': `/customapis(${capi.customapiid})` }, sol);
-      console.log('  + resp ResultJson', r.status >= 300 ? 'FAIL ' + r.body.slice(0, 160) : 'ok');
+      if (r.status >= 300) console.log('  FAIL resp', r.body.slice(0, 140));
     }
   }
 
-  // SMOKE — pick the latest log row that has a trace, explain it, then aggregate.
   console.log('\n=== SMOKE ===');
-  const logs = await raw('GET', `${API}/qdb_edp_ruleexecutionlogs?$select=qdb_edp_ruleexecutionlogid,qdb_edp_outcome,qdb_edp_tracejson&$orderby=createdon%20desc&$top=20`, t);
-  const withTrace = (j(logs).value || []).find(x => x.qdb_edp_tracejson) || (j(logs).value || [])[0];
-  if (withTrace) {
-    const ex = await raw('GET', `${API}/qdb_edp_ExplainDecision(ExecutionLogId=@p)?@p=%27${withTrace.qdb_edp_ruleexecutionlogid}%27`, t);
-    console.log('ExplainDecision', ex.status + ':', ex.status === 200 ? JSON.parse(JSON.parse(ex.body).ResultJson).business : ex.body.slice(0, 200));
-  } else {
-    console.log('ExplainDecision: no log rows to explain.');
-  }
-  const an = await raw('GET', `${API}/qdb_edp_GetAnalytics()`, t);
-  console.log('GetAnalytics', an.status + ':', an.status === 200 ? JSON.parse(an.body).ResultJson : an.body.slice(0, 200));
+  const inputs = JSON.stringify({ loanAmount: 600000, riskRating: 'High' });
+  const post = async (name, body) => { const r = await raw('POST', `${API}/${name}`, t, body); return `${r.status}: ${r.status === 200 ? (JSON.parse(r.body).ResultJson || r.body).slice(0, 200) : r.body.slice(0, 200)}`; };
+  const get = async (path) => { const r = await raw('GET', `${API}/${path}`, t); return `${r.status}: ${r.status === 200 ? (JSON.parse(r.body).ResultJson || '').slice(0, 200) : r.body.slice(0, 200)}`; };
+
+  console.log('ValidateRule       ', await post('qdb_edp_ValidateRule', { RuleVersionId: SEED_VERSION }));
+  console.log('TestRule           ', await post('qdb_edp_TestRule', { RuleVersionId: SEED_VERSION, InputsJson: inputs }));
+  console.log('ExecuteDecisionTable', await post('qdb_edp_ExecuteDecisionTable', { RuleVersionId: SEED_VERSION, InputsJson: inputs }));
+  console.log('ExecuteRuleSet     ', await post('qdb_edp_ExecuteRuleSet', { RuleVersionIdsJson: JSON.stringify([SEED_VERSION]), InputsJson: inputs }));
+  console.log('GetRuleHistory     ', await get(`qdb_edp_GetRuleHistory(RuleId=@p)?@p=%27${SEED_RULE}%27`));
+  console.log('GetRuleTemplates   ', await get('qdb_edp_GetRuleTemplates()'));
+  console.log('GetRuleDocumentation', await get(`qdb_edp_GetRuleDocumentation(RuleId=@p)?@p=%27${SEED_RULE}%27`));
 })().catch(e => { console.error('ERR', e.message); process.exit(1); });

@@ -125,18 +125,18 @@ Operations split by **Command–Query Separation** (per `.claude/rules/common.md
 
 | # | Operation | Kind | Surface primitive | Status |
 |---|-----------|------|-------------------|--------|
-| 1 | **ExecuteRule** | Command | Action `qdb_edp_ExecuteRule` | [EXTEND] — `qdb_edp_EvaluateDecision` exists; rename/alias + envelope |
-| 2 | **ExecuteRuleSet** | Command | Action `qdb_edp_ExecuteRuleSet` | [NET-NEW] |
-| 3 | **ExecuteDecisionTable** | Command | Action `qdb_edp_ExecuteDecisionTable` | [EXTEND] — table path proven; dedicated entry |
-| 4 | **TestRule** | Command | Action `qdb_edp_TestRule` | [EXTEND] — `TestRule` harness + scenario library exist |
-| 5 | **ValidateRule** | Command | Action `qdb_edp_ValidateRule` | [EXTEND] — `RuleValidator` exists in runtime |
+| 1 | **ExecuteRule** | Command | Action `qdb_edp_ExecuteRule` | [ALREADY-EXISTS] — live as `qdb_edp_EvaluateDecision` (envelope alias pending) |
+| 2 | **ExecuteRuleSet** | Command | Action `qdb_edp_ExecuteRuleSet` | [ALREADY-EXISTS] — built + live 2026-07-07 |
+| 3 | **ExecuteDecisionTable** | Command | Action `qdb_edp_ExecuteDecisionTable` | [ALREADY-EXISTS] — built + live 2026-07-07 |
+| 4 | **TestRule** | Command | Action `qdb_edp_TestRule` | [ALREADY-EXISTS] — built + live 2026-07-07 |
+| 5 | **ValidateRule** | Command | Action `qdb_edp_ValidateRule` | [ALREADY-EXISTS] — built + live 2026-07-07 |
 | 6 | **GetRuleMetadata** | Query | Function `qdb_edp_GetRuleMetadata` | [ALREADY-EXISTS] — built + live 2026-07-06 |
 | 7 | **GetInputSchema** | Query | Function `qdb_edp_GetInputSchema` | [ALREADY-EXISTS] — built + live 2026-07-06 |
 | 8 | **GetOutputSchema** | Query | Function `qdb_edp_GetOutputSchema` | [ALREADY-EXISTS] — built + live 2026-07-06 |
 | 9 | **GetPublishedVersion** | Query | Function `qdb_edp_GetPublishedVersion` | [ALREADY-EXISTS] — built + live 2026-07-06 |
-| 10 | **GetRuleHistory** | Query | Function `qdb_edp_GetRuleHistory` | [NET-NEW] |
-| 11 | **GetRuleDocumentation** | Query | Function `qdb_edp_GetRuleDocumentation` | [NET-NEW] |
-| 12 | **GetRuleTemplates** | Query | Function `qdb_edp_GetRuleTemplates` | [NET-NEW] |
+| 10 | **GetRuleHistory** | Query | Function `qdb_edp_GetRuleHistory` | [ALREADY-EXISTS] — built + live 2026-07-07 |
+| 11 | **GetRuleDocumentation** | Query | Function `qdb_edp_GetRuleDocumentation` | [ALREADY-EXISTS] — built + live 2026-07-07 (generated from PCRM when none stored) |
+| 12 | **GetRuleTemplates** | Query | Function `qdb_edp_GetRuleTemplates` | [ALREADY-EXISTS] — built + live 2026-07-07 |
 
 All 12 are **unbound** (not tied to a table row) so any consumer can call them without an entity context. Each is a logic-free adapter: it deserializes the envelope, resolves the rule version (Rule Resolver, ADR-09/12), calls `RuleDecisionService`/`RuleRuntimeService`, and serializes the response envelope. **No operation contains rule logic.**
 
@@ -876,7 +876,7 @@ These extend, and do not supersede, ADR-01…ADR-13, ADR-R01…R05, ADR-D01…D0
 | Execution log + two-tier trace (ADR-13) | ✅ Live | `qdb_edp_tracejson` shipped 2026-07-06 |
 | 6 EDP security roles | ✅ Live | `deploy/bre-roles.js` |
 | Test scenario library | ✅ Live | commit a4faea4 |
-| **Full 12-operation surface** | ⛏ 7 of 12 exist | 4 read-only `Get*` Functions built + live 2026-07-06 (`RuleMetadataPlugin`, assembly v1.0.5.0); this phase designs the rest |
+| **Full 12-operation surface** | ✅ 12 of 12 live | All operations built + live: `EvaluateDecision`(=ExecuteRule) + 4 `Get*` schema Functions (v1.0.5.0) + `ValidateRule`/`TestRule`/`ExecuteDecisionTable`/`ExecuteRuleSet` + `GetRuleHistory`/`GetRuleTemplates`/`GetRuleDocumentation` (v1.0.7.0, 2026-07-07). Envelope/gateway/on-prem/SDKs remain design |
 | **On-prem Custom Action surface** | ✳ Design only | §4 |
 | **`EDP.Gateway` transport tier** | ✳ Design only | §1, ADR-EDS-02 |
 | **Canonical envelope** | ✳ Design only | §11–13, ADR-EDS-04 |
