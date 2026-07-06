@@ -130,10 +130,10 @@ Operations split by **Command–Query Separation** (per `.claude/rules/common.md
 | 3 | **ExecuteDecisionTable** | Command | Action `qdb_edp_ExecuteDecisionTable` | [EXTEND] — table path proven; dedicated entry |
 | 4 | **TestRule** | Command | Action `qdb_edp_TestRule` | [EXTEND] — `TestRule` harness + scenario library exist |
 | 5 | **ValidateRule** | Command | Action `qdb_edp_ValidateRule` | [EXTEND] — `RuleValidator` exists in runtime |
-| 6 | **GetRuleMetadata** | Query | Function `qdb_edp_GetRuleMetadata` | [NET-NEW] |
-| 7 | **GetInputSchema** | Query | Function `qdb_edp_GetInputSchema` | [NET-NEW] |
-| 8 | **GetOutputSchema** | Query | Function `qdb_edp_GetOutputSchema` | [NET-NEW] |
-| 9 | **GetPublishedVersion** | Query | Function `qdb_edp_GetPublishedVersion` | [EXTEND] — Rule Resolver exists |
+| 6 | **GetRuleMetadata** | Query | Function `qdb_edp_GetRuleMetadata` | [ALREADY-EXISTS] — built + live 2026-07-06 |
+| 7 | **GetInputSchema** | Query | Function `qdb_edp_GetInputSchema` | [ALREADY-EXISTS] — built + live 2026-07-06 |
+| 8 | **GetOutputSchema** | Query | Function `qdb_edp_GetOutputSchema` | [ALREADY-EXISTS] — built + live 2026-07-06 |
+| 9 | **GetPublishedVersion** | Query | Function `qdb_edp_GetPublishedVersion` | [ALREADY-EXISTS] — built + live 2026-07-06 |
 | 10 | **GetRuleHistory** | Query | Function `qdb_edp_GetRuleHistory` | [NET-NEW] |
 | 11 | **GetRuleDocumentation** | Query | Function `qdb_edp_GetRuleDocumentation` | [NET-NEW] |
 | 12 | **GetRuleTemplates** | Query | Function `qdb_edp_GetRuleTemplates` | [NET-NEW] |
@@ -876,7 +876,7 @@ These extend, and do not supersede, ADR-01…ADR-13, ADR-R01…R05, ADR-D01…D0
 | Execution log + two-tier trace (ADR-13) | ✅ Live | `qdb_edp_tracejson` shipped 2026-07-06 |
 | 6 EDP security roles | ✅ Live | `deploy/bre-roles.js` |
 | Test scenario library | ✅ Live | commit a4faea4 |
-| **Full 12-operation surface** | ⛏ 3 of 12 exist | this phase designs the rest |
+| **Full 12-operation surface** | ⛏ 7 of 12 exist | 4 read-only `Get*` Functions built + live 2026-07-06 (`RuleMetadataPlugin`, assembly v1.0.5.0); this phase designs the rest |
 | **On-prem Custom Action surface** | ✳ Design only | §4 |
 | **`EDP.Gateway` transport tier** | ✳ Design only | §1, ADR-EDS-02 |
 | **Canonical envelope** | ✳ Design only | §11–13, ADR-EDS-04 |
