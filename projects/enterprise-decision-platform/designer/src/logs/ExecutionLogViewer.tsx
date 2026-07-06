@@ -63,12 +63,28 @@ export function ExecutionLogViewer({ onClose }: { onClose: () => void }) {
                 <div><span>Would resolve</span><code>{r.wouldResolve}</code></div>
                 <div><span>Actor</span><code>{r.actor}</code></div>
                 <div><span>Name</span><code>{r.name}</code></div>
+                <div className="log-trace">
+                  <span>Step trace</span>
+                  {r.trace.length === 0
+                    ? <em className="tp-sub">no trace recorded</em>
+                    : (
+                      <ol className="trace-steps">
+                        {r.trace.map((s, i) => (
+                          <li key={i} className={`trace-step ${s.result === true ? 'ok' : s.result === false ? 'bad' : ''}`}>
+                            <span className="trace-kind">{s.kind}</span>
+                            <span className="trace-desc">{s.description}</span>
+                            {s.result !== null && <span className="trace-res">{s.result ? '✓' : '✗'}</span>}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                </div>
               </div>
             )}
           </div>
         ))}
       </div>
-      <p className="tp-sub">Showing latest {rows.length}. (Step-level trace is captured by the API but summary-only here in H1 — full step storage is the H2 <code>ruleexecutionstep</code> entity.)</p>
+      <p className="tp-sub">Showing latest {rows.length}. Expand a row for its step-by-step trace (persisted as <code>qdb_edp_tracejson</code>, ADR-G03 H1). Per-step rows in a dedicated entity remain the H2 <code>ruleexecutionstep</code> option.</p>
     </aside>
   );
 }

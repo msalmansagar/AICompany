@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
 using EDP.RuleRuntime;
@@ -65,7 +66,10 @@ namespace EDP.RuleRuntime.Crm
                 Outcome = result.Success ? (result.Matched ? "matched" : "no-match") : "error",
                 DurationMs = result.ElapsedMilliseconds,
                 Actor = actorId.ToString(),
-                ExecutedOnUtc = nowUtc
+                ExecutedOnUtc = nowUtc,
+                TraceJson = result.Trace != null
+                    ? JsonSerializer.Serialize(result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }))
+                    : null
             });
 
             return result;

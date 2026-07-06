@@ -89,6 +89,16 @@ body { font: 13px/1.4 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-se
 .log-dur { font-size: 12px; color: #374151; } .log-when { font-size: 11.5px; color: #6b7280; }
 .log-detail { margin-top: 6px; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; }
 .log-detail span { color: #6b7280; } .log-detail code { color: #1b1f24; word-break: break-all; }
+.log-trace { grid-column: 1 / -1; margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+.trace-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.trace-step {
+  display: flex; align-items: baseline; gap: 8px; padding: 3px 6px; border-radius: 4px;
+  background: #f3f4f6; border-left: 3px solid #9ca3af;
+}
+.trace-step.ok { border-left-color: #1a7f37; } .trace-step.bad { border-left-color: #cf222e; }
+.trace-kind { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #6b7280; flex: 0 0 64px; }
+.trace-desc { flex: 1; color: #1b1f24; font-size: 12px; word-break: break-word; }
+.trace-res { font-weight: 700; } .trace-step.ok .trace-res { color: #1a7f37; } .trace-step.bad .trace-res { color: #cf222e; }
 
 .body { flex: 1; min-height: 0; display: flex; }
 .editor { flex: 1; min-height: 0; min-width: 0; }
@@ -120,13 +130,5 @@ body { font: 13px/1.4 -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-se
 .tp-step { display: flex; gap: 8px; font-size: 12px; padding: 2px 0; border-bottom: 1px dashed #eef0f2; }
 .tp-step .tp-k { color: #6b7280; min-width: 66px; }
 .tp-step .t { color: #1a7f37; font-weight: 600; } .tp-step .f { color: #cf222e; font-weight: 600; }
-
-.sc-actions { display: flex; gap: 6px; margin: 4px 0; }
-.sc-actions button { background: #2f6feb; color: #fff; border: 0; border-radius: 5px; padding: 4px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
-.sc-actions button:disabled { opacity: .5; cursor: default; }
-.sc-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px dashed #eef0f2; font-size: 12.5px; }
-.sc-badge { font-size: 10.5px; font-weight: 700; border-radius: 4px; padding: 1px 6px; color: #6b7280; background: #eef0f2; min-width: 40px; text-align: center; }
-.sc-badge.ok { color: #1a7f37; background: #eafaef; } .sc-badge.bad { color: #cf222e; background: #fdeceb; }
-.sc-name { color: #1b1f24; }
 
 .status { padding: 6px 12px; border-top: 1px solid #e3e6ea; background: #fafbfc; color: #374151; font-size: 12px; }

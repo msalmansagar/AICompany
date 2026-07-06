@@ -21,6 +21,9 @@ namespace EDP.RuleRuntime.Crm.Sinks
         public long DurationMs { get; set; }
         public string Actor { get; set; } = "";
         public DateTime ExecutedOnUtc { get; set; }
+
+        /// <summary>Serialized step-by-step execution trace (ADR-G03 Horizon-1: JSON on the log record).</summary>
+        public string? TraceJson { get; set; }
     }
 
     /// <summary>Durable, synchronous governance audit (ADR-13 tier 1). Failures propagate.</summary>
@@ -82,6 +85,8 @@ namespace EDP.RuleRuntime.Crm.Sinks
                     ["qdb_edp_actor"] = t.Actor,
                     ["qdb_edp_executedon"] = t.ExecutedOnUtc
                 };
+                if (!string.IsNullOrEmpty(t.TraceJson))
+                    record["qdb_edp_tracejson"] = t.TraceJson;
                 if (t.RuleVersionId.HasValue)
                     record["qdb_edp_ruleversionid"] = new EntityReference("qdb_edp_ruleversion", t.RuleVersionId.Value);
 

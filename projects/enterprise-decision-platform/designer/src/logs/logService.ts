@@ -20,6 +20,12 @@ async function get<T>(path: string): Promise<T> {
   return json as T;
 }
 
+export interface TraceStep {
+  kind: string;
+  description: string;
+  result: boolean | null;
+}
+
 export interface LogRow {
   id: string;
   name: string;
@@ -29,13 +35,24 @@ export interface LogRow {
   durationMs: number;
   actor: string;
   executedOn: string;
+  trace: TraceStep[];
 }
 
 const SELECT = [
   'qdb_edp_ruleexecutionlogid', 'qdb_edp_ruleexecutionlogname', 'qdb_edp_outcome',
   'qdb_edp_resolvedversion', 'qdb_edp_wouldresolveversion', 'qdb_edp_durationms',
-  'qdb_edp_actor', 'qdb_edp_executedon',
+  'qdb_edp_actor', 'qdb_edp_executedon', 'qdb_edp_tracejson',
 ].join(',');
+
+function parseTrace(raw: unknown): TraceStep[] {
+  if (typeof raw !== 'string' || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function queryLogs(opts: { outcome?: string; top?: number } = {}): Promise<LogRow[]> {
   let path = `/qdb_edp_ruleexecutionlogs?$select=${SELECT}&$orderby=createdon desc&$top=${opts.top ?? 50}`;
@@ -50,6 +67,7 @@ export async function queryLogs(opts: { outcome?: string; top?: number } = {}): 
     durationMs: r.qdb_edp_durationms ?? 0,
     actor: r.qdb_edp_actor ?? '',
     executedOn: r['qdb_edp_executedon@OData.Community.Display.V1.FormattedValue'] ?? r.qdb_edp_executedon ?? '',
+    trace: parseTrace(r.qdb_edp_tracejson),
   }));
 }
 

@@ -31,7 +31,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
   // 1) plugin assembly
   let asm = await first(t, 'pluginassemblies', "name eq 'EDP.RuleRuntime.Crm.Signed'", 'pluginassemblyid');
   if (asm) {
-    await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: '1.0.0.0' });
+    await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: '1.0.4.0' });
     console.log('assembly updated:', asm.pluginassemblyid);
   } else {
     const r = await raw('POST', `${API}/pluginassemblies`, t, { name: 'EDP.RuleRuntime.Crm.Signed', content: b64, isolationmode: 2, sourcetype: 0, version: '1.0.0.0', culture: 'neutral', publickeytoken: '06949b1887fabe5d' }, sol);
