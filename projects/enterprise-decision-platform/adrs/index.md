@@ -32,9 +32,19 @@ Changes to any ADR require a new ADR that explicitly supersedes the named decisi
 | ADR-EDS-08 | Locale Affects Interpretation/Formatting Only, Never Determinism | Accepted | 2026-07-06 | Architect |
 | ADR-EDS-09 | SDKs are Envelope Builders Only | Accepted | 2026-07-06 | Architect |
 | ADR-EDS-10 | In-Process In-Proc, Remote via Surface — Same Runtime Assembly | Accepted | 2026-07-06 | Architect |
+| ADR-AI-01 | AI Cannot Publish Directly; Every AI Artifact is a Draft | Accepted | 2026-07-06 | Architect |
+| ADR-AI-02 | Analytics Are Historical, Not In-Path | Accepted | 2026-07-06 | Architect |
+| ADR-AI-03 | Prompts and Responses Are Audited | Accepted | 2026-07-06 | Architect |
+| ADR-AI-04 | AI Suggestions Require Human Approval | Accepted | 2026-07-06 | Architect |
+| ADR-AI-05 | Explainability Is Mandatory and Grounded | Accepted | 2026-07-06 | Architect |
+| ADR-AI-06 | Pluggable AI Provider Abstraction | Accepted | 2026-07-06 | Architect |
+| ADR-AI-07 | AI/ML Is Never in the Evaluation Path (reaffirms Phase-0) | Accepted | 2026-07-06 | Architect |
+| ADR-AI-08 | PII/Sensitive-Data Redaction at the Egress Boundary | Accepted | 2026-07-06 | Architect |
+| ADR-AI-09 | Snapshot-Based Analytics Storage Tiering | Accepted | 2026-07-06 | Architect |
 
 Status values: Proposed | Accepted | Deprecated | Superseded
 
 Designer-specific ADRs (ADR-D01…D05) live in `phase-4-visual-rule-designer.md` §27.
 Runtime-specific ADRs (ADR-R01…R05) live in `phase-4-native-runtime.md` §20.
 Enterprise Decision Service ADRs (ADR-EDS-01…EDS-10) live in `phase-5-enterprise-decision-service.md` §21.
+Decision Intelligence / AI ADRs (ADR-AI-01…AI-09) live in `phase-6-decision-intelligence.md` §22.
