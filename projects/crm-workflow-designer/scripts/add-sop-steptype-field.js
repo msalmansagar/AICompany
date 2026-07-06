@@ -18,102 +18,71 @@
  *   100000007  Wait State
  *   100000008  Sub-process
  *
- * Usage:
- *   $env:AZURE_CLIENT_SECRET="..."; node scripts/add-sop-steptype-field.js
+ * Usage (all identity values come from the environment — see crm-api-client.js):
+ *   $env:AZURE_TENANT_ID="…"; $env:AZURE_CLIENT_ID="…";
+ *   $env:AZURE_CLIENT_SECRET="…"; $env:DATAVERSE_URL="https://…";
+ *   node scripts/add-sop-steptype-field.js
  */
 
-const TENANT_ID     = process.env.AZURE_TENANT_ID     ?? 'd79e793c-f6de-4204-8508-7980a63df957';
-const CLIENT_ID     = process.env.AZURE_CLIENT_ID     ?? '08e80e93-0bab-45ef-8372-2e554fa9af9b';
-const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
-const ORG_URL       = process.env.CRM_ORG_URL         ?? 'https://org5869857f.crm4.dynamics.com';
-const API_BASE      = `${ORG_URL}/api/data/v9.2`;
+const { loadCrmConfig, getToken, buildHeaders } = require('./crm-api-client');
 
-const ENTITY  = 'qdb_sopstep';
-const FIELD   = 'qdb_steptypecode';
-const SCHEMA  = 'qdb_StepTypeCode';
+const ENTITY = 'qdb_sopstep';
+const FIELD  = 'qdb_steptypecode';
+const SCHEMA = 'qdb_StepTypeCode';
 
-async function getToken() {
-  if (!CLIENT_SECRET) { console.error('[FATAL] AZURE_CLIENT_SECRET required.'); process.exit(1); }
-  const res = await fetch(
-    `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type:    'client_credentials',
-        client_id:     CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        scope:         `${ORG_URL}/.default`,
-      }).toString(),
-    }
-  );
-  if (!res.ok) throw new Error(`Token error ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-function hdrs(token) {
-  return {
-    Authorization:      `Bearer ${token}`,
-    'Content-Type':     'application/json; charset=utf-8',
-    'OData-Version':    '4.0',
-    'OData-MaxVersion': '4.0',
-    Accept:             'application/json',
-  };
-}
-
-function lbl(text) {
+function buildLabel(text) {
   return {
     LocalizedLabels:    [{ '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel', Label: text, LanguageCode: 1033 }],
     UserLocalizedLabel: { '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel', Label: text, LanguageCode: 1033 },
   };
 }
 
-function optLbl(text) {
+function buildOptionLabel(text) {
   return { LocalizedLabels: [{ '@odata.type': 'Microsoft.Dynamics.CRM.LocalizedLabel', Label: text, LanguageCode: 1033 }] };
 }
 
-async function fieldExists(token) {
-  const url = `${API_BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes(LogicalName='${FIELD}')`;
-  const res = await fetch(url, { headers: hdrs(token) });
+async function fieldExists(apiBase, token) {
+  const url = `${apiBase}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes(LogicalName='${FIELD}')`;
+  const res = await fetch(url, { headers: buildHeaders(token) });
   if (res.status === 404) return false;
   if (res.ok) return true;
   throw new Error(`Field check ${res.status}: ${await res.text()}`);
 }
 
-async function createPicklistField(token) {
-  const url  = `${API_BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes`;
+async function createPicklistField(apiBase, token) {
+  const url  = `${apiBase}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes`;
   const body = {
     '@odata.type':     'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
     AttributeType:     'Picklist',
     AttributeTypeName: { Value: 'PicklistType' },
     SchemaName:        SCHEMA,
     LogicalName:       FIELD,
-    DisplayName:       lbl('Step Type'),
-    Description:       lbl('SOP V2 node type — controls the visual shape and semantics on the SOP canvas.'),
+    DisplayName:       buildLabel('Step Type'),
+    Description:       buildLabel('SOP V2 node type — controls the visual shape and semantics on the SOP canvas.'),
     RequiredLevel:     { Value: 'None' },
     OptionSet: {
       '@odata.type':  'Microsoft.Dynamics.CRM.OptionSetMetadata',
       IsGlobal:       false,
       OptionSetType:  'Picklist',
       Name:           `${ENTITY}_steptypecode`,
-      DisplayName:    lbl('Step Type'),
+      DisplayName:    buildLabel('Step Type'),
       Options: [
-        { Value: 100000000, Label: optLbl('Step') },
-        { Value: 100000001, Label: optLbl('Decision') },
-        { Value: 100000002, Label: optLbl('Approval') },
-        { Value: 100000003, Label: optLbl('Milestone') },
-        { Value: 100000004, Label: optLbl('Manual Activity') },
-        { Value: 100000005, Label: optLbl('System Activity') },
-        { Value: 100000006, Label: optLbl('Notification') },
-        { Value: 100000007, Label: optLbl('Wait State') },
-        { Value: 100000008, Label: optLbl('Sub-process') },
+        { Value: 100000000, Label: buildOptionLabel('Step') },
+        { Value: 100000001, Label: buildOptionLabel('Decision') },
+        { Value: 100000002, Label: buildOptionLabel('Approval') },
+        { Value: 100000003, Label: buildOptionLabel('Milestone') },
+        { Value: 100000004, Label: buildOptionLabel('Manual Activity') },
+        { Value: 100000005, Label: buildOptionLabel('System Activity') },
+        { Value: 100000006, Label: buildOptionLabel('Notification') },
+        { Value: 100000007, Label: buildOptionLabel('Wait State') },
+        { Value: 100000008, Label: buildOptionLabel('Sub-process') },
       ],
     },
   };
 
   const res = await fetch(url, {
     method:  'POST',
-    headers: hdrs(token),
+    headers: buildHeaders(token),
     body:    JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Create picklist ${res.status}: ${await res.text()}`);
@@ -127,22 +96,20 @@ async function run() {
   console.log(`  Field:  ${FIELD}`);
   console.log('════════════════════════════════════════════════════\n');
 
+  const config = loadCrmConfig();
   console.log('  Acquiring token…');
-  const token = await getToken();
+  const token = await getToken(config);
   console.log('  Token acquired.\n');
 
-  if (await fieldExists(token)) {
+  if (await fieldExists(config.apiBase, token)) {
     console.log('  Field already exists — nothing to do.\n');
   } else {
     console.log('  Creating Picklist field with 9 options…');
-    await createPicklistField(token);
+    await createPicklistField(config.apiBase, token);
   }
 
   console.log('\n════════════════════════════════════════════════════');
   console.log('  qdb_steptypecode Picklist ready on qdb_sopstep.');
-  console.log('  Options: Step | Decision | Approval | Milestone |');
-  console.log('           Manual Activity | System Activity |');
-  console.log('           Notification | Wait State | Sub-process');
   console.log('════════════════════════════════════════════════════\n');
 }
 

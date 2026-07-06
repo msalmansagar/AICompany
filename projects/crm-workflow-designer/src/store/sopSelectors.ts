@@ -57,22 +57,37 @@ const SYNTHETIC_IDS = {
 
 export const SOP_SYNTHETIC_PREFIX = '__sop_';
 
-/** Derives ReactFlow Node[] from sopStore using a swimlane layout. Pure — no side effects. */
-export function selectSopNodes(state: SopDesignerState): Node[] {
-  const nodes: Node[] = [];
+/** Shared read-model passed to the node builders. */
+interface SopBuildContext {
+  state: SopDesignerState;
+  errorNodeIds: Set<string>;
+}
 
-  // Build a set of node IDs that have at least one validation error.
-  // Results can target a single node (affectedNodeId) or many (affectedNodeIds).
+/** Role lanes in first-occurrence order, with their steps sorted by sequenceNo. */
+interface RoleGroups {
+  roleOrder: string[];
+  roleNames: Record<string, string>;
+  roleSteps: Record<string, string[]>;
+}
+
+/**
+ * Node IDs with at least one validation error. A result can target a single
+ * node (affectedNodeId) or many (affectedNodeIds).
+ */
+function collectErrorNodeIds(state: SopDesignerState): Set<string> {
   const errorNodeIds = new Set<string>();
-  for (const r of state.validationResults) {
-    if (r.affectedNodeId) errorNodeIds.add(r.affectedNodeId);
-    for (const id of (r.affectedNodeIds ?? [])) errorNodeIds.add(id);
+  for (const result of state.validationResults) {
+    if (result.affectedNodeId) errorNodeIds.add(result.affectedNodeId);
+    for (const id of result.affectedNodeIds ?? []) errorNodeIds.add(id);
   }
+  return errorNodeIds;
+}
 
-  // ── 1. Build role groups preserving first-occurrence order ─────────────────
+/** Groups steps into role lanes preserving first-occurrence order. */
+function groupStepsByRole(state: SopDesignerState): RoleGroups {
   const roleOrder: string[] = [];
   const roleNames: Record<string, string> = {};
-  const roleSteps: Record<string, string[]> = {};  // roleKey → stepIds (ordered by sequenceNo)
+  const roleSteps: Record<string, string[]> = {};
 
   for (const stepId of state.stepOrder) {
     const step = state.steps[stepId];
@@ -86,237 +101,229 @@ export function selectSopNodes(state: SopDesignerState): Node[] {
     roleSteps[key].push(stepId);
   }
 
-  // Sort steps within each lane by sequenceNo
   for (const key of roleOrder) {
-    roleSteps[key].sort(
-      (a, b) => (state.steps[a]?.sequenceNo ?? 0) - (state.steps[b]?.sequenceNo ?? 0)
-    );
+    roleSteps[key].sort((a, b) => (state.steps[a]?.sequenceNo ?? 0) - (state.steps[b]?.sequenceNo ?? 0));
   }
+  return { roleOrder, roleNames, roleSteps };
+}
 
-  // ── 2. Compute canvas width (widest lane drives it) ────────────────────────
-  const maxStepsInLane = Math.max(
-    ...roleOrder.map((k) => roleSteps[k].length),
-    1
-  );
-  const canvasWidth = STEP_X_FIRST + maxStepsInLane * STEP_SPACING + OUTCOME_X_OFF + 120;
+/** Canvas width is driven by the widest lane. */
+function computeCanvasWidth(groups: RoleGroups): number {
+  const maxStepsInLane = Math.max(...groups.roleOrder.map((k) => groups.roleSteps[k].length), 1);
+  return STEP_X_FIRST + maxStepsInLane * STEP_SPACING + OUTCOME_X_OFF + 120;
+}
 
-  // ── 3. Lay out lanes, steps, and outcomes ─────────────────────────────────
-  const stepPositions: Record<string, { x: number; y: number }> = {};
-  let laneY = CANVAS_TOP;
+function buildStepNode(stepId: string, position: { x: number; y: number }, ctx: SopBuildContext): Node {
+  const step = ctx.state.steps[stepId];
+  return {
+    id: stepId,
+    type: 'sopStep',
+    position,
+    draggable: false,
+    data: {
+      stepId,
+      name: step.name,
+      description: step.description,
+      sequenceNo: step.sequenceNo,
+      roleName: step.roleName,
+      roleStatus: step.roleStatus,
+      isSelected: ctx.state.selectedId === stepId,
+      hasError: ctx.errorNodeIds.has(stepId),
+      stepType: step.stepType ?? 'step',
+      executionChannel: step.executionChannel ?? null,
+    } satisfies SopStepNodeData,
+  };
+}
 
-  for (let li = 0; li < roleOrder.length; li++) {
-    const key = roleOrder[li];
-    const stepIds = roleSteps[key];
+function buildSingleOutcomeNode(outcomeId: string, position: { x: number; y: number }, ctx: SopBuildContext): Node {
+  const outcome = ctx.state.outcomes[outcomeId];
+  return {
+    id: outcomeId,
+    type: 'sopOutcome',
+    position,
+    draggable: false,
+    data: {
+      outcomeId,
+      name: outcome.name,
+      sequenceNo: outcome.sequenceNo,
+      nextSopStepId: outcome.nextSopStepId,
+      isSelected: ctx.state.selectedId === outcomeId,
+      hasError: ctx.errorNodeIds.has(outcomeId),
+    } satisfies SopOutcomeNodeData,
+  };
+}
 
-    // Swimlane background node (rendered first = lowest z-order)
-    nodes.push({
-      id: SYNTHETIC_IDS.lane(key),
-      type: 'sopSwimlane',
-      position: { x: 0, y: laneY },
-      data: {
-        roleName: roleNames[key],
-        laneWidth: canvasWidth,
-        laneHeight: LANE_HEIGHT,
-        isFirst: li === 0,
-        isLast: li === roleOrder.length - 1,
-      },
-      selectable: false,
-      draggable: false,
-      zIndex: -1,
-    });
+/** One gateway diamond aggregating all outcomes of a branching step. */
+function buildGatewayNode(args: { stepId: string; outcomeIds: string[]; ox: number; sy: number }, ctx: SopBuildContext): Node {
+  const { stepId, outcomeIds, ox, sy } = args;
+  const gwId = `${SOP_GATEWAY_PREFIX}${stepId}`;
+  const totalSpan = (outcomeIds.length - 1) * OUTCOME_Y_STEP;
+  const gwY = sy + OUTCOME_Y_BASE + totalSpan / 2 - OUTCOME_H / 2;
+  const step = ctx.state.steps[stepId];
+  return {
+    id: gwId,
+    type: 'sopGateway',
+    position: { x: ox, y: gwY },
+    draggable: false,
+    data: {
+      stepId,
+      decisionLabel: step?.decisionLabel ?? null,
+      outcomes: outcomeIds.map((oid) => {
+        const outcome = ctx.state.outcomes[oid];
+        return { id: oid, name: outcome?.name ?? '', seq: outcome?.sequenceNo ?? 0, nextSopStepId: outcome?.nextSopStepId ?? null };
+      }),
+      isSelected: ctx.state.selectedId === stepId || ctx.state.selectedId === gwId,
+      hasError: outcomeIds.some((oid) => ctx.errorNodeIds.has(oid)),
+    } satisfies SopGatewayNodeData,
+  };
+}
 
-    // Step nodes
-    stepIds.forEach((stepId, idx) => {
-      const step = state.steps[stepId];
-      if (!step) return;
-      const sx = STEP_X_FIRST + idx * STEP_SPACING;
-      const sy = laneY + LANE_HEIGHT / 2 - STEP_NODE_H / 2;
-      stepPositions[stepId] = { x: sx, y: sy };
-
-      const resolvedStepType = step.stepType ?? 'step';
-      nodes.push({
-        id: stepId,
-        type: 'sopStep',
-        position: { x: sx, y: sy },
-        draggable: false,
-        data: {
-          stepId,
-          name: step.name,
-          description: step.description,
-          sequenceNo: step.sequenceNo,
-          roleName: step.roleName,
-          roleStatus: step.roleStatus,
-          isSelected: state.selectedId === stepId,
-          hasError: errorNodeIds.has(stepId),
-          stepType: resolvedStepType,
-          executionChannel: step.executionChannel ?? null,
-        } satisfies SopStepNodeData,
-      });
-
-      // Outcome nodes for this step
-      const outcomeIds = state.outcomeOrder[stepId] ?? [];
-      const ox = sx + OUTCOME_X_OFF;
-      if (outcomeIds.length === 1) {
-        // Single outcome → individual sopOutcome diamond (current behaviour)
-        const outcome = state.outcomes[outcomeIds[0]];
-        if (outcome) {
-          nodes.push({
-            id: outcomeIds[0],
-            type: 'sopOutcome',
-            position: { x: ox, y: sy + OUTCOME_Y_BASE },
-            draggable: false,
-            data: {
-              outcomeId: outcomeIds[0],
-              name: outcome.name,
-              sequenceNo: outcome.sequenceNo,
-              nextSopStepId: outcome.nextSopStepId,
-              isSelected: state.selectedId === outcomeIds[0],
-              hasError: errorNodeIds.has(outcomeIds[0]),
-            } satisfies SopOutcomeNodeData,
-          });
-        }
-      } else if (outcomeIds.length > 1) {
-        // Multiple outcomes → ONE gateway diamond centred across all routes
-        const gwId = `${SOP_GATEWAY_PREFIX}${stepId}`;
-        const totalSpan = (outcomeIds.length - 1) * OUTCOME_Y_STEP;
-        const gwY = sy + OUTCOME_Y_BASE + totalSpan / 2 - OUTCOME_H / 2;
-        const step = state.steps[stepId];
-        nodes.push({
-          id: gwId,
-          type: 'sopGateway',
-          position: { x: ox, y: gwY },
-          draggable: false,
-          data: {
-            stepId,
-            decisionLabel: step?.decisionLabel ?? null,
-            outcomes: outcomeIds.map((oid) => {
-              const o = state.outcomes[oid];
-              return { id: oid, name: o?.name ?? '', seq: o?.sequenceNo ?? 0, nextSopStepId: o?.nextSopStepId ?? null };
-            }),
-            isSelected: state.selectedId === stepId || state.selectedId === gwId,
-            hasError: outcomeIds.some((oid) => errorNodeIds.has(oid)),
-          } satisfies SopGatewayNodeData,
-        });
-      }
-    });
-
-    laneY += LANE_HEIGHT;
+/** Outcome/gateway node(s) to the right of a step: single diamond, one gateway, or none. */
+function buildOutcomeNodes(args: { stepId: string; ox: number; sy: number }, ctx: SopBuildContext): Node[] {
+  const outcomeIds = ctx.state.outcomeOrder[args.stepId] ?? [];
+  if (outcomeIds.length === 1 && ctx.state.outcomes[outcomeIds[0]]) {
+    return [buildSingleOutcomeNode(outcomeIds[0], { x: args.ox, y: args.sy + OUTCOME_Y_BASE }, ctx)];
   }
+  if (outcomeIds.length > 1) {
+    return [buildGatewayNode({ stepId: args.stepId, outcomeIds, ox: args.ox, sy: args.sy }, ctx)];
+  }
+  return [];
+}
 
-  const totalY = laneY; // y below last lane
+/** A step node plus its outcome/gateway nodes. */
+function buildStepColumn(args: { stepId: string; index: number; laneY: number }, ctx: SopBuildContext): Node[] {
+  const sx = STEP_X_FIRST + args.index * STEP_SPACING;
+  const sy = args.laneY + LANE_HEIGHT / 2 - STEP_NODE_H / 2;
+  return [
+    buildStepNode(args.stepId, { x: sx, y: sy }, ctx),
+    ...buildOutcomeNodes({ stepId: args.stepId, ox: sx + OUTCOME_X_OFF, sy }, ctx),
+  ];
+}
 
-  // ── 4. Start node — centred above the first step column ───────────────────
-  const startCentreX = STEP_X_FIRST + 90;  // approximate centre of first step
-  nodes.push({
-    id: SYNTHETIC_IDS.start,
-    type: 'sopStart',
-    position: { x: startCentreX - START_R, y: CANVAS_TOP - START_R * 2 - 20 },
+/** Swimlane background node plus every step column within it. */
+function buildLane(args: { index: number; groups: RoleGroups; canvasWidth: number }, ctx: SopBuildContext): Node[] {
+  const { index, groups, canvasWidth } = args;
+  const key = groups.roleOrder[index];
+  const laneY = CANVAS_TOP + index * LANE_HEIGHT;
+  const lane: Node = {
+    id: SYNTHETIC_IDS.lane(key),
+    type: 'sopSwimlane',
+    position: { x: 0, y: laneY },
+    data: { roleName: groups.roleNames[key], laneWidth: canvasWidth, laneHeight: LANE_HEIGHT, isFirst: index === 0, isLast: index === groups.roleOrder.length - 1 },
+    selectable: false,
+    draggable: false,
+    zIndex: -1,
+  };
+  const columns = groups.roleSteps[key]
+    .filter((stepId) => ctx.state.steps[stepId])
+    .flatMap((stepId, columnIndex) => buildStepColumn({ stepId, index: columnIndex, laneY }, ctx));
+  return [lane, ...columns];
+}
+
+function buildTerminalNode(id: string, y: number): Node {
+  const startCentreX = STEP_X_FIRST + 90;  // approximate centre of first step column
+  return {
+    id,
+    type: id === SYNTHETIC_IDS.start ? 'sopStart' : 'sopEnd',
+    position: { x: startCentreX - START_R, y },
     data: {},
     selectable: false,
     draggable: false,
     zIndex: 1,
-  });
+  };
+}
 
-  // ── 5. End node — centred below last lane ─────────────────────────────────
-  nodes.push({
-    id: SYNTHETIC_IDS.end,
-    type: 'sopEnd',
-    position: { x: startCentreX - START_R, y: totalY + END_PAD },
-    data: {},
-    selectable: false,
-    draggable: false,
-    zIndex: 1,
-  });
+/** Derives ReactFlow Node[] from sopStore using a swimlane layout. Pure — no side effects. */
+export function selectSopNodes(state: SopDesignerState): Node[] {
+  const ctx: SopBuildContext = { state, errorNodeIds: collectErrorNodeIds(state) };
+  const groups = groupStepsByRole(state);
+  const canvasWidth = computeCanvasWidth(groups);
 
-  return nodes;
+  const laneNodes = groups.roleOrder.flatMap((_, index) => buildLane({ index, groups, canvasWidth }, ctx));
+  const startY = CANVAS_TOP - START_R * 2 - 20;
+  const endY = CANVAS_TOP + groups.roleOrder.length * LANE_HEIGHT + END_PAD;
+
+  return [
+    ...laneNodes,
+    buildTerminalNode(SYNTHETIC_IDS.start, startY),
+    buildTerminalNode(SYNTHETIC_IDS.end, endY),
+  ];
+}
+
+function buildStartEdge(state: SopDesignerState): Edge | null {
+  const firstStepId = [...state.stepOrder].sort(
+    (a, b) => (state.steps[a]?.sequenceNo ?? 0) - (state.steps[b]?.sequenceNo ?? 0)
+  )[0];
+  if (!firstStepId) return null;
+  return {
+    id: '__edge_start__',
+    source: SYNTHETIC_IDS.start,
+    target: firstStepId,
+    type: 'smoothstep',
+    style: { stroke: '#0f766e', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as const, color: '#0f766e' },
+  };
+}
+
+/** Structural edge from a step to its single outcome diamond or its gateway. */
+function buildStepToOutcomeEdge(stepId: string, outcomeIds: string[]): Edge | null {
+  if (outcomeIds.length === 0) return null;
+  const isBranching = outcomeIds.length > 1;
+  const target = isBranching ? `${SOP_GATEWAY_PREFIX}${stepId}` : outcomeIds[0];
+  return {
+    id: isBranching ? `sg-${stepId}` : `se-${stepId}-${outcomeIds[0]}`,
+    source: stepId,
+    target,
+    type: 'smoothstep',
+    animated: false,
+    style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+    markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
+  };
+}
+
+/** Edge from an outcome (or its gateway) to the next step, or to the End node. */
+function buildOutcomeTargetEdge(outcome: SopDesignerState['outcomes'][string], state: SopDesignerState): Edge {
+  const isBranching = (state.outcomeOrder[outcome.sopStepId] ?? []).length > 1;
+  const source = isBranching ? `${SOP_GATEWAY_PREFIX}${outcome.sopStepId}` : outcome.id;
+
+  if (!outcome.nextSopStepId) {
+    return {
+      id: `te-${outcome.id}`,
+      source,
+      target: SYNTHETIC_IDS.end,
+      type: 'smoothstep',
+      animated: false,
+      style: { stroke: '#94a3b8', strokeWidth: 1.2, strokeDasharray: '4,4' },
+      markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
+    };
+  }
+  return {
+    id: `oe-${outcome.id}-${outcome.nextSopStepId}`,
+    source,
+    target: outcome.nextSopStepId,
+    type: 'smoothstep',
+    animated: true,
+    style: { strokeDasharray: '5,5', stroke: '#2563eb', strokeWidth: 1.5 },
+    markerEnd: { type: 'arrowclosed' as const, color: '#2563eb' },
+    // Labels only on gateway branches (where multiple routes exist)
+    ...(isBranching && outcome.name ? {
+      label: outcome.name,
+      labelStyle: { fontSize: 9, fontWeight: 600, fill: '#1e40af' },
+      labelBgStyle: { fill: '#eff6ff', fillOpacity: 1 },
+      labelBgPadding: [5, 3] as [number, number],
+      labelBgBorderRadius: 3,
+      labelShowBg: true,
+    } : {}),
+  };
 }
 
 /** Derives ReactFlow Edge[] from sopStore. Pure — no side effects. */
 export function selectSopEdges(state: SopDesignerState): Edge[] {
-  const edges: Edge[] = [];
+  const startEdge = buildStartEdge(state);
+  const structuralEdges = Object.entries(state.outcomeOrder)
+    .map(([stepId, outcomeIds]) => buildStepToOutcomeEdge(stepId, outcomeIds))
+    .filter((edge): edge is Edge => edge !== null);
+  const targetEdges = Object.values(state.outcomes).map((outcome) => buildOutcomeTargetEdge(outcome, state));
 
-  // ── Start → first step (lowest sequenceNo globally) ───────────────────────
-  const firstStepId = [...state.stepOrder].sort(
-    (a, b) => (state.steps[a]?.sequenceNo ?? 0) - (state.steps[b]?.sequenceNo ?? 0)
-  )[0];
-  if (firstStepId) {
-    edges.push({
-      id: '__edge_start__',
-      source: SYNTHETIC_IDS.start,
-      target: firstStepId,
-      type: 'smoothstep',
-      style: { stroke: '#0f766e', strokeWidth: 2 },
-      markerEnd: { type: 'arrowclosed' as const, color: '#0f766e' },
-    });
-  }
-
-  // ── Step → Outcome/Gateway (structural) ───────────────────────────────────
-  for (const [stepId, outcomeIds] of Object.entries(state.outcomeOrder)) {
-    if (outcomeIds.length === 1) {
-      // Single outcome: step → individual outcome diamond
-      edges.push({
-        id: `se-${stepId}-${outcomeIds[0]}`,
-        source: stepId,
-        target: outcomeIds[0],
-        type: 'smoothstep',
-        animated: false,
-        style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-        markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
-      });
-    } else if (outcomeIds.length > 1) {
-      // Multiple outcomes: step → single gateway diamond
-      edges.push({
-        id: `sg-${stepId}`,
-        source: stepId,
-        target: `${SOP_GATEWAY_PREFIX}${stepId}`,
-        type: 'smoothstep',
-        animated: false,
-        style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-        markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
-      });
-    }
-  }
-
-  // ── Outcome/Gateway → Next Step or End ────────────────────────────────────
-  for (const outcome of Object.values(state.outcomes)) {
-    const siblingCount = (state.outcomeOrder[outcome.sopStepId] ?? []).length;
-    const isBranching = siblingCount > 1;
-
-    // Source: gateway node for multi-outcome steps, outcome node for single
-    const sourceId = isBranching ? `${SOP_GATEWAY_PREFIX}${outcome.sopStepId}` : outcome.id;
-
-    if (outcome.nextSopStepId) {
-      edges.push({
-        id: `oe-${outcome.id}-${outcome.nextSopStepId}`,
-        source: sourceId,
-        target: outcome.nextSopStepId,
-        type: 'smoothstep',
-        animated: true,
-        style: { strokeDasharray: '5,5', stroke: '#2563eb', strokeWidth: 1.5 },
-        markerEnd: { type: 'arrowclosed' as const, color: '#2563eb' },
-        // Labels only on gateway branches (where multiple routes exist)
-        ...(isBranching && outcome.name ? {
-          label: outcome.name,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: '#1e40af' },
-          labelBgStyle: { fill: '#eff6ff', fillOpacity: 1 },
-          labelBgPadding: [5, 3] as [number, number],
-          labelBgBorderRadius: 3,
-          labelShowBg: true,
-        } : {}),
-      });
-    } else {
-      // Terminal → End
-      edges.push({
-        id: `te-${outcome.id}`,
-        source: sourceId,
-        target: SYNTHETIC_IDS.end,
-        type: 'smoothstep',
-        animated: false,
-        style: { stroke: '#94a3b8', strokeWidth: 1.2, strokeDasharray: '4,4' },
-        markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
-      });
-    }
-  }
-
-  return edges;
+  return [...(startEdge ? [startEdge] : []), ...structuralEdges, ...targetEdges];
 }

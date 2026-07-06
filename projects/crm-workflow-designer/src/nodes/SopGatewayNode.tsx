@@ -12,7 +12,7 @@ const H      = 80;
 const ACCENT = '#7c3aed';
 
 export function SopGatewayNode({ data, selected }: NodeProps) {
-  const d = data as unknown as SopGatewayNodeData;
+  const gatewayData = data as unknown as SopGatewayNodeData;
   const addTypedStepAfterStep = useSopStore((s) => s.addTypedStepAfterStep);
 
   const [hovered, setHovered] = useState(false);
@@ -26,16 +26,16 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
     hideTimer.current = setTimeout(() => setHovered(false), 150);
   };
 
-  const isActive  = selected || d.isSelected;
-  const bg        = d.hasError ? '#fff8f8' : isActive ? '#f5f3ff' : '#faf5ff';
-  const border    = d.hasError ? '#ef4444' : ACCENT;
-  const shadow    = d.hasError
+  const isActive  = selected || gatewayData.isSelected;
+  const bg        = gatewayData.hasError ? '#fff8f8' : isActive ? '#f5f3ff' : '#faf5ff';
+  const border    = gatewayData.hasError ? '#ef4444' : ACCENT;
+  const shadow    = gatewayData.hasError
     ? '0 0 0 3px rgba(239,68,68,0.2)'
     : isActive
     ? `0 0 0 3px ${ACCENT}30`
     : '0 2px 8px rgba(124,58,237,0.15)';
 
-  const label = d.decisionLabel?.trim() || null;
+  const label = gatewayData.decisionLabel?.trim() || null;
 
   return (
     <div
@@ -45,7 +45,7 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
     >
       {hovered && (
         <SopAddNodeToolbar
-          onAdd={(type: SopStepType) => addTypedStepAfterStep(d.stepId, type)}
+          onAdd={(type: SopStepType) => addTypedStepAfterStep(gatewayData.stepId, type)}
           onMouseEnter={showToolbar}
           onMouseLeave={hideToolbar}
         />

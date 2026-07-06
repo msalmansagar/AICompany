@@ -12,11 +12,10 @@
  *   $env:AZURE_CLIENT_SECRET="..."; node scripts/seed-facility-renewal-sop.js
  */
 
-const TENANT_ID     = process.env.AZURE_TENANT_ID     ?? 'd79e793c-f6de-4204-8508-7980a63df957';
-const CLIENT_ID     = process.env.AZURE_CLIENT_ID     ?? '08e80e93-0bab-45ef-8372-2e554fa9af9b';
-const CLIENT_SECRET = process.env.AZURE_CLIENT_SECRET;
-const ORG_URL       = process.env.DATAVERSE_URL        ?? 'https://org5869857f.crm4.dynamics.com';
-const API           = `${ORG_URL}/api/data/v9.2`;
+const { loadCrmConfig, getToken, buildHeaders } = require('./crm-api-client');
+
+const config = loadCrmConfig();
+const API    = config.apiBase;
 
 // ── Option-set values (matches qdb_steptypecode in SopTypes.ts) ───────────────
 const TYPE = {
@@ -222,35 +221,8 @@ const OUTCOME_DEFS = [
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function getToken() {
-  if (!CLIENT_SECRET) { console.error('[FATAL] AZURE_CLIENT_SECRET env var required.'); process.exit(1); }
-  const res = await fetch(
-    `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type:    'client_credentials',
-        client_id:     CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        scope:         `${ORG_URL}/.default`,
-      }).toString(),
-    }
-  );
-  if (!res.ok) { const t = await res.text(); throw new Error(`Auth failed: ${res.status} ${t}`); }
-  const { access_token } = await res.json();
-  return access_token;
-}
-
 function headers(token) {
-  return {
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-    'OData-MaxVersion': '4.0',
-    'OData-Version': '4.0',
-    Prefer: 'return=representation',
-  };
+  return buildHeaders(token, { Prefer: 'return=representation' });
 }
 
 async function post(token, entitySet, body) {
@@ -268,8 +240,12 @@ async function post(token, entitySet, body) {
   const match = location.match(/\(([^)]+)\)$/);
   if (match) return match[1];
   // Fallback: parse body
-  try { const json = await res.json(); return json[Object.keys(json).find(k => k.endsWith('id'))]; }
-  catch { throw new Error('Could not extract ID from POST response'); }
+  try {
+    const json = await res.json();
+    return json[Object.keys(json).find((k) => k.endsWith('id'))];
+  } catch (parseError) {
+    throw new Error(`Could not extract ID from POST response: ${parseError}`);
+  }
 }
 
 async function queryFirst(token, entitySet, filter, select) {
@@ -346,7 +322,7 @@ async function main() {
   console.log(`  Target: ${ORG_URL}`);
   console.log('══════════════════════════════════════════════════════\n');
 
-  const token = await getToken();
+  const token = await getToken(config);
   console.log('  Token acquired.\n');
 
   // ── Guard: skip if SOP already seeded ─────────────────────────────────────

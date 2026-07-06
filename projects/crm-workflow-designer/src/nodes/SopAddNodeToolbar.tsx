@@ -17,8 +17,8 @@ export function SopAddNodeToolbar({ onAdd, onMouseEnter, onMouseLeave }: SopAddN
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {[ROW_1, ROW_2].map((row, ri) => (
-        <div key={ri} style={rowStyle}>
+      {[ROW_1, ROW_2].map((row, rowIndex) => (
+        <div key={rowIndex} style={rowStyle}>
           {row.map((type) => {
             const meta = SOP_STEP_TYPE_META[type];
             return (
