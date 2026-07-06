@@ -1,7 +1,8 @@
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
-import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
+import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir, StepOutcomeRow } from './WorkflowGraphBuilder';
+import { conditionLabel } from './WorkflowGraphBuilder';
 import { computeTechStepHeight } from './TechnicalGraphBuilder';
 
 // TB layout: steps in a vertical column, outcome pills branch to the right
@@ -107,21 +108,34 @@ function makeOutcomeNode(
 export function buildTechNewGraph(
   steps: CrmStep[],
   outcomes: CrmOutcome[],
-  dir: LayoutDir = 'TB'
+  dir: LayoutDir = 'TB',
+  routes: CrmRoute[] = []
 ): { nodes: Node[]; edges: Edge[] } {
   const sorted = [...steps].sort((a, b) => a.sequenceNo - b.sequenceNo);
   const stepById = new Map(steps.map((s) => [s.id, s]));
   const outcomesByStep = groupOutcomesByStep(steps, outcomes);
+  const routesByOutcome = buildRoutesByOutcome(routes);
   return dir === 'LR'
-    ? assembleLrGraph(sorted, outcomes, outcomesByStep, stepById)
-    : assembleTbGraph(sorted, outcomes, outcomesByStep, stepById);
+    ? assembleLrGraph(sorted, outcomes, outcomesByStep, stepById, routesByOutcome)
+    : assembleTbGraph(sorted, outcomes, outcomesByStep, stepById, routesByOutcome);
+}
+
+function buildRoutesByOutcome(routes: CrmRoute[]): Map<string, CrmRoute[]> {
+  const map = new Map<string, CrmRoute[]>();
+  for (const r of routes) {
+    if (!map.has(r.outcomeId)) map.set(r.outcomeId, []);
+    map.get(r.outcomeId)!.push(r);
+  }
+  for (const list of map.values()) list.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  return map;
 }
 
 function assembleTbGraph(
   sorted: CrmStep[],
   outcomes: CrmOutcome[],
   outcomesByStep: Map<string, CrmOutcome[]>,
-  stepById: Map<string, CrmStep>
+  stepById: Map<string, CrmStep>,
+  routesByOutcome: Map<string, CrmRoute[]>
 ): { nodes: Node[]; edges: Edge[] } {
   const dir: LayoutDir = 'TB';
   const stepPositions = new Map<string, { x: number; y: number }>();
@@ -162,7 +176,7 @@ function assembleTbGraph(
     });
   }
 
-  const edges = buildEdges(sorted, outcomes, outcomesByStep, stepById);
+  const edges = buildEdges(sorted, outcomes, outcomesByStep, stepById, routesByOutcome);
   return { nodes: [startNode, ...stepNodes, ...outcomeNodes, endNode], edges };
 }
 
@@ -170,7 +184,8 @@ function assembleLrGraph(
   sorted: CrmStep[],
   outcomes: CrmOutcome[],
   outcomesByStep: Map<string, CrmOutcome[]>,
-  stepById: Map<string, CrmStep>
+  stepById: Map<string, CrmStep>,
+  routesByOutcome: Map<string, CrmRoute[]>
 ): { nodes: Node[]; edges: Edge[] } {
   const dir: LayoutDir = 'LR';
   const stepPositions = new Map<string, { x: number; y: number }>();
@@ -215,7 +230,7 @@ function assembleLrGraph(
     });
   }
 
-  const edges = buildEdges(sorted, outcomes, outcomesByStep, stepById);
+  const edges = buildEdges(sorted, outcomes, outcomesByStep, stepById, routesByOutcome);
   return { nodes: [startNode, ...stepNodes, ...outcomeNodes, endNode], edges };
 }
 
@@ -223,7 +238,8 @@ function buildEdges(
   sorted: CrmStep[],
   outcomes: CrmOutcome[],
   outcomesByStep: Map<string, CrmOutcome[]>,
-  stepById: Map<string, CrmStep>
+  stepById: Map<string, CrmStep>,
+  routesByOutcome: Map<string, CrmRoute[]>
 ): Edge[] {
   const edges: Edge[] = [];
 
@@ -257,7 +273,36 @@ function buildEdges(
   }
 
   for (const o of outcomes) {
-    if (!o.nextStepId) {
+    const outcomeRoutes = routesByOutcome.get(o.id) ?? [];
+    const hasRoutes = o.applyFilter && outcomeRoutes.length > 0;
+
+    if (hasRoutes) {
+      // Outcome pill → each route destination with condition label
+      for (const route of outcomeRoutes) {
+        const targetId = route.nextStepId ? `tn_step_${route.nextStepId}` : TN_END_ID;
+        const isFallback = !route.filter?.trim();
+        const stroke = isFallback ? '#16a34a' : '#d97706';
+        const cond = conditionLabel(route.filter);
+        const rawLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+        const label = rawLabel.length > 28 ? `${rawLabel.slice(0, 28)}…` : rawLabel;
+
+        edges.push({
+          id: `tn_e_route_${route.id}`,
+          source: `tn_outcome_${o.id}`,
+          target: targetId,
+          sourceHandle: 'out',
+          targetHandle: 'in',
+          type: 'smoothstep',
+          animated: !isFallback,
+          label,
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? '#166534' : '#92400e' },
+          labelBgStyle: { fill: isFallback ? '#f0fdf4' : '#fef3c7', fillOpacity: 1 },
+          style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
+          markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+          selectable: false,
+        });
+      }
+    } else if (!o.nextStepId) {
       edges.push({
         id: `tn_e_end_${o.id}`,
         source: `tn_outcome_${o.id}`,

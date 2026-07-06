@@ -1,4 +1,4 @@
-import type { WorkflowStep, WorkflowOutcome } from '@/types/WorkflowTypes';
+import type { WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 
 export type PathEndReason = 'end' | 'no-outcomes' | 'cycle';
 
@@ -7,7 +7,13 @@ export interface SimPathStep {
   stepName: string;
   assigneeName: string | null;
   assignType: string;
-  outcomeTaken: { outcomeId: string; outcomeName: string } | null;
+  outcomeTaken: {
+    outcomeId: string;
+    outcomeName: string;
+    routeId?: string;
+    routeName?: string;
+    routeCondition?: string;
+  } | null;
 }
 
 export interface SimPath {
@@ -21,10 +27,12 @@ export function enumerateAllPaths(
   entryStepId: string,
   steps: Record<string, WorkflowStep>,
   outcomes: Record<string, WorkflowOutcome>,
-  outcomeOrder: Record<string, string[]>
+  outcomeOrder: Record<string, string[]>,
+  routes?: Record<string, WorkflowRoute>,
+  routeOrder?: Record<string, string[]>
 ): SimPath[] {
   const result: SimPath[] = [];
-  depthFirstSearch(entryStepId, [], new Set(), steps, outcomes, outcomeOrder, result);
+  depthFirstSearch(entryStepId, [], new Set(), steps, outcomes, outcomeOrder, result, routes, routeOrder);
   return result;
 }
 
@@ -35,7 +43,9 @@ function depthFirstSearch(
   steps: Record<string, WorkflowStep>,
   outcomes: Record<string, WorkflowOutcome>,
   outcomeOrder: Record<string, string[]>,
-  result: SimPath[]
+  result: SimPath[],
+  routes?: Record<string, WorkflowRoute>,
+  routeOrder?: Record<string, string[]>
 ): void {
   const step = steps[stepId];
   if (!step) return;
@@ -60,18 +70,52 @@ function depthFirstSearch(
   if (stepOutcomes.length === 0) {
     result.push({
       id: `path_${result.length}`,
-      steps: [
-        ...pathSoFar,
-        buildPathStep(step, null),
-      ],
+      steps: [...pathSoFar, buildPathStep(step, null)],
       endReason: 'no-outcomes',
     });
     return;
   }
 
   for (const outcome of stepOutcomes) {
-    const currentStep = buildPathStep(step, { outcomeId: outcome.crmId, outcomeName: outcome.name });
+    // Conditional outcome with routes: enumerate one branch per route
+    if (outcome.applyFilter && routes && routeOrder) {
+      const outcomeRoutes = (routeOrder[outcome.crmId] ?? [])
+        .map((id) => routes[id])
+        .filter((r): r is WorkflowRoute => r !== undefined);
 
+      if (outcomeRoutes.length > 0) {
+        for (const route of outcomeRoutes) {
+          const isFallback = !route.filter?.trim();
+          const currentStep = buildPathStep(step, {
+            outcomeId: outcome.crmId,
+            outcomeName: outcome.name,
+            routeId: route.crmId,
+            routeName: route.name || (isFallback ? 'else' : route.crmId),
+            routeCondition: isFallback ? 'else' : route.filter,
+          });
+
+          if (!route.nextStepId) {
+            result.push({
+              id: `path_${result.length}`,
+              steps: [...pathSoFar, currentStep],
+              endReason: 'end',
+            });
+          } else {
+            depthFirstSearch(
+              route.nextStepId,
+              [...pathSoFar, currentStep],
+              branchVisited,
+              steps, outcomes, outcomeOrder, result,
+              routes, routeOrder
+            );
+          }
+        }
+        continue;
+      }
+    }
+
+    // Plain outcome (no routes or no applyFilter)
+    const currentStep = buildPathStep(step, { outcomeId: outcome.crmId, outcomeName: outcome.name });
     if (outcome.nextStepId === null) {
       result.push({
         id: `path_${result.length}`,
@@ -83,10 +127,8 @@ function depthFirstSearch(
         outcome.nextStepId,
         [...pathSoFar, currentStep],
         branchVisited,
-        steps,
-        outcomes,
-        outcomeOrder,
-        result
+        steps, outcomes, outcomeOrder, result,
+        routes, routeOrder
       );
     }
   }
@@ -94,7 +136,7 @@ function depthFirstSearch(
 
 function buildPathStep(
   step: WorkflowStep,
-  outcomeTaken: { outcomeId: string; outcomeName: string } | null
+  outcomeTaken: SimPathStep['outcomeTaken']
 ): SimPathStep {
   return {
     stepId: step.crmId,

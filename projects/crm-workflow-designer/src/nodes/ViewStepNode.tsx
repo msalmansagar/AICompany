@@ -75,6 +75,16 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
     );
   }
 
+  if (row.isTerminal && row.applyFilter) {
+    return (
+      <div style={outcomeRow}>
+        <span style={icon('#d97706')}>◈</span>
+        <span style={outcomeLabel('#92400e')}>{truncate(row.name, 20)}</span>
+        <span style={conditionBadge}>CONDITION</span>
+      </div>
+    );
+  }
+
   if (row.isTerminal) {
     return (
       <div style={outcomeRow}>
@@ -183,3 +193,14 @@ const outcomesSection: React.CSSProperties = { display: 'flex', flexDirection: '
 const outcomeRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, minHeight: 20 };
 const forwardRight: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 };
 const filterBadge: React.CSSProperties = { fontSize: 9, color: '#d97706', fontWeight: 700 };
+
+const conditionBadge: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  color: '#92400e',
+  background: '#fef3c7',
+  border: '1px solid #fcd34d',
+  borderRadius: 3,
+  padding: '1px 5px',
+  flexShrink: 0,
+};

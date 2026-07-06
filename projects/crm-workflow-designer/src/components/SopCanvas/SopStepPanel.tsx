@@ -1,7 +1,9 @@
-// src/components/SopCanvas/SopStepPanel.tsx
 import { useState, useEffect, useCallback } from 'react';
-import type { SopStep, SopOutcome, CrmRole } from '@/types/SopTypes';
+import type { SopStep, SopOutcome, CrmRole, SopStepType, SopExecutionChannel } from '@/types/SopTypes';
+import { SOP_STEP_TYPE_META } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
+
+const STEP_TYPES = Object.entries(SOP_STEP_TYPE_META) as [SopStepType, typeof SOP_STEP_TYPE_META[SopStepType]][];
 
 interface SopStepPanelProps {
   step: SopStep;
@@ -47,12 +49,23 @@ export function SopStepPanel({
   const handleRoleChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     const roleId = e.target.value || null;
     const role = roles.find((r) => r.id === roleId) ?? null;
-    onUpdateStep({
-      roleId,
-      roleName: role?.name ?? null,
-      roleStatus: role?.status ?? null,
-    });
+    onUpdateStep({ roleId, roleName: role?.name ?? null, roleStatus: role?.status ?? null });
   }, [roles, onUpdateStep]);
+
+  const handleTypeChange = useCallback((type: SopStepType) => {
+    onUpdateStep({ stepType: type });
+  }, [onUpdateStep]);
+
+  const handleChannelChange = useCallback((channel: SopExecutionChannel | null) => {
+    onUpdateStep({ executionChannel: channel });
+  }, [onUpdateStep]);
+
+  const handleDecisionLabelChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onUpdateStep({ decisionLabel: e.target.value || null });
+  }, [onUpdateStep]);
+
+  const activeType: SopStepType = step.stepType ?? 'step';
+  const activeMeta = SOP_STEP_TYPE_META[activeType];
 
   return (
     <div style={panelStyle}>
@@ -62,6 +75,68 @@ export function SopStepPanel({
       </div>
 
       <div style={panelBodyStyle}>
+        {/* Node Type Picker */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={fieldLabelStyle}>Node Type</label>
+          <div style={typeGridStyle}>
+            {STEP_TYPES.map(([type, meta]) => (
+              <button
+                key={type}
+                type="button"
+                title={meta.label}
+                onClick={() => handleTypeChange(type)}
+                style={typeChipStyle(type === activeType, meta.accent)}
+              >
+                {meta.icon && <span style={{ fontSize: 11 }}>{meta.icon}</span>}
+                <span style={{ fontSize: 10, fontWeight: 600 }}>{meta.label}</span>
+              </button>
+            ))}
+          </div>
+          <div style={activeTypeLabelStyle(activeMeta.accent)}>
+            {activeMeta.icon && <span>{activeMeta.icon}</span>}
+            <span>{activeMeta.label} selected</span>
+          </div>
+        </div>
+
+        {/* Execution Channel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={fieldLabelStyle}>Execution Channel</label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(['crm', 'manual', null] as (SopExecutionChannel | null)[]).map((ch) => {
+              const isActive = (step.executionChannel ?? null) === ch;
+              const label = ch === 'crm' ? 'CRM' : ch === 'manual' ? 'Manual' : 'Not set';
+              const accent = ch === 'crm' ? '#1d4ed8' : ch === 'manual' ? '#92400e' : '#64748b';
+              return (
+                <button
+                  key={String(ch)}
+                  type="button"
+                  onClick={() => handleChannelChange(ch)}
+                  style={channelChipStyle(isActive, accent)}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Decision Label — only for steps with 2+ outcomes (gateway decision point) */}
+        {outcomes.length >= 2 && (
+          <div style={decisionLabelGroupStyle}>
+            <label style={fieldLabelStyle}>
+              Decision Label
+              <span style={decisionHintStyle}>shown inside the gateway diamond</span>
+            </label>
+            <input
+              type="text"
+              value={step.decisionLabel ?? ''}
+              onChange={handleDecisionLabelChange}
+              placeholder="e.g. Approved?"
+              style={inputStyle}
+            />
+          </div>
+        )}
+
         <FieldGroup label="Name" required>
           <input type="text" value={step.name} onChange={handleNameChange} style={inputStyle} />
         </FieldGroup>
@@ -126,7 +201,7 @@ export function SopStepPanel({
 function FieldGroup({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>
+      <label style={fieldLabelStyle}>
         {label}{required && <span style={{ color: '#dc2626' }}> *</span>}
       </label>
       {children}
@@ -156,6 +231,44 @@ const panelBodyStyle: React.CSSProperties = {
   flex: 1, overflowY: 'auto', padding: '14px 16px',
   display: 'flex', flexDirection: 'column', gap: 14,
 };
+
+const fieldLabelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#374151' };
+
+const typeGridStyle: React.CSSProperties = {
+  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
+};
+
+function channelChipStyle(isActive: boolean, accent: string): React.CSSProperties {
+  return {
+    flex: 1, padding: '4px 0', borderRadius: 5, cursor: 'pointer',
+    border: isActive ? `1.5px solid ${accent}` : '1.5px solid #e2e8f0',
+    background: isActive ? `${accent}14` : '#fafafa',
+    color: isActive ? accent : '#64748b',
+    fontSize: 10, fontWeight: 600,
+    transition: 'all 0.1s',
+  };
+}
+
+function typeChipStyle(isActive: boolean, accent: string): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 5,
+    padding: '5px 8px', borderRadius: 5, cursor: 'pointer',
+    border: isActive ? `1.5px solid ${accent}` : '1.5px solid #e2e8f0',
+    background: isActive ? `${accent}12` : '#fafafa',
+    color: isActive ? accent : '#64748b',
+    transition: 'all 0.1s',
+    textAlign: 'left',
+  };
+}
+
+function activeTypeLabelStyle(accent: string): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', gap: 5,
+    fontSize: 10, color: accent, fontWeight: 600,
+    padding: '3px 6px', background: `${accent}10`,
+    borderRadius: 4, border: `1px solid ${accent}25`,
+  };
+}
 
 const inputStyle: React.CSSProperties = {
   height: 30, padding: '0 8px',
@@ -210,6 +323,17 @@ const outcomeSeqStyle: React.CSSProperties = { fontSize: 10, color: '#94a3b8', f
 const outcomeNameStyle: React.CSSProperties = { fontSize: 11, color: '#0f766e', fontWeight: 500 };
 
 const deleteSectionStyle: React.CSSProperties = { paddingTop: 8, borderTop: '1px solid #f1f5f9' };
+
+const decisionLabelGroupStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: 4,
+  padding: '8px 10px', borderRadius: 6,
+  background: '#faf5ff', border: '1px solid #e9d5ff',
+};
+
+const decisionHintStyle: React.CSSProperties = {
+  fontSize: 9, fontWeight: 400, color: '#a78bfa',
+  marginLeft: 6, fontStyle: 'italic',
+};
 
 const deleteBtnStyle: React.CSSProperties = {
   width: '100%', height: 30,

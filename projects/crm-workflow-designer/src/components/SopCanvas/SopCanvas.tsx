@@ -13,7 +13,7 @@ import {
 import type { Node } from '@xyflow/react';
 import { useSopStore } from '@/store/sopStore';
 import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
-import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX } from '@/store/sopSelectors';
+import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
@@ -71,6 +71,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
       description: '', sequenceNo: newSeq,
       sopId: state.sop?.id ?? '',
       roleId: null, roleName: null, roleStatus: null,
+      stepType: 'step',
     };
     store.addStep(step, { x: 0, y: 0 }); // swimlane layout computes real position
     store.setSelected(tmpId);
@@ -116,6 +117,11 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith(SOP_SYNTHETIC_PREFIX)) return;
+    // Gateway click selects the parent step so the step panel opens
+    if (node.id.startsWith(SOP_GATEWAY_PREFIX)) {
+      store.setSelected(node.id.slice(SOP_GATEWAY_PREFIX.length));
+      return;
+    }
     store.setSelected(node.id);
   }, [store]);
 
@@ -126,6 +132,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
   const handleConnect = useCallback((connection: Connection) => {
     const { source, target } = connection;
     if (!source || !target) return;
+    if (source.startsWith(SOP_GATEWAY_PREFIX)) return;
     // outcome → step connection: set nextSopStepId
     if (state.outcomes[source] && state.steps[target]) {
       store.updateOutcome(source, { nextSopStepId: target });

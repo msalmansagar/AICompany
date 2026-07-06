@@ -146,17 +146,39 @@ export function RoutePanel({ route }: RoutePanelProps) {
       <Field label="FetchXML Filter">
         <div style={filterPreviewStyle}>
           {route.filter ? (
-            <pre style={filterCodeStyle}>{route.filter}</pre>
+            <>
+              <pre style={filterCodeStyle}>{route.filter}</pre>
+              <div style={filterActionsStyle}>
+                <Button size="small" appearance="outline" onClick={() => setIsFetchXmlOpen(true)}>
+                  Edit Filter
+                </Button>
+                <Button
+                  size="small"
+                  appearance="subtle"
+                  onClick={() => setRoute({ ...route, filter: '' })}
+                  title="Remove filter — this route becomes the fallback (else) branch"
+                >
+                  ✕ Clear (make fallback)
+                </Button>
+              </div>
+            </>
           ) : (
-            <span style={emptyFilterStyle}>No filter set</span>
+            <>
+              <div style={fallbackBannerStyle}>
+                <span style={fallbackIconStyle}>⊘</span>
+                <div>
+                  <div style={fallbackTitleStyle}>Fallback (else) route</div>
+                  <div style={fallbackHintStyle}>
+                    No filter — this route fires when no earlier condition matches.
+                    Must have the highest sequence number among sibling routes.
+                  </div>
+                </div>
+              </div>
+              <Button size="small" appearance="outline" onClick={() => setIsFetchXmlOpen(true)}>
+                Add Condition
+              </Button>
+            </>
           )}
-          <Button
-            size="small"
-            appearance="outline"
-            onClick={() => setIsFetchXmlOpen(true)}
-          >
-            {route.filter ? 'Edit Filter' : 'Add Filter'}
-          </Button>
         </div>
       </Field>
 
@@ -207,8 +229,38 @@ const filterCodeStyle: React.CSSProperties = {
   margin: 0,
 };
 
-const emptyFilterStyle: React.CSSProperties = {
+const filterActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 6,
+  flexWrap: 'wrap',
+};
+
+const fallbackBannerStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 10,
+  alignItems: 'flex-start',
+  background: '#f0fdf4',
+  border: '1px solid #86efac',
+  borderRadius: 6,
+  padding: '8px 10px',
+};
+
+const fallbackIconStyle: React.CSSProperties = {
+  fontSize: 16,
+  color: '#16a34a',
+  flexShrink: 0,
+  marginTop: 1,
+};
+
+const fallbackTitleStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
-  fontStyle: 'italic',
+  fontWeight: 600,
+  color: '#15803d',
+};
+
+const fallbackHintStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#166534',
+  marginTop: 2,
+  lineHeight: 1.5,
 };

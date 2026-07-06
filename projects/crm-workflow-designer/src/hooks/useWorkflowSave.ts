@@ -135,7 +135,7 @@ export function useWorkflowSave(): UseSaveResult {
       // 4. Save routes — create new, update dirty
       for (const route of Object.values(routes)) {
         const resolvedOutcomeId = outcomeIdMap[route.outcomeId] ?? route.outcomeId;
-        const resolvedNextStepId = stepIdMap[route.nextStepId] ?? route.nextStepId;
+        const resolvedNextStepId = route.nextStepId ? (stepIdMap[route.nextStepId] ?? route.nextStepId) : null;
 
         if (!resolvedOutcomeId || !resolvedNextStepId) continue;
         if (isTemporaryId(resolvedOutcomeId) || isTemporaryId(resolvedNextStepId)) continue;

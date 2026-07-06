@@ -1,14 +1,25 @@
 import type { Node, Edge } from '@xyflow/react';
 import type { SopDesignerState } from './sopStore';
 
+export interface SopGatewayNodeData {
+  stepId: string;
+  decisionLabel: string | null;
+  outcomes: Array<{ id: string; name: string; seq: number; nextSopStepId: string | null }>;
+  isSelected: boolean;
+  hasError: boolean;
+}
+
 export interface SopStepNodeData {
   stepId: string;
   name: string;
+  description: string;
   sequenceNo: number;
   roleName: string | null;
   roleStatus: number | null;
   isSelected: boolean;
   hasError: boolean;
+  stepType: import('@/types/SopTypes').SopStepType;
+  executionChannel: import('@/types/SopTypes').SopExecutionChannel | null;
 }
 
 export interface SopOutcomeNodeData {
@@ -31,8 +42,12 @@ const STEP_NODE_H    = 76;                    // approximate step node height
 const OUTCOME_X_OFF  = STEP_NODE_W + 50;      // 50 px clear gap after step right edge
 const OUTCOME_Y_BASE = 10;   // y of first outcome relative to step.y
 const OUTCOME_Y_STEP = 52;   // y between consecutive outcomes
+const OUTCOME_H      = 72;   // outcome/gateway diamond height
 const START_R        = 30;   // half-size of start/end circle (60px diameter)
 const END_PAD        = 30;   // gap between last lane bottom and End node centre
+
+// Prefix for gateway nodes that aggregate multiple outcomes of one step.
+export const SOP_GATEWAY_PREFIX = '__gw__';
 
 const SYNTHETIC_IDS = {
   start: '__sop_start__',
@@ -118,6 +133,7 @@ export function selectSopNodes(state: SopDesignerState): Node[] {
       const sy = laneY + LANE_HEIGHT / 2 - STEP_NODE_H / 2;
       stepPositions[stepId] = { x: sx, y: sy };
 
+      const resolvedStepType = step.stepType ?? 'step';
       nodes.push({
         id: stepId,
         type: 'sopStep',
@@ -126,36 +142,62 @@ export function selectSopNodes(state: SopDesignerState): Node[] {
         data: {
           stepId,
           name: step.name,
+          description: step.description,
           sequenceNo: step.sequenceNo,
           roleName: step.roleName,
           roleStatus: step.roleStatus,
           isSelected: state.selectedId === stepId,
           hasError: errorNodeIds.has(stepId),
+          stepType: resolvedStepType,
+          executionChannel: step.executionChannel ?? null,
         } satisfies SopStepNodeData,
       });
 
       // Outcome nodes for this step
       const outcomeIds = state.outcomeOrder[stepId] ?? [];
-      outcomeIds.forEach((outcomeId, oidx) => {
-        const outcome = state.outcomes[outcomeId];
-        if (!outcome) return;
-        const ox = sx + OUTCOME_X_OFF;
-        const oy = sy + OUTCOME_Y_BASE + oidx * OUTCOME_Y_STEP;
+      const ox = sx + OUTCOME_X_OFF;
+      if (outcomeIds.length === 1) {
+        // Single outcome → individual sopOutcome diamond (current behaviour)
+        const outcome = state.outcomes[outcomeIds[0]];
+        if (outcome) {
+          nodes.push({
+            id: outcomeIds[0],
+            type: 'sopOutcome',
+            position: { x: ox, y: sy + OUTCOME_Y_BASE },
+            draggable: false,
+            data: {
+              outcomeId: outcomeIds[0],
+              name: outcome.name,
+              sequenceNo: outcome.sequenceNo,
+              nextSopStepId: outcome.nextSopStepId,
+              isSelected: state.selectedId === outcomeIds[0],
+              hasError: errorNodeIds.has(outcomeIds[0]),
+            } satisfies SopOutcomeNodeData,
+          });
+        }
+      } else if (outcomeIds.length > 1) {
+        // Multiple outcomes → ONE gateway diamond centred across all routes
+        const gwId = `${SOP_GATEWAY_PREFIX}${stepId}`;
+        const totalSpan = (outcomeIds.length - 1) * OUTCOME_Y_STEP;
+        const gwY = sy + OUTCOME_Y_BASE + totalSpan / 2 - OUTCOME_H / 2;
+        const step = state.steps[stepId];
         nodes.push({
-          id: outcomeId,
-          type: 'sopOutcome',
-          position: { x: ox, y: oy },
+          id: gwId,
+          type: 'sopGateway',
+          position: { x: ox, y: gwY },
           draggable: false,
           data: {
-            outcomeId,
-            name: outcome.name,
-            sequenceNo: outcome.sequenceNo,
-            nextSopStepId: outcome.nextSopStepId,
-            isSelected: state.selectedId === outcomeId,
-            hasError: errorNodeIds.has(outcomeId),
-          } satisfies SopOutcomeNodeData,
+            stepId,
+            decisionLabel: step?.decisionLabel ?? null,
+            outcomes: outcomeIds.map((oid) => {
+              const o = state.outcomes[oid];
+              return { id: oid, name: o?.name ?? '', seq: o?.sequenceNo ?? 0, nextSopStepId: o?.nextSopStepId ?? null };
+            }),
+            isSelected: state.selectedId === stepId || state.selectedId === gwId,
+            hasError: outcomeIds.some((oid) => errorNodeIds.has(oid)),
+          } satisfies SopGatewayNodeData,
         });
-      });
+      }
     });
 
     laneY += LANE_HEIGHT;
@@ -208,13 +250,25 @@ export function selectSopEdges(state: SopDesignerState): Edge[] {
     });
   }
 
-  // ── Step → Outcome edges (structural) ─────────────────────────────────────
+  // ── Step → Outcome/Gateway (structural) ───────────────────────────────────
   for (const [stepId, outcomeIds] of Object.entries(state.outcomeOrder)) {
-    for (const outcomeId of outcomeIds) {
+    if (outcomeIds.length === 1) {
+      // Single outcome: step → individual outcome diamond
       edges.push({
-        id: `se-${stepId}-${outcomeId}`,
+        id: `se-${stepId}-${outcomeIds[0]}`,
         source: stepId,
-        target: outcomeId,
+        target: outcomeIds[0],
+        type: 'smoothstep',
+        animated: false,
+        style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+        markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
+      });
+    } else if (outcomeIds.length > 1) {
+      // Multiple outcomes: step → single gateway diamond
+      edges.push({
+        id: `sg-${stepId}`,
+        source: stepId,
+        target: `${SOP_GATEWAY_PREFIX}${stepId}`,
         type: 'smoothstep',
         animated: false,
         style: { stroke: '#94a3b8', strokeWidth: 1.5 },
@@ -223,23 +277,38 @@ export function selectSopEdges(state: SopDesignerState): Edge[] {
     }
   }
 
-  // ── Outcome → Next Step or End ─────────────────────────────────────────────
+  // ── Outcome/Gateway → Next Step or End ────────────────────────────────────
   for (const outcome of Object.values(state.outcomes)) {
+    const siblingCount = (state.outcomeOrder[outcome.sopStepId] ?? []).length;
+    const isBranching = siblingCount > 1;
+
+    // Source: gateway node for multi-outcome steps, outcome node for single
+    const sourceId = isBranching ? `${SOP_GATEWAY_PREFIX}${outcome.sopStepId}` : outcome.id;
+
     if (outcome.nextSopStepId) {
       edges.push({
         id: `oe-${outcome.id}-${outcome.nextSopStepId}`,
-        source: outcome.id,
+        source: sourceId,
         target: outcome.nextSopStepId,
         type: 'smoothstep',
         animated: true,
         style: { strokeDasharray: '5,5', stroke: '#2563eb', strokeWidth: 1.5 },
         markerEnd: { type: 'arrowclosed' as const, color: '#2563eb' },
+        // Labels only on gateway branches (where multiple routes exist)
+        ...(isBranching && outcome.name ? {
+          label: outcome.name,
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: '#1e40af' },
+          labelBgStyle: { fill: '#eff6ff', fillOpacity: 1 },
+          labelBgPadding: [5, 3] as [number, number],
+          labelBgBorderRadius: 3,
+          labelShowBg: true,
+        } : {}),
       });
     } else {
-      // Terminal outcome → End
+      // Terminal → End
       edges.push({
         id: `te-${outcome.id}`,
-        source: outcome.id,
+        source: sourceId,
         target: SYNTHETIC_IDS.end,
         type: 'smoothstep',
         animated: false,
