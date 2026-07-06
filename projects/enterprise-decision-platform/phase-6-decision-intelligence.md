@@ -379,7 +379,8 @@ Because the explanation is generated **from the recorded trace and PCRM**, not f
 
 ## 9. Rule Optimization Engine
 
-**[NET-NEW]** — mostly **static analysis**, AI-assisted where useful.
+**[NET-NEW → PARTIAL]** — mostly **static analysis**, AI-assisted where useful.
+**Build status (2026-07-07):** `qdb_edp_AnalyzeRule` Function is **live** — static single-rule findings (unused variables/outputs, duplicate conditions, duplicate decision-table rows) over PCRM, read-only. Cross-rule/portfolio detection and AI-suggested fixes are follow-ups.
 
 ### 9.1 Detections (static-first, AI-augmented)
 
@@ -434,7 +435,8 @@ Conflicts are flagged in the designer (save-time advisory) and available as a po
 
 ## 11. Dependency Analysis
 
-**[NET-NEW]** — closes a Phase-4 gap (dependency graph was schema-only).
+**[NET-NEW → PARTIAL]** — closes a Phase-4 gap (dependency graph was schema-only).
+**Build status (2026-07-07):** `qdb_edp_GetDependencies` Function is **live** — extracts fields/variables/functions/outputs + edges from a rule's PCRM (read-only). `qdb_edp_CompareVersions` is also live (structural diff of two versions). Upstream/portfolio impact analysis and graph persistence to `qdb_edp_ruledependency` are follow-ups.
 
 ### 11.1 The dependency chain
 

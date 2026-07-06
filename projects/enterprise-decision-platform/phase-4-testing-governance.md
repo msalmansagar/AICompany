@@ -785,6 +785,8 @@ Escalation is triggered manually or automatically by a time-based rule. Auto-esc
 
 ## 10. Audit Architecture [EXTEND]
 
+**Build status (2026-07-07):** append-only enforcement is now **live** — `AppendOnlyGuardPlugin` blocks Update and Delete on `qdb_edp_ruleaudit` and `qdb_edp_ruleexecutionlog` via synchronous pre-validation steps (verified: an Update attempt returns 400). This discharges part of C-005 (tamper-evident trail); a System Administrator disabling the step remains the documented, accepted residual (ADR-12).
+
 ### 10.1 Current State
 
 **ALREADY-EXISTS (infrastructure):**
@@ -891,7 +893,10 @@ Documentation is stored in `qdb_edp_ruledocumentation.content` as a structured J
 
 ---
 
-## 12. Dependency Management [NET-NEW (schema only)]
+## 12. Dependency Management [NET-NEW (schema only) → PARTIAL]
+
+**Build status (2026-07-07):** dependency extraction is **live** as `qdb_edp_GetDependencies` (Phase-6 §11) — computes a rule's field/variable/function/output dependencies + edges from PCRM. Persisting edges to `qdb_edp_ruledependency` and portfolio impact analysis remain follow-ups.
+
 
 ### 12.1 Current State
 
@@ -978,7 +983,10 @@ The circular reference detection described in section 7 (V-10) is the save-time 
 
 ---
 
-## 13. Comparison Engine [NET-NEW]
+## 13. Comparison Engine [NET-NEW → PARTIAL]
+
+**Build status (2026-07-07):** `qdb_edp_CompareVersions` is **live** — structural diff of two rule versions' PCRM (logic-type change, inputs added/removed/type-changed, outputs added/removed, branch counts). Visual side-by-side diff UI is a follow-up.
+
 
 ### 13.1 Current State
 
