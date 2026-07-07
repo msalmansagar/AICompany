@@ -3,7 +3,7 @@ import { queryLogs, toCsv, type LogRow } from './logService';
 
 const OUTCOMES = ['all', 'matched', 'no-match', 'error'];
 
-export function ExecutionLogViewer({ onClose }: { onClose: () => void }) {
+export function ExecutionLogViewer({ onClose, full }: { onClose: () => void; full?: boolean }) {
   const [rows, setRows] = useState<LogRow[]>([]);
   const [outcome, setOutcome] = useState('all');
   const [busy, setBusy] = useState(false);
@@ -27,7 +27,7 @@ export function ExecutionLogViewer({ onClose }: { onClose: () => void }) {
   const badge = (o: string) => o === 'matched' ? 'ok' : o === 'error' ? 'bad' : '';
 
   return (
-    <aside className="logpanel">
+    <aside className={`logpanel ${full ? 'full' : ''}`}>
       <div className="tp-head">
         <strong>Execution Logs</strong>
         <span className="tp-sub">qdb_edp_ruleexecutionlog</span>
