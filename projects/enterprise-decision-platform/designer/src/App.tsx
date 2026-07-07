@@ -15,7 +15,8 @@ import { RulesList } from './rules/RulesList';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = 'qdb_loanapplication';
-type View = 'list' | 'editor' | 'logs';
+type View = 'list' | 'create' | 'editor' | 'logs';
+type Method = 'table' | 'canvas' | 'template' | 'ai';
 
 export function App() {
   const [view, setView] = useState<View>('list');
@@ -25,6 +26,8 @@ export function App() {
   const [targetEntity, setTargetEntity] = useState(DEFAULT_ENTITY);
   const [status, setStatus] = useState('Ready.');
   const [busy, setBusy] = useState(false);
+  const [method, setMethod] = useState<Method>('table');
+  const [editingEntity, setEditingEntity] = useState(false);
 
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
@@ -36,10 +39,8 @@ export function App() {
   const [entityLabel, setEntityLabel] = useState('');
 
   const [showMetadata, setShowMetadata] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
-  const [authorMode, setAuthorMode] = useState<'canvas' | 'table'>('canvas');
+  const [authorMode, setAuthorMode] = useState<'canvas' | 'table'>('table');
   const [table, setTable] = useState<TableModel>(emptyTable());
-  const [dismissedEmpty, setDismissedEmpty] = useState(false);
 
   const [showTest, setShowTest] = useState(false);
   const [testInputs, setTestInputs] = useState('{}');
@@ -51,7 +52,7 @@ export function App() {
   useEffect(() => { searchEntities('').then(setEntities).catch(() => {}); }, []);
 
   useEffect(() => {
-    if (view !== 'editor') return;
+    if (view !== 'editor' && view !== 'create') return;
     const match = entities.find((e) => e.logicalName === targetEntity);
     if (match) { setEntityLabel(match.displayName); return; }
     let alive = true;
@@ -62,7 +63,6 @@ export function App() {
   }, [targetEntity, entities, view]);
 
   const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
-  const showEmpty = !hasContent && !dismissedEmpty && !versionId;
 
   function currentPcrm() {
     return authorMode === 'table'
@@ -71,16 +71,24 @@ export function App() {
   }
   const currentSource = () => (authorMode === 'table' ? table : graph);
 
-  function newRule() {
+  function startCreate() {
     setGraph(EMPTY); setTable(emptyTable());
-    setRuleName('Untitled Rule'); setTargetEntity(DEFAULT_ENTITY); setAuthorMode('canvas');
+    setRuleName('Untitled Rule'); setTargetEntity(DEFAULT_ENTITY); setMethod('table');
     setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
-    setDismissedEmpty(false); setShowTest(false); setTestResult(null); setTestError('');
-    setStatus('New rule — pick a starting point.'); setView('editor');
+    setShowTest(false); setTestResult(null); setTestError(''); setEditingEntity(false);
+    setStatus('Set up your new rule.'); setView('create');
+  }
+
+  function createRule() {
+    if (method === 'template') { setStatus('Copy any existing rule from the Rules view to start from it.'); setView('list'); return; }
+    setAuthorMode(method === 'canvas' ? 'canvas' : 'table');
+    if (method === 'ai') setStatus('Plain-English drafting arrives with the AI Assistant (Phase 6) — starting you on a blank decision table.');
+    else setStatus(`Building “${ruleName}” on ${entityLabel || targetEntity}.`);
+    setView('editor');
   }
 
   async function openRule(ruleId: string) {
-    setBusy(true); setStatus('Loading latest version…'); setView('editor');
+    setBusy(true); setStatus('Loading latest version…'); setView('editor'); setEditingEntity(false);
     try {
       const v = await loadLatestVersion(ruleId);
       const src: any = v?.jdmGraph;
@@ -88,8 +96,7 @@ export function App() {
       else { setAuthorMode('canvas'); setGraph(src ?? EMPTY); }
       setRuleName(v?.ruleName ?? 'Rule');
       setVersionId(v?.versionId ?? null); setVersionNumber(v?.versionNumber ?? null);
-      setLifecycle(v?.lifecycleState ?? ''); setSavedLabel('Loaded from Dataverse');
-      setDismissedEmpty(true); setValidation(null);
+      setLifecycle(v?.lifecycleState ?? ''); setSavedLabel('Loaded from Dataverse'); setValidation(null);
       setStatus(`Loaded ${v?.ruleName ?? ''} (version ${v?.versionNumber ?? '?'} · ${v?.lifecycleState ?? ''}).`);
     } catch (e: any) { setStatus(`Load failed: ${e.message}`); } finally { setBusy(false); }
   }
@@ -138,15 +145,15 @@ export function App() {
     setDrawerTab('test'); setDrawerOpen(true);
   }
 
-  function startBlankTable() { setAuthorMode('table'); setDismissedEmpty(true); }
-  function startFromTemplate() { setStatus('Templates and existing rules live on the Rules view.'); setView('list'); }
-  function startFromDescription() {
-    setDismissedEmpty(true);
-    setStatus('Plain-English drafting arrives with the AI Assistant (Phase 6). For now, start from a template or a blank table.');
-  }
-
   const drawerHasContent = !!(testResult || testError || validation);
   const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
+
+  const METHODS: { id: Method; title: string; sub: string; rec?: boolean }[] = [
+    { id: 'table', title: 'Decision table', sub: 'Pick fields and outcomes in a grid — no code. Best for most rules.', rec: true },
+    { id: 'canvas', title: 'Advanced (canvas)', sub: 'Combine expressions, functions, and switches for multi-step logic.' },
+    { id: 'template', title: 'From a template', sub: 'Start from an existing governed rule or template.' },
+    { id: 'ai', title: 'Describe in plain English', sub: 'Say what you want; the AI drafts it for review. (Coming soon)' },
+  ];
 
   return (
     <div className="mda">
@@ -175,9 +182,51 @@ export function App() {
         </nav>
 
         <div className="mda-content">
-          {view === 'list' && <RulesList onNew={newRule} onOpen={openRule} />}
+          <datalist id="entity-list">
+            {entities.slice(0, 400).map((e) => <option key={e.logicalName} value={e.logicalName}>{e.displayName}</option>)}
+          </datalist>
 
+          {view === 'list' && <RulesList onNew={startCreate} onOpen={openRule} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
+
+          {view === 'create' && (
+            <div className="create-view">
+              <div className="create-card">
+                <div className="create-head">
+                  <button className="tb ghost" onClick={() => setView('list')}>← Rules</button>
+                  <h1>New rule</h1>
+                </div>
+
+                <label className="fld">
+                  <span className="fld-lbl">Rule name</span>
+                  <input className="fld-input" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. Loan Approval" />
+                </label>
+
+                <label className="fld">
+                  <span className="fld-lbl">Which table does this rule run on?</span>
+                  <input className="fld-input" list="entity-list" value={targetEntity} onChange={(e) => setTargetEntity(e.target.value)} spellCheck={false} />
+                  <span className="fld-hint">{entityLabel ? <>Selected: <strong>{entityLabel}</strong> <code>{targetEntity}</code></> : <>Schema name of the Dataverse table.</>}</span>
+                </label>
+
+                <div className="fld">
+                  <span className="fld-lbl">How do you want to build it?</span>
+                  <div className="method-grid">
+                    {METHODS.map((m) => (
+                      <button key={m.id} className={`method ${method === m.id ? 'on' : ''}`} onClick={() => setMethod(m.id)}>
+                        <span className="method-top"><b>{m.title}</b>{m.rec && <span className="rec">Recommended</span>}</span>
+                        <span className="method-sub">{m.sub}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="create-actions">
+                  <button className="btn" onClick={() => setView('list')}>Cancel</button>
+                  <button className="btn primary" disabled={!ruleName.trim() || !targetEntity.trim()} onClick={createRule}>Create rule</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {view === 'editor' && (
             <>
@@ -185,14 +234,19 @@ export function App() {
                 <button className="tb ghost back" disabled={busy} onClick={() => setView('list')} title="Back to all rules">← Rules</button>
                 <div className="rule-id">
                   <input className="rule-name" value={ruleName} onChange={(e) => setRuleName(e.target.value)} aria-label="Rule name" title="Rename this rule" />
-                  <label className="entity-field" title={`Schema name: ${targetEntity}`}>
-                    <span className="entity-lbl">On</span>
-                    <input className="entity-input" list="entity-list" value={targetEntity} onChange={(e) => setTargetEntity(e.target.value)} aria-label="Entity" spellCheck={false} />
-                    {entityLabel && <span className="entity-friendly">{entityLabel}</span>}
-                  </label>
-                  <datalist id="entity-list">
-                    {entities.slice(0, 400).map((e) => <option key={e.logicalName} value={e.logicalName}>{e.displayName}</option>)}
-                  </datalist>
+                  {editingEntity ? (
+                    <label className="entity-field" title={`Schema name: ${targetEntity}`}>
+                      <span className="entity-lbl">On</span>
+                      <input className="entity-input" list="entity-list" value={targetEntity} autoFocus
+                        onChange={(e) => setTargetEntity(e.target.value)} onBlur={() => setEditingEntity(false)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') setEditingEntity(false); }} aria-label="Entity" spellCheck={false} />
+                    </label>
+                  ) : (
+                    <button className="entity-pill" onClick={() => setEditingEntity(true)} title={`Runs on ${targetEntity} — click to change`}>
+                      <span className="entity-lbl">On</span><b>{entityLabel || targetEntity}</b>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                    </button>
+                  )}
                 </div>
 
                 <div className="status-cluster">
@@ -202,7 +256,7 @@ export function App() {
                       {versionNumber != null && <span className="ver">v{versionNumber}</span>}
                     </>
                   ) : (
-                    <span className="badge new"><span className="dot" />New · unsaved</span>
+                    <span className="badge new"><span className="dot" />Not saved</span>
                   )}
                   {validation && (
                     <button className={`badge valid ${validation.isValid ? 'ok' : 'bad'}`} onClick={() => void runValidation()} title="Re-check against the runtime validator">
@@ -216,12 +270,12 @@ export function App() {
 
                 <div className="top-actions">
                   <div className="mode-seg" role="tablist" aria-label="Authoring surface">
-                    <button className={authorMode === 'table' ? 'on' : ''} onClick={() => setAuthorMode('table')}>Table</button>
-                    <button className={authorMode === 'canvas' ? 'on' : ''} onClick={() => setAuthorMode('canvas')}>Canvas</button>
+                    <button className={authorMode === 'table' ? 'on' : ''} onClick={() => setAuthorMode('table')} title="Business-friendly grid — pick CRM fields, no code (recommended)">Decision table</button>
+                    <button className={authorMode === 'canvas' ? 'on' : ''} onClick={() => setAuthorMode('canvas')} title="GoRules canvas — expressions, functions, and switch nodes">Advanced</button>
                   </div>
                   <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
-                  <button className="tb test" disabled={busy} onClick={openTest}>▶ Test</button>
-                  <button className="tb primary" disabled={busy} onClick={onSave}>Save</button>
+                  <button className="tb test" disabled={busy || !hasContent} onClick={openTest} title={hasContent ? 'Test with sample inputs' : 'Add a condition first'}>▶ Test</button>
+                  <button className="tb primary" disabled={busy || !hasContent} onClick={onSave} title={hasContent ? 'Save to Dataverse' : 'Add a condition first'}>Save</button>
                 </div>
               </header>
 
@@ -239,7 +293,6 @@ export function App() {
 
               <div className="body">
                 {showMetadata && <MetadataExplorer defaultEntity={targetEntity} onClose={() => setShowMetadata(false)} />}
-
                 <div className="editor-wrap">
                   <div className="editor">
                     {authorMode === 'table' ? (
@@ -248,35 +301,7 @@ export function App() {
                       <JdmConfigProvider><DecisionGraph value={graph} onChange={setGraph} /></JdmConfigProvider>
                     )}
                   </div>
-
-                  {showEmpty && (
-                    <div className="empty-overlay">
-                      <div className="empty-card">
-                        <span className="mark" aria-hidden="true">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v6" /><path d="M12 9c0 4-6 3-6 8" /><path d="M12 9c0 4 6 3 6 8" /><circle cx="12" cy="3" r="1.6" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /></svg>
-                        </span>
-                        <h2>Let’s build a rule for {entityLabel || targetEntity}</h2>
-                        <p>Rules decide things — an approval level, a price, an eligibility flag — from the fields on a record. Pick a starting point.</p>
-                        <div className="starts">
-                          <button className="start ai" onClick={startFromDescription}>
-                            <span className="s-ic">✦</span><b>Describe it in plain English <span className="ai-badge">AI</span></b>
-                            <span className="s-sub">“Loans over 500,000 with high risk go to the CEO.”</span>
-                          </button>
-                          <button className="start tpl" onClick={startFromTemplate}>
-                            <span className="s-ic">▦</span><b>Start from a template</b>
-                            <span className="s-sub">DOA matrix, eligibility, pricing, risk tiering.</span>
-                          </button>
-                          <button className="start blank" onClick={startBlankTable}>
-                            <span className="s-ic">＋</span><b>Blank decision table</b>
-                            <span className="s-sub">Add conditions and outcomes yourself.</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-
-                {showLogs && <ExecutionLogViewer onClose={() => setShowLogs(false)} />}
 
                 {showTest && (
                   <aside className="testpanel">
