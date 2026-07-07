@@ -87,6 +87,19 @@ export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion |
   };
 }
 
+export interface ValidationResult {
+  isValid: boolean;
+  errorCount: number;
+  warningCount: number;
+  diagnostics: { code: string; message: string; severity: string; location?: string | null }[];
+}
+
+/** Validate a PCRM payload against the platform runtime (qdb_edp_ValidateRule). */
+export async function validateRule(pcrm: unknown): Promise<ValidationResult> {
+  const res = await req<{ ResultJson?: string }>(`/qdb_edp_ValidateRule`, 'POST', { PcrmJson: JSON.stringify(pcrm) });
+  return JSON.parse(res.ResultJson ?? '{"isValid":false,"errorCount":0,"warningCount":0,"diagnostics":[]}');
+}
+
 /** Current lifecycle state label of a version (for the governance bar). */
 export async function getVersionState(versionId: string): Promise<string> {
   const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_lifecyclestate`);
