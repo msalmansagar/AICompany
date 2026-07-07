@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
 import { toPcrm } from './translator/toPcrm';
 import {
-  saveRule, loadLatestVersion, listRules, getVersionState, validateRule,
-  type RuleSummary, type ValidationResult,
+  saveRule, loadLatestVersion, getVersionState, validateRule, type ValidationResult,
 } from './dataverse/client';
 import { evaluate, type EvaluateResult } from './runtime/testClient';
 import { performAction, type GovernanceAction } from './governance/governanceClient';
@@ -12,16 +11,19 @@ import { MetadataExplorer } from './metadata/MetadataExplorer';
 import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
+import { RulesList } from './rules/RulesList';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
+const DEFAULT_ENTITY = 'qdb_loanapplication';
 
 export function App() {
+  const [view, setView] = useState<'list' | 'editor'>('list');
+
   const [graph, setGraph] = useState<DecisionGraphType>(EMPTY);
   const [ruleName, setRuleName] = useState('Untitled Rule');
-  const [targetEntity, setTargetEntity] = useState('qdb_loanapplication');
+  const [targetEntity, setTargetEntity] = useState(DEFAULT_ENTITY);
   const [status, setStatus] = useState('Ready.');
   const [busy, setBusy] = useState(false);
-  const [rules, setRules] = useState<RuleSummary[]>([]);
 
   // --- Governance / identity state ---
   const [versionId, setVersionId] = useState<string | null>(null);
@@ -48,19 +50,18 @@ export function App() {
   const [drawerTab, setDrawerTab] = useState<'test' | 'validation'>('test');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
-  useEffect(() => {
-    searchEntities('').then(setEntities).catch(() => {});
-  }, []);
+  useEffect(() => { searchEntities('').then(setEntities).catch(() => {}); }, []);
 
   useEffect(() => {
-    let alive = true;
+    if (view !== 'editor') return;
     const match = entities.find((e) => e.logicalName === targetEntity);
     if (match) { setEntityLabel(match.displayName); return; }
+    let alive = true;
     searchEntities(targetEntity)
       .then((list) => { if (alive) setEntityLabel(list.find((e) => e.logicalName === targetEntity)?.displayName ?? ''); })
       .catch(() => {});
     return () => { alive = false; };
-  }, [targetEntity, entities]);
+  }, [targetEntity, entities, view]);
 
   const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
   const showEmpty = !hasContent && !dismissedEmpty && !versionId;
@@ -72,48 +73,28 @@ export function App() {
   }
   const currentSource = () => (authorMode === 'table' ? table : graph);
 
-  async function onSave() {
-    setBusy(true);
-    setStatus('Translating + saving to Dataverse…');
-    try {
-      const pcrm = currentPcrm();
-      const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
-      setVersionId(res.versionId);
-      setVersionNumber(1);
-      setLifecycle('Draft');
-      setSavedLabel('Saved just now');
-      setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
-      void runValidation(pcrm);
-      await refreshRules();
-    } catch (e: any) {
-      setStatus(`Save failed: ${e.message}`);
-    } finally {
-      setBusy(false);
-    }
+  function newRule() {
+    setGraph(EMPTY);
+    setTable(emptyTable());
+    setRuleName('Untitled Rule');
+    setTargetEntity(DEFAULT_ENTITY);
+    setAuthorMode('canvas');
+    setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
+    setDismissedEmpty(false);
+    setShowTest(false); setTestResult(null); setTestError('');
+    setStatus('New rule — pick a starting point.');
+    setView('editor');
   }
 
-  async function runValidation(pcrm?: unknown) {
-    try {
-      const v = await validateRule(pcrm ?? currentPcrm());
-      setValidation(v);
-    } catch (e: any) {
-      setStatus(`Validation unavailable: ${e.message}`);
-    }
-  }
-
-  async function refreshRules() {
-    try { setRules(await listRules()); }
-    catch (e: any) { setStatus(`Could not list rules: ${e.message}`); }
-  }
-
-  async function onLoad(ruleId: string) {
+  async function openRule(ruleId: string) {
     setBusy(true);
     setStatus('Loading latest version…');
+    setView('editor');
     try {
       const v = await loadLatestVersion(ruleId);
       const src: any = v?.jdmGraph;
       if (src?.editor === 'edp-table') { setAuthorMode('table'); setTable(src as TableModel); }
-      else { setAuthorMode('canvas'); if (src) setGraph(src); }
+      else { setAuthorMode('canvas'); setGraph(src ?? EMPTY); }
       setRuleName(v?.ruleName ?? 'Rule');
       setVersionId(v?.versionId ?? null);
       setVersionNumber(v?.versionNumber ?? null);
@@ -129,8 +110,32 @@ export function App() {
     }
   }
 
+  async function onSave() {
+    setBusy(true);
+    setStatus('Translating + saving to Dataverse…');
+    try {
+      const pcrm = currentPcrm();
+      const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
+      setVersionId(res.versionId);
+      setVersionNumber(1);
+      setLifecycle('Draft');
+      setSavedLabel('Saved just now');
+      setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
+      void runValidation(pcrm);
+    } catch (e: any) {
+      setStatus(`Save failed: ${e.message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runValidation(pcrm?: unknown) {
+    try { setValidation(await validateRule(pcrm ?? currentPcrm())); }
+    catch (e: any) { setStatus(`Validation unavailable: ${e.message}`); }
+  }
+
   async function runGov(action: GovernanceAction) {
-    if (!versionId) { setStatus('Save or open a rule first — governance acts on a saved version.'); return; }
+    if (!versionId) { setStatus('Save a rule first — governance acts on a saved version.'); return; }
     setBusy(true);
     setStatus(`${action}…`);
     try {
@@ -149,35 +154,37 @@ export function App() {
     const seed: Record<string, unknown> = {};
     for (const i of pcrm.inputs ?? []) seed[i.name] = '';
     setTestInputs(JSON.stringify(seed, null, 2));
-    setTestResult(null);
-    setTestError('');
+    setTestResult(null); setTestError('');
     setShowTest(true);
   }
 
   async function runTest() {
-    setTestError('');
-    setTestResult(null);
+    setTestError(''); setTestResult(null);
     let inputs: Record<string, unknown>;
     try { inputs = JSON.parse(testInputs || '{}'); }
     catch (e: any) { setTestError(`Inputs JSON invalid: ${e.message}`); return; }
     try {
-      const pcrm = currentPcrm();
-      const result = await evaluate(pcrm, inputs);
-      setTestResult(result);
-      setDrawerTab('test');
-      setDrawerOpen(true);
+      setTestResult(await evaluate(currentPcrm(), inputs));
     } catch (e: any) {
       setTestError(e.message);
-      setDrawerTab('test');
-      setDrawerOpen(true);
     }
+    setDrawerTab('test'); setDrawerOpen(true);
   }
 
   function startBlankTable() { setAuthorMode('table'); setDismissedEmpty(true); }
-  function startFromTemplate() { setDismissedEmpty(true); void refreshRules(); setStatus('Pick a rule or template to start from — see the list above.'); }
+  function startFromTemplate() { setStatus('Templates and existing rules live on the Rules home.'); setView('list'); }
   function startFromDescription() {
     setDismissedEmpty(true);
     setStatus('Plain-English drafting arrives with the AI Assistant (Phase 6). For now, start from a template or a blank table.');
+  }
+
+  if (view === 'list') {
+    return (
+      <div className="app">
+        <RulesList onNew={newRule} onOpen={openRule} />
+        <footer className="status">{status}</footer>
+      </div>
+    );
   }
 
   const drawerHasContent = !!(testResult || testError || validation);
@@ -185,22 +192,14 @@ export function App() {
 
   return (
     <div className="app">
-      {/* ── Top bar ─────────────────────────────────────────────── */}
+      {/* ── Editor top bar ──────────────────────────────────────── */}
       <header className="topbar">
-        <div className="brand">
-          <span className="logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 3v6" /><path d="M12 9c0 4-6 3-6 8" /><path d="M12 9c0 4 6 3 6 8" />
-              <circle cx="12" cy="3" r="1.4" fill="currentColor" stroke="none" /><circle cx="6" cy="18" r="1.7" /><circle cx="18" cy="18" r="1.7" />
-            </svg>
-          </span>
-          <b>Rule Designer</b>
-        </div>
+        <button className="tb ghost back" disabled={busy} onClick={() => setView('list')} title="Back to all rules">← Rules</button>
 
         <div className="rule-id">
           <input className="rule-name" value={ruleName} onChange={(e) => setRuleName(e.target.value)}
             aria-label="Rule name" title="Rename this rule" />
-          <label className="entity-field" title={`Schema: ${targetEntity}`}>
+          <label className="entity-field" title={`Schema name: ${targetEntity}`}>
             <span className="entity-lbl">On</span>
             <input className="entity-input" list="entity-list" value={targetEntity}
               onChange={(e) => setTargetEntity(e.target.value)} aria-label="Entity" spellCheck={false} />
@@ -223,11 +222,8 @@ export function App() {
             <span className="chip new"><span className="dot" />New · unsaved</span>
           )}
           {validation && (
-            <button
-              className={`chip valid ${validation.isValid ? 'ok' : 'bad'}`}
-              onClick={() => void runValidation()}
-              title="Re-check against the runtime validator"
-            >
+            <button className={`chip valid ${validation.isValid ? 'ok' : 'bad'}`} onClick={() => void runValidation()}
+              title="Re-check against the runtime validator">
               {validation.isValid ? '✓ Valid' : `⚠ ${validation.errorCount} issue${validation.errorCount === 1 ? '' : 's'}`}
             </button>
           )}
@@ -237,26 +233,16 @@ export function App() {
         <span className="spacer" />
 
         <div className="top-actions">
-          <button className="tb ghost" disabled={busy}
-            onClick={() => setAuthorMode((m) => (m === 'table' ? 'canvas' : 'table'))}>
-            {authorMode === 'table' ? 'Canvas' : 'Table'}
-          </button>
+          <div className="mode-seg" role="tablist" aria-label="Authoring surface">
+            <button className={authorMode === 'table' ? 'on' : ''} onClick={() => setAuthorMode('table')}>Table</button>
+            <button className={authorMode === 'canvas' ? 'on' : ''} onClick={() => setAuthorMode('canvas')}>Canvas</button>
+          </div>
           <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
           <button className="tb ghost" disabled={busy} onClick={() => setShowLogs((v) => !v)}>Logs</button>
           <button className="tb test" disabled={busy} onClick={openTest}>▶ Test</button>
           <button className="tb primary" disabled={busy} onClick={onSave}>Save</button>
-          <button className="tb ghost" disabled={busy} onClick={refreshRules}>Open…</button>
         </div>
       </header>
-
-      {rules.length > 0 && (
-        <div className="rulelist">
-          <span className="rl-label">Open</span>
-          {rules.map((r) => (
-            <button key={r.ruleId} className="chip pick" onClick={() => onLoad(r.ruleId)}>{r.name}</button>
-          ))}
-        </div>
-      )}
 
       {versionId && (
         <div className="govbar">
@@ -341,9 +327,7 @@ export function App() {
       {drawerHasContent && drawerOpen && (
         <div className="drawer">
           <div className="drawer-head">
-            <button className={`dt-tab ${drawerTab === 'test' ? 'on' : ''}`} onClick={() => setDrawerTab('test')}>
-              ▶ Test result
-            </button>
+            <button className={`dt-tab ${drawerTab === 'test' ? 'on' : ''}`} onClick={() => setDrawerTab('test')}>▶ Test result</button>
             <button className={`dt-tab ${drawerTab === 'validation' ? 'on' : ''}`} onClick={() => setDrawerTab('validation')}>
               Validation
               {validation && <span className={`b ${validation.isValid ? 'okb' : 'warnb'}`}>{validation.isValid ? '0' : validation.errorCount}</span>}
