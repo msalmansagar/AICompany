@@ -19,6 +19,8 @@ namespace EDP.RuleRuntime.Crm.Tests
         public readonly List<Entity> Created = new List<Entity>();
         public readonly List<Entity> Updated = new List<Entity>();
         public readonly Dictionary<string, Entity> RetrieveResults = new Dictionary<string, Entity>(StringComparer.OrdinalIgnoreCase);
+        public readonly Dictionary<Guid, Entity> RetrieveById = new Dictionary<Guid, Entity>();
+        public readonly Dictionary<string, List<Entity>> QueryResults = new Dictionary<string, List<Entity>>(StringComparer.OrdinalIgnoreCase);
         public readonly Dictionary<string, EntityMetadata> Metadata = new Dictionary<string, EntityMetadata>(StringComparer.OrdinalIgnoreCase);
         public bool ThrowOnCreate;
 
@@ -30,9 +32,11 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
 
         public Entity Retrieve(string entityName, Guid id, ColumnSet columnSet)
-            => RetrieveResults.TryGetValue(entityName, out var e)
-                ? e
-                : throw new InvalidOperationException($"No seeded record for '{entityName}'.");
+        {
+            if (RetrieveById.TryGetValue(id, out var byId)) return byId;
+            if (RetrieveResults.TryGetValue(entityName, out var e)) return e;
+            throw new InvalidOperationException($"No seeded record for '{entityName}'.");
+        }
 
         public OrganizationResponse Execute(OrganizationRequest request)
         {
@@ -52,8 +56,10 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void Disassociate(string entityName, Guid entityId, Relationship relationship, EntityReferenceCollection relatedEntities) => throw new NotImplementedException();
         public EntityCollection RetrieveMultiple(QueryBase query)
         {
-            // Return created records of the queried entity (adequate for governance tests).
             var entityName = (query as QueryExpression)?.EntityName;
+            if (entityName != null && QueryResults.TryGetValue(entityName, out var seeded))
+                return new EntityCollection(seeded);
+            // Fall back to created records of the queried entity (adequate for governance tests).
             var matches = entityName == null ? new List<Entity>() : Created.Where(e => e.LogicalName == entityName).ToList();
             return new EntityCollection(matches);
         }
