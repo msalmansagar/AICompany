@@ -29,6 +29,9 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [method, setMethod] = useState<Method>('table');
   const [editingEntity, setEditingEntity] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try { return (localStorage.getItem('edp-theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
+  });
 
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
@@ -65,6 +68,11 @@ export function App() {
     if (view !== 'editor' && view !== 'create') return;
     setEntityLabel(entities.find((e) => e.logicalName === targetEntity)?.displayName ?? '');
   }, [targetEntity, entities, view]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('edp-theme', theme); } catch { /* ignore */ }
+  }, [theme]);
 
   const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
 
@@ -171,6 +179,13 @@ export function App() {
           Rule Engine
         </div>
         <span className="spacer" />
+        <button className="theme-btn" onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} title="Toggle light / dark theme" aria-label="Toggle theme">
+          {theme === 'dark' ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+          )}
+        </button>
         <span className="mda-env"><span className="dot" />org5869857f</span>
       </div>
 
@@ -188,7 +203,7 @@ export function App() {
         </nav>
 
         <div className="mda-content">
-          {view === 'list' && <RulesList onNew={startCreate} onOpen={openRule} />}
+          {view === 'list' && <RulesList onNew={startCreate} onOpen={openRule} entities={entities} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
 
           {view === 'create' && (

@@ -11,6 +11,7 @@
   /* Brand ramp (Fluent 2 communication blue) */
   --brand: #0f6cbd; --brand-hover: #115ea3; --brand-pressed: #0f548c;
   --brand-tint: #ebf3fc; --brand-tint-2: #cfe4fa; --brand-fg: #ffffff;
+  --topbar-bg: #0f6cbd; --topbar-fg: #ffffff;
 
   /* Neutral ramp */
   --n-bg1: #ffffff; --n-bg2: #faf9f8; --n-bg3: #f3f2f1;
@@ -29,6 +30,23 @@
   --shadow16: 0 6.4px 14.4px rgba(0,0,0,.13), 0 1.2px 3.6px rgba(0,0,0,.11);
 }
 
+/* Fluent 2 dark ramp — applied when the app stamps data-theme="dark" on <html>. */
+:root[data-theme="dark"] {
+  --brand: #479ef5; --brand-hover: #62abf5; --brand-pressed: #2886de;
+  --brand-tint: #0b2a45; --brand-tint-2: #0e4670; --brand-fg: #ffffff;
+  --topbar-bg: #0a3a66; --topbar-fg: #ffffff;
+  --n-bg1: #292929; --n-bg2: #1f1f1f; --n-bg3: #333333;
+  --n-bg1-hover: #333333; --n-bg1-pressed: #3d3d3d; --n-selected: #0e3050; --n-selected-hover: #123a5e;
+  --n-stroke1: #3d3d3d; --n-stroke2: #4d4d4d; --n-stroke-acc: #6b6b6b;
+  --n-fg1: #f5f5f5; --n-fg2: #c7c7c7; --n-fg3: #969696; --n-disabled: #5c5c5c;
+  --ok: #5ec75e; --ok-bg: #12331a; --ok-line: #1f5a2f;
+  --warn: #e0a44a; --warn-bg: #33280f; --warn-line: #5a4718;
+  --danger: #f1707b; --danger-bg: #3a1418; --danger-line: #6b2028;
+  --shadow2: 0 .6px 1.8px rgba(0,0,0,.4);
+  --shadow8: 0 3.2px 7.2px rgba(0,0,0,.5), 0 .6px 1.8px rgba(0,0,0,.4);
+  --shadow16: 0 6.4px 14.4px rgba(0,0,0,.55), 0 1.2px 3.6px rgba(0,0,0,.4);
+}
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body { font: 14px/20px var(--font); color: var(--n-fg1); background: var(--n-bg3); }
@@ -37,7 +55,11 @@ h1, h2, h3 { text-wrap: balance; }
 /* ── Model-driven app shell ──────────────────────────────── */
 .app { height: 100%; }
 .mda { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
-.mda-topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--brand); color: #fff; }
+.mda-topbar { display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--topbar-bg); color: var(--topbar-fg); }
+.theme-btn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--radius); border: 0;
+  background: rgba(255,255,255,.14); color: #fff; cursor: pointer; }
+.theme-btn:hover { background: rgba(255,255,255,.24); }
+.theme-btn svg { width: 16px; height: 16px; }
 .mda-app { display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: 600; }
 .mda-app .waffle { width: 22px; height: 22px; border-radius: var(--radius-sm); display: grid; place-items: center;
   background: rgba(255,255,255,.16); }
@@ -132,6 +154,9 @@ h1, h2, h3 { text-wrap: balance; }
 .mg-head { height: 40px; padding: 0 12px 0 0; border-bottom: 1px solid var(--n-stroke1); background: var(--n-bg1);
   position: sticky; top: 0; z-index: 1; }
 .mg-head span { font-size: 12px; font-weight: 600; color: var(--n-fg2); padding: 0 8px; }
+.mg-sort { font: inherit; font-size: 12px; font-weight: 600; color: var(--n-fg2); background: transparent; border: 0;
+  padding: 0 8px; text-align: left; cursor: pointer; height: 100%; white-space: nowrap; }
+.mg-sort:hover { color: var(--n-fg1); }
 .mg-head .mg-check, .mg-row .mg-check { display: grid; place-items: center; padding: 0; }
 .mg-row { height: 44px; padding: 0 12px 0 0; border-bottom: 1px solid var(--n-stroke1); cursor: pointer; }
 .mg-row:hover { background: var(--n-bg1-hover); }

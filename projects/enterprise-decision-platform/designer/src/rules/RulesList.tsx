@@ -1,22 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listRulesDetailed, duplicateRule, deleteRule, type RuleRow } from '../dataverse/client';
+import type { EntityMeta } from '../metadata/metadataService';
 
 const Check = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
 );
 
+type SortKey = 'name' | 'entity' | 'status' | 'version' | 'modified';
+
 /**
  * Rules view — a model-driven read-only grid. A command bar drives New / Refresh and
- * (on selection) Open / Copy / Delete; Delete is disabled for Published rules. Follows
- * the Power Apps grid pattern: selection checkboxes, sticky header, row hover/select.
+ * (on selection) Open / Copy / Delete; Delete is disabled for Published rules. Columns
+ * are sortable. Friendly table names come from the app's on-demand entity cache — the
+ * grid never fetches metadata itself, so it stays free of a page-load call.
  */
-export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleId: string) => void }) {
+export function RulesList({ onNew, onOpen, entities }: {
+  onNew: () => void; onOpen: (ruleId: string) => void; entities: EntityMeta[];
+}) {
   const [rows, setRows] = useState<RuleRow[]>([]);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   async function load() {
     setBusy(true); setError(''); setConfirmDelete(false);
@@ -26,12 +34,39 @@ export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleI
   }
   useEffect(() => { void load(); }, []);
 
+  const entityLabel = (ln: string) => (ln ? entities.find((e) => e.logicalName === ln)?.displayName ?? ln : '—');
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
-      r.name.toLowerCase().includes(q) || r.entity.toLowerCase().includes(q) || r.status.toLowerCase().includes(q));
-  }, [rows, query]);
+      r.name.toLowerCase().includes(q) || r.entity.toLowerCase().includes(q) ||
+      entityLabel(r.entity).toLowerCase().includes(q) || r.status.toLowerCase().includes(q));
+  }, [rows, query, entities]);
+
+  const sorted = useMemo(() => {
+    const val = (r: RuleRow): string | number => {
+      switch (sortKey) {
+        case 'name': return r.name.toLowerCase();
+        case 'entity': return entityLabel(r.entity).toLowerCase();
+        case 'status': return r.status.toLowerCase();
+        case 'version': return r.versionNumber;
+        case 'modified': return r.modifiedOn;
+      }
+    };
+    const arr = [...filtered].sort((a, b) => {
+      const av = val(a), bv = val(b);
+      const c = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDir === 'asc' ? c : -c;
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir, entities]);
+
+  function toggleSort(k: SortKey) {
+    if (k === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(k); setSortDir('asc'); }
+  }
+  const caret = (k: SortKey) => (k === sortKey ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '');
 
   const selectedRow = rows.find((r) => r.ruleId === selected) ?? null;
   const canDelete = !!selectedRow && selectedRow.status !== 'Published';
@@ -109,7 +144,7 @@ export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleI
 
       {busy && rows.length === 0 ? (
         <p className="rh-loading">Loading rules…</p>
-      ) : filtered.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="mg-empty">
           <h2>{rows.length === 0 ? 'No rules yet' : 'No rules match your filter'}</h2>
           <p>{rows.length === 0 ? 'Create your first decision rule to get started.' : 'Try a different keyword.'}</p>
@@ -120,18 +155,19 @@ export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleI
           <div className="mgrid">
             <div className="mg-head">
               <span className="mg-check" aria-hidden="true" />
-              <span>Name</span><span>Entity</span><span>Status</span><span>Version</span><span>Modified</span>
+              <button className="mg-sort" onClick={() => toggleSort('name')}>Name{caret('name')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('entity')}>Entity{caret('entity')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('status')}>Status{caret('status')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('version')}>Version{caret('version')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('modified')}>Modified{caret('modified')}</button>
             </div>
-            {filtered.map((r) => {
+            {sorted.map((r) => {
               const on = r.ruleId === selected;
               return (
-                <div className={`mg-row ${on ? 'sel' : ''}`} key={r.ruleId}
-                  onClick={() => setSelected(on ? null : r.ruleId)}>
-                  <span className="mg-check">
-                    <span className={`fcheck ${on ? 'on' : ''}`}>{on && <Check />}</span>
-                  </span>
+                <div className={`mg-row ${on ? 'sel' : ''}`} key={r.ruleId} onClick={() => setSelected(on ? null : r.ruleId)}>
+                  <span className="mg-check"><span className={`fcheck ${on ? 'on' : ''}`}>{on && <Check />}</span></span>
                   <button className="mg-name" onClick={(e) => { e.stopPropagation(); onOpen(r.ruleId); }} title="Open rule">{r.name}</button>
-                  <span className="mg-entity" title={r.entity}>{r.entity || '—'}</span>
+                  <span className="mg-entity" title={r.entity}>{entityLabel(r.entity)}</span>
                   <span><span className={`badge ${cls(r.status)}`}><span className="dot" />{r.status}</span></span>
                   <span className="mg-ver">v{r.versionNumber}</span>
                   <span className="mg-mod">{fmtDate(r.modifiedOn)}</span>
