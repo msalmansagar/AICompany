@@ -28,19 +28,21 @@ export interface OptionMeta { value: number; label: string; }
 
 let entityCache: EntityMeta[] | null = null;
 
+// System tables that are never rule targets are hidden from the picker.
+const HIDDEN_ENTITY_PREFIXES = ['msdyncrm_'];
+
 /** All entities (cached), filtered client-side — EntityDefinitions doesn't support startswith. */
 export async function searchEntities(term: string): Promise<EntityMeta[]> {
   if (!entityCache) {
     const d = await get<{ value: any[] }>(`/EntityDefinitions?$select=LogicalName,DisplayName`);
     entityCache = d.value
       .map((e) => ({ logicalName: e.LogicalName as string, displayName: label(e.DisplayName, e.LogicalName) }))
+      .filter((e) => !HIDDEN_ENTITY_PREFIXES.some((p) => e.logicalName.startsWith(p)))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
   const t = term.trim().toLowerCase();
-  const list = t
-    ? entityCache.filter((e) => e.logicalName.toLowerCase().includes(t) || e.displayName.toLowerCase().includes(t))
-    : entityCache;
-  return list.slice(0, 100);
+  if (!t) return entityCache; // full set — the combobox caps display and searches all
+  return entityCache.filter((e) => e.logicalName.toLowerCase().includes(t) || e.displayName.toLowerCase().includes(t));
 }
 
 /** Non-virtual attributes of an entity, sorted by display name. */
