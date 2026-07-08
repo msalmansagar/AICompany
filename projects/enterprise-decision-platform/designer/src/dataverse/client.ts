@@ -137,6 +137,7 @@ export async function saveRule(input: { name: string; jdmGraph: unknown; pcrm: u
 
 export interface LoadedVersion {
   jdmGraph: DecisionGraphType | null;
+  targetEntity: string;
   ruleName: string;
   versionNumber: number;
   versionId: string | null;
@@ -147,11 +148,15 @@ export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion |
   const rule = await req<any>(`/${RULES}(${ruleId})?$select=qdb_edp_rulename`);
   const data = await req<{ value: any[] }>(
     `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
-      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_versionnumber,qdb_edp_lifecyclestate&$orderby=qdb_edp_versionnumber desc&$top=1`
+      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate&$orderby=qdb_edp_versionnumber desc&$top=1`
   );
   const v = data.value[0];
+  // The target entity lives inside the PCRM — restore it so field pickers can load.
+  let targetEntity = '';
+  try { targetEntity = v?.qdb_edp_pcrmjson ? (JSON.parse(v.qdb_edp_pcrmjson).targetEntity ?? '') : ''; } catch { /* ignore */ }
   return {
     jdmGraph: v?.qdb_edp_jdmsourcejson ? (JSON.parse(v.qdb_edp_jdmsourcejson) as DecisionGraphType) : null,
+    targetEntity,
     ruleName: rule.qdb_edp_rulename ?? 'Rule',
     versionNumber: v?.qdb_edp_versionnumber ?? 0,
     versionId: v?.qdb_edp_ruleversionid ?? null,

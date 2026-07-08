@@ -109,6 +109,7 @@ export function App() {
       if (src?.editor === 'edp-table') { setAuthorMode('table'); setTable(src as TableModel); }
       else { setAuthorMode('canvas'); setGraph(src ?? EMPTY); }
       setRuleName(v?.ruleName ?? 'Rule');
+      setTargetEntity(v?.targetEntity || DEFAULT_ENTITY);
       setVersionId(v?.versionId ?? null); setVersionNumber(v?.versionNumber ?? null);
       setLifecycle(v?.lifecycleState ?? ''); setSavedLabel('Loaded from Dataverse'); setValidation(null);
       setStatus(`Loaded ${v?.ruleName ?? ''} (version ${v?.versionNumber ?? '?'} · ${v?.lifecycleState ?? ''}).`);
