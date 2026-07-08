@@ -29,7 +29,7 @@ export interface OptionMeta { value: number; label: string; }
 let entityCache: EntityMeta[] | null = null;
 
 // System tables that are never rule targets are hidden from the picker.
-const HIDDEN_ENTITY_PREFIXES = ['msdyn_', 'msdyncrm_', 'msdynmkt_'];
+const HIDDEN_ENTITY_PREFIXES = ['msdyn_', 'msdyncrm_', 'msdynmkt_', 'adx_', 'mspp_'];
 
 /** All entities (cached), filtered client-side — EntityDefinitions doesn't support startswith. */
 export async function searchEntities(term: string): Promise<EntityMeta[]> {
