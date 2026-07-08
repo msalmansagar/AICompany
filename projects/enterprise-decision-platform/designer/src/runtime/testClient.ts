@@ -59,7 +59,12 @@ async function evaluateViaHarness(pcrm: unknown, inputs: Record<string, unknown>
       body: JSON.stringify({ pcrm: JSON.stringify(pcrm), inputs, nowUtc: null }),
     });
   } catch {
-    throw new Error('Runtime harness not reachable. Start it: cd runtime/tools/EDP.RuleRuntime.DevHarness && dotnet run (port 5099).');
+    throw new Error('Local runtime not reachable on :5099. Start it: cd runtime/tools/EDP.RuleRuntime.DevHarness && dotnet run');
+  }
+  // A 5xx from the /runtime proxy almost always means the harness is down (the vite
+  // proxy returns 500 when it can't reach :5099) rather than a real evaluation error.
+  if (res.status >= 500) {
+    throw new Error('Local runtime not reachable on :5099 (Test runs against the C# harness). Start it: cd runtime/tools/EDP.RuleRuntime.DevHarness && dotnet run');
   }
   if (!res.ok) throw new Error(`Runtime returned HTTP ${res.status}`);
   return (await res.json()) as EvaluateResult;
