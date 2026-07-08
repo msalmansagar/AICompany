@@ -7,14 +7,17 @@ import type { EntityMeta } from './metadataService';
  * with the schema name as secondary, and supports keyboard navigation — the native
  * <datalist> can do none of this.
  */
+const CAP = 100;
+
 export function EntityCombobox({
-  entities, value, onChange, onClose, autoFocus, placeholder = 'Search tables…',
+  entities, value, onChange, onClose, autoFocus, loading, placeholder = 'Search tables…',
 }: {
   entities: EntityMeta[];
   value: string;
   onChange: (logicalName: string) => void;
   onClose?: () => void;
   autoFocus?: boolean;
+  loading?: boolean;
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -24,10 +27,11 @@ export function EntityCombobox({
 
   const selected = entities.find((e) => e.logicalName === value);
   const term = q.trim().toLowerCase();
-  const filtered = (term
+  const matches = term
     ? entities.filter((e) => e.displayName.toLowerCase().includes(term) || e.logicalName.toLowerCase().includes(term))
-    : entities
-  ).slice(0, 60);
+    : entities;
+  const filtered = matches.slice(0, CAP);
+  const truncated = matches.length - filtered.length;
 
   useEffect(() => {
     function onDoc(ev: MouseEvent) {
@@ -63,22 +67,27 @@ export function EntityCombobox({
 
       {open && (
         <div className="cbx-pop" role="listbox">
-          {filtered.length === 0 ? (
-            <div className="cbx-empty">No tables match “{q}”.</div>
+          {loading ? (
+            <div className="cbx-empty">Loading tables…</div>
+          ) : filtered.length === 0 ? (
+            <div className="cbx-empty">{entities.length === 0 ? 'No tables loaded.' : `No tables match “${q}”.`}</div>
           ) : (
-            filtered.map((e, i) => (
-              <button
-                key={e.logicalName}
-                className={`cbx-item ${i === hi ? 'hi' : ''} ${e.logicalName === value ? 'sel' : ''}`}
-                role="option"
-                aria-selected={e.logicalName === value}
-                onMouseEnter={() => setHi(i)}
-                onMouseDown={(ev) => { ev.preventDefault(); pick(e); }}
-              >
-                <span className="cbx-name">{e.displayName}</span>
-                <span className="cbx-logical">{e.logicalName}</span>
-              </button>
-            ))
+            <>
+              {filtered.map((e, i) => (
+                <button
+                  key={e.logicalName}
+                  className={`cbx-item ${i === hi ? 'hi' : ''} ${e.logicalName === value ? 'sel' : ''}`}
+                  role="option"
+                  aria-selected={e.logicalName === value}
+                  onMouseEnter={() => setHi(i)}
+                  onMouseDown={(ev) => { ev.preventDefault(); pick(e); }}
+                >
+                  <span className="cbx-name">{e.displayName}</span>
+                  <span className="cbx-logical">{e.logicalName}</span>
+                </button>
+              ))}
+              {truncated > 0 && <div className="cbx-more">Showing {CAP} of {matches.length} — keep typing to narrow.</div>}
+            </>
           )}
         </div>
       )}

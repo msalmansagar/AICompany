@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listRulesDetailed, duplicateRule, deleteRule, type RuleRow } from '../dataverse/client';
-import { searchEntities, type EntityMeta } from '../metadata/metadataService';
 
 const Check = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
@@ -13,7 +12,6 @@ const Check = () => (
  */
 export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleId: string) => void }) {
   const [rows, setRows] = useState<RuleRow[]>([]);
-  const [entities, setEntities] = useState<EntityMeta[]>([]);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -26,17 +24,14 @@ export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleI
     catch (e: any) { setError(e.message); }
     finally { setBusy(false); }
   }
-  useEffect(() => { void load(); searchEntities('').then(setEntities).catch(() => {}); }, []);
-
-  const entityLabel = (ln: string) => (ln ? entities.find((e) => e.logicalName === ln)?.displayName ?? ln : '—');
+  useEffect(() => { void load(); }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) =>
-      r.name.toLowerCase().includes(q) || r.entity.toLowerCase().includes(q) ||
-      entityLabel(r.entity).toLowerCase().includes(q) || r.status.toLowerCase().includes(q));
-  }, [rows, query, entities]);
+      r.name.toLowerCase().includes(q) || r.entity.toLowerCase().includes(q) || r.status.toLowerCase().includes(q));
+  }, [rows, query]);
 
   const selectedRow = rows.find((r) => r.ruleId === selected) ?? null;
   const canDelete = !!selectedRow && selectedRow.status !== 'Published';
@@ -136,7 +131,7 @@ export function RulesList({ onNew, onOpen }: { onNew: () => void; onOpen: (ruleI
                     <span className={`fcheck ${on ? 'on' : ''}`}>{on && <Check />}</span>
                   </span>
                   <button className="mg-name" onClick={(e) => { e.stopPropagation(); onOpen(r.ruleId); }} title="Open rule">{r.name}</button>
-                  <span className="mg-entity" title={r.entity}>{entityLabel(r.entity)}</span>
+                  <span className="mg-entity" title={r.entity}>{r.entity || '—'}</span>
                   <span><span className={`badge ${cls(r.status)}`}><span className="dot" />{r.status}</span></span>
                   <span className="mg-ver">v{r.versionNumber}</span>
                   <span className="mg-mod">{fmtDate(r.modifiedOn)}</span>

@@ -37,6 +37,7 @@ export function App() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
 
   const [entities, setEntities] = useState<EntityMeta[]>([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(false);
   const [entityLabel, setEntityLabel] = useState('');
 
   const [showMetadata, setShowMetadata] = useState(false);
@@ -50,17 +51,19 @@ export function App() {
   const [drawerTab, setDrawerTab] = useState<'test' | 'validation'>('test');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
-  useEffect(() => { searchEntities('').then(setEntities).catch(() => {}); }, []);
+  // Tables are fetched on demand — only when a user starts creating or opens a rule,
+  // never on page load. Cached after the first load.
+  async function loadEntities() {
+    if (entities.length || entitiesLoading) return;
+    setEntitiesLoading(true);
+    try { setEntities(await searchEntities('')); }
+    catch (e: any) { setStatus(`Could not load tables: ${e.message}`); }
+    finally { setEntitiesLoading(false); }
+  }
 
   useEffect(() => {
     if (view !== 'editor' && view !== 'create') return;
-    const match = entities.find((e) => e.logicalName === targetEntity);
-    if (match) { setEntityLabel(match.displayName); return; }
-    let alive = true;
-    searchEntities(targetEntity)
-      .then((list) => { if (alive) setEntityLabel(list.find((e) => e.logicalName === targetEntity)?.displayName ?? ''); })
-      .catch(() => {});
-    return () => { alive = false; };
+    setEntityLabel(entities.find((e) => e.logicalName === targetEntity)?.displayName ?? '');
   }, [targetEntity, entities, view]);
 
   const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
@@ -78,6 +81,7 @@ export function App() {
     setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
     setShowTest(false); setTestResult(null); setTestError(''); setEditingEntity(false);
     setStatus('Set up your new rule.'); setView('create');
+    void loadEntities();
   }
 
   function createRule() {
@@ -90,6 +94,7 @@ export function App() {
 
   async function openRule(ruleId: string) {
     setBusy(true); setStatus('Loading latest version…'); setView('editor'); setEditingEntity(false);
+    void loadEntities();
     try {
       const v = await loadLatestVersion(ruleId);
       const src: any = v?.jdmGraph;
@@ -201,7 +206,7 @@ export function App() {
 
                 <div className="fld">
                   <span className="fld-lbl">Which table does this rule run on?</span>
-                  <EntityCombobox entities={entities} value={targetEntity} onChange={setTargetEntity} />
+                  <EntityCombobox entities={entities} loading={entitiesLoading} value={targetEntity} onChange={setTargetEntity} />
                   <span className="fld-hint">{entityLabel ? <>Selected: <strong>{entityLabel}</strong> <code>{targetEntity}</code></> : <>Search by the table's display name.</>}</span>
                 </div>
 
@@ -234,7 +239,7 @@ export function App() {
                   {editingEntity ? (
                     <div className="entity-cbx">
                       <span className="entity-lbl">On</span>
-                      <EntityCombobox entities={entities} value={targetEntity} autoFocus
+                      <EntityCombobox entities={entities} loading={entitiesLoading} value={targetEntity} autoFocus
                         onChange={(ln) => { setTargetEntity(ln); setEditingEntity(false); }}
                         onClose={() => setEditingEntity(false)} />
                     </div>
