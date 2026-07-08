@@ -15,7 +15,7 @@ import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { RulesList } from './rules/RulesList';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
-const DEFAULT_ENTITY = 'qdb_loanapplication';
+const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
 type View = 'list' | 'create' | 'editor' | 'logs';
 type Method = 'table' | 'canvas' | 'template' | 'ai';
 

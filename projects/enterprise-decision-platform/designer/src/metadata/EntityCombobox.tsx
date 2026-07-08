@@ -30,7 +30,9 @@ export function EntityCombobox({
   const matches = term
     ? entities.filter((e) => e.displayName.toLowerCase().includes(term) || e.logicalName.toLowerCase().includes(term))
     : entities;
-  const filtered = matches.slice(0, CAP);
+  // When searching, show every match; only the initial (unsearched) list is capped so
+  // opening the box doesn't render thousands of rows at once.
+  const filtered = term ? matches : matches.slice(0, CAP);
   const truncated = matches.length - filtered.length;
 
   useEffect(() => {
@@ -86,7 +88,7 @@ export function EntityCombobox({
                   <span className="cbx-logical">{e.logicalName}</span>
                 </button>
               ))}
-              {truncated > 0 && <div className="cbx-more">Showing {CAP} of {matches.length} — keep typing to narrow.</div>}
+              {truncated > 0 && <div className="cbx-more">Showing {CAP} of {matches.length} tables — type to search all.</div>}
             </>
           )}
         </div>
