@@ -355,26 +355,58 @@ h1, h2, h3 { text-wrap: balance; }
 .md-opt { font-size: 11px; background: var(--n-bg1); border: 1px solid var(--n-stroke1); border-radius: var(--radius-sm); padding: 1px 6px; } .md-opt em { color: var(--n-fg2); font-style: normal; }
 .md-msg { font-size: 12px; color: var(--ok); background: var(--ok-bg); border: 1px solid var(--ok-line); border-radius: var(--radius); padding: 6px 8px; }
 
-.dte { height: 100%; display: flex; flex-direction: column; background: var(--n-bg1); }
-.dte-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--n-stroke1); background: var(--n-bg2); }
-.dte-toolbar label { font-size: 12px; color: var(--n-fg2); }
-.dte-toolbar select { border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 6px; }
-.dte-toolbar button { background: var(--brand); color: #fff; border: 0; border-radius: var(--radius); padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
-.dte-scroll { flex: 1; overflow: auto; padding: 8px 12px; }
-.dte-table { border-collapse: collapse; font-size: 13px; }
-.dte-table th, .dte-table td { border: 1px solid var(--n-stroke1); padding: 4px 6px; vertical-align: top; }
-.dte-table thead th { background: var(--brand-tint); position: sticky; top: 0; }
-.dte-in, .dte-out { min-width: 190px; }
-.dte-in select, .dte-out input, .dte-out select { font: inherit; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 3px 5px; }
-.dte-in select { width: 150px; } .dte-out input { width: 96px; } .dte-out select { margin-left: 4px; }
-.dte-out { background: var(--ok-bg); }
-.dte-x { background: transparent; border: 0; color: var(--danger); cursor: pointer; margin-left: 4px; font-size: 12px; }
-.dte-cell { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.dte-cell select, .dte-cell input { font: inherit; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 3px 5px; }
-.dte-cell input { width: 90px; }
-.dte-and { color: var(--n-fg2); font-size: 11px; }
-.dte-actions { text-align: center; white-space: nowrap; }
-.dte-actions button { background: transparent; border: 0; cursor: pointer; font-size: 13px; padding: 2px 4px; }
+/* ── Decision table editor (GoRules-style layout) ────────── */
+.dt2 { height: 100%; display: flex; flex-direction: column; background: var(--n-bg2); }
+.dt2-hint { padding: 10px 16px; font-size: 12.5px; color: var(--n-fg2); }
+.dt2-hint.dt2-err { color: var(--danger); }
+.dt2-scroll { flex: 1; overflow: auto; padding: 16px; }
+.dt2-table { border-collapse: separate; border-spacing: 0; font-size: 13px; background: var(--n-bg1);
+  border: 1px solid var(--n-stroke2); border-radius: var(--radius); overflow: hidden; }
+.dt2-table th, .dt2-table td { border-right: 1px solid var(--n-stroke1); border-bottom: 1px solid var(--n-stroke1); vertical-align: middle; }
+
+/* group band */
+.dt2-band { font-size: 11px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; color: #fff; padding: 5px 12px; text-align: left; }
+.dt2-band-in { background: var(--brand); } .dt2-band-out { background: var(--ok); }
+.dt2-corner { background: var(--n-bg3); padding: 4px; text-align: center; }
+.dt2-corner select { font: inherit; font-size: 11px; font-weight: 600; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius-sm); padding: 3px 4px; background: var(--n-bg1); color: var(--n-fg1); }
+.dt2-band-x { background: var(--n-bg3); width: 60px; }
+
+/* column headers */
+.dt2-col { padding: 7px 8px; min-width: 180px; text-align: left; vertical-align: top; }
+.dt2-col-in { background: var(--brand-tint); } .dt2-col-out { background: var(--ok-bg); }
+.dt2-col-top { display: flex; align-items: center; gap: 4px; }
+.dt2-col-top select, .dt2-col-top input { flex: 1; min-width: 0; font: inherit; font-size: 13px; font-weight: 600;
+  border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 6px; background: var(--n-bg1); color: var(--n-fg1); }
+.dt2-col-x { background: transparent; border: 0; color: var(--n-fg3); cursor: pointer; font-size: 12px; padding: 2px 4px; flex: none; }
+.dt2-col-x:hover { color: var(--danger); }
+.dt2-col-type { display: inline-block; margin-top: 4px; font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: .3px; color: var(--n-fg2); background: var(--n-bg1); border: 1px solid var(--n-stroke1); border-radius: var(--radius-sm); padding: 1px 5px; }
+.dt2-col-typesel { margin-top: 4px; font: inherit; font-size: 11px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius-sm); padding: 2px 4px; background: var(--n-bg1); color: var(--n-fg2); }
+.dt2-addcol { background: var(--n-bg2); width: 36px; text-align: center; padding: 0; }
+.dt2-addcol button { width: 24px; height: 24px; border-radius: var(--radius-sm); border: 1px dashed var(--n-stroke-acc);
+  background: var(--n-bg1); color: var(--brand); font-size: 15px; line-height: 1; cursor: pointer; }
+.dt2-addcol button:hover { background: var(--brand-tint); border-style: solid; }
+
+/* body rows */
+.dt2-row:hover { background: var(--n-bg2); }
+.dt2-rownum { width: 40px; text-align: center; font-family: var(--mono); font-size: 12px; color: var(--n-fg3);
+  background: var(--n-bg2); border-right: 1px solid var(--n-stroke1); }
+.dt2-cell { padding: 5px 8px; }
+.dt2-gap { width: 36px; background: var(--n-bg2); }
+.dt2-cellbox { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.dt2-cellbox select, .dt2-cellbox input { font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 3px 6px; background: var(--n-bg1); color: var(--n-fg1); }
+.dt2-cellbox input { width: 96px; }
+.dt2-op { color: var(--brand) !important; font-weight: 600; }
+.dt2-and { color: var(--n-fg2); font-size: 11px; }
+.dt2-rowact { width: 60px; text-align: center; white-space: nowrap; opacity: 0; }
+.dt2-row:hover .dt2-rowact { opacity: 1; }
+.dt2-rowact button { background: transparent; border: 0; cursor: pointer; font-size: 13px; padding: 2px 4px; color: var(--n-fg2); }
+.dt2-rowact button:hover { color: var(--n-fg1); }
+.dt2-emptyrow { padding: 20px; text-align: center; color: var(--n-fg3); font-size: 13px; }
+.dt2-addrow { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font: inherit; font-size: 13px; font-weight: 600;
+  color: var(--brand); background: var(--n-bg1); border: 1px dashed var(--n-stroke-acc); border-radius: var(--radius); padding: 8px 14px; cursor: pointer; }
+.dt2-addrow:hover { background: var(--brand-tint); border-style: solid; }
+.dt2-addrow span { font-size: 15px; line-height: 1; }
 
 .logpanel { width: 380px; flex: 0 0 380px; border-left: 1px solid var(--n-stroke1); background: var(--n-bg1); padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
 .logpanel.full { width: auto; flex: 1; border-left: 0; }
