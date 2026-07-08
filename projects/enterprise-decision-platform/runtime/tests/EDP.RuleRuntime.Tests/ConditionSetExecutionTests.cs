@@ -96,6 +96,33 @@ namespace EDP.RuleRuntime.Tests
         }
 
         [Fact]
+        public void Compares_a_field_against_another_field()
+        {
+            // Requested amount greater than the approved limit → over limit.
+            const string rule = """
+            {
+              "ruleId": "f2f", "name": "Over Limit", "targetEntity": "qdb_loanapplication",
+              "inputs": [
+                { "name": "requested", "type": "Decimal", "binding": "qdb_requested" },
+                { "name": "approved", "type": "Decimal", "binding": "qdb_approved" }
+              ],
+              "outputs": [ { "name": "overLimit", "type": "Boolean" } ],
+              "logic": { "type": "conditionSet", "rules": [
+                { "when": { "op": "and", "conditions": [
+                    { "field": "requested", "operator": "GreaterThan", "valueField": "approved" }
+                ] }, "then": { "overLimit": true } }
+              ], "otherwise": { "overLimit": false } }
+            }
+            """;
+            var svc = new RuleRuntimeService(new InMemoryMetadataResolver()
+                .AddAttribute("qdb_loanapplication", "qdb_requested", FieldType.Decimal)
+                .AddAttribute("qdb_loanapplication", "qdb_approved", FieldType.Decimal));
+
+            Assert.Equal(true, svc.Execute(rule, new Dictionary<string, object?> { ["requested"] = 600000m, ["approved"] = 500000m }, Now).Outputs["overLimit"]);
+            Assert.Equal(false, svc.Execute(rule, new Dictionary<string, object?> { ["requested"] = 400000m, ["approved"] = 500000m }, Now).Outputs["overLimit"]);
+        }
+
+        [Fact]
         public void Invalid_operator_fails_compilation_with_diagnostics()
         {
             const string bad = """

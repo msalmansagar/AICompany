@@ -3,7 +3,7 @@
 
 export interface InputCol { field: string; label: string; type: string; } // field = CRM logical name
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
-export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; }
+export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
 export interface Row { cells: Cell[]; outputs: Record<string, string>; }
 export interface TableModel {
   editor: 'edp-table';
@@ -58,12 +58,24 @@ export function arity(cat: string, op?: string): 0 | 1 | 2 {
 
 // ---- serialization to PCRM ----
 export function tableToPcrm(model: TableModel, meta: { name: string; targetEntity: string }): unknown {
+  // Any field referenced by a field-to-field comparison must also be loaded from the
+  // record, so add it as an input binding if it isn't already a condition column.
+  const referenced = new Set<string>();
+  for (const r of model.rows) for (const c of r.cells) {
+    if (c?.valueField) referenced.add(c.valueField);
+    if (c?.value2Field) referenced.add(c.value2Field);
+  }
+  const inputCols = model.inputs.map((i) => ({ name: i.field, type: pcrmType(i.type), binding: i.field }));
+  const extraInputs = [...referenced]
+    .filter((f) => f && !model.inputs.some((i) => i.field === f))
+    .map((f) => ({ name: f, type: 'Text', binding: f }));
+
   return {
     schemaVersion: '1.0',
     ruleId: meta.name.trim().toLowerCase().replace(/\s+/g, '-') || 'rule',
     name: meta.name,
     targetEntity: meta.targetEntity,
-    inputs: model.inputs.map((i) => ({ name: i.field, type: pcrmType(i.type), binding: i.field })),
+    inputs: [...inputCols, ...extraInputs],
     variables: [],
     outputs: model.outputs.map((o) => ({ name: o.name, type: o.type })),
     logic: {
@@ -83,8 +95,13 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
 function cellToPcrm(cell: Cell, input?: InputCol): any {
   if (!cell || cell.any || !cell.operator || cell.operator === 'Any') return { any: true };
   const cat = input ? category(input.type) : 'text';
-  const out: any = { operator: cell.operator, value: coerce(cell.value, cat) };
-  if (arity(cat, cell.operator) === 2) out.value2 = coerce(cell.value2, cat);
+  const out: any = { operator: cell.operator };
+  if (cell.valueField) out.valueField = cell.valueField;
+  else out.value = coerce(cell.value, cat);
+  if (arity(cat, cell.operator) === 2) {
+    if (cell.value2Field) out.value2Field = cell.value2Field;
+    else out.value2 = coerce(cell.value2, cat);
+  }
   return out;
 }
 

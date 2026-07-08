@@ -81,6 +81,10 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("value")] public JsonElement Value { get; set; }
         /// <summary>Second operand for Between.</summary>
         [JsonPropertyName("value2")] public JsonElement Value2 { get; set; }
+        /// <summary>When set, the right operand is another field/input, resolved at eval time (field-to-field).</summary>
+        [JsonPropertyName("valueField")] public string? ValueField { get; set; }
+        /// <summary>Field reference for the Between second operand.</summary>
+        [JsonPropertyName("value2Field")] public string? Value2Field { get; set; }
     }
 
     public sealed class PcrmTableInput
@@ -102,6 +106,10 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("operator")] public string Operator { get; set; } = "Equals";
         [JsonPropertyName("value")] public JsonElement Value { get; set; }
         [JsonPropertyName("value2")] public JsonElement Value2 { get; set; }
+        /// <summary>When set, the right operand is another field/input, resolved at eval time (field-to-field).</summary>
+        [JsonPropertyName("valueField")] public string? ValueField { get; set; }
+        /// <summary>Field reference for the Between second operand.</summary>
+        [JsonPropertyName("value2Field")] public string? Value2Field { get; set; }
         /// <summary>Wildcard cell — matches anything (a "-" in the table).</summary>
         [JsonPropertyName("any")] public bool Any { get; set; }
     }

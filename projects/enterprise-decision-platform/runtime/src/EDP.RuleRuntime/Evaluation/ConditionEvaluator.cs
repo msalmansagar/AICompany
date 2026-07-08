@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.Json;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Operators;
 using EDP.RuleRuntime.Pcrm;
@@ -37,14 +38,25 @@ namespace EDP.RuleRuntime.Evaluation
         private bool EvaluateCondition(PcrmCondition condition, RuleExecutionContext context)
         {
             context.TryResolve(condition.Field, out var left);
-            var right = RuntimeValue.FromJson(condition.Value);
-            var right2 = condition.Value2.ValueKind == System.Text.Json.JsonValueKind.Undefined
-                ? null
-                : RuntimeValue.FromJson(condition.Value2);
+            var right = ResolveOperand(condition.ValueField, condition.Value, context);
+            var right2 = HasOperand(condition.Value2Field, condition.Value2)
+                ? ResolveOperand(condition.Value2Field, condition.Value2, context)
+                : null;
 
             var outcome = OperatorEvaluator.Evaluate(condition.Operator, left, right, right2);
-            context.Trace.Add("condition", $"{condition.Field} {condition.Operator} {RuntimeValue.AsString(right)}", outcome);
+            var rhs = string.IsNullOrEmpty(condition.ValueField) ? RuntimeValue.AsString(right) : $"[{condition.ValueField}]";
+            context.Trace.Add("condition", $"{condition.Field} {condition.Operator} {rhs}", outcome);
             return outcome;
         }
+
+        /// <summary>Right operand is a referenced field (resolved from the context) or a literal.</summary>
+        internal static object? ResolveOperand(string? field, JsonElement literal, RuleExecutionContext context)
+        {
+            if (!string.IsNullOrEmpty(field)) { context.TryResolve(field!, out var value); return value; }
+            return literal.ValueKind == JsonValueKind.Undefined ? null : RuntimeValue.FromJson(literal);
+        }
+
+        internal static bool HasOperand(string? field, JsonElement literal)
+            => !string.IsNullOrEmpty(field) || literal.ValueKind != JsonValueKind.Undefined;
     }
 }

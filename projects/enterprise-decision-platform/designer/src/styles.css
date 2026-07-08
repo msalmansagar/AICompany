@@ -397,6 +397,8 @@ h1, h2, h3 { text-wrap: balance; }
 .dt2-cellbox select, .dt2-cellbox input { font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 3px 6px; background: var(--n-bg1); color: var(--n-fg1); }
 .dt2-cellbox input { width: 96px; }
 .dt2-op { color: var(--brand) !important; font-weight: 600; }
+.dt2-rhsmode { color: var(--n-fg2) !important; font-size: 11px !important; padding: 3px 4px !important; }
+.dt2-fieldsel { color: var(--brand) !important; font-weight: 600; background: var(--brand-tint) !important; border-color: var(--brand-tint-2) !important; }
 .dt2-and { color: var(--n-fg2); font-size: 11px; }
 .dt2-rowact { width: 60px; text-align: center; white-space: nowrap; opacity: 0; }
 .dt2-row:hover .dt2-rowact { opacity: 1; }

@@ -131,13 +131,28 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     const op = cell.any ? 'Any' : (cell.operator ?? 'Any');
     const n = arity(cat, op);
     const patch = (p: Partial<Cell>) => setCell(rowIdx, ci, p);
+    const isField = cell.valueField !== undefined;
     return (
       <div className="dt2-cellbox">
         <select className="dt2-op" value={op} disabled={!col.field}
           onChange={(e) => patch(e.target.value === 'Any' ? { any: true, operator: undefined } : { any: false, operator: e.target.value })}>
           {operatorsFor(cat).map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}
         </select>
-        {n >= 1 && valueEditor(cat, opts[col.field], cell.value ?? '', (v) => patch({ value: v }))}
+        {n >= 1 && col.field && (
+          <>
+            <select className="dt2-rhsmode" value={isField ? 'field' : 'value'} title="Compare against a fixed value or another field on the record"
+              onChange={(e) => patch(e.target.value === 'field' ? { valueField: '', value: undefined } : { valueField: undefined })}>
+              <option value="value">value</option>
+              <option value="field">field</option>
+            </select>
+            {isField
+              ? <select className="dt2-fieldsel" value={cell.valueField ?? ''} onChange={(e) => patch({ valueField: e.target.value })}>
+                  <option value="">— pick field —</option>
+                  {attrs.filter((a) => a.logicalName !== col.field).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+                </select>
+              : valueEditor(cat, opts[col.field], cell.value ?? '', (v) => patch({ value: v }))}
+          </>
+        )}
         {n === 2 && <span className="dt2-and">and</span>}
         {n === 2 && valueEditor(cat, opts[col.field], cell.value2 ?? '', (v) => patch({ value2: v }))}
       </div>

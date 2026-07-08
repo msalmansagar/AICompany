@@ -35,6 +35,35 @@ namespace EDP.RuleRuntime.Tests
         """;
 
         [Fact]
+        public void Cell_compares_input_against_another_field()
+        {
+            const string table = """
+            {
+              "ruleId": "t", "name": "Balance check", "targetEntity": "qdb_loanapplication",
+              "inputs": [
+                { "name": "requested", "type": "Decimal", "binding": "qdb_requested" },
+                { "name": "balance", "type": "Decimal", "binding": "qdb_balance" }
+              ],
+              "logic": {
+                "type": "decisionTable", "hitPolicy": "First",
+                "tableInputs": [ { "field": "requested" } ],
+                "outputColumns": [ "decision" ],
+                "rows": [
+                  { "priority": 2, "cells": [ { "operator": "GreaterThan", "valueField": "balance" } ], "outputs": { "decision": "Refer" } },
+                  { "priority": 1, "cells": [ { "any": true } ], "outputs": { "decision": "Auto" } }
+                ]
+              }
+            }
+            """;
+            var svc = new RuleRuntimeService(new InMemoryMetadataResolver()
+                .AddAttribute("qdb_loanapplication", "qdb_requested", FieldType.Decimal)
+                .AddAttribute("qdb_loanapplication", "qdb_balance", FieldType.Decimal));
+
+            Assert.Equal("Refer", svc.Execute(table, new Dictionary<string, object?> { ["requested"] = 900m, ["balance"] = 500m }, Now).Outputs["decision"]);
+            Assert.Equal("Auto", svc.Execute(table, new Dictionary<string, object?> { ["requested"] = 300m, ["balance"] = 500m }, Now).Outputs["decision"]);
+        }
+
+        [Fact]
         public void First_match_returns_first_matching_row_in_order()
         {
             var r = Service().Execute(Table("First"), new Dictionary<string, object?> { ["score"] = 850m }, Now);

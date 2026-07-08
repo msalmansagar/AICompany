@@ -65,8 +65,10 @@ namespace EDP.RuleRuntime.DecisionTable
                 if (cell.Any) continue;
 
                 context.TryResolve(table.TableInputs[i].Field, out var left);
-                var right = RuntimeValue.FromJson(cell.Value);
-                var right2 = cell.Value2.ValueKind == JsonValueKind.Undefined ? null : RuntimeValue.FromJson(cell.Value2);
+                var right = Evaluation.ConditionEvaluator.ResolveOperand(cell.ValueField, cell.Value, context);
+                var right2 = Evaluation.ConditionEvaluator.HasOperand(cell.Value2Field, cell.Value2)
+                    ? Evaluation.ConditionEvaluator.ResolveOperand(cell.Value2Field, cell.Value2, context)
+                    : null;
                 if (!OperatorEvaluator.Evaluate(cell.Operator, left, right, right2))
                     return false;
             }
