@@ -181,6 +181,28 @@ h1, h2, h3 { text-wrap: balance; }
 .method-sub { font-size: 12.5px; color: var(--n-fg2); line-height: 1.4; }
 .create-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* ── Searchable combobox (Fluent) ────────────────────────── */
+.cbx { position: relative; width: 100%; }
+.cbx-field { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px 0 10px;
+  border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); background: var(--n-bg1); }
+.cbx-field.open, .cbx-field:focus-within { border-color: var(--brand); box-shadow: inset 0 -2px 0 var(--brand); }
+.cbx-input { flex: 1; min-width: 0; border: 0; background: transparent; font: inherit; font-size: 14px; color: var(--n-fg1); }
+.cbx-input:focus { outline: none; }
+.cbx-input::placeholder { color: var(--n-fg2); }
+.cbx-caret { width: 14px; height: 14px; color: var(--n-fg2); flex: none; }
+.cbx-pop { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30; background: var(--n-bg1);
+  border: 1px solid var(--n-stroke1); border-radius: var(--radius); box-shadow: var(--shadow16); max-height: 300px;
+  overflow: auto; padding: 4px; }
+.cbx-item { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; border: 0;
+  background: transparent; padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; }
+.cbx-item:hover, .cbx-item.hi { background: var(--n-bg1-hover); }
+.cbx-item.sel { background: var(--brand-tint); }
+.cbx-name { font-size: 14px; font-weight: 600; color: var(--n-fg1); }
+.cbx-logical { font-family: var(--mono); font-size: 11px; color: var(--n-fg2); }
+.cbx-empty { padding: 12px; font-size: 13px; color: var(--n-fg2); }
+.entity-cbx { display: inline-flex; align-items: center; gap: 8px; width: 260px; }
+.entity-cbx .entity-lbl { font-size: 12px; color: var(--n-fg2); flex: none; }
+
 .entity-pill { display: inline-flex; align-items: center; gap: 8px; background: var(--n-bg2); border: 1px solid var(--n-stroke2);
   border-radius: var(--radius); padding: 5px 10px; cursor: pointer; font: inherit; color: var(--n-fg1); }
 .entity-pill:hover { background: var(--n-bg1-hover); border-color: var(--n-stroke-acc); }

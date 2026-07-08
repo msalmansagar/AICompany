@@ -7,6 +7,7 @@ import {
 import { evaluate, type EvaluateResult } from './runtime/testClient';
 import { performAction, type GovernanceAction } from './governance/governanceClient';
 import { searchEntities, type EntityMeta } from './metadata/metadataService';
+import { EntityCombobox } from './metadata/EntityCombobox';
 import { MetadataExplorer } from './metadata/MetadataExplorer';
 import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
@@ -182,10 +183,6 @@ export function App() {
         </nav>
 
         <div className="mda-content">
-          <datalist id="entity-list">
-            {entities.slice(0, 400).map((e) => <option key={e.logicalName} value={e.logicalName}>{e.displayName}</option>)}
-          </datalist>
-
           {view === 'list' && <RulesList onNew={startCreate} onOpen={openRule} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
 
@@ -202,11 +199,11 @@ export function App() {
                   <input className="fld-input" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. Loan Approval" />
                 </label>
 
-                <label className="fld">
+                <div className="fld">
                   <span className="fld-lbl">Which table does this rule run on?</span>
-                  <input className="fld-input" list="entity-list" value={targetEntity} onChange={(e) => setTargetEntity(e.target.value)} spellCheck={false} />
-                  <span className="fld-hint">{entityLabel ? <>Selected: <strong>{entityLabel}</strong> <code>{targetEntity}</code></> : <>Schema name of the Dataverse table.</>}</span>
-                </label>
+                  <EntityCombobox entities={entities} value={targetEntity} onChange={setTargetEntity} />
+                  <span className="fld-hint">{entityLabel ? <>Selected: <strong>{entityLabel}</strong> <code>{targetEntity}</code></> : <>Search by the table's display name.</>}</span>
+                </div>
 
                 <div className="fld">
                   <span className="fld-lbl">How do you want to build it?</span>
@@ -235,12 +232,12 @@ export function App() {
                 <div className="rule-id">
                   <input className="rule-name" value={ruleName} onChange={(e) => setRuleName(e.target.value)} aria-label="Rule name" title="Rename this rule" />
                   {editingEntity ? (
-                    <label className="entity-field" title={`Schema name: ${targetEntity}`}>
+                    <div className="entity-cbx">
                       <span className="entity-lbl">On</span>
-                      <input className="entity-input" list="entity-list" value={targetEntity} autoFocus
-                        onChange={(e) => setTargetEntity(e.target.value)} onBlur={() => setEditingEntity(false)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') setEditingEntity(false); }} aria-label="Entity" spellCheck={false} />
-                    </label>
+                      <EntityCombobox entities={entities} value={targetEntity} autoFocus
+                        onChange={(ln) => { setTargetEntity(ln); setEditingEntity(false); }}
+                        onClose={() => setEditingEntity(false)} />
+                    </div>
                   ) : (
                     <button className="entity-pill" onClick={() => setEditingEntity(true)} title={`Runs on ${targetEntity} — click to change`}>
                       <span className="entity-lbl">On</span><b>{entityLabel || targetEntity}</b>
