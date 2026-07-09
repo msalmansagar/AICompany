@@ -7,10 +7,11 @@ runtime/pack/publish/
 runtime/pack/*.dll
 *.user
 
-# Keep: the strong-name key (assembly identity, not a secret) is preserved for
-# reproducible plugin signing — losing it changes the public key token.
-!runtime/pack/edp.snk
 
 # Noise / stale artifacts
 *.log
 BusinessRuleEngine_entities.zip
+
+# Strong-name PRIVATE key — NEVER commit (it controls assembly identity; F-05).
+# Provide it out-of-band (vault / CI secret) for reproducible plugin signing.
+*.snk
