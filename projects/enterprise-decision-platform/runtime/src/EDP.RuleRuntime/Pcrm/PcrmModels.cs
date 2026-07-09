@@ -26,6 +26,22 @@ namespace EDP.RuleRuntime.Pcrm
         [JsonPropertyName("name")] public string Name { get; set; } = "";
         [JsonPropertyName("type")] public string Type { get; set; } = "Text";
         [JsonPropertyName("binding")] public string? Binding { get; set; }
+
+        /// <summary>
+        /// Optional N:1 navigation. When present, <see cref="Binding"/> names a field on the
+        /// related entity <see cref="PcrmVia.Entity"/>, reached by following the anchor's
+        /// lookup <see cref="PcrmVia.Relationship"/>. Absent = the field is on the anchor entity.
+        /// </summary>
+        [JsonPropertyName("via")] public PcrmVia? Via { get; set; }
+    }
+
+    /// <summary>Single-hop N:1 navigation source for a related-entity input.</summary>
+    public sealed class PcrmVia
+    {
+        /// <summary>Lookup attribute on the anchor entity (e.g. "qdb_accountid").</summary>
+        [JsonPropertyName("relationship")] public string Relationship { get; set; } = "";
+        /// <summary>Logical name of the related entity the lookup points to (e.g. "account").</summary>
+        [JsonPropertyName("entity")] public string Entity { get; set; } = "";
     }
 
     public sealed class PcrmVariable

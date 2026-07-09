@@ -103,14 +103,46 @@ namespace EDP.RuleRuntime.Crm
             var doc = JsonSerializer.Deserialize<PcrmDocument>(pcrmJson, JsonOptions)
                       ?? throw new InvalidOperationException("PCRM payload could not be parsed.");
 
+            var relatedByRelationship = LoadRelatedRecords(doc, target);
+
             var inputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var input in doc.Inputs)
             {
                 var binding = string.IsNullOrWhiteSpace(input.Binding) ? input.Name : input.Binding!;
-                var crmValue = target != null && target.Contains(binding) ? target[binding] : null;
+                var source = IsNavigated(input) ? relatedByRelationship[input.Via!.Relationship] : target;
+                var crmValue = source != null && source.Contains(binding) ? source[binding] : null;
                 inputs[input.Name] = CrmValueConverter.ToRuntime(crmValue);
             }
             return inputs;
+        }
+
+        private static bool IsNavigated(PcrmInput input)
+            => input.Via != null && !string.IsNullOrWhiteSpace(input.Via.Relationship);
+
+        /// <summary>
+        /// Follow each distinct N:1 lookup on the target once, retrieving only the fields the
+        /// related inputs bind to. A missing/empty lookup yields a null related record, so the
+        /// input resolves to null (deterministic — no exception).
+        /// </summary>
+        private IDictionary<string, Entity?> LoadRelatedRecords(PcrmDocument doc, Entity target)
+        {
+            var byRelationship = new Dictionary<string, Entity?>(StringComparer.OrdinalIgnoreCase);
+            var columnsByRelationship = doc.Inputs
+                .Where(IsNavigated)
+                .GroupBy(i => i.Via!.Relationship, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(i => string.IsNullOrWhiteSpace(i.Binding) ? i.Name : i.Binding!).Distinct().ToArray(),
+                    StringComparer.OrdinalIgnoreCase);
+
+            foreach (var pair in columnsByRelationship)
+            {
+                var reference = target != null && target.Contains(pair.Key) ? target[pair.Key] as EntityReference : null;
+                byRelationship[pair.Key] = reference == null
+                    ? null
+                    : _service.Retrieve(reference.LogicalName, reference.Id, new Microsoft.Xrm.Sdk.Query.ColumnSet(pair.Value));
+            }
+            return byRelationship;
         }
     }
 }

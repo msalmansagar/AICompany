@@ -46,9 +46,24 @@ namespace EDP.RuleRuntime.Compiler
             }
             foreach (var input in doc.Inputs.Where(i => !string.IsNullOrWhiteSpace(i.Binding)))
             {
-                if (!_metadata.TryGetAttribute(doc.TargetEntity, input.Binding!, out _))
+                if (input.Via != null && !string.IsNullOrWhiteSpace(input.Via.Relationship))
+                    ValidateRelatedBinding(doc.TargetEntity, input, diagnostics);
+                else if (!_metadata.TryGetAttribute(doc.TargetEntity, input.Binding!, out _))
                     diagnostics.Add(new RuleDiagnostic("EDP002", $"Field '{input.Binding}' not found on '{doc.TargetEntity}'.", RuleErrorSeverity.Error, input.Name));
             }
+        }
+
+        /// <summary>An N:1 input binds to a field on the related entity, reached by a lookup on the anchor.</summary>
+        private void ValidateRelatedBinding(string anchor, PcrmInput input, List<RuleDiagnostic> diagnostics)
+        {
+            var via = input.Via!;
+            if (!_metadata.TryGetAttribute(anchor, via.Relationship, out _))
+                diagnostics.Add(new RuleDiagnostic("EDP005", $"Lookup '{via.Relationship}' not found on '{anchor}'.", RuleErrorSeverity.Error, input.Name));
+
+            if (string.IsNullOrWhiteSpace(via.Entity) || !_metadata.EntityExists(via.Entity))
+                diagnostics.Add(new RuleDiagnostic("EDP006", $"Related entity '{via.Entity}' not found in metadata.", RuleErrorSeverity.Warning, input.Name));
+            else if (!_metadata.TryGetAttribute(via.Entity, input.Binding!, out _))
+                diagnostics.Add(new RuleDiagnostic("EDP007", $"Field '{input.Binding}' not found on related entity '{via.Entity}'.", RuleErrorSeverity.Error, input.Name));
         }
 
         private void ValidateConditionSet(PcrmLogic logic, HashSet<string> symbols, List<RuleDiagnostic> diagnostics)
