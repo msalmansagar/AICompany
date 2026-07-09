@@ -13,10 +13,12 @@ import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { RulesList } from './rules/RulesList';
+import { RuleSetsList } from './rulesets/RuleSetsList';
+import { RuleSetEditor } from './rulesets/RuleSetEditor';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
-type View = 'list' | 'create' | 'editor' | 'logs';
+type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor';
 type Method = 'table' | 'canvas' | 'template' | 'ai';
 
 export function App() {
@@ -42,6 +44,8 @@ export function App() {
   const [entities, setEntities] = useState<EntityMeta[]>([]);
   const [entitiesLoading, setEntitiesLoading] = useState(false);
   const [entityLabel, setEntityLabel] = useState('');
+
+  const [rulesetId, setRulesetId] = useState<string | null>(null);
 
   const [showMetadata, setShowMetadata] = useState(false);
   const [authorMode, setAuthorMode] = useState<'canvas' | 'table'>('table');
@@ -99,6 +103,10 @@ export function App() {
     else setStatus(`Building “${ruleName}” on ${entityLabel || targetEntity}.`);
     setView('editor');
   }
+
+  function openRuleSets() { setRulesetId(null); setView('rulesets'); }
+  function newRuleSet() { setRulesetId(null); setView('ruleset-editor'); }
+  function openRuleSet(id: string) { setRulesetId(id); setView('ruleset-editor'); }
 
   async function openRule(ruleId: string) {
     setBusy(true); setStatus('Loading latest version…'); setView('editor'); setEditingEntity(false);
@@ -193,9 +201,13 @@ export function App() {
       <div className="mda-main">
         <nav className="mda-nav" aria-label="Areas">
           <div className="nav-group">Business Rules Engine</div>
-          <button className={`nav-item ${view !== 'logs' ? 'active' : ''}`} onClick={() => setView('list')}>
+          <button className={`nav-item ${['list', 'create', 'editor'].includes(view) ? 'active' : ''}`} onClick={() => setView('list')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M9 9v11" /></svg>
             Rules
+          </button>
+          <button className={`nav-item ${['rulesets', 'ruleset-editor'].includes(view) ? 'active' : ''}`} onClick={openRuleSets}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+            Rule sets
           </button>
           <button className={`nav-item ${view === 'logs' ? 'active' : ''}`} onClick={() => setView('logs')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 2" /><circle cx="12" cy="12" r="9" /></svg>
@@ -205,6 +217,8 @@ export function App() {
 
         <div className="mda-content">
           {view === 'list' && <RulesList onNew={startCreate} onOpen={openRule} entities={entities} />}
+          {view === 'rulesets' && <RuleSetsList onNew={newRuleSet} onOpen={openRuleSet} />}
+          {view === 'ruleset-editor' && <RuleSetEditor setId={rulesetId} onBack={openRuleSets} onSaved={setRulesetId} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
 
           {view === 'create' && (
@@ -397,7 +411,7 @@ export function App() {
             </>
           )}
 
-          <footer className="status">{status}</footer>
+          {view !== 'ruleset-editor' && <footer className="status">{status}</footer>}
         </div>
       </div>
     </div>

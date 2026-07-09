@@ -17,11 +17,11 @@ function apiBase(): string {
   return '/dataverse'; // local dev proxy
 }
 
-async function req<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+async function req<T>(path: string, method = 'GET', body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
     method,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0' },
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0', ...(extraHeaders ?? {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -181,4 +181,85 @@ export async function validateRule(pcrm: unknown): Promise<ValidationResult> {
 export async function getVersionState(versionId: string): Promise<string> {
   const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_lifecyclestate`);
   return lifecycleLabel(v.qdb_edp_lifecyclestate);
+}
+
+// ── Governed rule sets (qdb_edp_ruleset) ──────────────────────────────────────
+// A rule set owns which rules run (members) and how their outcomes combine (policy),
+// so callers of qdb_edp_ExecuteRuleSet can't redefine the decision.
+
+const RULESETS = 'qdb_edp_rulesets';
+export const SET_POLICIES = ['Collect', 'FirstMatch', 'Priority'] as const;
+export type SetPolicy = (typeof SET_POLICIES)[number];
+
+/** A member references a rule by id (runs its Published version) with a result key + order. */
+export interface RuleSetMember { key: string; ruleId: string; order: number; }
+export interface RuleSetRow { id: string; name: string; policy: string; memberCount: number; modifiedOn: string; }
+export interface LoadedRuleSet { id: string; name: string; description: string; policy: SetPolicy; members: RuleSetMember[]; }
+
+function parseMembers(json: string | undefined): any[] {
+  try { const a = JSON.parse(json ?? '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+
+// Members may reference a rule by a pinned ruleVersionId; the designer edits sets in terms
+// of "run the Published version" (ruleId), so resolve any pinned members back to their rule.
+async function resolveMembers(raw: any[]): Promise<RuleSetMember[]> {
+  const pinned = raw.filter((m) => !m.ruleId && m.ruleVersionId);
+  const byVersion = new Map<string, string>();
+  if (pinned.length) {
+    const filter = pinned.map((m) => `qdb_edp_ruleversionid eq ${m.ruleVersionId}`).join(' or ');
+    const vr = await req<{ value: any[] }>(`/${VERSIONS}?$select=qdb_edp_ruleversionid,_qdb_edp_ruleid_value&$filter=${filter}`);
+    for (const v of vr.value) byVersion.set(v.qdb_edp_ruleversionid, v._qdb_edp_ruleid_value);
+  }
+  return raw.map((m, i) => ({ key: m.key ?? `rule${i + 1}`, ruleId: m.ruleId ?? byVersion.get(m.ruleVersionId) ?? '', order: m.order ?? i + 1 }));
+}
+
+export async function listRuleSets(): Promise<RuleSetRow[]> {
+  const data = await req<{ value: any[] }>(
+    `/${RULESETS}?$select=qdb_edp_rulesetid,qdb_edp_rulesetname,qdb_edp_setpolicy,qdb_edp_membersjson,modifiedon&$orderby=qdb_edp_rulesetname asc&$top=250`
+  );
+  return data.value.map((r) => ({
+    id: r.qdb_edp_rulesetid, name: r.qdb_edp_rulesetname ?? '(unnamed)',
+    policy: r.qdb_edp_setpolicy || 'Collect', memberCount: parseMembers(r.qdb_edp_membersjson).length,
+    modifiedOn: r.modifiedon ?? '',
+  }));
+}
+
+export async function loadRuleSet(id: string): Promise<LoadedRuleSet> {
+  const r = await req<any>(`/${RULESETS}(${id})?$select=qdb_edp_rulesetname,qdb_edp_description,qdb_edp_setpolicy,qdb_edp_membersjson`);
+  return {
+    id, name: r.qdb_edp_rulesetname ?? 'Rule set', description: r.qdb_edp_description ?? '',
+    policy: (SET_POLICIES.includes(r.qdb_edp_setpolicy) ? r.qdb_edp_setpolicy : 'Collect') as SetPolicy,
+    members: await resolveMembers(parseMembers(r.qdb_edp_membersjson)),
+  };
+}
+
+export interface SaveRuleSetInput { id?: string; name: string; description?: string; policy: SetPolicy; members: RuleSetMember[]; }
+
+export async function saveRuleSet(input: SaveRuleSetInput): Promise<string> {
+  const body = {
+    qdb_edp_rulesetname: input.name, qdb_edp_description: input.description ?? '',
+    qdb_edp_setpolicy: input.policy, qdb_edp_membersjson: JSON.stringify(input.members),
+  };
+  if (input.id) { await req(`/${RULESETS}(${input.id})`, 'PATCH', body); return input.id; }
+  const created = await req<any>(`/${RULESETS}`, 'POST', body, { Prefer: 'return=representation' });
+  return created.qdb_edp_rulesetid;
+}
+
+export async function deleteRuleSet(id: string): Promise<void> {
+  await req<void>(`/${RULESETS}(${id})`, 'DELETE');
+}
+
+export interface RuleSetMemberResult {
+  key: string; ruleVersionId?: string; ruleId?: string;
+  success: boolean; matched: boolean; outputs?: Record<string, unknown>; message?: string;
+}
+export interface RuleSetResult {
+  ruleSetId: string | null; policy: string; count: number; matchedCount: number;
+  results: RuleSetMemberResult[]; aggregate: { outputs: Record<string, unknown>; byRule: Record<string, unknown> };
+}
+
+/** Execute a governed set through the runtime (qdb_edp_ExecuteRuleSet). Cloud-backed. */
+export async function executeRuleSet(setId: string, inputs: Record<string, unknown>): Promise<RuleSetResult> {
+  const res = await req<{ ResultJson?: string }>(`/qdb_edp_ExecuteRuleSet`, 'POST', { RuleSetId: setId, InputsJson: JSON.stringify(inputs) });
+  return JSON.parse(res.ResultJson ?? '{}');
 }
