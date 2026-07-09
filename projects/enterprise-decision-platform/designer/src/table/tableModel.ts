@@ -1,7 +1,13 @@
 // Model + PCRM serialization for the metadata-bound decision-table editor (ADR-D05).
 // This authoring surface produces PCRM directly — no GoRules translation.
 
-export interface InputCol { field: string; label: string; type: string; } // field = CRM logical name
+// field = CRM logical name (on the anchor, or on `via.entity` when related).
+export interface InputCol { field: string; label: string; type: string; via?: InputVia; }
+// N:1 navigation: this column reads `field` on the related entity reached by the anchor's lookup.
+export interface InputVia { relationship: string; entity: string; relLabel: string; }
+
+/** Stable input name/symbol for a column — related columns are namespaced by their lookup. */
+export function inputName(i: InputCol): string { return i.via ? `${i.via.relationship}_${i.field}` : i.field; }
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
 export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
 export interface Row { cells: Cell[]; outputs: Record<string, string>; }
@@ -65,7 +71,11 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
     if (c?.valueField) referenced.add(c.valueField);
     if (c?.value2Field) referenced.add(c.value2Field);
   }
-  const inputCols = model.inputs.map((i) => ({ name: i.field, type: pcrmType(i.type), binding: i.field }));
+  const inputCols = model.inputs.map((i) => {
+    const col: any = { name: inputName(i), type: pcrmType(i.type), binding: i.field };
+    if (i.via) col.via = { relationship: i.via.relationship, entity: i.via.entity };
+    return col;
+  });
   const extraInputs = [...referenced]
     .filter((f) => f && !model.inputs.some((i) => i.field === f))
     .map((f) => ({ name: f, type: 'Text', binding: f }));
@@ -81,7 +91,7 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
     logic: {
       type: 'decisionTable',
       hitPolicy: model.hitPolicy,
-      tableInputs: model.inputs.map((i) => ({ field: i.field })),
+      tableInputs: model.inputs.map((i) => ({ field: inputName(i) })),
       outputColumns: model.outputs.map((o) => o.name),
       rows: model.rows.map((r, idx) => ({
         priority: model.rows.length - idx,

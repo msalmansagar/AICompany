@@ -56,6 +56,25 @@ export async function listAttributes(entity: string): Promise<AttributeMeta[]> {
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
+export interface RelationshipMeta { relationship: string; displayName: string; targetEntity: string; }
+
+// Ownership/audit lookups are almost never a rule's data source — keep the picker business-focused.
+const SYSTEM_LOOKUPS = new Set([
+  'ownerid', 'owningbusinessunit', 'owningteam', 'owninguser',
+  'createdby', 'modifiedby', 'createdonbehalfby', 'modifiedonbehalfby',
+]);
+
+/** N:1 lookups on an entity → the related (parent) entity they point to, sorted by display name. */
+export async function listRelationships(entity: string): Promise<RelationshipMeta[]> {
+  const d = await get<{ value: any[] }>(
+    `/EntityDefinitions(LogicalName='${entity}')/Attributes/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=LogicalName,DisplayName,Targets`
+  );
+  return d.value
+    .filter((a) => Array.isArray(a.Targets) && a.Targets.length > 0 && !SYSTEM_LOOKUPS.has(a.LogicalName))
+    .map((a) => ({ relationship: a.LogicalName as string, displayName: label(a.DisplayName, a.LogicalName), targetEntity: a.Targets[0] as string }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
 /** Option-set members for a Picklist/State/Status attribute. */
 export async function listOptions(entity: string, attribute: string): Promise<OptionMeta[]> {
   const path = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`

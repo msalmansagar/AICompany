@@ -483,3 +483,7 @@ h1, h2, h3 { text-wrap: balance; }
 .mr-out { font-size: 12px; font-family: var(--mono); color: var(--n-fg1); }
 
 @media (max-width: 900px) { .set-body { grid-template-columns: 1fr; } .set-test { border-left: 0; border-top: 1px solid var(--n-stroke1); } }
+
+/* Related-table (N:1) field picker in decision-table columns */
+.dt2-field-pick { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.dt2-src { font-size: 11px; color: var(--brand); background: var(--n-bg2); border: 1px solid var(--n-stroke2); border-radius: 4px; padding: 1px 4px; }
