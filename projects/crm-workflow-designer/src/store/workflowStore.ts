@@ -152,6 +152,68 @@ const emptyState: Omit<
   autoSimTakenOutcomeIds: [],
 };
 
+// ── Temporary-id resolution ────────────────────────────────────────────────
+// When the backend assigns a real GUID to a newly-created entity, every place
+// that referenced the temporary id must be rewritten — otherwise edges built
+// from stale foreign keys point at nodes that no longer exist and disappear.
+
+/** Rewrites a step's temp id to its real id across all references. */
+function remapStepId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
+  const step = state.steps[tmpId];
+  if (!step) return;
+  state.steps[realId] = { ...step, crmId: realId };
+  delete state.steps[tmpId];
+  state.stepOrder = state.stepOrder.map((id) => (id === tmpId ? realId : id));
+  state.nodePositions[realId] = state.nodePositions[tmpId] ?? { x: 0, y: 0 };
+  delete state.nodePositions[tmpId];
+  if (state.outcomeOrder[tmpId]) {
+    state.outcomeOrder[realId] = state.outcomeOrder[tmpId]!;
+    delete state.outcomeOrder[tmpId];
+  }
+  for (const outcome of Object.values(state.outcomes)) {
+    if (outcome.stepId === tmpId) outcome.stepId = realId;
+    if (outcome.nextStepId === tmpId) outcome.nextStepId = realId;
+  }
+  for (const route of Object.values(state.routes)) {
+    if (route.nextStepId === tmpId) route.nextStepId = realId;
+  }
+}
+
+/** Rewrites an outcome's temp id to its real id across all references. */
+function remapOutcomeId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
+  const outcome = state.outcomes[tmpId];
+  if (!outcome) return;
+  state.outcomes[realId] = { ...outcome, crmId: realId };
+  delete state.outcomes[tmpId];
+  const bucket = state.outcomeOrder[outcome.stepId];
+  if (bucket) {
+    state.outcomeOrder[outcome.stepId] = bucket.map((id) => (id === tmpId ? realId : id));
+  }
+  if (state.nodePositions[tmpId]) {
+    state.nodePositions[realId] = state.nodePositions[tmpId]!;
+    delete state.nodePositions[tmpId];
+  }
+  if (state.routeOrder[tmpId]) {
+    state.routeOrder[realId] = state.routeOrder[tmpId]!;
+    delete state.routeOrder[tmpId];
+  }
+  for (const route of Object.values(state.routes)) {
+    if (route.outcomeId === tmpId) route.outcomeId = realId;
+  }
+}
+
+/** Rewrites a route's temp id to its real id across all references. */
+function remapRouteId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
+  const route = state.routes[tmpId];
+  if (!route) return;
+  state.routes[realId] = { ...route, crmId: realId };
+  delete state.routes[tmpId];
+  const bucket = state.routeOrder[route.outcomeId];
+  if (bucket) {
+    state.routeOrder[route.outcomeId] = bucket.map((id) => (id === tmpId ? realId : id));
+  }
+}
+
 export const useWorkflowStore = create<WorkflowDesignerState>()(
   temporal(
     immer((set) => ({
@@ -659,29 +721,11 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
 
       resolveTemporaryId: (tmpId, realId, entityType) =>
         set((state) => {
-          if (entityType === 'step' && state.steps[tmpId]) {
-            const step = { ...state.steps[tmpId]!, crmId: realId };
-            delete state.steps[tmpId];
-            state.steps[realId] = step;
-            state.stepOrder = state.stepOrder.map((id) => (id === tmpId ? realId : id));
-            state.nodePositions[realId] = state.nodePositions[tmpId] ?? { x: 0, y: 0 };
-            delete state.nodePositions[tmpId];
-          } else if (entityType === 'outcome' && state.outcomes[tmpId]) {
-            const outcome = { ...state.outcomes[tmpId]!, crmId: realId };
-            delete state.outcomes[tmpId];
-            state.outcomes[realId] = outcome;
-            const stepId = outcome.stepId;
-            if (state.outcomeOrder[stepId]) {
-              state.outcomeOrder[stepId] = state.outcomeOrder[stepId]!.map((id) =>
-                id === tmpId ? realId : id
-              );
-            }
-          } else if (entityType === 'route' && state.routes[tmpId]) {
-            const route = { ...state.routes[tmpId]!, crmId: realId };
-            delete state.routes[tmpId];
-            state.routes[realId] = route;
-          }
+          if (entityType === 'step') remapStepId(state, tmpId, realId);
+          else if (entityType === 'outcome') remapOutcomeId(state, tmpId, realId);
+          else if (entityType === 'route') remapRouteId(state, tmpId, realId);
           state.newIds = state.newIds.filter((id) => id !== tmpId);
+          if (state.selectedId === tmpId) state.selectedId = realId;
         }),
 
       resetStore: () =>
