@@ -3,7 +3,10 @@ import { Dropdown, Field, Option, Text, makeStyles, tokens } from '@fluentui/rea
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { useDesignerStore } from '@/state/designerStore';
 
-// DFE-NUMBAR — number/decimal/currency display style: text box, or a read-only utilization bar.
+// Numeric display style (number / decimal / currency): a text box, or a read-only
+// utilization bar (value ÷ a maximum field). DFE-NUMBAR.
+// Currency code and decimal places are rendered by the common Field Properties
+// section, so this panel only owns the bar-mode configuration.
 const useStyles = makeStyles({
   root: { display: 'flex', flexDirection: 'column', gap: '10px' },
   infoNote: {

@@ -118,7 +118,7 @@ export const FORM_FIELD_ATTRS = {
   // Sprint 3 — custom field type
   COMPONENT_KEY: 'qdb_component_key',
   // Sprint 4 — boolean field type
-  BOOL_RENDER_STYLE: 'qdb_bool_render_style',
+  BOOL_RENDER_STYLE: 'qdb_boolean_render_style',
   TRUE_LABEL: 'qdb_true_label',
   FALSE_LABEL: 'qdb_false_label',
   // Sprint 4 — info-card inline field
@@ -191,7 +191,7 @@ export const PICKLIST_TO_COLUMN_SPAN: Record<number, 1 | 2 | 3> = {
   1: 1, 2: 2, 3: 3,
 };
 
-// Boolean render style — qdb_bool_render_style picklist
+// Boolean render style — qdb_boolean_render_style picklist
 export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
   toggle: 100000000,
   radio:  100000001,
