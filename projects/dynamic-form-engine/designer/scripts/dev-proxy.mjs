@@ -87,10 +87,21 @@ async function acquireToken() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+function setCorsHeaders(res, origin) {
+  // Reflect the caller's origin rather than '*' so requests made with
+  // credentials mode 'include' are accepted (browsers reject a wildcard
+  // Access-Control-Allow-Origin when credentials are included).
+  const allowOrigin = CORS_ORIGIN === '*' ? origin || '*' : CORS_ORIGIN;
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // OData-Version / OData-MaxVersion are non-safelisted request headers used by
+  // the metadata fetch, so they must be explicitly allowed for the preflight.
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, Accept, OData-Version, OData-MaxVersion, Prefer',
+  );
 }
 
 function sendJson(res, status, body) {
@@ -160,7 +171,7 @@ async function callDataverse(token, method, entityName, id, queryString, bodyStr
 const ROUTE_RE = /^\/api\/designer\/records\/([^/?]+)(?:\/([^/?]+))?$/;
 
 const server = http.createServer(async (req, res) => {
-  setCorsHeaders(res);
+  setCorsHeaders(res, req.headers.origin);
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -172,6 +183,46 @@ const server = http.createServer(async (req, res) => {
   const qIdx = rawUrl.indexOf('?');
   const path = qIdx === -1 ? rawUrl : rawUrl.slice(0, qIdx);
   const queryString = qIdx === -1 ? '' : rawUrl.slice(qIdx);
+
+  // Metadata passthrough (GET only): EntityDefinitions and its navigations
+  // (Attributes, OneToManyRelationships). Returns the raw OData body so the
+  // designer's MetadataService parses the same shape CRM returns natively.
+  const META_PREFIX = '/api/designer/metadata/';
+  if (path.startsWith(META_PREFIX)) {
+    if (req.method !== 'GET') {
+      sendError(res, 405, 'Metadata route is GET-only');
+      return;
+    }
+    try {
+      const token = await acquireToken();
+      const rest = path.slice(META_PREFIX.length);
+      const url = `${ODATA_BASE}/${rest}${queryString}`;
+      console.log(`[proxy] GET metadata /${rest}${queryString}`);
+      const dvRes = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'OData-MaxVersion': '4.0',
+          'OData-Version': '4.0',
+          Accept: 'application/json',
+        },
+      });
+      const txt = await dvRes.text();
+      if (!dvRes.ok) {
+        console.error(`[proxy] metadata → ${dvRes.status}`, txt.slice(0, 300));
+        sendError(res, dvRes.status, `Metadata GET failed (${dvRes.status})`);
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(txt),
+      });
+      res.end(txt);
+    } catch (err) {
+      console.error('[proxy] metadata error:', err);
+      sendError(res, 500, err instanceof Error ? err.message : 'Metadata proxy error');
+    }
+    return;
+  }
 
   const match = ROUTE_RE.exec(path);
   if (!match) {
