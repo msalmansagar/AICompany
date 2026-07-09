@@ -49,3 +49,4 @@ Runtime-specific ADRs (ADR-R01…R05) live in `phase-4-native-runtime.md` §20.
 Enterprise Decision Service ADRs (ADR-EDS-01…EDS-10) live in `phase-5-enterprise-decision-service.md` §21.
 Decision Intelligence / AI ADRs (ADR-AI-01…AI-09) live in `phase-6-decision-intelligence.md` §22.
 Cross-entity N:1 field navigation (CEN-001) — contract + design in `design-cross-entity-navigation.md` (Accepted 2026-07-09).
+1:N child aggregation (AGG-001) — contract + design in `design-child-aggregation.md` (Accepted 2026-07-09).
