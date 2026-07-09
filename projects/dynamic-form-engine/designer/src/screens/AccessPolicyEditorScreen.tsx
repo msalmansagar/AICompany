@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Field,
@@ -12,6 +12,7 @@ import {
 import { AddRegular, ArrowLeftRegular, DeleteRegular, CheckmarkRegular, DismissRegular, InfoRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import { AccessPolicyService } from '@/services/AccessPolicyService';
+import { CrmContext } from '@/app/App';
 import type { DesignerAccessPolicyModel, AccessPolicyType } from '@/state/models/DesignerAccessPolicyModel';
 
 const ACCESS_TYPES: Array<{ value: AccessPolicyType; label: string; description: string }> = [
@@ -40,8 +41,11 @@ export function AccessPolicyEditorScreen(): React.ReactElement {
   const styles = useStyles();
   const navigateTo = useDesignerStore(s => s.navigateTo);
   const form = useDesignerStore(s => s.form);
-  const webApi = (window as unknown as { Xrm: { WebApi: unknown } }).Xrm?.WebApi;
-  const service = webApi && form ? new AccessPolicyService(webApi as never) : null;
+  const crmService = useContext(CrmContext);
+  const service = useMemo(
+    () => (crmService && form ? new AccessPolicyService(crmService.getWebApi()) : null),
+    [crmService, form],
+  );
 
   const [policies, setPolicies] = useState<DesignerAccessPolicyModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
