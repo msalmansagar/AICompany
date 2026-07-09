@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { ROLE_STATUS } from '@/types/SopTypes';
 import type { CrmRole, CreateRoleRequest } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
+import { confirm } from '@/components/ui/ConfirmDialog';
+import { notify } from '@/components/ui/Notify';
 
 interface RolesScreenProps {
   adapter: ISopAdapter;
@@ -91,17 +93,22 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
       await adapter.updateRole(role.id, { status: newStatus });
       loadRoles();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Update failed.');
+      notify(err instanceof Error ? err.message : 'Update failed.', 'error');
     }
   }, [adapter, loadRoles]);
 
   const handleDelete = useCallback(async (role: CrmRole) => {
-    if (!window.confirm(`Delete role "${role.name}"? This will fail if the role is assigned to any SOP steps.`)) return;
+    const confirmed = await confirm({
+      title: 'Delete role',
+      message: `Delete role "${role.name}"? This will fail if the role is assigned to any SOP steps.`,
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       await adapter.deleteRole(role.id);
       loadRoles();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed. The role may be in use by SOP steps.');
+      notify(err instanceof Error ? err.message : 'Delete failed. The role may be in use by SOP steps.', 'error');
     }
   }, [adapter, loadRoles]);
 

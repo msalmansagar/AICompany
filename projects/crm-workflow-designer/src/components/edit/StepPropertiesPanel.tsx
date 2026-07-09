@@ -3,6 +3,7 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
+import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface StepPropertiesPanelProps {
   stepId: string | null;
@@ -144,9 +145,15 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   };
 
   const handleDeleteStep = () => {
-    if (!window.confirm('Delete this step? All connected decisions will also be deleted.')) return;
-    deleteStep(step.crmId);
-    clearSelection();
+    void confirm({
+      title: 'Delete step',
+      message: 'Delete this step? All connected decisions will also be deleted.',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      deleteStep(step.crmId);
+      clearSelection();
+    });
   };
 
   return (

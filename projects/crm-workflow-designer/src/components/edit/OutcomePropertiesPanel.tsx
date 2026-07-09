@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowRoute } from '@/types/WorkflowTypes';
+import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface OutcomePropertiesPanelProps {
   outcomeId: string | null;
@@ -79,9 +80,15 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
   };
 
   const handleDelete = () => {
-    if (!window.confirm('Delete this decision? All route conditions will also be deleted.')) return;
-    deleteOutcome(outcome.crmId);
-    clearSelection();
+    void confirm({
+      title: 'Delete decision',
+      message: 'Delete this decision? All route conditions will also be deleted.',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      deleteOutcome(outcome.crmId);
+      clearSelection();
+    });
   };
 
   return (

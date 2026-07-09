@@ -23,6 +23,7 @@ import type { SopStep, SopOutcome } from '@/types/SopTypes';
 import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/CreateProcessWizardModal';
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
+import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
@@ -104,11 +105,21 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
   }, [saveSopCanvas, showToast]);
 
   const handleBack = useCallback(() => {
-    if (state.isDirty) {
-      if (!window.confirm('You have unsaved changes. Leave without saving?')) return;
+    if (!state.isDirty) {
+      store.resetSopCanvas();
+      onBack();
+      return;
     }
-    store.resetSopCanvas();
-    onBack();
+    void confirm({
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave without saving?',
+      confirmLabel: 'Leave',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      store.resetSopCanvas();
+      onBack();
+    });
   }, [state.isDirty, store, onBack]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -248,10 +259,15 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
               // swimlane layout computes position from outcomeOrder index
             }}
             onRemoveStep={() => {
-              if (window.confirm('Delete this step and all its outcomes?')) {
+              void confirm({
+                title: 'Delete step',
+                message: 'Delete this step and all its outcomes?',
+                tone: 'danger',
+              }).then((confirmed) => {
+                if (!confirmed) return;
                 store.removeStep(selectedStep.id);
                 store.setSelected(null);
-              }
+              });
             }}
             onClose={() => store.setSelected(null)}
           />
@@ -263,10 +279,11 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
             steps={sopSteps}
             onUpdate={(patch) => store.updateOutcome(selectedOutcome.id, patch)}
             onRemove={() => {
-              if (window.confirm('Delete this outcome?')) {
+              void confirm({ title: 'Delete outcome', message: 'Delete this outcome?', tone: 'danger' }).then((confirmed) => {
+                if (!confirmed) return;
                 store.removeOutcome(selectedOutcome.id);
                 store.setSelected(null);
-              }
+              });
             }}
             onClose={() => store.setSelected(null)}
           />

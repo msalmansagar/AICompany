@@ -14,6 +14,8 @@ import { RolesScreen } from './components/RolesScreen/RolesScreen';
 import { CrmAdapterProvider } from './app/CrmAdapterContext';
 import { SopAdapterContext } from './app/SopAdapterContext';
 import { isSopAdapter } from './services/ISopAdapter';
+import { ConfirmDialogHost } from './components/ui/ConfirmDialog';
+import { NotifyHost, notify } from './components/ui/Notify';
 import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
@@ -153,7 +155,7 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
       setAppMode('edit');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      window.alert(`Failed to load process for editing:\n\n${msg}`);
+      notify(`Failed to load process for editing: ${msg}`, 'error');
     } finally {
       setLoadingMessage(null);
     }
@@ -222,6 +224,8 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
           onClose={() => setShowNewProcessDialog(false)}
         />
       )}
+      <ConfirmDialogHost />
+      <NotifyHost />
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/Creat
 import { SOP_STATUS } from '@/types/SopTypes';
 import type { SopSummary, Sop, SopStep } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
+import { confirm } from '@/components/ui/ConfirmDialog';
+import { notify } from '@/components/ui/Notify';
 
 type ScreenView = 'list' | 'canvas';
 
@@ -109,20 +111,25 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
 
   const handleDeleteSop = useCallback(async (sop: SopSummary) => {
     if (sop.status !== SOP_STATUS.DRAFT) {
-      alert('Only Draft SOPs can be deleted. Retire the SOP first.');
+      notify('Only Draft SOPs can be deleted. Retire the SOP first.', 'error');
       return;
     }
     if (sop.derivedProcessCount > 0) {
-      alert('This SOP has derived processes and cannot be deleted.');
+      notify('This SOP has derived processes and cannot be deleted.', 'error');
       return;
     }
-    if (!window.confirm(`Delete SOP "${sop.name}"? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: 'Delete SOP',
+      message: `Delete SOP "${sop.name}"? This cannot be undone.`,
+      tone: 'danger',
+    });
+    if (!confirmed) return;
     try {
       // No deleteSop in ISopAdapter — mark as retired instead
       await adapter.updateSop(sop.id, { status: SOP_STATUS.RETIRED });
       loadSops();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Delete failed.');
+      notify(err instanceof Error ? err.message : 'Delete failed.', 'error');
     }
   }, [adapter, loadSops]);
 
@@ -138,7 +145,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
       setWizardSteps(steps);
       setShowWizard(true);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to load SOP details.');
+      notify(err instanceof Error ? err.message : 'Failed to load SOP details.', 'error');
     } finally {
       setIsLoadingCanvas(false);
     }
@@ -167,7 +174,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
       setShowCreateDialog(false);
       setView('canvas');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create SOP.');
+      notify(err instanceof Error ? err.message : 'Failed to create SOP.', 'error');
     }
   }, [store]);
 
@@ -315,7 +322,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
           onDismiss={() => setShowWizard(false)}
           onSuccess={(newProcessId) => {
             setShowWizard(false);
-            alert(`Process created successfully (ID: ${newProcessId.slice(0, 8)}…)`);
+            notify(`Process created successfully (ID: ${newProcessId.slice(0, 8)}…)`, 'success');
           }}
         />
       )}

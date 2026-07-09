@@ -28,6 +28,7 @@ import { ValidationPanel } from './ValidationPanel';
 import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
+import { confirm } from '../ui/ConfirmDialog';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -132,34 +133,51 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
 
       if (selectedId.startsWith('step_')) {
         const stepId = selectedId.replace('step_', '');
-        const confirmed = window.confirm('Delete this step? All connected outcomes will also be deleted.');
-        if (confirmed) {
+        void confirm({
+          title: 'Delete step',
+          message: 'Delete this step? All connected outcomes will also be deleted.',
+          tone: 'danger',
+        }).then((confirmed) => {
+          if (!confirmed) return;
           deleteStep(stepId);
           selectNode(null);
-        }
+        });
       } else if (selectedId.startsWith('outcome_')) {
         const outcomeId = selectedId.replace('outcome_', '');
-        const confirmed = window.confirm('Delete this outcome?');
-        if (confirmed) {
+        void confirm({ title: 'Delete outcome', message: 'Delete this outcome?', tone: 'danger' }).then((confirmed) => {
+          if (!confirmed) return;
           deleteOutcome(outcomeId);
           selectNode(null);
-        }
+        });
       }
     },
     [selectedId, deleteStep, deleteOutcome, selectNode]
   );
 
   const handleBack = useCallback(() => {
-    if (isDirty) {
-      const confirmed = window.confirm('You have unsaved changes. Leave without saving?');
-      if (!confirmed) return;
+    if (!isDirty) {
+      onExitEdit();
+      return;
     }
-    onExitEdit();
+    void confirm({
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave without saving?',
+      confirmLabel: 'Leave',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (confirmed) onExitEdit();
+    });
   }, [isDirty, onExitEdit]);
 
   const handleDiscard = useCallback(() => {
-    const confirmed = window.confirm('Discard all unsaved changes?');
-    if (confirmed) onExitEdit();
+    void confirm({
+      title: 'Discard changes',
+      message: 'Discard all unsaved changes?',
+      confirmLabel: 'Discard',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (confirmed) onExitEdit();
+    });
   }, [onExitEdit]);
 
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
