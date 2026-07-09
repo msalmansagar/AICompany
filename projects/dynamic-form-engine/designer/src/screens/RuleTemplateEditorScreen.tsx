@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Field,
@@ -13,6 +13,7 @@ import {
 import { AddRegular, ArrowLeftRegular, DeleteRegular, EditRegular, CheckmarkRegular, DismissRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import { RuleTemplateService } from '@/services/RuleTemplateService';
+import { CrmContext } from '@/app/App';
 import type { DesignerRuleTemplateModel } from '@/state/models/DesignerRuleTemplateModel';
 import type { ValidationRuleType } from '@/state/models/DesignerRuleModel';
 
@@ -44,8 +45,11 @@ function emptyTemplate(): Omit<DesignerRuleTemplateModel, 'id'> {
 export function RuleTemplateEditorScreen(): React.ReactElement {
   const styles = useStyles();
   const navigateTo = useDesignerStore(s => s.navigateTo);
-  const webApi = (window as unknown as { Xrm: { WebApi: unknown } }).Xrm?.WebApi;
-  const service = webApi ? new RuleTemplateService(webApi as never) : null;
+  const crmService = useContext(CrmContext);
+  const service = useMemo(
+    () => (crmService ? new RuleTemplateService(crmService.getWebApi()) : null),
+    [crmService],
+  );
 
   const [templates, setTemplates] = useState<DesignerRuleTemplateModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
