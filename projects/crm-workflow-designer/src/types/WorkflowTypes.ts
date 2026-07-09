@@ -68,7 +68,7 @@ export interface WorkflowRoute {
   sequenceNumber: number;
   filter: string;
   outcomeId: string;
-  nextStepId: string;
+  nextStepId: string | null;
 }
 
 export interface EntityOption {

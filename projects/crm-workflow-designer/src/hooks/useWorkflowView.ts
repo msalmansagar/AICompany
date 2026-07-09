@@ -78,8 +78,14 @@ export function useWorkflowView(service: WorkflowDataService): WorkflowView {
       ]);
 
       const outcomes = await service.getOutcomesByStepIds(steps.map((s) => s.id));
+      const conditionalOutcomeIds = outcomes
+        .filter((o) => o.applyFilter)
+        .map((o) => o.id);
+      const routes = conditionalOutcomeIds.length > 0
+        ? await service.getRoutesByOutcomeIds(conditionalOutcomeIds)
+        : [];
 
-      const workflowData: WorkflowData = { process, steps, outcomes, routes: [] };
+      const workflowData: WorkflowData = { process, steps, outcomes, routes };
       setData(workflowData);
       setPhase('ready');
       // Graph building is handled by WorkflowCanvas which watches data + viewMode + layoutDir.

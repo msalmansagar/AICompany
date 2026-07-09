@@ -42,6 +42,7 @@ export interface RouteEdgeData extends Record<string, unknown> {
   crmId: string;
   name: string;
   hasFilter: boolean;
+  isFallback: boolean;
 }
 
 const STEP_X = 320;
@@ -142,6 +143,8 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
     if (!route.outcomeId || !route.nextStepId) continue;
 
     const hasFilter = route.filter.trim().length > 0;
+    const parentOutcome = state.outcomes[route.outcomeId];
+    const isFallback = !hasFilter && (parentOutcome?.applyFilter ?? false);
     edges.push({
       id: `edge_route_${route.crmId}`,
       source: route.outcomeId,
@@ -155,6 +158,7 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
         crmId: route.crmId,
         name: route.name,
         hasFilter,
+        isFallback,
       } satisfies RouteEdgeData,
     });
   }

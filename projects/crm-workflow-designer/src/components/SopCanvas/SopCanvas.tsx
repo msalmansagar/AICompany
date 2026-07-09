@@ -13,7 +13,7 @@ import {
 import type { Node } from '@xyflow/react';
 import { useSopStore } from '@/store/sopStore';
 import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
-import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX } from '@/store/sopSelectors';
+import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
@@ -23,6 +23,7 @@ import type { SopStep, SopOutcome } from '@/types/SopTypes';
 import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/CreateProcessWizardModal';
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
+import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
@@ -71,6 +72,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
       description: '', sequenceNo: newSeq,
       sopId: state.sop?.id ?? '',
       roleId: null, roleName: null, roleStatus: null,
+      stepType: 'step',
     };
     store.addStep(step, { x: 0, y: 0 }); // swimlane layout computes real position
     store.setSelected(tmpId);
@@ -103,11 +105,21 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
   }, [saveSopCanvas, showToast]);
 
   const handleBack = useCallback(() => {
-    if (state.isDirty) {
-      if (!window.confirm('You have unsaved changes. Leave without saving?')) return;
+    if (!state.isDirty) {
+      store.resetSopCanvas();
+      onBack();
+      return;
     }
-    store.resetSopCanvas();
-    onBack();
+    void confirm({
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave without saving?',
+      confirmLabel: 'Leave',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (!confirmed) return;
+      store.resetSopCanvas();
+      onBack();
+    });
   }, [state.isDirty, store, onBack]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -116,6 +128,11 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith(SOP_SYNTHETIC_PREFIX)) return;
+    // Gateway click selects the parent step so the step panel opens
+    if (node.id.startsWith(SOP_GATEWAY_PREFIX)) {
+      store.setSelected(node.id.slice(SOP_GATEWAY_PREFIX.length));
+      return;
+    }
     store.setSelected(node.id);
   }, [store]);
 
@@ -126,6 +143,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
   const handleConnect = useCallback((connection: Connection) => {
     const { source, target } = connection;
     if (!source || !target) return;
+    if (source.startsWith(SOP_GATEWAY_PREFIX)) return;
     // outcome → step connection: set nextSopStepId
     if (state.outcomes[source] && state.steps[target]) {
       store.updateOutcome(source, { nextSopStepId: target });
@@ -241,10 +259,15 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
               // swimlane layout computes position from outcomeOrder index
             }}
             onRemoveStep={() => {
-              if (window.confirm('Delete this step and all its outcomes?')) {
+              void confirm({
+                title: 'Delete step',
+                message: 'Delete this step and all its outcomes?',
+                tone: 'danger',
+              }).then((confirmed) => {
+                if (!confirmed) return;
                 store.removeStep(selectedStep.id);
                 store.setSelected(null);
-              }
+              });
             }}
             onClose={() => store.setSelected(null)}
           />
@@ -256,10 +279,11 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
             steps={sopSteps}
             onUpdate={(patch) => store.updateOutcome(selectedOutcome.id, patch)}
             onRemove={() => {
-              if (window.confirm('Delete this outcome?')) {
+              void confirm({ title: 'Delete outcome', message: 'Delete this outcome?', tone: 'danger' }).then((confirmed) => {
+                if (!confirmed) return;
                 store.removeOutcome(selectedOutcome.id);
                 store.setSelected(null);
-              }
+              });
             }}
             onClose={() => store.setSelected(null)}
           />

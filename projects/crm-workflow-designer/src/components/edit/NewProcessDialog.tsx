@@ -153,14 +153,17 @@ export function NewProcessDialog({ adapter, onConfirm, onClose }: NewProcessDial
               </div>
 
               {/* Task Entity */}
-              <SearchableDropdown
-                label="Task Entity"
-                placeholder="Search and select entity…"
-                options={entities}
-                value={taskEntityId}
-                onChange={handleTaskEntityChange}
-                required
-              />
+              <div style={fieldGroupStyle}>
+                <SearchableDropdown
+                  label="Task Entity"
+                  placeholder="Search and select entity…"
+                  options={entities}
+                  value={taskEntityId}
+                  onChange={handleTaskEntityChange}
+                  required
+                />
+                <div style={hintStyle}>The entity that stores each workflow task (e.g. QDB Task).</div>
+              </div>
 
               {/* Regarding Field */}
               {isLoadingFields ? (
@@ -168,26 +171,32 @@ export function NewProcessDialog({ adapter, onConfirm, onClose }: NewProcessDial
                   <span style={spinnerStyle} /> Loading fields…
                 </div>
               ) : (
-                <SearchableDropdown
-                  label="Regarding Field"
-                  placeholder={taskEntityId ? 'Search and select field…' : 'Select task entity first'}
-                  options={fields}
-                  value={regardingFieldId}
-                  onChange={handleRegardingFieldChange}
-                  disabled={!taskEntityId}
-                  required
-                />
+                <div style={fieldGroupStyle}>
+                  <SearchableDropdown
+                    label="Regarding Field"
+                    placeholder={taskEntityId ? 'Search and select field…' : 'Select task entity first'}
+                    options={fields}
+                    value={regardingFieldId}
+                    onChange={handleRegardingFieldChange}
+                    disabled={!taskEntityId}
+                    required
+                  />
+                  <div style={hintStyle}>Lookup on the task that links back to the parent record.</div>
+                </div>
               )}
 
               {/* Parent Entity */}
-              <SearchableDropdown
-                label="Parent Entity"
-                placeholder="Search and select entity…"
-                options={entities}
-                value={parentEntityId}
-                onChange={handleParentEntityChange}
-                required
-              />
+              <div style={fieldGroupStyle}>
+                <SearchableDropdown
+                  label="Parent Entity"
+                  placeholder="Search and select entity…"
+                  options={entities}
+                  value={parentEntityId}
+                  onChange={handleParentEntityChange}
+                  required
+                />
+                <div style={hintStyle}>The business record the process runs on (e.g. Loan Application).</div>
+              </div>
             </>
           )}
         </div>
@@ -279,6 +288,12 @@ const labelStyle: React.CSSProperties = {
 
 const requiredMark: React.CSSProperties = {
   color: '#dc2626',
+};
+
+const hintStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#94a3b8',
+  lineHeight: 1.4,
 };
 
 const inputStyle: React.CSSProperties = {

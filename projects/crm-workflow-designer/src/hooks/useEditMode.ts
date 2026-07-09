@@ -230,33 +230,25 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const handleAddStep = useCallback(() => {
     if (!process) return;
 
-    const nextSeqNo = stepOrder.length + 1;
-    const newStep: WorkflowStep = {
-      crmId: `tmp_${crypto.randomUUID()}`,
-      name: 'New Step',
-      sequenceNo: nextSeqNo,
-      schemaName: '',
-      taskSubject: '',
-      taskDescription: '',
-      assignTo: 'user',
-      assignedUserId: null,
-      assignedUserName: null,
-      teamId: null,
-      teamName: null,
-      roundRobinTeamId: null,
-      roundRobinTeamName: null,
-      recordEntityId: null,
-      recordEntityName: null,
-      regardingFieldId: null,
-      regardingFieldName: null,
-      parentEntityId: null,
-      parentEntityName: null,
-      processId: process.crmId,
-    };
-
+    const newStep = buildNewStep(process.crmId, stepOrder.length + 1);
+    // Wire the new step into the flow from the selected step, else the last step.
+    const sourceStepId = resolveConnectSourceStepId(selectedId, stepOrder);
     addStep(newStep);
+
+    if (sourceStepId) {
+      const nextSeqNo = Object.values(outcomes).reduce((max, o) => Math.max(max, o.sequenceNumber), 0) + 1;
+      addOutcome({
+        crmId: `tmp_${crypto.randomUUID()}`,
+        name: 'Next',
+        sequenceNumber: nextSeqNo,
+        applyFilter: false,
+        stepId: sourceStepId,
+        nextStepId: newStep.crmId,
+      });
+    }
+
     selectNode(`step_${newStep.crmId}`);
-  }, [process, stepOrder.length, addStep, selectNode]);
+  }, [process, stepOrder, outcomes, selectedId, addStep, addOutcome, selectNode]);
 
   return {
     nodes,
@@ -276,6 +268,40 @@ function resolveAssigneeName(step: WorkflowStep): string | null {
   if (step.assignTo === 'team') return step.teamName;
   if (step.assignTo === 'roundRobin') return step.roundRobinTeamName;
   return null;
+}
+
+/** Step to connect a newly-added step from: the selected step, else the last step. */
+function resolveConnectSourceStepId(selectedId: string | null, stepOrder: string[]): string | null {
+  if (selectedId?.startsWith('step_')) {
+    const id = selectedId.slice('step_'.length);
+    if (stepOrder.includes(id)) return id;
+  }
+  return stepOrder.length > 0 ? stepOrder[stepOrder.length - 1] : null;
+}
+
+function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
+  return {
+    crmId: `tmp_${crypto.randomUUID()}`,
+    name: 'New Step',
+    sequenceNo,
+    schemaName: '',
+    taskSubject: '',
+    taskDescription: '',
+    assignTo: 'user',
+    assignedUserId: null,
+    assignedUserName: null,
+    teamId: null,
+    teamName: null,
+    roundRobinTeamId: null,
+    roundRobinTeamName: null,
+    recordEntityId: null,
+    recordEntityName: null,
+    regardingFieldId: null,
+    regardingFieldName: null,
+    parentEntityId: null,
+    parentEntityName: null,
+    processId,
+  };
 }
 
 function buildStartEdge(entryStepId: string): Edge {

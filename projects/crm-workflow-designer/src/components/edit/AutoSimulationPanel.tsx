@@ -125,6 +125,9 @@ function PathDetail({ path, index }: { path: SimPath; index: number }) {
               <div style={outcomeTagStyle}>
                 <span style={outcomeArrowStyle}>↓</span>
                 <span style={outcomeNameStyle}>{step.outcomeTaken.outcomeName}</span>
+                {step.outcomeTaken.routeName && (
+                  <span style={routeTagStyle}>◈ {step.outcomeTaken.routeName}</span>
+                )}
               </div>
             )}
           </div>
@@ -577,6 +580,16 @@ const outcomeNameStyle: React.CSSProperties = {
   borderRadius: 4,
   padding: '1px 7px',
   background: '#f8fafc',
+};
+
+const routeTagStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 600,
+  color: '#92400e',
+  background: '#fef3c7',
+  border: '1px solid #fcd34d',
+  borderRadius: 4,
+  padding: '1px 6px',
 };
 
 const endTagBlockStyle: React.CSSProperties = {

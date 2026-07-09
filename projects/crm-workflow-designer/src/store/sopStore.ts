@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import type { XYPosition } from '@xyflow/react';
-import type { Sop, SopStep, SopOutcome } from '@/types/SopTypes';
+import type { Sop, SopStep, SopOutcome, SopStepType } from '@/types/SopTypes';
+import { SOP_STEP_TYPE_META } from '@/types/SopTypes';
 
 export interface SopValidationResult {
   code: string;
@@ -51,6 +52,8 @@ interface SopDesignerActions {
   markSaved(): void;
   resetSopCanvas(): void;
   addStepAfterOutcome(outcomeId: string): void;
+  addTypedStepAfterOutcome(outcomeId: string, stepType: SopStepType): void;
+  addTypedStepAfterStep(stepId: string, stepType: SopStepType): void;
   resolveTmpId(tmpId: string, realId: string, entityType: 'sopstep' | 'sopoutcome'): void;
 }
 
@@ -241,6 +244,7 @@ export const useSopStore = create<SopStore>()(
             roleId: parentStep?.roleId ?? null,
             roleName: parentStep?.roleName ?? null,
             roleStatus: parentStep?.roleStatus ?? null,
+            stepType: 'step' as const,
           };
 
           state.steps[tmpId] = newStep;
@@ -250,6 +254,77 @@ export const useSopStore = create<SopStore>()(
           state.newIds.add(tmpId);
           state.isDirty = true;
           state.selectedId = tmpId;
+        }),
+
+      addTypedStepAfterOutcome: (outcomeId, stepType) =>
+        set((state) => {
+          const outcome = state.outcomes[outcomeId];
+          if (!outcome || outcome.nextSopStepId) return;
+
+          const parentStep = state.steps[outcome.sopStepId];
+          const newSeq = state.stepOrder.length + 1;
+          const tmpId = `tmp_step_${crypto.randomUUID()}`;
+          const label = SOP_STEP_TYPE_META[stepType].label;
+
+          state.steps[tmpId] = {
+            id: tmpId,
+            name: `${label} ${newSeq}`,
+            description: '',
+            sequenceNo: newSeq,
+            sopId: state.sop?.id ?? '',
+            roleId: parentStep?.roleId ?? null,
+            roleName: parentStep?.roleName ?? null,
+            roleStatus: parentStep?.roleStatus ?? null,
+            stepType,
+          };
+          state.stepOrder.push(tmpId);
+          state.outcomeOrder[tmpId] = [];
+          state.outcomes[outcomeId].nextSopStepId = tmpId;
+          state.newIds.add(tmpId);
+          state.isDirty = true;
+          state.selectedId = tmpId;
+        }),
+
+      addTypedStepAfterStep: (stepId, stepType) =>
+        set((state) => {
+          const sourceStep = state.steps[stepId];
+          if (!sourceStep) return;
+
+          const newSeq = state.stepOrder.length + 1;
+          const tmpStepId    = `tmp_step_${crypto.randomUUID()}`;
+          const tmpOutcomeId = `tmp_outcome_${crypto.randomUUID()}`;
+          const label = SOP_STEP_TYPE_META[stepType].label;
+          const existingOutcomeCount = (state.outcomeOrder[stepId] ?? []).length;
+
+          state.steps[tmpStepId] = {
+            id: tmpStepId,
+            name: `${label} ${newSeq}`,
+            description: '',
+            sequenceNo: newSeq,
+            sopId: state.sop?.id ?? '',
+            roleId: sourceStep.roleId,
+            roleName: sourceStep.roleName,
+            roleStatus: sourceStep.roleStatus,
+            stepType,
+          };
+          state.stepOrder.push(tmpStepId);
+          state.outcomeOrder[tmpStepId] = [];
+
+          state.outcomes[tmpOutcomeId] = {
+            id: tmpOutcomeId,
+            name: 'Next',
+            sequenceNo: existingOutcomeCount + 1,
+            sopStepId: stepId,
+            nextSopStepId: tmpStepId,
+          };
+          const stepOutcomes = state.outcomeOrder[stepId] ?? [];
+          stepOutcomes.push(tmpOutcomeId);
+          state.outcomeOrder[stepId] = stepOutcomes;
+
+          state.newIds.add(tmpStepId);
+          state.newIds.add(tmpOutcomeId);
+          state.isDirty = true;
+          state.selectedId = tmpStepId;
         }),
 
       resolveTmpId: (tmpId, realId, entityType) =>

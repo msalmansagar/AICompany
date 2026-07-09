@@ -80,6 +80,9 @@ async function saveSopSteps(adapter: Adapter) {
         sequenceNo: step.sequenceNo,
         sopId: sop.id,
         roleId: step.roleId,
+        stepType: step.stepType ?? 'step',
+        executionChannel: step.executionChannel ?? null,
+        decisionLabel: step.decisionLabel ?? null,
       });
       getState().resolveTmpId(stepId, realId, 'sopstep');
     } else if (dirtyIds.includes(stepId)) {
@@ -88,6 +91,9 @@ async function saveSopSteps(adapter: Adapter) {
         description: step.description,
         sequenceNo: step.sequenceNo,
         roleId: step.roleId,
+        stepType: step.stepType ?? 'step',
+        executionChannel: step.executionChannel ?? null,
+        decisionLabel: step.decisionLabel ?? null,
       });
     }
   }

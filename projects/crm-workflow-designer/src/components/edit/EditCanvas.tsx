@@ -1,4 +1,5 @@
-import { useCallback, useEffect, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import React from 'react';
 import { useStore } from 'zustand';
 import {
   ReactFlow,
@@ -26,6 +27,8 @@ import { AutoSimPlaybackHUD } from './AutoSimPlaybackHUD';
 import { ValidationPanel } from './ValidationPanel';
 import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
+import { StepNavigatorPanel } from './StepNavigatorPanel';
+import { confirm } from '../ui/ConfirmDialog';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -59,7 +62,6 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     selectNode,
     clearToast,
     setValidationResults,
-    clearValidationResults,
     startSimulation,
     stopSimulation,
     simStepBack,
@@ -86,7 +88,6 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     selectNode: s.selectNode,
     clearToast: s.clearToast,
     setValidationResults: s.setValidationResults,
-    clearValidationResults: s.clearValidationResults,
     startSimulation: s.startSimulation,
     stopSimulation: s.stopSimulation,
     simStepBack: s.simStepBack,
@@ -110,11 +111,24 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const canSimulate = stepOrder.length > 0;
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
+
+  // Live, debounced validation — keeps node error badges and the toolbar count
+  // current as the workflow is edited, without waiting for the Validate button.
+  useEffect(() => {
+    if (!process) return;
+    const handle = setTimeout(() => {
+      setValidationResults(
+        validationService.validate({ process, steps, outcomes, routes, stepOrder, outcomeOrder })
+      );
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
   const handleValidate = useCallback(() => {
     if (!process) return;
-    const results = validationService.validate({ process, steps, outcomes, routes, stepOrder, outcomeOrder });
-    setValidationResults(results);
+    setValidationResults(validationService.validate({ process, steps, outcomes, routes, stepOrder, outcomeOrder }));
+    setShowValidationPanel(true);
   }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
   useEffect(() => {
@@ -130,34 +144,51 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
 
       if (selectedId.startsWith('step_')) {
         const stepId = selectedId.replace('step_', '');
-        const confirmed = window.confirm('Delete this step? All connected outcomes will also be deleted.');
-        if (confirmed) {
+        void confirm({
+          title: 'Delete step',
+          message: 'Delete this step? All connected outcomes will also be deleted.',
+          tone: 'danger',
+        }).then((confirmed) => {
+          if (!confirmed) return;
           deleteStep(stepId);
           selectNode(null);
-        }
+        });
       } else if (selectedId.startsWith('outcome_')) {
         const outcomeId = selectedId.replace('outcome_', '');
-        const confirmed = window.confirm('Delete this outcome?');
-        if (confirmed) {
+        void confirm({ title: 'Delete outcome', message: 'Delete this outcome?', tone: 'danger' }).then((confirmed) => {
+          if (!confirmed) return;
           deleteOutcome(outcomeId);
           selectNode(null);
-        }
+        });
       }
     },
     [selectedId, deleteStep, deleteOutcome, selectNode]
   );
 
   const handleBack = useCallback(() => {
-    if (isDirty) {
-      const confirmed = window.confirm('You have unsaved changes. Leave without saving?');
-      if (!confirmed) return;
+    if (!isDirty) {
+      onExitEdit();
+      return;
     }
-    onExitEdit();
+    void confirm({
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Leave without saving?',
+      confirmLabel: 'Leave',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (confirmed) onExitEdit();
+    });
   }, [isDirty, onExitEdit]);
 
   const handleDiscard = useCallback(() => {
-    const confirmed = window.confirm('Discard all unsaved changes?');
-    if (confirmed) onExitEdit();
+    void confirm({
+      title: 'Discard changes',
+      message: 'Discard all unsaved changes?',
+      confirmLabel: 'Discard',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (confirmed) onExitEdit();
+    });
   }, [onExitEdit]);
 
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
@@ -184,6 +215,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         validationErrorCount={validationErrorCount}
         onBack={handleBack}
         onAddStep={editMode.addStep}
+        onReLayout={editMode.reLayout}
         onSave={() => void save()}
         onPublish={() => void publish()}
         onDiscard={handleDiscard}
@@ -278,10 +310,12 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
 
         {!isSimulating && !isAutoSimulating && (
           <div style={sidebarStyle}>
-            <ValidationPanel
-              onNodeFocus={selectNode}
-              onClose={clearValidationResults}
-            />
+            {showValidationPanel && (
+              <ValidationPanel
+                onNodeFocus={selectNode}
+                onClose={() => setShowValidationPanel(false)}
+              />
+            )}
             {propertiesPanel}
           </div>
         )}
@@ -294,7 +328,7 @@ function resolvePropertiesPanel(
   selectedId: string | null,
   adapter: ICrmAdapter
 ): ReactNode {
-  if (!selectedId) return null;
+  if (!selectedId) return <StepNavigatorPanel />;
 
   if (selectedId.startsWith('step_')) {
     const stepId = selectedId.replace('step_', '');
@@ -310,7 +344,7 @@ function resolvePropertiesPanel(
     return <RoutePropertiesPanel routeId={routeId} adapter={adapter} />;
   }
 
-  return null;
+  return <StepNavigatorPanel />;
 }
 
 const shellStyle: React.CSSProperties = {

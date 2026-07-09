@@ -10,6 +10,7 @@ interface EditToolbarProps {
   validationErrorCount: number;
   onBack: () => void;
   onAddStep: () => void;
+  onReLayout: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -37,6 +38,7 @@ export function EditToolbar({
   validationErrorCount,
   onBack,
   onAddStep,
+  onReLayout,
   onSave,
   onPublish,
   onDiscard,
@@ -91,6 +93,7 @@ export function EditToolbar({
               <ToolBtn label="Redo" onClick={onRedo} disabled={!canRedo} title="Redo last undone change" />
               <Sep />
               <ToolBtn label="Add Step" onClick={onAddStep} title="Add a new step to this workflow" />
+              <ToolBtn label="⊞ Layout" onClick={onReLayout} title="Auto-arrange all steps" />
               <Sep />
               <ValidateBtn
                 errorCount={validationErrorCount}

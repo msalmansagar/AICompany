@@ -6,6 +6,7 @@ import { useAutoLayout } from '@/hooks/useAutoLayout';
 import { useExport } from '@/hooks/useExport';
 import { useLoadWorkflow } from '@/hooks/useLoadWorkflow';
 import type { WorkflowProcess } from '@/types/WorkflowTypes';
+import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface ToolbarProps {
   onRequestNew?: () => void;
@@ -87,28 +88,35 @@ export function Toolbar({
   const handleNew = useCallback(() => {
     if (!newName.trim()) return;
 
-    if (isDirty) {
-      const confirmed = window.confirm(
-        'You have unsaved changes. Discard them and create a new workflow?'
-      );
-      if (!confirmed) return;
-    }
-
-    const tmpId = `tmp_${crypto.randomUUID()}`;
-    const newProcess: WorkflowProcess = {
-      crmId: tmpId,
-      name: newName.trim(),
-      recordEntity: '', recordEntityName: null,
-      regardingField: '',
-      parentEntity: '', parentEntityName: null,
-      versionMajor: 1, versionMinor: 0,
-      workflowState: 'draft', snapshot: null,
+    const createNewWorkflow = () => {
+      const tmpId = `tmp_${crypto.randomUUID()}`;
+      const newProcess: WorkflowProcess = {
+        crmId: tmpId,
+        name: newName.trim(),
+        recordEntity: '', recordEntityName: null,
+        regardingField: '',
+        parentEntity: '', parentEntityName: null,
+        versionMajor: 1, versionMinor: 0,
+        workflowState: 'draft', snapshot: null,
+      };
+      loadWorkflow(newProcess, [], [], [], {});
+      selectNode('process');
+      onCloseNew?.();
+      setNewName('');
     };
 
-    loadWorkflow(newProcess, [], [], [], {});
-    selectNode('process');
-    onCloseNew?.();
-    setNewName('');
+    if (!isDirty) {
+      createNewWorkflow();
+      return;
+    }
+    void confirm({
+      title: 'Unsaved changes',
+      message: 'You have unsaved changes. Discard them and create a new workflow?',
+      confirmLabel: 'Discard & create',
+      tone: 'danger',
+    }).then((confirmed) => {
+      if (confirmed) createNewWorkflow();
+    });
   }, [newName, isDirty, loadWorkflow, selectNode, onCloseNew]);
 
   const handleSave = useCallback(async () => {

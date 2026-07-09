@@ -19,14 +19,14 @@ export function useAutoSimPlayback(): void {
   // Enumerate paths and kick off playback when auto sim starts
   useEffect(() => {
     if (!isAutoSimulating || autoSimPhase !== null) return;
-    const { stepOrder, steps, outcomes, outcomeOrder, initAutoSimPlayback, autoSimFinish } =
+    const { stepOrder, steps, outcomes, outcomeOrder, routes, routeOrder, initAutoSimPlayback, autoSimFinish } =
       useWorkflowStore.getState();
     const entryStepId = stepOrder[0];
     if (!entryStepId) {
       autoSimFinish();
       return;
     }
-    const paths = enumerateAllPaths(entryStepId, steps, outcomes, outcomeOrder);
+    const paths = enumerateAllPaths(entryStepId, steps, outcomes, outcomeOrder, routes, routeOrder);
     if (paths.length === 0) {
       autoSimFinish();
       return;
