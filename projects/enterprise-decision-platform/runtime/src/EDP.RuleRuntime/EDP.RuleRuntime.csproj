@@ -8,6 +8,12 @@
     <RootNamespace>EDP.RuleRuntime</RootNamespace>
     <AssemblyName>EDP.RuleRuntime</AssemblyName>
     <!-- netstandard2.0 keeps the core sandbox-compatible (.NET Framework 4.6.2+ / Dataverse). -->
+    <!-- NU1902 (NCalcSync 5.4.2, GHSA-3w5p-95mh-gq75 factorial DoS): the fix lands only in
+         NCalc 6.x, which requires System.Text.Json 10.x — incompatible with the net462 sandbox.
+         Accepted low risk: the DoS requires a governed, maker-checker-reviewed author to write a
+         pathological factorial, and execution is bounded by the 2-minute sandbox timeout. See
+         adrs/index.md (ADR-SEC-NCALC). Re-evaluate when NCalc ships a netstandard2.0/STJ-9 line. -->
+    <NoWarn>$(NoWarn);NU1902</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

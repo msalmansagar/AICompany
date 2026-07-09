@@ -50,3 +50,11 @@ Enterprise Decision Service ADRs (ADR-EDS-01…EDS-10) live in `phase-5-enterpri
 Decision Intelligence / AI ADRs (ADR-AI-01…AI-09) live in `phase-6-decision-intelligence.md` §22.
 Cross-entity N:1 field navigation (CEN-001) — contract + design in `design-cross-entity-navigation.md` (Accepted 2026-07-09).
 1:N child aggregation (AGG-001) — contract + design in `design-child-aggregation.md` (Accepted 2026-07-09).
+
+**ADR-SEC-NCALC — NCalcSync 5.4.2 CVE accepted (2026-07-10, Accepted).**
+GHSA-3w5p-95mh-gq75 (factorial-overflow DoS, moderate/CVSS 4.8) is fixed only in NCalc 6.x,
+which transitively requires System.Text.Json 10.x — incompatible with the net462 Dataverse
+sandbox (pinned to STJ 9.x). We stay on 5.4.2 and suppress NU1902. Risk accepted: exploiting
+it requires a **governed, maker-checker-reviewed rule author** to author a pathological
+factorial expression, and execution is bounded by the **2-minute sandbox timeout**. Revisit
+when NCalc ships a netstandard2.0 / STJ-9-compatible patched line.
