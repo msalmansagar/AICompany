@@ -64,6 +64,31 @@ const SYSTEM_LOOKUPS = new Set([
   'createdby', 'modifiedby', 'createdonbehalfby', 'modifiedonbehalfby',
 ]);
 
+export interface ChildRelationshipMeta { childEntity: string; childLookup: string; displayName: string; }
+
+// System child collections that are never a business aggregation source.
+const SYSTEM_CHILD = new Set([
+  'annotation', 'activitypointer', 'asyncoperation', 'bulkdeletefailure', 'duplicaterecord',
+  'principalobjectattributeaccess', 'processsession', 'syncerror', 'userentityinstancedata',
+  'activityparty', 'annotationbase', 'sharepointdocumentlocation', 'connection', 'audit',
+]);
+
+/** 1:N child collections of an entity → the child entity + the lookup on it that points back. */
+export async function listChildRelationships(entity: string): Promise<ChildRelationshipMeta[]> {
+  const d = await get<{ value: any[] }>(
+    `/EntityDefinitions(LogicalName='${entity}')/OneToManyRelationships?$select=ReferencingEntity,ReferencingAttribute`
+  );
+  const nameOf = (ln: string) => entityCache?.find((e) => e.logicalName === ln)?.displayName ?? ln;
+  const seen = new Set<string>();
+  return d.value
+    .filter((r) => r.ReferencingEntity && r.ReferencingAttribute
+      && !SYSTEM_CHILD.has(r.ReferencingEntity)
+      && !HIDDEN_ENTITY_PREFIXES.some((p) => (r.ReferencingEntity as string).startsWith(p)))
+    .map((r) => ({ childEntity: r.ReferencingEntity as string, childLookup: r.ReferencingAttribute as string, displayName: nameOf(r.ReferencingEntity) }))
+    .filter((r) => { const k = `${r.childEntity}|${r.childLookup}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
 /** N:1 lookups on an entity → the related (parent) entity they point to, sorted by display name. */
 export async function listRelationships(entity: string): Promise<RelationshipMeta[]> {
   const d = await get<{ value: any[] }>(

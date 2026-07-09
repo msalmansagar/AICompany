@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { listAttributes, listOptions, listRelationships, type AttributeMeta, type OptionMeta, type RelationshipMeta } from '../metadata/metadataService';
 import {
-  type TableModel, type Row, type Cell, HIT_POLICIES, operatorsFor, arity, category, newRow,
+  listAttributes, listOptions, listRelationships, listChildRelationships,
+  type AttributeMeta, type OptionMeta, type RelationshipMeta, type ChildRelationshipMeta,
+} from '../metadata/metadataService';
+import {
+  type TableModel, type Row, type Cell, type AggFn, HIT_POLICIES, AGG_FNS,
+  operatorsFor, arity, category, newRow, colReady,
 } from './tableModel';
+
+// Numeric child fields are the only valid targets for Sum/Avg/Min/Max.
+const NUMERIC_TYPES = new Set(['Integer', 'BigInt', 'Decimal', 'Double', 'Money']);
 
 const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
@@ -18,20 +25,26 @@ const optKey = (viaEntity: string | undefined, field: string) => `${viaEntity ??
 export function DecisionTableEditor({ entity, value, onChange }: { entity: string; value: TableModel; onChange: (m: TableModel) => void }) {
   const [attrs, setAttrs] = useState<AttributeMeta[]>([]);
   const [rels, setRels] = useState<RelationshipMeta[]>([]);
+  const [children, setChildren] = useState<ChildRelationshipMeta[]>([]);
   const [relAttrs, setRelAttrs] = useState<Record<string, AttributeMeta[]>>({});
+  const [childAttrs, setChildAttrs] = useState<Record<string, AttributeMeta[]>>({});
   const [options, setOptions] = useState<Record<string, OptionMeta[]>>({});
   const [err, setErr] = useState('');
 
   useEffect(() => {
     if (!entity) return;
-    setErr(''); setRelAttrs({});
+    setErr(''); setRelAttrs({}); setChildAttrs({});
     listAttributes(entity).then(setAttrs).catch((e) => setErr('Could not load fields: ' + e.message));
     listRelationships(entity).then(setRels).catch(() => setRels([]));
+    listChildRelationships(entity).then(setChildren).catch(() => setChildren([]));
   }, [entity]);
 
-  // Load related fields for any column already bound to a relationship (e.g. when a rule opens).
+  // Load related / child fields for any column already bound (e.g. when a rule opens).
   useEffect(() => {
-    value.inputs.forEach((i) => { if (i.via) void ensureRelAttrs(i.via.relationship, i.via.entity); });
+    value.inputs.forEach((i) => {
+      if (i.via) void ensureRelAttrs(i.via.relationship, i.via.entity);
+      if (i.agg) void ensureChildAttrs(i.agg.childEntity);
+    });
   }, [value.inputs]); // eslint-disable-line
 
   useEffect(() => {
@@ -45,35 +58,63 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
   }, [value.inputs, entity]); // eslint-disable-line
 
   const set = (m: TableModel) => onChange(m);
-  const fieldsFor = (col: TableModel['inputs'][number]) => (col.via ? relAttrs[col.via.relationship] ?? [] : attrs);
+  const fieldsFor = (col: TableModel['inputs'][number]) =>
+    col.agg ? (childAttrs[col.agg.childEntity] ?? []) : col.via ? relAttrs[col.via.relationship] ?? [] : attrs;
 
   async function ensureRelAttrs(relationship: string, relatedEntity: string) {
     if (relAttrs[relationship] || !relatedEntity) return;
     try { const a = await listAttributes(relatedEntity); setRelAttrs((prev) => ({ ...prev, [relationship]: a })); } catch { /* surfaced on pick */ }
   }
+  async function ensureChildAttrs(childEntity: string) {
+    if (childAttrs[childEntity] || !childEntity) return;
+    try { const a = await listAttributes(childEntity); setChildAttrs((prev) => ({ ...prev, [childEntity]: a })); } catch { /* surfaced on pick */ }
+  }
 
   function addInput() { const m = clone(value); m.inputs.push({ field: '', label: '', type: 'String' }); m.rows.forEach((r) => r.cells.push({ any: true })); set(m); }
   function removeInput(ci: number) { const m = clone(value); m.inputs.splice(ci, 1); m.rows.forEach((r) => r.cells.splice(ci, 1)); set(m); }
 
-  /** Switch a column between the anchor table ("") and a related table (a lookup). Resets the field. */
-  function setSource(ci: number, relationship: string) {
+  /** Switch a column's source: "" anchor, "n1:<lookup>" related parent, "agg:<child>:<lookup>" child aggregate. */
+  function setSource(ci: number, encoded: string) {
     const m = clone(value); const col = m.inputs[ci];
-    if (!relationship) { delete col.via; }
-    else {
-      const rel = rels.find((r) => r.relationship === relationship);
+    delete col.via; delete col.agg;
+    if (encoded.startsWith('n1:')) {
+      const rel = rels.find((r) => r.relationship === encoded.slice(3));
       if (rel) { col.via = { relationship: rel.relationship, entity: rel.targetEntity, relLabel: rel.displayName }; void ensureRelAttrs(rel.relationship, rel.targetEntity); }
+    } else if (encoded.startsWith('agg:')) {
+      const [, childEntity, childLookup] = encoded.split(':');
+      const child = children.find((c) => c.childEntity === childEntity && c.childLookup === childLookup);
+      col.agg = { fn: 'Count', childEntity, childLookup, childLabel: child?.displayName ?? childEntity };
+      void ensureChildAttrs(childEntity);
     }
-    col.field = ''; col.label = ''; col.type = 'String';
+    col.field = ''; col.label = ''; col.type = col.agg ? 'Decimal' : 'String';
     m.rows.forEach((r) => (r.cells[ci] = { any: true }));
     set(m);
   }
+  const sourceValue = (col: TableModel['inputs'][number]) =>
+    col.agg ? `agg:${col.agg.childEntity}:${col.agg.childLookup}` : col.via ? `n1:${col.via.relationship}` : '';
 
   function setInputField(ci: number, field: string) {
     const col = value.inputs[ci];
     const a = fieldsFor(col).find((x) => x.logicalName === field);
     const m = clone(value);
-    m.inputs[ci] = { ...col, field, label: a?.displayName ?? field, type: a?.type ?? 'String' };
+    m.inputs[ci] = { ...col, field, label: a?.displayName ?? field, type: col.agg ? 'Decimal' : a?.type ?? 'String' };
     m.rows.forEach((r) => (r.cells[ci] = { any: true }));
+    set(m);
+  }
+
+  function setAggFn(ci: number, fn: AggFn) {
+    const m = clone(value); const col = m.inputs[ci];
+    if (!col.agg) return;
+    col.agg = { ...col.agg, fn };
+    if (fn === 'Count') { col.field = ''; col.label = ''; } // Count needs no field
+    set(m);
+  }
+  function setAggFilter(ci: number, patch: Partial<NonNullable<TableModel['inputs'][number]['agg']>['filter']>) {
+    const m = clone(value); const col = m.inputs[ci];
+    if (!col.agg) return;
+    const base = col.agg.filter ?? { field: '', label: '', operator: 'Equals', value: '' };
+    const next = { ...base, ...patch };
+    col.agg = { ...col.agg, filter: next.field ? next : undefined };
     set(m);
   }
   function addOutput() { const m = clone(value); m.outputs.push({ name: `out${m.outputs.length + 1}`, type: 'Text' }); set(m); }
@@ -111,21 +152,55 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 <th key={ci} className="dt2-col dt2-col-in">
                   <div className="dt2-col-top">
                     <div className="dt2-field-pick">
-                      {rels.length > 0 && (
-                        <select className="dt2-src" value={col.via?.relationship ?? ''} title="Read from this table or a related (parent) table"
+                      {(rels.length > 0 || children.length > 0) && (
+                        <select className="dt2-src" value={sourceValue(col)} title="Read from this table, a related parent, or aggregate a child collection"
                           onChange={(e) => setSource(ci, e.target.value)}>
                           <option value="">This table</option>
-                          {rels.map((r) => <option key={r.relationship} value={r.relationship}>{r.displayName}</option>)}
+                          {rels.length > 0 && <optgroup label="Related (parent)">{rels.map((r) => <option key={r.relationship} value={`n1:${r.relationship}`}>{r.displayName}</option>)}</optgroup>}
+                          {children.length > 0 && <optgroup label="Aggregate child">{children.map((c) => <option key={`${c.childEntity}:${c.childLookup}`} value={`agg:${c.childEntity}:${c.childLookup}`}>{c.displayName}</option>)}</optgroup>}
                         </select>
                       )}
-                      <select value={col.field} onChange={(e) => setInputField(ci, e.target.value)}>
-                        <option value="">— pick field —</option>
-                        {fieldsFor(col).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
-                      </select>
+                      {col.agg ? (
+                        <div className="dt2-aggpick">
+                          <select className="dt2-aggfn" value={col.agg.fn} onChange={(e) => setAggFn(ci, e.target.value as AggFn)}>
+                            {AGG_FNS.map((f) => <option key={f} value={f}>{f}</option>)}
+                          </select>
+                          {col.agg.fn !== 'Count' && (
+                            <select value={col.field} onChange={(e) => setInputField(ci, e.target.value)}>
+                              <option value="">— field —</option>
+                              {fieldsFor(col).filter((a) => NUMERIC_TYPES.has(a.type)).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      ) : (
+                        <select value={col.field} onChange={(e) => setInputField(ci, e.target.value)}>
+                          <option value="">— pick field —</option>
+                          {fieldsFor(col).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+                        </select>
+                      )}
                     </div>
                     <button className="dt2-col-x" title="Remove column" onClick={() => removeInput(ci)}>✕</button>
                   </div>
-                  {col.field && <span className="dt2-col-type">{col.via ? `${col.via.relLabel} › ` : ''}{col.type}</span>}
+                  {col.agg && (
+                    <div className="dt2-aggfilter">
+                      <span>where</span>
+                      <select value={col.agg.filter?.field ?? ''} onChange={(e) => { const a = fieldsFor(col).find((x) => x.logicalName === e.target.value); setAggFilter(ci, { field: e.target.value, label: a?.displayName ?? e.target.value }); }}>
+                        <option value="">— all —</option>
+                        {fieldsFor(col).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+                      </select>
+                      {col.agg.filter?.field && (
+                        <>
+                          <select value={col.agg.filter.operator} onChange={(e) => setAggFilter(ci, { operator: e.target.value })}>
+                            <option value="Equals">=</option><option value="NotEquals">≠</option>
+                            <option value="GreaterThan">&gt;</option><option value="GreaterThanOrEqual">≥</option>
+                            <option value="LessThan">&lt;</option><option value="LessThanOrEqual">≤</option>
+                          </select>
+                          <input className="dt2-aggval" value={col.agg.filter.value} onChange={(e) => setAggFilter(ci, { value: e.target.value })} placeholder="value" />
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {colReady(col) && <span className="dt2-col-type">{col.agg ? `∑ ${col.agg.childLabel} · ${col.agg.fn}` : col.via ? `${col.via.relLabel} › ${col.type}` : col.type}</span>}
                 </th>
               ))}
               <th className="dt2-addcol"><button title="Add condition column" onClick={addInput}>+</button></th>
@@ -169,19 +244,19 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
   );
 
   function renderCell(rowIdx: number, row: Row, ci: number, col: TableModel['inputs'][number], opts: Record<string, OptionMeta[]>) {
-    const cat = col.field ? category(col.type) : 'text';
+    const ready = colReady(col);
+    const cat = ready ? category(col.type) : 'text';
     const cell = row.cells[ci] ?? { any: true };
     const op = cell.any ? 'Any' : (cell.operator ?? 'Any');
     const n = arity(cat, op);
     const patch = (p: Partial<Cell>) => setCell(rowIdx, ci, p);
     const isField = cell.valueField !== undefined;
     const cellOpts = opts[optKey(col.via?.entity, col.field)];
-    // Field-to-field is anchor-only for now (cross-table comparison deferred), so related
-    // columns compare against a value only.
-    const allowFieldMode = n >= 1 && col.field && !col.via;
+    // Field-to-field is anchor-field-only (cross-table + aggregate comparison deferred).
+    const allowFieldMode = n >= 1 && ready && !col.via && !col.agg;
     return (
       <div className="dt2-cellbox">
-        <select className="dt2-op" value={op} disabled={!col.field}
+        <select className="dt2-op" value={op} disabled={!ready}
           onChange={(e) => patch(e.target.value === 'Any' ? { any: true, operator: undefined } : { any: false, operator: e.target.value })}>
           {operatorsFor(cat).map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}
         </select>
@@ -192,7 +267,7 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
             <option value="field">field</option>
           </select>
         )}
-        {n >= 1 && col.field && (
+        {n >= 1 && ready && (
           isField && allowFieldMode
             ? <select className="dt2-fieldsel" value={cell.valueField ?? ''} onChange={(e) => patch({ valueField: e.target.value })}>
                 <option value="">— pick field —</option>

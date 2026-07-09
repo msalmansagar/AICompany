@@ -487,3 +487,10 @@ h1, h2, h3 { text-wrap: balance; }
 /* Related-table (N:1) field picker in decision-table columns */
 .dt2-field-pick { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
 .dt2-src { font-size: 11px; color: var(--brand); background: var(--n-bg2); border: 1px solid var(--n-stroke2); border-radius: 4px; padding: 1px 4px; }
+
+/* 1:N aggregate column picker */
+.dt2-aggpick { display: flex; gap: 4px; min-width: 0; }
+.dt2-aggfn { font-weight: 600; color: var(--brand); background: var(--n-bg2); border: 1px solid var(--n-stroke2); border-radius: 4px; }
+.dt2-aggfilter { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; color: var(--n-fg2); flex-wrap: wrap; }
+.dt2-aggfilter select, .dt2-aggfilter input { font-size: 11px; border: 1px solid var(--n-stroke2); border-radius: 4px; background: var(--n-bg1); color: var(--n-fg1); padding: 1px 4px; }
+.dt2-aggval { width: 68px; }

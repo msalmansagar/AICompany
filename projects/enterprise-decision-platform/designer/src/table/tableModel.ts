@@ -1,13 +1,23 @@
 // Model + PCRM serialization for the metadata-bound decision-table editor (ADR-D05).
 // This authoring surface produces PCRM directly — no GoRules translation.
 
-// field = CRM logical name (on the anchor, or on `via.entity` when related).
-export interface InputCol { field: string; label: string; type: string; via?: InputVia; }
+// field = CRM logical name (on the anchor, on `via.entity` when related, or the child field for `agg`).
+export interface InputCol { field: string; label: string; type: string; via?: InputVia; agg?: InputAgg; }
 // N:1 navigation: this column reads `field` on the related entity reached by the anchor's lookup.
 export interface InputVia { relationship: string; entity: string; relLabel: string; }
+// 1:N aggregation: this column folds a child collection into a scalar.
+export type AggFn = 'Count' | 'Sum' | 'Avg' | 'Min' | 'Max';
+export interface AggFilter { field: string; label: string; operator: string; value: string; }
+export interface InputAgg { fn: AggFn; childEntity: string; childLookup: string; childLabel: string; filter?: AggFilter; }
+export const AGG_FNS: AggFn[] = ['Count', 'Sum', 'Avg', 'Min', 'Max'];
 
-/** Stable input name/symbol for a column — related columns are namespaced by their lookup. */
-export function inputName(i: InputCol): string { return i.via ? `${i.via.relationship}_${i.field}` : i.field; }
+/** Stable input name/symbol for a column — related/aggregate columns are namespaced. */
+export function inputName(i: InputCol): string {
+  if (i.agg) return `${i.agg.childEntity}_${i.agg.fn}${i.field ? '_' + i.field : ''}`.toLowerCase();
+  return i.via ? `${i.via.relationship}_${i.field}` : i.field;
+}
+/** A column can be used in conditions once it has a field, or is a Count aggregate. */
+export function colReady(i: InputCol): boolean { return !!i.field || (!!i.agg && i.agg.fn === 'Count'); }
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
 export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
 export interface Row { cells: Cell[]; outputs: Record<string, string>; }
@@ -72,8 +82,12 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
     if (c?.value2Field) referenced.add(c.value2Field);
   }
   const inputCols = model.inputs.map((i) => {
-    const col: any = { name: inputName(i), type: pcrmType(i.type), binding: i.field };
+    const col: any = { name: inputName(i), type: i.agg ? 'Decimal' : pcrmType(i.type), binding: i.field || undefined };
     if (i.via) col.via = { relationship: i.via.relationship, entity: i.via.entity };
+    if (i.agg) {
+      col.aggregate = { function: i.agg.fn, childEntity: i.agg.childEntity, childLookup: i.agg.childLookup };
+      if (i.agg.filter?.field) col.aggregate.filter = { field: i.agg.filter.field, operator: i.agg.filter.operator, value: aggFilterValue(i.agg.filter.value) };
+    }
     return col;
   });
   const extraInputs = [...referenced]
@@ -113,6 +127,12 @@ function cellToPcrm(cell: Cell, input?: InputCol): any {
     else out.value2 = coerce(cell.value2, cat);
   }
   return out;
+}
+
+// Aggregate filter value: numeric literal if it looks like a number, else a string.
+function aggFilterValue(raw: string): unknown {
+  const s = (raw ?? '').trim();
+  return /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : s;
 }
 
 function coerce(raw: string | undefined, cat: string): unknown {
