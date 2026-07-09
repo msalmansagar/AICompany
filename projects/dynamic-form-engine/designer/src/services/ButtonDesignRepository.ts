@@ -52,7 +52,7 @@ export class ButtonDesignRepository {
       return existingId;
     }
 
-    payload[BUTTON_DESIGN_ATTRS.FORM_ID] = dto.formId;
+    payload[`${BUTTON_DESIGN_ATTRS.FORM_ID}@odata.bind`] = `/qdb_form_definitions(${dto.formId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.BUTTON_DESIGN, payload),
       'createButtonDesign'
@@ -101,7 +101,7 @@ export class ButtonDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.BUTTON_DESIGN,
-        `?$select=${BUTTON_DESIGN_ATTRS.ID}&$filter=${BUTTON_DESIGN_ATTRS.FORM_ID} eq ${formId} and ${BUTTON_DESIGN_ATTRS.BUTTON_TYPE} eq ${typePicklist}&$top=1`
+        `?$select=${BUTTON_DESIGN_ATTRS.ID}&$filter=${BUTTON_DESIGN_ATTRS.FORM_ID_VALUE} eq ${formId} and ${BUTTON_DESIGN_ATTRS.BUTTON_TYPE} eq ${typePicklist}&$top=1`
       ),
       'findButtonDesign'
     );
