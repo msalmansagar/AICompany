@@ -5,8 +5,15 @@ import {
 } from '../metadata/metadataService';
 import {
   type TableModel, type Row, type Cell, type AggFn, HIT_POLICIES, AGG_FNS,
-  operatorsFor, arity, category, newRow, colReady,
+  operatorsFor, arity, category, newRow, colReady, inputName,
 } from './tableModel';
+
+/** Friendly label for a column when it's used as a field-to-field comparison operand. */
+function columnLabel(c: TableModel['inputs'][number]): string {
+  if (c.agg) return `Σ ${c.agg.childLabel} · ${c.agg.fn}`;
+  if (c.via) return `${c.via.relLabel} › ${c.label || c.field}`;
+  return c.label || c.field;
+}
 
 // Numeric child fields are the only valid targets for Sum/Avg/Min/Max.
 const NUMERIC_TYPES = new Set(['Integer', 'BigInt', 'Decimal', 'Double', 'Money']);
@@ -252,8 +259,10 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     const patch = (p: Partial<Cell>) => setCell(rowIdx, ci, p);
     const isField = cell.valueField !== undefined;
     const cellOpts = opts[optKey(col.via?.entity, col.field)];
-    // Field-to-field is anchor-field-only (cross-table + aggregate comparison deferred).
-    const allowFieldMode = n >= 1 && ready && !col.via && !col.agg;
+    // Field-to-field compares this column against ANOTHER ready column — anchor field,
+    // related (N:1) field, or aggregate. Any column may compare against any other.
+    const operandCols = value.inputs.map((c, i) => ({ c, i })).filter((x) => x.i !== ci && colReady(x.c));
+    const allowFieldMode = n >= 1 && ready && operandCols.length > 0;
     return (
       <div className="dt2-cellbox">
         <select className="dt2-op" value={op} disabled={!ready}
@@ -261,17 +270,17 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
           {operatorsFor(cat).map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}
         </select>
         {allowFieldMode && (
-          <select className="dt2-rhsmode" value={isField ? 'field' : 'value'} title="Compare against a fixed value or another field on the record"
+          <select className="dt2-rhsmode" value={isField ? 'field' : 'value'} title="Compare against a fixed value or another column"
             onChange={(e) => patch(e.target.value === 'field' ? { valueField: '', value: undefined } : { valueField: undefined })}>
             <option value="value">value</option>
-            <option value="field">field</option>
+            <option value="column">column</option>
           </select>
         )}
         {n >= 1 && ready && (
           isField && allowFieldMode
             ? <select className="dt2-fieldsel" value={cell.valueField ?? ''} onChange={(e) => patch({ valueField: e.target.value })}>
-                <option value="">— pick field —</option>
-                {attrs.filter((a) => a.logicalName !== col.field).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
+                <option value="">— pick column —</option>
+                {operandCols.map(({ c, i }) => <option key={i} value={inputName(c)}>{columnLabel(c)}</option>)}
               </select>
             : valueEditor(cat, cellOpts, cell.value ?? '', (v) => patch({ value: v }))
         )}

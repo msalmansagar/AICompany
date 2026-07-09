@@ -74,8 +74,8 @@ export function arity(cat: string, op?: string): 0 | 1 | 2 {
 
 // ---- serialization to PCRM ----
 export function tableToPcrm(model: TableModel, meta: { name: string; targetEntity: string }): unknown {
-  // Any field referenced by a field-to-field comparison must also be loaded from the
-  // record, so add it as an input binding if it isn't already a condition column.
+  // A field-to-field operand references another column by its input name. If it names an
+  // existing column it's already an input; only a bare anchor-field name needs adding.
   const referenced = new Set<string>();
   for (const r of model.rows) for (const c of r.cells) {
     if (c?.valueField) referenced.add(c.valueField);
@@ -91,7 +91,7 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
     return col;
   });
   const extraInputs = [...referenced]
-    .filter((f) => f && !model.inputs.some((i) => i.field === f))
+    .filter((f) => f && !model.inputs.some((i) => inputName(i) === f))
     .map((f) => ({ name: f, type: 'Text', binding: f }));
 
   return {
