@@ -106,27 +106,127 @@ namespace EDP.RuleRuntime.Crm
             return SerializeResult(result, executionSource: "decision-table");
         }
 
-        /// <summary>Evaluate an ordered set of rule versions in one call (caller-provided set).</summary>
+        /// <summary>
+        /// Evaluate a set of rules in one call. Preferred: a governed qdb_edp_ruleset
+        /// (RuleSetId) that owns the membership + policy — the caller cannot redefine it.
+        /// Back-compat: a caller-provided RuleVersionIdsJson list (policy = Collect).
+        /// Policies: Collect (run all), FirstMatch (stop at first match), Priority (run all,
+        /// later members override on merge).
+        /// </summary>
         private object ExecuteRuleSet(IOrganizationService service, IPluginExecutionContext context)
         {
-            var idsJson = ParamString(context, "RuleVersionIdsJson")
-                          ?? throw new InvalidPluginExecutionException("Provide RuleVersionIdsJson (array of rule version ids).");
-            var ids = JsonSerializer.Deserialize<List<string>>(idsJson) ?? new List<string>();
             var inputs = RuleDecisionService.ParseInputsJson(ParamString(context, "InputsJson"));
-            var metadata = new OrgServiceMetadataResolver(service);
-            var decision = new RuleDecisionService(service, metadata, new DataverseTraceSink(service));
+            var decision = new RuleDecisionService(service, new OrgServiceMetadataResolver(service), new DataverseTraceSink(service));
 
-            var results = new List<object>();
-            var matched = 0;
-            foreach (var idText in ids)
+            Guid? ruleSetId = ParamGuid(context, "RuleSetId");
+            List<SetMember> members;
+            string policy;
+
+            if (ruleSetId.HasValue)
             {
-                var id = Guid.Parse(idText);
-                var pcrm = decision.ResolvePcrm(id);
-                var r = decision.EvaluateInputs(pcrm, inputs, id, context.InitiatingUserId, DateTime.UtcNow);
-                if (r.Matched) matched++;
-                results.Add(new { ruleVersionId = id, success = r.Success, matched = r.Matched, outputs = r.Outputs });
+                var set = service.Retrieve("qdb_edp_ruleset", ruleSetId.Value, new ColumnSet("qdb_edp_membersjson", "qdb_edp_setpolicy"));
+                members = ParseMembers(set.GetAttributeValue<string>("qdb_edp_membersjson") ?? "[]", service);
+                policy = set.GetAttributeValue<string>("qdb_edp_setpolicy");
+                if (string.IsNullOrWhiteSpace(policy)) policy = "Collect";
             }
-            return new { count = ids.Count, matchedCount = matched, results };
+            else
+            {
+                var idsJson = ParamString(context, "RuleVersionIdsJson")
+                              ?? throw new InvalidPluginExecutionException("Provide RuleSetId (governed set) or RuleVersionIdsJson.");
+                var ids = JsonSerializer.Deserialize<List<string>>(idsJson) ?? new List<string>();
+                members = ids.Select((s, i) => new SetMember { VersionId = Guid.Parse(s), Key = "rule" + (i + 1), Order = i }).ToList();
+                policy = "Collect";
+            }
+
+            var firstMatch = string.Equals(policy, "FirstMatch", StringComparison.OrdinalIgnoreCase);
+            var ordered = members.OrderBy(m => m.Order).ToList();
+            var results = new List<object>();
+            var mergedOutputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            var byRule = new Dictionary<string, object?>();
+            var matchedCount = 0;
+
+            foreach (var m in ordered)
+            {
+                if (!m.VersionId.HasValue)
+                {
+                    results.Add(new { key = m.Key, ruleId = m.RuleId, success = false, matched = false, message = "No published version for this rule." });
+                    continue;
+                }
+                var pcrm = decision.ResolvePcrm(m.VersionId.Value);
+                var r = decision.EvaluateInputs(pcrm, inputs, m.VersionId, context.InitiatingUserId, DateTime.UtcNow);
+                results.Add(new { key = m.Key, ruleVersionId = m.VersionId, success = r.Success, matched = r.Matched, outputs = r.Outputs });
+                if (r.Matched)
+                {
+                    matchedCount++;
+                    byRule[m.Key] = r.Outputs;
+                    foreach (var kv in r.Outputs) mergedOutputs[kv.Key] = kv.Value; // later members win (Priority/Collect)
+                    if (firstMatch) break;
+                }
+            }
+
+            return new
+            {
+                ruleSetId,
+                policy,
+                count = ordered.Count,
+                matchedCount,
+                results,
+                aggregate = new { outputs = mergedOutputs, byRule }
+            };
+        }
+
+        private sealed class SetMember
+        {
+            public Guid? VersionId { get; set; }
+            public Guid? RuleId { get; set; }
+            public string Key { get; set; } = "rule";
+            public int Order { get; set; }
+        }
+
+        /// <summary>Parse a ruleset's membersjson; resolve each member to a rule version id.</summary>
+        private List<SetMember> ParseMembers(string membersJson, IOrganizationService service)
+        {
+            var list = new List<SetMember>();
+            using var doc = JsonDocument.Parse(membersJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return list;
+            var i = 0;
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                var m = new SetMember
+                {
+                    Order = el.TryGetProperty("order", out var o) && o.TryGetInt32(out var ov) ? ov : i,
+                    Key = el.TryGetProperty("key", out var k) && k.ValueKind == JsonValueKind.String ? k.GetString()! : "rule" + (i + 1),
+                };
+                if (el.TryGetProperty("ruleVersionId", out var rv) && Guid.TryParse(rv.GetString(), out var rvid))
+                    m.VersionId = rvid;
+                else if (el.TryGetProperty("ruleId", out var rid) && Guid.TryParse(rid.GetString(), out var ridGuid))
+                {
+                    m.RuleId = ridGuid;
+                    m.VersionId = ResolvePublishedVersionId(service, ridGuid); // governed: run the published version
+                }
+                list.Add(m);
+                i++;
+            }
+            return list;
+        }
+
+        private static Guid? ResolvePublishedVersionId(IOrganizationService service, Guid ruleId)
+        {
+            var query = new QueryExpression("qdb_edp_ruleversion")
+            {
+                ColumnSet = new ColumnSet("qdb_edp_ruleversionid"),
+                TopCount = 1,
+                Orders = { new OrderExpression("qdb_edp_versionnumber", OrderType.Descending) },
+                Criteria =
+                {
+                    Conditions =
+                    {
+                        new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId),
+                        new ConditionExpression("qdb_edp_lifecyclestate", ConditionOperator.Equal, LifecyclePublished),
+                    }
+                }
+            };
+            return service.RetrieveMultiple(query).Entities.FirstOrDefault()?.Id;
         }
 
         // ---- Functions (read-only) -----------------------------------------------------
