@@ -100,25 +100,22 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
     parentEntityName: string;
   }) => {
     const tmpId = `tmp_${crypto.randomUUID()}`;
-    loadWorkflow(
-      {
-        crmId: tmpId,
-        name,
-        recordEntity: taskEntityId,
-        recordEntityName: null,
-        regardingField: regardingFieldId,
-        parentEntity: parentEntityId,
-        parentEntityName: null,
-        versionMajor: 1,
-        versionMinor: 0,
-        workflowState: 'draft',
-        snapshot: null,
-      },
-      [],
-      [],
-      [],
-      {}
-    );
+    const newProcess: WorkflowProcess = {
+      crmId: tmpId,
+      name,
+      recordEntity: taskEntityId,
+      recordEntityName: null,
+      regardingField: regardingFieldId,
+      parentEntity: parentEntityId,
+      parentEntityName: null,
+      versionMajor: 1,
+      versionMinor: 0,
+      workflowState: 'draft',
+      snapshot: null,
+    };
+    // Seed a first step so the canvas opens with something to edit (it
+    // auto-connects from Start), rather than an empty canvas.
+    loadWorkflow(newProcess, [buildInitialStep(tmpId)], [], [], {});
     setShowNewProcessDialog(false);
     setPreviousMode('list');
     setAppMode('edit');
@@ -240,6 +237,33 @@ function LoadingOverlay({ message }: { message: string }) {
       </div>
     </div>
   );
+}
+
+/** A blank first step for a newly-created process. Entity refs are inherited
+ * from the parent process at save time, so they start null. */
+function buildInitialStep(processId: string): WorkflowStep {
+  return {
+    crmId: `tmp_${crypto.randomUUID()}`,
+    name: 'Step 1',
+    sequenceNo: 1,
+    schemaName: '',
+    taskSubject: '',
+    taskDescription: '',
+    assignTo: 'user',
+    assignedUserId: null,
+    assignedUserName: null,
+    teamId: null,
+    teamName: null,
+    roundRobinTeamId: null,
+    roundRobinTeamName: null,
+    recordEntityId: null,
+    recordEntityName: null,
+    regardingFieldId: null,
+    regardingFieldName: null,
+    parentEntityId: null,
+    parentEntityName: null,
+    processId,
+  };
 }
 
 const errorScreen: React.CSSProperties = {
