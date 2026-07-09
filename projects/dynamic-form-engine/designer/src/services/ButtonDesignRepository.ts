@@ -62,7 +62,7 @@ export class ButtonDesignRepository {
 
   async getButtonDesigns(formId: string): Promise<ButtonDesign[]> {
     const select = [
-      BUTTON_DESIGN_ATTRS.ID, BUTTON_DESIGN_ATTRS.FORM_ID, BUTTON_DESIGN_ATTRS.BUTTON_TYPE,
+      BUTTON_DESIGN_ATTRS.ID, BUTTON_DESIGN_ATTRS.FORM_ID_VALUE, BUTTON_DESIGN_ATTRS.BUTTON_TYPE,
       BUTTON_DESIGN_ATTRS.STYLE, BUTTON_DESIGN_ATTRS.LABEL,
       BUTTON_DESIGN_STYLE_ATTRS.COLOR, BUTTON_DESIGN_STYLE_ATTRS.SIZE,
       BUTTON_DESIGN_STYLE_ATTRS.BORDER_RADIUS, BUTTON_DESIGN_STYLE_ATTRS.ALIGNMENT,
@@ -73,7 +73,7 @@ export class ButtonDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.BUTTON_DESIGN,
-        `?$select=${select}&$filter=${BUTTON_DESIGN_ATTRS.FORM_ID} eq ${formId}`
+        `?$select=${select}&$filter=${BUTTON_DESIGN_ATTRS.FORM_ID_VALUE} eq ${formId}`
       ),
       'getButtonDesigns'
     );

@@ -64,7 +64,7 @@ export class SectionDesignRepository {
   // TODO(DFE-STYLE-001): filter by formDesignId once section_design adds the FK column
   async getSectionDesigns(_formDesignId: string): Promise<SectionDesign[]> {
     const select = [
-      SECTION_DESIGN_ATTRS.ID, SECTION_DESIGN_ATTRS.SECTION_ID,
+      SECTION_DESIGN_ATTRS.ID, SECTION_DESIGN_ATTRS.SECTION_ID_VALUE,
       SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR, SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE,
       SECTION_DESIGN_STYLE_ATTRS.PADDING, SECTION_DESIGN_STYLE_ATTRS.MARGIN,
       SECTION_DESIGN_STYLE_ATTRS.COLUMN_LAYOUT, SECTION_DESIGN_STYLE_ATTRS.CARD_STYLE,
@@ -75,7 +75,7 @@ export class SectionDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.SECTION_DESIGN,
-        `?$select=${select}&$filter=${SECTION_DESIGN_ATTRS.SECTION_ID} ne null`
+        `?$select=${select}&$filter=${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} ne null`
       ),
       'getSectionDesigns'
     );
@@ -113,7 +113,7 @@ export class SectionDesignRepository {
   private mapRecordToSectionDesign(record: Record<string, unknown>): SectionDesign {
     return {
       id: String(record[SECTION_DESIGN_ATTRS.ID] ?? ''),
-      sectionId: String(record[SECTION_DESIGN_ATTRS.SECTION_ID] ?? ''),
+      sectionId: String(record[SECTION_DESIGN_ATTRS.SECTION_ID_VALUE] ?? ''),
       backgroundColor: record[SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR] != null
         ? String(record[SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR]) : undefined,
       borderStyle: record[SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE] != null
