@@ -19,6 +19,7 @@ import {
 } from '@fluentui/react-components';
 import type { SummaryMode } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
 // DFE-FBE-001: display label for a summary mode value.
@@ -99,10 +100,11 @@ export function FormProperties(): React.ReactElement {
         />
       </Field>
 
-      <Field label="Target CRM Entity" hint="Dataverse entity logical name (e.g. contact, account)">
-        <Input
+      <Field label="Target CRM Entity" hint="Search Dataverse tables by name (e.g. contact, account)">
+        <EntityCombobox
           value={form.entityLogicalName}
-          onChange={(_, data) => updateForm({ entityLogicalName: data.value })}
+          onChange={logicalName => updateForm({ entityLogicalName: logicalName })}
+          preferredEntity={form.entityLogicalName}
           placeholder="e.g. contact, account, qdb_application"
         />
       </Field>

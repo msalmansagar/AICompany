@@ -1,10 +1,8 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Button,
-  Combobox,
   Field,
   Input,
-  Option,
   Select,
   Spinner,
   Text,
@@ -21,6 +19,7 @@ import { SectionService } from '@/services/SectionService';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { THEME_ATTRS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
 import type {
   DesignerFormModel,
   DesignerTabModel,
@@ -144,11 +143,6 @@ const useStyles = makeStyles({
 interface ThemeOption {
   id: string;
   name: string;
-}
-
-interface EntityOption {
-  logicalName: string;
-  displayName: string;
 }
 
 interface WizardState {
@@ -286,23 +280,11 @@ function StepInitialStructure({ state, onChange }: { state: WizardState; onChang
 function StepTargetEntity({
   state,
   onChange,
-  entities,
-  isLoadingEntities,
 }: {
   state: WizardState;
   onChange: (p: Partial<WizardState>) => void;
-  entities: EntityOption[];
-  isLoadingEntities: boolean;
 }): React.ReactElement {
   const styles = useStyles();
-  const [query, setQuery] = useState(state.entityLogicalName);
-
-  const filtered = query.length >= 1
-    ? entities.filter(e =>
-        e.logicalName.includes(query.toLowerCase()) ||
-        e.displayName.toLowerCase().includes(query.toLowerCase())
-      ).slice(0, 50)
-    : entities.slice(0, 50);
 
   return (
     <div className={styles.form}>
@@ -310,28 +292,12 @@ function StepTargetEntity({
         label="Target CRM Entity"
         hint="The Dataverse table where form submissions will be stored."
       >
-        {isLoadingEntities ? (
-          <Spinner size="tiny" label="Loading entities..." />
-        ) : (
-          <Combobox
-            value={query}
-            onInput={e => setQuery((e.target as HTMLInputElement).value)}
-            onOptionSelect={(_, data) => {
-              const selected = data.optionValue ?? '';
-              setQuery(selected);
-              onChange({ entityLogicalName: selected });
-            }}
-            placeholder="Search or type entity name (e.g. contact)"
-            freeform
-            style={{ width: '100%' }}
-          >
-            {filtered.map(e => (
-              <Option key={e.logicalName} value={e.logicalName} text={e.logicalName}>
-                {e.displayName} <span style={{ color: tokens.colorNeutralForeground3, fontSize: '12px' }}>({e.logicalName})</span>
-              </Option>
-            ))}
-          </Combobox>
-        )}
+        <EntityCombobox
+          value={state.entityLogicalName}
+          onChange={logicalName => onChange({ entityLogicalName: logicalName })}
+          preferredEntity={state.entityLogicalName}
+          placeholder="Search or type entity name (e.g. contact)"
+        />
       </Field>
     </div>
   );
@@ -421,8 +387,6 @@ export function NewFormWizardScreen(): React.ReactElement {
 
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [isLoadingThemes, setIsLoadingThemes] = useState(false);
-  const [entities, setEntities] = useState<EntityOption[]>([]);
-  const [isLoadingEntities, setIsLoadingEntities] = useState(false);
 
   // Load themes from CRM
   useEffect(() => {
@@ -446,34 +410,6 @@ export function NewFormWizardScreen(): React.ReactElement {
         // Themes table may be empty — not a blocking error
       })
       .finally(() => setIsLoadingThemes(false));
-  }, [crmService]);
-
-  // Load entity metadata from Dataverse API
-  useEffect(() => {
-    if (!crmService) return;
-    setIsLoadingEntities(true);
-    const clientUrl = crmService.getClientUrl();
-    // EntityDefinitions is a metadata endpoint — Xrm.WebApi does not expose it,
-    // so a credentialed fetch to the same CRM origin is the only supported approach.
-    const url = `${clientUrl}/api/data/v9.1/EntityDefinitions?$select=LogicalName,DisplayName&$filter=IsValidForAdvancedFind eq true&$orderby=LogicalName`;
-    fetch(url, { credentials: 'include', headers: { Accept: 'application/json', 'OData-Version': '4.0' } })
-      .then(r => {
-        if (!r.ok) throw new Error(`EntityDefinitions request failed: ${r.status}`);
-        return r.json() as Promise<{ value: Array<{ LogicalName: string; DisplayName: { UserLocalizedLabel?: { Label?: string } } }> }>;
-      })
-      .then((data) => {
-        setEntities(
-          data.value.map(e => ({
-            logicalName: e.LogicalName,
-            displayName: e.DisplayName?.UserLocalizedLabel?.Label ?? e.LogicalName,
-          }))
-        );
-      })
-      .catch(() => {
-        // Metadata API unavailable outside CRM context — user can type the entity name manually
-        setEntities([]);
-      })
-      .finally(() => setIsLoadingEntities(false));
   }, [crmService]);
 
   const handleChange = useCallback((patch: Partial<WizardState>) => {
@@ -611,14 +547,7 @@ export function NewFormWizardScreen(): React.ReactElement {
     switch (currentStep) {
       case 1: return <StepFormBasics state={wizardState} onChange={handleChange} />;
       case 2: return <StepInitialStructure state={wizardState} onChange={handleChange} />;
-      case 3: return (
-        <StepTargetEntity
-          state={wizardState}
-          onChange={handleChange}
-          entities={entities}
-          isLoadingEntities={isLoadingEntities}
-        />
-      );
+      case 3: return <StepTargetEntity state={wizardState} onChange={handleChange} />;
       case 4: return (
         <StepThemeSelection
           state={wizardState}
