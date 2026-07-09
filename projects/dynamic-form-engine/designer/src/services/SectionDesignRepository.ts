@@ -61,8 +61,14 @@ export class SectionDesignRepository {
     return result.id;
   }
 
-  // TODO(DFE-STYLE-001): filter by formDesignId once section_design adds the FK column
-  async getSectionDesigns(_formDesignId: string): Promise<SectionDesign[]> {
+  /**
+   * Section designs for a single form, scoped to that form's section IDs.
+   * section_design has no form_design FK, so scoping is by the form's section lookups —
+   * this keeps one form's styling from bleeding into another (H-1 contamination).
+   */
+  async getSectionDesigns(sectionIds: string[]): Promise<SectionDesign[]> {
+    if (sectionIds.length === 0) return [];
+
     const select = [
       SECTION_DESIGN_ATTRS.ID, SECTION_DESIGN_ATTRS.SECTION_ID_VALUE,
       SECTION_DESIGN_STYLE_ATTRS.BACKGROUND_COLOR, SECTION_DESIGN_STYLE_ATTRS.BORDER_STYLE,
@@ -72,10 +78,14 @@ export class SectionDesignRepository {
       SECTION_DESIGN_STYLE_ATTRS.HEADER_STYLE_JSON, SECTION_DESIGN_STYLE_ATTRS.CSS_CLASS,
     ].join(',');
 
+    const filter = sectionIds
+      .map(id => `${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} eq ${id}`)
+      .join(' or ');
+
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.SECTION_DESIGN,
-        `?$select=${select}&$filter=${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} ne null`
+        `?$select=${select}&$filter=${filter}`
       ),
       'getSectionDesigns'
     );

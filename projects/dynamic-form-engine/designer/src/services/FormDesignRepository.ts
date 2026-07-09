@@ -127,6 +127,8 @@ export class FormDesignRepository {
       id: String(record[FORM_DESIGN_ATTRS.ID] ?? ''),
       formDefinitionId: record[FORM_DESIGN_ATTRS.FORM_ID_VALUE] != null
         ? String(record[FORM_DESIGN_ATTRS.FORM_ID_VALUE]) : undefined,
+      themeId: record[FORM_DESIGN_ATTRS.THEME_ID_VALUE] != null
+        ? String(record[FORM_DESIGN_ATTRS.THEME_ID_VALUE]) : undefined,
       layoutType: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.LAYOUT_TYPE], PICKLIST_TO_LAYOUT, 'SingleColumn'),
       labelPosition: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.LABEL_POSITION], PICKLIST_TO_LABEL_POSITION, 'Top'),
       sectionStyle: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.SECTION_STYLE], PICKLIST_TO_SECTION_STYLE, 'Card'),
