@@ -44,13 +44,39 @@ namespace EDP.RuleRuntime.Compiler
                 diagnostics.Add(new RuleDiagnostic("EDP001", $"Target entity '{doc.TargetEntity}' not found in metadata.", RuleErrorSeverity.Warning));
                 return;
             }
-            foreach (var input in doc.Inputs.Where(i => !string.IsNullOrWhiteSpace(i.Binding)))
+            foreach (var input in doc.Inputs.Where(i => !string.IsNullOrWhiteSpace(i.Binding) || i.Aggregate != null))
             {
-                if (input.Via != null && !string.IsNullOrWhiteSpace(input.Via.Relationship))
+                if (input.Aggregate != null)
+                    ValidateAggregate(input, diagnostics);
+                else if (input.Via != null && !string.IsNullOrWhiteSpace(input.Via.Relationship))
                     ValidateRelatedBinding(doc.TargetEntity, input, diagnostics);
                 else if (!_metadata.TryGetAttribute(doc.TargetEntity, input.Binding!, out _))
                     diagnostics.Add(new RuleDiagnostic("EDP002", $"Field '{input.Binding}' not found on '{doc.TargetEntity}'.", RuleErrorSeverity.Error, input.Name));
             }
+        }
+
+        /// <summary>A 1:N aggregate input folds a child collection — validate against the child entity.</summary>
+        private void ValidateAggregate(PcrmInput input, List<RuleDiagnostic> diagnostics)
+        {
+            var agg = input.Aggregate!;
+            if (string.IsNullOrWhiteSpace(agg.ChildEntity) || !_metadata.EntityExists(agg.ChildEntity))
+            {
+                diagnostics.Add(new RuleDiagnostic("EDP008", $"Child entity '{agg.ChildEntity}' not found in metadata.", RuleErrorSeverity.Warning, input.Name));
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(agg.ChildLookup) || !_metadata.TryGetAttribute(agg.ChildEntity, agg.ChildLookup, out _))
+                diagnostics.Add(new RuleDiagnostic("EDP009", $"Lookup '{agg.ChildLookup}' not found on child entity '{agg.ChildEntity}'.", RuleErrorSeverity.Error, input.Name));
+
+            if (!string.Equals(agg.Function, "Count", StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrWhiteSpace(input.Binding))
+                    diagnostics.Add(new RuleDiagnostic("EDP012", $"Aggregate '{agg.Function}' needs a child field to aggregate.", RuleErrorSeverity.Error, input.Name));
+                else if (!_metadata.TryGetAttribute(agg.ChildEntity, input.Binding!, out _))
+                    diagnostics.Add(new RuleDiagnostic("EDP012", $"Field '{input.Binding}' not found on child entity '{agg.ChildEntity}'.", RuleErrorSeverity.Error, input.Name));
+            }
+
+            if (agg.Filter != null && !string.IsNullOrWhiteSpace(agg.Filter.Field) && !_metadata.TryGetAttribute(agg.ChildEntity, agg.Filter.Field, out _))
+                diagnostics.Add(new RuleDiagnostic("EDP013", $"Filter field '{agg.Filter.Field}' not found on child entity '{agg.ChildEntity}'.", RuleErrorSeverity.Error, input.Name));
         }
 
         /// <summary>An N:1 input binds to a field on the related entity, reached by a lookup on the anchor.</summary>

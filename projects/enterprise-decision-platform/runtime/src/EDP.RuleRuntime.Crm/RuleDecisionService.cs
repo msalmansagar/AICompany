@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
@@ -108,12 +109,91 @@ namespace EDP.RuleRuntime.Crm
             var inputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var input in doc.Inputs)
             {
+                if (input.Aggregate != null) { inputs[input.Name] = ResolveAggregate(target, input); continue; }
                 var binding = string.IsNullOrWhiteSpace(input.Binding) ? input.Name : input.Binding!;
                 var source = IsNavigated(input) ? relatedByRelationship[input.Via!.Relationship] : target;
                 var crmValue = source != null && source.Contains(binding) ? source[binding] : null;
                 inputs[input.Name] = CrmValueConverter.ToRuntime(crmValue);
             }
             return inputs;
+        }
+
+        /// <summary>
+        /// Fold an anchor's 1:N child collection into a scalar: query children by their lookup
+        /// back to the anchor, apply the optional single-condition filter in memory, then apply
+        /// the aggregate function. Empty collection is deterministic (Count/Sum 0, others null).
+        /// </summary>
+        private object? ResolveAggregate(Entity target, PcrmInput input)
+        {
+            var agg = input.Aggregate!;
+            var columns = new List<string>();
+            if (!string.IsNullOrWhiteSpace(input.Binding)) columns.Add(input.Binding!);
+            if (agg.Filter != null && !string.IsNullOrWhiteSpace(agg.Filter.Field)) columns.Add(agg.Filter.Field);
+
+            var query = new QueryExpression(agg.ChildEntity)
+            {
+                ColumnSet = columns.Count > 0 ? new ColumnSet(columns.Distinct().ToArray()) : new ColumnSet(false),
+                TopCount = 5000,
+                Criteria = { Conditions = { new ConditionExpression(agg.ChildLookup, ConditionOperator.Equal, target.Id) } },
+            };
+
+            IEnumerable<Entity> rows = _service.RetrieveMultiple(query).Entities;
+            if (agg.Filter != null && !string.IsNullOrWhiteSpace(agg.Filter.Field))
+                rows = rows.Where(r => MatchesFilter(r, agg.Filter));
+            return Fold(agg.Function, input.Binding, rows);
+        }
+
+        private static object? Fold(string function, string? binding, IEnumerable<Entity> rows)
+        {
+            var list = rows.ToList();
+            if (string.Equals(function, "Count", StringComparison.OrdinalIgnoreCase)) return list.Count;
+
+            var values = list
+                .Select(r => AsDecimal(binding != null && r.Contains(binding) ? r[binding] : null))
+                .Where(v => v.HasValue).Select(v => v!.Value).ToList();
+
+            switch (function.ToLowerInvariant())
+            {
+                case "sum": return values.Sum();
+                case "avg": return values.Count > 0 ? (object)(values.Sum() / values.Count) : null;
+                case "min": return values.Count > 0 ? (object)values.Min() : null;
+                case "max": return values.Count > 0 ? (object)values.Max() : null;
+                default: return null;
+            }
+        }
+
+        private static bool MatchesFilter(Entity row, PcrmAggregateFilter filter)
+        {
+            var raw = row.Contains(filter.Field) ? row[filter.Field] : null;
+            switch (filter.Operator)
+            {
+                case "GreaterThan": case "GreaterThanOrEqual": case "LessThan": case "LessThanOrEqual":
+                    var a = AsDecimal(raw); var b = FilterDecimal(filter.Value);
+                    if (!a.HasValue || !b.HasValue) return false;
+                    return filter.Operator == "GreaterThan" ? a > b
+                        : filter.Operator == "GreaterThanOrEqual" ? a >= b
+                        : filter.Operator == "LessThan" ? a < b : a <= b;
+                default: // Equals / NotEquals — compare textual form, case-insensitive
+                    var eq = string.Equals(CrmValueConverter.ToRuntime(raw)?.ToString() ?? "", FilterString(filter.Value), StringComparison.OrdinalIgnoreCase);
+                    return filter.Operator == "NotEquals" ? !eq : eq;
+            }
+        }
+
+        private static decimal? AsDecimal(object? raw)
+        {
+            var v = CrmValueConverter.ToRuntime(raw);
+            if (v == null) return null;
+            try { return Convert.ToDecimal(v); } catch { return null; }
+        }
+
+        private static string FilterString(JsonElement e)
+            => e.ValueKind == JsonValueKind.String ? (e.GetString() ?? "") : e.ValueKind == JsonValueKind.Null ? "" : e.GetRawText();
+
+        private static decimal? FilterDecimal(JsonElement e)
+        {
+            if (e.ValueKind == JsonValueKind.Number && e.TryGetDecimal(out var d)) return d;
+            if (e.ValueKind == JsonValueKind.String && decimal.TryParse(e.GetString(), out var s)) return s;
+            return null;
         }
 
         private static bool IsNavigated(PcrmInput input)

@@ -33,6 +33,34 @@ namespace EDP.RuleRuntime.Pcrm
         /// lookup <see cref="PcrmVia.Relationship"/>. Absent = the field is on the anchor entity.
         /// </summary>
         [JsonPropertyName("via")] public PcrmVia? Via { get; set; }
+
+        /// <summary>
+        /// Optional 1:N child aggregation. When present, this input resolves to a scalar folded
+        /// from the anchor's child collection; <see cref="Binding"/> is the child field to
+        /// aggregate (ignored for Count).
+        /// </summary>
+        [JsonPropertyName("aggregate")] public PcrmAggregate? Aggregate { get; set; }
+    }
+
+    /// <summary>Single-hop 1:N aggregation over an anchor's child collection.</summary>
+    public sealed class PcrmAggregate
+    {
+        /// <summary>Count | Sum | Avg | Min | Max.</summary>
+        [JsonPropertyName("function")] public string Function { get; set; } = "Count";
+        /// <summary>The 1:N child entity logical name (e.g. "qdb_collateral").</summary>
+        [JsonPropertyName("childEntity")] public string ChildEntity { get; set; } = "";
+        /// <summary>The lookup ON THE CHILD that points back to the anchor (e.g. "qdb_loanapplicationid").</summary>
+        [JsonPropertyName("childLookup")] public string ChildLookup { get; set; } = "";
+        /// <summary>Optional single-condition filter on child records.</summary>
+        [JsonPropertyName("filter")] public PcrmAggregateFilter? Filter { get; set; }
+    }
+
+    /// <summary>A single condition applied to child records before folding.</summary>
+    public sealed class PcrmAggregateFilter
+    {
+        [JsonPropertyName("field")] public string Field { get; set; } = "";
+        [JsonPropertyName("operator")] public string Operator { get; set; } = "Equals";
+        [JsonPropertyName("value")] public JsonElement Value { get; set; }
     }
 
     /// <summary>Single-hop N:1 navigation source for a related-entity input.</summary>
