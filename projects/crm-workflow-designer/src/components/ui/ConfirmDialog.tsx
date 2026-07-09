@@ -50,9 +50,9 @@ export function ConfirmDialogHost() {
 
   useEffect(() => {
     if (!request) return;
+    // Enter is handled natively by the autofocused confirm button; only wire Escape.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') settle(false);
-      else if (e.key === 'Enter') settle(true);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

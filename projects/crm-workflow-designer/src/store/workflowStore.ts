@@ -202,6 +202,27 @@ function remapOutcomeId(state: WorkflowDesignerState, tmpId: string, realId: str
   }
 }
 
+// selectedId stores canvas node/edge ids, which carry a type prefix
+// (e.g. "step_<crmId>"), unlike the raw crmId passed to resolveTemporaryId.
+const SELECTED_ID_PREFIX: Record<'step' | 'outcome' | 'route', string> = {
+  step: 'step_',
+  outcome: 'outcome_',
+  route: 'route_edge_',
+};
+
+/** Keeps the current selection pointed at an entity after its id resolves. */
+function remapSelectedId(
+  state: WorkflowDesignerState,
+  entityType: 'step' | 'outcome' | 'route',
+  tmpId: string,
+  realId: string
+): void {
+  const prefix = SELECTED_ID_PREFIX[entityType];
+  if (state.selectedId === `${prefix}${tmpId}`) {
+    state.selectedId = `${prefix}${realId}`;
+  }
+}
+
 /** Rewrites a route's temp id to its real id across all references. */
 function remapRouteId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
   const route = state.routes[tmpId];
@@ -725,7 +746,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           else if (entityType === 'outcome') remapOutcomeId(state, tmpId, realId);
           else if (entityType === 'route') remapRouteId(state, tmpId, realId);
           state.newIds = state.newIds.filter((id) => id !== tmpId);
-          if (state.selectedId === tmpId) state.selectedId = realId;
+          remapSelectedId(state, entityType, tmpId, realId);
         }),
 
       resetStore: () =>
