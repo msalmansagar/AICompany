@@ -28,8 +28,8 @@ export class LayoutGridRepository {
       return existingId;
     }
 
-    payload[LAYOUT_GRID_ATTRS.FORM_DESIGN_ID] = dto.formDesignId;
-    payload[LAYOUT_GRID_ATTRS.FORM_FIELD_ID] = dto.fieldId;
+    payload[`${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID}@odata.bind`] = `/qdb_form_designs(${dto.formDesignId})`;
+    payload[`${LAYOUT_GRID_ATTRS.FORM_FIELD_ID}@odata.bind`] = `/qdb_form_fields(${dto.fieldId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.LAYOUT_GRID, payload),
       'createLayoutGrid'
@@ -69,7 +69,7 @@ export class LayoutGridRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.LAYOUT_GRID,
-        `?$select=${LAYOUT_GRID_ATTRS.ID}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID} eq ${formDesignId} and ${LAYOUT_GRID_ATTRS.FORM_FIELD_ID} eq ${fieldId}&$top=1`
+        `?$select=${LAYOUT_GRID_ATTRS.ID}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID_VALUE} eq ${formDesignId} and ${LAYOUT_GRID_ATTRS.FORM_FIELD_ID_VALUE} eq ${fieldId}&$top=1`
       ),
       'findLayoutGrid'
     );

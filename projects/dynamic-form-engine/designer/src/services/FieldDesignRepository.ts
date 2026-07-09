@@ -44,7 +44,7 @@ export class FieldDesignRepository {
       return existingId;
     }
 
-    payload[FIELD_DESIGN_ATTRS.FIELD_ID] = dto.fieldId;
+    payload[`${FIELD_DESIGN_ATTRS.FIELD_ID}@odata.bind`] = `/qdb_form_fields(${dto.fieldId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FIELD_DESIGN, payload),
       'createFieldDesign'
@@ -98,7 +98,7 @@ export class FieldDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.FIELD_DESIGN,
-        `?$select=${FIELD_DESIGN_ATTRS.ID}&$filter=${FIELD_DESIGN_ATTRS.FIELD_ID} eq ${fieldId}&$top=1`
+        `?$select=${FIELD_DESIGN_ATTRS.ID}&$filter=${FIELD_DESIGN_ATTRS.FIELD_ID_VALUE} eq ${fieldId}&$top=1`
       ),
       'findFieldDesign'
     );
