@@ -33,8 +33,10 @@ namespace EDP.RuleRuntime.Operators
 
                 case "between": return Cmp(left, right, c => c >= 0) && Cmp(left, right2, c => c <= 0);
 
-                case "isnull": return RuntimeValue.IsNullOrEmpty(left);
-                case "isnotnull": return !RuntimeValue.IsNullOrEmpty(left);
+                // isnull is a STRICT null check (a field explicitly set to "" is not null);
+                // isempty treats both null and "" as empty (QA-M1).
+                case "isnull": return left == null;
+                case "isnotnull": return left != null;
                 case "isempty": return RuntimeValue.IsNullOrEmpty(left);
                 case "isnotempty": return !RuntimeValue.IsNullOrEmpty(left);
 

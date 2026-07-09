@@ -44,6 +44,23 @@ namespace EDP.RuleRuntime.Tests
         }
 
         [Fact]
+        public void IsNull_is_strict_and_distinct_from_IsEmpty() // QA-M1
+        {
+            Assert.True(OperatorEvaluator.Evaluate("IsNull", null, null));   // a real null is null
+            Assert.False(OperatorEvaluator.Evaluate("IsNull", "", null));    // an empty string is NOT null
+            Assert.True(OperatorEvaluator.Evaluate("IsEmpty", "", null));    // but it is empty
+            Assert.True(OperatorEvaluator.Evaluate("IsEmpty", null, null));  // null is also empty
+        }
+
+        [Theory] // QA-M2 — In/NotIn had no coverage
+        [InlineData("In", "Active", "Active,Pending,Closed", true)]
+        [InlineData("In", "Cancelled", "Active,Pending,Closed", false)]
+        [InlineData("NotIn", "Cancelled", "Active,Pending,Closed", true)]
+        [InlineData("NotIn", "Active", "Active,Pending,Closed", false)]
+        public void In_operators_match_comma_separated_lists(string op, string left, string list, bool expected)
+            => Assert.Equal(expected, OperatorEvaluator.Evaluate(op, left, list));
+
+        [Fact]
         public void Date_operators_order_by_instant()
         {
             var jan1 = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);

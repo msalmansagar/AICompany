@@ -149,7 +149,12 @@ namespace EDP.RuleRuntime.Crm.Governance
                 var v = _service.RetrieveMultiple(q).Entities.FirstOrDefault()?.GetAttributeValue<string>("value");
                 return v != null && (v.Equals("yes", StringComparison.OrdinalIgnoreCase) || v.Equals("true", StringComparison.OrdinalIgnoreCase));
             }
-            catch { return false; }
+            catch
+            {
+                // Fail SAFE (F-02): if we cannot read the production flag, assume production and
+                // ENFORCE segregation of duties rather than silently disabling it.
+                return true;
+            }
         }
 
         private void UpdateState(Guid ruleVersionId, int target)

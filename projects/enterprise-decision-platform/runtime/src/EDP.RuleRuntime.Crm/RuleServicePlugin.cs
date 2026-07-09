@@ -28,6 +28,7 @@ namespace EDP.RuleRuntime.Crm
     public sealed class RuleServicePlugin : IPlugin
     {
         private const int LifecyclePublished = 100000003;
+        private const int MaxPcrmJsonLength = 512_000; // guard against pathologically large payloads (F-08)
         private static readonly JsonSerializerOptions PcrmOptions =
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
@@ -68,7 +69,7 @@ namespace EDP.RuleRuntime.Crm
         /// <summary>Compile-and-validate a PCRM payload or stored version — no execution.</summary>
         private object ValidateRule(IOrganizationService service, IPluginExecutionContext context)
         {
-            var pcrmJson = ResolvePcrm(service, context);
+            var pcrmJson = ResolvePcrm(service, context, requirePublished: false);
             var doc = ParsePcrm(pcrmJson);
             var diagnostics = new RuleValidator(new OrgServiceMetadataResolver(service)).Validate(doc);
             var errors = diagnostics.Count(d => d.Severity == RuleErrorSeverity.Error);
@@ -84,7 +85,7 @@ namespace EDP.RuleRuntime.Crm
         /// <summary>Execute against supplied inputs WITHOUT writing durable audit (test tier).</summary>
         private object TestRule(IOrganizationService service, IPluginExecutionContext context)
         {
-            var pcrmJson = ResolvePcrm(service, context);
+            var pcrmJson = ResolvePcrm(service, context, requirePublished: false);
             var inputs = RuleDecisionService.ParseInputsJson(ParamString(context, "InputsJson"));
             var runtime = new RuleRuntimeService(new OrgServiceMetadataResolver(service));
             var result = runtime.TestRule(pcrmJson, inputs, DateTime.UtcNow);
@@ -94,7 +95,7 @@ namespace EDP.RuleRuntime.Crm
         /// <summary>Dedicated decision-table entry — same runtime; asserts table logic.</summary>
         private object ExecuteDecisionTable(IOrganizationService service, IPluginExecutionContext context)
         {
-            var pcrmJson = ResolvePcrm(service, context);
+            var pcrmJson = ResolvePcrm(service, context, requirePublished: true);
             var doc = ParsePcrm(pcrmJson);
             if (!string.Equals(doc.Logic.Type, "decisionTable", StringComparison.OrdinalIgnoreCase))
                 throw new InvalidPluginExecutionException("ExecuteDecisionTable requires a rule whose logic is a decision table.");
@@ -296,14 +297,26 @@ namespace EDP.RuleRuntime.Crm
 
         // ---- shared helpers ------------------------------------------------------------
 
-        /// <summary>PCRM source: explicit PcrmJson wins; else resolve from a saved version.</summary>
-        private string ResolvePcrm(IOrganizationService service, IPluginExecutionContext context)
+        /// <summary>
+        /// PCRM source: explicit PcrmJson wins; else resolve from a saved version. Execution ops
+        /// require the version to be Published (F-01); Validate/Test may resolve a Draft.
+        /// </summary>
+        private string ResolvePcrm(IOrganizationService service, IPluginExecutionContext context, bool requirePublished)
         {
             var pcrmJson = ParamString(context, "PcrmJson");
-            if (!string.IsNullOrWhiteSpace(pcrmJson)) return pcrmJson!;
+            if (!string.IsNullOrWhiteSpace(pcrmJson))
+            {
+                if (pcrmJson!.Length > MaxPcrmJsonLength)
+                    throw new InvalidPluginExecutionException($"PcrmJson exceeds the {MaxPcrmJsonLength} character limit.");
+                return pcrmJson;
+            }
             var ruleVersionId = ParamGuid(context, "RuleVersionId")
                                 ?? throw new InvalidPluginExecutionException("Provide PcrmJson or RuleVersionId.");
-            var record = service.Retrieve("qdb_edp_ruleversion", ruleVersionId, new ColumnSet("qdb_edp_pcrmjson"));
+            var record = service.Retrieve("qdb_edp_ruleversion", ruleVersionId, new ColumnSet("qdb_edp_pcrmjson", "qdb_edp_lifecyclestate"));
+
+            if (requirePublished && record.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value != LifecyclePublished)
+                throw new InvalidPluginExecutionException($"Rule version {ruleVersionId} is not Published and cannot be executed.");
+
             var pcrm = record.GetAttributeValue<string>("qdb_edp_pcrmjson");
             if (string.IsNullOrWhiteSpace(pcrm))
                 throw new InvalidPluginExecutionException($"Rule version {ruleVersionId} has no PCRM payload.");

@@ -158,7 +158,11 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void Resolves_pcrm_from_rule_version_record()
         {
             var fake = new FakeOrganizationService();
-            fake.RetrieveResults["qdb_edp_ruleversion"] = new Entity("qdb_edp_ruleversion") { ["qdb_edp_pcrmjson"] = DoaRule };
+            fake.RetrieveResults["qdb_edp_ruleversion"] = new Entity("qdb_edp_ruleversion")
+            {
+                ["qdb_edp_pcrmjson"] = DoaRule,
+                ["qdb_edp_lifecyclestate"] = new OptionSetValue(100000003), // Published — required for execution (F-01)
+            };
 
             var pcrm = NewService(fake).ResolvePcrm(Guid.NewGuid());
             Assert.Contains("DOA", pcrm);

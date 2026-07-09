@@ -26,6 +26,8 @@ namespace EDP.RuleRuntime.Crm
     /// </summary>
     public sealed class EvaluateDecisionPlugin : IPlugin
     {
+        private const int MaxPcrmJsonLength = 512_000; // guard against pathologically large payloads (F-08)
+
         public void Execute(IServiceProvider serviceProvider)
         {
             var context = (IPluginExecutionContext)serviceProvider.GetService(typeof(IPluginExecutionContext));
@@ -41,12 +43,17 @@ namespace EDP.RuleRuntime.Crm
 
                 Guid? ruleVersionId = string.IsNullOrWhiteSpace(ruleVersionIdStr) ? (Guid?)null : Guid.Parse(ruleVersionIdStr);
 
+                if (!string.IsNullOrEmpty(pcrmJson) && pcrmJson.Length > MaxPcrmJsonLength)     // F-08
+                    throw new InvalidPluginExecutionException($"PcrmJson exceeds the {MaxPcrmJsonLength} character limit.");
+                if (string.IsNullOrWhiteSpace(inputsJson) && targetRef == null)                 // QA-B1: avoid a null-ref crash
+                    throw new InvalidPluginExecutionException("Provide InputsJson (ad-hoc inputs) or TargetRef (a record to evaluate).");
+
                 var metadata = new OrgServiceMetadataResolver(service);
                 var decisionService = new RuleDecisionService(service, metadata, new DataverseTraceSink(service));
 
-                // PCRM source: explicit PcrmJson (live canvas) wins; else resolve from the saved version.
+                // PCRM source: explicit PcrmJson (live canvas) wins; else resolve the saved version (Published-gated).
                 var pcrm = !string.IsNullOrWhiteSpace(pcrmJson)
-                    ? pcrmJson
+                    ? pcrmJson!
                     : decisionService.ResolvePcrm(ruleVersionId ?? throw new InvalidPluginExecutionException("Provide PcrmJson or RuleVersionId."));
 
                 var result = !string.IsNullOrWhiteSpace(inputsJson)

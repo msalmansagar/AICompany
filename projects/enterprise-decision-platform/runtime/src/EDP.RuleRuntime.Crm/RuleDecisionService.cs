@@ -34,10 +34,20 @@ namespace EDP.RuleRuntime.Crm
             _trace = trace ?? throw new ArgumentNullException(nameof(trace));
         }
 
-        /// <summary>Retrieve the PCRM payload for a published rule version.</summary>
-        public string ResolvePcrm(Guid ruleVersionId)
+        private const int LifecyclePublished = 100000003;
+
+        /// <summary>
+        /// Retrieve the PCRM payload for a rule version. Execution paths require the version to be
+        /// Published (governance gate, F-01); only Validate/Test may resolve a Draft.
+        /// </summary>
+        public string ResolvePcrm(Guid ruleVersionId, bool requirePublished = true)
         {
-            var record = _service.Retrieve("qdb_edp_ruleversion", ruleVersionId, new Microsoft.Xrm.Sdk.Query.ColumnSet("qdb_edp_pcrmjson"));
+            var record = _service.Retrieve("qdb_edp_ruleversion", ruleVersionId,
+                new Microsoft.Xrm.Sdk.Query.ColumnSet("qdb_edp_pcrmjson", "qdb_edp_lifecyclestate"));
+
+            if (requirePublished && record.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value != LifecyclePublished)
+                throw new InvalidOperationException($"Rule version {ruleVersionId} is not Published and cannot be executed.");
+
             var pcrm = record.GetAttributeValue<string>("qdb_edp_pcrmjson");
             if (string.IsNullOrWhiteSpace(pcrm))
                 throw new InvalidOperationException($"Rule version {ruleVersionId} has no PCRM payload.");
