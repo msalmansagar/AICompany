@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogSurface,
-  DialogTitle,
   DialogBody,
+  DialogTitle,
+  DialogContent,
   DialogActions,
   Button,
   Spinner,
@@ -132,64 +133,66 @@ export function FetchXmlBuilderDialog({
   return (
     <Dialog open={open} onOpenChange={(_, data) => { if (!data.open) onDismiss(); }}>
       <DialogSurface style={dialogSurfaceStyle}>
-        <DialogTitle>FetchXML Filter Builder</DialogTitle>
         <DialogBody>
-          {builderPath === 'probing' && (
-            <div style={centerStyle}>
-              <Spinner size="medium" label="Detecting available builder..." />
-            </div>
-          )}
-
-          {builderPath === 'iframe' && (
-            <FetchXmlIframeBuilder
-              ref={iframeHandleRef}
-              clientUrl={clientUrl}
-              objectTypeCode={objectTypeCode}
-              initialFetchXml={currentFetchXml}
-              onError={handleIframeError}
-            />
-          )}
-
-          {builderPath === 'query-builder' && (
-            isLoadingAttributes ? (
+          <DialogTitle>FetchXML Filter Builder</DialogTitle>
+          <DialogContent>
+            {builderPath === 'probing' && (
               <div style={centerStyle}>
-                <Spinner size="small" label="Loading entity attributes..." />
+                <Spinner size="medium" label="Detecting available builder..." />
               </div>
-            ) : (
-              <FetchXmlQueryBuilder
-                attributes={attributes}
-                initialFetchXml={currentFetchXml}
-                onChange={handleFetchXmlChange}
-              />
-            )
-          )}
+            )}
 
-          {validationError && (
-            <p style={errorStyle} role="alert">
-              {validationError}
-            </p>
-          )}
+            {builderPath === 'iframe' && (
+              <FetchXmlIframeBuilder
+                ref={iframeHandleRef}
+                clientUrl={clientUrl}
+                objectTypeCode={objectTypeCode}
+                initialFetchXml={currentFetchXml}
+                onError={handleIframeError}
+              />
+            )}
+
+            {builderPath === 'query-builder' && (
+              isLoadingAttributes ? (
+                <div style={centerStyle}>
+                  <Spinner size="small" label="Loading entity attributes..." />
+                </div>
+              ) : (
+                <FetchXmlQueryBuilder
+                  attributes={attributes}
+                  initialFetchXml={currentFetchXml}
+                  onChange={handleFetchXmlChange}
+                />
+              )
+            )}
+
+            {validationError && (
+              <p style={errorStyle} role="alert">
+                {validationError}
+              </p>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button appearance="secondary" onClick={onDismiss}>
+              Cancel
+            </Button>
+            <Button
+              appearance="primary"
+              onClick={handleApply}
+              disabled={!!validationError || builderPath === 'probing'}
+            >
+              Apply
+            </Button>
+          </DialogActions>
         </DialogBody>
-        <DialogActions>
-          <Button appearance="secondary" onClick={onDismiss}>
-            Cancel
-          </Button>
-          <Button
-            appearance="primary"
-            onClick={handleApply}
-            disabled={!!validationError || builderPath === 'probing'}
-          >
-            Apply
-          </Button>
-        </DialogActions>
       </DialogSurface>
     </Dialog>
   );
 }
 
 const dialogSurfaceStyle: React.CSSProperties = {
-  width: '700px',
-  maxWidth: '90vw',
+  width: 'min(900px, 92vw)',
+  maxWidth: '92vw',
 };
 
 const centerStyle: React.CSSProperties = {
