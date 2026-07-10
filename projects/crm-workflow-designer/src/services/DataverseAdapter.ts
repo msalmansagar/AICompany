@@ -454,7 +454,7 @@ export class DataverseAdapter implements ISopAdapter {
       const meta = await this.resolveSystemEntityMeta();
       const url =
         `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}` +
-        `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr}` +
+        `/${meta.entitySetName}?$select=${meta.primaryIdAttr},${meta.primaryNameAttr},qdb_objecttypecode,crmi_logical_name` +
         `&$orderby=${meta.primaryNameAttr} asc&$top=5000`;
       const data = await withRetry(() =>
         fetch(url, { credentials: 'include', headers: buildODataHeaders() }).then((r) => {
@@ -465,6 +465,8 @@ export class DataverseAdapter implements ISopAdapter {
       return data.value.map((e) => ({
         id: normaliseGuid((e[meta.primaryIdAttr] as string) ?? ''),
         name: (e[meta.primaryNameAttr] as string) ?? '',
+        logicalName: (e['crmi_logical_name'] as string) ?? (e['qdb_entityschemaname'] as string) ?? '',
+        objectTypeCode: Number(e['qdb_objecttypecode'] ?? 0),
       }));
     } catch (err) {
       throw asError(err, 'getAutoNumberEntities');
