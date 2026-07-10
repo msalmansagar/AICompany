@@ -409,11 +409,13 @@ export class ODataAdapter implements ISopAdapter {
 
   async getAutoNumberEntities(): Promise<AutoNumberEntityOption[]> {
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.crmEntity}?$select=crmi_autonumber_system_entitiesid,crmi_name&$orderby=crmi_name asc&$top=5000`
+      `${ENTITY_SETS.crmEntity}?$select=crmi_autonumber_system_entitiesid,crmi_name,crmi_logical_name,qdb_objecttypecode&$orderby=crmi_name asc&$top=5000`
     );
     return data.value.map((e) => ({
       id: normaliseGuid((e['crmi_autonumber_system_entitiesid'] as string) ?? ''),
       name: (e['crmi_name'] as string) ?? '',
+      logicalName: (e['crmi_logical_name'] as string) ?? (e['qdb_entityschemaname'] as string) ?? '',
+      objectTypeCode: Number(e['qdb_objecttypecode'] ?? 0),
     }));
   }
 

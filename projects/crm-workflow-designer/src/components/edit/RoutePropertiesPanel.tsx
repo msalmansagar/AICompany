@@ -18,6 +18,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
   const [isFetchXmlOpen, setIsFetchXmlOpen] = useState(false);
   const [objectTypeCode, setObjectTypeCode] = useState(0);
+  const [entityLogicalName, setEntityLogicalName] = useState('');
   const [clientUrl, setClientUrl] = useState('');
 
   const route = routes[routeId] ?? null;
@@ -25,9 +26,15 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
   useEffect(() => {
     if (!process?.recordEntity) return;
-    adapter.getEntities().then((entities) => {
-      const entity = entities.find((e) => e.logicalName === process.recordEntity);
-      if (entity) setObjectTypeCode(entity.objectTypeCode);
+    // process.recordEntity is a lookup GUID into the autonumber system-entities
+    // table; that record carries the target entity's objectTypeCode + logical name.
+    const recordEntityId = process.recordEntity.replace(/[{}]/g, '').toLowerCase();
+    adapter.getAutoNumberEntities().then((entities) => {
+      const entity = entities.find((e) => e.id === recordEntityId);
+      if (entity) {
+        setObjectTypeCode(entity.objectTypeCode);
+        setEntityLogicalName(entity.logicalName);
+      }
     }).catch(() => void 0);
 
     try {
@@ -120,7 +127,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
       {isFetchXmlOpen && (
         <FetchXmlBuilderDialog
           open={isFetchXmlOpen}
-          entityLogicalName={process?.recordEntity ?? ''}
+          entityLogicalName={entityLogicalName}
           objectTypeCode={objectTypeCode}
           clientUrl={clientUrl}
           initialFetchXml={route.filter}

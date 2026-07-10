@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogSurface,
@@ -8,7 +8,7 @@ import {
   Button,
   Spinner,
 } from '@fluentui/react-components';
-import { FetchXmlIframeBuilder } from './FetchXmlIframeBuilder';
+import { FetchXmlIframeBuilder, type FetchXmlIframeHandle } from './FetchXmlIframeBuilder';
 import { FetchXmlQueryBuilder } from './FetchXmlQueryBuilder';
 import { validateFetchXml } from './fetchXmlFormatter';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
@@ -43,6 +43,7 @@ export function FetchXmlBuilderDialog({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [attributes, setAttributes] = useState<AttributeOption[]>([]);
   const [isLoadingAttributes, setIsLoadingAttributes] = useState(false);
+  const iframeHandleRef = useRef<FetchXmlIframeHandle>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -96,12 +97,24 @@ export function FetchXmlBuilderDialog({
   }, []);
 
   function handleApply(): void {
-    const error = validateFetchXml(currentFetchXml);
+    // The iframe builder holds the live query in the CRM control — read it on
+    // demand. The manual builder keeps currentFetchXml current via onChange.
+    let fetchXml = currentFetchXml;
+    if (builderPath === 'iframe') {
+      const read = iframeHandleRef.current?.readFetchXml() ?? null;
+      if (read === null) {
+        setValidationError('Could not read the condition from the CRM builder. Add at least one condition, or switch to the manual builder.');
+        return;
+      }
+      fetchXml = read;
+    }
+
+    const error = validateFetchXml(fetchXml);
     if (error) {
       setValidationError(error);
       return;
     }
-    onApply(currentFetchXml);
+    onApply(fetchXml);
     onDismiss();
   }
 
@@ -123,10 +136,10 @@ export function FetchXmlBuilderDialog({
 
           {builderPath === 'iframe' && (
             <FetchXmlIframeBuilder
+              ref={iframeHandleRef}
               clientUrl={clientUrl}
               objectTypeCode={objectTypeCode}
               initialFetchXml={currentFetchXml}
-              onChange={handleFetchXmlChange}
               onError={handleIframeError}
             />
           )}

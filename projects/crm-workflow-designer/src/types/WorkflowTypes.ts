@@ -42,6 +42,8 @@ export interface WorkflowStep {
 export interface AutoNumberEntityOption {
   id: string;
   name: string;
+  logicalName: string;
+  objectTypeCode: number;
 }
 
 export interface AutoNumberFieldOption {
