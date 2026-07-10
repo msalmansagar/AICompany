@@ -57,11 +57,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AuditImmutabilityPlugin.cs" />
+    <Compile Include="GetPublishedFormJsonPlugin.cs" />
     <Compile Include="PluginBase.cs" />
     <Compile Include="PublishFormPlugin.cs" />
-    <Compile Include="GetPublishedFormJsonPlugin.cs" />
-    <Compile Include="TranslationChangePlugin.cs" />
     <Compile Include="PublishOrchestrator.cs" />
+    <Compile Include="TranslationChangePlugin.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
