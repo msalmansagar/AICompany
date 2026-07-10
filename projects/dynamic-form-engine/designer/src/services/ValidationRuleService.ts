@@ -5,6 +5,7 @@ import { FORM_VALIDATION_RULE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerValidationRule, ValidationRuleType } from '@/state/models/DesignerRuleModel';
 import { withRetry } from './crmRetry';
 import { RULE_TYPE_TO_PICKLIST, PICKLIST_TO_RULE_TYPE } from '@/constants/attributeNames';
+import { toDataversePriority, fromDataversePriority } from './priorityCodec';
 
 export interface CreateValidationRuleDto {
   fieldId: string;
@@ -34,7 +35,7 @@ export class ValidationRuleService {
       [`${FORM_VALIDATION_RULE_ATTRS.FIELD_ID}@odata.bind`]: `/qdb_form_fields(${dto.fieldId})`,
       [FORM_VALIDATION_RULE_ATTRS.RULE_TYPE]: ruleTypeCode,
       [FORM_VALIDATION_RULE_ATTRS.ERROR_MESSAGE]: dto.errorMessage,
-      [FORM_VALIDATION_RULE_ATTRS.SORT_ORDER]: dto.sortOrder,
+      [FORM_VALIDATION_RULE_ATTRS.SORT_ORDER]: toDataversePriority(dto.sortOrder),
       ...buildRuleValuePayload(dto.ruleType, dto.ruleValue),
     };
     if (dto.customExpression != null) payload[FORM_VALIDATION_RULE_ATTRS.CUSTOM_EXPRESSION] = dto.customExpression;
@@ -51,7 +52,7 @@ export class ValidationRuleService {
     const data: Record<string, unknown> = {};
     if (dto.ruleType !== undefined) data[FORM_VALIDATION_RULE_ATTRS.RULE_TYPE] = RULE_TYPE_TO_PICKLIST[dto.ruleType] ?? RULE_TYPE_TO_PICKLIST['required'];
     if (dto.errorMessage !== undefined) data[FORM_VALIDATION_RULE_ATTRS.ERROR_MESSAGE] = dto.errorMessage;
-    if (dto.sortOrder !== undefined) data[FORM_VALIDATION_RULE_ATTRS.SORT_ORDER] = dto.sortOrder;
+    if (dto.sortOrder !== undefined) data[FORM_VALIDATION_RULE_ATTRS.SORT_ORDER] = toDataversePriority(dto.sortOrder);
     if (dto.ruleType !== undefined && dto.ruleValue !== undefined) {
       Object.assign(data, buildRuleValuePayload(dto.ruleType, dto.ruleValue));
     }
@@ -144,7 +145,7 @@ export class ValidationRuleService {
       ruleType,
       ruleValue: extractRuleValue(record, ruleType),
       errorMessage: String(record[FORM_VALIDATION_RULE_ATTRS.ERROR_MESSAGE] ?? ''),
-      sortOrder: Number(record[FORM_VALIDATION_RULE_ATTRS.SORT_ORDER] ?? 0),
+      sortOrder: fromDataversePriority(Number(record[FORM_VALIDATION_RULE_ATTRS.SORT_ORDER] ?? 1)),
       customExpression: record[FORM_VALIDATION_RULE_ATTRS.CUSTOM_EXPRESSION] != null
         ? String(record[FORM_VALIDATION_RULE_ATTRS.CUSTOM_EXPRESSION])
         : null,
