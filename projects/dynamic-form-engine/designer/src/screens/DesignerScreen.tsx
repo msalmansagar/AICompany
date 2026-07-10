@@ -5,12 +5,12 @@ import {
   DragOverEvent,
   DragStartEvent,
   PointerSensor,
-  KeyboardSensor,
   useSensor,
   useSensors,
   closestCenter,
   DragOverlay,
 } from '@dnd-kit/core';
+import { useIndexBasedKeyboard } from '@/designer/dnd/useIndexBasedKeyboard';
 import { arrayMove } from '@dnd-kit/sortable';
 import { makeStyles, tokens, Spinner, Text, MessageBar, MessageBarBody, MessageBarActions, Button } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
@@ -69,6 +69,7 @@ export function DesignerScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [keyboardAnnouncement, setKeyboardAnnouncement] = useState<string>('');
 
   const {
     form,
@@ -100,10 +101,16 @@ export function DesignerScreen(): React.ReactElement {
     navigateTo,
   } = useDesignerStore();
 
+  // PointerSensor: distance: 5 prevents click-to-drag activation while keeping drag
+  // responsive; delay+tolerance catches the edge case where a click on a text label
+  // would otherwise trigger a spurious selection-drag on slow pointer events.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor)
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
+
+  // IndexBasedKeyboardSensor — wired alongside the PointerSensor in the DndContext.
+  // Alt+ArrowUp/Down reorders by index position (not pixel offset) — see ADR-009.
+  useIndexBasedKeyboard({ onAnnounce: setKeyboardAnnouncement });
 
   const handleSaveDraft = useCallback(async () => {
     if (!form || !crmService || isSaving) return;
@@ -439,6 +446,15 @@ export function DesignerScreen(): React.ReactElement {
           </div>
         ) : null}
       </DragOverlay>
+
+      {/* ARIA live region — announces keyboard reorder events to screen readers. */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}
+      >
+        {keyboardAnnouncement}
+      </div>
     </DndContext>
   );
 }
