@@ -12,18 +12,61 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, CheckmarkRegular, DeleteRegular, DismissRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
-import type { DesignerValidationRule, ValidationRuleType } from '@/state/models/DesignerRuleModel';
+import type {
+  DesignerValidationRule,
+  ValidationRuleType,
+  StructuredCondition,
+  StructuredConditionOperator,
+  CrossFieldComparisonOperator,
+} from '@/state/models/DesignerRuleModel';
 
-const RULE_TYPES: Array<{ value: ValidationRuleType; label: string; hasValue: boolean; hasExpression: boolean }> = [
-  { value: 'required',           label: 'Required',              hasValue: false, hasExpression: false },
-  { value: 'min_length',         label: 'Min Length',            hasValue: true,  hasExpression: false },
-  { value: 'max_length',         label: 'Max Length',            hasValue: true,  hasExpression: false },
-  { value: 'regex',              label: 'Pattern (Regex)',        hasValue: true,  hasExpression: false },
-  { value: 'min_value',          label: 'Min Value',             hasValue: true,  hasExpression: false },
-  { value: 'max_value',          label: 'Max Value',             hasValue: true,  hasExpression: false },
-  // Sprint 3
-  { value: 'custom_expression',  label: 'Custom Expression',     hasValue: false, hasExpression: true  },
+// ── Rule type registry ─────────────────────────────────────────────────────────
+
+type RuleUiMode = 'value' | 'expression' | 'conditions' | 'crossField' | 'none';
+
+interface RuleTypeDef {
+  value: ValidationRuleType;
+  label: string;
+  mode: RuleUiMode;
+}
+
+const RULE_TYPES: RuleTypeDef[] = [
+  { value: 'required',              label: 'Required',              mode: 'none'       },
+  { value: 'min_length',            label: 'Min Length',            mode: 'value'      },
+  { value: 'max_length',            label: 'Max Length',            mode: 'value'      },
+  { value: 'regex',                 label: 'Pattern (Regex)',        mode: 'value'      },
+  { value: 'min_value',             label: 'Min Value',             mode: 'value'      },
+  { value: 'max_value',             label: 'Max Value',             mode: 'value'      },
+  { value: 'custom_expression',     label: 'Custom Expression',     mode: 'expression' },
+  // DFE-ENH-001 FR-006
+  { value: 'conditional_required',  label: 'Conditional Required',  mode: 'conditions' },
+  // DFE-ENH-001 FR-007
+  { value: 'cross_field',           label: 'Cross-Field Comparison', mode: 'crossField' },
 ];
+
+const CONDITION_OPERATORS: Array<{ value: StructuredConditionOperator; label: string }> = [
+  { value: 'equals',                label: 'equals'               },
+  { value: 'not_equals',            label: 'does not equal'       },
+  { value: 'greater_than',          label: 'is greater than'      },
+  { value: 'less_than',             label: 'is less than'         },
+  { value: 'greater_than_or_equal', label: 'is ≥'                 },
+  { value: 'less_than_or_equal',    label: 'is ≤'                 },
+  { value: 'is_empty',              label: 'is empty'             },
+  { value: 'is_not_empty',          label: 'is not empty'         },
+];
+
+const CROSS_FIELD_OPERATORS: Array<{ value: CrossFieldComparisonOperator; label: string }> = [
+  { value: '==', label: 'equals (==)'           },
+  { value: '!=', label: 'does not equal (!=)'   },
+  { value: '<',  label: 'is less than (<)'       },
+  { value: '<=', label: 'is less than or equal (≤)' },
+  { value: '>',  label: 'is greater than (>)'   },
+  { value: '>=', label: 'is greater than or equal (≥)' },
+];
+
+const OPERATORS_REQUIRING_NO_VALUE: StructuredConditionOperator[] = ['is_empty', 'is_not_empty'];
+
+// ── Styles ─────────────────────────────────────────────────────────────────────
 
 const useStyles = makeStyles({
   root: {
@@ -54,9 +97,18 @@ const useStyles = makeStyles({
     gap: '6px',
     justifyContent: 'flex-end',
   },
-  ruleTypeBadge: {
-    flexShrink: 0,
+  conditionRow: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: '6px',
+    padding: '6px 8px',
+    backgroundColor: tokens.colorNeutralBackground4,
+    borderRadius: '4px',
   },
+  conditionRowField: { flex: 2 },
+  conditionRowOp:    { flex: 2 },
+  conditionRowVal:   { flex: 2 },
+  ruleTypeBadge: { flexShrink: 0 },
   ruleMessage: {
     flex: 1,
     fontSize: '12px',
@@ -67,6 +119,163 @@ const useStyles = makeStyles({
   },
 });
 
+// ── Condition builder (for conditional_required) ───────────────────────────────
+
+interface ConditionBuilderProps {
+  conditions: StructuredCondition[];
+  allFieldCodes: string[];
+  onChange: (conditions: StructuredCondition[]) => void;
+}
+
+function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuilderProps): React.ReactElement {
+  const styles = useStyles();
+
+  function addCondition(): void {
+    onChange([
+      ...conditions,
+      { fieldRef: allFieldCodes[0] ?? '', operator: 'equals', value: '' },
+    ]);
+  }
+
+  function removeCondition(index: number): void {
+    onChange(conditions.filter((_, i) => i !== index));
+  }
+
+  function updateConditionField(index: number, fieldRef: string): void {
+    onChange(conditions.map((c, i) => i === index ? { ...c, fieldRef } : c));
+  }
+
+  function updateConditionOperator(index: number, operator: StructuredConditionOperator): void {
+    const needsValue = !OPERATORS_REQUIRING_NO_VALUE.includes(operator);
+    onChange(conditions.map((c, i) => i === index ? { ...c, operator, value: needsValue ? (c.value ?? '') : null } : c));
+  }
+
+  function updateConditionValue(index: number, value: string): void {
+    onChange(conditions.map((c, i) => i === index ? { ...c, value } : c));
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <Text size={200} weight="semibold">Conditions (all must be true)</Text>
+        <Button appearance="subtle" size="small" icon={<AddRegular />} onClick={addCondition}>
+          Add Condition
+        </Button>
+      </div>
+
+      {conditions.length === 0 && (
+        <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+          No conditions — field will always be required. Add at least one condition.
+        </Text>
+      )}
+
+      {conditions.map((condition, index) => {
+        const showValue = !OPERATORS_REQUIRING_NO_VALUE.includes(condition.operator);
+        return (
+          <div key={index} className={styles.conditionRow}>
+            <div className={styles.conditionRowField}>
+              <Field label="Field">
+                <Select
+                  value={condition.fieldRef}
+                  onChange={(_, d) => updateConditionField(index, d.value)}
+                >
+                  {allFieldCodes.map(code => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className={styles.conditionRowOp}>
+              <Field label="Operator">
+                <Select
+                  value={condition.operator}
+                  onChange={(_, d) => updateConditionOperator(index, d.value as StructuredConditionOperator)}
+                >
+                  {CONDITION_OPERATORS.map(op => (
+                    <option key={op.value} value={op.value}>{op.label}</option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            {showValue && (
+              <div className={styles.conditionRowVal}>
+                <Field label="Value">
+                  <Input
+                    value={condition.value ?? ''}
+                    onChange={(_, d) => updateConditionValue(index, d.value)}
+                    placeholder="comparison value"
+                  />
+                </Field>
+              </div>
+            )}
+            <Button
+              appearance="subtle"
+              size="small"
+              icon={<DeleteRegular />}
+              aria-label="Remove condition"
+              onClick={() => removeCondition(index)}
+              style={{ alignSelf: 'flex-end', marginBottom: '2px' }}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Cross-field editor (for cross_field) ───────────────────────────────────────
+
+interface CrossFieldEditorProps {
+  sourceFieldLabel: string;
+  operator: CrossFieldComparisonOperator;
+  targetFieldRef: string;
+  allFieldCodes: string[];
+  onOperatorChange: (op: CrossFieldComparisonOperator) => void;
+  onTargetChange: (fieldRef: string) => void;
+}
+
+function CrossFieldEditor({
+  sourceFieldLabel,
+  operator,
+  targetFieldRef,
+  allFieldCodes,
+  onOperatorChange,
+  onTargetChange,
+}: CrossFieldEditorProps): React.ReactElement {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <Field label="Source field (this field)">
+        <Input value={sourceFieldLabel} readOnly />
+      </Field>
+      <Field label="Operator">
+        <Select
+          value={operator}
+          onChange={(_, d) => onOperatorChange(d.value as CrossFieldComparisonOperator)}
+        >
+          {CROSS_FIELD_OPERATORS.map(op => (
+            <option key={op.value} value={op.value}>{op.label}</option>
+          ))}
+        </Select>
+      </Field>
+      <Field label="Compare against">
+        <Select
+          value={targetFieldRef}
+          onChange={(_, d) => onTargetChange(d.value)}
+        >
+          {allFieldCodes.length === 0 && (
+            <option value="">No other fields available</option>
+          )}
+          {allFieldCodes.map(code => (
+            <option key={code} value={code}>{code}</option>
+          ))}
+        </Select>
+      </Field>
+    </div>
+  );
+}
+
+// ── AddRuleForm ────────────────────────────────────────────────────────────────
+
 function generateRuleId(): string {
   return `tmp_vr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -75,28 +284,53 @@ interface AddRuleFormProps {
   onSave: (rule: DesignerValidationRule) => void;
   onCancel: () => void;
   fieldId: string;
+  fieldCode: string;
   sortOrder: number;
+  otherFieldCodes: string[];
 }
 
-function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps): React.ReactElement {
+function AddRuleForm({
+  onSave,
+  onCancel,
+  fieldId,
+  fieldCode,
+  sortOrder,
+  otherFieldCodes,
+}: AddRuleFormProps): React.ReactElement {
   const styles = useStyles();
   const [ruleType, setRuleType] = useState<ValidationRuleType>('required');
   const [ruleValue, setRuleValue] = useState('');
   const [customExpression, setCustomExpression] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [conditions, setConditions] = useState<StructuredCondition[]>([]);
+  const [crossFieldOperator, setCrossFieldOperator] = useState<CrossFieldComparisonOperator>('==');
+  const [crossFieldTargetRef, setCrossFieldTargetRef] = useState(otherFieldCodes[0] ?? '');
 
   const selectedTypeDef = RULE_TYPES.find(rt => rt.value === ruleType);
+  const mode = selectedTypeDef?.mode ?? 'none';
+
+  function handleRuleTypeChange(newType: ValidationRuleType): void {
+    setRuleType(newType);
+    setRuleValue('');
+    setCustomExpression('');
+    setConditions([]);
+    setCrossFieldOperator('==');
+    setCrossFieldTargetRef(otherFieldCodes[0] ?? '');
+  }
 
   function handleSave(): void {
     const newRule: DesignerValidationRule = {
       id: generateRuleId(),
       fieldId,
       ruleType,
-      ruleValue: selectedTypeDef?.hasValue ? ruleValue : null,
+      ruleValue: mode === 'value' ? ruleValue : null,
       errorMessage: errorMessage || `${selectedTypeDef?.label ?? ruleType} validation failed`,
       sortOrder,
-      customExpression: selectedTypeDef?.hasExpression ? customExpression : null,
+      customExpression: mode === 'expression' ? customExpression : null,
       ruleTemplateId: null,
+      conditions: mode === 'conditions' ? conditions : [],
+      crossFieldOperator: mode === 'crossField' ? crossFieldOperator : null,
+      crossFieldTargetRef: mode === 'crossField' ? crossFieldTargetRef : null,
     };
     onSave(newRule);
   }
@@ -106,11 +340,7 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
       <Field label="Rule Type">
         <Select
           value={ruleType}
-          onChange={(_, d) => {
-            setRuleType(d.value as ValidationRuleType);
-            setRuleValue('');
-            setCustomExpression('');
-          }}
+          onChange={(_, d) => handleRuleTypeChange(d.value as ValidationRuleType)}
         >
           {RULE_TYPES.map(rt => (
             <option key={rt.value} value={rt.value}>{rt.label}</option>
@@ -118,7 +348,7 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
         </Select>
       </Field>
 
-      {selectedTypeDef?.hasValue && (
+      {mode === 'value' && (
         <Field label="Rule Value">
           <Input
             value={ruleValue}
@@ -128,7 +358,7 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
         </Field>
       )}
 
-      {selectedTypeDef?.hasExpression && (
+      {mode === 'expression' && (
         <Field label="Expression" hint="Reference field values as {fieldSchemaName}. E.g. {amount} > 1000">
           <Textarea
             value={customExpression}
@@ -139,11 +369,30 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
         </Field>
       )}
 
-      <Field label="Error Message">
+      {mode === 'conditions' && (
+        <ConditionBuilder
+          conditions={conditions}
+          allFieldCodes={otherFieldCodes}
+          onChange={setConditions}
+        />
+      )}
+
+      {mode === 'crossField' && (
+        <CrossFieldEditor
+          sourceFieldLabel={fieldCode}
+          operator={crossFieldOperator}
+          targetFieldRef={crossFieldTargetRef}
+          allFieldCodes={otherFieldCodes}
+          onOperatorChange={setCrossFieldOperator}
+          onTargetChange={setCrossFieldTargetRef}
+        />
+      )}
+
+      <Field label={mode === 'conditions' ? 'Required message (optional)' : 'Error Message'}>
         <Input
           value={errorMessage}
           onChange={(_, d) => setErrorMessage(d.value)}
-          placeholder="e.g. This field is required"
+          placeholder={mode === 'conditions' ? 'e.g. This field is required for secured loans' : 'e.g. This field is required'}
         />
       </Field>
 
@@ -159,6 +408,8 @@ function AddRuleForm({ onSave, onCancel, fieldId, sortOrder }: AddRuleFormProps)
   );
 }
 
+// ── ValidationRulesPanel ───────────────────────────────────────────────────────
+
 interface ValidationRulesPanelProps {
   fieldId: string;
 }
@@ -166,11 +417,19 @@ interface ValidationRulesPanelProps {
 export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): React.ReactElement {
   const styles = useStyles();
   const validationRules = useDesignerStore(s => s.validationRules);
+  const fields = useDesignerStore(s => s.fields);
   const [showAddForm, setShowAddForm] = useState(false);
 
   const fieldRules = Object.values(validationRules)
     .filter(r => r.fieldId === fieldId)
     .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const currentField = fields[fieldId];
+  const currentFieldCode = currentField?.code ?? '';
+  const otherFieldCodes = Object.values(fields)
+    .filter(f => f.id !== fieldId)
+    .map(f => f.code)
+    .sort();
 
   const handleSaveRule = useCallback((newRule: DesignerValidationRule) => {
     const state = useDesignerStore.getState();
@@ -224,6 +483,9 @@ export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): Re
           {rule.ruleValue && (
             <Text size={200} font="monospace">{rule.ruleValue}</Text>
           )}
+          {rule.crossFieldTargetRef && (
+            <Text size={200} font="monospace">{rule.crossFieldOperator} {rule.crossFieldTargetRef}</Text>
+          )}
           <span className={styles.ruleMessage} title={rule.errorMessage}>
             {rule.errorMessage}
           </span>
@@ -240,7 +502,9 @@ export function ValidationRulesPanel({ fieldId }: ValidationRulesPanelProps): Re
       {showAddForm && (
         <AddRuleForm
           fieldId={fieldId}
+          fieldCode={currentFieldCode}
           sortOrder={fieldRules.length}
+          otherFieldCodes={otherFieldCodes}
           onSave={handleSaveRule}
           onCancel={() => setShowAddForm(false)}
         />
