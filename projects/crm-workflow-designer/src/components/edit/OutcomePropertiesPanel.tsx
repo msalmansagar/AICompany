@@ -36,6 +36,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
   const [newRouteName, setNewRouteName] = useState('');
   const [newRouteTarget, setNewRouteTarget] = useState<string>('__end__');
   const [newRouteIsFallback, setNewRouteIsFallback] = useState(false);
+  const [addRouteError, setAddRouteError] = useState<string | null>(null);
 
   const rawId = outcomeId?.replace('outcome_', '') ?? null;
   const outcome = rawId ? outcomes[rawId] : null;
@@ -61,6 +62,13 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
     .filter((s) => s !== undefined);
 
   const handleAddRoute = () => {
+    // A route persists as a qdb_outcomeworktasks record only if it targets a
+    // real step — the save path skips routes with no next step, so block here
+    // with a clear message rather than letting the route silently vanish.
+    if (newRouteTarget === '__end__') {
+      setAddRouteError('A route must lead to a step. Pick a target step — routes to "End" cannot be saved.');
+      return;
+    }
     const maxSeq = outcomeRoutes.reduce((m, r) => Math.max(m, r.sequenceNumber), 0);
     const routeId = `tmp_${crypto.randomUUID()}`;
     addRoute({
@@ -68,15 +76,16 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
       name: newRouteName.trim(),
       subject: '',
       sequenceNumber: maxSeq + 1,
-      filter: newRouteIsFallback ? '' : '',
+      filter: '',
       outcomeId: outcome.crmId,
-      nextStepId: newRouteTarget === '__end__' ? null : newRouteTarget,
+      nextStepId: newRouteTarget,
     });
     selectNode(`route_edge_${routeId}`);
     setAddingRoute(false);
     setNewRouteName('');
     setNewRouteTarget('__end__');
     setNewRouteIsFallback(false);
+    setAddRouteError(null);
   };
 
   const handleToggleConditional = () => {
@@ -195,7 +204,10 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
                 <label style={labelStyle}>Goes to</label>
                 <select
                   value={newRouteTarget}
-                  onChange={(e) => setNewRouteTarget(e.target.value)}
+                  onChange={(e) => {
+                    setNewRouteTarget(e.target.value);
+                    if (e.target.value !== '__end__') setAddRouteError(null);
+                  }}
                   style={selectStyle}
                 >
                   <option value="__end__">— End —</option>
@@ -205,6 +217,9 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
                     </option>
                   ))}
                 </select>
+                {addRouteError && (
+                  <span style={addRouteErrorStyle} role="alert">{addRouteError}</span>
+                )}
                 <label style={checkRowStyle}>
                   <input
                     type="checkbox"
@@ -220,7 +235,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
                   <button
                     type="button"
                     style={cancelBtnStyle}
-                    onClick={() => setAddingRoute(false)}
+                    onClick={() => { setAddingRoute(false); setAddRouteError(null); }}
                   >
                     Cancel
                   </button>
@@ -230,7 +245,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
               <button
                 type="button"
                 style={addRouteBtnStyle}
-                onClick={() => setAddingRoute(true)}
+                onClick={() => { setAddingRoute(true); setAddRouteError(null); }}
               >
                 + Add Route
               </button>
@@ -462,6 +477,12 @@ const checkRowStyle: React.CSSProperties = {
 const checkLabelStyle: React.CSSProperties = {
   fontSize: 11,
   color: '#94a3b8',
+};
+
+const addRouteErrorStyle: React.CSSProperties = {
+  fontSize: 10,
+  color: '#f87171',
+  lineHeight: 1.4,
 };
 
 const addFormActionsStyle: React.CSSProperties = {
