@@ -1,0 +1,57 @@
+name: EDP-BRE CI
+
+on:
+  push:
+    branches: [feat/edp-bre-001, main]
+    paths: ['projects/enterprise-decision-platform/**', '.github/workflows/edp-ci.yml']
+  pull_request:
+    branches: [main]
+    paths: ['projects/enterprise-decision-platform/**', '.github/workflows/edp-ci.yml']
+
+jobs:
+  runtime-net9:
+    name: Runtime tests (net9, Linux)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/enterprise-decision-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Test EDP.RuleRuntime.Tests (net9.0)
+        run: dotnet test runtime/tests/EDP.RuleRuntime.Tests -c Release --nologo
+
+  runtime-net462:
+    name: Runtime tests (net9 + net462, Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: projects/enterprise-decision-platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      # windows-latest ships the .NET Framework runtime, so the net462 CRM-adapter tests
+      # (governance, aggregation, navigation, lifecycle gate) actually execute here.
+      - name: Test full runtime solution (net9.0 + net462)
+        run: dotnet test runtime/EDP.RuleRuntime.slnx -c Release --nologo
+
+  designer:
+    name: Designer (typecheck + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/enterprise-decision-platform/designer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - name: Type-check + build
+        run: npm run build
+      - name: Unit tests (vitest)
+        run: npm test

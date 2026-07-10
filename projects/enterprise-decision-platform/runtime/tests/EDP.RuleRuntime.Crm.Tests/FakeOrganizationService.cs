@@ -38,6 +38,8 @@ namespace EDP.RuleRuntime.Crm.Tests
             throw new InvalidOperationException($"No seeded record for '{entityName}'.");
         }
 
+        public bool ThrowConcurrencyOnUpdate;
+
         public OrganizationResponse Execute(OrganizationRequest request)
         {
             if (request is RetrieveEntityRequest re)
@@ -45,6 +47,12 @@ namespace EDP.RuleRuntime.Crm.Tests
                 if (!Metadata.TryGetValue(re.LogicalName, out var md))
                     throw new InvalidOperationException($"No seeded metadata for '{re.LogicalName}'.");
                 return new RetrieveEntityResponse { Results = new ParameterCollection { { "EntityMetadata", md } } };
+            }
+            if (request is UpdateRequest ur)
+            {
+                if (ThrowConcurrencyOnUpdate) throw new InvalidOperationException("Simulated concurrency version mismatch.");
+                Updated.Add(ur.Target);
+                return new UpdateResponse();
             }
             throw new NotImplementedException($"Fake does not handle {request.RequestName}.");
         }

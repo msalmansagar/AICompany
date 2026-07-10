@@ -33,6 +33,22 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
         """;
 
+        // Same decision table with no formula variable — exercises the adapter/execution path
+        // without pulling NCalc's modern dependency closure into the net462 test host.
+        // Formula/NCalc evaluation is covered by the net9 FormulaEngine + executor tests.
+        private const string TableNoFormulaPcrm = """
+        {
+          "ruleId": "loan", "name": "Loan Approval", "targetEntity": "qdb_loanapplication",
+          "inputs": [ { "name": "loanAmount", "type": "Currency", "binding": "qdb_loanamount" } ],
+          "variables": [],
+          "outputs": [ { "name": "approvalLevel", "type": "Text" } ],
+          "logic": { "type": "decisionTable", "hitPolicy": "First",
+            "tableInputs": [ { "field": "loanAmount" } ],
+            "outputColumns": [ "approvalLevel" ],
+            "rows": [ { "priority": 1, "cells": [ { "operator": "GreaterThan", "value": 500000 } ], "outputs": { "approvalLevel": "CEO" } } ] }
+        }
+        """;
+
         private const string ConditionPcrm = """
         {
           "ruleId": "doa", "name": "DOA", "targetEntity": "qdb_loanapplication",
@@ -111,7 +127,7 @@ namespace EDP.RuleRuntime.Crm.Tests
         public void TestRule_executes_against_supplied_inputs()
         {
             var json = InvokeResult(new RuleServicePlugin(), WithLoanMetadata(), "qdb_edp_TestRule",
-                ("PcrmJson", TablePcrm), ("InputsJson", "{\"loanAmount\":600000,\"riskRating\":\"High\"}"));
+                ("PcrmJson", TableNoFormulaPcrm), ("InputsJson", "{\"loanAmount\":600000,\"riskRating\":\"High\"}"));
             var root = Root(json);
             Assert.True(root.GetProperty("matched").GetBoolean());
             Assert.Equal("CEO", root.GetProperty("outputs").GetProperty("approvalLevel").GetString());

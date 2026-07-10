@@ -79,5 +79,18 @@ namespace EDP.RuleRuntime.Crm.Tests
             gov.PerformAction(id, "Reject", "needs work", Guid.NewGuid());
             Assert.Equal(Draft, UpdatedState(fake));
         }
+
+        [Fact]
+        public void Concurrent_action_is_rejected_and_records_nothing() // M3 — optimistic concurrency
+        {
+            var (fake, gov, id) = Setup(InReview);
+            fake.ThrowConcurrencyOnUpdate = true; // the version row changed under us (a racing approval)
+
+            var ex = Assert.Throws<InvalidOperationException>(() => gov.PerformAction(id, "Approve", "business ok", Guid.NewGuid()));
+
+            Assert.Contains("Concurrent governance action", ex.Message);
+            // the optimistic touch runs BEFORE the write, so no duplicate approval/audit is created
+            Assert.DoesNotContain(fake.Created, e => e.LogicalName == "qdb_edp_ruleapproval");
+        }
     }
 }

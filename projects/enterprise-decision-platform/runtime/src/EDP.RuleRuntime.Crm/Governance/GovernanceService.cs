@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
+using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime.Crm.Sinks;
 
@@ -48,15 +49,16 @@ namespace EDP.RuleRuntime.Crm.Governance
         {
             var version = _service.Retrieve("qdb_edp_ruleversion", ruleVersionId, new ColumnSet("qdb_edp_lifecyclestate"));
             var current = version.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value ?? Draft;
+            var rowVersion = version.RowVersion; // optimistic-concurrency token (M3)
             var act = (action ?? "").Trim().ToLowerInvariant();
 
             return act == "approve"
-                ? Approve(ruleVersionId, current, comments, actorId)
-                : SimpleTransition(ruleVersionId, act, current, comments, actorId);
+                ? Approve(ruleVersionId, rowVersion, current, comments, actorId)
+                : SimpleTransition(ruleVersionId, rowVersion, act, current, comments, actorId);
         }
 
         // Business then Technical. First approval keeps the version In Review; the second moves it to Approved.
-        private GovernanceResult Approve(Guid ruleVersionId, int current, string? comments, Guid actorId)
+        private GovernanceResult Approve(Guid ruleVersionId, string rowVersion, int current, string? comments, Guid actorId)
         {
             if (current != InReview) throw new InvalidOperationException($"Approve is not allowed from state '{Label(current)}'.");
 
@@ -68,7 +70,10 @@ namespace EDP.RuleRuntime.Crm.Governance
             EnforceSoD(ruleVersionId, cycle, actorId, stage);
 
             var target = approvedSoFar == 0 ? InReview : Approved; // second approval completes review
-            if (target != current) UpdateState(ruleVersionId, target);
+            // Touch the version under optimistic concurrency BEFORE recording the approval. Two
+            // concurrent approvals read the same row version; only the first touch succeeds, so the
+            // second is rejected instead of producing a duplicate approval / double transition (M3).
+            TouchVersionOptimistic(ruleVersionId, rowVersion, target);
             CreateApproval(ruleVersionId, ApApproved, stage, comments, actorId);
             WriteAudit(ruleVersionId, stage, current, target, comments, actorId);
 
@@ -76,7 +81,7 @@ namespace EDP.RuleRuntime.Crm.Governance
                 Message = $"{stage} recorded. State: {Label(target)}" };
         }
 
-        private GovernanceResult SimpleTransition(Guid ruleVersionId, string act, int current, string? comments, Guid actorId)
+        private GovernanceResult SimpleTransition(Guid ruleVersionId, string rowVersion, string act, int current, string? comments, Guid actorId)
         {
             var (target, approvalStatus, stage) = act switch
             {
@@ -87,7 +92,7 @@ namespace EDP.RuleRuntime.Crm.Governance
                 _ => throw new InvalidOperationException($"Unknown governance action '{act}'.")
             };
 
-            UpdateState(ruleVersionId, target);
+            TouchVersionOptimistic(ruleVersionId, rowVersion, target);
             if (approvalStatus.HasValue) CreateApproval(ruleVersionId, approvalStatus.Value, stage, comments, actorId);
             WriteAudit(ruleVersionId, stage, current, target, comments, actorId);
             return new GovernanceResult { Success = true, Stage = stage, NewState = Label(target), Message = $"{stage}: {Label(current)} -> {Label(target)}" };
@@ -157,8 +162,21 @@ namespace EDP.RuleRuntime.Crm.Governance
             }
         }
 
-        private void UpdateState(Guid ruleVersionId, int target)
-            => _service.Update(new Entity("qdb_edp_ruleversion", ruleVersionId) { ["qdb_edp_lifecyclestate"] = new OptionSetValue(target) });
+        // Set the version state under optimistic concurrency. Serializes governance actions per
+        // version (M3): if the row changed since it was read, the update is rejected as a conflict.
+        private void TouchVersionOptimistic(Guid ruleVersionId, string rowVersion, int target)
+        {
+            var update = new Entity("qdb_edp_ruleversion", ruleVersionId) { ["qdb_edp_lifecyclestate"] = new OptionSetValue(target) };
+            if (!string.IsNullOrEmpty(rowVersion)) update.RowVersion = rowVersion;
+            try
+            {
+                _service.Execute(new UpdateRequest { Target = update, ConcurrencyBehavior = ConcurrencyBehavior.IfRowVersionMatches });
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException("Concurrent governance action detected — the rule version changed during this action. Please retry.", ex);
+            }
+        }
 
         private void CreateApproval(Guid ruleVersionId, int status, string stage, string? comments, Guid actorId)
             => _service.Create(new Entity("qdb_edp_ruleapproval")
