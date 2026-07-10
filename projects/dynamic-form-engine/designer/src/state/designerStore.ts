@@ -11,6 +11,7 @@ import type {
   DesignPayload, ThemeDefinition, FormDesign, SectionDesign,
   FieldDesign, ButtonDesign, ButtonType, LayoutGrid,
 } from '@qdb/shared';
+import type { ActiveEditor } from '@/services/presence/EditLockService';
 
 export type DesignerScreen =
   | 'form-list'
@@ -31,6 +32,13 @@ export type DesignerScreen =
 
 export type CanvasItemType = 'form' | 'tab' | 'section' | 'field';
 export type PreviewBreakpoint = 'desktop' | 'tablet' | 'mobile';
+
+export interface ConcurrencyConflictState {
+  entityLogicalName: string;
+  recordId: string;
+  localEtag: string;
+  conflictTimestamp: Date;
+}
 
 /** Snapshot used for undo/redo — captures the mutable parts of the state */
 interface DesignerStateSnapshot {
@@ -179,6 +187,19 @@ export interface DesignerState {
 
   // Canvas tab tracking
   setActiveCanvasTab: (tabId: string) => void;
+
+  // Optimistic concurrency — etags keyed by CRM record GUID
+  recordEtags: Record<string, string>;
+  conflictState: ConcurrencyConflictState | null;
+
+  // Presence — other active editors for the current form
+  presenceEditors: ActiveEditor[];
+
+  // Concurrency actions
+  setRecordEtag: (id: string, etag: string) => void;
+  clearRecordEtag: (id: string) => void;
+  setConflictState: (conflict: ConcurrencyConflictState | null) => void;
+  setPresenceEditors: (editors: ActiveEditor[]) => void;
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
@@ -302,6 +323,9 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   isPublishing: false,
   lastSavedAt: null,
   previewMode: null,
+  recordEtags: {},
+  conflictState: null,
+  presenceEditors: [],
 
   navigateTo: (screen) => set({ currentScreen: screen }),
 
@@ -829,6 +853,24 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
   setPreviewMode: (mode) => set({ previewMode: mode }),
   setActiveCanvasTab: (tabId) => set({ activeCanvasTabId: tabId }),
+
+  setRecordEtag: (id, etag) =>
+    set(
+      produce((state: DesignerState) => {
+        state.recordEtags[id] = etag;
+      })
+    ),
+
+  clearRecordEtag: (id) =>
+    set(
+      produce((state: DesignerState) => {
+        delete state.recordEtags[id];
+      })
+    ),
+
+  setConflictState: (conflict) => set({ conflictState: conflict }),
+
+  setPresenceEditors: (editors) => set({ presenceEditors: editors }),
 }));
 
 /** Convenience selectors */

@@ -5,7 +5,9 @@ import type {
   WebApiRetrieveMultipleResult,
   ActionParameters,
   ActionResult,
+  WebApiUpdateOptions,
 } from './IWebApiAdapter';
+import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError';
 
 // Thin adapter wrapping Xrm.WebApi so it satisfies IWebApiAdapter.
 // Converts Xrm.Async.PromiseLike to standard Promise and normalises return shapes.
@@ -56,4 +58,49 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
     }).online.execute(request);
     return (xrmResult ?? {}) as ActionResult;
   }
+
+  async updateRecordConditional(
+    entityLogicalName: string,
+    id: string,
+    data: WebApiRecord,
+    options: WebApiUpdateOptions,
+  ): Promise<void> {
+    // Including @odata.etag in the entity object causes Dataverse to enforce
+    // If-Match semantics — it rejects with 412 if the record has been modified
+    // by another user since it was loaded.
+    const request = {
+      ...data,
+      '@odata.etag': options.ifMatch,
+      getMetadata: () => ({
+        boundParameter: null,
+        operationType: 2,           // 2 = Update
+        operationName: entityLogicalName,
+        parameterTypes: {},
+      }),
+    };
+
+    const xrmOnline = (this.xrmWebApi as typeof Xrm.WebApi & {
+      online: { execute(request: unknown): Promise<{ status: number } | null | undefined> }
+    }).online;
+
+    try {
+      await xrmOnline.execute({ ...request, id, entityType: entityLogicalName });
+    } catch (error) {
+      if (isPreconditionFailedError(error)) {
+        throw new ConcurrencyConflictError(entityLogicalName, id, options.ifMatch);
+      }
+      throw error;
+    }
+  }
+}
+
+function isPreconditionFailedError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') return false;
+  const err = error as Record<string, unknown>;
+  const message = String(err['message'] ?? '');
+  const errorCode = Number(err['errorCode'] ?? 0);
+  // Dataverse surfaces 412 as errorCode -2147187694 or message containing "(412)"
+  return message.includes('(412)') ||
+    message.toLowerCase().includes('precondition failed') ||
+    errorCode === -2147187694;
 }

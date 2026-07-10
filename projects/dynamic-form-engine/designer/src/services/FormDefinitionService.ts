@@ -85,7 +85,7 @@ export class FormDefinitionService {
     return result.id;
   }
 
-  async updateForm(id: string, dto: UpdateFormDto): Promise<void> {
+  async updateForm(id: string, dto: UpdateFormDto, etag?: string): Promise<void> {
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data[FORM_DEFINITION_ATTRS.NAME] = dto.name;
     if (dto.code !== undefined) data[FORM_DEFINITION_ATTRS.CODE] = dto.code;
@@ -116,10 +116,18 @@ export class FormDefinitionService {
     // entityLogicalName intentionally not written — qdb_entity_logical_name not deployed on qdb_form_definition
     if (Object.keys(data).length === 0) return;
 
-    await withRetry(
-      () => this.webApi.updateRecord(ENTITY_NAMES.FORM_DEFINITION, id, data),
-      'updateForm'
-    );
+    if (etag !== undefined) {
+      // ConcurrencyConflictError propagates to the caller — do not catch here.
+      await withRetry(
+        () => this.webApi.updateRecordConditional(ENTITY_NAMES.FORM_DEFINITION, id, data, { ifMatch: etag }),
+        'updateFormConditional',
+      );
+    } else {
+      await withRetry(
+        () => this.webApi.updateRecord(ENTITY_NAMES.FORM_DEFINITION, id, data),
+        'updateForm',
+      );
+    }
   }
 
   async getForm(id: string): Promise<DesignerFormModel> {
@@ -152,6 +160,41 @@ export class FormDefinitionService {
     );
 
     return this.mapRecordToModel(record);
+  }
+
+  /** Returns the form model together with its current @odata.etag for optimistic concurrency. */
+  async getFormWithEtag(id: string): Promise<{ model: DesignerFormModel; etag: string | null }> {
+    const select = [
+      FORM_DEFINITION_ATTRS.ID,
+      FORM_DEFINITION_ATTRS.NAME,
+      FORM_DEFINITION_ATTRS.CODE,
+      FORM_DEFINITION_ATTRS.DESCRIPTION,
+      FORM_DEFINITION_ATTRS.STATUS,
+      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
+      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
+      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
+      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
+      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
+      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
+      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
+      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
+      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
+      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
+      FORM_DEFINITION_ATTRS.CREATED_BY,
+      FORM_DEFINITION_ATTRS.CREATED_ON,
+      FORM_DEFINITION_ATTRS.MODIFIED_BY,
+      FORM_DEFINITION_ATTRS.MODIFIED_ON,
+    ].join(',');
+
+    const record = await withRetry(
+      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
+      'getFormWithEtag',
+    );
+
+    const rawEtag = record['@odata.etag'];
+    const etag = typeof rawEtag === 'string' ? rawEtag : null;
+
+    return { model: this.mapRecordToModel(record), etag };
   }
 
   async listForms(filter?: FormListFilter): Promise<FormSummary[]> {
