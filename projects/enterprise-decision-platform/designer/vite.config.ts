@@ -8,11 +8,13 @@ const WR_BASE = '/WebResources/qdb_edp_designer/';
 // --- Dataverse dev proxy -------------------------------------------------------
 // Local-only: injects a service-principal bearer token and forwards /dataverse/*
 // to the org's Web API. Keeps the browser same-origin (no CORS) and never exposes
-// the secret to the client. Credentials are read from the DFE backend .env.
-const ENV_PATH = 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
+// the secret to the client. Credentials are read from a local .env (override the path
+// with EDP_ENV_PATH). Absent on CI/build — the proxy is dev-only and degrades gracefully.
+const ENV_PATH = process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
 
 function loadEnv(path: string): Record<string, string> {
   const out: Record<string, string> = {};
+  if (!fs.existsSync(path)) return out; // no .env (e.g. CI build) — dev proxy simply won't authenticate
   for (const line of fs.readFileSync(path, 'utf8').split(/\r?\n/)) {
     const m = line.match(/^([A-Z_]+)=(.*)$/);
     if (m) out[m[1]] = m[2].trim();
@@ -48,6 +50,7 @@ function dataverseProxy(): Plugin {
 
   return {
     name: 'dataverse-proxy',
+    apply: 'serve', // dev server only — never part of a production/CI build
     configureServer(server) {
       server.middlewares.use('/dataverse', async (req, res) => {
         try {
