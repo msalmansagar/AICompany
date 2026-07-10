@@ -26,6 +26,7 @@ namespace EDP.RuleRuntime.Crm
                 ["qdb_edp_ruleauditname"] = $"Deleted {target.LogicalName} @ {DateTime.UtcNow:o}",
                 ["qdb_edp_action"] = "Deleted",
                 ["qdb_edp_actor"] = context.InitiatingUserId.ToString(),
+                ["qdb_edp_actorid"] = new EntityReference("systemuser", context.InitiatingUserId), // F-06
                 ["qdb_edp_auditedon"] = DateTime.UtcNow,
                 ["qdb_edp_details"] = $"{target.LogicalName} {target.Id} deleted by {context.InitiatingUserId}",
             });

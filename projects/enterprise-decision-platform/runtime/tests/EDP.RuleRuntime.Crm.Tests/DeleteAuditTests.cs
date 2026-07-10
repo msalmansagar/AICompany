@@ -25,6 +25,9 @@ namespace EDP.RuleRuntime.Crm.Tests
             Assert.Equal("Deleted", audit.GetAttributeValue<string>("qdb_edp_action"));
             Assert.Contains(entity, audit.GetAttributeValue<string>("qdb_edp_details"));
             Assert.Contains(id.ToString(), audit.GetAttributeValue<string>("qdb_edp_details"));
+            // F-06: actor recorded as a systemuser lookup, not just a string
+            var actor = audit.GetAttributeValue<EntityReference>("qdb_edp_actorid");
+            Assert.Equal("systemuser", actor.LogicalName);
         }
 
         [Fact]
