@@ -114,6 +114,12 @@ export function FetchXmlBuilderDialog({
       setValidationError(error);
       return;
     }
+    // The Decision Filter record rejects a query with no criteria ("Invalid XML"
+    // on save), so require at least one condition here with a clear message.
+    if (!/<condition[\s/>]/i.test(fetchXml)) {
+      setValidationError('Add at least one condition (choose a field, operator and value) before applying — or Cancel to keep this a fallback route.');
+      return;
+    }
     onApply(fetchXml);
     onDismiss();
   }
