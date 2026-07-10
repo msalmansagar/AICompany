@@ -8,9 +8,11 @@ using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
 using EDP.RuleRuntime.Compiler;
 using EDP.RuleRuntime.Crm.Metadata;
+using EDP.RuleRuntime.Crm.Scenarios;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Pcrm;
+using EDP.RuleRuntime.Scenarios;
 
 namespace EDP.RuleRuntime.Crm
 {
@@ -45,6 +47,7 @@ namespace EDP.RuleRuntime.Crm
                 {
                     case "qdb_edp_ValidateRule": result = ValidateRule(service, context); break;
                     case "qdb_edp_TestRule": result = TestRule(service, context); break;
+                    case "qdb_edp_RunScenarios": result = RunScenarios(service, context); break;
                     case "qdb_edp_ExecuteDecisionTable": result = ExecuteDecisionTable(service, context); break;
                     case "qdb_edp_ExecuteRuleSet": result = ExecuteRuleSet(service, context); break;
                     case "qdb_edp_GetRuleHistory": result = GetRuleHistory(service, context); break;
@@ -90,6 +93,37 @@ namespace EDP.RuleRuntime.Crm
             var runtime = new RuleRuntimeService(new OrgServiceMetadataResolver(service));
             var result = runtime.TestRule(pcrmJson, inputs, DateTime.UtcNow);
             return SerializeResult(result, executionSource: "test");
+        }
+
+        /// <summary>
+        /// Run the rule's saved scenario suite against a PCRM payload (the live canvas via PcrmJson,
+        /// or a stored version) and report per-scenario pass/fail. Read-only, no durable audit.
+        /// </summary>
+        private object RunScenarios(IOrganizationService service, IPluginExecutionContext context)
+        {
+            var pcrmJson = ResolvePcrm(service, context, requirePublished: false);
+            var ruleId = ResolveRuleId(service, context)
+                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var scenariosJson = ScenarioStore.LoadScenariosJson(service, ruleId);
+            var runtime = new RuleRuntimeService(new OrgServiceMetadataResolver(service));
+            var summary = ScenarioRunner.Run(scenariosJson, pcrmJson, runtime, DateTime.UtcNow);
+
+            return new
+            {
+                ruleId,
+                total = summary.Total,
+                passed = summary.Passed,
+                failed = summary.Failed,
+                allPassed = summary.AllPassed,
+                results = summary.Results.Select(r => new
+                {
+                    name = r.Name,
+                    passed = r.Passed,
+                    mismatches = r.Mismatches,
+                    error = r.Error,
+                    actual = r.Actual
+                }).ToList()
+            };
         }
 
         /// <summary>Dedicated decision-table entry — same runtime; asserts table logic.</summary>

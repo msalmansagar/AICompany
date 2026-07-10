@@ -15,6 +15,7 @@ import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { RulesList } from './rules/RulesList';
 import { RuleSetsList } from './rulesets/RuleSetsList';
 import { RuleSetEditor } from './rulesets/RuleSetEditor';
+import { ScenariosPanel } from './scenarios/ScenariosPanel';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
@@ -35,6 +36,7 @@ export function App() {
     try { return (localStorage.getItem('edp-theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
   });
 
+  const [ruleId, setRuleId] = useState<string | null>(null);
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
   const [lifecycle, setLifecycle] = useState<string>('');
@@ -55,7 +57,7 @@ export function App() {
   const [testInputs, setTestInputs] = useState('{}');
   const [testResult, setTestResult] = useState<EvaluateResult | null>(null);
   const [testError, setTestError] = useState('');
-  const [drawerTab, setDrawerTab] = useState<'test' | 'validation'>('test');
+  const [drawerTab, setDrawerTab] = useState<'test' | 'validation' | 'scenarios'>('test');
   const [drawerOpen, setDrawerOpen] = useState(true);
 
   // Tables are fetched on demand — only when a user starts creating or opens a rule,
@@ -90,7 +92,7 @@ export function App() {
   function startCreate() {
     setGraph(EMPTY); setTable(emptyTable());
     setRuleName('Untitled Rule'); setTargetEntity(DEFAULT_ENTITY); setMethod('table');
-    setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
+    setRuleId(null); setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
     setShowTest(false); setTestResult(null); setTestError(''); setEditingEntity(false);
     setStatus('Set up your new rule.'); setView('create');
     void loadEntities();
@@ -111,6 +113,7 @@ export function App() {
   async function openRule(ruleId: string) {
     setBusy(true); setStatus('Loading latest version…'); setView('editor'); setEditingEntity(false);
     void loadEntities();
+    setRuleId(ruleId);
     try {
       const v = await loadLatestVersion(ruleId);
       const src: any = v?.jdmGraph;
@@ -129,7 +132,7 @@ export function App() {
     try {
       const pcrm = currentPcrm();
       const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
-      setVersionId(res.versionId); setVersionNumber(1); setLifecycle('Draft'); setSavedLabel('Saved just now');
+      setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(1); setLifecycle('Draft'); setSavedLabel('Saved just now');
       setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
       void runValidation(pcrm);
     } catch (e: any) { setStatus(`Save failed: ${e.message}`); } finally { setBusy(false); }
@@ -168,7 +171,8 @@ export function App() {
     setDrawerTab('test'); setDrawerOpen(true);
   }
 
-  const drawerHasContent = !!(testResult || testError || validation);
+  const drawerHasContent = !!(testResult || testError || validation) || drawerTab === 'scenarios';
+  function openScenarios() { setDrawerTab('scenarios'); setDrawerOpen(true); }
   const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
 
   const METHODS: { id: Method; title: string; sub: string; rec?: boolean }[] = [
@@ -307,6 +311,7 @@ export function App() {
                   </div>
                   <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
                   <button className="tb test" disabled={busy || !hasContent} onClick={openTest} title={hasContent ? 'Test with sample inputs' : 'Add a condition first'}>▶ Test</button>
+                  <button className="tb ghost" disabled={busy || !ruleId} onClick={openScenarios} title={ruleId ? 'Saved test scenarios + regression gate' : 'Save the rule first'}>⚑ Scenarios</button>
                   <button className="tb primary" disabled={busy || !hasContent} onClick={onSave} title={hasContent ? 'Save to Dataverse' : 'Add a condition first'}>Save</button>
                 </div>
               </header>
@@ -357,6 +362,7 @@ export function App() {
                     <button className={`dt-tab ${drawerTab === 'validation' ? 'on' : ''}`} onClick={() => setDrawerTab('validation')}>
                       Validation{validation && <span className={`b ${validation.isValid ? 'okb' : 'warnb'}`}>{validation.isValid ? '0' : validation.errorCount}</span>}
                     </button>
+                    <button className={`dt-tab ${drawerTab === 'scenarios' ? 'on' : ''}`} onClick={() => setDrawerTab('scenarios')}>⚑ Scenarios</button>
                     <span className="spacer" />
                     <button className="drawer-close" onClick={() => setDrawerOpen(false)}>Hide ▾</button>
                   </div>
@@ -404,6 +410,12 @@ export function App() {
                             </div>
                           )
                       ) : <p className="tp-sub">Save the rule to validate it against the runtime.</p>
+                    )}
+                    {drawerTab === 'scenarios' && (
+                      <ScenariosPanel
+                        ruleId={ruleId} ruleName={ruleName} getPcrm={currentPcrm}
+                        draftInputs={testInputs} draftOutputs={testResult?.outputs ?? null}
+                      />
                     )}
                   </div>
                 </div>

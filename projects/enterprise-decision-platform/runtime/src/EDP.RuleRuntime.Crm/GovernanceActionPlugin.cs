@@ -30,7 +30,7 @@ namespace EDP.RuleRuntime.Crm
                 var action = (string)context.InputParameters["Action"];
                 var comments = context.InputParameters.Contains("Comments") ? context.InputParameters["Comments"] as string : null;
 
-                var governance = new GovernanceService(service, new DataverseAuditSink(service));
+                var governance = new GovernanceService(service, new DataverseAuditSink(service), new ScenarioPublishGate(service));
                 var result = governance.PerformAction(ruleVersionId, action, comments, context.InitiatingUserId);
 
                 context.OutputParameters["Success"] = result.Success;

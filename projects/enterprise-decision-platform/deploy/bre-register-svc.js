@@ -8,7 +8,7 @@ const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
-const ASSEMBLY_VERSION = '1.0.17.0';
+const ASSEMBLY_VERSION = '1.0.18.0';
 const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleServicePlugin';
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60';       // Loan Approval — Sample v1 (decision table)
 const SEED_RULE = 'c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5';          // its rule
@@ -16,6 +16,7 @@ const SEED_RULE = 'c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5';          // its rule
 const FUNCTIONS = [
   { uniquename: 'qdb_edp_ValidateRule', displayname: 'EDP Validate Rule', isfunction: false, params: ['PcrmJson', 'RuleVersionId'] },
   { uniquename: 'qdb_edp_TestRule', displayname: 'EDP Test Rule', isfunction: false, params: ['PcrmJson', 'RuleVersionId', 'InputsJson'] },
+  { uniquename: 'qdb_edp_RunScenarios', displayname: 'EDP Run Scenarios', isfunction: false, params: ['PcrmJson', 'RuleVersionId', 'RuleId', 'RuleName'] },
   { uniquename: 'qdb_edp_ExecuteDecisionTable', displayname: 'EDP Execute Decision Table', isfunction: false, params: ['PcrmJson', 'RuleVersionId', 'InputsJson'] },
   { uniquename: 'qdb_edp_ExecuteRuleSet', displayname: 'EDP Execute Rule Set', isfunction: false, params: ['RuleSetId', 'RuleVersionIdsJson', 'InputsJson'] },
   { uniquename: 'qdb_edp_GetRuleHistory', displayname: 'EDP Get Rule History', isfunction: true, params: ['RuleId', 'RuleName', 'RuleVersionId'] },
