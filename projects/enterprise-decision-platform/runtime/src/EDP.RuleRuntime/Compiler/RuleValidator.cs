@@ -29,7 +29,10 @@ namespace EDP.RuleRuntime.Compiler
             ValidateBindings(doc, diagnostics);
 
             if (doc.Logic.Type.Equals("decisionTable", StringComparison.OrdinalIgnoreCase))
+            {
                 ValidateTable(doc.Logic, symbols, diagnostics);
+                diagnostics.AddRange(TableCompletenessAnalyzer.Analyze(doc)); // overlap/gap/unreachable hints
+            }
             else
                 ValidateConditionSet(doc.Logic, symbols, diagnostics);
 
