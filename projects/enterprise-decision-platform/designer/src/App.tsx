@@ -12,6 +12,7 @@ import { MetadataExplorer } from './metadata/MetadataExplorer';
 import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
+import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
 import { RulesList } from './rules/RulesList';
 import { RuleSetsList } from './rulesets/RuleSetsList';
 import { RuleSetEditor } from './rulesets/RuleSetEditor';
@@ -19,7 +20,7 @@ import { ScenariosPanel } from './scenarios/ScenariosPanel';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
-type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor';
+type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor' | 'analytics';
 type Method = 'table' | 'canvas' | 'template' | 'ai';
 
 export function App() {
@@ -217,6 +218,10 @@ export function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 8v4l3 2" /><circle cx="12" cy="12" r="9" /></svg>
             Execution logs
           </button>
+          <button className={`nav-item ${view === 'analytics' ? 'active' : ''}`} onClick={() => setView('analytics')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2" /></svg>
+            Analytics
+          </button>
         </nav>
 
         <div className="mda-content">
@@ -224,6 +229,7 @@ export function App() {
           {view === 'rulesets' && <RuleSetsList onNew={newRuleSet} onOpen={openRuleSet} />}
           {view === 'ruleset-editor' && <RuleSetEditor setId={rulesetId} onBack={openRuleSets} onSaved={setRulesetId} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
+          {view === 'analytics' && <AnalyticsDashboard onClose={() => setView('list')} />}
 
           {view === 'create' && (
             <div className="create-view">

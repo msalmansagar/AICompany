@@ -237,6 +237,30 @@ export async function runScenarios(pcrm: unknown, ruleId: string): Promise<Scena
   return JSON.parse(res.ResultJson ?? '{"total":0,"passed":0,"failed":0,"allPassed":true,"results":[]}');
 }
 
+// ── Decision analytics (qdb_edp_GetRuleAnalytics) ─────────────────────────────
+// Server-side aggregation of qdb_edp_ruleexecutionlog telemetry over a rolling window.
+
+export interface AnalyticsData {
+  periodDays: number; from: string; to: string; ruleId: string | null;
+  total: number; matched: number; noMatch: number; error: number;
+  matchRate: number; errorRate: number;
+  latency: { avgMs: number; p50Ms: number; p95Ms: number; maxMs: number };
+  byDay: { date: string; count: number; errors: number }[];
+  topRules: { versionKey: string; label: string; count: number; errors: number }[];
+  truncated: boolean;
+}
+
+const EMPTY_ANALYTICS = '{"total":0,"matched":0,"noMatch":0,"error":0,"matchRate":0,"errorRate":0,"latency":{"avgMs":0,"p50Ms":0,"p95Ms":0,"maxMs":0},"byDay":[],"topRules":[],"truncated":false}';
+
+/** Aggregated decision telemetry over the last N days (organisation-wide, or scoped to one rule). */
+export async function getRuleAnalytics(periodDays = 30, ruleId?: string): Promise<AnalyticsData> {
+  const args = ruleId
+    ? `(RuleId=@r,PeriodDays=@p)?@r=%27${ruleId}%27&@p=%27${periodDays}%27`
+    : `(PeriodDays=@p)?@p=%27${periodDays}%27`;
+  const res = await req<{ ResultJson?: string }>(`/qdb_edp_GetRuleAnalytics${args}`, 'GET');
+  return JSON.parse(res.ResultJson ?? EMPTY_ANALYTICS);
+}
+
 /** Current lifecycle state label of a version (for the governance bar). */
 export async function getVersionState(versionId: string): Promise<string> {
   const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_lifecyclestate`);
