@@ -4,13 +4,15 @@
 //   Functions: qdb_edp_GetDependencies, qdb_edp_CompareVersions, qdb_edp_ExplainRule, qdb_edp_AnalyzeRule
 //   Guard steps: block Update+Delete on qdb_edp_ruleaudit + qdb_edp_ruleexecutionlog + qdb_edp_ruleapproval + qdb_edp_ruleapproval
 const fs = require('fs'), https = require('https');
-const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
+const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
-const DLL = 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll';
-const ASSEMBLY_VERSION = '1.0.13.0';
+const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
+const ASSEMBLY_VERSION = '1.0.16.0';
 const ANALYSIS_TYPE = 'EDP.RuleRuntime.Crm.RuleAnalysisPlugin';
 const GUARD_TYPE = 'EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin';
+const DELETE_AUDIT_TYPE = 'EDP.RuleRuntime.Crm.DeleteAuditPlugin'; // F-07
+const DELETE_AUDIT_ENTITIES = ['qdb_edp_rule', 'qdb_edp_ruleversion'];
 const SEED = '1a4a23bd-4f77-f111-ab0e-000d3abcff60';
 const OTHER = '26f45b83-be77-f111-ab0e-000d3abcff60';
 const APPEND_ONLY_ENTITIES = ['qdb_edp_ruleaudit', 'qdb_edp_ruleexecutionlog', 'qdb_edp_ruleapproval']; // F-04: protect approval records
@@ -87,6 +89,24 @@ async function ensureType(t, asmId, typename, friendly) {
       }, sol);
       console.log('  + step', name, r.status >= 300 ? 'FAIL ' + r.body.slice(0, 160) : 'ok');
     }
+  }
+
+  // --- Delete-audit steps (F-07): pre-operation Delete on rule + ruleversion ---
+  const delAuditType = await ensureType(t, asm.pluginassemblyid, DELETE_AUDIT_TYPE, 'EDP Delete Audit');
+  console.log('delete-audit plugintype:', delAuditType);
+  for (const entity of DELETE_AUDIT_ENTITIES) {
+    const flt = await first(t, 'sdkmessagefilters', `primaryobjecttypecode eq '${entity}' and _sdkmessageid_value eq ${msgIds['Delete']}`, 'sdkmessagefilterid');
+    if (!flt) { console.log('  ! no delete filter for', entity); continue; }
+    const name = `EDP DeleteAudit ${entity} Delete`;
+    const ex = await first(t, 'sdkmessageprocessingsteps', `name eq '${name}'`, 'sdkmessageprocessingstepid');
+    if (ex) { console.log('  = step', name); continue; }
+    const r = await raw('POST', `${API}/sdkmessageprocessingsteps`, t, {
+      name, description: name, mode: 0, rank: 1, stage: 20, supporteddeployment: 0, invocationsource: 0,
+      'eventhandler_plugintype@odata.bind': `/plugintypes(${delAuditType})`,
+      'sdkmessageid@odata.bind': `/sdkmessages(${msgIds['Delete']})`,
+      'sdkmessagefilterid@odata.bind': `/sdkmessagefilters(${flt.sdkmessagefilterid})`,
+    }, sol);
+    console.log('  + step', name, r.status >= 300 ? 'FAIL ' + r.body.slice(0, 160) : 'ok');
   }
 
   // --- SMOKE ---

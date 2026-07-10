@@ -3,7 +3,7 @@
 const fs = require('fs');
 const https = require('https');
 
-const ENV_PATH = 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
+const ENV_PATH = (process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env');
 const SOLUTION = 'BusinessRuleEngine';
 const PREFIX = 'qdb_edp_';
 function loadEnv(p){const o={};for(const l of fs.readFileSync(p,'utf8').split(/\r?\n/)){const m=l.match(/^([A-Z_]+)=(.*)$/);if(m)o[m[1]]=m[2].trim();}return o;}

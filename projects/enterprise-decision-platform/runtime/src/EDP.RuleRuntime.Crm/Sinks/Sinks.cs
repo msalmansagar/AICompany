@@ -8,6 +8,7 @@ namespace EDP.RuleRuntime.Crm.Sinks
         public Guid? RuleVersionId { get; set; }
         public string Action { get; set; } = "";
         public string Actor { get; set; } = "";
+        public Guid? ActorId { get; set; } // F-06: systemuser id for the actor lookup
         public string Details { get; set; } = "";
         public DateTime TimestampUtc { get; set; }
     }
@@ -50,6 +51,8 @@ namespace EDP.RuleRuntime.Crm.Sinks
             };
             if (e.RuleVersionId.HasValue)
                 record["qdb_edp_ruleversionid"] = new EntityReference("qdb_edp_ruleversion", e.RuleVersionId.Value);
+            if (e.ActorId.HasValue)
+                record["qdb_edp_actorid"] = new EntityReference("systemuser", e.ActorId.Value); // F-06
 
             _service.Create(record); // durable: any failure is a real audit failure and must surface
         }

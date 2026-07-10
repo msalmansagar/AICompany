@@ -4,11 +4,11 @@
 // (Actions) + GetRuleHistory, GetRuleTemplates, GetRuleDocumentation (Functions). One
 // shared plugin type (RuleServicePlugin) backs all seven. Idempotent. Then smoke-tests.
 const fs = require('fs'), https = require('https');
-const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
+const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
-const DLL = 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll';
-const ASSEMBLY_VERSION = '1.0.13.0';
+const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
+const ASSEMBLY_VERSION = '1.0.16.0';
 const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleServicePlugin';
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60';       // Loan Approval — Sample v1 (decision table)
 const SEED_RULE = 'c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5';          // its rule

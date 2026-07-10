@@ -185,6 +185,7 @@ namespace EDP.RuleRuntime.Crm.Governance
                 ["qdb_edp_approvalstatus"] = new OptionSetValue(status),
                 ["qdb_edp_comments"] = comments ?? string.Empty,
                 ["qdb_edp_actor"] = actorId.ToString(),
+                ["qdb_edp_actorid"] = new EntityReference("systemuser", actorId), // F-06
                 ["qdb_edp_decidedon"] = DateTime.UtcNow,
                 ["qdb_edp_ruleversionid"] = new EntityReference("qdb_edp_ruleversion", ruleVersionId)
             });
@@ -192,7 +193,7 @@ namespace EDP.RuleRuntime.Crm.Governance
         private void WriteAudit(Guid ruleVersionId, string stage, int from, int to, string? comments, Guid actorId)
             => _audit.WriteAudit(new AuditEvent
             {
-                RuleVersionId = ruleVersionId, Action = stage, Actor = actorId.ToString(),
+                RuleVersionId = ruleVersionId, Action = stage, Actor = actorId.ToString(), ActorId = actorId,
                 Details = $"{Label(from)} -> {Label(to)}" + (string.IsNullOrWhiteSpace(comments) ? "" : $"; {comments}"),
                 TimestampUtc = DateTime.UtcNow
             });

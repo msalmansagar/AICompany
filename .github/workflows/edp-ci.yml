@@ -21,7 +21,7 @@ jobs:
         with:
           dotnet-version: '9.0.x'
       - name: Test EDP.RuleRuntime.Tests (net9.0)
-        run: dotnet test runtime/tests/EDP.RuleRuntime.Tests -c Release --nologo
+        run: dotnet test runtime/tests/EDP.RuleRuntime.Tests -c Release --nologo --collect:"XPlat Code Coverage" --collect:"XPlat Code Coverage"
 
   runtime-net462:
     name: Runtime tests (net9 + net462, Windows)
@@ -37,7 +37,7 @@ jobs:
       # windows-latest ships the .NET Framework runtime, so the net462 CRM-adapter tests
       # (governance, aggregation, navigation, lifecycle gate) actually execute here.
       - name: Test full runtime solution (net9.0 + net462)
-        run: dotnet test runtime/EDP.RuleRuntime.slnx -c Release --nologo
+        run: dotnet test runtime/EDP.RuleRuntime.slnx -c Release --nologo --collect:"XPlat Code Coverage" --collect:"XPlat Code Coverage"
 
   designer:
     name: Designer (typecheck + unit tests)
