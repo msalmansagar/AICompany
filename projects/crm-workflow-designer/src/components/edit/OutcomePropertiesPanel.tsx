@@ -79,6 +79,27 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
     setNewRouteIsFallback(false);
   };
 
+  const handleToggleConditional = () => {
+    const nextApplyFilter = !outcome.applyFilter;
+    setOutcome({ ...outcome, applyFilter: nextApplyFilter });
+    // Turning conditional routing on: ensure a first Decision Filter (route)
+    // record exists so the decision always has somewhere for its FetchXML —
+    // mirrors the CRM form auto-creating one when Apply Filter is set.
+    if (nextApplyFilter && outcomeRoutes.length === 0) {
+      const routeId = `tmp_${crypto.randomUUID()}`;
+      addRoute({
+        crmId: routeId,
+        name: '',
+        subject: '',
+        sequenceNumber: 1,
+        filter: '',
+        outcomeId: outcome.crmId,
+        nextStepId: outcome.nextStepId ?? null,
+      });
+      selectNode(`route_edge_${routeId}`);
+    }
+  };
+
   const handleDelete = () => {
     void confirm({
       title: 'Delete decision',
@@ -120,7 +141,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
             type="button"
             role="switch"
             aria-checked={outcome.applyFilter}
-            onClick={() => setOutcome({ ...outcome, applyFilter: !outcome.applyFilter })}
+            onClick={handleToggleConditional}
             style={{ ...toggleStyle, ...(outcome.applyFilter ? toggleOnStyle : toggleOffStyle) }}
           >
             {outcome.applyFilter ? '◈ Active — choose a route' : 'Off — direct transition'}
