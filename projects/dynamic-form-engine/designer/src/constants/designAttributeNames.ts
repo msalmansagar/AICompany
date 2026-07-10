@@ -45,6 +45,4 @@ export const BUTTON_DESIGN_ATTRS = {
   FORM_ID: 'qdb_form_definition_id',                // lookup bind name (create/update)
   FORM_ID_VALUE: '_qdb_form_definition_id_value',   // lookup value (use for $filter and $select/read)
   BUTTON_TYPE: 'qdb_button_type',
-  STYLE: 'qdb_style',
-  LABEL: 'qdb_label',
 } as const;

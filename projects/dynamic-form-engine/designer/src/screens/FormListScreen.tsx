@@ -57,17 +57,21 @@ async function loadDesignPayload(
   designService: DesignService,
   scope: { formId: string; sectionIds: string[]; fieldIds: string[] },
 ): Promise<DesignPayload> {
+  // Each design entity loads independently — one failing query must not blank out
+  // the styling that did load, so every getter falls back to its own empty default.
   const [formDesign, sectionDesigns, fieldDesigns, buttons] = await Promise.all([
-    designService.getFormDesign(scope.formId),
-    designService.getSectionDesigns(scope.sectionIds),
-    designService.getFieldDesigns(scope.fieldIds),
-    designService.getButtonDesigns(scope.formId),
+    designService.getFormDesign(scope.formId).catch(() => null),
+    designService.getSectionDesigns(scope.sectionIds).catch(() => []),
+    designService.getFieldDesigns(scope.fieldIds).catch(() => []),
+    designService.getButtonDesigns(scope.formId).catch(() => []),
   ]);
 
   const theme = formDesign?.themeId
     ? await designService.getTheme(formDesign.themeId).catch(() => DEFAULT_DESIGN_PAYLOAD.theme)
     : DEFAULT_DESIGN_PAYLOAD.theme;
-  const layoutGrid = formDesign?.id ? await designService.getLayoutGrids(formDesign.id) : [];
+  const layoutGrid = formDesign?.id
+    ? await designService.getLayoutGrids(formDesign.id).catch(() => [])
+    : [];
 
   return {
     theme,
