@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using EDP.RuleRuntime;
+using EDP.RuleRuntime.Analytics;
 using EDP.RuleRuntime.Compiler;
 using EDP.RuleRuntime.Crm.Metadata;
 using EDP.RuleRuntime.Crm.Scenarios;
@@ -31,6 +32,8 @@ namespace EDP.RuleRuntime.Crm
     {
         private const int LifecyclePublished = 100000003;
         private const int MaxPcrmJsonLength = 512_000; // guard against pathologically large payloads (F-08)
+        private const int AnalyticsPageSize = 5000;    // Dataverse page cap per RetrieveMultiple
+        private const int MaxAnalyticsRows = 50_000;   // bound in-plugin aggregation to stay within the 2-min limit
         private static readonly JsonSerializerOptions PcrmOptions =
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
@@ -53,6 +56,7 @@ namespace EDP.RuleRuntime.Crm
                     case "qdb_edp_GetRuleHistory": result = GetRuleHistory(service, context); break;
                     case "qdb_edp_GetRuleTemplates": result = GetRuleTemplates(service, context); break;
                     case "qdb_edp_GetRuleDocumentation": result = GetRuleDocumentation(service, context); break;
+                    case "qdb_edp_GetRuleAnalytics": result = GetRuleAnalytics(service, context); break;
                     default: throw new InvalidPluginExecutionException($"Unsupported service message '{context.MessageName}'.");
                 }
                 context.OutputParameters["ResultJson"] = JsonSerializer.Serialize(result);
@@ -327,6 +331,123 @@ namespace EDP.RuleRuntime.Crm
             var version = ResolveLatestVersion(service, ruleId);
             var generated = version == null ? "(no rule version found to document)" : GenerateDoc(ParsePcrm(version.GetAttributeValue<string>("qdb_edp_pcrmjson")));
             return new { ruleId, source = "generated", content = generated };
+        }
+
+        /// <summary>
+        /// Aggregate execution-log telemetry into dashboard metrics over a rolling window: volume,
+        /// outcome mix, latency percentiles, a per-day series, and the busiest rule-versions.
+        /// Optional RuleId scopes to one rule; absent = organisation-wide. Aggregation runs in C#
+        /// (Dataverse has no server-side percentile), capped at MaxAnalyticsRows to stay in-budget.
+        /// </summary>
+        private object GetRuleAnalytics(IOrganizationService service, IPluginExecutionContext context)
+        {
+            var periodDays = ParsePeriodDays(ParamString(context, "PeriodDays"));
+            var toUtc = DateTime.UtcNow;
+            var fromUtc = toUtc.AddDays(-periodDays);
+
+            var ruleId = ParamGuid(context, "RuleId");
+            var versionIds = ruleId.HasValue ? VersionIdsForRule(service, ruleId.Value) : null;
+
+            var rows = QueryLogEntries(service, fromUtc, versionIds, out var truncated);
+            var summary = AnalyticsAggregator.Aggregate(rows, fromUtc, toUtc, topVersions: 10);
+            var labels = ResolveVersionLabels(service, summary.TopVersions.Select(v => v.VersionKey));
+
+            return new
+            {
+                periodDays,
+                from = fromUtc.ToString("o"),
+                to = toUtc.ToString("o"),
+                ruleId,
+                total = summary.Total,
+                matched = summary.Matched,
+                noMatch = summary.NoMatch,
+                error = summary.Error,
+                matchRate = summary.MatchRate,
+                errorRate = summary.ErrorRate,
+                latency = new { avgMs = summary.Latency.AvgMs, p50Ms = summary.Latency.P50Ms, p95Ms = summary.Latency.P95Ms, maxMs = summary.Latency.MaxMs },
+                byDay = summary.ByDay.Select(b => new { date = b.Date, count = b.Count, errors = b.Errors }).ToList(),
+                topRules = summary.TopVersions.Select(v => new
+                {
+                    versionKey = v.VersionKey,
+                    label = labels.TryGetValue(v.VersionKey, out var l) ? l : (v.VersionKey == "adhoc" ? "Ad-hoc test" : v.VersionKey),
+                    count = v.Count,
+                    errors = v.Errors
+                }).ToList(),
+                truncated
+            };
+        }
+
+        private static int ParsePeriodDays(string? raw)
+        {
+            if (!int.TryParse(raw, out var days)) return 30;
+            return Math.Min(Math.Max(days, 1), 365);
+        }
+
+        private static Guid[] VersionIdsForRule(IOrganizationService service, Guid ruleId)
+        {
+            var query = new QueryExpression("qdb_edp_ruleversion")
+            {
+                ColumnSet = new ColumnSet("qdb_edp_ruleversionid"),
+                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId) } }
+            };
+            return service.RetrieveMultiple(query).Entities.Select(e => e.Id).ToArray();
+        }
+
+        private static List<LogEntry> QueryLogEntries(IOrganizationService service, DateTime fromUtc, Guid[]? versionIds, out bool truncated)
+        {
+            truncated = false;
+            var entries = new List<LogEntry>();
+            if (versionIds != null && versionIds.Length == 0) return entries; // rule with no versions → no logs
+
+            var query = new QueryExpression("qdb_edp_ruleexecutionlog")
+            {
+                ColumnSet = new ColumnSet("qdb_edp_outcome", "qdb_edp_durationms", "qdb_edp_executedon", "qdb_edp_resolvedversion", "qdb_edp_ruleversionid"),
+                Criteria = { Conditions = { new ConditionExpression("qdb_edp_executedon", ConditionOperator.GreaterEqual, fromUtc) } },
+                PageInfo = new PagingInfo { Count = AnalyticsPageSize, PageNumber = 1 }
+            };
+            if (versionIds != null)
+                query.Criteria.AddCondition("qdb_edp_ruleversionid", ConditionOperator.In, versionIds.Cast<object>().ToArray());
+
+            while (true)
+            {
+                var page = service.RetrieveMultiple(query);
+                foreach (var e in page.Entities)
+                {
+                    var versionRef = e.GetAttributeValue<EntityReference>("qdb_edp_ruleversionid");
+                    entries.Add(new LogEntry
+                    {
+                        Outcome = e.GetAttributeValue<string>("qdb_edp_outcome") ?? "",
+                        DurationMs = e.GetAttributeValue<int>("qdb_edp_durationms"),
+                        ExecutedOnUtc = e.GetAttributeValue<DateTime>("qdb_edp_executedon"),
+                        VersionKey = versionRef?.Id.ToString() ?? (e.GetAttributeValue<string>("qdb_edp_resolvedversion") ?? "adhoc")
+                    });
+                    if (entries.Count >= MaxAnalyticsRows) { truncated = true; return entries; }
+                }
+                if (!page.MoreRecords) return entries;
+                query.PageInfo.PageNumber++;
+                query.PageInfo.PagingCookie = page.PagingCookie;
+            }
+        }
+
+        // Label the busiest version keys as "Rule name v{n}"; non-GUID keys (e.g. "adhoc") are skipped.
+        private static Dictionary<string, string> ResolveVersionLabels(IOrganizationService service, IEnumerable<string> versionKeys)
+        {
+            var ids = versionKeys.Where(k => Guid.TryParse(k, out _)).Select(Guid.Parse).Cast<object>().ToArray();
+            var labels = new Dictionary<string, string>();
+            if (ids.Length == 0) return labels;
+
+            var query = new QueryExpression("qdb_edp_ruleversion")
+            {
+                ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_ruleid"),
+                Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleversionid", ConditionOperator.In, ids) } }
+            };
+            foreach (var v in service.RetrieveMultiple(query).Entities)
+            {
+                var number = v.GetAttributeValue<int>("qdb_edp_versionnumber");
+                var ruleName = v.GetAttributeValue<EntityReference>("qdb_edp_ruleid")?.Name;
+                labels[v.Id.ToString()] = string.IsNullOrWhiteSpace(ruleName) ? $"Version {number}" : $"{ruleName} v{number}";
+            }
+            return labels;
         }
 
         // ---- shared helpers ------------------------------------------------------------
