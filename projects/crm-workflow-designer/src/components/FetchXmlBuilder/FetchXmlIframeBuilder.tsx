@@ -24,7 +24,7 @@ interface QueryConditionControl {
   get_fetchXml: () => string | null;
 }
 
-const MAX_SEED_ATTEMPTS = 3;
+const MAX_SEED_ATTEMPTS = 6;
 const SEED_RETRY_MS = 2000;
 
 export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIframeBuilderProps>(
@@ -57,6 +57,10 @@ export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIf
       let attempts = 0;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
+      // Seeding is best-effort: pre-fill the existing FetchXML once the control
+      // exists. If it isn't ready in time we simply leave the builder empty —
+      // we do NOT fall back to the manual builder, because the control still
+      // initialises shortly after and readFetchXml() reads it on Apply.
       const seed = (): void => {
         const control = resolveControl();
         if (control) {
@@ -64,15 +68,13 @@ export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIf
             try {
               control.set_fetchXml(initialFetchXml);
             } catch {
-              // Seeding is best-effort — the builder just starts empty.
+              // ignore — start empty
             }
           }
           return;
         }
         if (attempts++ < MAX_SEED_ATTEMPTS) {
           timer = setTimeout(seed, SEED_RETRY_MS);
-        } else {
-          onError('The CRM condition builder did not initialise. Use the manual builder instead.');
         }
       };
 
