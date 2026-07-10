@@ -5,6 +5,7 @@ import type { DecisionGraphType } from '@gorules/jdm-editor';
 
 const RULES = 'qdb_edp_rules';
 const VERSIONS = 'qdb_edp_ruleversions';
+const RULETESTS = 'qdb_edp_ruletests';
 
 // Dual-mode base URL: inside CRM use the org Web API (same-origin session auth);
 // in local dev use the /dataverse proxy (which injects a service-principal token).
@@ -175,6 +176,65 @@ export interface ValidationResult {
 export async function validateRule(pcrm: unknown): Promise<ValidationResult> {
   const res = await req<{ ResultJson?: string }>(`/qdb_edp_ValidateRule`, 'POST', { PcrmJson: JSON.stringify(pcrm) });
   return JSON.parse(res.ResultJson ?? '{"isValid":false,"errorCount":0,"warningCount":0,"diagnostics":[]}');
+}
+
+// ── Test scenario library (qdb_edp_ruletest) ──────────────────────────────────
+// A rule's saved scenarios (named inputs + expected outputs) persist across versions
+// as a JSON array on one qdb_edp_ruletest record, and act as the pre-publish regression gate.
+
+export interface Scenario { id: string; name: string; inputs: Record<string, unknown>; expected: Record<string, unknown>; }
+
+function newScenarioId(): string {
+  const c = (window as any).crypto;
+  return c?.randomUUID ? c.randomUUID() : `s-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+}
+
+function parseScenarios(json: string | undefined): Scenario[] {
+  try {
+    const arr = JSON.parse(json ?? '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr.map((s: any) => ({
+      id: s.id ?? newScenarioId(), name: s.name ?? '(unnamed)',
+      inputs: s.inputs ?? {}, expected: s.expected ?? {},
+    }));
+  } catch { return []; }
+}
+
+async function findRuleTest(ruleId: string): Promise<{ id: string; scenarios: Scenario[] } | null> {
+  const data = await req<{ value: any[] }>(
+    `/${RULETESTS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruletestid,qdb_edp_testcasesjson&$top=1`
+  );
+  const row = data.value[0];
+  return row ? { id: row.qdb_edp_ruletestid, scenarios: parseScenarios(row.qdb_edp_testcasesjson) } : null;
+}
+
+/** A rule's saved scenario suite (empty when none exist yet). */
+export async function listScenarios(ruleId: string): Promise<Scenario[]> {
+  return (await findRuleTest(ruleId))?.scenarios ?? [];
+}
+
+/** Persist the full scenario suite for a rule, creating the qdb_edp_ruletest record on first save. */
+export async function saveScenarios(ruleId: string, ruleName: string, scenarios: Scenario[]): Promise<void> {
+  const existing = await findRuleTest(ruleId);
+  const body = { qdb_edp_testcasesjson: JSON.stringify(scenarios) };
+  if (existing) { await req(`/${RULETESTS}(${existing.id})`, 'PATCH', body); return; }
+
+  const createBody: any = {
+    ...body,
+    qdb_edp_ruletestname: `${ruleName} — scenarios`,
+    'qdb_edp_ruleid@odata.bind': `/${RULES}(${ruleId})`,
+  };
+  try { await req(`/${RULETESTS}`, 'POST', createBody); }
+  catch { delete createBody['qdb_edp_ruleid@odata.bind']; await req(`/${RULETESTS}`, 'POST', createBody); }
+}
+
+export interface ScenarioOutcome { name: string; passed: boolean; mismatches: string[]; error?: string | null; actual: Record<string, unknown>; }
+export interface ScenarioRunResult { ruleId?: string; total: number; passed: number; failed: number; allPassed: boolean; results: ScenarioOutcome[]; }
+
+/** Run a rule's saved scenarios against a PCRM payload via the runtime (qdb_edp_RunScenarios). */
+export async function runScenarios(pcrm: unknown, ruleId: string): Promise<ScenarioRunResult> {
+  const res = await req<{ ResultJson?: string }>(`/qdb_edp_RunScenarios`, 'POST', { PcrmJson: JSON.stringify(pcrm), RuleId: ruleId });
+  return JSON.parse(res.ResultJson ?? '{"total":0,"passed":0,"failed":0,"allPassed":true,"results":[]}');
 }
 
 /** Current lifecycle state label of a version (for the governance bar). */

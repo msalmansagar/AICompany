@@ -30,11 +30,13 @@ namespace EDP.RuleRuntime.Crm.Governance
 
         private readonly IOrganizationService _service;
         private readonly IAuditSink _audit;
+        private readonly IPublishGate? _publishGate;
 
-        public GovernanceService(IOrganizationService service, IAuditSink audit)
+        public GovernanceService(IOrganizationService service, IAuditSink audit, IPublishGate? publishGate = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+            _publishGate = publishGate;
         }
 
         public sealed class GovernanceResult
@@ -92,10 +94,21 @@ namespace EDP.RuleRuntime.Crm.Governance
                 _ => throw new InvalidOperationException($"Unknown governance action '{act}'.")
             };
 
+            if (act == "publish") EnforcePublishGate(ruleVersionId);
+
             TouchVersionOptimistic(ruleVersionId, rowVersion, target);
             if (approvalStatus.HasValue) CreateApproval(ruleVersionId, approvalStatus.Value, stage, comments, actorId);
             WriteAudit(ruleVersionId, stage, current, target, comments, actorId);
             return new GovernanceResult { Success = true, Stage = stage, NewState = Label(target), Message = $"{stage}: {Label(current)} -> {Label(target)}" };
+        }
+
+        // Regression gate: run the version's saved scenarios before it goes live. A failing gate
+        // blocks the transition (no state change, no audit entry) — the same fail-closed shape as SoD.
+        private void EnforcePublishGate(Guid ruleVersionId)
+        {
+            if (_publishGate == null) return;
+            var gate = _publishGate.Check(ruleVersionId);
+            if (!gate.Passed) throw new InvalidOperationException(gate.Message);
         }
 
         private static (int, int?, string) Guard(bool ok, string action, int current, int target, int? status, string stage)

@@ -333,6 +333,20 @@ h1, h2, h3 { text-wrap: balance; }
 .diag { display: flex; gap: 9px; font-size: 13px; padding: 5px 0; border-bottom: 1px dashed var(--n-stroke1); }
 .diag .diag-sev { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; flex: none; width: 58px; }
 .diag.Error .diag-sev { color: var(--danger); } .diag.Warning .diag-sev { color: var(--warn); }
+
+/* Test scenario library */
+.scn-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.scn-name { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--n-stroke2); border-radius: var(--radius); background: var(--n-bg1); color: var(--n-fg1); min-width: 200px; }
+.scn-row { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; background: var(--n-bg2); border: 1px solid var(--n-stroke1); border-left: 3px solid var(--n-fg3); border-radius: var(--radius); padding: 7px 10px; }
+.scn-row.pass { border-left-color: var(--ok); } .scn-row.fail { border-left-color: var(--danger); }
+.scn-status { font-weight: 700; flex: none; width: 14px; text-align: center; color: var(--n-fg3); }
+.scn-row.pass .scn-status { color: var(--ok); } .scn-row.fail .scn-status { color: var(--danger); }
+.scn-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.scn-title { font-weight: 600; color: var(--n-fg1); }
+.scn-io { font-family: var(--mono); font-size: 12px; color: var(--n-fg2); word-break: break-word; }
+.scn-msg { font-size: 12px; color: var(--danger); }
+.scn-del { font: inherit; border: 0; background: transparent; color: var(--n-fg3); cursor: pointer; padding: 2px 6px; flex: none; }
+.scn-del:hover:not(:disabled) { color: var(--danger); }
 .diag .diag-msg code { font-family: var(--mono); font-size: 11px; color: var(--n-fg2); }
 
 /* ── Side panels (metadata / logs / test) — Fluent-tuned ─── */
