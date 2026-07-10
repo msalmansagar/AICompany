@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EDP Rule Runtime — Local Test Harness</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #fff; --ink: #1b1f24; --muted: #6b7280;
+    --line: #e3e6ea; --accent: #2f6feb; --ok: #1a7f37; --bad: #cf222e; --warn: #9a6700;
+    --code: #f0f2f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1216; --panel:#171b21; --ink:#e6e9ee; --muted:#9aa4b2;
+            --line:#262c34; --accent:#4d8bff; --ok:#3fb950; --bad:#ff6a6a; --warn:#d0a215; --code:#0c0f13; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { margin:0; font-size:16px; font-weight:650; }
+  header p { margin:2px 0 0; color:var(--muted); font-size:12.5px; }
+  .badge { display:inline-block; font-size:11px; color:var(--warn); border:1px solid var(--warn);
+           border-radius:4px; padding:1px 6px; margin-left:8px; vertical-align:middle; }
+  main { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 20px; max-width:1200px; margin:0 auto; }
+  @media (max-width: 820px){ main{ grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+  .card h2 { margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  textarea, input { width:100%; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px;
+    background:var(--code); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:8px; resize:vertical; }
+  textarea#pcrm { min-height:280px; } textarea#inputs { min-height:90px; }
+  input#now { font-family:inherit; }
+  button { margin-top:12px; background:var(--accent); color:#fff; border:0; border-radius:6px;
+    padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; }
+  button:active { transform:translateY(1px); }
+  .verdict { font-size:15px; font-weight:700; margin:0 0 4px; }
+  .verdict.ok { color:var(--ok); } .verdict.bad { color:var(--bad); }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:2px 12px; margin:8px 0; }
+  .kv div:nth-child(odd){ color:var(--muted); }
+  .mono { font-family:ui-monospace,Menlo,Consolas,monospace; }
+  .trace { border-top:1px solid var(--line); margin-top:10px; padding-top:8px; }
+  .step { display:flex; gap:8px; padding:3px 0; font-size:12.5px; border-bottom:1px dashed var(--line); }
+  .step .k { color:var(--muted); min-width:74px; }
+  .step .r.t{ color:var(--ok); font-weight:600;} .step .r.f{ color:var(--bad); font-weight:600;}
+  .diag { font-size:12.5px; padding:4px 0; }
+  .diag.Error { color:var(--bad); } .diag.Warning { color:var(--warn); }
+  .hint { color:var(--muted); font-size:12px; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:6px; padding:8px; overflow:auto; margin:6px 0 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>EDP Rule Runtime — Local Test Harness <span class="badge">dev tool · not the product</span></h1>
+  <p>Runs the same native C# <code>RuleRuntimeService</code> that executes inside CRM. No Dataverse connection.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Rule (PCRM JSON)</h2>
+    <textarea id="pcrm" spellcheck="false"></textarea>
+    <label for="inputs">Input values (JSON object)</label>
+    <textarea id="inputs" spellcheck="false"></textarea>
+    <label for="now">Evaluation clock (UTC, optional — fixes Today()/Now() for replay)</label>
+    <input id="now" placeholder="2026-07-04T00:00:00Z" />
+    <button id="run">Evaluate ▶</button>
+    <p class="hint">Tip: change the loan amount below 500000 to see it fall through to the Manager branch.</p>
+  </section>
+
+  <section class="card">
+    <h2>Result</h2>
+    <div id="out"><p class="hint">Click <b>Evaluate</b> to run the rule.</p></div>
+  </section>
+</main>
+
+<script>
+const sampleRule = {
+  ruleId: "doa-1", name: "DOA Approval", targetEntity: "qdb_loanapplication",
+  inputs: [
+    { name: "loanAmount", type: "Decimal", binding: "qdb_loanamount" },
+    { name: "riskRating", type: "Text", binding: "qdb_riskrating" }
+  ],
+  outputs: [ { name: "approvalLevel", type: "Text" } ],
+  logic: {
+    type: "conditionSet",
+    rules: [
+      { when: { op: "and", conditions: [
+        { field: "loanAmount", operator: "GreaterThan", value: 500000 },
+        { field: "riskRating", operator: "Equals", value: "High" }
+      ] }, then: { approvalLevel: "CEO" } }
+    ],
+    otherwise: { approvalLevel: "Manager" }
+  }
+};
+document.getElementById('pcrm').value = JSON.stringify(sampleRule, null, 2);
+document.getElementById('inputs').value = JSON.stringify({ loanAmount: 600000, riskRating: "High" }, null, 2);
+document.getElementById('now').value = "2026-07-04T00:00:00Z";
+
+function esc(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+async function run(){
+  const out = document.getElementById('out');
+  let inputs;
+  try { inputs = JSON.parse(document.getElementById('inputs').value || '{}'); }
+  catch(e){ out.innerHTML = `<p class="verdict bad">Inputs JSON is invalid</p><p class="hint">${esc(e.message)}</p>`; return; }
+
+  out.innerHTML = '<p class="hint">Evaluating…</p>';
+  let data;
+  try {
+    const res = await fetch('/api/evaluate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pcrm: document.getElementById('pcrm').value, inputs, nowUtc: document.getElementById('now').value || null })
+    });
+    data = await res.json();
+  } catch(e){ out.innerHTML = `<p class="verdict bad">Request failed</p><p class="hint">${esc(e.message)}</p>`; return; }
+
+  const diags = (data.diagnostics||[]);
+  const blocking = diags.filter(d => d.severity === 'Error');
+  let html = '';
+
+  if (!data.success && blocking.length){
+    html += `<p class="verdict bad">✗ Did not execute</p>`;
+  } else if (data.matched){
+    html += `<p class="verdict ok">✓ Decision matched</p>`;
+  } else {
+    html += `<p class="verdict">— No branch matched</p>`;
+  }
+
+  html += `<div class="kv"><div>Success</div><div class="mono">${data.success}</div>`;
+  html += `<div>Matched</div><div class="mono">${data.matched}</div>`;
+  html += `<div>Elapsed</div><div class="mono">${data.elapsedMs} ms</div></div>`;
+
+  if (data.outputs && Object.keys(data.outputs).length){
+    html += `<h2 style="margin-top:12px">Outputs</h2><pre>${esc(JSON.stringify(data.outputs, null, 2))}</pre>`;
+  }
+
+  if (diags.length){
+    html += `<h2 style="margin-top:12px">Diagnostics</h2>`;
+    for (const d of diags) html += `<div class="diag ${d.severity}">[${d.severity}] ${esc(d.code)}: ${esc(d.message)}</div>`;
+  }
+
+  if (data.trace && data.trace.length){
+    html += `<div class="trace"><h2>Execution trace</h2>`;
+    for (const s of data.trace){
+      const r = s.result === true ? '<span class="r t">true</span>' : s.result === false ? '<span class="r f">false</span>' : '';
+      html += `<div class="step"><span class="k">${esc(s.kind)}</span><span>${esc(s.description)}</span>${r}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  out.innerHTML = html;
+}
+document.getElementById('run').addEventListener('click', run);
+run();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Build artifacts / dependencies (regenerated)
+node_modules/
+dist/
+bin/
+obj/
+runtime/pack/publish/
+runtime/pack/*.dll
+*.user
+
+
+# Noise / stale artifacts
+*.log
+BusinessRuleEngine_entities.zip
+
+# Strong-name PRIVATE key — NEVER commit (it controls assembly identity; F-05).
+# Provide it out-of-band (vault / CI secret) for reproducible plugin signing.
+*.snk

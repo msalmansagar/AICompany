@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Dataverse / CRM plugins require .NET Framework 4.6.2. -->
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EDP.RuleRuntime.Crm</RootNamespace>
+    <AssemblyName>EDP.RuleRuntime.Crm</AssemblyName>
+    <!-- Bump on every plugin change so the Dataverse sandbox reloads (it caches by version). -->
+    <AssemblyVersion>1.0.13.0</AssemblyVersion>
+    <FileVersion>1.0.13.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.51" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EDP.RuleRuntime\EDP.RuleRuntime.csproj" />
+  </ItemGroup>
+
+</Project>
