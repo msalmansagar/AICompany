@@ -2,10 +2,10 @@
 // Re-upload assembly, register GovernanceActionPlugin + qdb_edp_RuleGovernanceAction Custom API,
 // then smoke-test Draft->Submit->Approve->Publish verifying state + approval + audit records.
 const fs = require('fs'), https = require('https');
-const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
+const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL).replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
-const DLL = 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll';
+const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
 function raw(method, p, t, body, extra) {
   return new Promise((res, rej) => {
     const data = body == null ? null : JSON.stringify(body);

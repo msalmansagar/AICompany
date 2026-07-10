@@ -3,7 +3,7 @@
    A rule set owns its membership (membersjson) + aggregation policy (setpolicy), so the
    caller of qdb_edp_ExecuteRuleSet can't redefine what runs. */
 const fs = require('fs'), https = require('https');
-const ENV_PATH = 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env';
+const ENV_PATH = (process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env');
 const SOLUTION = 'BusinessRuleEngine', PREFIX = 'qdb_edp_';
 const env = (() => { const o = {}; for (const l of fs.readFileSync(ENV_PATH, 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';

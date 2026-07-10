@@ -2,7 +2,7 @@
 /* Seed a governed qdb_edp_ruleset and exercise qdb_edp_ExecuteRuleSet by RuleSetId:
    member resolution (ruleVersionId pin + ruleId->published), Collect vs FirstMatch policy. */
 const fs = require('fs'), https = require('https');
-const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
+const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL).replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60'; // Loan Approval — Sample v1 (pinned by version)

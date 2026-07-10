@@ -1,9 +1,14 @@
 # EDP Deployment Scripts
 
 Node scripts that deploy the BusinessRuleEngine solution to Dataverse via the Web API.
-They read the service-principal credentials from `dynamic-form-engine/backend/.env`
-(AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / DATAVERSE_URL) — no secrets
-are embedded. All are idempotent.
+They read the service-principal credentials from a `.env` file — no secrets are embedded.
+All are idempotent.
+
+**Credentials path (F-09).** The `.env` path is taken from the `EDP_ENV_PATH` environment
+variable, falling back to a legacy default if unset. Copy `.env.example` to your own `.env`
+and run e.g. `EDP_ENV_PATH=/abs/path/edp.env node bre-api-privileges.js`. Required keys:
+`AZURE_TENANT_ID` / `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `DATAVERSE_URL`. The plugin
+DLL path is likewise overridable via `EDP_DLL_PATH`.
 
 | Script | Purpose |
 |--------|---------|

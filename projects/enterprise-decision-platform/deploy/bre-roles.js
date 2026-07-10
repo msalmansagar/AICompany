@@ -2,7 +2,7 @@
 // Provision the 6 EDP security roles with per-role privileges. Deterministic: deletes
 // any existing EDP roles, recreates fresh, assigns via AddPrivilegesRole (204-verified).
 const fs = require('fs'), https = require('https');
-const env = (() => { const o = {}; for (const l of fs.readFileSync('D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env', 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
+const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.EDP_ENV_PATH || 'D:/AI Projects/AICompany/projects/dynamic-form-engine/backend/.env'), 'utf8').split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)=(.*)$/); if (m) o[m[1]] = m[2].trim(); } return o; })();
 const ORG = (env.DATAVERSE_URL).replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 function raw(method, p, t, body, extra) {
