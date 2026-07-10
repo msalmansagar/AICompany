@@ -1,89 +1,125 @@
-import { useEffect, useRef, useState } from 'react';
-import { validateFetchXml } from './fetchXmlFormatter';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 interface FetchXmlIframeBuilderProps {
   clientUrl: string;
   objectTypeCode: number;
   initialFetchXml?: string;
-  onChange: (fetchXml: string) => void;
   onError: (error: string) => void;
 }
 
-export function FetchXmlIframeBuilder({
-  clientUrl,
-  objectTypeCode,
-  initialFetchXml,
-  onChange,
-  onError,
-}: FetchXmlIframeBuilderProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+/** Imperative handle: read the current query out of the builder on demand. */
+export interface FetchXmlIframeHandle {
+  readFetchXml: () => string | null;
+}
 
-  const iframeUrl =
-    `${clientUrl}/SFA/goal/ParticipatingQueryCondition.aspx` +
-    `?entitytypecode=${objectTypeCode}&readonlymode=false`;
+/**
+ * The OOB condition builder (ParticipatingQueryCondition.aspx) exposes a
+ * same-origin query control with these two methods. It is reached via
+ * `iframe.contentWindow.advFind.parentElement.children.advFind.control` — the
+ * page does NOT support postMessage, so we call the control directly. This
+ * mirrors the proven qdb_AdvanceFindJs.js technique used on the CRM form.
+ */
+interface QueryConditionControl {
+  set_fetchXml: (fetchXml: string) => void;
+  get_fetchXml: () => string | null;
+}
 
-  useEffect(() => {
-    if (!isLoaded || !initialFetchXml || !iframeRef.current?.contentWindow) return;
+const MAX_SEED_ATTEMPTS = 3;
+const SEED_RETRY_MS = 2000;
 
-    try {
-      iframeRef.current.contentWindow.postMessage(
-        { type: 'SET_FETCHXML', fetchXml: initialFetchXml },
-        clientUrl
-      );
-    } catch {
-      // If postMessage fails, the iframe builder will start empty
-    }
-  }, [isLoaded, initialFetchXml, clientUrl]);
+export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIframeBuilderProps>(
+  function FetchXmlIframeBuilder({ clientUrl, objectTypeCode, initialFetchXml, onError }, ref) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const [isLoaded, setIsLoaded] = useState(false);
 
-  useEffect(() => {
-    function handleMessage(event: MessageEvent): void {
-      // Security: validate origin before accepting message
-      if (event.origin !== clientUrl) return;
+    const iframeUrl =
+      `${clientUrl}/SFA/goal/ParticipatingQueryCondition.aspx` +
+      `?entitytypecode=${objectTypeCode}&readonlymode=false`;
 
-      const data = event.data as { type?: string; fetchXml?: string } | undefined;
-      if (!data || data.type !== 'FETCHXML_UPDATED') return;
-
-      const fetchXml = data.fetchXml ?? '';
-      const validationError = validateFetchXml(fetchXml);
-      if (validationError) {
-        onError(`FetchXML from CRM builder is invalid: ${validationError}`);
-        return;
+    // Reach the same-origin query-condition control inside the OOB page.
+    const resolveControl = useCallback((): QueryConditionControl | null => {
+      try {
+        const frameWindow = iframeRef.current?.contentWindow as unknown as { advFind?: unknown } | undefined;
+        const advFind = frameWindow?.advFind as
+          | { parentElement?: { children?: { advFind?: { control?: unknown } } } }
+          | undefined;
+        const control = advFind?.parentElement?.children?.advFind?.control;
+        return isQueryConditionControl(control) ? control : null;
+      } catch {
+        return null;
       }
+    }, []);
 
-      onChange(fetchXml);
-    }
+    // Seed the builder with the existing FetchXML once its control is ready.
+    // The control initialises asynchronously after the iframe loads, so retry.
+    useEffect(() => {
+      if (!isLoaded) return;
+      let attempts = 0;
+      let timer: ReturnType<typeof setTimeout> | undefined;
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [clientUrl, onChange, onError]);
+      const seed = (): void => {
+        const control = resolveControl();
+        if (control) {
+          if (initialFetchXml) {
+            try {
+              control.set_fetchXml(initialFetchXml);
+            } catch {
+              // Seeding is best-effort — the builder just starts empty.
+            }
+          }
+          return;
+        }
+        if (attempts++ < MAX_SEED_ATTEMPTS) {
+          timer = setTimeout(seed, SEED_RETRY_MS);
+        } else {
+          onError('The CRM condition builder did not initialise. Use the manual builder instead.');
+        }
+      };
 
-  function handleIframeLoad(): void {
-    setIsLoaded(true);
+      seed();
+      return () => {
+        if (timer) clearTimeout(timer);
+      };
+    }, [isLoaded, initialFetchXml, resolveControl, onError]);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        readFetchXml: (): string | null => {
+          const control = resolveControl();
+          if (!control) return null;
+          try {
+            return control.get_fetchXml() ?? null;
+          } catch {
+            return null;
+          }
+        },
+      }),
+      [resolveControl]
+    );
+
+    return (
+      <div style={containerStyle}>
+        {!isLoaded && <div style={loadingStyle}>Loading CRM condition builder…</div>}
+        {/* No sandbox: the builder needs full same-origin CRM capabilities, and
+            the control is only reachable when the frame is same-origin. */}
+        <iframe
+          ref={iframeRef}
+          src={iframeUrl}
+          style={iframeStyle(isLoaded)}
+          title="CRM Advanced Find Condition Builder"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => onError('Failed to load the CRM condition builder. Falling back to manual builder.')}
+        />
+      </div>
+    );
   }
+);
 
-  function handleIframeError(): void {
-    onError('Failed to load CRM Advanced Filter page. Falling back to manual builder.');
-  }
-
-  return (
-    <div style={containerStyle}>
-      {!isLoaded && (
-        <div style={loadingStyle}>
-          Loading CRM filter builder...
-        </div>
-      )}
-      <iframe
-        ref={iframeRef}
-        src={iframeUrl}
-        style={iframeStyle(isLoaded)}
-        title="CRM Advanced Filter Builder"
-        onLoad={handleIframeLoad}
-        onError={handleIframeError}
-        sandbox="allow-scripts allow-same-origin allow-forms"
-      />
-    </div>
-  );
+function isQueryConditionControl(value: unknown): value is QueryConditionControl {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<QueryConditionControl>;
+  return typeof candidate.get_fetchXml === 'function' && typeof candidate.set_fetchXml === 'function';
 }
 
 const containerStyle: React.CSSProperties = {
