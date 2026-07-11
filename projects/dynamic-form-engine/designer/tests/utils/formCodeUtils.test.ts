@@ -1,10 +1,4 @@
-// RED — failing until formCodeUtils is created with the correct algorithms.
-//
-// Tests:
-//   slugifyFormCode  — auto-derive algorithm used when the user has not manually edited the Code field
-//   sanitizeFormCode — per-keystroke sanitization applied when the user is typing in the Code field
-
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest'; // FIXED: removed stale RED TDD-phase marker — implementation is complete
 import { slugifyFormCode, sanitizeFormCode } from '@/utils/formCodeUtils';
 
 describe('slugifyFormCode — auto-derive from Form Name', () => {
@@ -45,6 +39,15 @@ describe('slugifyFormCode — auto-derive from Form Name', () => {
   it('truncates_to_50_characters', () => {
     const longName = 'a'.repeat(60);
     expect(slugifyFormCode(longName)).toHaveLength(50);
+  });
+
+  it('slugifyFormCode_withSeparatorAtTruncationBoundary_doesNotProduceTrailingHyphen', () => {
+    // 49 a's + space + more text: the space becomes a hyphen at index 49 (the cut point).
+    // Without the post-truncation strip this would produce "aaa...a-" (trailing hyphen).
+    const nameWithSeparatorAtCutPoint = 'a'.repeat(49) + ' overflow';
+    const result = slugifyFormCode(nameWithSeparatorAtCutPoint);
+    expect(result).not.toMatch(/-$/);
+    expect(result.length).toBeLessThanOrEqual(50);
   });
 
   it('returns_empty_string_for_empty_input', () => {

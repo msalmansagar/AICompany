@@ -1,12 +1,5 @@
-// RED — failing until the codeManuallyEdited dirty-flag is implemented in NewFormWizardScreen.
-//
-// Tests (FR-012(a)):
-//   1. Auto-derives Form Code from Form Name before any manual edit.
-//   2. Stops auto-deriving Form Code once the user has manually edited the Code field.
-//   3. Sanitization still applies when the user types directly in the Code field.
-
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
 import { CrmContext } from '@/app/App';
@@ -37,11 +30,19 @@ function renderWizard() {
 }
 
 function getNameInput(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: /form name/i }) as HTMLInputElement;
+  const el = screen.getByRole('textbox', { name: /form name/i });
+  if (!(el instanceof HTMLInputElement)) {
+    throw new Error('Form Name element is not an HTMLInputElement');
+  }
+  return el;
 }
 
 function getCodeInput(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: /form code/i }) as HTMLInputElement;
+  const el = screen.getByRole('textbox', { name: /form code/i });
+  if (!(el instanceof HTMLInputElement)) {
+    throw new Error('Form Code element is not an HTMLInputElement');
+  }
+  return el;
 }
 
 describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', () => {
@@ -49,8 +50,14 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    // Explicit cleanup prevents DOM pollution when a test times out before RTL's
+    // auto-cleanup hook runs, which would corrupt subsequent tests.
+    cleanup();
+  });
+
   it('auto_derives_code_from_name_before_manual_edit', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWizard();
 
     await user.type(getNameInput(), 'Loan Application Form');
@@ -59,7 +66,7 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   });
 
   it('continues_updating_code_as_name_grows_while_unedited', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWizard();
 
     const nameInput = getNameInput();
@@ -71,7 +78,7 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   });
 
   it('stops_auto_deriving_after_user_manually_edits_code', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWizard();
 
     // Auto-derive fires as user types the name
@@ -91,7 +98,7 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   });
 
   it('sanitizes_disallowed_characters_in_manual_code_input', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWizard();
 
     const codeInput = getCodeInput();
@@ -102,11 +109,39 @@ describe('NewFormWizardScreen — FR-012(a) Form Code auto-derive dirty flag', (
   });
 
   it('sanitizes_auto_derived_code_with_special_characters_in_name', async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderWizard();
 
     await user.type(getNameInput(), 'Loan (2026) Form');
 
     expect(getCodeInput().value).toBe('loan-2026-form');
+  });
+
+  it('NewFormWizardScreen_givenBackNavAfterAutoDerive_manualCodeEditSurvivesAndBlocksAutoDerive', async () => {
+    // This test validates the core architectural choice: isFormCodeManuallyEdited lives in the
+    // parent NewFormWizardScreen (not in a useRef inside StepFormBasics), so that navigating
+    // Back from step 2 to step 1 — which unmounts and remounts StepFormBasics — does not
+    // reset the dirty flag.
+    const user = userEvent.setup({ delay: null });
+    renderWizard();
+
+    // Step 1: type a name → code auto-derives; Next becomes enabled
+    await user.type(getNameInput(), 'AB');
+    expect(getCodeInput().value).toBe('ab');
+
+    // Navigate to step 2 then back to step 1 (StepFormBasics unmounts and remounts)
+    await user.click(screen.getByRole('button', { name: /next/i }));
+    await user.click(screen.getByRole('button', { name: /back/i }));
+
+    // Manually edit the code field after returning to step 1
+    const codeInput = getCodeInput();
+    await user.tripleClick(codeInput);
+    await user.clear(codeInput);
+    await user.type(codeInput, 'mv');
+
+    // Typing more in the name must NOT overwrite the manually set code
+    await user.type(getNameInput(), 'C');
+
+    expect(getCodeInput().value).toBe('mv');
   });
 });

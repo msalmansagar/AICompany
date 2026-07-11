@@ -23,6 +23,8 @@ const MAX_CODE_LENGTH = 50;
  *      Existing hyphens collapse with adjacent non-alphanumeric characters into one hyphen.
  *   3. Strip any leading or trailing hyphens produced by the replacement.
  *   4. Truncate to MAX_CODE_LENGTH characters.
+ *   5. Strip any trailing hyphen exposed by truncation.
+ *      (A hyphen can land at the cut point when a word-separator falls at position MAX_CODE_LENGTH.)
  *
  * Example: "Loan Application Form (2026)" → "loan-application-form-2026"
  */
@@ -31,7 +33,8 @@ export function slugifyFormCode(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, MAX_CODE_LENGTH);
+    .slice(0, MAX_CODE_LENGTH)
+    .replace(/-+$/, ''); // FIXED: truncation can expose a trailing hyphen when a separator lands at the cut point
 }
 
 /**
