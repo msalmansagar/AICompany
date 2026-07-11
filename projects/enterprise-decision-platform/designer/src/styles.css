@@ -285,6 +285,21 @@ h1, h2, h3 { text-wrap: balance; }
 .govbar button.gov-publish { background: var(--brand); border-color: var(--brand); color: #fff; }
 .govbar button.gov-reject { color: var(--danger); border-color: var(--danger-line); }
 
+/* Effective-dating bar */
+.effbar { display: flex; align-items: center; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--n-stroke1); background: var(--n-bg2); }
+.effbar .gov-label { font-size: 11px; text-transform: uppercase; letter-spacing: .3px; color: var(--n-fg2); }
+.effbar .spacer { flex: 1; }
+.eff-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--n-fg2); }
+.eff-field input { font: inherit; font-size: 13px; padding: 4px 7px; border: 1px solid var(--n-stroke2); border-radius: var(--radius); background: var(--n-bg1); color: var(--n-fg1); }
+.eff-arrow { color: var(--n-fg3); }
+.eff-utc { font-size: 10px; font-weight: 600; letter-spacing: .3px; color: var(--n-fg3); text-transform: uppercase; }
+.eff-badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 2px 10px; border: 1px solid transparent; }
+.eff-badge.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-line); }
+.eff-badge.pending { background: var(--brand-tint); color: var(--brand); border-color: var(--brand-tint-2); }
+.eff-badge.expired { background: var(--n-bg3); color: var(--n-fg2); border-color: var(--n-stroke2); }
+.effbar button { font: inherit; background: var(--n-bg1); color: var(--n-fg1); border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 5px 12px; font-weight: 600; font-size: 13px; cursor: pointer; }
+.effbar button:hover:not(:disabled) { background: var(--n-bg1-hover); } .effbar button:disabled { opacity: .5; cursor: default; }
+
 /* ── Editor body + empty state ───────────────────────────── */
 .body { flex: 1; min-height: 0; display: flex; }
 .editor-wrap { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; }

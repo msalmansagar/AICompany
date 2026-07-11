@@ -8,7 +8,7 @@ const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
-const ASSEMBLY_VERSION = '1.0.20.0';
+const ASSEMBLY_VERSION = '1.0.21.0';
 const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleServicePlugin';
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60';       // Loan Approval — Sample v1 (decision table)
 const SEED_RULE = 'c9f1a5a9-4f77-f111-ab0e-70a8a55bc6a5';          // its rule
@@ -23,6 +23,7 @@ const FUNCTIONS = [
   { uniquename: 'qdb_edp_GetRuleTemplates', displayname: 'EDP Get Rule Templates', isfunction: true, params: ['Industry'] },
   { uniquename: 'qdb_edp_GetRuleDocumentation', displayname: 'EDP Get Rule Documentation', isfunction: true, params: ['RuleId', 'RuleName', 'RuleVersionId'] },
   { uniquename: 'qdb_edp_GetRuleAnalytics', displayname: 'EDP Get Rule Analytics', isfunction: true, params: ['RuleId', 'PeriodDays'] },
+  { uniquename: 'qdb_edp_ResolveEffectiveVersion', displayname: 'EDP Resolve Effective Version', isfunction: true, params: ['RuleId', 'RuleName', 'AsOf'] },
 ];
 
 function raw(method, path, token, body, extra) {

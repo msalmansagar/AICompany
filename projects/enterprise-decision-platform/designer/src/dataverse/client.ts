@@ -143,13 +143,15 @@ export interface LoadedVersion {
   versionNumber: number;
   versionId: string | null;
   lifecycleState: string;
+  effectiveFrom: string | null; // ISO UTC, or null = open-ended
+  effectiveTo: string | null;
 }
 
 export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion | null> {
   const rule = await req<any>(`/${RULES}(${ruleId})?$select=qdb_edp_rulename`);
   const data = await req<{ value: any[] }>(
     `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
-      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate&$orderby=qdb_edp_versionnumber desc&$top=1`
+      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_effectivefrom,qdb_edp_effectiveto&$orderby=qdb_edp_versionnumber desc&$top=1`
   );
   const v = data.value[0];
   // The target entity lives inside the PCRM — restore it so field pickers can load.
@@ -162,6 +164,8 @@ export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion |
     versionNumber: v?.qdb_edp_versionnumber ?? 0,
     versionId: v?.qdb_edp_ruleversionid ?? null,
     lifecycleState: lifecycleLabel(v?.qdb_edp_lifecyclestate),
+    effectiveFrom: v?.qdb_edp_effectivefrom ?? null,
+    effectiveTo: v?.qdb_edp_effectiveto ?? null,
   };
 }
 
@@ -259,6 +263,14 @@ export async function getRuleAnalytics(periodDays = 30, ruleId?: string): Promis
     : `(PeriodDays=@p)?@p=%27${periodDays}%27`;
   const res = await req<{ ResultJson?: string }>(`/qdb_edp_GetRuleAnalytics${args}`, 'GET');
   return JSON.parse(res.ResultJson ?? EMPTY_ANALYTICS);
+}
+
+/** Set (or clear) a version's effective-dating window. Pass null to leave an end open. */
+export async function setEffectiveWindow(versionId: string, fromIso: string | null, toIso: string | null): Promise<void> {
+  await req(`/${VERSIONS}(${versionId})`, 'PATCH', {
+    qdb_edp_effectivefrom: fromIso || null,
+    qdb_edp_effectiveto: toIso || null,
+  });
 }
 
 /** Current lifecycle state label of a version (for the governance bar). */
