@@ -348,6 +348,16 @@ h1, h2, h3 { text-wrap: balance; }
 .scn-del { font: inherit; border: 0; background: transparent; color: var(--n-fg3); cursor: pointer; padding: 2px 6px; flex: none; }
 .scn-del:hover:not(:disabled) { color: var(--danger); }
 
+/* Reason codes — Test result chips + decision-table authoring column */
+.reasons { display: flex; flex-wrap: wrap; gap: 6px; }
+.reason-chip { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2px; color: var(--brand); background: var(--brand-tint); border: 1px solid var(--brand-tint-2); border-radius: 999px; padding: 2px 9px; }
+.dt2-col-reason { min-width: 170px; }
+.dt2-reason-h { font-weight: 600; }
+.dt2-cell-reason { padding: 3px 6px; }
+.dt2-reason-in { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 12px; padding: 5px 7px; border: 1px solid var(--n-stroke2); border-radius: var(--radius); background: var(--n-bg1); color: var(--n-fg1); }
+.dt2-reason-in::placeholder { color: var(--n-fg3); font-family: var(--font); }
+.dt2-reason-in:focus { outline: 2px solid var(--brand); outline-offset: -1px; border-color: var(--brand); }
+
 /* Decision analytics dashboard */
 .an { display: flex; flex-direction: column; height: 100%; overflow: auto; padding: 20px 24px; gap: 18px; }
 .an-head { display: flex; align-items: center; gap: 16px; }

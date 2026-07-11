@@ -387,6 +387,12 @@ export function App() {
                               {Object.entries(testResult.outputs).map(([k, v]) => <div key={k} className="kv"><span className="k">{k}</span><span className="v">{String(v)}</span></div>)}
                             </div>
                           )}
+                          {(testResult.reasonCodes?.length ?? 0) > 0 && (
+                            <div className="res-block">
+                              <span className="res-label">Reason codes</span>
+                              <div className="reasons">{testResult.reasonCodes.map((c) => <span key={c} className="reason-chip">{c}</span>)}</div>
+                            </div>
+                          )}
                           {testResult.trace?.length > 0 && (
                             <div className="res-block grow">
                               <span className="res-label">Why — execution trace</span>

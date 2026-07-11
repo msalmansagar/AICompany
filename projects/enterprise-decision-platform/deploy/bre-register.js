@@ -81,6 +81,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     { uniquename: 'Success', displayname: 'Success', type: 0 },
     { uniquename: 'Matched', displayname: 'Matched', type: 0 },
     { uniquename: 'OutputsJson', displayname: 'Outputs JSON', type: 10 },
+    { uniquename: 'ReasonCodesJson', displayname: 'Reason Codes JSON', type: 10 },
     { uniquename: 'TraceJson', displayname: 'Trace JSON', type: 10 },
     { uniquename: 'DiagnosticsJson', displayname: 'Diagnostics JSON', type: 10 },
     { uniquename: 'ElapsedMs', displayname: 'Elapsed Ms', type: 7 },

@@ -34,26 +34,42 @@ namespace EDP.RuleRuntime.DecisionTable
                 if (table.DefaultRow != null)
                 {
                     context.Trace.Add("tableDefault", "default row applied", true);
+                    context.AddReasonCodes(table.DefaultRow.ReasonCodes);
                     return (true, ToOutputs(table.DefaultRow));
                 }
                 return (false, new Dictionary<string, object?>());
             }
 
+            // The winning row(s) — the ones that actually produce the decision — carry the reason codes.
+            List<PcrmTableRow> winners;
+            Dictionary<string, object?> outputs;
             switch (policy)
             {
                 case "first":
-                    return (true, ToOutputs(matches[0]));
+                    winners = new List<PcrmTableRow> { matches[0] };
+                    outputs = ToOutputs(matches[0]);
+                    break;
                 case "priority":
-                    return (true, ToOutputs(matches.OrderByDescending(r => r.Priority).First()));
+                    var top = matches.OrderByDescending(r => r.Priority).First();
+                    winners = new List<PcrmTableRow> { top };
+                    outputs = ToOutputs(top);
+                    break;
                 case "unique":
                     if (matches.Count > 1)
                         throw new RuleExecutionException($"Unique hit policy matched {matches.Count} rows.");
-                    return (true, ToOutputs(matches[0]));
+                    winners = new List<PcrmTableRow> { matches[0] };
+                    outputs = ToOutputs(matches[0]);
+                    break;
                 case "all":
-                    return (true, MergeAll(matches, table.OutputColumns));
+                    winners = matches;
+                    outputs = MergeAll(matches, table.OutputColumns);
+                    break;
                 default:
                     throw new RuleExecutionException($"Unsupported hit policy '{table.HitPolicy}'.");
             }
+
+            foreach (var row in winners) context.AddReasonCodes(row.ReasonCodes);
+            return (true, outputs);
         }
 
         private bool RowMatches(PcrmLogic table, PcrmTableRow row, RuleExecutionContext context)

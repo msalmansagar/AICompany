@@ -36,7 +36,18 @@ namespace EDP.RuleRuntime.Compiler
             else
                 ValidateConditionSet(doc.Logic, symbols, diagnostics);
 
+            ValidateReasonCodes(doc.Logic, diagnostics);
             return diagnostics;
+        }
+
+        /// <summary>Reason codes are free-form, but a blank code is almost always an authoring slip.</summary>
+        private static void ValidateReasonCodes(PcrmLogic logic, List<RuleDiagnostic> diagnostics)
+        {
+            var rowCodes = logic.Rows.SelectMany(r => r.ReasonCodes)
+                .Concat(logic.DefaultRow?.ReasonCodes ?? Enumerable.Empty<string>());
+            var branchCodes = logic.Rules.SelectMany(r => r.ReasonCodes);
+            if (rowCodes.Concat(branchCodes).Any(string.IsNullOrWhiteSpace))
+                diagnostics.Add(new RuleDiagnostic("EDP030", "A reason code is blank — remove it or give it a value.", RuleErrorSeverity.Warning));
         }
 
         private void ValidateBindings(PcrmDocument doc, List<RuleDiagnostic> diagnostics)
