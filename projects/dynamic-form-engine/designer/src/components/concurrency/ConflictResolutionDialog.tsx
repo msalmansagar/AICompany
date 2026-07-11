@@ -77,7 +77,10 @@ export function ConflictResolutionDialog({
     setDiffState({ kind: 'loading' });
     fetchServerVersion()
       .then((serverVersion) => setDiffState({ kind: 'loaded', serverVersion }))
-      .catch(() => setDiffState({ kind: 'error' }));
+      .catch((error: unknown) => {
+        console.error('[ConflictResolutionDialog] Failed to fetch server version', { error });
+        setDiffState({ kind: 'error' });
+      });
   };
 
   const handleDismiss = (): void => {
