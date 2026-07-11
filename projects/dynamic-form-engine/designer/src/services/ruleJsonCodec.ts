@@ -76,6 +76,8 @@ export function decodeRuleJson(ruleJson: string | null | undefined): DecodeResul
   try {
     parsed = JSON.parse(ruleJson);
   } catch {
+    // JSON.parse throws on malformed input. Treat corrupt payloads as absent — the
+    // rule will fall back to its legacy column values (ruleValue / customExpression).
     return null;
   }
 
@@ -83,22 +85,26 @@ export function decodeRuleJson(ruleJson: string | null | undefined): DecodeResul
     return null;
   }
 
-  if (parsed.type === 'conditional_required') {
-    return {
-      kind: 'conditional_required',
-      conditions: Array.isArray(parsed.conditions) ? (parsed.conditions as StructuredCondition[]) : [],
-    };
-  }
-
-  if (parsed.type === 'cross_field') {
-    return {
-      kind: 'cross_field',
-      operator: (parsed.operator ?? '==') as CrossFieldComparisonOperator,
-      targetFieldRef: String(parsed.targetFieldRef ?? ''),
-    };
-  }
+  if (parsed.type === 'conditional_required') return resolveConditionalRequired(parsed);
+  if (parsed.type === 'cross_field')          return resolveCrossField(parsed);
 
   return null;
+}
+
+function resolveConditionalRequired(parsed: RuleJsonPayload): DecodedConditionalRequired {
+  const conditions = Array.isArray((parsed as ConditionalRequiredPayload).conditions)
+    ? (parsed as ConditionalRequiredPayload).conditions
+    : [];
+  return { kind: 'conditional_required', conditions };
+}
+
+function resolveCrossField(parsed: RuleJsonPayload): DecodedCrossField {
+  const payload = parsed as CrossFieldPayload;
+  return {
+    kind: 'cross_field',
+    operator: (payload.operator ?? '==') as CrossFieldComparisonOperator,
+    targetFieldRef: String(payload.targetFieldRef ?? ''),
+  };
 }
 
 function isRuleJsonObject(value: unknown): value is RuleJsonPayload {

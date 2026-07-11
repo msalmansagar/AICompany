@@ -627,4 +627,62 @@ describe('evaluateStructuredCondition', () => {
     const condition = { fieldRef: 'amount', operator: 'greater_than' as const, value: '10000' };
     expect(evaluateStructuredCondition(condition, { amount: '5000' })).toBe(false);
   });
+
+  it('evaluateStructuredCondition_returnsTrue_forNotEquals_whenValuesDiffer', () => {
+    const condition = { fieldRef: 'status', operator: 'not_equals' as const, value: 'inactive' };
+    expect(evaluateStructuredCondition(condition, { status: 'active' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsFalse_forNotEquals_whenValuesMatch', () => {
+    const condition = { fieldRef: 'status', operator: 'not_equals' as const, value: 'inactive' };
+    expect(evaluateStructuredCondition(condition, { status: 'inactive' })).toBe(false);
+  });
+
+  it('evaluateStructuredCondition_returnsTrue_forLessThan_whenValueIsBelow', () => {
+    const condition = { fieldRef: 'score', operator: 'less_than' as const, value: '100' };
+    expect(evaluateStructuredCondition(condition, { score: '50' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsFalse_forLessThan_whenValueExceedsThreshold', () => {
+    const condition = { fieldRef: 'score', operator: 'less_than' as const, value: '100' };
+    expect(evaluateStructuredCondition(condition, { score: '150' })).toBe(false);
+  });
+
+  it('evaluateStructuredCondition_returnsTrue_forGreaterThanOrEqual_whenValueExceeds', () => {
+    const condition = { fieldRef: 'age', operator: 'greater_than_or_equal' as const, value: '18' };
+    expect(evaluateStructuredCondition(condition, { age: '21' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsTrue_forGreaterThanOrEqual_atExactBoundary', () => {
+    // Boundary: value exactly equals the threshold — must be true (>= not just >)
+    const condition = { fieldRef: 'age', operator: 'greater_than_or_equal' as const, value: '18' };
+    expect(evaluateStructuredCondition(condition, { age: '18' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsTrue_forLessThanOrEqual_whenValueIsBelow', () => {
+    const condition = { fieldRef: 'risk_score', operator: 'less_than_or_equal' as const, value: '5' };
+    expect(evaluateStructuredCondition(condition, { risk_score: '3' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsFalse_forLessThanOrEqual_whenValueExceeds', () => {
+    const condition = { fieldRef: 'risk_score', operator: 'less_than_or_equal' as const, value: '5' };
+    expect(evaluateStructuredCondition(condition, { risk_score: '7' })).toBe(false);
+  });
+
+  it('evaluateStructuredCondition_returnsTrue_forIsNotEmpty_whenFieldHasValue', () => {
+    const condition = { fieldRef: 'comment', operator: 'is_not_empty' as const, value: null };
+    expect(evaluateStructuredCondition(condition, { comment: 'some text' })).toBe(true);
+  });
+
+  it('evaluateStructuredCondition_returnsFalse_forIsNotEmpty_whenFieldIsEmpty', () => {
+    const condition = { fieldRef: 'comment', operator: 'is_not_empty' as const, value: null };
+    expect(evaluateStructuredCondition(condition, { comment: '' })).toBe(false);
+  });
+
+  it('evaluateStructuredCondition_returnsFalse_forNumericOperator_whenFieldValueIsNonNumeric', () => {
+    // NaN case: fieldValue is a non-numeric string; Number('abc') = NaN; NaN > 100 = false.
+    // Documents that non-parseable values do not throw and evaluate to false for numeric ops.
+    const condition = { fieldRef: 'amount', operator: 'greater_than' as const, value: '100' };
+    expect(evaluateStructuredCondition(condition, { amount: 'abc' })).toBe(false);
+  });
 });

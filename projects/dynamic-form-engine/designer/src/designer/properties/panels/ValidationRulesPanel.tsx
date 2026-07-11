@@ -66,6 +66,18 @@ const CROSS_FIELD_OPERATORS: Array<{ value: CrossFieldComparisonOperator; label:
 
 const OPERATORS_REQUIRING_NO_VALUE: StructuredConditionOperator[] = ['is_empty', 'is_not_empty'];
 
+// ── ConditionEntry ─────────────────────────────────────────────────────────────
+// Extends StructuredCondition with a stable React key. The id is UI-only and is
+// stripped before the condition array is serialised to qdb_rule_json.
+
+interface ConditionEntry extends StructuredCondition {
+  id: string;
+}
+
+function generateConditionId(): string {
+  return `cond_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const useStyles = makeStyles({
@@ -122,9 +134,9 @@ const useStyles = makeStyles({
 // ── Condition builder (for conditional_required) ───────────────────────────────
 
 interface ConditionBuilderProps {
-  conditions: StructuredCondition[];
+  conditions: ConditionEntry[];
   allFieldCodes: string[];
-  onChange: (conditions: StructuredCondition[]) => void;
+  onChange: (conditions: ConditionEntry[]) => void;
 }
 
 function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuilderProps): React.ReactElement {
@@ -133,25 +145,25 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
   function addCondition(): void {
     onChange([
       ...conditions,
-      { fieldRef: allFieldCodes[0] ?? '', operator: 'equals', value: '' },
+      { id: generateConditionId(), fieldRef: allFieldCodes[0] ?? '', operator: 'equals', value: '' },
     ]);
   }
 
-  function removeCondition(index: number): void {
-    onChange(conditions.filter((_, i) => i !== index));
+  function removeCondition(id: string): void {
+    onChange(conditions.filter(c => c.id !== id));
   }
 
-  function updateConditionField(index: number, fieldRef: string): void {
-    onChange(conditions.map((c, i) => i === index ? { ...c, fieldRef } : c));
+  function updateConditionField(id: string, fieldRef: string): void {
+    onChange(conditions.map(c => c.id === id ? { ...c, fieldRef } : c));
   }
 
-  function updateConditionOperator(index: number, operator: StructuredConditionOperator): void {
+  function updateConditionOperator(id: string, operator: StructuredConditionOperator): void {
     const needsValue = !OPERATORS_REQUIRING_NO_VALUE.includes(operator);
-    onChange(conditions.map((c, i) => i === index ? { ...c, operator, value: needsValue ? (c.value ?? '') : null } : c));
+    onChange(conditions.map(c => c.id === id ? { ...c, operator, value: needsValue ? (c.value ?? '') : null } : c));
   }
 
-  function updateConditionValue(index: number, value: string): void {
-    onChange(conditions.map((c, i) => i === index ? { ...c, value } : c));
+  function updateConditionValue(id: string, value: string): void {
+    onChange(conditions.map(c => c.id === id ? { ...c, value } : c));
   }
 
   return (
@@ -169,15 +181,17 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
         </Text>
       )}
 
-      {conditions.map((condition, index) => {
+      {conditions.map(condition => {
         const showValue = !OPERATORS_REQUIRING_NO_VALUE.includes(condition.operator);
         return (
-          <div key={index} className={styles.conditionRow}>
+          // key={condition.id} — stable identity so React preserves input focus
+          // when adding/removing conditions mid-list.
+          <div key={condition.id} className={styles.conditionRow}>
             <div className={styles.conditionRowField}>
               <Field label="Field">
                 <Select
                   value={condition.fieldRef}
-                  onChange={(_, d) => updateConditionField(index, d.value)}
+                  onChange={(_, d) => updateConditionField(condition.id, d.value)}
                 >
                   {allFieldCodes.map(code => (
                     <option key={code} value={code}>{code}</option>
@@ -189,7 +203,10 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
               <Field label="Operator">
                 <Select
                   value={condition.operator}
-                  onChange={(_, d) => updateConditionOperator(index, d.value as StructuredConditionOperator)}
+                  // Fluent UI Select.OnChangeData.value is typed as string; the cast
+                  // is safe because the <option> set is exhaustively drawn from
+                  // CONDITION_OPERATORS whose values are all StructuredConditionOperator members.
+                  onChange={(_, d) => updateConditionOperator(condition.id, d.value as StructuredConditionOperator)}
                 >
                   {CONDITION_OPERATORS.map(op => (
                     <option key={op.value} value={op.value}>{op.label}</option>
@@ -202,7 +219,7 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
                 <Field label="Value">
                   <Input
                     value={condition.value ?? ''}
-                    onChange={(_, d) => updateConditionValue(index, d.value)}
+                    onChange={(_, d) => updateConditionValue(condition.id, d.value)}
                     placeholder="comparison value"
                   />
                 </Field>
@@ -213,7 +230,7 @@ function ConditionBuilder({ conditions, allFieldCodes, onChange }: ConditionBuil
               size="small"
               icon={<DeleteRegular />}
               aria-label="Remove condition"
-              onClick={() => removeCondition(index)}
+              onClick={() => removeCondition(condition.id)}
               style={{ alignSelf: 'flex-end', marginBottom: '2px' }}
             />
           </div>
@@ -250,6 +267,9 @@ function CrossFieldEditor({
       <Field label="Operator">
         <Select
           value={operator}
+          // Fluent UI Select.OnChangeData.value is typed as string; the cast is safe
+          // because the <option> set is exhaustively drawn from CROSS_FIELD_OPERATORS
+          // whose values are all CrossFieldComparisonOperator members.
           onChange={(_, d) => onOperatorChange(d.value as CrossFieldComparisonOperator)}
         >
           {CROSS_FIELD_OPERATORS.map(op => (
@@ -302,7 +322,7 @@ function AddRuleForm({
   const [ruleValue, setRuleValue] = useState('');
   const [customExpression, setCustomExpression] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [conditions, setConditions] = useState<StructuredCondition[]>([]);
+  const [conditions, setConditions] = useState<ConditionEntry[]>([]);
   const [crossFieldOperator, setCrossFieldOperator] = useState<CrossFieldComparisonOperator>('==');
   const [crossFieldTargetRef, setCrossFieldTargetRef] = useState(otherFieldCodes[0] ?? '');
 
@@ -319,6 +339,11 @@ function AddRuleForm({
   }
 
   function handleSave(): void {
+    // Strip ConditionEntry.id before persisting — id is a React key only, not part
+    // of the stored schema. The codec encodes conditions as plain StructuredCondition[].
+    const persistableConditions: StructuredCondition[] = conditions.map(
+      ({ id: _id, ...rest }) => rest,
+    );
     const newRule: DesignerValidationRule = {
       id: generateRuleId(),
       fieldId,
@@ -328,7 +353,7 @@ function AddRuleForm({
       sortOrder,
       customExpression: mode === 'expression' ? customExpression : null,
       ruleTemplateId: null,
-      conditions: mode === 'conditions' ? conditions : [],
+      conditions: mode === 'conditions' ? persistableConditions : [],
       crossFieldOperator: mode === 'crossField' ? crossFieldOperator : null,
       crossFieldTargetRef: mode === 'crossField' ? crossFieldTargetRef : null,
     };
@@ -343,7 +368,14 @@ function AddRuleForm({
           onChange={(_, d) => handleRuleTypeChange(d.value as ValidationRuleType)}
         >
           {RULE_TYPES.map(rt => (
-            <option key={rt.value} value={rt.value}>{rt.label}</option>
+            // Disable cross_field when the form has no other fields to compare against.
+            <option
+              key={rt.value}
+              value={rt.value}
+              disabled={rt.value === 'cross_field' && otherFieldCodes.length === 0}
+            >
+              {rt.label}
+            </option>
           ))}
         </Select>
       </Field>

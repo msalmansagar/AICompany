@@ -91,7 +91,8 @@ export class ValidationRuleService {
       dto.crossFieldOperator !== undefined ||
       dto.crossFieldTargetRef !== undefined;
     if (hasStructuredFields) {
-      Object.assign(data, buildRuleJsonPayload(dto as CreateValidationRuleDto));
+      // UpdateValidationRuleDto structurally satisfies RuleJsonSource — no cast needed.
+      Object.assign(data, buildRuleJsonPayload(dto));
     }
 
     if (Object.keys(data).length === 0) return;

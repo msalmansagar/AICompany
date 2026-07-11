@@ -5,6 +5,7 @@ import type {
   FormDefinition,
   FormFieldValues,
   StructuredCondition,
+  CrossFieldComparisonOperator,
 } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
@@ -461,11 +462,15 @@ export const validationEngine = new ValidationEngine();
  * Returns true when the cross-field comparison holds (no error should be raised).
  * The operator semantics match the designer's intent: the rule fires when the
  * comparison FAILS, so the caller inverts the result to determine whether to show an error.
+ *
+ * The public param is typed as CrossFieldComparisonOperator for call-site safety.
+ * The private dispatch helpers accept string so their default branches remain reachable
+ * at runtime for any future extension without a TypeScript exhaustiveness error here.
  */
 export function applyCrossFieldOperator(
   sourceValue: unknown,
   targetValue: unknown,
-  operator: string,
+  operator: CrossFieldComparisonOperator,
 ): boolean {
   if (sourceValue === null || sourceValue === undefined) return true; // nothing to compare
   if (targetValue === null || targetValue === undefined) return true;
