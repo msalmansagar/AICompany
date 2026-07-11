@@ -48,17 +48,24 @@ interface MockState {
   navigateTo: () => void;
 }
 
+/**
+ * Returns a fresh default MockTab. Called in beforeEach to reset shared state
+ * between tests — prevents mutation in one test from leaking into the next.
+ */
+function buildDefaultMockTab(): MockTab {
+  return {
+    label: 'Personal Information',
+    iconName: null,
+    isVisible: true,
+    requiresPreviousTabComplete: false,
+    hideTabBar: false,
+    description: '',
+  };
+}
+
+// Shared state object — individual fields are reset in beforeEach via buildDefaultMockTab().
 const mockState: MockState = {
-  tabs: {
-    'tab-a11y': {
-      label: 'Personal Information',
-      iconName: null,
-      isVisible: true,
-      requiresPreviousTabComplete: false,
-      hideTabBar: false,
-      description: '',
-    },
-  },
+  tabs: { 'tab-a11y': buildDefaultMockTab() },
   sectionOrder: { 'tab-a11y': ['section-a11y'] },
   sections: {
     'section-a11y': { label: 'Contact Details', columnCount: 1 },
@@ -109,13 +116,16 @@ const AXE_AA_CONFIG = {
 describe('TabProperties — WCAG 2.1 AA automated scan (ENT-008)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset the tab to its default state before every test so that mutations
+    // made in one test (e.g. setting hideTabBar = true) do not leak forward.
+    mockState.tabs['tab-a11y'] = buildDefaultMockTab();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('TabProperties_hasNoWcag2aaViolations_defaultState', async () => {
+  it('TabProperties_defaultState_hasNoWcag2aaViolations', async () => {
     // RED — this test fails if any WCAG 2.1 AA violations exist.
     // Failures are inventoried in phase-4-tech-F.md; remediation is F5.
     const container = renderTabPropertiesInTheme();
@@ -123,8 +133,9 @@ describe('TabProperties — WCAG 2.1 AA automated scan (ENT-008)', () => {
     expect(results).toHaveNoViolations();
   });
 
-  it('TabProperties_hasNoWcag2aaViolations_withHideTabBarEnabled', async () => {
+  it('TabProperties_hideTabBarEnabled_hasNoWcag2aaViolations', async () => {
     // Scan the alternate render path where hideTabBar = true changes visible switches.
+    // Safe to mutate — beforeEach restores to default before the next test.
     mockState.tabs['tab-a11y'].hideTabBar = true;
     const container = renderTabPropertiesInTheme();
     const results = await axe(container, AXE_AA_CONFIG);

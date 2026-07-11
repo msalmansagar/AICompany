@@ -8,6 +8,11 @@
  *
  * The Vitest 2.x `declare module 'vitest'` augmentation makes toHaveNoViolations()
  * available on expect(…) in all test files without extra imports.
+ *
+ * TODO(DFE-ENH-001): Remove this file once vitest-axe ships a corrected
+ * matchers.d.ts without `export type *`. Track at:
+ * https://github.com/nickvdyck/vitest-axe/issues — delete on upgrade past 0.1.0
+ * once the value export is confirmed in the release notes.
  */
 
 import type AxeCore from 'axe-core';

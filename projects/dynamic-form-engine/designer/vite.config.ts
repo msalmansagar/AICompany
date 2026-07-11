@@ -82,7 +82,7 @@ export default defineConfig({
        * they are never bundled into the CRM web resource shipped artifact, so the MPL-2.0
        * copyleft obligation never applies to the production build.
        */
-      external: ['axe-core', '@axe-core/playwright', 'vitest-axe'],
+      external: ['axe-core', '@axe-core/playwright', 'vitest-axe', '@playwright/test'],
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
@@ -104,6 +104,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // axe-core scans are CPU-intensive in jsdom — allow up to 30s per test.
+    // ENT-008 a11y tests routinely exceed the default 5s; keep this above the
+    // measured ~6.5s baseline so CI doesn't flap under moderate system load.
+    testTimeout: 30_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

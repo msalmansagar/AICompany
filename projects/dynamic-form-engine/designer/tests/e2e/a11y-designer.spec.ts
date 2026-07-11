@@ -20,7 +20,7 @@ import AxeBuilder from '@axe-core/playwright';
 const WCAG_AA_TAGS = ['wcag2a', 'wcag2aa'] as const;
 
 test.describe('Designer — WCAG 2.1 AA E2E scan (ENT-008)', () => {
-  test('designer-form-list_hasNoWcag2aaViolations', async ({ page }) => {
+  test('designerFormList_axeWcagAaScan_hasNoViolations', async ({ page }) => {
     await page.goto('/');
 
     // Wait for the primary content area to be visible before scanning.
@@ -57,12 +57,11 @@ test.describe('Designer — WCAG 2.1 AA E2E scan (ENT-008)', () => {
     ).toHaveLength(0);
   });
 
-  test('designer-canvas_hasNoWcag2aaViolations', async ({ page }) => {
-    // Navigate directly to the designer canvas via hash or query param.
-    // The designer's single-page routing is store-driven; this test
-    // approximates the canvas route by opening the root URL and waiting.
-    // Full canvas navigation requires a loaded form; this wiring is
-    // completed in the F5 workstream when a seed form is available in CI.
+  // NOTE: This test scans the root page only (/) — it does NOT reach the
+  // canvas route because canvas navigation requires a loaded form record
+  // from CRM. The full canvas scan (with a real form seed) is wired in F5.
+  // Renamed from designer-canvas to make the current scope explicit.
+  test('designerRootPage_axeWcagAaScanRootOnly_hasNoViolations', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
@@ -71,9 +70,25 @@ test.describe('Designer — WCAG 2.1 AA E2E scan (ENT-008)', () => {
       .exclude('[data-axe-ignore]') // Honour explicit opt-out markers set by component authors
       .analyze();
 
+    if (results.violations.length > 0) {
+      test.info().annotations.push({
+        type: 'a11y-violations',
+        description: JSON.stringify(
+          results.violations.map(v => ({
+            id: v.id,
+            impact: v.impact,
+            description: v.description,
+            nodes: v.nodes.length,
+          })),
+          null,
+          2
+        ),
+      });
+    }
+
     expect(
       results.violations,
-      `Found ${String(results.violations.length)} WCAG 2.1 AA violation(s) on the designer canvas page. ` +
+      `Found ${String(results.violations.length)} WCAG 2.1 AA violation(s) on the designer root page. ` +
       'See F4 scan inventory in phase-4-tech-F.md for remediation plan.'
     ).toHaveLength(0);
   });

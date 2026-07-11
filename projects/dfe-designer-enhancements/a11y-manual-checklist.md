@@ -101,6 +101,21 @@ Target: The `ConflictResolutionDialog` component (FR-001), opened when a save co
 
 ---
 
+## Section 6 — Timeout and Session Management
+
+Target: Any DFE form or designer session where a session-expiry or auto-save feature is active.
+Verify that timing restrictions are adjustable and that status announcements reach assistive technology
+without moving keyboard focus (WCAG 2.2.1 Timing Adjustable; WCAG 4.1.3 Status Messages).
+
+| # | WCAG Criterion | Test Step | Expected Outcome | NVDA Result | VoiceOver Result |
+|---|---|---|---|---|---|
+| 6.1 | 2.2.1 Timing Adjustable | Wait until the session-expiry warning appears (or trigger it by fast-forwarding the timer in dev tools) | Warning displays at least 20 seconds before expiry; user can extend the session via a keyboard-accessible control without the extension action itself timing out; no content is lost | | |
+| 6.2 | 2.2.1 Timing Adjustable | Allow the session to expire without interaction | User was warned in advance and offered a way to extend; on expiry, the screen reader announces the session ended; previously entered data is preserved or recoverable via a server-side draft | | |
+| 6.3 | 4.1.3 Status Messages | Observe the session-expiry warning as it appears | Warning is announced immediately by the screen reader via `aria-live="assertive"` (or `role="alert"`) without moving focus away from the current field | | |
+| 6.4 | 4.1.3 Status Messages | Trigger an auto-save and observe the confirmation | "Draft saved" or "Save failed" message is announced via `aria-live="polite"` without disrupting the user's current position in the form | | |
+
+---
+
 ## Sign-Off
 
 | Role | Name | Date | Signature |

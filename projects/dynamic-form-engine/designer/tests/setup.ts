@@ -31,5 +31,4 @@ class ResizeObserverStub {
  */
 // The return type is intentionally narrowed — null satisfies the axe icon-ligature
 // check without triggering "not implemented" noise from jsdom.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-(HTMLCanvasElement.prototype as any).getContext = (): null => null;
+(HTMLCanvasElement.prototype as unknown as { getContext: () => null }).getContext = (): null => null;
