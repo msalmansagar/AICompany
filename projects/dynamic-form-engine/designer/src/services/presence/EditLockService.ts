@@ -61,8 +61,10 @@ export class EditLockService {
       void withRetry(
         () => this.webApi.deleteRecord(ENTITY_NAMES.EDIT_LOCK, id),
         'deleteEditLock',
-      ).catch(() => {
+      ).catch((error: unknown) => {
         // Best-effort — stale locks are cleaned up by the nightly Power Automate flow.
+        // Log so developers can diagnose repeated cleanup failures during testing.
+        console.error('[EditLockService] Failed to delete edit lock on stop', { error, lockRecordId: id });
       });
     }
   }
@@ -83,37 +85,55 @@ export class EditLockService {
     }
   }
 
-  private async upsertLock(formId: string): Promise<void> {
-    const now = new Date().toISOString();
-    const data: Record<string, unknown> = {
+  private buildHeartbeatData(formId: string): Record<string, unknown> {
+    return {
       [EDIT_LOCK_ATTRS.FORM_ID]:             formId,
       [EDIT_LOCK_ATTRS.EDITOR_USER_ID]:      this.userContext.userId,
       [EDIT_LOCK_ATTRS.EDITOR_DISPLAY_NAME]: this.userContext.userFullName,
       [EDIT_LOCK_ATTRS.SESSION_ID]:          this.sessionId,
-      [EDIT_LOCK_ATTRS.LAST_HEARTBEAT]:      now,
+      [EDIT_LOCK_ATTRS.LAST_HEARTBEAT]:      new Date().toISOString(),
     };
+  }
 
-    if (this.lockRecordId !== null) {
+  /** Refreshes the heartbeat on an already-known lock record. */
+  private async refreshExistingLock(formId: string): Promise<void> {
+    await withRetry(
+      () => this.webApi.updateRecord(ENTITY_NAMES.EDIT_LOCK, this.lockRecordId!, this.buildHeartbeatData(formId)),
+      'updateEditLock',
+    );
+  }
+
+  /**
+   * Looks for an existing lock from this session and resumes it, or creates a
+   * new lock and records the OPENED_AT timestamp.  OPENED_AT is NOT updated on
+   * reconnect so the original open time is preserved.
+   */
+  private async createOrResumeLock(formId: string): Promise<void> {
+    const existing = await this.findExistingLock(formId);
+    if (existing !== null) {
+      this.lockRecordId = existing;
       await withRetry(
-        () => this.webApi.updateRecord(ENTITY_NAMES.EDIT_LOCK, this.lockRecordId!, data),
+        () => this.webApi.updateRecord(ENTITY_NAMES.EDIT_LOCK, existing, this.buildHeartbeatData(formId)),
         'updateEditLock',
       );
     } else {
-      data[EDIT_LOCK_ATTRS.OPENED_AT] = now;
-      const existing = await this.findExistingLock(formId);
-      if (existing !== null) {
-        this.lockRecordId = existing;
-        await withRetry(
-          () => this.webApi.updateRecord(ENTITY_NAMES.EDIT_LOCK, existing, data),
-          'updateEditLock',
-        );
-      } else {
-        const result = await withRetry(
-          () => this.webApi.createRecord(ENTITY_NAMES.EDIT_LOCK, data),
-          'createEditLock',
-        );
-        this.lockRecordId = result.id;
-      }
+      const data = {
+        ...this.buildHeartbeatData(formId),
+        [EDIT_LOCK_ATTRS.OPENED_AT]: new Date().toISOString(),
+      };
+      const result = await withRetry(
+        () => this.webApi.createRecord(ENTITY_NAMES.EDIT_LOCK, data),
+        'createEditLock',
+      );
+      this.lockRecordId = result.id;
+    }
+  }
+
+  private async upsertLock(formId: string): Promise<void> {
+    if (this.lockRecordId !== null) {
+      await this.refreshExistingLock(formId);
+    } else {
+      await this.createOrResumeLock(formId);
     }
   }
 

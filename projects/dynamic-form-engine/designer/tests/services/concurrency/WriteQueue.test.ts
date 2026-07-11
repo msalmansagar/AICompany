@@ -17,7 +17,7 @@ describe('WriteQueue', () => {
 
   it('hasPending_returnsTrue_whenWritePending', () => {
     const queue = new WriteQueue();
-    queue.schedule(() => Promise.resolve());
+    queue.schedule(() => Promise.resolve(), vi.fn());
     expect(queue.hasPending).toBe(true);
   });
 
@@ -26,8 +26,8 @@ describe('WriteQueue', () => {
     const firstOp = vi.fn().mockResolvedValue(undefined);
     const secondOp = vi.fn().mockResolvedValue(undefined);
 
-    queue.schedule(firstOp);
-    queue.schedule(secondOp);
+    queue.schedule(firstOp, vi.fn());
+    queue.schedule(secondOp, vi.fn());
 
     await vi.runAllTimersAsync();
 
@@ -39,7 +39,7 @@ describe('WriteQueue', () => {
     const queue = new WriteQueue();
     const operation = vi.fn().mockResolvedValue(undefined);
 
-    queue.schedule(operation);
+    queue.schedule(operation, vi.fn());
     expect(operation).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(WRITE_QUEUE_DEBOUNCE_MS);
@@ -47,11 +47,24 @@ describe('WriteQueue', () => {
     expect(operation).toHaveBeenCalledOnce();
   });
 
+  it('schedule_callsOnError_whenOperationThrows', async () => {
+    const queue = new WriteQueue();
+    const onError = vi.fn();
+    const thrownError = new Error('412 conflict');
+    const failingOp = vi.fn().mockRejectedValue(thrownError);
+
+    queue.schedule(failingOp, onError, 0);
+    await vi.runAllTimersAsync();
+
+    expect(failingOp).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(thrownError);
+  });
+
   it('flush_executesImmediately_withoutWaitingForDebounce', async () => {
     const queue = new WriteQueue();
     const operation = vi.fn().mockResolvedValue(undefined);
 
-    queue.schedule(operation, 10_000);
+    queue.schedule(operation, vi.fn(), 10_000);
     expect(operation).not.toHaveBeenCalled();
 
     await queue.flush();
@@ -72,11 +85,11 @@ describe('WriteQueue', () => {
     const firstFlush = queue.flush();
     // Manually set the pending operation as if schedule was called
     // while flush was running
-    queue.schedule(firstOp, 0);
+    queue.schedule(firstOp, vi.fn(), 0);
     const secondFlush = queue.flush();
 
     // Schedule the second op while first is running
-    queue.schedule(secondOp, 0);
+    queue.schedule(secondOp, vi.fn(), 0);
 
     resolveFirst();
     await firstFlush;

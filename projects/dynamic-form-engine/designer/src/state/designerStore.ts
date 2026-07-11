@@ -11,7 +11,8 @@ import type {
   DesignPayload, ThemeDefinition, FormDesign, SectionDesign,
   FieldDesign, ButtonDesign, ButtonType, LayoutGrid,
 } from '@qdb/shared';
-import type { ActiveEditor } from '@/services/presence/EditLockService';
+import { useConcurrencyStore } from './concurrencyStore';
+import { usePresenceStore } from './presenceStore';
 
 export type DesignerScreen =
   | 'form-list'
@@ -32,13 +33,6 @@ export type DesignerScreen =
 
 export type CanvasItemType = 'form' | 'tab' | 'section' | 'field';
 export type PreviewBreakpoint = 'desktop' | 'tablet' | 'mobile';
-
-export interface ConcurrencyConflictState {
-  entityLogicalName: string;
-  recordId: string;
-  localEtag: string;
-  conflictTimestamp: Date;
-}
 
 /** Snapshot used for undo/redo — captures the mutable parts of the state */
 interface DesignerStateSnapshot {
@@ -187,19 +181,6 @@ export interface DesignerState {
 
   // Canvas tab tracking
   setActiveCanvasTab: (tabId: string) => void;
-
-  // Optimistic concurrency — etags keyed by CRM record GUID
-  recordEtags: Record<string, string>;
-  conflictState: ConcurrencyConflictState | null;
-
-  // Presence — other active editors for the current form
-  presenceEditors: ActiveEditor[];
-
-  // Concurrency actions
-  setRecordEtag: (id: string, etag: string) => void;
-  clearRecordEtag: (id: string) => void;
-  setConflictState: (conflict: ConcurrencyConflictState | null) => void;
-  setPresenceEditors: (editors: ActiveEditor[]) => void;
 }
 
 const MAX_UNDO_STACK_SIZE = 50;
@@ -323,13 +304,15 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   isPublishing: false,
   lastSavedAt: null,
   previewMode: null,
-  recordEtags: {},
-  conflictState: null,
-  presenceEditors: [],
 
   navigateTo: (screen) => set({ currentScreen: screen }),
 
   loadForm: ({ form, tabs, sections, fields, validationRules, businessRules, designPayload }) => {
+    // Reset concurrency and presence state whenever a new form is loaded so
+    // stale conflict dialogs and ghost editor indicators cannot leak across forms.
+    useConcurrencyStore.getState().resetConcurrencyState();
+    usePresenceStore.getState().resetPresenceState();
+
     const tabMap = Object.fromEntries(tabs.map(t => [t.id, t]));
     const sectionMap = Object.fromEntries(sections.map(s => [s.id, s]));
     const fieldMap = Object.fromEntries(fields.map(f => [f.id, f]));
@@ -359,7 +342,11 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
     });
   },
 
-  resetDesigner: () =>
+  resetDesigner: () => {
+    // Clear concurrency and presence alongside the designer form state.
+    useConcurrencyStore.getState().resetConcurrencyState();
+    usePresenceStore.getState().resetPresenceState();
+
     set({
       form: null,
       tabs: {},
@@ -381,7 +368,8 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       selectedType: null,
       isDirty: false,
       currentScreen: 'form-list',
-    }),
+    });
+  },
 
   selectItem: (id, type) => set({ selectedId: id, selectedType: type }),
   clearSelection: () => set({ selectedId: null, selectedType: null }),
@@ -853,24 +841,6 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
 
   setPreviewMode: (mode) => set({ previewMode: mode }),
   setActiveCanvasTab: (tabId) => set({ activeCanvasTabId: tabId }),
-
-  setRecordEtag: (id, etag) =>
-    set(
-      produce((state: DesignerState) => {
-        state.recordEtags[id] = etag;
-      })
-    ),
-
-  clearRecordEtag: (id) =>
-    set(
-      produce((state: DesignerState) => {
-        delete state.recordEtags[id];
-      })
-    ),
-
-  setConflictState: (conflict) => set({ conflictState: conflict }),
-
-  setPresenceEditors: (editors) => set({ presenceEditors: editors }),
 }));
 
 /** Convenience selectors */

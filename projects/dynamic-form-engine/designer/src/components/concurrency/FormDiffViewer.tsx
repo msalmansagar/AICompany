@@ -1,11 +1,38 @@
 import React from 'react';
 import { Text, tokens, makeStyles } from '@fluentui/react-components';
+import type { DesignerFormModel } from '@/state/models/DesignerFormModel';
 
+/**
+ * Props match Workstream H's canonical FormDiffViewer contract exactly so the
+ * merge from feat/dfe-enh-diff-viewer is a no-op.
+ *
+ * TODO(DFE-ENH-001-H): Replace this stub implementation with the real
+ * side-by-side diff renderer from Workstream H at merge time.
+ */
 export interface FormDiffViewerProps {
-  /** The form definition ID of the record that conflicted. */
-  formId: string;
-  /** The etag from the local (stale) version. */
-  localEtag: string;
+  /** The local (pre-conflict) snapshot of the form. */
+  before: DesignerFormModel;
+  /** The server (post-conflict) version of the form. */
+  after: DesignerFormModel;
+  /** Optional: resolves a field key to a human-readable label. */
+  labelResolver?: (fieldKey: string) => string;
+}
+
+/**
+ * Stub implementation of Workstream H's `summarizeDiff`.
+ * Returns a one-sentence description of the most prominent change between
+ * the before and after snapshots.
+ *
+ * TODO(DFE-ENH-001-H): Replace with H's full summarizeDiff at merge time.
+ */
+export function summarizeDiff(before: DesignerFormModel, after: DesignerFormModel): string {
+  if (before.name !== after.name) {
+    return `Form name changed from "${before.name}" to "${after.name}".`;
+  }
+  if (before.status !== after.status) {
+    return `Form status changed from "${before.status}" to "${after.status}".`;
+  }
+  return 'The form was modified by another user. Review the changes below.';
 }
 
 const useStyles = makeStyles({
@@ -17,26 +44,12 @@ const useStyles = makeStyles({
   },
 });
 
-/**
- * STUB — Workstream H integration point.
- *
- * The real FormDiffViewer is authored in the Workstream H branch
- * (feat/dfe-enh-diff-viewer). It accepts these same props and renders
- * a side-by-side diff of `localEtag` vs the current server version.
- *
- * TODO(DFE-ENH-001-H): Replace this placeholder with the canonical
- * FormDiffViewer from Workstream H at merge time.
- * The consumed prop interface (formId: string, localEtag: string) is
- * the agreed integration contract — Workstream H must not change it
- * without an ADR.
- */
-export function FormDiffViewer({ formId, localEtag }: FormDiffViewerProps): React.ReactElement {
+export function FormDiffViewer({ before, after }: FormDiffViewerProps): React.ReactElement {
   const styles = useStyles();
   return (
     <div className={styles.container} role="region" aria-label="Form diff viewer">
       <Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-        Form diff view for record {formId} (local etag: {localEtag}) is available
-        after Workstream H is merged. Use &quot;Reload&quot; to discard local changes and
+        {summarizeDiff(before, after)} Use &quot;Reload&quot; to discard local changes and
         load the current server version.
       </Text>
     </div>

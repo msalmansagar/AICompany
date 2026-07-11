@@ -8,10 +8,19 @@ export class WriteQueue {
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private isRunning = false;
 
-  schedule(operation: WriteOperation, debounceMs = WRITE_QUEUE_DEBOUNCE_MS): void {
+  /**
+   * Schedule a write operation.  If the operation throws (including
+   * ConcurrencyConflictError) the error is forwarded to `onError` instead of
+   * being swallowed by the void-cast setTimeout callback.
+   */
+  schedule(
+    operation: WriteOperation,
+    onError: (error: unknown) => void,
+    debounceMs = WRITE_QUEUE_DEBOUNCE_MS,
+  ): void {
     this.cancelPendingTimer();
     this.pendingOperation = operation;
-    this.pendingTimer = setTimeout(() => void this.flush(), debounceMs);
+    this.pendingTimer = setTimeout(() => this.flush().catch(onError), debounceMs);
   }
 
   /** Force-flush immediately (used before navigation or beforeunload). */

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import { axe } from 'vitest-axe';
 import { PresenceBanner } from '@/components/presence/PresenceBanner';
 import type { ActiveEditor } from '@/services/presence/EditLockService';
 
@@ -39,5 +40,14 @@ describe('PresenceBanner', () => {
   it('hasAccessibleRole_status_forScreenReaders', () => {
     renderBanner([makeEditor('Alice')]);
     expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('hasNoAxeViolations_whenEditorsPresent', async () => {
+    const { container } = renderBanner([makeEditor('Alice')]);
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toBeInTheDocument()
+    );
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });

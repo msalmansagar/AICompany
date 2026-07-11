@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { MissingEtagError } from './concurrency/MissingEtagError';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import {
   FORM_DEFINITION_ATTRS,
@@ -116,18 +117,17 @@ export class FormDefinitionService {
     // entityLogicalName intentionally not written — qdb_entity_logical_name not deployed on qdb_form_definition
     if (Object.keys(data).length === 0) return;
 
-    if (etag !== undefined) {
-      // ConcurrencyConflictError propagates to the caller — do not catch here.
-      await withRetry(
-        () => this.webApi.updateRecordConditional(ENTITY_NAMES.FORM_DEFINITION, id, data, { ifMatch: etag }),
-        'updateFormConditional',
-      );
-    } else {
-      await withRetry(
-        () => this.webApi.updateRecord(ENTITY_NAMES.FORM_DEFINITION, id, data),
-        'updateForm',
-      );
+    if (!etag) {
+      // Unconditional PATCH is forbidden by the concurrency architecture.
+      // Load the record via getFormWithEtag() before calling updateForm.
+      throw new MissingEtagError(ENTITY_NAMES.FORM_DEFINITION, id);
     }
+
+    // ConcurrencyConflictError propagates to the caller — do not catch here.
+    await withRetry(
+      () => this.webApi.updateRecordConditional(ENTITY_NAMES.FORM_DEFINITION, id, data, { ifMatch: etag }),
+      'updateFormConditional',
+    );
   }
 
   async getForm(id: string): Promise<DesignerFormModel> {
