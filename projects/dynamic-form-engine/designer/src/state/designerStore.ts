@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { produce } from 'immer';
+import { produce, enablePatches } from 'immer';
 import type {
   DesignerFormModel,
   DesignerTabModel,
@@ -13,6 +13,10 @@ import type {
 } from '@qdb/shared';
 import { useConcurrencyStore } from './concurrencyStore';
 import { usePresenceStore } from './presenceStore';
+
+// Enable immer patch tracking once at module init so produceWithPatches() is
+// available for E4 audit-capture at the save boundary (DFE-ENH-001 ENT-005).
+enablePatches();
 
 export type DesignerScreen =
   | 'form-list'
@@ -44,6 +48,18 @@ interface DesignerStateSnapshot {
   tabOrder: string[];
   sectionOrder: Record<string, string[]>;
   fieldOrder: Record<string, string[]>;
+}
+
+/**
+ * The subset of form state that is audited at the field-level.
+ * ENT-005: AuditPatchMapper receives patches over this shape, so the path roots
+ * ('fields', 'validationRules', 'businessRules') must match the mapper's
+ * PATH_ROOT_TO_EVENT_TYPE constant.
+ */
+export interface FormAuditableSnapshot {
+  fields: Record<string, DesignerFieldModel>;
+  validationRules: Record<string, DesignerValidationRule>;
+  businessRules: Record<string, DesignerBusinessRule>;
 }
 
 export const DEFAULT_DESIGN_PAYLOAD: DesignPayload = {
@@ -124,6 +140,14 @@ export interface DesignerState {
   isSaving: boolean;
   isPublishing: boolean;
   lastSavedAt: Date | null;
+  /**
+   * Snapshot of the auditable form state at the last successful save.
+   * Captured by loadForm (treating load as the initial "saved" baseline) and
+   * updated by markSaved after each successful PATCH.
+   * Used by the E4 audit pipeline: produceWithPatches(lastSavedAuditSnapshot, …)
+   * computes the delta that AuditPatchMapper converts into audit rows.
+   */
+  lastSavedAuditSnapshot: FormAuditableSnapshot | null;
   previewMode: PreviewBreakpoint | null;
 
   // Actions
@@ -252,6 +276,15 @@ function captureSnapshot(state: DesignerState): DesignerStateSnapshot {
   };
 }
 
+/** Captures the auditable subset of state for E4 change-delta computation. */
+function captureAuditSnapshot(state: DesignerState): FormAuditableSnapshot {
+  return {
+    fields: { ...state.fields },
+    validationRules: { ...state.validationRules },
+    businessRules: { ...state.businessRules },
+  };
+}
+
 function buildInitialOrdering(
   tabs: DesignerTabModel[],
   sections: DesignerSectionModel[],
@@ -303,6 +336,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   isSaving: false,
   isPublishing: false,
   lastSavedAt: null,
+  lastSavedAuditSnapshot: null,
   previewMode: null,
 
   navigateTo: (screen) => set({ currentScreen: screen }),
@@ -319,6 +353,13 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
     const validationRuleMap = Object.fromEntries(validationRules.map(r => [r.id, r]));
     const businessRuleMap = Object.fromEntries(businessRules.map(r => [r.id, r]));
     const ordering = buildInitialOrdering(tabs, sections, fields);
+
+    // The loaded state is the initial audit baseline — treat it as "last saved".
+    const initialAuditSnapshot: FormAuditableSnapshot = {
+      fields: fieldMap,
+      validationRules: validationRuleMap,
+      businessRules: businessRuleMap,
+    };
 
     set({
       form,
@@ -338,6 +379,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
       selectedId: null,
       selectedType: null,
       isDirty: false,
+      lastSavedAuditSnapshot: initialAuditSnapshot,
       currentScreen: 'designer',
     });
   },
@@ -803,6 +845,8 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
         state.deletedIds = [];
         state.deletedEntityTypes = {};
         state.lastSavedAt = new Date();
+        // Advance the E4 audit baseline to reflect the now-saved state.
+        state.lastSavedAuditSnapshot = captureAuditSnapshot(state);
       })
     ),
 

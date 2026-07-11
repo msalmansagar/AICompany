@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -18,10 +18,20 @@ import { ComponentToolbox } from '@/designer/toolbox/ComponentToolbox';
 import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
 import { PropertiesPanel } from '@/designer/properties/PropertiesPanel';
 import { DesignerCommandBar } from '@/designer/commandbar/DesignerCommandBar';
+import { ConflictResolutionDialog } from '@/components/concurrency/ConflictResolutionDialog';
 import { CrmContext } from '@/app/App';
 import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
+import { FormDefinitionService } from '@/services/FormDefinitionService';
+import { ConcurrencyConflictError } from '@/services/concurrency/ConcurrencyConflictError';
+import { WriteQueue } from '@/services/concurrency/WriteQueue';
+import { mapPatches } from '@/services/AuditPatchMapper';
+import { AuditBatchWriter } from '@/services/audit/AuditBatchWriter';
+import { computeSnapshotPatches } from '@/services/audit/computeSnapshotPatches';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { validateForDraftSave } from '@/validation/draftValidation';
+import type { FormAuditableSnapshot } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
+import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FIELD_TYPE, FIELD_TYPE_DEFINITIONS } from '@/constants/fieldTypes';
 import { calculateContrastRatio } from '@qdb/shared';
 
@@ -64,11 +74,47 @@ function generateTempId(prefix: string): string {
   return `tmp_${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+interface AuditWriteParams {
+  baseline: FormAuditableSnapshot;
+  current: FormAuditableSnapshot;
+  formId: string;
+  changedBy: string;
+  webApi: import('@/services/IWebApiAdapter').IWebApiAdapter;
+}
+
+/**
+ * Computes immer patches between baseline and current, maps them to audit
+ * entries, and fires the batch write. Failures are swallowed — the save
+ * already succeeded at this point and audit is non-blocking.
+ */
+function writeAuditEntriesNonBlocking(params: AuditWriteParams): void {
+  const { baseline, current, formId, changedBy, webApi } = params;
+
+  const [, patches, inversePatches] = computeSnapshotPatches(baseline, current);
+
+  if (patches.length === 0) return;
+
+  const entries = mapPatches(patches, inversePatches, {
+    formId,
+    formVersionId: null,
+    changedBy,
+    changedOn: new Date().toISOString(),
+  });
+
+  const writer = new AuditBatchWriter(webApi);
+  // Fire and forget — reject is caught inside writeEntries per-entry.
+  void writer.writeEntries(entries);
+}
+
 export function DesignerScreen(): React.ReactElement {
   const styles = useStyles();
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // One WriteQueue per form session — serialises debounced PATCH operations and
+  // routes ConcurrencyConflictError (412) to the conflict dialog (OI-005).
+  const writeQueueRef = useRef<WriteQueue>(new WriteQueue());
 
   const {
     form,
@@ -88,6 +134,7 @@ export function DesignerScreen(): React.ReactElement {
     isSaving,
     activeCanvasTabId,
     deletedEntityTypes,
+    lastSavedAuditSnapshot,
     addField,
     addSection,
     addTab,
@@ -100,12 +147,46 @@ export function DesignerScreen(): React.ReactElement {
     navigateTo,
   } = useDesignerStore();
 
+  const { conflictState, recordEtags } = useConcurrencyStore();
+  const setConflictState = useConcurrencyStore(s => s.setConflictState);
+  const setRecordEtag = useConcurrencyStore(s => s.setRecordEtag);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
   );
 
-  const handleSaveDraft = useCallback(async () => {
+  /** Fires the actual Dataverse PATCH for a save, using the current state snapshot. */
+  const executeSave = useCallback(async (
+    snapshot: Parameters<FormSaveService['save']>[0],
+    auditBaseline: FormAuditableSnapshot | null,
+  ): Promise<void> => {
+    const webApi = crmService!.getWebApi();
+    const userContext = crmService!.getUserContext();
+    const saveService = new FormSaveService(webApi, userContext);
+
+    const { resolvedIds, resolvedThemeId } = await saveService.save(snapshot);
+    markSaved(resolvedIds, resolvedThemeId);
+
+    // Refresh the etag after a successful PATCH — Dataverse invalidates the
+    // prior etag on every write (next save without a refresh would get a false 412).
+    const formDefService = new FormDefinitionService(webApi);
+    const { etag: freshEtag } = await formDefService.getFormWithEtag(snapshot.form!.id);
+    if (freshEtag) setRecordEtag(snapshot.form!.id, freshEtag);
+
+    // E4: compute field-level audit entries and write non-blocking.
+    if (auditBaseline) {
+      writeAuditEntriesNonBlocking({
+        baseline: auditBaseline,
+        current: { fields: snapshot.fields, validationRules: snapshot.validationRules, businessRules: snapshot.businessRules },
+        formId: snapshot.form!.id,
+        changedBy: userContext.userId,
+        webApi,
+      });
+    }
+  }, [crmService, markSaved, setRecordEtag]);
+
+  const handleSaveDraft = useCallback(() => {
     if (!form || !crmService || isSaving) return;
 
     const validation = validateForDraftSave(form);
@@ -114,45 +195,55 @@ export function DesignerScreen(): React.ReactElement {
     setSaveError(null);
     markSaving();
 
-    try {
-      const webApi = crmService.getWebApi();
-      const userContext = crmService.getUserContext();
-      const saveService = new FormSaveService(webApi, userContext);
+    // Capture a point-in-time snapshot of the state for this save attempt.
+    // This is passed into the WriteQueue operation so the save uses the state
+    // at scheduling time, not the (potentially mutated) state at flush time.
+    const formEtag = recordEtags[form.id] ?? '';
+    const saveSnapshot = {
+      form,
+      tabs,
+      sections,
+      fields,
+      validationRules,
+      businessRules,
+      designPayload,
+      tabOrder,
+      sectionOrder,
+      fieldOrder,
+      newIds,
+      dirtyIds,
+      deletedIds,
+      deletedEntityTypes,
+      formEtag,
+    };
+    const auditBaseline = lastSavedAuditSnapshot;
 
-      const { resolvedIds, resolvedThemeId } = await saveService.save({
-        form,
-        tabs,
-        sections,
-        fields,
-        validationRules,
-        businessRules,
-        designPayload,
-        tabOrder,
-        sectionOrder,
-        fieldOrder,
-        newIds,
-        dirtyIds,
-        deletedIds,
-        deletedEntityTypes,
-      });
-
-      markSaved(resolvedIds, resolvedThemeId);
-    } catch (error) {
-      if (error instanceof PartialSaveError && Object.keys(error.resolvedIds).length > 0) {
-        // Some records were created before the failure. Resolve their IDs now so a retry
-        // doesn't re-create them, eliminating duplicate records in Dataverse.
-        markResolved(error.resolvedIds);
-      }
-      // Surface the failure — a silently-swallowed save leaves the user believing it succeeded.
-      setSaveError(error instanceof Error ? error.message : 'Save failed. Please try again.');
-      useDesignerStore.setState({ isSaving: false });
-    }
+    writeQueueRef.current.schedule(
+      () => executeSave(saveSnapshot, auditBaseline),
+      (error) => {
+        if (error instanceof PartialSaveError && Object.keys(error.resolvedIds).length > 0) {
+          markResolved(error.resolvedIds);
+        }
+        if (error instanceof ConcurrencyConflictError) {
+          setConflictState({
+            entityLogicalName: ENTITY_NAMES.FORM_DEFINITION,
+            recordId: form.id,
+            localEtag: error.localEtag,
+            conflictTimestamp: new Date(),
+          });
+        }
+        setSaveError(error instanceof Error ? error.message : 'Save failed. Please try again.');
+        useDesignerStore.setState({ isSaving: false });
+      },
+    );
   }, [
     form, crmService, isSaving,
     tabs, sections, fields, validationRules, businessRules, designPayload,
     tabOrder, sectionOrder, fieldOrder,
     newIds, dirtyIds, deletedIds, deletedEntityTypes,
-    markSaving, markSaved, markResolved,
+    recordEtags, lastSavedAuditSnapshot,
+    markSaving, markSaved, markResolved, setConflictState,
+    executeSave,
   ]);
 
   // Fixed: stable dep array so the listener is not re-registered on every render
@@ -335,9 +426,11 @@ export function DesignerScreen(): React.ReactElement {
       navigateTo('theme-editor');
       return;
     }
-    // SC-08: auto-save unsaved changes before entering publish flow.
+    // SC-08: flush pending save before entering publish flow. handleSaveDraft
+    // schedules via WriteQueue; flush() drives it to completion synchronously.
     if (isDirty) {
-      await handleSaveDraft();
+      handleSaveDraft();
+      await writeQueueRef.current.flush();
     }
     navigateTo('publish-validation');
   }, [designPayload, isDirty, handleSaveDraft, navigateTo]);
@@ -355,6 +448,15 @@ export function DesignerScreen(): React.ReactElement {
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
   const handleThemeEditor = useCallback(() => navigateTo('theme-editor'), [navigateTo]);
 
+  const handleConflictReload = useCallback(() => {
+    setConflictState(null);
+    useDesignerStore.getState().resetDesigner();
+  }, [setConflictState]);
+
+  const handleConflictDismiss = useCallback(() => {
+    setConflictState(null);
+  }, [setConflictState]);
+
   if (!form) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -367,6 +469,7 @@ export function DesignerScreen(): React.ReactElement {
   const activeTabId = tabOrder[0] ?? null;
 
   return (
+    <>
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
@@ -440,6 +543,23 @@ export function DesignerScreen(): React.ReactElement {
         ) : null}
       </DragOverlay>
     </DndContext>
+
+      {conflictState && form && crmService && (
+        <ConflictResolutionDialog
+          isOpen
+          localSnapshot={form}
+          conflictTimestamp={conflictState.conflictTimestamp}
+          fetchServerVersion={() => {
+            const webApi = crmService.getWebApi();
+            return new FormDefinitionService(webApi)
+              .getFormWithEtag(conflictState.recordId)
+              .then(r => r.model);
+          }}
+          onReload={handleConflictReload}
+          onDismiss={handleConflictDismiss}
+        />
+      )}
+    </>
   );
 }
 

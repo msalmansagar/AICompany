@@ -60,7 +60,16 @@ type SaveableState = Pick<
   | 'validationRules'
   | 'businessRules'
   | 'designPayload'
->;
+> & {
+  /**
+   * Current @odata.etag for the qdb_form_definition record, held in
+   * concurrencyStore.recordEtags[form.id] and captured at save-start time.
+   * Required for the conditional PATCH (If-Match) — FormDefinitionService.updateForm
+   * throws MissingEtagError when this is absent.
+   * Populated after the first getFormWithEtag() call during form load.
+   */
+  formEtag: string;
+};
 
 export interface FormSaveResult {
   resolvedIds: Record<string, string>;
@@ -96,7 +105,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload, formEtag } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -346,7 +355,8 @@ export class FormSaveService {
         await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
       }
 
-      // Step 7: Update form definition header
+      // Step 7: Update form definition header with conditional PATCH (If-Match: formEtag).
+      // ConcurrencyConflictError propagates out of save() when Dataverse returns 412.
       await this.formService.updateForm(form.id, {
         name: form.name,
         code: form.code,
@@ -360,7 +370,7 @@ export class FormSaveService {
         confirmationMessage: form.confirmationMessage,
         confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,
         accessGroupId: form.accessGroupId,
-      });
+      }, formEtag);
 
       // Step 8: Save theme and form design
       if (form.id && !form.id.startsWith('tmp_') && designPayload) {

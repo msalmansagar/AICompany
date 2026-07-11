@@ -38,6 +38,8 @@ export const ENTITY_NAMES = {
   FORM_SCOPED_BUTTON: 'qdb_form_scoped_button',
   // DFE-ENH-001 — edit presence lock
   EDIT_LOCK: 'qdb_dfe_edit_lock',
+  // DFE-ENH-001 ENT-005 — field-level append-only audit log (provisioned separately from qdb_form_audit_log)
+  DFE_AUDIT_LOG: 'qdb_dfe_audit_log',
 } as const;
 
 export type EntityName = (typeof ENTITY_NAMES)[keyof typeof ENTITY_NAMES];
