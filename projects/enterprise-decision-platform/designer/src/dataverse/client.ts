@@ -48,13 +48,14 @@ export function lifecycleLabel(value: number | null | undefined): string {
 export interface RuleRow {
   ruleId: string; name: string; entity: string; status: string;
   versionNumber: number; versionId: string; modifiedOn: string;
+  owner: string; effectiveFrom: string | null; effectiveTo: string | null;
 }
 
-/** All rules with their latest version's status, entity, and version — for the Rules home grid. */
+/** All rules with their latest version's status, entity, owner, and effective window — the catalog grid. */
 export async function listRulesDetailed(): Promise<RuleRow[]> {
   const data = await req<{ value: any[] }>(
-    `/${VERSIONS}?$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_pcrmjson,_qdb_edp_ruleid_value,modifiedon` +
-      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename)&$orderby=qdb_edp_versionnumber desc&$top=250`
+    `/${VERSIONS}?$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_pcrmjson,qdb_edp_effectivefrom,qdb_edp_effectiveto,_qdb_edp_ruleid_value,modifiedon` +
+      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename),createdby($select=fullname)&$orderby=qdb_edp_versionnumber desc&$top=250`
   );
   const latest = new Map<string, any>();
   for (const v of data.value) {
@@ -74,6 +75,9 @@ export async function listRulesDetailed(): Promise<RuleRow[]> {
         versionNumber: v.qdb_edp_versionnumber ?? 1,
         versionId: v.qdb_edp_ruleversionid as string,
         modifiedOn: v.modifiedon ?? '',
+        owner: v.createdby?.fullname ?? '',
+        effectiveFrom: v.qdb_edp_effectivefrom ?? null,
+        effectiveTo: v.qdb_edp_effectiveto ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
