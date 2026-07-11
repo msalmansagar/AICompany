@@ -342,8 +342,12 @@ describe('IndexBasedKeyboardSensor.handleKeyDown — cross-section move', () => 
   });
 
   it('handleKeyDown_doesNotCrossSectionMove_whenContainerTypeIsSection', () => {
-    // Alt+Shift+Arrow on a section header must not trigger cross-section field move
+    // Alt+Shift+Arrow on a section header must be a deliberate no-op.
+    // getSectionOrder returns a POPULATED order so that if the shiftKey guard
+    // fails and reorderSectionByIndex is called, it would actually invoke
+    // reorderSections — making the assertion meaningful.
     const callbacks = buildCrossSectionCallbacks();
+    callbacks.getSectionOrder = vi.fn(() => ['sec-A', 'sec-B', 'sec-C']);
     const sensor = new IndexBasedKeyboardSensor(callbacks);
     const el = document.createElement('div');
     el.setAttribute('data-sortable-id', 'sec-A');
@@ -354,8 +358,9 @@ describe('IndexBasedKeyboardSensor.handleKeyDown — cross-section move', () => 
 
     sensor.handleKeyDown(event);
 
+    // The shiftKey guard must short-circuit — neither cross-section move nor
+    // within-section section reorder may fire on Alt+Shift+Arrow on a section.
     expect(callbacks.moveField).not.toHaveBeenCalled();
-    // Section reorder should NOT be triggered either (shift key distinguishes move from reorder)
     expect(callbacks.reorderSections).not.toHaveBeenCalled();
   });
 

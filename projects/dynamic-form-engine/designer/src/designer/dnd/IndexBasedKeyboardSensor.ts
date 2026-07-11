@@ -53,8 +53,11 @@ export class IndexBasedKeyboardSensor {
     event.preventDefault();
     event.stopPropagation();
 
-    if (event.shiftKey && context.containerType === 'field') {
-      this.moveFieldToAdjacentSection(context, direction);
+    if (event.shiftKey) {
+      // Alt+Shift is a field-only operation; on sections it is a deliberate no-op.
+      if (context.containerType === 'field') {
+        this.moveFieldToAdjacentSection(context, direction);
+      }
       return;
     }
 
