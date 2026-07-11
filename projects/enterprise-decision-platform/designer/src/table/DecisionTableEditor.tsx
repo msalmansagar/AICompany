@@ -280,8 +280,8 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
           {operatorsFor(cat).map((o) => <option key={o.op} value={o.op}>{o.label}</option>)}
         </select>
         {allowFieldMode && (
-          <select className="dt2-rhsmode" value={isField ? 'field' : 'value'} title="Compare against a fixed value or another column"
-            onChange={(e) => patch(e.target.value === 'field' ? { valueField: '', value: undefined } : { valueField: undefined })}>
+          <select className="dt2-rhsmode" value={isField ? 'column' : 'value'} title="Compare against a fixed value or another column"
+            onChange={(e) => patch(e.target.value === 'column' ? { valueField: '', value: undefined } : { valueField: undefined })}>
             <option value="value">value</option>
             <option value="column">column</option>
           </select>
