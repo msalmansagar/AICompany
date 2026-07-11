@@ -99,7 +99,7 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
     count: isVirtualized ? fields.length : 0,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => ESTIMATED_FIELD_SLOT_HEIGHT_PX,
-    overscan: 3,
+    overscan: 5,
   });
 
   const gridClassName =
@@ -200,20 +200,20 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
 
         {fields.length > 0 && isVirtualized && (
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-            {virtualizer.getVirtualItems().map(vItem => {
-              const field = fields[vItem.index];
+            {virtualizer.getVirtualItems().map(virtualItem => {
+              const field = fields[virtualItem.index];
               if (!field) return null;
               return (
                 <div
                   key={field.id}
-                  data-index={vItem.index}
+                  data-index={virtualItem.index}
                   ref={virtualizer.measureElement}
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
                     width: '100%',
-                    transform: `translateY(${vItem.start}px)`,
+                    transform: `translateY(${virtualItem.start}px)`,
                     paddingBottom: '8px',
                   }}
                 >
