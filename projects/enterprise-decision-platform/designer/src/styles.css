@@ -313,6 +313,7 @@ h1, h2, h3 { text-wrap: balance; }
 .govbar button:hover:not(:disabled) { background: var(--n-bg1-hover); } .govbar button:disabled { opacity: .5; cursor: default; }
 .govbar button.gov-publish { background: var(--brand); border-color: var(--brand); color: #fff; }
 .govbar button.gov-reject { color: var(--danger); border-color: var(--danger-line); }
+.govbar button.gov-unpublish { color: var(--warn); border-color: var(--warn-line); }
 
 /* Effective-dating bar */
 .effbar { display: flex; align-items: center; gap: 10px; padding: 7px 16px; border-bottom: 1px solid var(--n-stroke1); background: var(--n-bg2); }
