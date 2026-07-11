@@ -71,9 +71,9 @@ namespace Qdb.FormEngine.Plugins
     /// </remarks>
     public sealed class AuditImmutabilityPlugin : IPlugin
     {
-        private const string AuditLogEntityName = "qdb_dfe_audit_log";
+        private const string AUDIT_LOG_ENTITY_NAME = "qdb_dfe_audit_log";
 
-        private const string ImmutabilityMessage =
+        private const string IMMUTABILITY_MESSAGE =
             "DFE audit log records are immutable. Update and Delete operations are not permitted " +
             "on qdb_dfe_audit_log. This restriction applies to all security roles including " +
             "System Administrator (enforced at the plugin execution level per ENT-005).";
@@ -81,7 +81,7 @@ namespace Qdb.FormEngine.Plugins
         /// <summary>
         /// Entry point called by the CRM plugin pipeline.
         /// Throws <see cref="InvalidPluginExecutionException"/> for Update and Delete
-        /// on <see cref="AuditLogEntityName"/>, unconditionally.
+        /// on <see cref="AUDIT_LOG_ENTITY_NAME"/>, unconditionally.
         /// </summary>
         /// <param name="serviceProvider">CRM service provider from the plugin pipeline.</param>
         /// <exception cref="ArgumentNullException">
@@ -101,7 +101,7 @@ namespace Qdb.FormEngine.Plugins
             LogAttempt(tracingService, executionContext);
 
             if (IsBlockedOperation(executionContext))
-                throw new InvalidPluginExecutionException(ImmutabilityMessage);
+                throw new InvalidPluginExecutionException(IMMUTABILITY_MESSAGE);
         }
 
         private static IPluginExecutionContext ResolveExecutionContext(IServiceProvider serviceProvider)
@@ -128,7 +128,7 @@ namespace Qdb.FormEngine.Plugins
         {
             var isAuditLogEntity = string.Equals(
                 context.PrimaryEntityName,
-                AuditLogEntityName,
+                AUDIT_LOG_ENTITY_NAME,
                 StringComparison.OrdinalIgnoreCase);
 
             var isDestructiveMessage =

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapPatches } from '@/services/AuditPatchMapper';
+import { mapPatches, AuditMapperError } from '@/services/AuditPatchMapper';
 import type { ImmerPatch, AuditMetadata } from '@/services/AuditPatchMapper';
 
 // ---------------------------------------------------------------------------
@@ -354,7 +354,14 @@ describe('mapPatches — edge cases', () => {
     expect(result[0].formVersionId).toBeNull();
   });
 
-  it('mapPatches_mismatchedArrayLengths_throwsDescriptiveError', () => {
+  it('mapPatches_mismatchedArrayLengths_throwsAuditMapperError', () => {
+    const patches: ImmerPatch[] = [buildAddPatch(['fields', 'x'], {})];
+    const inversePatches: ImmerPatch[] = [];
+
+    expect(() => mapPatches(patches, inversePatches, BASE_METADATA)).toThrow(AuditMapperError);
+  });
+
+  it('mapPatches_mismatchedArrayLengths_errorMessageDescribesMismatch', () => {
     const patches: ImmerPatch[] = [buildAddPatch(['fields', 'x'], {})];
     const inversePatches: ImmerPatch[] = [];
 

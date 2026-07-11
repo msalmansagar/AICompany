@@ -43,6 +43,18 @@ export type AuditEventType =
 export type AuditAction = 'create' | 'update' | 'delete';
 
 /**
+ * Thrown when mapPatches receives structurally invalid input.
+ * Caller can `instanceof AuditMapperError` to distinguish programming
+ * errors (mismatched arrays) from runtime I/O failures.
+ */
+export class AuditMapperError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuditMapperError';
+  }
+}
+
+/**
  * One audit row ready to be POSTed to qdb_dfe_audit_log.
  * All string fields match the entity column logical names from the arch doc.
  */
@@ -199,8 +211,8 @@ export function mapPatches(
   metadata: AuditMetadata,
 ): AuditEntry[] {
   if (patches.length !== inversePatches.length) {
-    throw new Error(
-      `AuditPatchMapper: patches length (${patches.length}) does not match ` +
+    throw new AuditMapperError(
+      `patches length (${patches.length}) does not match ` +
       `inversePatches length (${inversePatches.length}). ` +
       'Both arrays must be the direct output of immer produceWithPatches().',
     );
