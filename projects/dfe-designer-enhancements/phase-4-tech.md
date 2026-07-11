@@ -17,8 +17,9 @@ Workstream sequencing mirrors Phase 3 architecture (§8).
 
 | File | Role |
 |---|---|
-| `projects/dynamic-form-engine/designer/src/services/FormLinter.ts` | Linter implementation (460 lines) |
-| `projects/dynamic-form-engine/designer/tests/services/FormLinter.test.ts` | Vitest unit tests (33 tests) |
+| `projects/dynamic-form-engine/designer/src/services/FormLinter.ts` | Linter class — public rules + private helpers (~360 lines) |
+| `projects/dynamic-form-engine/designer/src/services/FormLinterHelpers.ts` | Pure helper functions extracted to keep FormLinter.ts under 400 lines |
+| `projects/dynamic-form-engine/designer/tests/services/FormLinter.test.ts` | Vitest unit tests (36 tests) |
 
 ---
 
@@ -109,23 +110,23 @@ Phase 3 architecture docs use abstract names that differ from the actual TypeScr
 
 **Test file:** `tests/services/FormLinter.test.ts`
 **Runner:** Vitest v2.1.9
-**Result:** 33 / 33 passed, 0 failed
-**Runtime:** 29 ms (wall 3.44 s including cold start)
+**Result:** 36 / 36 passed, 0 failed
+**Runtime:** ~92 ms (wall ~4.5 s including cold start)
 
 Test coverage per rule:
 
 | Rule | Tests | Scenarios |
 |---|---|---|
-| L001 | 3 | clean form; two fields same code; three fields same code |
+| L001 | 4 | clean form; two fields same code; three fields all flagged (N=3); empty codes ignored |
 | L002 | 4 | clean (mapped); required + unmapped; required + conditional_required exempt; not required + unmapped |
 | L003 | 3 | no cache (returns empty); valid attribute; unknown attribute |
 | L004 | 2 | valid fieldId; orphaned fieldId |
-| L005 | 4 | valid trigger; orphaned trigger; orphaned condition code; orphaned action target |
+| L005 | 5 | valid trigger; orphaned trigger; orphaned action target; condition-code-only orphan; dedup (trigger+condition share same missing code) |
 | L006 | 3 | populated tab+section; empty tab; empty section |
 | L007 | 3 | non-conditional rule; conditional_required + mapped exempt; conditional_required + unmapped |
 | L008 | 3 | non-cross_field rule; cross_field with valid target; cross_field with deleted target |
-| L009/L010 | 3 | 5 fields (clean); 160 fields (L009 warning); 201 fields (L010 error) |
-| L011/L012 | 3 | 5 rules (clean); 40 rules (L011 warning); 51 rules (L012 error) |
+| L009/L010 | 4 | 159 fields (clean); 160 fields (L009 only); 200 fields (L009 only — boundary); 201 fields (L010 error) |
+| L011/L012 | 3 | 39 rules (clean); 40 rules (L011 warning); 51 rules (L012 error) |
 | Composite | 2 | multi-violation form returns all expected findings; clean form returns empty array |
 
 **Performance test:** 201-field form lints in < 1 ms. Meets FR-003 requirement of < 2 s for 100 fields + 50 rules with orders of magnitude margin.
@@ -181,5 +182,5 @@ The arch specifies a 500 ms debounce on store change. A `useLintFindings()` hook
 | D-01 | `LintFinding` contract instead of `LintResult` | Task specification overrides arch contract. Simpler contract fits click-to-navigate better than `affectedNodeIds[]`. |
 | D-02 | `FormLinterInput` takes `submissionMappings` as explicit param | Mappings are not in the Zustand store — they are fetched via `SubmissionMappingService`. Keeping linter store-free preserves testability and single responsibility. |
 | D-03 | `crmAttributeCache` is optional on `FormLinterInput` | Arch assumed cache is always present. In practice the cache is populated asynchronously after designer mount. Optional field enables L003 to gracefully skip until cache is ready. |
-| D-04 | L007 and L008 use `(rule.ruleType as string)` cast | `conditional_required` and `cross_field` are not yet in `ValidationRuleType` union. Forward-compat cast avoids both TS error and changing the existing type union (which is outside this workstream's scope). |
+| D-04 | L007, L008, and `buildConditionalRequiredFieldIdSet` use `String(rule.ruleType)` coercion | `conditional_required` and `cross_field` are not yet in `ValidationRuleType` union. Runtime coercion via `String()` is cleaner than a type assertion (`as string`) and avoids widening the existing union. |
 | D-05 | L013 is fully dormant (returns `[]`) | `piiCategory` and `sensitivityLevel` do not yet exist on `DesignerFieldModel`. Placeholder is in place for Phase 2. |

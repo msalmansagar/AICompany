@@ -18,8 +18,14 @@ import type {
   DesignerValidationRule,
   DesignerBusinessRule,
 } from '@/state/models/DesignerRuleModel';
-import type { BusinessRuleDefinition } from '@/types/businessRule';
 import type { SubmissionMapping } from '@/services/SubmissionMappingService';
+import {
+  groupFieldIdsByCode,
+  buildMappedFieldIdSet,
+  buildFieldCodeSet,
+  buildConditionalRequiredFieldIdSet,
+  collectOrphanedBusinessRuleCodes,
+} from '@/services/FormLinterHelpers';
 
 // ─── Public result contract ───────────────────────────────────────────────────
 
@@ -231,57 +237,33 @@ export class FormLinter {
   /**
    * L006 — info
    * A tab contains no sections, or a section contains no fields.
-   * Uses tabOrder and fieldOrder to respect the authored structure.
+   * Delegates to private helpers so each case has a single responsibility.
    */
   static checkEmptyContainers(input: FormLinterInput): LintFinding[] {
-    const findings: LintFinding[] = [];
-
-    for (const tabId of input.tabOrder) {
-      const sectionIds = input.sectionOrder[tabId] ?? [];
-
-      if (sectionIds.length === 0) {
-        const tabLabel = input.tabs[tabId]?.label ?? tabId;
-        findings.push({
-          severity: 'info',
-          code: 'L006',
-          message: `Tab "${tabLabel}" has no sections`,
-          nodeType: 'tab',
-          nodeId: tabId,
-        });
-        continue;
-      }
-
-      for (const sectionId of sectionIds) {
-        if ((input.fieldOrder[sectionId] ?? []).length > 0) continue;
-        const sectionLabel = input.sections[sectionId]?.label ?? sectionId;
-        findings.push({
-          severity: 'info',
-          code: 'L006',
-          message: `Section "${sectionLabel}" has no fields`,
-          nodeType: 'section',
-          nodeId: sectionId,
-        });
-      }
-    }
-
-    return findings;
+    return [
+      ...FormLinter.checkEmptyTabs(input),
+      ...FormLinter.checkEmptySections(input),
+    ];
   }
 
   /**
    * L007 — warning
    * A field has a conditional_required validation rule but no submission mapping.
+   * Reports at most one finding per field even when multiple such rules exist.
    * Pre-wired: 'conditional_required' is not yet in ValidationRuleType (Phase 1 extension).
    * Activates automatically when the rule type is added to DesignerRuleModel.
    */
   static checkConditionalRequiredWithoutMapping(input: FormLinterInput): LintFinding[] {
     const mappedFieldIds = buildMappedFieldIdSet(input.submissionMappings);
+    const reportedFieldIds = new Set<string>();
     const findings: LintFinding[] = [];
 
     for (const rule of Object.values(input.validationRules)) {
-      // Cast to string: 'conditional_required' is a future extension not yet in the type union.
-      if ((rule.ruleType as string) !== 'conditional_required') continue;
+      if (String(rule.ruleType) !== 'conditional_required') continue;
       if (mappedFieldIds.has(rule.fieldId)) continue;
+      if (reportedFieldIds.has(rule.fieldId)) continue;
 
+      reportedFieldIds.add(rule.fieldId);
       const field = input.fields[rule.fieldId];
       findings.push({
         severity: 'warning',
@@ -307,8 +289,7 @@ export class FormLinter {
     const findings: LintFinding[] = [];
 
     for (const rule of Object.values(input.validationRules)) {
-      // Cast to string: 'cross_field' is a future extension not yet in the type union.
-      if ((rule.ruleType as string) !== 'cross_field') continue;
+      if (String(rule.ruleType) !== 'cross_field') continue;
       if (rule.ruleValue === null || fieldIds.has(rule.ruleValue)) continue;
 
       findings.push({
@@ -324,51 +305,14 @@ export class FormLinter {
   }
 
   /**
-   * L009 / L010 — info / error: approaching or exceeding the field count limit.
-   * L011 / L012 — info / error: approaching or exceeding the business rule count limit.
+   * L009 / L010 / L011 / L012 — approaching or exceeding field and business rule count limits.
+   * Delegates to private helpers so each resource type has a single responsibility.
    */
   static checkScaleLimits(input: FormLinterInput): LintFinding[] {
-    const totalFields = Object.keys(input.fields).length;
-    const totalBusinessRules = Object.keys(input.businessRules).length;
-    const findings: LintFinding[] = [];
-
-    if (totalFields > FIELD_COUNT_LIMIT) {
-      findings.push({
-        severity: 'error',
-        code: 'L010',
-        message: `Form has ${totalFields} fields; the maximum is ${FIELD_COUNT_LIMIT}`,
-        nodeType: 'form',
-        nodeId: 'form',
-      });
-    } else if (totalFields >= FIELD_COUNT_WARNING_THRESHOLD) {
-      findings.push({
-        severity: 'info',
-        code: 'L009',
-        message: `Form is approaching the field limit (${totalFields} / ${FIELD_COUNT_LIMIT} fields used)`,
-        nodeType: 'form',
-        nodeId: 'form',
-      });
-    }
-
-    if (totalBusinessRules > BUSINESS_RULE_COUNT_LIMIT) {
-      findings.push({
-        severity: 'error',
-        code: 'L012',
-        message: `Form has ${totalBusinessRules} business rules; the maximum is ${BUSINESS_RULE_COUNT_LIMIT}`,
-        nodeType: 'form',
-        nodeId: 'form',
-      });
-    } else if (totalBusinessRules >= BUSINESS_RULE_COUNT_WARNING_THRESHOLD) {
-      findings.push({
-        severity: 'info',
-        code: 'L011',
-        message: `Form is approaching the business rule limit (${totalBusinessRules} / ${BUSINESS_RULE_COUNT_LIMIT} rules used)`,
-        nodeType: 'form',
-        nodeId: 'form',
-      });
-    }
-
-    return findings;
+    return [
+      ...FormLinter.checkFieldCountLimit(input),
+      ...FormLinter.checkBusinessRuleCountLimit(input),
+    ];
   }
 
   /**
@@ -382,78 +326,104 @@ export class FormLinter {
     // Dormant until Phase 2 adds piiCategory and sensitivityLevel to DesignerFieldModel.
     return [];
   }
-}
 
-// ─── Private helper functions ─────────────────────────────────────────────────
+  // ─── Private helpers ───────────────────────────────────────────────────────
 
-/** Groups all field IDs by their code value. Used by L001. */
-function groupFieldIdsByCode(fields: Record<string, DesignerFieldModel>): Map<string, string[]> {
-  const result = new Map<string, string[]>();
+  /** L006 sub-check: tabs that have no sections in sectionOrder. */
+  private static checkEmptyTabs(input: FormLinterInput): LintFinding[] {
+    const findings: LintFinding[] = [];
 
-  for (const field of Object.values(fields)) {
-    const code = field.code.trim();
-    if (!code) continue;
-    const existing = result.get(code) ?? [];
-    existing.push(field.id);
-    result.set(code, existing);
-  }
+    for (const tabId of input.tabOrder) {
+      const sectionIds = input.sectionOrder[tabId] ?? [];
+      if (sectionIds.length > 0) continue;
 
-  return result;
-}
-
-/** Builds a Set of field IDs that have at least one active submission mapping. */
-function buildMappedFieldIdSet(mappings: SubmissionMapping[]): Set<string> {
-  return new Set(mappings.map(m => m.fieldId));
-}
-
-/**
- * Builds the Set of field codes from all fields in the form.
- * Empty codes are excluded — they are caught by the publish validation (PV-007).
- */
-function buildFieldCodeSet(fields: Record<string, DesignerFieldModel>): Set<string> {
-  const codes = new Set<string>();
-  for (const field of Object.values(fields)) {
-    const code = field.code.trim();
-    if (code) codes.add(code);
-  }
-  return codes;
-}
-
-/**
- * Returns the set of field IDs that have any conditional_required validation rule.
- * Used to exclude those fields from L002 (they are handled by L007 instead).
- */
-function buildConditionalRequiredFieldIdSet(
-  rules: Record<string, DesignerValidationRule>
-): Set<string> {
-  const ids = new Set<string>();
-  for (const rule of Object.values(rules)) {
-    // Cast to string: 'conditional_required' is not yet in the ValidationRuleType union.
-    if ((rule.ruleType as string) === 'conditional_required') {
-      ids.add(rule.fieldId);
+      const tabLabel = input.tabs[tabId]?.label ?? tabId;
+      findings.push({
+        severity: 'info',
+        code: 'L006',
+        message: `Tab "${tabLabel}" has no sections`,
+        nodeType: 'tab',
+        nodeId: tabId,
+      });
     }
-  }
-  return ids;
-}
 
-/**
- * Collects all field codes referenced by a business rule definition that are NOT
- * present in the validCodes set. Deduplicates: one orphaned code returned at most once.
- */
-function collectOrphanedBusinessRuleCodes(
-  definition: BusinessRuleDefinition,
-  validCodes: Set<string>
-): string[] {
-  const referenced = new Set<string>();
-  referenced.add(definition.trigger_field_code);
-
-  for (const condition of definition.condition_group.conditions) {
-    referenced.add(condition.field_code);
+    return findings;
   }
 
-  for (const action of definition.actions) {
-    referenced.add(action.target_field_code);
+  /** L006 sub-check: sections that have no fields in fieldOrder. */
+  private static checkEmptySections(input: FormLinterInput): LintFinding[] {
+    const findings: LintFinding[] = [];
+
+    for (const tabId of input.tabOrder) {
+      const sectionIds = input.sectionOrder[tabId] ?? [];
+      for (const sectionId of sectionIds) {
+        if ((input.fieldOrder[sectionId] ?? []).length > 0) continue;
+
+        const sectionLabel = input.sections[sectionId]?.label ?? sectionId;
+        findings.push({
+          severity: 'info',
+          code: 'L006',
+          message: `Section "${sectionLabel}" has no fields`,
+          nodeType: 'section',
+          nodeId: sectionId,
+        });
+      }
+    }
+
+    return findings;
   }
 
-  return [...referenced].filter(code => !validCodes.has(code));
+  /** L009 / L010: field count approaching or exceeding ENT-010 limit. */
+  private static checkFieldCountLimit(input: FormLinterInput): LintFinding[] {
+    const totalFields = Object.keys(input.fields).length;
+
+    if (totalFields > FIELD_COUNT_LIMIT) {
+      return [{
+        severity: 'error',
+        code: 'L010',
+        message: `Form has ${totalFields} fields; the maximum is ${FIELD_COUNT_LIMIT}`,
+        nodeType: 'form',
+        nodeId: 'form',
+      }];
+    }
+
+    if (totalFields >= FIELD_COUNT_WARNING_THRESHOLD) {
+      return [{
+        severity: 'info',
+        code: 'L009',
+        message: `Form is approaching the field limit (${totalFields} / ${FIELD_COUNT_LIMIT} fields used)`,
+        nodeType: 'form',
+        nodeId: 'form',
+      }];
+    }
+
+    return [];
+  }
+
+  /** L011 / L012: business rule count approaching or exceeding ENT-010 limit. */
+  private static checkBusinessRuleCountLimit(input: FormLinterInput): LintFinding[] {
+    const totalBusinessRules = Object.keys(input.businessRules).length;
+
+    if (totalBusinessRules > BUSINESS_RULE_COUNT_LIMIT) {
+      return [{
+        severity: 'error',
+        code: 'L012',
+        message: `Form has ${totalBusinessRules} business rules; the maximum is ${BUSINESS_RULE_COUNT_LIMIT}`,
+        nodeType: 'form',
+        nodeId: 'form',
+      }];
+    }
+
+    if (totalBusinessRules >= BUSINESS_RULE_COUNT_WARNING_THRESHOLD) {
+      return [{
+        severity: 'info',
+        code: 'L011',
+        message: `Form is approaching the business rule limit (${totalBusinessRules} / ${BUSINESS_RULE_COUNT_LIMIT} rules used)`,
+        nodeType: 'form',
+        nodeId: 'form',
+      }];
+    }
+
+    return [];
+  }
 }

@@ -239,6 +239,30 @@ describe('FormLinter — L001 duplicate field codes', () => {
     expect(findings.map(f => f.nodeId)).toContain('field-2');
   });
 
+  it('checkDuplicateFieldCodes_flagsAllOccurrences_whenThreeFieldsShareCode', () => {
+    // Arrange — three fields with the same code; all three must be flagged
+    const input = makeCleanInput({
+      fields: {
+        'field-1': makeField({ id: 'field-1', code: 'shared_code' }),
+        'field-2': makeField({ id: 'field-2', code: 'shared_code' }),
+        'field-3': makeField({ id: 'field-3', code: 'shared_code' }),
+      },
+    });
+
+    // Act
+    const findings = FormLinter.checkDuplicateFieldCodes(input);
+
+    // Assert — all three occurrences flagged; message reflects the total count
+    expect(findings).toHaveLength(3);
+    expect(findings.every(f => f.severity === 'error')).toBe(true);
+    expect(findings.every(f => f.code === 'L001')).toBe(true);
+    expect(findings.every(f => f.nodeType === 'field')).toBe(true);
+    expect(findings.every(f => f.message.includes('3 fields'))).toBe(true);
+    expect(findings.map(f => f.nodeId)).toContain('field-1');
+    expect(findings.map(f => f.nodeId)).toContain('field-2');
+    expect(findings.map(f => f.nodeId)).toContain('field-3');
+  });
+
   it('checkDuplicateFieldCodes_ignoresEmptyCodes_toAvoidFalsePositives', () => {
     // Arrange — fields with empty codes are caught by PV-007; L001 must not flag them
     const input = makeCleanInput({
@@ -490,6 +514,37 @@ describe('FormLinter — L005 orphaned business rule reference', () => {
     const l005findings = findings.filter(f => f.code === 'L005');
     expect(l005findings).toHaveLength(1);
   });
+
+  it('checkOrphanedBusinessRuleReferences_returnsError_whenOnlyConditionFieldCodeIsMissing', () => {
+    // Arrange — trigger and action target both exist; only condition field_code is orphaned
+    const rule = makeBusinessRule({
+      definition: {
+        version: '1.0',
+        trigger_field_code: 'loan_type',
+        trigger_event: 'on_change',
+        condition_group: {
+          logical_operator: 'AND',
+          conditions: [{ field_code: 'deleted_condition_field', operator: 'equals', value: 'x' }],
+        },
+        actions: [{ action_type: 'show_field', target_field_code: 'guarantor_name' }],
+      },
+    });
+    const input = makeCleanInput({
+      fields: {
+        'field-1': makeField({ id: 'field-1', code: 'loan_type' }),
+        'field-2': makeField({ id: 'field-2', code: 'guarantor_name' }),
+      },
+      businessRules: { 'brule-1': rule },
+    });
+
+    // Act
+    const findings = FormLinter.checkOrphanedBusinessRuleReferences(input);
+
+    // Assert — only the missing condition field_code yields a finding
+    const l005findings = findings.filter(f => f.code === 'L005');
+    expect(l005findings).toHaveLength(1);
+    expect(l005findings[0].message).toContain('deleted_condition_field');
+  });
 });
 
 // ─── L006 — Empty containers ──────────────────────────────────────────────────
@@ -696,6 +751,18 @@ describe('FormLinter — L009/L010 field count limits', () => {
     expect(l009?.severity).toBe('info');
     expect(l009?.nodeType).toBe('form');
     expect(l009?.nodeId).toBe('form');
+  });
+
+  it('checkScaleLimits_returnsInfo_whenFieldCountIsExactlyAtLimit', () => {
+    // Arrange — exactly 200 fields (= FIELD_COUNT_LIMIT): warning fires, error does not
+    const input = makeCleanInput({ fields: generateFields(200) });
+
+    // Act
+    const findings = FormLinter.checkScaleLimits(input);
+
+    // Assert — L009 fires (200 >= 160), L010 does not fire (200 is not > 200)
+    expect(findings.find(f => f.code === 'L009')).toBeDefined();
+    expect(findings.find(f => f.code === 'L010')).toBeUndefined();
   });
 
   it('checkScaleLimits_returnsError_whenFieldCountExceedsLimit', () => {
