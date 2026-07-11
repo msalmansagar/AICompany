@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
 import { toPcrm } from './translator/toPcrm';
 import {
-  saveRule, loadLatestVersion, getVersionState, validateRule, type ValidationResult,
+  saveRule, loadLatestVersion, getVersionState, validateRule, setEffectiveWindow, type ValidationResult,
 } from './dataverse/client';
 import { evaluate, type EvaluateResult } from './runtime/testClient';
 import { performAction, type GovernanceAction } from './governance/governanceClient';
@@ -23,6 +23,19 @@ const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the autho
 type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor' | 'analytics';
 type Method = 'table' | 'canvas' | 'template' | 'ai';
 
+// Effective dates are stored/compared in UTC. The datetime-local picker shows the UTC wall-clock
+// (labelled "UTC" in the UI) so there's no timezone ambiguity in what gets saved.
+function isoToInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+function inputToIso(input: string): string | null {
+  return input ? `${input}:00Z` : null;
+}
+
 export function App() {
   const [view, setView] = useState<View>('list');
 
@@ -41,6 +54,8 @@ export function App() {
   const [versionId, setVersionId] = useState<string | null>(null);
   const [versionNumber, setVersionNumber] = useState<number | null>(null);
   const [lifecycle, setLifecycle] = useState<string>('');
+  const [effFrom, setEffFrom] = useState<string>(''); // datetime-local (UTC wall-clock), '' = open
+  const [effTo, setEffTo] = useState<string>('');
   const [savedLabel, setSavedLabel] = useState<string>('');
   const [validation, setValidation] = useState<ValidationResult | null>(null);
 
@@ -94,6 +109,7 @@ export function App() {
     setGraph(EMPTY); setTable(emptyTable());
     setRuleName('Untitled Rule'); setTargetEntity(DEFAULT_ENTITY); setMethod('table');
     setRuleId(null); setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
+    setEffFrom(''); setEffTo('');
     setShowTest(false); setTestResult(null); setTestError(''); setEditingEntity(false);
     setStatus('Set up your new rule.'); setView('create');
     void loadEntities();
@@ -124,6 +140,7 @@ export function App() {
       setTargetEntity(v?.targetEntity || DEFAULT_ENTITY);
       setVersionId(v?.versionId ?? null); setVersionNumber(v?.versionNumber ?? null);
       setLifecycle(v?.lifecycleState ?? ''); setSavedLabel('Loaded from Dataverse'); setValidation(null);
+      setEffFrom(isoToInput(v?.effectiveFrom ?? null)); setEffTo(isoToInput(v?.effectiveTo ?? null));
       setStatus(`Loaded ${v?.ruleName ?? ''} (version ${v?.versionNumber ?? '?'} · ${v?.lifecycleState ?? ''}).`);
     } catch (e: any) { setStatus(`Load failed: ${e.message}`); } finally { setBusy(false); }
   }
@@ -154,6 +171,16 @@ export function App() {
     } catch (e: any) { setStatus(`${action} failed: ${e.message}`); } finally { setBusy(false); }
   }
 
+  async function saveEffective() {
+    if (!versionId) { setStatus('Save a rule first — effective dates apply to a saved version.'); return; }
+    if (effFrom && effTo && inputToIso(effTo)! <= inputToIso(effFrom)!) { setStatus('Effective “to” must be after “from”.'); return; }
+    setBusy(true); setStatus('Saving effective dates…');
+    try {
+      await setEffectiveWindow(versionId, inputToIso(effFrom), inputToIso(effTo));
+      setStatus('Effective dates saved.');
+    } catch (e: any) { setStatus(`Could not save effective dates: ${e.message}`); } finally { setBusy(false); }
+  }
+
   function openTest() {
     const pcrm = currentPcrm() as any;
     const seed: Record<string, unknown> = {};
@@ -175,6 +202,16 @@ export function App() {
   const drawerHasContent = !!(testResult || testError || validation) || drawerTab === 'scenarios';
   function openScenarios() { setDrawerTab('scenarios'); setDrawerOpen(true); }
   const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
+
+  // Whether THIS version's window is live now (independent of other versions / lifecycle).
+  const effState = (() => {
+    const from = inputToIso(effFrom), to = inputToIso(effTo);
+    const now = new Date().toISOString();
+    if (from && now < from) return { cls: 'pending', text: `Starts ${effFrom.replace('T', ' ')} UTC` };
+    if (to && now >= to) return { cls: 'expired', text: `Expired ${effTo.replace('T', ' ')} UTC` };
+    if (!from && !to) return { cls: 'ok', text: 'Always effective' };
+    return { cls: 'ok', text: 'Effective now' };
+  })();
 
   const METHODS: { id: Method; title: string; sub: string; rec?: boolean }[] = [
     { id: 'table', title: 'Decision table', sub: 'Pick fields and outcomes in a grid — no code. Best for most rules.', rec: true },
@@ -331,6 +368,19 @@ export function App() {
                   <button disabled={busy} onClick={() => runGov('Approve')}>Approve</button>
                   <button disabled={busy} className="gov-reject" onClick={() => runGov('Reject')}>Reject</button>
                   <button disabled={busy} className="gov-publish" onClick={() => runGov('Publish')}>Publish</button>
+                </div>
+              )}
+
+              {versionId && (
+                <div className="effbar">
+                  <span className="gov-label">Effective</span>
+                  <label className="eff-field">from<input type="datetime-local" value={effFrom} onChange={(e) => setEffFrom(e.target.value)} /></label>
+                  <span className="eff-arrow">→</span>
+                  <label className="eff-field">to<input type="datetime-local" value={effTo} onChange={(e) => setEffTo(e.target.value)} /></label>
+                  <span className="eff-utc">UTC</span>
+                  <span className={`eff-badge ${effState.cls}`}>{effState.text}</span>
+                  <span className="spacer" />
+                  <button disabled={busy} onClick={saveEffective}>Save dates</button>
                 </div>
               )}
 

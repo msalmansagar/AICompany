@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,7 @@ using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Pcrm;
 using EDP.RuleRuntime.Scenarios;
+using EDP.RuleRuntime.Versioning;
 
 namespace EDP.RuleRuntime.Crm
 {
@@ -57,6 +59,7 @@ namespace EDP.RuleRuntime.Crm
                     case "qdb_edp_GetRuleTemplates": result = GetRuleTemplates(service, context); break;
                     case "qdb_edp_GetRuleDocumentation": result = GetRuleDocumentation(service, context); break;
                     case "qdb_edp_GetRuleAnalytics": result = GetRuleAnalytics(service, context); break;
+                    case "qdb_edp_ResolveEffectiveVersion": result = ResolveEffectiveVersion(service, context); break;
                     default: throw new InvalidPluginExecutionException($"Unsupported service message '{context.MessageName}'.");
                 }
                 context.OutputParameters["ResultJson"] = JsonSerializer.Serialize(result);
@@ -241,7 +244,7 @@ namespace EDP.RuleRuntime.Crm
                 else if (el.TryGetProperty("ruleId", out var rid) && Guid.TryParse(rid.GetString(), out var ridGuid))
                 {
                     m.RuleId = ridGuid;
-                    m.VersionId = ResolvePublishedVersionId(service, ridGuid); // governed: run the published version
+                    m.VersionId = ResolveEffectiveVersionId(service, ridGuid, DateTime.UtcNow); // governed: run the version effective now
                 }
                 list.Add(m);
                 i++;
@@ -249,13 +252,15 @@ namespace EDP.RuleRuntime.Crm
             return list;
         }
 
-        private static Guid? ResolvePublishedVersionId(IOrganizationService service, Guid ruleId)
+        private static Guid? ResolveEffectiveVersionId(IOrganizationService service, Guid ruleId, DateTime asOfUtc)
+            => EffectiveVersionResolver.Resolve(PublishedCandidates(service, ruleId), asOfUtc)?.VersionId;
+
+        /// <summary>All Published versions of a rule with their effective windows — the resolver's input.</summary>
+        private static List<VersionCandidate> PublishedCandidates(IOrganizationService service, Guid ruleId)
         {
             var query = new QueryExpression("qdb_edp_ruleversion")
             {
-                ColumnSet = new ColumnSet("qdb_edp_ruleversionid"),
-                TopCount = 1,
-                Orders = { new OrderExpression("qdb_edp_versionnumber", OrderType.Descending) },
+                ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_effectivefrom", "qdb_edp_effectiveto"),
                 Criteria =
                 {
                     Conditions =
@@ -265,7 +270,13 @@ namespace EDP.RuleRuntime.Crm
                     }
                 }
             };
-            return service.RetrieveMultiple(query).Entities.FirstOrDefault()?.Id;
+            return service.RetrieveMultiple(query).Entities.Select(v => new VersionCandidate
+            {
+                VersionId = v.Id,
+                VersionNumber = v.GetAttributeValue<int>("qdb_edp_versionnumber"),
+                EffectiveFrom = v.GetAttributeValue<DateTime?>("qdb_edp_effectivefrom"),
+                EffectiveTo = v.GetAttributeValue<DateTime?>("qdb_edp_effectiveto"),
+            }).ToList();
         }
 
         // ---- Functions (read-only) -----------------------------------------------------
@@ -276,7 +287,7 @@ namespace EDP.RuleRuntime.Crm
                          ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
             var query = new QueryExpression("qdb_edp_ruleversion")
             {
-                ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_lifecyclestate", "qdb_edp_ispinned", "createdon"),
+                ColumnSet = new ColumnSet("qdb_edp_ruleversionid", "qdb_edp_versionnumber", "qdb_edp_lifecyclestate", "qdb_edp_ispinned", "qdb_edp_effectivefrom", "qdb_edp_effectiveto", "createdon"),
                 Orders = { new OrderExpression("qdb_edp_versionnumber", OrderType.Descending) },
                 Criteria = { Conditions = { new ConditionExpression("qdb_edp_ruleid", ConditionOperator.Equal, ruleId) } }
             };
@@ -287,9 +298,38 @@ namespace EDP.RuleRuntime.Crm
                 lifecycleState = v.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value ?? -1,
                 lifecycleLabel = LifecycleLabel(v.GetAttributeValue<OptionSetValue>("qdb_edp_lifecyclestate")?.Value ?? -1),
                 isPinned = v.GetAttributeValue<bool>("qdb_edp_ispinned"),
+                effectiveFrom = v.GetAttributeValue<DateTime?>("qdb_edp_effectivefrom"),
+                effectiveTo = v.GetAttributeValue<DateTime?>("qdb_edp_effectiveto"),
                 createdOn = v.GetAttributeValue<DateTime?>("createdon")
             }).ToList();
             return new { ruleId, versionCount = versions.Count, versions };
+        }
+
+        /// <summary>
+        /// Which Published version is effective at a given instant (default: now). The primitive
+        /// behind effective dating — the designer uses it to show "effective now" and callers can
+        /// preview a future cutover.
+        /// </summary>
+        private object ResolveEffectiveVersion(IOrganizationService service, IPluginExecutionContext context)
+        {
+            var ruleId = ResolveRuleId(service, context)
+                         ?? throw new InvalidPluginExecutionException("Provide RuleId, RuleName, or RuleVersionId.");
+            var asOf = ParamDate(context, "AsOf") ?? DateTime.UtcNow;
+            var candidates = PublishedCandidates(service, ruleId);
+            var winner = EffectiveVersionResolver.Resolve(candidates, asOf);
+            return new
+            {
+                ruleId,
+                asOf = asOf.ToString("o"),
+                publishedCount = candidates.Count,
+                resolved = winner == null ? null : new
+                {
+                    ruleVersionId = winner.VersionId,
+                    versionNumber = winner.VersionNumber,
+                    effectiveFrom = winner.EffectiveFrom,
+                    effectiveTo = winner.EffectiveTo
+                }
+            };
         }
 
         private object GetRuleTemplates(IOrganizationService service, IPluginExecutionContext context)
@@ -573,6 +613,14 @@ namespace EDP.RuleRuntime.Crm
         {
             var raw = ParamString(context, name);
             return string.IsNullOrWhiteSpace(raw) ? (Guid?)null : Guid.Parse(raw);
+        }
+
+        private static DateTime? ParamDate(IPluginExecutionContext context, string name)
+        {
+            var raw = ParamString(context, name);
+            return string.IsNullOrWhiteSpace(raw)
+                ? (DateTime?)null
+                : DateTime.Parse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);
         }
     }
 }

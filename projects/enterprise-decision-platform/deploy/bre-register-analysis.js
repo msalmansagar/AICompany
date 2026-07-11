@@ -8,7 +8,7 @@ const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
-const ASSEMBLY_VERSION = '1.0.20.0';
+const ASSEMBLY_VERSION = '1.0.21.0';
 const ANALYSIS_TYPE = 'EDP.RuleRuntime.Crm.RuleAnalysisPlugin';
 const GUARD_TYPE = 'EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin';
 const DELETE_AUDIT_TYPE = 'EDP.RuleRuntime.Crm.DeleteAuditPlugin'; // F-07
