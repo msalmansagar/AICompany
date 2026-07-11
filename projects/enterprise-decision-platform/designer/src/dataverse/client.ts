@@ -272,6 +272,35 @@ export async function getRuleAnalytics(periodDays = 30, ruleId?: string): Promis
   return JSON.parse(res.ResultJson ?? EMPTY_ANALYTICS);
 }
 
+// ── Version history + compare ─────────────────────────────────────────────────
+
+export interface VersionRow {
+  versionId: string; versionNumber: number; status: string;
+  effectiveFrom: string | null; effectiveTo: string | null; createdOn: string;
+}
+
+/** All versions of a rule, newest first — for the history/compare picker. */
+export async function listRuleVersions(ruleId: string): Promise<VersionRow[]> {
+  const data = await req<{ value: any[] }>(
+    `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
+      `&$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_effectivefrom,qdb_edp_effectiveto,createdon&$orderby=qdb_edp_versionnumber desc`
+  );
+  return data.value.map((v) => ({
+    versionId: v.qdb_edp_ruleversionid,
+    versionNumber: v.qdb_edp_versionnumber ?? 0,
+    status: lifecycleLabel(v.qdb_edp_lifecyclestate),
+    effectiveFrom: v.qdb_edp_effectivefrom ?? null,
+    effectiveTo: v.qdb_edp_effectiveto ?? null,
+    createdOn: v.createdon ?? '',
+  }));
+}
+
+/** A version's canonical PCRM (parsed), for structural comparison. */
+export async function loadVersionPcrm(versionId: string): Promise<unknown> {
+  const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_pcrmjson`);
+  try { return JSON.parse(v.qdb_edp_pcrmjson ?? '{}'); } catch { return {}; }
+}
+
 /** Set (or clear) a version's effective-dating window. Pass null to leave an end open. */
 export async function setEffectiveWindow(versionId: string, fromIso: string | null, toIso: string | null): Promise<void> {
   await req(`/${VERSIONS}(${versionId})`, 'PATCH', {
