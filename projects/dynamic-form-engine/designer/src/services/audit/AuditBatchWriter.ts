@@ -32,9 +32,9 @@ export class AuditBatchWriter {
   async writeEntries(entries: readonly AuditEntry[]): Promise<void> {
     if (entries.length === 0) return;
 
-    for (const entry of entries) {
-      await this.writeSingleEntry(entry);
-    }
+    // Parallel writes — same per-entry failure isolation as sequential but
+    // avoids N+1 round-trips when a single save produces many changed properties.
+    await Promise.allSettled(entries.map(entry => this.writeSingleEntry(entry)));
   }
 
   private async writeSingleEntry(entry: AuditEntry): Promise<void> {
@@ -62,7 +62,8 @@ export class AuditBatchWriter {
       [DFE_AUDIT_LOG_ATTRS.ACTION]: DFE_AUDIT_ACTION_PICKLIST[entry.action],
       [DFE_AUDIT_LOG_ATTRS.EVENT_TYPE]: DFE_AUDIT_EVENT_TYPE_PICKLIST[entry.eventType],
       [DFE_AUDIT_LOG_ATTRS.CHANGED_ON]: entry.changedOn,
-      [DFE_AUDIT_LOG_ATTRS.SESSION_ID]: '',
+      // TODO(DFE-ENH-001): populate qdb_session_id once the EditLock session
+      // identifier is surfaced from the concurrency layer.
     };
 
     if (entry.before !== null) {

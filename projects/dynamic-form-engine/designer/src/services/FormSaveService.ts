@@ -1,6 +1,7 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import type { DesignerState } from '@/state/designerStore';
+import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError';
 import { FormDefinitionService } from './FormDefinitionService';
 import { TabService } from './TabService';
 import { SectionService } from './SectionService';
@@ -34,8 +35,10 @@ export class PartialSaveError extends Error {
   constructor(
     public readonly resolvedIds: Record<string, string>,
     public readonly resolvedThemeId: string | null,
-    cause: unknown,
+    public readonly cause: unknown,
   ) {
+    // { cause } ErrorOptions requires ES2022 lib — tsconfig targets ES2020 so we
+    // store cause as an own property and pass only the message to the base class.
     super(cause instanceof Error ? cause.message : 'Save failed');
   }
 }
@@ -427,7 +430,11 @@ export class FormSaveService {
 
       return { resolvedIds, resolvedThemeId };
     } catch (error) {
-      // Propagate partial progress so the caller can prevent duplicate creates on retry.
+      // 412 conflicts must propagate unwrapped so DesignerScreen's onError can
+      // instanceof-check ConcurrencyConflictError and open the conflict dialog.
+      // Wrapping it in PartialSaveError would make that check always false (B-1).
+      if (error instanceof ConcurrencyConflictError) throw error;
+      // All other errors carry partial-progress context for duplicate-create prevention.
       throw new PartialSaveError(resolvedIds, resolvedThemeId, error);
     }
   }

@@ -14,10 +14,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { enablePatches, produceWithPatches } from 'immer';
 import { WriteQueue } from '@/services/concurrency/WriteQueue';
 import { ConcurrencyConflictError } from '@/services/concurrency/ConcurrencyConflictError';
+import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { mapPatches } from '@/services/AuditPatchMapper';
 import { AuditBatchWriter } from '@/services/audit/AuditBatchWriter';
 import { computeSnapshotPatches } from '@/services/audit/computeSnapshotPatches';
 import { useConcurrencyStore } from '@/state/concurrencyStore';
+import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
 import type { FormAuditableSnapshot } from '@/state/designerStore';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
@@ -101,6 +103,82 @@ function makeAuditableSnapshot(overrides: Partial<FormAuditableSnapshot> = {}): 
     ...overrides,
   };
 }
+
+/** Minimal SaveableState for FormSaveService tests — uses a tmp_ form ID to
+ * skip Steps 6 and 8 (business-rule sync and theme upsert) which would require
+ * additional webApi mocks. Only Step 7 (updateRecordConditional) matters for B-1. */
+function makeMinimalSaveableState(): Parameters<FormSaveService['save']>[0] {
+  return {
+    form: {
+      id: 'tmp_form_b1test',
+      name: 'Test Form',
+      code: 'test_form',
+      description: '',
+      entityLogicalName: 'account',
+      status: 'draft',
+      currentVersion: '1',
+      themeId: null,
+      allowSaveDraft: true,
+      draftExpiryDays: null,
+      showSummaryStep: false,
+      summaryMode: null,
+      showProgressBar: false,
+      powerAutomateFlowId: null,
+      confirmationMessage: null,
+      confirmationRecordRefAttribute: null,
+      accessGroupId: null,
+      createdBy: 'user-1',
+      createdOn: new Date('2026-01-01'),
+      modifiedBy: 'user-1',
+      modifiedOn: new Date('2026-01-01'),
+    },
+    tabs: {},
+    sections: {},
+    fields: {},
+    tabOrder: [],
+    sectionOrder: {},
+    fieldOrder: {},
+    newIds: [],
+    dirtyIds: [],
+    deletedIds: [],
+    deletedEntityTypes: {},
+    validationRules: {},
+    businessRules: {},
+    designPayload: DEFAULT_DESIGN_PAYLOAD,
+    formEtag: 'W/"100"',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// B-1 guard — ConcurrencyConflictError must not be wrapped in PartialSaveError
+// ---------------------------------------------------------------------------
+
+describe('B-1 — FormSaveService.save() 412 propagation', () => {
+  it('conflicting412_throwsConcurrencyConflictError_notWrappedInPartialSaveError', async () => {
+    // Arrange: webApi rejects updateRecordConditional with a ConcurrencyConflictError
+    // (the Dataverse 412 path). All other adapter methods succeed so Steps 1-6 are no-ops.
+    const conflictError = new ConcurrencyConflictError(
+      'qdb_form_definition',
+      'tmp_form_b1test',
+      'W/"100"',
+    );
+    const webApi = makeWebApi({
+      updateRecordConditional: vi.fn().mockRejectedValue(conflictError),
+    });
+    const saveService = new FormSaveService(webApi, {
+      userId: 'user-1',
+      userName: 'tester',
+      userFullName: 'Tester User',
+    });
+
+    // Act + Assert: the raw ConcurrencyConflictError must surface to the caller,
+    // NOT wrapped in PartialSaveError — otherwise onError's instanceof check is inert.
+    await expect(saveService.save(makeMinimalSaveableState()))
+      .rejects.toBeInstanceOf(ConcurrencyConflictError);
+    await expect(saveService.save(makeMinimalSaveableState()))
+      .rejects.not.toBeInstanceOf(PartialSaveError);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // OI-005 — WriteQueue wiring
@@ -306,6 +384,22 @@ describe('E4 — Audit capture at save boundary', () => {
     expect(entries).toHaveLength(0);
   });
 
+  it('identicalSnapshots_producesZeroPatchesAndZeroAuditEntries', () => {
+    // computeSnapshotPatches with the same object for both baseline and current
+    // must produce zero patches — immer finds no actual value changes at finalization.
+    const snapshot = makeAuditableSnapshot();
+    const [, patches, inversePatches] = computeSnapshotPatches(snapshot, snapshot);
+    const entries = mapPatches(patches, inversePatches, {
+      formId: 'form-001',
+      formVersionId: null,
+      changedBy: 'user-abc',
+      changedOn: '2026-07-11T10:00:00.000Z',
+    });
+
+    expect(patches).toHaveLength(0);
+    expect(entries).toHaveLength(0);
+  });
+
   it('failedSave_writesNoAuditRows', async () => {
     // When the save operation rejects, audit must not fire.
     // This test validates the contract: audit entries are only produced
@@ -314,19 +408,13 @@ describe('E4 — Audit capture at save boundary', () => {
     vi.useFakeTimers();
 
     const webApi = makeWebApi();
-    const writer = new AuditBatchWriter(webApi);
-
     const saveError = new Error('Save failed — 500 Internal Server Error');
     const queue = new WriteQueue();
-    let auditWasWritten = false;
 
+    // Audit (AuditBatchWriter.writeEntries) is only called AFTER a successful save.
+    // This schedule simulates a save that always throws — audit must never fire.
     queue.schedule(
-      async () => {
-        throw saveError;
-        // The line below is unreachable — audit only fires after save success.
-        auditWasWritten = true; // eslint-disable-line @typescript-eslint/no-unreachable
-        await writer.writeEntries([]);
-      },
+      async () => { throw saveError; },
       () => { /* error handled */ },
       0,
     );
@@ -334,7 +422,6 @@ describe('E4 — Audit capture at save boundary', () => {
     await vi.runAllTimersAsync();
     vi.useRealTimers();
 
-    expect(auditWasWritten).toBe(false);
     expect(webApi.createRecord).not.toHaveBeenCalled();
   });
 
@@ -369,9 +456,9 @@ describe('E4 — Audit capture at save boundary', () => {
       validationRules: { 'rule-1': { id: 'rule-1', fieldId: 'field-1', ruleType: 'required', ruleValue: null, errorMessage: 'Field is required', sortOrder: 0, customExpression: null, ruleTemplateId: null } },
     });
 
-    const [, patches, inversePatches] = produceWithPatches(baseline, (draft) => {
-      draft.validationRules = current.validationRules;
-    });
+    // Use the real production pipeline (computeSnapshotPatches) to exercise the
+    // full path: fine-grained patch → AuditPatchMapper → eventType classification.
+    const [, patches, inversePatches] = computeSnapshotPatches(baseline, current);
 
     const entries = mapPatches(patches, inversePatches, {
       formId: 'form-001',

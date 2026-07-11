@@ -147,7 +147,7 @@ export function DesignerScreen(): React.ReactElement {
     navigateTo,
   } = useDesignerStore();
 
-  const { conflictState, recordEtags } = useConcurrencyStore();
+  const { conflictState } = useConcurrencyStore();
   const setConflictState = useConcurrencyStore(s => s.setConflictState);
   const setRecordEtag = useConcurrencyStore(s => s.setRecordEtag);
 
@@ -195,10 +195,9 @@ export function DesignerScreen(): React.ReactElement {
     setSaveError(null);
     markSaving();
 
-    // Capture a point-in-time snapshot of the state for this save attempt.
-    // This is passed into the WriteQueue operation so the save uses the state
-    // at scheduling time, not the (potentially mutated) state at flush time.
-    const formEtag = recordEtags[form.id] ?? '';
+    // Capture a point-in-time snapshot of the designer state for this save attempt.
+    // Fields/tabs/sections are captured NOW so the save reflects the user's edit,
+    // not any mutation that happens between scheduling and flush.
     const saveSnapshot = {
       form,
       tabs,
@@ -214,12 +213,17 @@ export function DesignerScreen(): React.ReactElement {
       dirtyIds,
       deletedIds,
       deletedEntityTypes,
-      formEtag,
     };
     const auditBaseline = lastSavedAuditSnapshot;
 
     writeQueueRef.current.schedule(
-      () => executeSave(saveSnapshot, auditBaseline),
+      () => {
+        // Read the etag at flush time — Dataverse invalidates the etag after each
+        // successful PATCH, and executeSave refreshes it. Capturing at schedule time
+        // would use a stale etag on rapid sequential saves, causing a spurious 412.
+        const currentEtag = useConcurrencyStore.getState().recordEtags[form.id] ?? '';
+        return executeSave({ ...saveSnapshot, formEtag: currentEtag }, auditBaseline);
+      },
       (error) => {
         if (error instanceof PartialSaveError && Object.keys(error.resolvedIds).length > 0) {
           markResolved(error.resolvedIds);
@@ -241,9 +245,11 @@ export function DesignerScreen(): React.ReactElement {
     tabs, sections, fields, validationRules, businessRules, designPayload,
     tabOrder, sectionOrder, fieldOrder,
     newIds, dirtyIds, deletedIds, deletedEntityTypes,
-    recordEtags, lastSavedAuditSnapshot,
+    lastSavedAuditSnapshot,
     markSaving, markSaved, markResolved, setConflictState,
     executeSave,
+    // recordEtags intentionally omitted — the etag is read at flush time via
+    // useConcurrencyStore.getState() inside the operation closure (M-2).
   ]);
 
   // Fixed: stable dep array so the listener is not re-registered on every render
