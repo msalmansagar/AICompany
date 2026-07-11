@@ -391,7 +391,9 @@ export function App() {
                   <button disabled={busy} onClick={() => runGov('Submit')}>Submit for review</button>
                   <button disabled={busy} onClick={() => runGov('Approve')}>Approve</button>
                   <button disabled={busy} className="gov-reject" onClick={() => runGov('Reject')}>Reject</button>
-                  <button disabled={busy} className="gov-publish" onClick={() => runGov('Publish')}>Publish</button>
+                  {published
+                    ? <button disabled={busy} className="gov-unpublish" onClick={() => runGov('Unpublish')} title="Take this version out of production and back to Draft to edit">Unpublish</button>
+                    : <button disabled={busy} className="gov-publish" onClick={() => runGov('Publish')}>Publish</button>}
                 </div>
               )}
 
