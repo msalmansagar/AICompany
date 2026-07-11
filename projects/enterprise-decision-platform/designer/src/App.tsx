@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
 import { toPcrm } from './translator/toPcrm';
 import {
@@ -40,6 +40,7 @@ function inputToIso(input: string): string | null {
 
 export function App() {
   const [view, setView] = useState<View>('list');
+  const [navOpen, setNavOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 900 : true));
 
   const [graph, setGraph] = useState<DecisionGraphType>(EMPTY);
   const [ruleName, setRuleName] = useState('Untitled Rule');
@@ -100,6 +101,16 @@ export function App() {
   }, [theme]);
 
   const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
+  const published = lifecycle === 'Published'; // a published version is locked — unpublish to edit
+
+  // Lock the editing surface when the loaded version is Published. `inert` blocks all interaction
+  // and focus while keeping the content visible and scrollable (unlike pointer-events:none).
+  const editorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    if (published) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+  }, [published, authorMode, view]);
 
   function currentPcrm() {
     return authorMode === 'table'
@@ -226,6 +237,9 @@ export function App() {
   return (
     <div className="mda">
       <div className="mda-topbar">
+        <button className="hamburger" onClick={() => setNavOpen((o) => !o)} aria-label="Toggle navigation" aria-expanded={navOpen} title="Toggle menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18" /></svg>
+        </button>
         <div className="mda-app">
           <span className="waffle" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="2" /><circle cx="12" cy="5" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="12" cy="19" r="2" /><circle cx="19" cy="19" r="2" /></svg>
@@ -243,7 +257,8 @@ export function App() {
         <span className="mda-env"><span className="dot" />org5869857f</span>
       </div>
 
-      <div className="mda-main">
+      <div className={`mda-main${navOpen ? '' : ' nav-collapsed'}`}>
+        {navOpen && <div className="nav-scrim" onClick={() => setNavOpen(false)} aria-hidden="true" />}
         <nav className="mda-nav" aria-label="Areas">
           <div className="nav-group">Business Rules Engine</div>
           <button className={`nav-item ${['list', 'create', 'editor'].includes(view) ? 'active' : ''}`} onClick={() => setView('list')}>
@@ -364,7 +379,7 @@ export function App() {
                   <button className="tb test" disabled={busy || !hasContent} onClick={openTest} title={hasContent ? 'Test with sample inputs' : 'Add a condition first'}>▶ Test</button>
                   <button className="tb ghost" disabled={busy || !ruleId} onClick={openScenarios} title={ruleId ? 'Saved test scenarios + regression gate' : 'Save the rule first'}>⚑ Scenarios</button>
                   <button className="tb ghost" disabled={busy || !ruleId} onClick={() => setShowHistory(true)} title={ruleId ? 'Compare versions of this rule' : 'Save the rule first'}>⧉ History</button>
-                  <button className="tb primary" disabled={busy || !hasContent} onClick={onSave} title={hasContent ? 'Save to Dataverse' : 'Add a condition first'}>Save</button>
+                  <button className="tb primary" disabled={busy || !hasContent || published} onClick={onSave} title={published ? 'Published version is read-only — unpublish to edit' : hasContent ? 'Save to Dataverse' : 'Add a condition first'}>Save</button>
                 </div>
               </header>
 
@@ -397,7 +412,10 @@ export function App() {
                 {showMetadata && <MetadataExplorer defaultEntity={targetEntity} onClose={() => setShowMetadata(false)} />}
                 {showHistory && ruleId && <VersionCompare ruleId={ruleId} ruleName={ruleName} onClose={() => setShowHistory(false)} />}
                 <div className="editor-wrap">
-                  <div className="editor">
+                  {published && (
+                    <div className="lock-banner">🔒 This version is <b>Published</b> — read-only. Unpublish it to make changes.</div>
+                  )}
+                  <div className={`editor${published ? ' locked' : ''}`} ref={editorRef}>
                     {authorMode === 'table' ? (
                       <DecisionTableEditor entity={targetEntity} value={table} onChange={setTable} />
                     ) : (
