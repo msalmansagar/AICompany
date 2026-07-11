@@ -17,6 +17,7 @@ import { RulesList } from './rules/RulesList';
 import { RuleSetsList } from './rulesets/RuleSetsList';
 import { RuleSetEditor } from './rulesets/RuleSetEditor';
 import { ScenariosPanel } from './scenarios/ScenariosPanel';
+import { VersionCompare } from './rules/VersionCompare';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
@@ -66,6 +67,7 @@ export function App() {
   const [rulesetId, setRulesetId] = useState<string | null>(null);
 
   const [showMetadata, setShowMetadata] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [authorMode, setAuthorMode] = useState<'canvas' | 'table'>('table');
   const [table, setTable] = useState<TableModel>(emptyTable());
 
@@ -355,6 +357,7 @@ export function App() {
                   <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
                   <button className="tb test" disabled={busy || !hasContent} onClick={openTest} title={hasContent ? 'Test with sample inputs' : 'Add a condition first'}>▶ Test</button>
                   <button className="tb ghost" disabled={busy || !ruleId} onClick={openScenarios} title={ruleId ? 'Saved test scenarios + regression gate' : 'Save the rule first'}>⚑ Scenarios</button>
+                  <button className="tb ghost" disabled={busy || !ruleId} onClick={() => setShowHistory(true)} title={ruleId ? 'Compare versions of this rule' : 'Save the rule first'}>⧉ History</button>
                   <button className="tb primary" disabled={busy || !hasContent} onClick={onSave} title={hasContent ? 'Save to Dataverse' : 'Add a condition first'}>Save</button>
                 </div>
               </header>
@@ -386,6 +389,7 @@ export function App() {
 
               <div className="body">
                 {showMetadata && <MetadataExplorer defaultEntity={targetEntity} onClose={() => setShowMetadata(false)} />}
+                {showHistory && ruleId && <VersionCompare ruleId={ruleId} ruleName={ruleName} onClose={() => setShowHistory(false)} />}
                 <div className="editor-wrap">
                   <div className="editor">
                     {authorMode === 'table' ? (
