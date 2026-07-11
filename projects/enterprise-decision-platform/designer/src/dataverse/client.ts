@@ -1,4 +1,5 @@
 import type { DecisionGraphType } from '@gorules/jdm-editor';
+import { functionRequest, messageMode } from './messaging';
 
 // Dataverse Web API client — all calls go through the local /dataverse dev proxy
 // (which injects the bearer token). Targets the qdb_edp_ tables in BusinessRuleEngine.
@@ -262,10 +263,12 @@ const EMPTY_ANALYTICS = '{"total":0,"matched":0,"noMatch":0,"error":0,"matchRate
 
 /** Aggregated decision telemetry over the last N days (organisation-wide, or scoped to one rule). */
 export async function getRuleAnalytics(periodDays = 30, ruleId?: string): Promise<AnalyticsData> {
-  const args = ruleId
-    ? `(RuleId=@r,PeriodDays=@p)?@r=%27${ruleId}%27&@p=%27${periodDays}%27`
-    : `(PeriodDays=@p)?@p=%27${periodDays}%27`;
-  const res = await req<{ ResultJson?: string }>(`/qdb_edp_GetRuleAnalytics${args}`, 'GET');
+  const params: Record<string, string> = ruleId
+    ? { RuleId: ruleId, PeriodDays: String(periodDays) }
+    : { PeriodDays: String(periodDays) };
+  // Function (GET) on cloud, Action (POST) on-prem — same { ResultJson } envelope.
+  const { method, path, body } = functionRequest(messageMode(), 'qdb_edp_GetRuleAnalytics', params);
+  const res = await req<{ ResultJson?: string }>(path, method, body);
   return JSON.parse(res.ResultJson ?? EMPTY_ANALYTICS);
 }
 
