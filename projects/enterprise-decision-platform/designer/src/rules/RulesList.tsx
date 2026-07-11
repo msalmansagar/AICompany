@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { listRulesDetailed, duplicateRule, deleteRule, type RuleRow } from '../dataverse/client';
+import { filterCatalog, statusCounts, entitiesPresent, effectiveState } from './catalog';
 import type { EntityMeta } from '../metadata/metadataService';
 
 const Check = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
 );
 
-type SortKey = 'name' | 'entity' | 'status' | 'version' | 'modified';
+type SortKey = 'name' | 'entity' | 'status' | 'effective' | 'owner' | 'version' | 'modified';
+
+const STATUS_ORDER = ['Draft', 'In Review', 'Approved', 'Published', 'Retired'];
+const EFF_LABEL: Record<string, string> = { active: 'Effective now', scheduled: 'Scheduled', expired: 'Expired', none: '—' };
+const EFF_RANK: Record<string, number> = { active: 0, scheduled: 1, expired: 2, none: 3 };
 
 /**
  * Rules view — a model-driven read-only grid. A command bar drives New / Refresh and
@@ -25,6 +30,9 @@ export function RulesList({ onNew, onOpen, entities }: {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [entityFilter, setEntityFilter] = useState('');
+  const nowIso = useMemo(() => new Date().toISOString(), [rows]);
 
   async function load() {
     setBusy(true); setError(''); setConfirmDelete(false);
@@ -36,13 +44,13 @@ export function RulesList({ onNew, onOpen, entities }: {
 
   const entityLabel = (ln: string) => (ln ? entities.find((e) => e.logicalName === ln)?.displayName ?? ln : '—');
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) =>
-      r.name.toLowerCase().includes(q) || r.entity.toLowerCase().includes(q) ||
-      entityLabel(r.entity).toLowerCase().includes(q) || r.status.toLowerCase().includes(q));
-  }, [rows, query, entities]);
+  const counts = useMemo(() => statusCounts(rows), [rows]);
+  const entityOptions = useMemo(() => entitiesPresent(rows), [rows]);
+
+  const filtered = useMemo(
+    () => filterCatalog(rows, { query, status: statusFilter, entity: entityFilter }, entityLabel),
+    [rows, query, statusFilter, entityFilter, entities]
+  );
 
   const sorted = useMemo(() => {
     const val = (r: RuleRow): string | number => {
@@ -50,6 +58,8 @@ export function RulesList({ onNew, onOpen, entities }: {
         case 'name': return r.name.toLowerCase();
         case 'entity': return entityLabel(r.entity).toLowerCase();
         case 'status': return r.status.toLowerCase();
+        case 'effective': return EFF_RANK[effectiveState(r, nowIso)];
+        case 'owner': return r.owner.toLowerCase();
         case 'version': return r.versionNumber;
         case 'modified': return r.modifiedOn;
       }
@@ -60,7 +70,7 @@ export function RulesList({ onNew, onOpen, entities }: {
       return sortDir === 'asc' ? c : -c;
     });
     return arr;
-  }, [filtered, sortKey, sortDir, entities]);
+  }, [filtered, sortKey, sortDir, entities, nowIso]);
 
   function toggleSort(k: SortKey) {
     if (k === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -103,6 +113,24 @@ export function RulesList({ onNew, onOpen, entities }: {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by keyword" aria-label="Filter rules" />
         </div>
+      </div>
+
+      <div className="cat-filters">
+        <div className="cat-pills" role="tablist" aria-label="Filter by status">
+          <button className={`cat-pill ${statusFilter === '' ? 'on' : ''}`} onClick={() => setStatusFilter('')}>All<span className="cat-n">{counts.All}</span></button>
+          {STATUS_ORDER.filter((s) => counts[s]).map((s) => (
+            <button key={s} className={`cat-pill ${statusFilter === s ? 'on' : ''}`} onClick={() => setStatusFilter(s)}>{s}<span className="cat-n">{counts[s]}</span></button>
+          ))}
+        </div>
+        <span className="spacer" />
+        {entityOptions.length > 0 && (
+          <label className="cat-entity">Table
+            <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
+              <option value="">All tables</option>
+              {entityOptions.map((ln) => <option key={ln} value={ln}>{entityLabel(ln)}</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       <div className="cmdbar">
@@ -158,6 +186,8 @@ export function RulesList({ onNew, onOpen, entities }: {
               <button className="mg-sort" onClick={() => toggleSort('name')}>Name{caret('name')}</button>
               <button className="mg-sort" onClick={() => toggleSort('entity')}>Entity{caret('entity')}</button>
               <button className="mg-sort" onClick={() => toggleSort('status')}>Status{caret('status')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('effective')}>Effective{caret('effective')}</button>
+              <button className="mg-sort" onClick={() => toggleSort('owner')}>Owner{caret('owner')}</button>
               <button className="mg-sort" onClick={() => toggleSort('version')}>Version{caret('version')}</button>
               <button className="mg-sort" onClick={() => toggleSort('modified')}>Modified{caret('modified')}</button>
             </div>
@@ -169,6 +199,8 @@ export function RulesList({ onNew, onOpen, entities }: {
                   <button className="mg-name" onClick={(e) => { e.stopPropagation(); onOpen(r.ruleId); }} title="Open rule">{r.name}</button>
                   <span className="mg-entity" title={r.entity}>{entityLabel(r.entity)}</span>
                   <span><span className={`badge ${cls(r.status)}`}><span className="dot" />{r.status}</span></span>
+                  <span>{(() => { const s = effectiveState(r, nowIso); return s === 'none' ? <span className="mg-eff-none">—</span> : <span className={`eff-tag ${s}`}>{EFF_LABEL[s]}</span>; })()}</span>
+                  <span className="mg-owner" title={r.owner}>{r.owner || '—'}</span>
                   <span className="mg-ver">v{r.versionNumber}</span>
                   <span className="mg-mod">{fmtDate(r.modifiedOn)}</span>
                 </div>
