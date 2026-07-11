@@ -13,6 +13,7 @@ import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
+import { DependencyView } from './rulesets/DependencyView';
 import { RulesList } from './rules/RulesList';
 import { RuleSetsList } from './rulesets/RuleSetsList';
 import { RuleSetEditor } from './rulesets/RuleSetEditor';
@@ -21,7 +22,7 @@ import { VersionCompare } from './rules/VersionCompare';
 
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
-type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor' | 'analytics';
+type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor' | 'analytics' | 'dependencies';
 type Method = 'table' | 'canvas' | 'template' | 'ai';
 
 // Effective dates are stored/compared in UTC. The datetime-local picker shows the UTC wall-clock
@@ -261,6 +262,10 @@ export function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10M10 20V4M16 20v-6M22 20H2" /></svg>
             Analytics
           </button>
+          <button className={`nav-item ${view === 'dependencies' ? 'active' : ''}`} onClick={() => setView('dependencies')}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="6" r="2.5" /><circle cx="5" cy="18" r="2.5" /><circle cx="19" cy="12" r="2.5" /><path d="M7.5 6.5 16.5 11M7.5 17.5 16.5 13" /></svg>
+            Dependencies
+          </button>
         </nav>
 
         <div className="mda-content">
@@ -269,6 +274,7 @@ export function App() {
           {view === 'ruleset-editor' && <RuleSetEditor setId={rulesetId} onBack={openRuleSets} onSaved={setRulesetId} />}
           {view === 'logs' && <ExecutionLogViewer full onClose={() => setView('list')} />}
           {view === 'analytics' && <AnalyticsDashboard onClose={() => setView('list')} />}
+          {view === 'dependencies' && <DependencyView onClose={() => setView('list')} />}
 
           {view === 'create' && (
             <div className="create-view">

@@ -365,6 +365,19 @@ export async function loadRuleSet(id: string): Promise<LoadedRuleSet> {
   };
 }
 
+/** Fetch everything the dependency graph needs: all rules + all sets with their members. */
+export async function loadDependencyData(): Promise<{
+  rules: { ruleId: string; name: string; status: string }[];
+  sets: { id: string; name: string; policy: string; members: RuleSetMember[] }[];
+}> {
+  const [rules, setRows] = await Promise.all([listRulesDetailed(), listRuleSets()]);
+  const sets = await Promise.all(setRows.map(async (s) => {
+    const full = await loadRuleSet(s.id);
+    return { id: s.id, name: s.name, policy: full.policy, members: full.members };
+  }));
+  return { rules: rules.map((r) => ({ ruleId: r.ruleId, name: r.name, status: r.status })), sets };
+}
+
 export interface SaveRuleSetInput { id?: string; name: string; description?: string; policy: SetPolicy; members: RuleSetMember[]; }
 
 export async function saveRuleSet(input: SaveRuleSetInput): Promise<string> {
