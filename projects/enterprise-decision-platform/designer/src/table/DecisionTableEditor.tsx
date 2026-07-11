@@ -132,6 +132,8 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
   function removeRow(ri: number) { const m = clone(value); m.rows.splice(ri, 1); set(m); }
   function setCell(ri: number, ci: number, patch: Partial<Cell>) { const m = clone(value); m.rows[ri].cells[ci] = { ...m.rows[ri].cells[ci], ...patch }; set(m); }
   function setRowOut(ri: number, name: string, v: string) { const m = clone(value); m.rows[ri].outputs[name] = v; set(m); }
+  // Reason codes are comma-separated; keep raw segments while typing, trim/drop-blanks at serialization.
+  function setRowCodes(ri: number, raw: string) { const m = clone(value); m.rows[ri].reasonCodes = raw.split(',').map((s) => s.trim()); set(m); }
 
   const nIn = value.inputs.length;
   const nOut = value.outputs.length;
@@ -151,7 +153,7 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 </select>
               </th>
               <th className="dt2-band dt2-band-in" colSpan={nIn + 1}>When — conditions</th>
-              <th className="dt2-band dt2-band-out" colSpan={nOut + 1}>Then — outcome</th>
+              <th className="dt2-band dt2-band-out" colSpan={nOut + 2}>Then — outcome</th>
               <th className="dt2-band-x" rowSpan={2} />
             </tr>
             <tr>
@@ -224,11 +226,15 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 </th>
               ))}
               <th className="dt2-addcol"><button title="Add outcome column" onClick={addOutput}>+</button></th>
+              <th className="dt2-col dt2-col-out dt2-col-reason" title="Machine-readable reason codes emitted when this row wins">
+                <div className="dt2-col-top"><span className="dt2-reason-h">Reason codes</span></div>
+                <span className="dt2-col-type">comma-separated · the “why”</span>
+              </th>
             </tr>
           </thead>
           <tbody>
             {value.rows.length === 0 && (
-              <tr><td className="dt2-emptyrow" colSpan={nIn + nOut + 4}>No rules yet — add a row below.</td></tr>
+              <tr><td className="dt2-emptyrow" colSpan={nIn + nOut + 5}>No rules yet — add a row below.</td></tr>
             )}
             {value.rows.map((row, ri) => (
               <tr key={ri} className="dt2-row">
@@ -236,6 +242,10 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 {value.inputs.map((col, ci) => <td key={ci} className="dt2-cell dt2-cell-in">{renderCell(ri, row, ci, col, options)}</td>)}
                 <td className="dt2-gap" />
                 {value.outputs.map((o, oi) => <td key={'o' + oi} className="dt2-cell dt2-cell-out">{renderOutput(o, row.outputs[o.name] ?? '', (v) => setRowOut(ri, o.name, v))}</td>)}
+                <td className="dt2-cell dt2-cell-out dt2-cell-reason">
+                  <input className="dt2-reason-in" value={(row.reasonCodes ?? []).join(', ')} placeholder="e.g. HIGH_VALUE, EXEC_SIGNOFF"
+                    onChange={(e) => setRowCodes(ri, e.target.value)} spellCheck={false} />
+                </td>
                 <td className="dt2-gap" />
                 <td className="dt2-rowact">
                   <button onClick={() => dupRow(ri)} title="Duplicate row">⧉</button>

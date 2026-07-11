@@ -544,6 +544,7 @@ namespace EDP.RuleRuntime.Crm
             success = result.Success,
             matched = result.Matched,
             outputs = result.Outputs,
+            reasonCodes = result.ReasonCodes,
             elapsedMs = result.ElapsedMilliseconds,
             diagnostics = result.Diagnostics.Select(SerializeDiagnostic).ToList(),
             steps = result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }).ToList()

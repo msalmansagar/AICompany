@@ -106,6 +106,8 @@ namespace EDP.RuleRuntime.Pcrm
     {
         [JsonPropertyName("when")] public PcrmGroup When { get; set; } = new PcrmGroup();
         [JsonPropertyName("then")] public Dictionary<string, JsonElement> Then { get; set; } = new Dictionary<string, JsonElement>();
+        /// <summary>Machine-readable reason codes emitted when this branch fires (the "why").</summary>
+        [JsonPropertyName("reasonCodes")] public List<string> ReasonCodes { get; set; } = new List<string>();
     }
 
     /// <summary>A boolean group: AND/OR (optionally negated) over conditions and nested groups.</summary>
@@ -142,6 +144,8 @@ namespace EDP.RuleRuntime.Pcrm
         /// <summary>One cell per table input, in order.</summary>
         [JsonPropertyName("cells")] public List<PcrmCell> Cells { get; set; } = new List<PcrmCell>();
         [JsonPropertyName("outputs")] public Dictionary<string, JsonElement> Outputs { get; set; } = new Dictionary<string, JsonElement>();
+        /// <summary>Machine-readable reason codes emitted when this row wins (the "why").</summary>
+        [JsonPropertyName("reasonCodes")] public List<string> ReasonCodes { get; set; } = new List<string>();
     }
 
     /// <summary>A decision-table cell = a unary test (operator + value) against its column input.</summary>
