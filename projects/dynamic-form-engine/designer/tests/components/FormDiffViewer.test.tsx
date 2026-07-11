@@ -5,6 +5,7 @@
 //
 // Vitest + React Testing Library + jsdom (environment configured in vite.config.ts).
 // FluentProvider wrapper is required by Fluent UI v9 components.
+// Test names follow MethodName_Scenario_ExpectedResult convention.
 //
 // Coverage:
 //   - empty state when objects are identical
@@ -13,8 +14,8 @@
 //   - CREATE / REMOVE / UPDATE badge labels
 //   - before/after value display
 //   - custom labelResolver invoked and result rendered
-//   - no badge labelled "Before:" for CREATE
-//   - no badge labelled "After:" for REMOVE
+//   - no "Before:" label for CREATE
+//   - no "After:" label for REMOVE
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -39,7 +40,7 @@ function renderDiffViewer(before: object, after: object, labelResolver?: (path: 
 // ─── Identical snapshots ──────────────────────────────────────────────────────
 
 describe('FormDiffViewer — identical objects', () => {
-  it('should_render_empty_state_message_when_no_changes_exist', () => {
+  it('FormDiffViewer_IdenticalObjects_RendersEmptyStateMessage', () => {
     const snapshot = { name: 'Loan Form', version: 1 };
 
     renderDiffViewer(snapshot, snapshot);
@@ -51,7 +52,7 @@ describe('FormDiffViewer — identical objects', () => {
 // ─── Accordion structure ──────────────────────────────────────────────────────
 
 describe('FormDiffViewer — accordion grouping', () => {
-  it('should_render_an_accordion_section_per_top_level_area', () => {
+  it('FormDiffViewer_TwoChangedTopLevelKeys_RendersTwoAccordionSections', () => {
     const before = { name: 'Form A', status: 'draft' };
     const after  = { name: 'Form B', status: 'published' };
 
@@ -63,7 +64,7 @@ describe('FormDiffViewer — accordion grouping', () => {
     expect(screen.getAllByText('status').length).toBeGreaterThan(0);
   });
 
-  it('should_render_change_count_badge_next_to_area_header', () => {
+  it('FormDiffViewer_TwoChangesInOneArea_RendersCountBadgeWithTwo', () => {
     const before = { fields: { f1: { label: 'A' }, f2: { label: 'B' } } };
     const after  = { fields: { f1: { label: 'X' }, f2: { label: 'Y' } } };
 
@@ -77,7 +78,7 @@ describe('FormDiffViewer — accordion grouping', () => {
 // ─── Badge rendering ──────────────────────────────────────────────────────────
 
 describe('FormDiffViewer — change kind badges', () => {
-  it('should_render_plus_badge_for_CREATE_change', () => {
+  it('FormDiffViewer_CreateChange_RendersPlusBadge', () => {
     const before = { name: 'Loan Form' };
     const after  = { name: 'Loan Form', description: 'New field' };
 
@@ -86,7 +87,7 @@ describe('FormDiffViewer — change kind badges', () => {
     expect(screen.getByText('+')).toBeInTheDocument();
   });
 
-  it('should_render_minus_badge_for_REMOVE_change', () => {
+  it('FormDiffViewer_RemoveChange_RendersMinusBadge', () => {
     const before = { name: 'Loan Form', description: 'Old field' };
     const after  = { name: 'Loan Form' };
 
@@ -95,7 +96,7 @@ describe('FormDiffViewer — change kind badges', () => {
     expect(screen.getByText('−')).toBeInTheDocument();
   });
 
-  it('should_render_tilde_badge_for_UPDATE_change', () => {
+  it('FormDiffViewer_UpdateChange_RendersTildeBadge', () => {
     const before = { status: 'draft' };
     const after  = { status: 'published' };
 
@@ -108,7 +109,7 @@ describe('FormDiffViewer — change kind badges', () => {
 // ─── Before / after values ────────────────────────────────────────────────────
 
 describe('FormDiffViewer — value display', () => {
-  it('should_display_before_and_after_values_for_UPDATE_change', () => {
+  it('FormDiffViewer_UpdateChange_RendersBothBeforeAndAfterValues', () => {
     const before = { status: 'draft' };
     const after  = { status: 'published' };
 
@@ -118,7 +119,7 @@ describe('FormDiffViewer — value display', () => {
     expect(screen.getByText(/After:.*"published"/)).toBeInTheDocument();
   });
 
-  it('should_not_render_before_value_for_CREATE_change', () => {
+  it('FormDiffViewer_CreateChange_OmitsBeforeValue', () => {
     const before = {};
     const after  = { theme: 'light' };
 
@@ -128,7 +129,7 @@ describe('FormDiffViewer — value display', () => {
     expect(screen.getByText(/After:/)).toBeInTheDocument();
   });
 
-  it('should_not_render_after_value_for_REMOVE_change', () => {
+  it('FormDiffViewer_RemoveChange_OmitsAfterValue', () => {
     const before = { theme: 'light' };
     const after  = {};
 
@@ -142,7 +143,7 @@ describe('FormDiffViewer — value display', () => {
 // ─── Label resolver ───────────────────────────────────────────────────────────
 
 describe('FormDiffViewer — labelResolver', () => {
-  it('should_call_labelResolver_with_stringified_path_and_render_result', () => {
+  it('FormDiffViewer_WithLabelResolver_CallsResolverAndRendersResult', () => {
     const labelResolver = vi.fn((path: string[]) => `Custom: ${path.join('.')}`);
     const before = { status: 'draft' };
     const after  = { status: 'published' };
@@ -153,13 +154,13 @@ describe('FormDiffViewer — labelResolver', () => {
     expect(screen.getByText('Custom: status')).toBeInTheDocument();
   });
 
-  it('should_fall_back_to_default_path_label_when_no_resolver_provided', () => {
+  it('FormDiffViewer_WithoutLabelResolver_UsesDefaultPathJoin', () => {
     const before = { fields: { label: 'Name' } };
     const after  = { fields: { label: 'Full Name' } };
 
     renderDiffViewer(before, after);
 
-    // Default label joins path segments with " → " (U+2192)
+    // Default label joins path segments with " → " (U+2192 arrow)
     expect(screen.getByText('fields → label')).toBeInTheDocument();
   });
 });

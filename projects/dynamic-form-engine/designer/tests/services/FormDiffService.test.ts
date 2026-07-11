@@ -2,19 +2,14 @@
 //
 // TDD mandate (DFE-ENH-001 Workstream H): tests written first, then implementation.
 // Pure TypeScript input/output — no DOM, no Zustand, no React.
+// Test names follow MethodName_Scenario_ExpectedResult convention.
 //
 // Coverage:
-//   - diffForms returns [] for identical objects
-//   - diffForms correctly identifies CREATE, REMOVE, UPDATE changes
-//   - path and area are populated correctly
-//   - oldValue / newValue are set for the right change kinds
-//   - nested changes are reported with full path
-//   - array-element changes are reported with numeric path segments
-//   - multiple changes returned when multiple properties differ
-//   - empty objects produce no changes
+//   diffForms  — empty, CREATE, REMOVE, UPDATE, path/area, multi-change
+//   summarizeDiff — empty, single area, multiple areas, singular vs plural
 
 import { describe, it, expect } from 'vitest';
-import { diffForms } from '@/services/FormDiffService';
+import { diffForms, summarizeDiff } from '@/services/FormDiffService';
 import type { FormChange } from '@/services/FormDiffService';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -23,10 +18,10 @@ function findChange(changes: FormChange[], pathHead: string): FormChange | undef
   return changes.find(c => String(c.path[0]) === pathHead);
 }
 
-// ─── Identical objects ────────────────────────────────────────────────────────
+// ─── diffForms — identical snapshots ─────────────────────────────────────────
 
 describe('diffForms — identical snapshots', () => {
-  it('should_return_empty_array_when_objects_are_identical', () => {
+  it('diffForms_IdenticalObjects_ReturnsEmptyArray', () => {
     const snapshot = { name: 'Loan Form', version: 3, fields: [{ id: '1', label: 'Amount' }] };
 
     const result = diffForms(snapshot, snapshot);
@@ -34,17 +29,17 @@ describe('diffForms — identical snapshots', () => {
     expect(result).toHaveLength(0);
   });
 
-  it('should_return_empty_array_when_both_objects_are_empty', () => {
+  it('diffForms_BothObjectsEmpty_ReturnsEmptyArray', () => {
     const result = diffForms({}, {});
 
     expect(result).toHaveLength(0);
   });
 });
 
-// ─── CREATE ───────────────────────────────────────────────────────────────────
+// ─── diffForms — CREATE ───────────────────────────────────────────────────────
 
 describe('diffForms — CREATE changes', () => {
-  it('should_return_CREATE_change_when_a_key_is_added', () => {
+  it('diffForms_AddedTopLevelKey_ReturnsCreateChange', () => {
     const before = { name: 'Loan Form' };
     const after  = { name: 'Loan Form', description: 'Finance intake' };
 
@@ -56,7 +51,7 @@ describe('diffForms — CREATE changes', () => {
     expect(result[0].area).toBe('description');
   });
 
-  it('should_set_newValue_and_leave_oldValue_undefined_for_CREATE', () => {
+  it('diffForms_AddedObjectValue_SetsNewValueAndLeavesOldValueUndefined', () => {
     const before = {};
     const after  = { theme: { primaryColor: '#005A9E' } };
 
@@ -69,10 +64,10 @@ describe('diffForms — CREATE changes', () => {
   });
 });
 
-// ─── REMOVE ───────────────────────────────────────────────────────────────────
+// ─── diffForms — REMOVE ───────────────────────────────────────────────────────
 
 describe('diffForms — REMOVE changes', () => {
-  it('should_return_REMOVE_change_when_a_key_is_deleted', () => {
+  it('diffForms_DeletedTopLevelKey_ReturnsRemoveChange', () => {
     const before = { name: 'Loan Form', description: 'Finance intake' };
     const after  = { name: 'Loan Form' };
 
@@ -83,7 +78,7 @@ describe('diffForms — REMOVE changes', () => {
     expect(result[0].path).toEqual(['description']);
   });
 
-  it('should_set_oldValue_and_leave_newValue_undefined_for_REMOVE', () => {
+  it('diffForms_RemovedArrayElement_SetsOldValueAndLeavesNewValueUndefined', () => {
     const before = { rules: [{ id: 'r1', type: 'required' }] };
     const after  = { rules: [] };
 
@@ -96,10 +91,10 @@ describe('diffForms — REMOVE changes', () => {
   });
 });
 
-// ─── UPDATE ───────────────────────────────────────────────────────────────────
+// ─── diffForms — UPDATE ───────────────────────────────────────────────────────
 
 describe('diffForms — UPDATE changes', () => {
-  it('should_return_UPDATE_change_when_a_scalar_value_changes', () => {
+  it('diffForms_ChangedScalarValue_ReturnsUpdateChange', () => {
     const before = { name: 'Loan Form', version: 2 };
     const after  = { name: 'Loan Form v2', version: 2 };
 
@@ -112,7 +107,7 @@ describe('diffForms — UPDATE changes', () => {
     expect(result[0].newValue).toBe('Loan Form v2');
   });
 
-  it('should_set_both_oldValue_and_newValue_for_UPDATE', () => {
+  it('diffForms_ChangedStringValue_SetsBothOldAndNewValues', () => {
     const before = { status: 'draft' };
     const after  = { status: 'published' };
 
@@ -124,10 +119,10 @@ describe('diffForms — UPDATE changes', () => {
   });
 });
 
-// ─── Area / path ─────────────────────────────────────────────────────────────
+// ─── diffForms — area / path ──────────────────────────────────────────────────
 
 describe('diffForms — area and path', () => {
-  it('should_derive_area_from_the_first_path_segment', () => {
+  it('diffForms_NestedChange_DerivesAreaFromFirstPathSegment', () => {
     const before = { fields: { f1: { label: 'Name' } } };
     const after  = { fields: { f1: { label: 'Full Name' } } };
 
@@ -137,7 +132,7 @@ describe('diffForms — area and path', () => {
     expect(result[0].path[0]).toBe('fields');
   });
 
-  it('should_include_full_nested_path_for_deep_changes', () => {
+  it('diffForms_DeepNestedChange_ReportsFullPath', () => {
     const before = { theme: { colors: { primary: '#000' } } };
     const after  = { theme: { colors: { primary: '#005A9E' } } };
 
@@ -147,7 +142,7 @@ describe('diffForms — area and path', () => {
     expect(result[0].area).toBe('theme');
   });
 
-  it('should_report_numeric_path_segments_for_array_element_changes', () => {
+  it('diffForms_ArrayElementChange_ReportsNumericPathSegment', () => {
     const before = { rules: [{ id: 'r1', message: 'Required' }] };
     const after  = { rules: [{ id: 'r1', message: 'This field is required' }] };
 
@@ -159,23 +154,21 @@ describe('diffForms — area and path', () => {
   });
 });
 
-// ─── Multiple changes ─────────────────────────────────────────────────────────
+// ─── diffForms — multiple changes ─────────────────────────────────────────────
 
 describe('diffForms — multiple simultaneous changes', () => {
-  it('should_return_all_changes_when_multiple_properties_differ', () => {
+  it('diffForms_MultipleChangedProperties_ReturnsAllChanges', () => {
     const before = { name: 'Form A', status: 'draft', version: 1 };
     const after  = { name: 'Form B', status: 'published', version: 1 };
 
     const result = diffForms(before, after);
 
     expect(result).toHaveLength(2);
-    const nameChange = result.find(c => c.path[0] === 'name');
-    const statusChange = result.find(c => c.path[0] === 'status');
-    expect(nameChange?.kind).toBe('UPDATE');
-    expect(statusChange?.kind).toBe('UPDATE');
+    expect(result.find(c => c.path[0] === 'name')?.kind).toBe('UPDATE');
+    expect(result.find(c => c.path[0] === 'status')?.kind).toBe('UPDATE');
   });
 
-  it('should_report_mixed_CREATE_UPDATE_REMOVE_in_one_diff', () => {
+  it('diffForms_MixedAddedChangedDeleted_ReportsCreateUpdateAndRemove', () => {
     const before = { a: 1, b: 2 };
     const after  = { b: 99, c: 3 };
 
@@ -185,5 +178,62 @@ describe('diffForms — multiple simultaneous changes', () => {
     expect(kinds).toContain('CREATE');
     expect(kinds).toContain('UPDATE');
     expect(kinds).toContain('REMOVE');
+  });
+});
+
+// ─── summarizeDiff ────────────────────────────────────────────────────────────
+
+describe('summarizeDiff', () => {
+  it('summarizeDiff_EmptyChanges_ReturnsZeroTotalAndNoChangesMessage', () => {
+    const result = summarizeDiff([]);
+
+    expect(result.totalChanges).toBe(0);
+    expect(result.humanReadable).toBe('No changes');
+  });
+
+  it('summarizeDiff_SingleAreaWithOneChange_ReturnsCorrectCountAndAreaName', () => {
+    const changes = diffForms(
+      { status: 'draft' },
+      { status: 'published' },
+    );
+
+    const result = summarizeDiff(changes);
+
+    expect(result.totalChanges).toBe(1);
+    expect(result.humanReadable).toContain('status');
+    expect(result.humanReadable).toContain('1');
+  });
+
+  it('summarizeDiff_MultipleAreas_FormatsEachAreaSeparately', () => {
+    const changes = diffForms(
+      { name: 'A', status: 'draft' },
+      { name: 'B', status: 'published' },
+    );
+
+    const result = summarizeDiff(changes);
+
+    expect(result.totalChanges).toBe(2);
+    expect(result.humanReadable).toContain('name');
+    expect(result.humanReadable).toContain('status');
+  });
+
+  it('summarizeDiff_OneChangeInArea_UsesChangeSingularForm', () => {
+    const changes = diffForms({ x: 1 }, { x: 2 });
+
+    const result = summarizeDiff(changes);
+
+    expect(result.humanReadable).toMatch(/\b1 x change\b/);
+  });
+
+  it('summarizeDiff_TwoChangesInOneArea_UsesPluralChanges', () => {
+    const changes = diffForms(
+      { fields: { f1: { label: 'A' }, f2: { label: 'B' } } },
+      { fields: { f1: { label: 'X' }, f2: { label: 'Y' } } },
+    );
+
+    const result = summarizeDiff(changes);
+
+    expect(result.humanReadable).toContain('changes');
+    expect(result.totalChanges).toBe(2);
   });
 });

@@ -48,6 +48,23 @@ export interface FormChange {
   newValue: unknown;
 }
 
+/**
+ * Convenience alias: a diff result is an ordered list of FormChange records.
+ * Workstream A (ConflictResolutionDialog) and FR-004 consume this shape.
+ */
+export type FormDiff = FormChange[];
+
+/**
+ * Human-readable summary of a diff — used by ConflictResolutionDialog (FR-001)
+ * to render the body text without displaying the full change list.
+ */
+export interface DiffSummary {
+  /** Total number of changed properties across all areas. */
+  totalChanges: number;
+  /** Prose summary, e.g. "3 fields changes, 1 rules change". */
+  humanReadable: string;
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function resolveArea(path: (string | number)[]): string {
@@ -74,6 +91,16 @@ function mapDifferenceToChange(difference: Difference): FormChange {
   return { kind, path: difference.path, area, oldValue: difference.oldValue, newValue: difference.value };
 }
 
+function formatAreaSummary(area: string, count: number): string {
+  return `${count} ${area} ${count === 1 ? 'change' : 'changes'}`;
+}
+
+function countChangesByArea(changes: FormChange[]): Map<string, number> {
+  return changes.reduce((acc, change) => {
+    return acc.set(change.area, (acc.get(change.area) ?? 0) + 1);
+  }, new Map<string, number>());
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -93,4 +120,25 @@ export function diffForms(before: object, after: object): FormChange[] {
   type DiffInput = Parameters<typeof diff>[0];
   const rawChanges = diff(before as DiffInput, after as DiffInput);
   return rawChanges.map(mapDifferenceToChange);
+}
+
+/**
+ * Produces a human-readable summary of a FormDiff for display in dialog bodies.
+ *
+ * FR-001 usage: ConflictResolutionDialog renders this in its body text before
+ * the user decides to open the full FormDiffViewer.
+ *
+ * @param changes - Output of diffForms()
+ * @returns       Summary with total count and prose description
+ */
+export function summarizeDiff(changes: FormChange[]): DiffSummary {
+  const totalChanges = changes.length;
+  if (totalChanges === 0) {
+    return { totalChanges: 0, humanReadable: 'No changes' };
+  }
+
+  const parts = Array.from(countChangesByArea(changes).entries())
+    .map(([area, count]) => formatAreaSummary(area, count));
+
+  return { totalChanges, humanReadable: parts.join(', ') };
 }

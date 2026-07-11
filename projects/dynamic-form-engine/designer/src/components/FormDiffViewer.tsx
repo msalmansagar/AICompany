@@ -2,7 +2,7 @@
 //
 // ADR-003: BUILD custom FormDiffViewer chosen over jsondiffpatch HTML formatter
 // (dangerouslySetInnerHTML; inactive since Dec 2023) and react-diff-viewer-continued
-// (< 1,000 stars). At ~120 lines over microdiff output, this fits naturally inside
+// (< 1,000 stars). At ~130 lines over microdiff output, this fits naturally inside
 // the Fluent UI v9 design system with no additional npm dependencies.
 //
 // Consumed by FR-001 ConflictResolutionDialog ("Review what changed" path)
@@ -22,7 +22,7 @@ import type { FormChange, FormChangeKind } from '@/services/FormDiffService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Props for FormDiffViewer. */
+/** Props for FormDiffViewer. Stable contract — adopted by Workstream A. */
 export interface FormDiffViewerProps {
   /** The earlier snapshot (local unsaved state or older version). */
   before: object;
@@ -36,7 +36,7 @@ export interface FormDiffViewerProps {
   labelResolver?: (path: string[]) => string;
 }
 
-// ─── Style constants ──────────────────────────────────────────────────────────
+// ─── Module-scope constants ───────────────────────────────────────────────────
 
 type BadgeColor = 'success' | 'danger' | 'warning';
 
@@ -56,14 +56,12 @@ const KIND_TO_SYMBOL: Record<FormChangeKind, string> = {
 const COLOR_BEFORE = 'var(--colorPaletteRedForeground1)';
 const COLOR_AFTER  = 'var(--colorPaletteGreenForeground1)';
 
-// ─── Pure helpers ─────────────────────────────────────────────────────────────
+// ─── Module-scope pure helpers ────────────────────────────────────────────────
 
 function groupChangesByArea(changes: FormChange[]): Map<string, FormChange[]> {
   return changes.reduce((map, change) => {
-    const bucket = map.get(change.area) ?? [];
-    bucket.push(change);
-    map.set(change.area, bucket);
-    return map;
+    const existing = map.get(change.area) ?? [];
+    return map.set(change.area, [...existing, change]);
   }, new Map<string, FormChange[]>());
 }
 
@@ -81,6 +79,18 @@ function buildChangeKey(change: FormChange, idx: number): string {
   return `${change.path.map(String).join('.')}-${idx}`;
 }
 
+/**
+ * Converts a change's path to a display label.
+ * Delegates to caller-supplied labelResolver when provided.
+ */
+function resolveChangeLabel(
+  change: FormChange,
+  labelResolver: ((path: string[]) => string) | undefined,
+): string {
+  const stringPath = change.path.map(String);
+  return labelResolver ? labelResolver(stringPath) : defaultLabelResolver(change.path);
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface ChangeRowProps {
@@ -90,7 +100,7 @@ interface ChangeRowProps {
 
 function ChangeRow({ change, resolvedLabel }: ChangeRowProps): ReactElement {
   const badgeColor = KIND_TO_BADGE_COLOR[change.kind];
-  const symbol = KIND_TO_SYMBOL[change.kind];
+  const symbol     = KIND_TO_SYMBOL[change.kind];
 
   return (
     <div style={{ display: 'flex', gap: 8, padding: '4px 0 4px 4px', alignItems: 'flex-start' }}>
@@ -114,36 +124,15 @@ function ChangeRow({ change, resolvedLabel }: ChangeRowProps): ReactElement {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+interface AreaListProps {
+  grouped: Map<string, FormChange[]>;
+  labelResolver: ((path: string[]) => string) | undefined;
+}
 
-/**
- * Renders a structured before/after diff grouped by top-level area.
- *
- * Groups changes under collapsible Accordion sections — one per top-level key
- * in the compared objects (e.g. "fields", "rules", "theme", "translations").
- * Each change shows a colour-coded badge (+ green / − red / ~ amber) with old
- * and new values.
- *
- * All sections are expanded by default so reviewers see the full diff without
- * interaction (collapsible via prop, matching Fluent UI Accordion behaviour).
- */
-export function FormDiffViewer({ before, after, labelResolver }: FormDiffViewerProps): ReactElement {
-  const changes = useMemo(() => diffForms(before, after), [before, after]);
-  const grouped = useMemo(() => groupChangesByArea(changes), [changes]);
-
-  if (changes.length === 0) {
-    return <Text>No changes detected between the two versions.</Text>;
-  }
-
-  const areas = useMemo(() => Array.from(grouped.keys()), [grouped]);
-
-  function resolveLabel(change: FormChange): string {
-    const stringPath = change.path.map(String);
-    return labelResolver ? labelResolver(stringPath) : defaultLabelResolver(change.path);
-  }
-
+/** Renders one AccordionItem per change area with its ChangeRow list. */
+function AreaList({ grouped, labelResolver }: AreaListProps): ReactElement {
   return (
-    <Accordion multiple collapsible defaultOpenItems={areas}>
+    <>
       {Array.from(grouped.entries()).map(([area, areaChanges]) => (
         <AccordionItem key={area} value={area}>
           <AccordionHeader>
@@ -156,12 +145,42 @@ export function FormDiffViewer({ before, after, labelResolver }: FormDiffViewerP
               <ChangeRow
                 key={buildChangeKey(change, idx)}
                 change={change}
-                resolvedLabel={resolveLabel(change)}
+                resolvedLabel={resolveChangeLabel(change, labelResolver)}
               />
             ))}
           </AccordionPanel>
         </AccordionItem>
       ))}
+    </>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+/**
+ * Renders a structured before/after diff grouped by top-level area.
+ *
+ * Groups changes under collapsible Accordion sections — one per top-level key
+ * in the compared objects (e.g. "fields", "rules", "theme", "translations").
+ * Each change shows a colour-coded badge (+ green / − red / ~ amber) with old
+ * and new values.
+ *
+ * All sections are expanded by default so reviewers see the full diff without
+ * interaction. Individual sections remain collapsible.
+ */
+export function FormDiffViewer({ before, after, labelResolver }: FormDiffViewerProps): ReactElement {
+  // ALL hooks must precede the early return to satisfy the Rules of Hooks.
+  const changes = useMemo(() => diffForms(before, after), [before, after]);
+  const grouped = useMemo(() => groupChangesByArea(changes), [changes]);
+  const areas   = useMemo(() => Array.from(grouped.keys()), [grouped]);
+
+  if (changes.length === 0) {
+    return <Text>No changes detected between the two versions.</Text>;
+  }
+
+  return (
+    <Accordion multiple collapsible defaultOpenItems={areas}>
+      <AreaList grouped={grouped} labelResolver={labelResolver} />
     </Accordion>
   );
 }
