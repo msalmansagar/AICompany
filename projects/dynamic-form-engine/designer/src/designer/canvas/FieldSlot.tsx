@@ -72,7 +72,7 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
   const isSelected = selectedId === field.id;
 
   const handleSelect = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation();
       selectItem(field.id, 'field');
     },
@@ -90,7 +90,7 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' || e.key === ' ') {
-        handleSelect(e as unknown as React.MouseEvent);
+        handleSelect(e);
       }
       // Alt+Arrow reordering is handled globally by useIndexBasedKeyboard.
     },

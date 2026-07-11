@@ -449,6 +449,7 @@ export function DesignerScreen(): React.ReactElement {
 
       {/* ARIA live region — announces keyboard reorder events to screen readers. */}
       <div
+        role="status"
         aria-live="polite"
         aria-atomic="true"
         style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}

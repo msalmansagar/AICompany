@@ -27,6 +27,8 @@ function buildCallbacks(
     reorderSections: vi.fn(),
     getFieldLabel: vi.fn((id: string) => `Label ${id}`),
     getSectionLabel: vi.fn((id: string) => `Section ${id}`),
+    getSiblingSection: vi.fn(() => null),
+    moveField: vi.fn(),
     onAnnounce: vi.fn(),
   };
 }
@@ -235,5 +237,143 @@ describe('IndexBasedKeyboardSensor.handleKeyDown', () => {
     sensor.handleKeyDown(event);
 
     expect(callbacks.reorderFields).toHaveBeenCalledWith('sec-A', ['field-2', 'field-1']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Alt+Shift+Arrow cross-section field move (FR-009 Must-Have)
+// ---------------------------------------------------------------------------
+
+describe('IndexBasedKeyboardSensor.handleKeyDown — cross-section move', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function buildCrossSectionCallbacks(opts: {
+    siblingId?: string | null;
+    siblingOrder?: string[];
+  } = {}): IndexBasedKeyboardCallbacks & {
+    moveField: ReturnType<typeof vi.fn>;
+    onAnnounce: ReturnType<typeof vi.fn>;
+    getSiblingSection: ReturnType<typeof vi.fn>;
+  } {
+    return {
+      getFieldOrder: vi.fn((sectionId: string) =>
+        sectionId === 'sec-B' ? (opts.siblingOrder ?? ['existing-1']) : ['field-A'],
+      ),
+      getSectionOrder: vi.fn(() => []),
+      reorderFields: vi.fn(),
+      reorderSections: vi.fn(),
+      getSiblingSection: vi.fn(
+        () => (opts.siblingId === undefined ? 'sec-B' : opts.siblingId),
+      ),
+      moveField: vi.fn(),
+      getFieldLabel: vi.fn((id: string) => `Label ${id}`),
+      getSectionLabel: vi.fn((id: string) => `Section ${id}`),
+      onAnnounce: vi.fn(),
+    };
+  }
+
+  function dispatchAltShiftArrow(
+    key: 'ArrowUp' | 'ArrowDown',
+    target: HTMLElement,
+  ): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', { value: target, configurable: true });
+    return event;
+  }
+
+  it('handleKeyDown_movesFieldDown_toStartOfNextSection_whenAltShiftArrowDown', () => {
+    // Arrange
+    const callbacks = buildCrossSectionCallbacks({ siblingOrder: ['existing-1', 'existing-2'] });
+    const sensor = new IndexBasedKeyboardSensor(callbacks);
+    const el = document.createElement('div');
+    el.setAttribute('data-sortable-id', 'field-A');
+    el.setAttribute('data-sortable-container', 'sec-A');
+    el.setAttribute('data-sortable-type', 'field');
+    document.body.appendChild(el);
+    const event = dispatchAltShiftArrow('ArrowDown', el);
+
+    // Act
+    sensor.handleKeyDown(event);
+
+    // Assert — Down inserts at index 0 (start of next section)
+    expect(callbacks.moveField).toHaveBeenCalledWith('field-A', 'sec-B', 0);
+  });
+
+  it('handleKeyDown_movesFieldUp_toEndOfPreviousSection_whenAltShiftArrowUp', () => {
+    // Arrange — previous section has 2 existing fields
+    const callbacks = buildCrossSectionCallbacks({ siblingOrder: ['existing-1', 'existing-2'] });
+    const sensor = new IndexBasedKeyboardSensor(callbacks);
+    const el = document.createElement('div');
+    el.setAttribute('data-sortable-id', 'field-A');
+    el.setAttribute('data-sortable-container', 'sec-A');
+    el.setAttribute('data-sortable-type', 'field');
+    document.body.appendChild(el);
+    const event = dispatchAltShiftArrow('ArrowUp', el);
+
+    // Act
+    sensor.handleKeyDown(event);
+
+    // Assert — Up inserts at index 2 (end of previous section, after both existing fields)
+    expect(callbacks.moveField).toHaveBeenCalledWith('field-A', 'sec-B', 2);
+  });
+
+  it('handleKeyDown_doesNotMoveField_whenNoPreviousSectionExists', () => {
+    // At the first section — no sibling above
+    const callbacks = buildCrossSectionCallbacks({ siblingId: null });
+    const sensor = new IndexBasedKeyboardSensor(callbacks);
+    const el = document.createElement('div');
+    el.setAttribute('data-sortable-id', 'field-A');
+    el.setAttribute('data-sortable-container', 'sec-A');
+    el.setAttribute('data-sortable-type', 'field');
+    document.body.appendChild(el);
+    const event = dispatchAltShiftArrow('ArrowUp', el);
+
+    sensor.handleKeyDown(event);
+
+    expect(callbacks.moveField).not.toHaveBeenCalled();
+  });
+
+  it('handleKeyDown_doesNotCrossSectionMove_whenContainerTypeIsSection', () => {
+    // Alt+Shift+Arrow on a section header must not trigger cross-section field move
+    const callbacks = buildCrossSectionCallbacks();
+    const sensor = new IndexBasedKeyboardSensor(callbacks);
+    const el = document.createElement('div');
+    el.setAttribute('data-sortable-id', 'sec-A');
+    el.setAttribute('data-sortable-container', 'tab-1');
+    el.setAttribute('data-sortable-type', 'section');
+    document.body.appendChild(el);
+    const event = dispatchAltShiftArrow('ArrowDown', el);
+
+    sensor.handleKeyDown(event);
+
+    expect(callbacks.moveField).not.toHaveBeenCalled();
+    // Section reorder should NOT be triggered either (shift key distinguishes move from reorder)
+    expect(callbacks.reorderSections).not.toHaveBeenCalled();
+  });
+
+  it('handleKeyDown_announcesPositionInAdjacentSection_afterCrossMove', () => {
+    // Adjacent section has 1 existing field; field moves to index 0 (Down)
+    const callbacks = buildCrossSectionCallbacks({ siblingOrder: ['existing-1'] });
+    const sensor = new IndexBasedKeyboardSensor(callbacks);
+    const el = document.createElement('div');
+    el.setAttribute('data-sortable-id', 'field-A');
+    el.setAttribute('data-sortable-container', 'sec-A');
+    el.setAttribute('data-sortable-type', 'field');
+    document.body.appendChild(el);
+    const event = dispatchAltShiftArrow('ArrowDown', el);
+
+    sensor.handleKeyDown(event);
+
+    expect(callbacks.onAnnounce).toHaveBeenCalledWith(
+      expect.stringContaining('position 1 of 2 in adjacent section'),
+    );
   });
 });

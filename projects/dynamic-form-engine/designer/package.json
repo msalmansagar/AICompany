@@ -2,7 +2,7 @@
   "name": "@qdb/designer",
   "version": "1.0.0",
   "private": true,
-  "description": "QDB Form Platform â€” Dynamics CRM Web Resource Form Designer",
+  "description": "QDB Form Platform — Dynamics CRM Web Resource Form Designer",
   "scripts": {
     "dev": "vite",
     "dev:proxy": "node scripts/dev-proxy.mjs",
