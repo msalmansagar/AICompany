@@ -17,6 +17,8 @@ import type { AuditEntry } from '@/services/AuditPatchMapper';
 // Helpers
 // ---------------------------------------------------------------------------
 
+const TEST_SESSION_ID = 'session-test-001';
+
 function makeWebApi(overrides: Partial<IWebApiAdapter> = {}): IWebApiAdapter {
   return {
     createRecord: vi.fn().mockResolvedValue({ id: 'new-id-001', entityType: 'qdb_dfe_audit_log' }),
@@ -56,7 +58,7 @@ describe('AuditBatchWriter', () => {
 
   beforeEach(() => {
     webApi = makeWebApi();
-    writer = new AuditBatchWriter(webApi);
+    writer = new AuditBatchWriter(webApi, TEST_SESSION_ID);
   });
 
   it('writeEntries_callsCreateRecord_forEachEntry', async () => {
@@ -109,14 +111,54 @@ describe('AuditBatchWriter', () => {
     expect(record['qdb_event_type']).toBe(100000001);
   });
 
+  // PC-1: session ID must appear on every written record
+  it('writeEntries_populatesSessionId_inRecord', async () => {
+    const sessionId = 'my-designer-session-abc123';
+    const sessionWriter = new AuditBatchWriter(webApi, sessionId);
+
+    await sessionWriter.writeEntries([makeAuditEntry()]);
+
+    const [, record] = (webApi.createRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
+    expect(record['qdb_session_id']).toBe(sessionId);
+  });
+
+  it('writeEntries_sessionId_isNonEmpty_forDefaultTestWriter', async () => {
+    await writer.writeEntries([makeAuditEntry()]);
+
+    const [, record] = (webApi.createRecord as ReturnType<typeof vi.fn>).mock.calls[0] as [string, Record<string, unknown>];
+    expect(typeof record['qdb_session_id']).toBe('string');
+    expect((record['qdb_session_id'] as string).length).toBeGreaterThan(0);
+  });
+
+  // PC-3: failed writes must be returned, not swallowed
   it('writeEntries_doesNotThrow_whenCreateRecordFails', async () => {
     const failingWebApi = makeWebApi({
       createRecord: vi.fn().mockRejectedValue(new Error('Network error')),
     });
-    const failingWriter = new AuditBatchWriter(failingWebApi);
+    const failingWriter = new AuditBatchWriter(failingWebApi, TEST_SESSION_ID);
+    const entry = makeAuditEntry();
 
-    // Must not throw — audit failures are non-blocking
-    await expect(failingWriter.writeEntries([makeAuditEntry()])).resolves.toBeUndefined();
+    // Must not throw — audit failures are non-blocking. Failed entry is returned for retry.
+    const failedEntries = await failingWriter.writeEntries([entry]);
+    expect(failedEntries).toHaveLength(1);
+  });
+
+  it('writeEntries_returnsFailedEntry_asTheSameReference', async () => {
+    const failingWebApi = makeWebApi({
+      createRecord: vi.fn().mockRejectedValue(new Error('Network error')),
+    });
+    const failingWriter = new AuditBatchWriter(failingWebApi, TEST_SESSION_ID);
+    const entry = makeAuditEntry();
+
+    const failedEntries = await failingWriter.writeEntries([entry]);
+
+    expect(failedEntries[0]).toBe(entry);
+  });
+
+  it('writeEntries_returnsEmptyArray_whenAllWritesSucceed', async () => {
+    const failedEntries = await writer.writeEntries([makeAuditEntry()]);
+
+    expect(failedEntries).toHaveLength(0);
   });
 
   it('writeEntries_continuesWritingOtherEntries_whenOneEntryFails', async () => {
@@ -128,12 +170,32 @@ describe('AuditBatchWriter', () => {
         return Promise.resolve({ id: 'new-id', entityType: 'qdb_dfe_audit_log' });
       }),
     });
-    const mixedWriter = new AuditBatchWriter(mixedWebApi);
+    const mixedWriter = new AuditBatchWriter(mixedWebApi, TEST_SESSION_ID);
     const entries = [makeAuditEntry(), makeAuditEntry({ changePath: '/fields/other/label' })];
 
     await mixedWriter.writeEntries(entries);
 
     expect(mixedWebApi.createRecord).toHaveBeenCalledTimes(2);
+  });
+
+  it('writeEntries_returnsOnlyFailedEntries_whenSomeFail', async () => {
+    let callCount = 0;
+    const mixedWebApi = makeWebApi({
+      createRecord: vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return Promise.reject(new Error('First entry fails'));
+        return Promise.resolve({ id: 'new-id', entityType: 'qdb_dfe_audit_log' });
+      }),
+    });
+    const mixedWriter = new AuditBatchWriter(mixedWebApi, TEST_SESSION_ID);
+    const failingEntry = makeAuditEntry({ changePath: '/fields/a/label' });
+    const succeedingEntry = makeAuditEntry({ changePath: '/fields/b/label' });
+
+    const failedEntries = await mixedWriter.writeEntries([failingEntry, succeedingEntry]);
+
+    // Only the first entry failed — the second succeeded, so it must NOT be returned
+    expect(failedEntries).toHaveLength(1);
+    expect(failedEntries[0]).toBe(failingEntry);
   });
 
   it('writeEntries_doesNothingAndReturns_whenEntriesArrayIsEmpty', async () => {

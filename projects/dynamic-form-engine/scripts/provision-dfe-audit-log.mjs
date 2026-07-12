@@ -20,6 +20,7 @@
  *   DV_TENANT_ID     — Azure AD tenant GUID
  *   DV_CLIENT_ID     — Service principal application (client) GUID
  *   DV_CLIENT_SECRET — Service principal client secret
+ *   DV_DATAVERSE_URL — Dataverse environment base URL (e.g. https://<org>.crm.dynamics.com)
  *
  * MSCRM.SolutionUniqueName header is sent on every create (Article XI compliance).
  */
@@ -37,7 +38,7 @@ function requireEnv(name) {
 const TENANT_ID     = requireEnv('DV_TENANT_ID');
 const CLIENT_ID     = requireEnv('DV_CLIENT_ID');
 const CLIENT_SECRET = requireEnv('DV_CLIENT_SECRET');
-const DATAVERSE_URL = 'https://org5869857f.crm4.dynamics.com';
+const DATAVERSE_URL = requireEnv('DV_DATAVERSE_URL');
 const API_BASE      = `${DATAVERSE_URL}/api/data/v9.2`;
 const SOLUTION_NAME = 'DynamicFormEngine';
 

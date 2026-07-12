@@ -3,8 +3,8 @@
  *
  * Writes AuditEntry[] produced by AuditPatchMapper to qdb_dfe_audit_log via
  * per-row Dataverse createRecord calls. Failures are non-blocking: each entry
- * failure is logged and skipped so a partial audit failure can never abort the
- * designer save flow.
+ * failure is caught and the entry is returned to the caller for buffered retry
+ * (PC-3). A partial audit failure can never abort the designer save flow.
  *
  * The entity (qdb_dfe_audit_log) is provisioned by provision-dfe-audit-log.mjs
  * and is NOT yet live in org5869857f — these writes are exercised via a mocked
@@ -21,36 +21,48 @@ import {
 } from '@/constants/dfeAuditLogAttributeNames';
 
 export class AuditBatchWriter {
-  constructor(private readonly webApi: IWebApiAdapter) {}
+  constructor(
+    private readonly webApi: IWebApiAdapter,
+    private readonly sessionId: string,
+  ) {}
 
   /**
    * Writes each AuditEntry as a separate createRecord call.
-   * Never throws — any individual write failure is logged and skipped.
-   * Caller must not await this method if non-blocking behaviour is required;
-   * it is a fire-and-forget async operation from the save pipeline's perspective.
+   *
+   * Returns the entries that could not be written so the caller can buffer
+   * them for retry on the next successful save (PC-3). Never throws — any
+   * individual write failure is logged and the entry is returned rather than
+   * propagated, keeping the save pipeline unaffected.
    */
-  async writeEntries(entries: readonly AuditEntry[]): Promise<void> {
-    if (entries.length === 0) return;
+  async writeEntries(entries: readonly AuditEntry[]): Promise<readonly AuditEntry[]> {
+    if (entries.length === 0) return [];
 
     // Parallel writes — same per-entry failure isolation as sequential but
     // avoids N+1 round-trips when a single save produces many changed properties.
-    await Promise.allSettled(entries.map(entry => this.writeSingleEntry(entry)));
+    const outcomes = await Promise.all(entries.map(entry => this.writeSingleEntry(entry)));
+    return outcomes.filter((entry): entry is AuditEntry => entry !== null);
   }
 
-  private async writeSingleEntry(entry: AuditEntry): Promise<void> {
+  /**
+   * Attempts a single createRecord call.
+   * Returns null on success; returns the entry on failure so the caller can buffer it.
+   */
+  private async writeSingleEntry(entry: AuditEntry): Promise<AuditEntry | null> {
     try {
       await this.webApi.createRecord(
         ENTITY_NAMES.DFE_AUDIT_LOG,
         this.buildRecord(entry),
       );
+      return null;
     } catch (error) {
       // Non-blocking: audit write failure must never propagate to the save caller.
-      // The user's save result is unaffected; the audit gap is observable in dev tools.
+      // The entry is returned for buffered retry rather than silently discarded.
       console.error('[AuditBatchWriter] Failed to write audit entry', {
         error,
         changePath: entry.changePath,
         eventType: entry.eventType,
       });
+      return entry;
     }
   }
 
@@ -62,8 +74,7 @@ export class AuditBatchWriter {
       [DFE_AUDIT_LOG_ATTRS.ACTION]: DFE_AUDIT_ACTION_PICKLIST[entry.action],
       [DFE_AUDIT_LOG_ATTRS.EVENT_TYPE]: DFE_AUDIT_EVENT_TYPE_PICKLIST[entry.eventType],
       [DFE_AUDIT_LOG_ATTRS.CHANGED_ON]: entry.changedOn,
-      // TODO(DFE-ENH-001): populate qdb_session_id once the EditLock session
-      // identifier is surfaced from the concurrency layer.
+      [DFE_AUDIT_LOG_ATTRS.SESSION_ID]: this.sessionId,
     };
 
     if (entry.before !== null) {

@@ -11,10 +11,10 @@
  *   npm install @azure/msal-node node-fetch
  *
  * Environment variables (set before running):
- *   DATAVERSE_URL          — https://<org>.crm.dynamics.com
- *   AZURE_CLIENT_ID        — App registration client ID
- *   AZURE_CLIENT_SECRET    — App registration client secret
- *   AZURE_TENANT_ID        — Azure AD tenant ID
+ *   DV_DATAVERSE_URL — https://<org>.crm.dynamics.com
+ *   DV_CLIENT_ID     — App registration client ID
+ *   DV_CLIENT_SECRET — App registration client secret
+ *   DV_TENANT_ID     — Azure AD tenant ID
  *
  * Usage (CRM Admin only):
  *   node scripts/provision-edit-lock.js
@@ -24,10 +24,16 @@
 
 const { ConfidentialClientApplication } = require('@azure/msal-node');
 
-const DATAVERSE_URL   = process.env.DATAVERSE_URL;
-const CLIENT_ID       = process.env.AZURE_CLIENT_ID;
-const CLIENT_SECRET   = process.env.AZURE_CLIENT_SECRET;
-const TENANT_ID       = process.env.AZURE_TENANT_ID;
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Required environment variable ${name} is not set`);
+  return value;
+}
+
+const DATAVERSE_URL = requireEnv('DV_DATAVERSE_URL');
+const CLIENT_ID     = requireEnv('DV_CLIENT_ID');
+const CLIENT_SECRET = requireEnv('DV_CLIENT_SECRET');
+const TENANT_ID     = requireEnv('DV_TENANT_ID');
 
 // ── Schema ───────────────────────────────────────────────────────────────────
 
@@ -88,12 +94,6 @@ const ATTRIBUTES = [
 // ── MSAL token acquisition ────────────────────────────────────────────────────
 
 async function acquireToken() {
-  if (!DATAVERSE_URL || !CLIENT_ID || !CLIENT_SECRET || !TENANT_ID) {
-    throw new Error(
-      'Missing required env vars: DATAVERSE_URL, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID'
-    );
-  }
-
   const msalApp = new ConfidentialClientApplication({
     auth: {
       clientId:     CLIENT_ID,

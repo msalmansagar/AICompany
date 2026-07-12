@@ -19,8 +19,10 @@ import { mapPatches } from '@/services/AuditPatchMapper';
 import { AuditBatchWriter } from '@/services/audit/AuditBatchWriter';
 import { computeSnapshotPatches } from '@/services/audit/computeSnapshotPatches';
 import { useConcurrencyStore } from '@/state/concurrencyStore';
+import { useAuditStore } from '@/state/auditStore';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
+import type { AuditEntry } from '@/services/AuditPatchMapper';
 import type { FormAuditableSnapshot } from '@/state/designerStore';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 
@@ -100,6 +102,22 @@ function makeAuditableSnapshot(overrides: Partial<FormAuditableSnapshot> = {}): 
     fields: { 'field-1': makeField('field-1') },
     validationRules: {},
     businessRules: {},
+    ...overrides,
+  };
+}
+
+function makeAuditEntry(overrides: Partial<AuditEntry> = {}): AuditEntry {
+  return {
+    formId: 'form-001',
+    formVersionId: null,
+    fieldSchemaName: 'loan_amount',
+    changePath: '/fields/loan_amount/isRequired',
+    before: 'false',
+    after: 'true',
+    action: 'update',
+    eventType: 'FieldChange',
+    changedBy: 'user-abc',
+    changedOn: '2026-07-11T10:00:00.000Z',
     ...overrides,
   };
 }
@@ -429,7 +447,7 @@ describe('E4 — Audit capture at save boundary', () => {
     const failingWebApi = makeWebApi({
       createRecord: vi.fn().mockRejectedValue(new Error('Dataverse unavailable')),
     });
-    const writer = new AuditBatchWriter(failingWebApi);
+    const writer = new AuditBatchWriter(failingWebApi, 'session-e4-test');
 
     const baseline = makeAuditableSnapshot({ fields: {} });
     const current = makeAuditableSnapshot({ fields: { 'f': makeField('f') } });
@@ -444,8 +462,10 @@ describe('E4 — Audit capture at save boundary', () => {
       changedOn: new Date().toISOString(),
     });
 
-    // Must not throw — audit write failure is non-blocking.
-    await expect(writer.writeEntries(entries)).resolves.toBeUndefined();
+    // Must not throw — audit write failure is non-blocking (PC-3).
+    // After PC-3, writeEntries resolves to the array of failed entries for buffered retry.
+    const failedEntries = await writer.writeEntries(entries);
+    expect(failedEntries.length).toBeGreaterThan(0);
   });
 
   it('validationRuleChange_producesRuleChangeEventType', () => {
@@ -468,5 +488,96 @@ describe('E4 — Audit capture at save boundary', () => {
     });
 
     expect(entries.some(e => e.eventType === 'RuleChange')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PC-3 — Audit reliability buffer
+// ---------------------------------------------------------------------------
+
+describe('PC-3 — Audit reliability buffer', () => {
+  beforeEach(() => {
+    useAuditStore.setState({ pendingAuditEntries: [], hasAuditRetryWarning: false });
+  });
+
+  it('failedAuditWrite_returnsFailedEntries_forCallerToBuffer', async () => {
+    // (a) failed write buffers entry — AuditBatchWriter returns the failed entry
+    // so the caller (executeSave) can hand it to useAuditStore.addFailedEntries.
+    const failingWebApi = makeWebApi({
+      createRecord: vi.fn().mockRejectedValue(new Error('Dataverse unavailable')),
+    });
+    const writer = new AuditBatchWriter(failingWebApi, 'session-pc3-test');
+    const entry = makeAuditEntry();
+
+    const failedEntries = await writer.writeEntries([entry]);
+
+    expect(failedEntries).toHaveLength(1);
+    expect(failedEntries[0]).toBe(entry); // same reference — not a copy
+  });
+
+  it('pendingBuffer_isWrittenBeforeNewEntries_onRetry', async () => {
+    // (b) next save retries buffered first — executeSave takes the pending buffer,
+    // calls writeEntries(pending) first, then writeEntries(newEntries). This test
+    // verifies the call order by recording the changePath of each createRecord call.
+    const callOrder: string[] = [];
+    const webApi = makeWebApi({
+      createRecord: vi.fn().mockImplementation((_entity: string, record: Record<string, unknown>) => {
+        callOrder.push(String(record['qdb_change_path']));
+        return Promise.resolve({ id: 'new-id', entityType: 'qdb_dfe_audit_log' });
+      }),
+    });
+
+    const pendingEntry = makeAuditEntry({ changePath: '/fields/pending/label' });
+    const newEntry = makeAuditEntry({ changePath: '/fields/new/label' });
+
+    // Seed the store with a buffered pending entry from a prior failed write
+    useAuditStore.getState().addFailedEntries([pendingEntry]);
+
+    // Simulate what executeSave does: take pending → write pending → write new
+    const writer = new AuditBatchWriter(webApi, 'session-pc3-test');
+    const pending = useAuditStore.getState().takePendingEntries();
+    await writer.writeEntries(pending);
+    await writer.writeEntries([newEntry]);
+
+    expect(callOrder[0]).toBe('/fields/pending/label');
+    expect(callOrder[1]).toBe('/fields/new/label');
+  });
+
+  it('persistentRetryFailure_raisesRetryWarningFlag', async () => {
+    // (c) persistent failure surfaces notification flag — if the retry also fails,
+    // addFailedEntries is called again and hasAuditRetryWarning stays true.
+    const failingWebApi = makeWebApi({
+      createRecord: vi.fn().mockRejectedValue(new Error('Dataverse down')),
+    });
+    const writer = new AuditBatchWriter(failingWebApi, 'session-pc3-test');
+    const pendingEntry = makeAuditEntry();
+
+    // First failure: buffer the entry
+    useAuditStore.getState().addFailedEntries([pendingEntry]);
+
+    // Retry attempt: take from buffer and write — fails again
+    const pending = useAuditStore.getState().takePendingEntries();
+    const stillFailed = await writer.writeEntries(pending);
+    if (stillFailed.length > 0) {
+      useAuditStore.getState().addFailedEntries(stillFailed);
+    }
+
+    // Warning flag is re-raised because the retry also failed
+    expect(useAuditStore.getState().hasAuditRetryWarning).toBe(true);
+    expect(useAuditStore.getState().pendingAuditEntries).toHaveLength(1);
+  });
+
+  it('auditWriteFailure_doesNotPreventSaveFromSucceeding', async () => {
+    // (d) save still succeeds regardless — writeEntries always resolves (never throws),
+    // so the caller can proceed with markSaved and etag refresh unconditionally.
+    const failingWebApi = makeWebApi({
+      createRecord: vi.fn().mockRejectedValue(new Error('Audit unavailable')),
+    });
+    const writer = new AuditBatchWriter(failingWebApi, 'session-pc3-test');
+
+    // resolves (not rejects) — any audit failure is reported via return value, not exception
+    await expect(
+      writer.writeEntries([makeAuditEntry()]),
+    ).resolves.toEqual(expect.any(Array));
   });
 });

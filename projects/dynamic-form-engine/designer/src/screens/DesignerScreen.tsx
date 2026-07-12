@@ -14,6 +14,8 @@ import {
 import { arrayMove } from '@dnd-kit/sortable';
 import { makeStyles, tokens, Spinner, Text, MessageBar, MessageBarBody, MessageBarActions, Button } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { DESIGNER_SESSION_ID } from '@/state/designerSessionId';
+import { useAuditStore } from '@/state/auditStore';
 import { ComponentToolbox } from '@/designer/toolbox/ComponentToolbox';
 import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
 import { PropertiesPanel } from '@/designer/properties/PropertiesPanel';
@@ -29,6 +31,7 @@ import { AuditBatchWriter } from '@/services/audit/AuditBatchWriter';
 import { computeSnapshotPatches } from '@/services/audit/computeSnapshotPatches';
 import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { validateForDraftSave } from '@/validation/draftValidation';
+import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
 import type { FormAuditableSnapshot } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerSectionModel, DesignerTabModel } from '@/state/models/DesignerFormModel';
 import { ENTITY_NAMES } from '@/constants/entityNames';
@@ -79,16 +82,34 @@ interface AuditWriteParams {
   current: FormAuditableSnapshot;
   formId: string;
   changedBy: string;
-  webApi: import('@/services/IWebApiAdapter').IWebApiAdapter;
+  webApi: IWebApiAdapter;
+  sessionId: string;
+}
+
+/**
+ * Retries any audit entries that buffered on a prior write failure (PC-3).
+ * Must be called before writeAuditEntriesNonBlocking on each successful save
+ * so that pending entries are flushed in order ahead of the new batch.
+ */
+function retryPendingAuditEntriesNonBlocking(webApi: IWebApiAdapter): void {
+  const pendingEntries = useAuditStore.getState().takePendingEntries();
+  if (pendingEntries.length === 0) return;
+
+  const writer = new AuditBatchWriter(webApi, DESIGNER_SESSION_ID);
+  void writer.writeEntries(pendingEntries).then((stillFailed) => {
+    if (stillFailed.length > 0) {
+      useAuditStore.getState().addFailedEntries(stillFailed);
+    }
+  });
 }
 
 /**
  * Computes immer patches between baseline and current, maps them to audit
- * entries, and fires the batch write. Failures are swallowed — the save
- * already succeeded at this point and audit is non-blocking.
+ * entries, and fires the batch write. Failed entries are buffered in
+ * auditStore for retry on the next successful save (PC-3).
  */
 function writeAuditEntriesNonBlocking(params: AuditWriteParams): void {
-  const { baseline, current, formId, changedBy, webApi } = params;
+  const { baseline, current, formId, changedBy, webApi, sessionId } = params;
 
   const [, patches, inversePatches] = computeSnapshotPatches(baseline, current);
 
@@ -101,9 +122,12 @@ function writeAuditEntriesNonBlocking(params: AuditWriteParams): void {
     changedOn: new Date().toISOString(),
   });
 
-  const writer = new AuditBatchWriter(webApi);
-  // Fire and forget — reject is caught inside writeEntries per-entry.
-  void writer.writeEntries(entries);
+  const writer = new AuditBatchWriter(webApi, sessionId);
+  void writer.writeEntries(entries).then((failedEntries) => {
+    if (failedEntries.length > 0) {
+      useAuditStore.getState().addFailedEntries(failedEntries);
+    }
+  });
 }
 
 export function DesignerScreen(): React.ReactElement {
@@ -151,6 +175,9 @@ export function DesignerScreen(): React.ReactElement {
   const setConflictState = useConcurrencyStore(s => s.setConflictState);
   const setRecordEtag = useConcurrencyStore(s => s.setRecordEtag);
 
+  const hasAuditRetryWarning = useAuditStore(s => s.hasAuditRetryWarning);
+  const dismissAuditRetryWarning = useAuditStore(s => s.dismissAuditRetryWarning);
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor)
@@ -174,14 +201,17 @@ export function DesignerScreen(): React.ReactElement {
     const { etag: freshEtag } = await formDefService.getFormWithEtag(snapshot.form!.id);
     if (freshEtag) setRecordEtag(snapshot.form!.id, freshEtag);
 
-    // E4: compute field-level audit entries and write non-blocking.
+    // E4: retry any buffered failed entries first, then write new audit entries.
+    // Both are non-blocking — the save return value is unaffected by audit state (PC-3).
     if (auditBaseline) {
+      retryPendingAuditEntriesNonBlocking(webApi);
       writeAuditEntriesNonBlocking({
         baseline: auditBaseline,
         current: { fields: snapshot.fields, validationRules: snapshot.validationRules, businessRules: snapshot.businessRules },
         formId: snapshot.form!.id,
         changedBy: userContext.userId,
         webApi,
+        sessionId: DESIGNER_SESSION_ID,
       });
     }
   }, [crmService, markSaved, setRecordEtag]);
@@ -505,6 +535,14 @@ export function DesignerScreen(): React.ReactElement {
             <MessageBarBody>Save failed: {saveError}</MessageBarBody>
             <MessageBarActions>
               <Button size="small" appearance="transparent" onClick={() => setSaveError(null)}>Dismiss</Button>
+            </MessageBarActions>
+          </MessageBar>
+        )}
+        {hasAuditRetryWarning && (
+          <MessageBar intent="warning">
+            <MessageBarBody>Some change-history entries could not be saved and will retry on the next save.</MessageBarBody>
+            <MessageBarActions>
+              <Button size="small" appearance="transparent" onClick={dismissAuditRetryWarning}>Dismiss</Button>
             </MessageBarActions>
           </MessageBar>
         )}
