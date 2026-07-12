@@ -11,6 +11,8 @@ import { EntityCombobox } from './metadata/EntityCombobox';
 import { MetadataExplorer } from './metadata/MetadataExplorer';
 import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
+import { ConditionBuilder } from './conditions/ConditionBuilder';
+import { emptyConditions, conditionsToPcrm, type ConditionModel } from './conditions/conditionModel';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
 import { DependencyView } from './rulesets/DependencyView';
@@ -23,7 +25,8 @@ import { VersionCompare } from './rules/VersionCompare';
 const EMPTY: DecisionGraphType = { nodes: [], edges: [] };
 const DEFAULT_ENTITY = ''; // new rules start with no table chosen — the author picks one
 type View = 'list' | 'create' | 'editor' | 'logs' | 'rulesets' | 'ruleset-editor' | 'analytics' | 'dependencies';
-type Method = 'table' | 'canvas' | 'template' | 'ai';
+type Method = 'table' | 'canvas' | 'conditions' | 'template' | 'ai';
+type AuthorMode = 'canvas' | 'table' | 'conditions';
 
 // Effective dates are stored/compared in UTC. The datetime-local picker shows the UTC wall-clock
 // (labelled "UTC" in the UI) so there's no timezone ambiguity in what gets saved.
@@ -71,8 +74,9 @@ export function App() {
 
   const [showMetadata, setShowMetadata] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [authorMode, setAuthorMode] = useState<'canvas' | 'table'>('table');
+  const [authorMode, setAuthorMode] = useState<AuthorMode>('table');
   const [table, setTable] = useState<TableModel>(emptyTable());
+  const [conditions, setConditions] = useState<ConditionModel>(emptyConditions());
 
   const [showTest, setShowTest] = useState(false);
   const [testInputs, setTestInputs] = useState('{}');
@@ -101,7 +105,10 @@ export function App() {
     try { localStorage.setItem('edp-theme', theme); } catch { /* ignore */ }
   }, [theme]);
 
-  const hasContent = authorMode === 'table' ? table.inputs.length > 0 : graph.nodes.length > 0;
+  const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
+  const hasContent = authorMode === 'table' ? table.inputs.length > 0
+    : authorMode === 'conditions' ? conditionHasClauses(conditions.when)
+      : graph.nodes.length > 0;
   const published = lifecycle === 'Published'; // a published version is locked — unpublish to edit
 
   // Lock the editing surface when the loaded version is Published. `inert` blocks all interaction
@@ -114,14 +121,15 @@ export function App() {
   }, [published, authorMode, view]);
 
   function currentPcrm() {
-    return authorMode === 'table'
-      ? tableToPcrm(table, { name: ruleName, targetEntity })
-      : toPcrm(graph, { name: ruleName, targetEntity });
+    const meta = { name: ruleName, targetEntity };
+    if (authorMode === 'table') return tableToPcrm(table, meta);
+    if (authorMode === 'conditions') return conditionsToPcrm(conditions, meta);
+    return toPcrm(graph, meta);
   }
-  const currentSource = () => (authorMode === 'table' ? table : graph);
+  const currentSource = () => (authorMode === 'table' ? table : authorMode === 'conditions' ? conditions : graph);
 
   function startCreate() {
-    setGraph(EMPTY); setTable(emptyTable());
+    setGraph(EMPTY); setTable(emptyTable()); setConditions(emptyConditions());
     setRuleName('Untitled Rule'); setTargetEntity(DEFAULT_ENTITY); setMethod('table');
     setRuleId(null); setVersionId(null); setVersionNumber(null); setLifecycle(''); setSavedLabel(''); setValidation(null);
     setEffFrom(''); setEffTo('');
@@ -132,7 +140,7 @@ export function App() {
 
   function createRule() {
     if (method === 'template') { setStatus('Copy any existing rule from the Rules view to start from it.'); setView('list'); return; }
-    setAuthorMode(method === 'canvas' ? 'canvas' : 'table');
+    setAuthorMode(method === 'canvas' ? 'canvas' : method === 'conditions' ? 'conditions' : 'table');
     if (method === 'ai') setStatus('Plain-English drafting arrives with the AI Assistant (Phase 6) — starting you on a blank decision table.');
     else setStatus(`Building “${ruleName}” on ${entityLabel || targetEntity}.`);
     setView('editor');
@@ -150,6 +158,7 @@ export function App() {
       const v = await loadLatestVersion(ruleId);
       const src: any = v?.jdmGraph;
       if (src?.editor === 'edp-table') { setAuthorMode('table'); setTable(src as TableModel); }
+      else if (src?.editor === 'edp-conditions') { setAuthorMode('conditions'); setConditions(src as ConditionModel); }
       else { setAuthorMode('canvas'); setGraph(src ?? EMPTY); }
       setRuleName(v?.ruleName ?? 'Rule');
       setTargetEntity(v?.targetEntity || DEFAULT_ENTITY);
@@ -244,6 +253,7 @@ export function App() {
 
   const METHODS: { id: Method; title: string; sub: string; rec?: boolean }[] = [
     { id: 'table', title: 'Decision table', sub: 'Pick fields and outcomes in a grid — no code. Best for most rules.', rec: true },
+    { id: 'conditions', title: 'Condition builder', sub: 'Combine conditions with AND / OR / NOT groups for one outcome.' },
     { id: 'canvas', title: 'Advanced (canvas)', sub: 'Combine expressions, functions, and switches for multi-step logic.' },
     { id: 'template', title: 'From a template', sub: 'Start from an existing governed rule or template.' },
     { id: 'ai', title: 'Describe in plain English', sub: 'Say what you want; the AI drafts it for review. (Coming soon)' },
@@ -389,6 +399,7 @@ export function App() {
                 <div className="top-actions">
                   <div className="mode-seg" role="tablist" aria-label="Authoring surface">
                     <button className={authorMode === 'table' ? 'on' : ''} onClick={() => setAuthorMode('table')} title="Business-friendly grid — pick CRM fields, no code (recommended)">Decision table</button>
+                    <button className={authorMode === 'conditions' ? 'on' : ''} onClick={() => setAuthorMode('conditions')} title="Boolean expression — AND / OR / NOT groups with one outcome">Conditions</button>
                     <button className={authorMode === 'canvas' ? 'on' : ''} onClick={() => setAuthorMode('canvas')} title="GoRules canvas — expressions, functions, and switch nodes">Advanced</button>
                   </div>
                   <button className="tb ghost" disabled={busy} onClick={() => setShowMetadata((v) => !v)}>Fields</button>
@@ -444,6 +455,8 @@ export function App() {
                   <div className={`editor${published ? ' locked' : ''}`} ref={editorRef}>
                     {authorMode === 'table' ? (
                       <DecisionTableEditor entity={targetEntity} value={table} onChange={setTable} />
+                    ) : authorMode === 'conditions' ? (
+                      <ConditionBuilder entity={targetEntity} value={conditions} onChange={setConditions} />
                     ) : (
                       <JdmConfigProvider><DecisionGraph value={graph} onChange={setGraph} /></JdmConfigProvider>
                     )}
