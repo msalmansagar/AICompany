@@ -232,6 +232,9 @@ export const FORM_VALIDATION_RULE_ATTRS = {
   CUSTOM_EXPRESSION: 'qdb_custom_expression',
   RULE_TEMPLATE_ID: 'qdb_rule_template_id',
   RULE_TEMPLATE_ID_VALUE: '_qdb_rule_template_id_value',
+  // DFE-ENH-001 Phase-4-C — structured JSON payload for conditional_required and cross_field rules.
+  // New multi-line text column added to qdb_form_validation_rule in the same phase.
+  RULE_JSON: 'qdb_rule_json',
 } as const;
 
 export const FORM_BUSINESS_RULE_ATTRS = {

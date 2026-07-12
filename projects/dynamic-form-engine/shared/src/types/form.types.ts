@@ -51,7 +51,33 @@ export type ValidationRuleType =
   | 'dateBefore'
   | 'dateAfter'
   | 'crossField'
-  | 'customExpression';
+  | 'customExpression'
+  // DFE-ENH-001 FR-006 — field becomes required when structured conditions are all true
+  | 'conditionalRequired';
+
+// ── Cross-field comparison operator ──────────────────────────────
+// Used by both conditionalRequired rule conditions and cross-field rule comparisons.
+export type CrossFieldComparisonOperator = '==' | '!=' | '<' | '<=' | '>' | '>=';
+
+// ── Structured condition (for conditionalRequired rule) ───────────
+// Purpose-built for validation rules; evolves independently from BusinessRule RuleCondition.
+export type StructuredConditionOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'greater_than'
+  | 'less_than'
+  | 'greater_than_or_equal'
+  | 'less_than_or_equal'
+  | 'is_empty'
+  | 'is_not_empty';
+
+export interface StructuredCondition {
+  /** Schema name of the field whose value drives this condition */
+  fieldRef: string;
+  operator: StructuredConditionOperator;
+  /** Comparison target; null is valid only for is_empty / is_not_empty */
+  value: string | null;
+}
 
 export type BusinessRuleAction =
   | 'showField'
@@ -269,12 +295,17 @@ export interface ValidationRule {
   minValue?: number;
   maxValue?: number;
   regexPattern?: string;
-  compareToFieldId?: string;       // for crossField
-  compareToValue?: string;         // for dateBefore / dateAfter with fixed date
-  customExpression?: string;       // safe DSL expression evaluated by ExpressionEngine
-  ruleTemplateId?: string;         // optional link to shared qdb_rule_template record
+  compareToFieldId?: string;        // for legacy crossField (equality only)
+  compareToValue?: string;          // for dateBefore / dateAfter with fixed date
+  customExpression?: string;        // safe DSL expression evaluated by ExpressionEngine
+  ruleTemplateId?: string;          // optional link to shared qdb_rule_template record
   isActive: boolean;
   priority: number;
+  // DFE-ENH-001 FR-006 — all conditions must evaluate to true for the field to become required
+  conditions?: StructuredCondition[];
+  // DFE-ENH-001 FR-007 — extended cross-field: operator and target field schema name
+  crossFieldOperator?: CrossFieldComparisonOperator;
+  crossFieldTargetRef?: string;
 }
 
 // ── Business rule condition ───────────────────────────────────
