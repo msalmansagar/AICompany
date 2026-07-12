@@ -121,6 +121,7 @@ export function RuleSetEditor({ setId, onBack, onSaved }: {
 
           <div className="fld">
             <span className="fld-lbl">Member rules <span className="fld-count">{members.length}</span></span>
+            <p className="fld-hint">Rules run top to bottom. Each rule’s outputs are passed forward — a later rule can read an earlier rule’s output by naming one of its inputs the same (rule chaining).</p>
             <div className="member-list">
               <div className="member-head">
                 <span>Order</span><span>Rule (runs Published version)</span><span>Result key</span><span />
