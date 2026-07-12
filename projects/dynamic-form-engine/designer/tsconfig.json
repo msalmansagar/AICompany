@@ -21,6 +21,10 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "tests", "node_modules/vitest-axe/dist/extend-expect.d.ts"],
+  "include": ["src", "tests"],
+  "exclude": [
+    "node_modules",
+    "tests/e2e"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
