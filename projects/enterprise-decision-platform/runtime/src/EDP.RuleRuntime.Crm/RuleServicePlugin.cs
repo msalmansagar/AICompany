@@ -157,6 +157,10 @@ namespace EDP.RuleRuntime.Crm
         /// </summary>
         private object ExecuteRuleSet(IOrganizationService service, IPluginExecutionContext context)
         {
+            // The pipeline context: seeded with the caller's inputs, then each matched member's
+            // outputs are folded back in — so a downstream rule can read an upstream rule's output
+            // as one of its inputs (ordered chaining). Independent sets are unaffected (a rule that
+            // references no upstream output sees exactly the original inputs).
             var inputs = RuleDecisionService.ParseInputsJson(ParamString(context, "InputsJson"));
             var decision = new RuleDecisionService(service, new OrgServiceMetadataResolver(service), new DataverseTraceSink(service));
 
@@ -201,7 +205,11 @@ namespace EDP.RuleRuntime.Crm
                 {
                     matchedCount++;
                     byRule[m.Key] = r.Outputs;
-                    foreach (var kv in r.Outputs) mergedOutputs[kv.Key] = kv.Value; // later members win (Priority/Collect)
+                    foreach (var kv in r.Outputs)
+                    {
+                        mergedOutputs[kv.Key] = kv.Value; // aggregate result (later members win)
+                        inputs[kv.Key] = kv.Value;        // pipeline: feed outputs forward to later members
+                    }
                     if (firstMatch) break;
                 }
             }
