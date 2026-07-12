@@ -49,6 +49,7 @@ export function App() {
   const [busy, setBusy] = useState(false);
   const [method, setMethod] = useState<Method>('table');
   const [editingEntity, setEditingEntity] = useState(false);
+  const [pendingEntity, setPendingEntity] = useState<string | null>(null); // entity change awaiting confirm (clears table columns)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try { return (localStorage.getItem('edp-theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
   });
@@ -195,6 +196,20 @@ export function App() {
     } catch (e: any) { setStatus(`Could not save effective dates: ${e.message}`); } finally { setBusy(false); }
   }
 
+  // Changing the table entity invalidates the decision-table condition columns (they bind to the
+  // old entity's fields), so confirm first when there are columns, then clear them on apply.
+  function requestEntityChange(next: string) {
+    setEditingEntity(false);
+    if (!next || next === targetEntity) return;
+    if (authorMode === 'table' && table.inputs.length > 0) { setPendingEntity(next); return; }
+    applyEntityChange(next);
+  }
+  function applyEntityChange(next: string) {
+    setTargetEntity(next);
+    if (authorMode === 'table') setTable((t) => ({ ...t, inputs: [], rows: t.rows.map((r) => ({ ...r, cells: [] })) }));
+    setPendingEntity(null);
+  }
+
   function openTest() {
     const pcrm = currentPcrm() as any;
     const seed: Record<string, unknown> = {};
@@ -335,18 +350,19 @@ export function App() {
               <header className="topbar">
                 <button className="tb ghost back" disabled={busy} onClick={() => setView('list')} title="Back to all rules">← Rules</button>
                 <div className="rule-id">
-                  <input className="rule-name" value={ruleName} onChange={(e) => setRuleName(e.target.value)} aria-label="Rule name" title="Rename this rule" />
-                  {editingEntity ? (
+                  <input className="rule-name" value={ruleName} onChange={(e) => setRuleName(e.target.value)} disabled={published} aria-label="Rule name" title={published ? 'Published — unpublish to rename' : 'Rename this rule'} />
+                  {editingEntity && !published ? (
                     <div className="entity-cbx">
                       <span className="entity-lbl">On</span>
                       <EntityCombobox entities={entities} loading={entitiesLoading} value={targetEntity} autoFocus
-                        onChange={(ln) => { setTargetEntity(ln); setEditingEntity(false); }}
+                        onChange={requestEntityChange}
                         onClose={() => setEditingEntity(false)} />
                     </div>
                   ) : (
-                    <button className="entity-pill" onClick={() => setEditingEntity(true)} title={`Runs on ${targetEntity} — click to change`}>
+                    <button className="entity-pill" disabled={published} onClick={() => setEditingEntity(true)}
+                      title={published ? 'Published — unpublish to change the table' : `Runs on ${targetEntity} — click to change`}>
                       <span className="entity-lbl">On</span><b>{entityLabel || targetEntity}</b>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+                      {!published && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>}
                     </button>
                   )}
                 </div>
@@ -416,6 +432,14 @@ export function App() {
                 <div className="editor-wrap">
                   {published && (
                     <div className="lock-banner">🔒 This version is <b>Published</b> — read-only. Unpublish it to make changes.</div>
+                  )}
+                  {pendingEntity && (
+                    <div className="confirm-bar">
+                      <span>Change the table to <strong>{entities.find((e) => e.logicalName === pendingEntity)?.displayName ?? pendingEntity}</strong>? This <strong>removes all condition columns</strong> from the decision table.</span>
+                      <span className="spacer" />
+                      <button className="btn" onClick={() => setPendingEntity(null)}>Cancel</button>
+                      <button className="btn primary" onClick={() => applyEntityChange(pendingEntity)}>Change table</button>
+                    </div>
                   )}
                   <div className={`editor${published ? ' locked' : ''}`} ref={editorRef}>
                     {authorMode === 'table' ? (
