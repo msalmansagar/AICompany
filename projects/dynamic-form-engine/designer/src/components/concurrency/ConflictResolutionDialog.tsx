@@ -14,7 +14,8 @@ import {
 } from '@fluentui/react-components';
 import { WarningRegular } from '@fluentui/react-icons';
 import type { DesignerFormModel } from '@/state/models/DesignerFormModel';
-import { FormDiffViewer, summarizeDiff } from './FormDiffViewer';
+import { FormDiffViewer } from '../FormDiffViewer';
+import { diffForms, summarizeDiff } from '@/services/FormDiffService';
 
 export interface ConflictResolutionDialogProps {
   isOpen: boolean;
@@ -88,9 +89,10 @@ export function ConflictResolutionDialog({
     onDismiss();
   };
 
+  // Use H's real diffForms + summarizeDiff from FormDiffService (replaces A's stub).
   const diffSummary =
     diffState.kind === 'loaded'
-      ? summarizeDiff(localSnapshot, diffState.serverVersion)
+      ? summarizeDiff(diffForms(localSnapshot, diffState.serverVersion))
       : null;
 
   return (
@@ -114,7 +116,7 @@ export function ConflictResolutionDialog({
 
             {diffSummary && (
               <Text as="span" size={200} className={styles.diffSummary}>
-                {diffSummary}
+                {diffSummary.humanReadable}
               </Text>
             )}
 
