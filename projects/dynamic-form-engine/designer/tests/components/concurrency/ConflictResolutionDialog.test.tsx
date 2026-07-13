@@ -108,10 +108,9 @@ describe('ConflictResolutionDialog', () => {
     renderDialog({ fetchServerVersion: vi.fn().mockResolvedValue(serverForm) });
     await user.click(screen.getByRole('button', { name: /review what changed/i }));
 
-    // Both the dialog summary span and the FormDiffViewer stub render summarizeDiff text,
-    // so we assert at least one matching element is present.
+    // H real summarizeDiff returns DiffSummary.humanReadable e.g. "1 name change"
     await waitFor(() =>
-      expect(screen.getAllByText(/form name changed from/i).length).toBeGreaterThan(0)
+      expect(screen.getByText(/1 name change/i)).toBeInTheDocument()
     );
   });
 
