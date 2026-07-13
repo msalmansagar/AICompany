@@ -108,6 +108,8 @@ export default defineConfig({
     // ENT-008 a11y tests routinely exceed the default 5s; keep this above the
     // measured ~6.5s baseline so CI doesn't flap under moderate system load.
     testTimeout: 30_000,
+    // Exclude Playwright E2E specs — they use @playwright/test not vitest
+    exclude: ["tests/e2e/**", "**/node_modules/**"],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
