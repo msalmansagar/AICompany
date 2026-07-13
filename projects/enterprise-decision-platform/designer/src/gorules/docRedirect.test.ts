@@ -1,24 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installDecisionTableDocRedirect, isDecisionTableDocUrl } from './docRedirect';
+import {
+  DECISION_GRAPH_GUIDE,
+  DECISION_TABLE_GUIDE,
+  installGoRulesDocRedirect,
+  resolveGuideForDocUrl,
+} from './docRedirect';
 
-const DECISION_TABLE_DOC_URL =
-  'https://gorules.io/docs/user-manual/decision-modeling/decisions/decision-tables';
+const BASE = 'https://gorules.io/docs/user-manual/decision-modeling/decisions';
+const DECISION_TABLE_DOC_URL = `${BASE}/decision-tables`;
+const DECISION_GRAPH_DOC_URL = BASE; // Request + Response nodes share the parent page
 
-describe('isDecisionTableDocUrl', () => {
-  it('matches the GoRules decision-tables documentation url', () => {
-    expect(isDecisionTableDocUrl(DECISION_TABLE_DOC_URL)).toBe(true);
+describe('resolveGuideForDocUrl', () => {
+  it('maps the decision-table page to the decision-table guide', () => {
+    expect(resolveGuideForDocUrl(DECISION_TABLE_DOC_URL)).toBe(DECISION_TABLE_GUIDE);
   });
 
-  it('does not match other GoRules node documentation urls', () => {
-    expect(isDecisionTableDocUrl('https://gorules.io/docs/user-manual/decision-modeling/decisions/switch')).toBe(false);
+  it('maps the Request/Response (decisions) page to the decision-graph guide', () => {
+    expect(resolveGuideForDocUrl(DECISION_GRAPH_DOC_URL)).toBe(DECISION_GRAPH_GUIDE);
+    expect(resolveGuideForDocUrl(`${BASE}/`)).toBe(DECISION_GRAPH_GUIDE);
   });
 
-  it('does not match unrelated urls', () => {
-    expect(isDecisionTableDocUrl('/WebResources/qdb_something')).toBe(false);
+  it('leaves other GoRules node pages unmapped', () => {
+    expect(resolveGuideForDocUrl(`${BASE}/switch`)).toBeNull();
+    expect(resolveGuideForDocUrl(`${BASE}/expression`)).toBeNull();
+  });
+
+  it('leaves non-GoRules urls unmapped', () => {
+    expect(resolveGuideForDocUrl('/WebResources/qdb_something')).toBeNull();
   });
 });
 
-describe('installDecisionTableDocRedirect', () => {
+describe('installGoRulesDocRedirect', () => {
   // The designer runs in the browser; this util is the only browser-only unit and the
   // project ships no DOM test env, so shim a minimal `window` global for these cases.
   const host = globalThis as unknown as { window?: { open: typeof window.open } };
@@ -33,28 +45,38 @@ describe('installDecisionTableDocRedirect', () => {
     delete host.window;
   });
 
-  it('invokes the guide callback for the decision-table docs link, without navigating', () => {
-    const onDocs = vi.fn();
-    const dispose = installDecisionTableDocRedirect(onDocs);
+  it('opens the decision-table guide for the decision-table link, without navigating', () => {
+    const onGuide = vi.fn();
+    const dispose = installGoRulesDocRedirect(onGuide);
     window.open(DECISION_TABLE_DOC_URL, '_href');
     dispose();
 
-    expect(onDocs).toHaveBeenCalledTimes(1);
+    expect(onGuide).toHaveBeenCalledWith(DECISION_TABLE_GUIDE);
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens the decision-graph guide for the Request/Response link', () => {
+    const onGuide = vi.fn();
+    const dispose = installGoRulesDocRedirect(onGuide);
+    window.open(DECISION_GRAPH_DOC_URL, '_href');
+    dispose();
+
+    expect(onGuide).toHaveBeenCalledWith(DECISION_GRAPH_GUIDE);
     expect(openSpy).not.toHaveBeenCalled();
   });
 
   it('passes unrelated window.open calls through unchanged', () => {
-    const onDocs = vi.fn();
-    const dispose = installDecisionTableDocRedirect(onDocs);
+    const onGuide = vi.fn();
+    const dispose = installGoRulesDocRedirect(onGuide);
     window.open('https://example.com/report', '_blank');
     dispose();
 
-    expect(onDocs).not.toHaveBeenCalled();
+    expect(onGuide).not.toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalledWith('https://example.com/report', '_blank', undefined);
   });
 
   it('restores the original window.open when disposed', () => {
-    const dispose = installDecisionTableDocRedirect(vi.fn());
+    const dispose = installGoRulesDocRedirect(vi.fn());
     dispose();
 
     expect(window.open).toBe(openSpy);

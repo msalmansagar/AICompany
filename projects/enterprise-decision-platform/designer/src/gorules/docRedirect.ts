@@ -1,29 +1,49 @@
 /**
- * Detect clicks on the GoRules Decision-table "Documentation" link and route them to our
- * in-app guide pane instead of the library's hardcoded gorules.io tab.
+ * Route the GoRules node "Documentation" links to our in-app guide panes instead of the
+ * library's hardcoded gorules.io tabs.
  *
  * The @gorules/jdm-editor library opens each node's documentation link with
  * `window.open(node.documentationUrl)` and offers no supported override: built-in node
- * specs win over the DecisionGraph `components` prop, so the URL cannot be changed through
- * the public API. While the Advanced canvas is mounted we wrap `window.open` and, for the
- * decision-table docs URL only, invoke a callback the app uses to open our own right-docked
- * guide pane. Every other `window.open` call passes through untouched.
+ * specs win over the DecisionGraph `components` prop, so the URLs cannot be changed through
+ * the public API. While the Advanced canvas is mounted we wrap `window.open`, map the
+ * recognised gorules.io doc URLs to our guide web resources, and invoke a callback the app
+ * uses to open a right-docked guide pane. Every other `window.open` call passes through.
  *
  * We render our own pane rather than calling `Xrm.Navigation.navigateTo`, because the
  * designer is hosted as a standalone web resource where the model-driven client API
  * executor is not present and `navigateTo` throws.
+ *
+ * Web-resource paths are relative on purpose: the browser resolves them against whichever
+ * Dataverse org serves the page, so the same build works in every environment.
  */
-export const DECISION_TABLE_DOCS_WEBRESOURCE_NAME = 'qdb_gorulesdecisiontablesmodernguide';
-export const DECISION_TABLE_DOCS_WEBRESOURCE_PATH = `/WebResources/${DECISION_TABLE_DOCS_WEBRESOURCE_NAME}`;
+export interface DocGuide {
+  readonly webResourceName: string;
+  readonly path: string;
+  readonly title: string;
+}
+
+function guide(webResourceName: string, title: string): DocGuide {
+  return { webResourceName, path: `/WebResources/${webResourceName}`, title };
+}
+
+/** Decision-table node → decision-tables guide. */
+export const DECISION_TABLE_GUIDE = guide('qdb_gorulesdecisiontablesmodernguide', 'Decision table guide');
+/** Request and Response nodes → decision-graphs guide. */
+export const DECISION_GRAPH_GUIDE = guide('qdb_gorulesdecisiongraphsmodernguide', 'Decision graph guide');
 
 const GORULES_DOCS_HOST = 'gorules.io';
-const DECISION_TABLE_TOKEN = 'decision-tables';
 
 /**
- * True when a URL is the GoRules public documentation page for decision tables.
+ * Map a GoRules documentation URL to the guide we override it with, or null to leave it.
+ * The Request/Response nodes use the parent `.../decisions` page; the decision-table node
+ * uses its own `.../decision-tables` child page — matched before the parent so the more
+ * specific page wins.
  */
-export function isDecisionTableDocUrl(url: string): boolean {
-  return url.includes(GORULES_DOCS_HOST) && url.includes(DECISION_TABLE_TOKEN);
+export function resolveGuideForDocUrl(url: string): DocGuide | null {
+  if (!url.includes(GORULES_DOCS_HOST)) return null;
+  if (url.includes('decision-tables')) return DECISION_TABLE_GUIDE;
+  if (/\/decisions\/?$/.test(url)) return DECISION_GRAPH_GUIDE;
+  return null;
 }
 
 function asHref(url?: string | URL | null): string {
@@ -32,16 +52,17 @@ function asHref(url?: string | URL | null): string {
 }
 
 /**
- * Wrap `window.open` so the Decision-table documentation link opens our in-app guide pane.
- * `onDecisionTableDocs` is invoked instead of navigating. Returns a disposer that restores
- * the original `window.open`.
+ * Wrap `window.open` so recognised GoRules documentation links open our in-app guide pane.
+ * `onGuide` receives the matched guide instead of the library navigating. Returns a disposer
+ * that restores the original `window.open`.
  */
-export function installDecisionTableDocRedirect(onDecisionTableDocs: () => void): () => void {
+export function installGoRulesDocRedirect(onGuide: (guide: DocGuide) => void): () => void {
   const originalOpen: typeof window.open = window.open;
 
   const patchedOpen: typeof window.open = (url, target, features) => {
-    if (isDecisionTableDocUrl(asHref(url))) {
-      onDecisionTableDocs();
+    const matched = resolveGuideForDocUrl(asHref(url));
+    if (matched) {
+      onGuide(matched);
       return null;
     }
     return originalOpen.call(window, url, target, features);

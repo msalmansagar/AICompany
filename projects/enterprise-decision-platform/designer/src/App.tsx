@@ -13,7 +13,7 @@ import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ConditionBuilder } from './conditions/ConditionBuilder';
 import { emptyConditions, conditionsToPcrm, type ConditionModel } from './conditions/conditionModel';
-import { installDecisionTableDocRedirect } from './gorules/docRedirect';
+import { installGoRulesDocRedirect, type DocGuide } from './gorules/docRedirect';
 import { DocsSidePane } from './gorules/DocsSidePane';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
@@ -107,12 +107,12 @@ export function App() {
     try { localStorage.setItem('edp-theme', theme); } catch { /* ignore */ }
   }, [theme]);
 
-  // The GoRules canvas hardcodes its "Documentation" link to gorules.io; while that canvas
-  // is mounted, open our in-CRM guide pane for the decision-table link instead.
-  const [docsOpen, setDocsOpen] = useState(false);
+  // The GoRules canvas hardcodes its node "Documentation" links to gorules.io; while that
+  // canvas is mounted, open our in-CRM guide pane for the recognised node links instead.
+  const [docsGuide, setDocsGuide] = useState<DocGuide | null>(null);
   useEffect(() => {
     if (authorMode !== 'canvas') return;
-    return installDecisionTableDocRedirect(() => setDocsOpen(true));
+    return installGoRulesDocRedirect(setDocsGuide);
   }, [authorMode]);
 
   const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
@@ -566,7 +566,7 @@ export function App() {
         </div>
       </div>
 
-      {docsOpen && <DocsSidePane onClose={() => setDocsOpen(false)} />}
+      {docsGuide && <DocsSidePane guide={docsGuide} onClose={() => setDocsGuide(null)} />}
     </div>
   );
 }
