@@ -179,7 +179,7 @@ export function FormDiffViewer({ before, after, labelResolver }: FormDiffViewerP
   }
 
   return (
-    <div role="region" aria-label="Form diff viewer">
+    <div role="region" aria-label="Form diff viewer" data-testid="form-diff-viewer">
       <Accordion multiple collapsible defaultOpenItems={areas}>
         <AreaList grouped={grouped} labelResolver={labelResolver} />
       </Accordion>

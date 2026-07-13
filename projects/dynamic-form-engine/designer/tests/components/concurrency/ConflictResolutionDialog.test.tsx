@@ -94,13 +94,14 @@ describe('ConflictResolutionDialog', () => {
     renderDialog({ fetchServerVersion });
     await user.click(screen.getByRole('button', { name: /review what changed/i }));
 
-    // Wait for the async fetch to complete and the diff viewer to appear
+    // Wait for the async fetch to complete and the diff viewer to appear.
+    // Using data-testid avoids ARIA portal/aria-hidden jsdom quirks with Fluent UI Dialog.
     await waitFor(() =>
-      expect(screen.getByRole('region', { name: /form diff viewer/i })).toBeInTheDocument()
+      expect(screen.getByTestId('form-diff-viewer')).toBeInTheDocument()
     );
     expect(fetchServerVersion).toHaveBeenCalledOnce();
-  });
 
+  });
   it('showsDiffSummary_whenReviewButtonClicked', async () => {
     const serverForm = makeForm({ name: 'Changed Name' });
     const user = userEvent.setup();
