@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  DECISION_TABLE_DOCS_WEBRESOURCE_NAME,
-  DECISION_TABLE_DOCS_WEBRESOURCE_PATH,
-  installDecisionTableDocRedirect,
-  isDecisionTableDocUrl,
-} from './docRedirect';
+import { installDecisionTableDocRedirect, isDecisionTableDocUrl } from './docRedirect';
 
 const DECISION_TABLE_DOC_URL =
   'https://gorules.io/docs/user-manual/decision-modeling/decisions/decision-tables';
@@ -26,10 +21,7 @@ describe('isDecisionTableDocUrl', () => {
 describe('installDecisionTableDocRedirect', () => {
   // The designer runs in the browser; this util is the only browser-only unit and the
   // project ships no DOM test env, so shim a minimal `window` global for these cases.
-  type NavigateSpy = ReturnType<typeof vi.fn>;
-  const host = globalThis as unknown as {
-    window?: { open: typeof window.open; Xrm?: { Navigation: { navigateTo: NavigateSpy } } };
-  };
+  const host = globalThis as unknown as { window?: { open: typeof window.open } };
   let openSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -41,39 +33,28 @@ describe('installDecisionTableDocRedirect', () => {
     delete host.window;
   });
 
-  it('opens the guide as a right-docked side pane via Xrm when Xrm is present', () => {
-    const navigateTo = vi.fn(() => Promise.resolve());
-    host.window!.Xrm = { Navigation: { navigateTo } };
-
-    const dispose = installDecisionTableDocRedirect();
+  it('invokes the guide callback for the decision-table docs link, without navigating', () => {
+    const onDocs = vi.fn();
+    const dispose = installDecisionTableDocRedirect(onDocs);
     window.open(DECISION_TABLE_DOC_URL, '_href');
     dispose();
 
-    expect(navigateTo).toHaveBeenCalledWith(
-      { pageType: 'webresource', webresourceName: DECISION_TABLE_DOCS_WEBRESOURCE_NAME },
-      expect.objectContaining({ target: 2, position: 2 }),
-    );
+    expect(onDocs).toHaveBeenCalledTimes(1);
     expect(openSpy).not.toHaveBeenCalled();
   });
 
-  it('falls back to the web-resource path when Xrm is not in scope (local dev)', () => {
-    const dispose = installDecisionTableDocRedirect();
-    window.open(DECISION_TABLE_DOC_URL, '_href');
-    dispose();
-
-    expect(openSpy).toHaveBeenCalledWith(DECISION_TABLE_DOCS_WEBRESOURCE_PATH, '_blank', 'noopener');
-  });
-
   it('passes unrelated window.open calls through unchanged', () => {
-    const dispose = installDecisionTableDocRedirect();
+    const onDocs = vi.fn();
+    const dispose = installDecisionTableDocRedirect(onDocs);
     window.open('https://example.com/report', '_blank');
     dispose();
 
+    expect(onDocs).not.toHaveBeenCalled();
     expect(openSpy).toHaveBeenCalledWith('https://example.com/report', '_blank', undefined);
   });
 
   it('restores the original window.open when disposed', () => {
-    const dispose = installDecisionTableDocRedirect();
+    const dispose = installDecisionTableDocRedirect(vi.fn());
     dispose();
 
     expect(window.open).toBe(openSpy);
