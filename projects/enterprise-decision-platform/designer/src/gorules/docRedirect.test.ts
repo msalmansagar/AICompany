@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DECISION_GRAPH_GUIDE,
   DECISION_TABLE_GUIDE,
+  EXPRESSION_GUIDE,
   installGoRulesDocRedirect,
   resolveGuideForDocUrl,
 } from './docRedirect';
@@ -20,9 +21,13 @@ describe('resolveGuideForDocUrl', () => {
     expect(resolveGuideForDocUrl(`${BASE}/`)).toBe(DECISION_GRAPH_GUIDE);
   });
 
+  it('maps the expression page to the expression guide', () => {
+    expect(resolveGuideForDocUrl(`${BASE}/expression`)).toBe(EXPRESSION_GUIDE);
+  });
+
   it('leaves other GoRules node pages unmapped', () => {
     expect(resolveGuideForDocUrl(`${BASE}/switch`)).toBeNull();
-    expect(resolveGuideForDocUrl(`${BASE}/expression`)).toBeNull();
+    expect(resolveGuideForDocUrl(`${BASE}/functions`)).toBeNull();
   });
 
   it('leaves non-GoRules urls unmapped', () => {
