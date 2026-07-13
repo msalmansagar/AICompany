@@ -237,6 +237,37 @@ const useStyles = makeStyles({
   },
 });
 
+// ── Cell value resolution ─────────────────────────────────────────────────────
+
+// Resolves a record's display text for a configured column. Lookup columns are
+// returned by the CRM Web API under `_{schema}_value` (raw GUID) and
+// `_{schema}_value@OData.Community.Display.V1.FormattedValue` (friendly name),
+// not under the bare schema name — so a plain key lookup renders lookups blank.
+// Order: formatted lookup name → direct schema-name value (non-lookup, unchanged)
+// → raw lookup GUID. Null/undefined-safe; returns '' when nothing resolves.
+export function resolveRecordDisplayValue(
+  values: Record<string, unknown>,
+  attribute: string,
+): string {
+  const formattedLookup =
+    values?.[`_${attribute}_value@OData.Community.Display.V1.FormattedValue`];
+  if (formattedLookup !== null && formattedLookup !== undefined) {
+    return String(formattedLookup);
+  }
+
+  const direct = values?.[attribute];
+  if (direct !== null && direct !== undefined) {
+    return String(direct);
+  }
+
+  const rawLookup = values?.[`_${attribute}_value`];
+  if (rawLookup !== null && rawLookup !== undefined) {
+    return String(rawLookup);
+  }
+
+  return '';
+}
+
 // ── Per-column filter cell ────────────────────────────────────────────────────
 
 type FilterCellStyles = ReturnType<typeof useStyles>;
@@ -543,10 +574,9 @@ export function SelectionGridField({
         },
         cell: ({ row }) => {
           const record = row.original as GridRecord;
-          const cellValue = record.values[col.targetAttribute];
           return (
             <span>
-              {cellValue !== null && cellValue !== undefined ? String(cellValue) : ''}
+              {resolveRecordDisplayValue(record.values, col.targetAttribute)}
             </span>
           );
         },
@@ -701,18 +731,15 @@ export function SelectionGridField({
                     />
                   )}
                   <Text className={styles.cardTitle}>
-                    {String(record.values[sortedCols[0]?.targetAttribute] ?? record.id.slice(0, 8))}
+                    {resolveRecordDisplayValue(record.values, sortedCols[0]?.targetAttribute ?? '')
+                      || record.id.slice(0, 8)}
                   </Text>
                   <div className={styles.cardFieldRow}>
                     {sortedCols.slice(1).map((col) => (
                       <div key={col.columnId}>
                         <Text className={styles.cardFieldLabel}>{col.columnLabel}</Text>
                         <Text className={styles.cardFieldValue} block>
-                          {String(
-                            record.values[`${col.targetAttribute}@OData.Community.Display.V1.FormattedValue`]
-                            ?? record.values[col.targetAttribute]
-                            ?? '—'
-                          )}
+                          {resolveRecordDisplayValue(record.values, col.targetAttribute) || '—'}
                         </Text>
                       </div>
                     ))}
