@@ -22,6 +22,10 @@ describe('resolveGuideForDocUrl', () => {
     expect(resolveGuideForDocUrl(`${BASE}/`)).toBe(DECISION_GRAPH_GUIDE);
   });
 
+  it('maps the Switch page to the decision-graph guide too', () => {
+    expect(resolveGuideForDocUrl(`${BASE}/switch`)).toBe(DECISION_GRAPH_GUIDE);
+  });
+
   it('maps the expression page to the expression guide', () => {
     expect(resolveGuideForDocUrl(`${BASE}/expression`)).toBe(EXPRESSION_GUIDE);
   });
@@ -30,8 +34,8 @@ describe('resolveGuideForDocUrl', () => {
     expect(resolveGuideForDocUrl(`${BASE}/functions`)).toBe(FUNCTION_GUIDE);
   });
 
-  it('leaves other GoRules node pages unmapped', () => {
-    expect(resolveGuideForDocUrl(`${BASE}/switch`)).toBeNull();
+  it('leaves unrecognised GoRules pages (e.g. reference docs) unmapped', () => {
+    expect(resolveGuideForDocUrl('https://docs.gorules.io/reference/zen')).toBeNull();
   });
 
   it('leaves non-GoRules urls unmapped', () => {

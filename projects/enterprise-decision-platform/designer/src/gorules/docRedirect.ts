@@ -48,7 +48,8 @@ export function resolveGuideForDocUrl(url: string): DocGuide | null {
   if (url.includes('decision-tables')) return DECISION_TABLE_GUIDE;
   if (url.includes('/expression')) return EXPRESSION_GUIDE;
   if (url.includes('/functions')) return FUNCTION_GUIDE;
-  if (/\/decisions\/?$/.test(url)) return DECISION_GRAPH_GUIDE;
+  // Switch and the Request/Response (parent .../decisions) nodes share the graphs guide.
+  if (url.includes('/switch') || /\/decisions\/?$/.test(url)) return DECISION_GRAPH_GUIDE;
   return null;
 }
 
