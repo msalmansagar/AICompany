@@ -32,6 +32,8 @@ export const DECISION_TABLE_GUIDE = guide('qdb_gorulesdecisiontablesmodernguide'
 export const DECISION_GRAPH_GUIDE = guide('qdb_gorulesdecisiongraphsmodernguide', 'Decision graph guide');
 /** Expression node → expressions guide. */
 export const EXPRESSION_GUIDE = guide('qdb_gorulesexpressionsmodernguide', 'Expression guide');
+/** Function node → function-nodes guide. */
+export const FUNCTION_GUIDE = guide('qdb_gorulesfunctionnodesmodernguide', 'Function node guide');
 
 const GORULES_DOCS_HOST = 'gorules.io';
 
@@ -45,6 +47,7 @@ export function resolveGuideForDocUrl(url: string): DocGuide | null {
   if (!url.includes(GORULES_DOCS_HOST)) return null;
   if (url.includes('decision-tables')) return DECISION_TABLE_GUIDE;
   if (url.includes('/expression')) return EXPRESSION_GUIDE;
+  if (url.includes('/functions')) return FUNCTION_GUIDE;
   if (/\/decisions\/?$/.test(url)) return DECISION_GRAPH_GUIDE;
   return null;
 }

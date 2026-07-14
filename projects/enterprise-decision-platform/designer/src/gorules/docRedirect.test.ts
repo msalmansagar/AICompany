@@ -3,6 +3,7 @@ import {
   DECISION_GRAPH_GUIDE,
   DECISION_TABLE_GUIDE,
   EXPRESSION_GUIDE,
+  FUNCTION_GUIDE,
   installGoRulesDocRedirect,
   resolveGuideForDocUrl,
 } from './docRedirect';
@@ -25,9 +26,12 @@ describe('resolveGuideForDocUrl', () => {
     expect(resolveGuideForDocUrl(`${BASE}/expression`)).toBe(EXPRESSION_GUIDE);
   });
 
+  it('maps the functions page to the function guide', () => {
+    expect(resolveGuideForDocUrl(`${BASE}/functions`)).toBe(FUNCTION_GUIDE);
+  });
+
   it('leaves other GoRules node pages unmapped', () => {
     expect(resolveGuideForDocUrl(`${BASE}/switch`)).toBeNull();
-    expect(resolveGuideForDocUrl(`${BASE}/functions`)).toBeNull();
   });
 
   it('leaves non-GoRules urls unmapped', () => {
