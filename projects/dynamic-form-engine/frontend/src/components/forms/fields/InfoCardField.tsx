@@ -16,6 +16,7 @@ import {
 } from '@fluentui/react-icons';
 import type { FieldDefinition } from '@qdb/shared';
 import { DynamicIcon } from '../DynamicIcon';
+import { parseInfoCardContent } from './infoCardContent';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -93,6 +94,17 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground2,
     lineHeight: tokens.lineHeightBase300,
   },
+  itemList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalS,
+  },
+  itemRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: tokens.spacingHorizontalS,
+  },
   downloadLink: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -131,6 +143,21 @@ function DefaultIcon({ variant }: { variant: InfoCardStyle }) {
   }
 }
 
+const STYLE_VARIANTS: readonly InfoCardStyle[] = ['info', 'warning', 'success', 'error'];
+
+function isStyleVariant(icon: string): icon is InfoCardStyle {
+  return (STYLE_VARIANTS as readonly string[]).includes(icon);
+}
+
+// A JSON item's `icon` is either one of the card style words (info/warning/
+// success/error → the matching default glyph) or a Fluent icon name.
+function InfoCardItemIcon({ icon }: { icon: string }) {
+  if (isStyleVariant(icon)) {
+    return <DefaultIcon variant={icon} />;
+  }
+  return <DynamicIcon iconName={icon} size={20} />;
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export function InfoCardField({ field }: Props) {
@@ -139,6 +166,8 @@ export function InfoCardField({ field }: Props) {
   const variant: InfoCardStyle = field.infoCardStyle ?? 'info';
   const cardClass = `${styles.card} ${styles[CARD_STYLE_CLASSES[variant]]}`;
   const iconClass = styles[ICON_STYLE_CLASSES[variant]];
+
+  const content = parseInfoCardContent(field.infoCardBody);
 
   return (
     <div
@@ -158,9 +187,22 @@ export function InfoCardField({ field }: Props) {
         {field.infoCardTitle && (
           <Text className={styles.title}>{field.infoCardTitle}</Text>
         )}
-        {field.infoCardBody && (
-          <Text className={styles.body}>{field.infoCardBody}</Text>
-        )}
+        {content.mode === 'text'
+          ? content.text && (
+              <Text className={styles.body}>{content.text}</Text>
+            )
+          : content.items.length > 0 && (
+              <div className={styles.itemList}>
+                {content.items.map((item, index) => (
+                  <div key={index} className={styles.itemRow}>
+                    <span className={iconClass} aria-hidden="true">
+                      <InfoCardItemIcon icon={item.icon} />
+                    </span>
+                    <Text className={styles.body}>{item.label}</Text>
+                  </div>
+                ))}
+              </div>
+            )}
         {field.infoCardDownloadUrl && (
           <Link
             href={field.infoCardDownloadUrl}

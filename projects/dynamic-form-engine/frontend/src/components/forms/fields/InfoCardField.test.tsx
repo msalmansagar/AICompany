@@ -148,4 +148,41 @@ describe('InfoCardField', () => {
     expect(container.querySelector('select')).toBeNull();
     expect(container.querySelector('textarea')).toBeNull();
   });
+
+  it('renders_jsonItems_asRows_sortedByOrder', () => {
+    const field = makeInfoCardField({
+      infoCardBody: JSON.stringify([
+        { Order: 2, Label: 'Second step', icon: 'info' },
+        { Order: 1, Label: 'First step', icon: 'info' },
+      ]),
+    });
+
+    renderInfoCard(field);
+
+    const first = screen.getByText('First step');
+    const second = screen.getByText('Second step');
+    expect(first).toBeTruthy();
+    expect(second).toBeTruthy();
+    // First step (Order 1) must appear before Second step (Order 2) in the DOM.
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('renders_legacyPlainText_unchanged', () => {
+    const field = makeInfoCardField({ infoCardBody: 'Just some plain guidance.' });
+
+    renderInfoCard(field);
+
+    expect(screen.getByText('Just some plain guidance.')).toBeTruthy();
+  });
+
+  it('renders_invalidJson_asPlainTextFallback', () => {
+    const broken = '[{ "Order": 1, "Label": "oops"';
+    const field = makeInfoCardField({ infoCardBody: broken });
+
+    renderInfoCard(field);
+
+    // Does not crash; the raw string is shown as a fallback.
+    expect(screen.getByText(broken)).toBeTruthy();
+  });
 });
