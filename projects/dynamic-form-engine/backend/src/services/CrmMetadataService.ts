@@ -24,6 +24,7 @@ import type {
   GridColumnOptionValue,
   GridColumnFilterType,
   FileUploadConfig,
+  FieldPlacement,
 } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
@@ -37,6 +38,19 @@ import type { TranslationResolutionService } from './TranslationResolutionServic
 import type { CrmLanguageConfigService } from './CrmLanguageConfigService.js';
 
 const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+
+// DFE-TABZONE-001: qdb_placement optionset values on qdb_form_field.
+// Any other value (incl. absent) is treated as Body — the legacy behavior.
+const PLACEMENT_HEADER = 100000000;
+const PLACEMENT_FOOTER = 100000001;
+
+// Maps the qdb_placement optionset code to a FieldPlacement. Unknown/absent codes
+// safely fall back to 'body' (legacy) so malformed config never breaks a form.
+export function placementFromCode(code?: number | null): FieldPlacement {
+  if (code === PLACEMENT_HEADER) return 'header';
+  if (code === PLACEMENT_FOOTER) return 'footer';
+  return 'body';
+}
 
 interface ODataCollection<T> {
   value: T[];
@@ -243,6 +257,8 @@ export class CrmMetadataService extends CrmBaseService {
 
     const tabIds = tabs.map((t) => t.qdb_form_tabid);
     const sections = await this.fetchSectionsWithChildren(tabIds, formId, lang);
+    // DFE-TABZONE-001: header/footer fields placed directly on tabs.
+    const tabZoneFields = await this.fetchTabZoneFields(tabIds, formId, lang);
 
     // DFE-BTN-001: fetch tab/section scoped buttons and embed them. Degrades to no
     // buttons if the entity is not provisioned, so existing forms are unchanged.
@@ -261,6 +277,8 @@ export class CrmMetadataService extends CrmBaseService {
 
     return tabs.map((tab) => {
       const tabButtons = buttonIndex.byTabId.get(tab.qdb_form_tabid) ?? [];
+      const headerFields = tabZoneFields.header.get(tab.qdb_form_tabid) ?? [];
+      const footerFields = tabZoneFields.footer.get(tab.qdb_form_tabid) ?? [];
       return {
         id: tab.qdb_form_tabid,
         formDefinitionId: formId,
@@ -275,6 +293,9 @@ export class CrmMetadataService extends CrmBaseService {
         hideTabBar: tab.qdb_hide_tab_bar ?? false,
         sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
         ...(tabButtons.length > 0 ? { buttons: tabButtons } : {}),
+        // DFE-TABZONE-001: header/footer zone fields (omitted when none).
+        ...(headerFields.length > 0 ? { headerFields } : {}),
+        ...(footerFields.length > 0 ? { footerFields } : {}),
       };
     });
   }
@@ -316,6 +337,9 @@ export class CrmMetadataService extends CrmBaseService {
 
     const fieldsBySection = new Map<string, FieldDefinition[]>();
     for (const field of fields) {
+      // DFE-TABZONE-001: a field placed in a tab header/footer zone is rendered
+      // there, not in its section body — even if it still carries a section id.
+      if (field.placement === 'header' || field.placement === 'footer') continue;
       const existing = fieldsBySection.get(field.sectionId) ?? [];
       existing.push(field);
       fieldsBySection.set(field.sectionId, existing);
@@ -342,7 +366,12 @@ export class CrmMetadataService extends CrmBaseService {
       `/qdb_form_fields?$filter=(${filter}) and statecode eq 0&$orderby=qdb_display_order asc`,
     );
 
-    const fields = response.value;
+    return this.enrichFields(response.value, formId, lang);
+  }
+
+  // DFE-TABZONE-001: shared enrichment used by both section-scoped and tab-zone
+  // (header/footer) field fetches — turns raw field rows into FieldDefinitions.
+  private async enrichFields(fields: RawField[], formId: string, lang: string): Promise<FieldDefinition[]> {
     if (fields.length === 0) return [];
 
     const fieldIds = fields.map((f) => f.qdb_form_fieldid);
@@ -366,7 +395,8 @@ export class CrmMetadataService extends CrmBaseService {
 
     const definitions = fields.map((field) => ({
       id: field.qdb_form_fieldid,
-      sectionId: field._qdb_form_section_id_value,
+      sectionId: field._qdb_form_section_id_value ?? '',
+      ...this.placementProps(field),
       fieldType: this.mapFieldType(field.qdb_field_type),
       schemaName: field.qdb_schema_name,
       label: field.qdb_label,
@@ -430,6 +460,52 @@ export class CrmMetadataService extends CrmBaseService {
     }));
 
     return definitions;
+  }
+
+  // Emits placement/tabId only for header/footer fields, so body fields (legacy
+  // and default) keep their existing payload shape untouched.
+  private placementProps(field: RawField): { placement?: FieldPlacement; tabId?: string } {
+    const placement = placementFromCode(field.qdb_placement);
+    return {
+      ...(placement !== 'body' ? { placement } : {}),
+      ...(field._qdb_form_tab_id_value ? { tabId: field._qdb_form_tab_id_value } : {}),
+    };
+  }
+
+  // DFE-TABZONE-001: fetches fields placed directly in a tab's header/footer zone
+  // (placement Header/Footer, targeting the tab). Resilient: if the placement/tab
+  // columns are not yet provisioned, degrades to no tab-zone fields so existing
+  // forms render unchanged.
+  private async fetchTabZoneFields(
+    tabIds: string[],
+    formId: string,
+    lang: string,
+  ): Promise<{ header: Map<string, FieldDefinition[]>; footer: Map<string, FieldDefinition[]> }> {
+    const header = new Map<string, FieldDefinition[]>();
+    const footer = new Map<string, FieldDefinition[]>();
+    try {
+      const tabFilter = tabIds.map((id) => `_qdb_form_tab_id_value eq '${id}'`).join(' or ');
+      const placementFilter = `(qdb_placement eq ${PLACEMENT_HEADER} or qdb_placement eq ${PLACEMENT_FOOTER})`;
+      const response = await this.crmFetch<ODataCollection<RawField>>(
+        `/qdb_form_fields?$filter=(${tabFilter}) and ${placementFilter} and statecode eq 0&$orderby=qdb_display_order asc`,
+      );
+      const enriched = await this.enrichFields(response.value, formId, lang);
+      for (const field of enriched) {
+        if (!field.tabId) continue;
+        const zone = field.placement === 'footer' ? footer : header;
+        const existing = zone.get(field.tabId) ?? [];
+        existing.push(field);
+        zone.set(field.tabId, existing);
+      }
+    } catch (error) {
+      const status = error instanceof CrmApiError ? error.crmStatusCode : undefined;
+      if (status === 404 || status === 400) {
+        logger.info({ formId }, 'Tab-zone placement not provisioned — rendering without header/footer fields');
+      } else {
+        logger.error({ error, formId }, 'Failed to fetch tab-zone fields — rendering without them');
+      }
+    }
+    return { header, footer };
   }
 
   private async fetchGridColumnConfigs(fieldIds: string[]): Promise<Map<string, GridColumnConfig[]>> {
@@ -1040,6 +1116,9 @@ interface RawSection {
 interface RawField {
   qdb_form_fieldid: string;
   _qdb_form_section_id_value: string;
+  // DFE-TABZONE-001: tab targeted by header/footer fields + placement optionset.
+  _qdb_form_tab_id_value?: string;
+  qdb_placement?: number;
   qdb_field_type: number;
   qdb_schema_name: string;
   qdb_label: string;
