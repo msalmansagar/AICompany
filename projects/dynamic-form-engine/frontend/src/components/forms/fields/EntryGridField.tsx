@@ -4,7 +4,7 @@
 // BC-009: Warning banner when approaching 450-operation ceiling.
 // BC-010: Required validation applies even if tab was never visited.
 
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -16,6 +16,8 @@ import {
   Input,
   Select,
   Switch,
+  Spinner,
+  Link,
   makeStyles,
   tokens,
   Text,
@@ -25,9 +27,12 @@ import {
 import {
   AddCircleRegular,
   DeleteRegular,
+  ArrowUploadRegular,
+  DismissRegular,
 } from '@fluentui/react-icons';
 import type { GridColumnConfig, GridColumnOptionValue } from '@qdb/shared';
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
+import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
 import type { ControlProps } from '../FieldRenderer';
 
 // BC-009: warn when approaching 450 batch operations (rows × columns).
@@ -126,6 +131,7 @@ export function EntryGridField({
           onCellChange={updateCell}
           tableId={inputId}
           headerId={`${inputId}-col-${col.columnId}`}
+          uploadFieldId={field.schemaName}
         />
       ),
     }));
@@ -147,7 +153,7 @@ export function EntryGridField({
     }
 
     return colDefs;
-  }, [sortedColumns, rows, isReadonly, updateCell, deleteRow, inputId]);
+  }, [sortedColumns, rows, isReadonly, updateCell, deleteRow, inputId, field.schemaName]);
 
   const table = useReactTable({
     data: rows,
@@ -250,6 +256,8 @@ interface EntryGridCellProps {
   onCellChange: (rowIndex: number, columnKey: string, value: unknown) => void;
   tableId: string;
   headerId: string;
+  // Grid field schema name — passed to the upload API for 'file' columns.
+  uploadFieldId: string;
 }
 
 function EntryGridCell({
@@ -259,6 +267,7 @@ function EntryGridCell({
   isReadonly,
   onCellChange,
   headerId,
+  uploadFieldId,
 }: EntryGridCellProps) {
   const cellId = `cell-${rowIndex}-${col.columnId}`;
   const stringValue =
@@ -269,6 +278,18 @@ function EntryGridCell({
   }
 
   switch (col.columnFieldType) {
+    case 'file':
+      return (
+        <GridFileCell
+          value={value}
+          isReadonly={isReadonly}
+          uploadFieldId={uploadFieldId}
+          cellId={cellId}
+          headerId={headerId}
+          onChange={handleChange}
+        />
+      );
+
     case 'number':
       return (
         <Input
@@ -347,4 +368,106 @@ function EntryGridCell({
         />
       );
   }
+}
+
+// ─── File / document cell ────────────────────────────────────────────────────
+
+interface GridFileCellProps {
+  value: unknown;
+  isReadonly: boolean;
+  uploadFieldId: string;
+  cellId: string;
+  headerId: string;
+  onChange: (value: unknown) => void;
+}
+
+function isFileReference(value: unknown): value is UploadedFileReference {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'fileId' in value &&
+    'fileName' in value
+  );
+}
+
+// A single-document upload cell. Stores the UploadedFileReference as the cell value.
+function GridFileCell({ value, isReadonly, uploadFieldId, cellId, headerId, onChange }: GridFileCellProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const fileReference = isFileReference(value) ? value : undefined;
+
+  async function handleFileSelected(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const response = await filesApi.upload(uploadFieldId, file);
+      const uploaded = (response as unknown as { data: UploadedFileReference }).data;
+      onChange(uploaded);
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+    } finally {
+      setIsUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  if (fileReference) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: tokens.spacingHorizontalXS, minWidth: 0 }}>
+        <Link
+          href={fileReference.previewUrl ?? fileReference.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={fileReference.fileName}
+          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {fileReference.fileName}
+        </Link>
+        {!isReadonly && (
+          <Button
+            appearance="transparent"
+            size="small"
+            icon={<DismissRegular />}
+            aria-label="Remove document"
+            onClick={() => onChange(undefined)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (isReadonly) {
+    return <Text>—</Text>;
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        id={cellId}
+        type="file"
+        onChange={handleFileSelected}
+        style={{ display: 'none' }}
+        aria-labelledby={headerId}
+      />
+      <Button
+        appearance="secondary"
+        size="small"
+        icon={isUploading ? <Spinner size="tiny" /> : <ArrowUploadRegular />}
+        disabled={isUploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        {isUploading ? 'Uploading…' : 'Upload'}
+      </Button>
+      {uploadError && (
+        <Text style={{ color: tokens.colorPaletteRedForeground1, fontSize: tokens.fontSizeBase200, display: 'block' }}>
+          {uploadError}
+        </Text>
+      )}
+    </div>
+  );
 }

@@ -21,6 +21,7 @@ const COLUMN_FIELD_TYPES = [
   { value: 'boolean', label: 'Yes / No' },
   { value: 'dropdown', label: 'Dropdown' },
   { value: 'lookup',  label: 'Lookup' },
+  { value: 'file',    label: 'File / Document' },
 ];
 
 const FILTER_TYPES: { value: GridColumnFilterType | 'auto'; label: string }[] = [
