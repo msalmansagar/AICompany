@@ -174,6 +174,17 @@ export class CrmMetadataService extends CrmBaseService {
       draftExpiryDays: raw.qdb_draft_expiry_days ?? 90,
       powerAutomateFlowId: raw.qdb_power_automate_flow_id,
       confirmationMessage: raw.qdb_confirmation_message ?? 'Your form has been submitted.',
+      // DFE-SUBMITCONFIRM-001: emit the acknowledgement gate only when a label is configured.
+      ...(raw.qdb_submit_confirmation_label
+        ? {
+            submitConfirmation: {
+              checkboxLabel: raw.qdb_submit_confirmation_label,
+              ...(raw.qdb_submit_confirmation_message
+                ? { dialogMessage: raw.qdb_submit_confirmation_message }
+                : {}),
+            },
+          }
+        : {}),
       confirmationRecordRefAttribute: raw.qdb_confirmation_record_ref_attribute,
       accessGroupId: raw.qdb_access_group_id,
       // DFE-ADD-001 extensions (backward-compatible — defaults to false / empty).
@@ -1083,6 +1094,9 @@ interface RawFormDefinition {
   qdb_summary_mode?: number;
   // DFE-FBE-002 progress bar
   qdb_show_progress_bar?: boolean;
+  // DFE-SUBMITCONFIRM-001 acknowledgement gate (label present ⇒ gate active)
+  qdb_submit_confirmation_label?: string;
+  qdb_submit_confirmation_message?: string;
   createdon: string;
   modifiedon: string;
 }
