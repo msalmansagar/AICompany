@@ -7,7 +7,7 @@ import { useWorkflowView } from './hooks/useWorkflowView';
 import { useWorkflowStore } from './store/workflowStore';
 import { WorkflowCanvas } from './components/WorkflowCanvas';
 import { EditCanvas } from './components/edit/EditCanvas';
-import { NewProcessDialog } from './components/edit/NewProcessDialog';
+import { ProcessWizard } from './components/edit/ProcessWizard';
 import { ProcessListScreen } from './components/ProcessListScreen';
 import { SopListScreen } from './components/SopListScreen/SopListScreen';
 import { RolesScreen } from './components/RolesScreen/RolesScreen';
@@ -78,48 +78,26 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
   const [appMode, setAppMode] = useState<AppMode>('list');
   const [previousMode, setPreviousMode] = useState<'list' | 'view'>('list');
   const sopAdapter = isSopAdapter(adapter) ? (adapter as ISopAdapter) : null;
-  const [showNewProcessDialog, setShowNewProcessDialog] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const view = useWorkflowView(service);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
 
-  const handleNewProcess = () => setShowNewProcessDialog(true);
+  const handleNewProcess = () => setShowWizard(true);
 
-  const handleNewProcessConfirm = ({
-    name,
-    taskEntityId,
-    regardingFieldId,
-    parentEntityId,
-  }: {
-    name: string;
-    taskEntityId: string;
-    taskEntityName: string;
-    regardingFieldId: string;
-    regardingFieldName: string;
-    parentEntityId: string;
-    parentEntityName: string;
-  }) => {
-    const tmpId = `tmp_${crypto.randomUUID()}`;
-    const newProcess: WorkflowProcess = {
-      crmId: tmpId,
-      name,
-      recordEntity: taskEntityId,
-      recordEntityName: null,
-      regardingField: regardingFieldId,
-      parentEntity: parentEntityId,
-      parentEntityName: null,
-      versionMajor: 1,
-      versionMinor: 0,
-      workflowState: 'draft',
-      snapshot: null,
-    };
-    // Seed a first step so the canvas opens with something to edit (it
-    // auto-connects from Start), rather than an empty canvas.
-    loadWorkflow(newProcess, [buildInitialStep(tmpId)], [], [], {});
-    setShowNewProcessDialog(false);
+  // Wizard "Blank" / template path: build the process graph in memory and open
+  // it in the editor. Nothing is persisted until the user clicks Save Draft.
+  const handleCreateInMemory = useCallback((
+    process: WorkflowProcess,
+    steps: WorkflowStep[],
+    outcomes: WorkflowOutcome[],
+    routes: WorkflowRoute[],
+  ) => {
+    loadWorkflow(process, steps, outcomes, routes, {});
+    setShowWizard(false);
     setPreviousMode('list');
     setAppMode('edit');
-  };
+  }, [loadWorkflow]);
 
   // Opens a process in view mode (from the list screen)
   const handleOpenProcess = useCallback(async (processId: string) => {
@@ -163,6 +141,26 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
     if (!view.data) return;
     void handleEditProcess(view.data.process.id);
   }, [view.data, handleEditProcess]);
+
+  // Wizard "Clone existing" path: server-side copy, then open the copy in edit.
+  const handleCloneFromWizard = useCallback(async (sourceProcessId: string) => {
+    setShowWizard(false);
+    setLoadingMessage('Cloning process…');
+    try {
+      const newProcessId = await adapter.cloneProcess(sourceProcessId);
+      await handleEditProcess(newProcessId);
+    } catch (err) {
+      notify(`Clone failed: ${err instanceof Error ? err.message : String(err)}`, 'error');
+    } finally {
+      setLoadingMessage(null);
+    }
+  }, [adapter, handleEditProcess]);
+
+  // Wizard "From SOP" path: hand off to the existing SOP designer flow.
+  const handleStartFromSop = useCallback(() => {
+    setShowWizard(false);
+    setAppMode('sop-list');
+  }, []);
 
   const handleExitEdit = useCallback(() => {
     if (previousMode === 'view' && view.data) {
@@ -214,11 +212,14 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
       </div>
 
       {loadingMessage && <LoadingOverlay message={loadingMessage} />}
-      {showNewProcessDialog && (
-        <NewProcessDialog
+      {showWizard && (
+        <ProcessWizard
           adapter={adapter}
-          onConfirm={handleNewProcessConfirm}
-          onClose={() => setShowNewProcessDialog(false)}
+          sopEnabled={!!sopAdapter}
+          onCreateInMemory={handleCreateInMemory}
+          onClone={(id) => void handleCloneFromWizard(id)}
+          onStartFromSop={handleStartFromSop}
+          onClose={() => setShowWizard(false)}
         />
       )}
       <ConfirmDialogHost />
@@ -237,33 +238,6 @@ function LoadingOverlay({ message }: { message: string }) {
       </div>
     </div>
   );
-}
-
-/** A blank first step for a newly-created process. Entity refs are inherited
- * from the parent process at save time, so they start null. */
-function buildInitialStep(processId: string): WorkflowStep {
-  return {
-    crmId: `tmp_${crypto.randomUUID()}`,
-    name: 'Step 1',
-    sequenceNo: 1,
-    schemaName: '',
-    taskSubject: '',
-    taskDescription: '',
-    assignTo: 'user',
-    assignedUserId: null,
-    assignedUserName: null,
-    teamId: null,
-    teamName: null,
-    roundRobinTeamId: null,
-    roundRobinTeamName: null,
-    recordEntityId: null,
-    recordEntityName: null,
-    regardingFieldId: null,
-    regardingFieldName: null,
-    parentEntityId: null,
-    parentEntityName: null,
-    processId,
-  };
 }
 
 const errorScreen: React.CSSProperties = {
