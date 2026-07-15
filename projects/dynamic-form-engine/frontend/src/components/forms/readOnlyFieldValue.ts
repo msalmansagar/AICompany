@@ -2,6 +2,7 @@
 // Type-aware for the simple field types (text/number/date/choice/boolean). File and grid
 // types return a lightweight placeholder pending the full C-001 read-only renderer.
 import type { FormDefinition, FieldDefinition } from '@qdb/shared';
+import { getAllFormFields } from './tabFields';
 
 /** Finds a field anywhere in the form by its schema name (the value key). */
 export function findFieldBySchema(
@@ -9,13 +10,8 @@ export function findFieldBySchema(
   schemaName: string,
 ): FieldDefinition | undefined {
   if (!formDefinition) return undefined;
-  for (const tab of formDefinition.tabs) {
-    for (const section of tab.sections) {
-      const match = section.fields.find((f) => f.schemaName === schemaName);
-      if (match) return match;
-    }
-  }
-  return undefined;
+  // DFE-TABZONE-001: search header/footer zone fields as well as section fields.
+  return getAllFormFields(formDefinition).find((f) => f.schemaName === schemaName);
 }
 
 /** Formats a field's current value for read-only display (label for choices, etc.). */

@@ -448,9 +448,12 @@ export class ValidationEngine {
   }
 
   private collectAllFields(formDefinition: FormDefinition): FieldDefinition[] {
-    return formDefinition.tabs.flatMap((tab) =>
-      tab.sections.flatMap((section) => section.fields),
-    );
+    // DFE-TABZONE-001: validate header/footer zone fields, not only section fields.
+    return formDefinition.tabs.flatMap((tab) => [
+      ...(tab.headerFields ?? []),
+      ...tab.sections.flatMap((section) => section.fields),
+      ...(tab.footerFields ?? []),
+    ]);
   }
 }
 

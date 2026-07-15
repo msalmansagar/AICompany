@@ -12,6 +12,7 @@ import { DocumentRegular, EditRegular } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
 import type { UploadedFileReference } from '../../api/filesApi';
 import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
+import { getTabZoneFields } from './tabFields';
 
 interface FormSummaryProps {
   onEditTab: (tabIndex: number) => void;
@@ -149,18 +150,22 @@ export function FormSummary({ onEditTab }: FormSummaryProps) {
   let requiredFilled = 0;
   let requiredTotal = 0;
 
+  // DFE-TABZONE-001: count section fields and header/footer zone fields alike.
+  const countRequired = (field: FieldDefinition) => {
+    if (!(ruleState.fieldVisibility[field.id] ?? field.isVisible)) return;
+    if (field.isHidden || field.fieldType === 'info-card') return;
+    const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
+    if (!isRequired) return;
+    requiredTotal++;
+    if (isDisplayable(fieldValues[field.schemaName])) requiredFilled++;
+  };
+
   for (const tab of visibleTabs) {
     for (const section of tab.sections) {
       if (!(ruleState.sectionVisibility[section.id] ?? section.isVisible)) continue;
-      for (const field of section.fields) {
-        if (!(ruleState.fieldVisibility[field.id] ?? field.isVisible)) continue;
-        if (field.isHidden || field.fieldType === 'info-card') continue;
-        const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
-        if (!isRequired) continue;
-        requiredTotal++;
-        if (isDisplayable(fieldValues[field.schemaName])) requiredFilled++;
-      }
+      for (const field of section.fields) countRequired(field);
     }
+    for (const field of getTabZoneFields(tab)) countRequired(field);
   }
 
   return (
@@ -181,13 +186,15 @@ export function FormSummary({ onEditTab }: FormSummaryProps) {
           .filter((s) => ruleState.sectionVisibility[s.id] ?? s.isVisible)
           .sort((a, b) => a.displayOrder - b.displayOrder);
 
-        const tabHasAnyFilledField = visibleSections.some((section) =>
-          section.fields.some((f) => {
-            if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
-            if (f.isHidden || f.fieldType === 'info-card') return false;
-            return isDisplayable(fieldValues[f.schemaName]);
-          }),
-        );
+        // DFE-TABZONE-001: header/footer zone fields are part of the tab's answers too.
+        const headerFields = tab.headerFields ?? [];
+        const footerFields = tab.footerFields ?? [];
+        const tabHasAnyFilledField =
+          filterFilledFields(headerFields, ruleState, fieldValues).length > 0 ||
+          filterFilledFields(footerFields, ruleState, fieldValues).length > 0 ||
+          visibleSections.some(
+            (section) => filterFilledFields(section.fields, ruleState, fieldValues).length > 0,
+          );
 
         if (!tabHasAnyFilledField) return null;
 
@@ -206,59 +213,36 @@ export function FormSummary({ onEditTab }: FormSummaryProps) {
               </Button>
             </div>
 
-            {visibleSections.map((section) => {
-              const filledFields = section.fields
-                .filter((f) => {
-                  if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
-                  if (f.isHidden || f.fieldType === 'info-card') return false;
-                  return isDisplayable(fieldValues[f.schemaName]);
-                })
-                .sort((a, b) => a.displayOrder - b.displayOrder);
+            {/* DFE-TABZONE-001: header-zone answers, above the section groups. */}
+            <SummaryFieldGroup
+              key={`${tab.id}-header`}
+              label="Header"
+              fields={headerFields}
+              fieldValues={fieldValues}
+              ruleState={ruleState}
+              styles={styles}
+            />
 
-              if (filledFields.length === 0) return null;
+            {visibleSections.map((section) => (
+              <SummaryFieldGroup
+                key={section.id}
+                label={section.label}
+                fields={section.fields}
+                fieldValues={fieldValues}
+                ruleState={ruleState}
+                styles={styles}
+              />
+            ))}
 
-              return (
-                <Card key={section.id} aria-label={section.label}>
-                  <CardHeader header={<Text weight="semibold">{section.label}</Text>} />
-                  <div aria-label={`${section.label} fields`}>
-                    {filledFields.map((field) => {
-                      const value = fieldValues[field.schemaName];
-
-                      if (GRID_TYPES.has(field.fieldType)) {
-                        return (
-                          <div key={field.id} className={styles.gridFieldRow}>
-                            <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>
-                              {field.label}
-                            </div>
-                            <GridMiniTable field={field} value={value} styles={styles} />
-                          </div>
-                        );
-                      }
-
-                      if (FULL_WIDTH_TYPES.has(field.fieldType)) {
-                        return (
-                          <div key={field.id} className={styles.gridFieldRow}>
-                            <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>
-                              {field.label}
-                            </div>
-                            <FieldValueDisplay field={field} value={value} />
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div key={field.id} className={styles.fieldRow}>
-                          <span className={styles.fieldLabel}>{field.label}</span>
-                          <span className={styles.fieldValue}>
-                            <FieldValueDisplay field={field} value={value} />
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              );
-            })}
+            {/* DFE-TABZONE-001: footer-zone answers, below the section groups. */}
+            <SummaryFieldGroup
+              key={`${tab.id}-footer`}
+              label="Footer"
+              fields={footerFields}
+              fieldValues={fieldValues}
+              ruleState={ruleState}
+              styles={styles}
+            />
           </div>
         );
       })}
@@ -267,6 +251,75 @@ export function FormSummary({ onEditTab }: FormSummaryProps) {
 }
 
 // ─── Grid mini-table ─────────────────────────────────────────────────────────
+
+// ─── Filled-field group (shared by sections and tab header/footer zones) ──────
+
+type SummaryStyles = ReturnType<typeof useStyles>;
+
+function filterFilledFields(
+  fields: FieldDefinition[],
+  ruleState: { fieldVisibility: Record<string, boolean> },
+  fieldValues: Record<string, unknown>,
+): FieldDefinition[] {
+  return fields
+    .filter((f) => {
+      if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
+      if (f.isHidden || f.fieldType === 'info-card') return false;
+      return isDisplayable(fieldValues[f.schemaName]);
+    })
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+function SummaryFieldEntry({ field, value, styles }: { field: FieldDefinition; value: unknown; styles: SummaryStyles }) {
+  if (GRID_TYPES.has(field.fieldType)) {
+    return (
+      <div className={styles.gridFieldRow}>
+        <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>{field.label}</div>
+        <GridMiniTable field={field} value={value} styles={styles} />
+      </div>
+    );
+  }
+  if (FULL_WIDTH_TYPES.has(field.fieldType)) {
+    return (
+      <div className={styles.gridFieldRow}>
+        <div className={styles.fieldLabel} style={{ marginBottom: '6px' }}>{field.label}</div>
+        <FieldValueDisplay field={field} value={value} />
+      </div>
+    );
+  }
+  return (
+    <div className={styles.fieldRow}>
+      <span className={styles.fieldLabel}>{field.label}</span>
+      <span className={styles.fieldValue}>
+        <FieldValueDisplay field={field} value={value} />
+      </span>
+    </div>
+  );
+}
+
+interface SummaryFieldGroupProps {
+  label: string;
+  fields: FieldDefinition[];
+  fieldValues: Record<string, unknown>;
+  ruleState: { fieldVisibility: Record<string, boolean> };
+  styles: SummaryStyles;
+}
+
+// Renders a titled card of a field group's filled fields, or nothing when empty.
+function SummaryFieldGroup({ label, fields, fieldValues, ruleState, styles }: SummaryFieldGroupProps) {
+  const filledFields = filterFilledFields(fields, ruleState, fieldValues);
+  if (filledFields.length === 0) return null;
+  return (
+    <Card aria-label={label}>
+      <CardHeader header={<Text weight="semibold">{label}</Text>} />
+      <div aria-label={`${label} fields`}>
+        {filledFields.map((field) => (
+          <SummaryFieldEntry key={field.id} field={field} value={fieldValues[field.schemaName]} styles={styles} />
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 interface GridMiniTableProps {
   field: FieldDefinition;
@@ -360,6 +413,12 @@ function extractRowValues(row: unknown): Record<string, unknown> {
 
 function formatCellValue(value: unknown, columnFieldType?: string): string {
   if (value === null || value === undefined || value === '') return '—';
+  if (columnFieldType === 'file') {
+    if (typeof value === 'object' && value !== null && 'fileName' in value) {
+      return String((value as { fileName: unknown }).fileName);
+    }
+    return 'Document';
+  }
   if (columnFieldType === 'boolean') return value ? 'Yes' : 'No';
   if (columnFieldType === 'date') {
     const d = new Date(String(value));
