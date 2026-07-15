@@ -19,6 +19,7 @@ export interface ProcessTemplate {
   id: string;
   name: string;
   description: string;
+  icon: string;
   stepCount: number;
   build: (processId: string) => TemplateGraph;
 }
@@ -52,6 +53,32 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
   };
 }
 
+/** A branch that advances to another step — produces both the outcome (label on
+ * the source step) and the route (the visible edge). */
+function transition(fromStepId: string, toStepId: string, label: string, seq: number): {
+  outcome: WorkflowOutcome;
+  route: WorkflowRoute;
+} {
+  const outcome: WorkflowOutcome = { crmId: tmpId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: toStepId };
+  const route: WorkflowRoute = { crmId: tmpId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
+  return { outcome, route };
+}
+
+/** A terminal branch — a labelled outcome that ends the process (no edge). */
+function terminal(fromStepId: string, label: string, seq: number): WorkflowOutcome {
+  return { crmId: tmpId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: null };
+}
+
+function graphFrom(steps: WorkflowStep[], parts: (WorkflowOutcome | { outcome: WorkflowOutcome; route: WorkflowRoute })[]): TemplateGraph {
+  const outcomes: WorkflowOutcome[] = [];
+  const routes: WorkflowRoute[] = [];
+  for (const part of parts) {
+    if ('route' in part) { outcomes.push(part.outcome); routes.push(part.route); }
+    else outcomes.push(part);
+  }
+  return { steps, outcomes, routes };
+}
+
 function buildBlank(processId: string): TemplateGraph {
   return { steps: [buildStep(processId, 'Step 1', 1)], outcomes: [], routes: [] };
 }
@@ -59,26 +86,48 @@ function buildBlank(processId: string): TemplateGraph {
 function buildTwoStepApproval(processId: string): TemplateGraph {
   const submit = buildStep(processId, 'Submit Request', 1);
   const approval = buildStep(processId, 'Manager Approval', 2);
-
-  const submitted = outcome(submit.crmId, 'Submitted', 1, approval.crmId);
-  const approved = outcome(approval.crmId, 'Approved', 1, null); // terminal branch
-  const rejected = outcome(approval.crmId, 'Rejected', 2, submit.crmId); // loops back
-
-  return {
-    steps: [submit, approval],
-    outcomes: [submitted, approved, rejected],
-    // A visible edge needs a route; the terminal "Approved" branch has none.
-    routes: [route(submitted.crmId, 'Submitted', 1, approval.crmId),
-             route(rejected.crmId, 'Rejected', 1, submit.crmId)],
-  };
+  return graphFrom([submit, approval], [
+    transition(submit.crmId, approval.crmId, 'Submitted', 1),
+    terminal(approval.crmId, 'Approved', 1),
+    transition(approval.crmId, submit.crmId, 'Rejected', 2),
+  ]);
 }
 
-function outcome(stepId: string, name: string, sequenceNumber: number, nextStepId: string | null): WorkflowOutcome {
-  return { crmId: tmpId(), name, sequenceNumber, applyFilter: false, stepId, nextStepId };
+function buildThreeStepReview(processId: string): TemplateGraph {
+  const prepare = buildStep(processId, 'Prepare', 1);
+  const review = buildStep(processId, 'Review', 2);
+  const approve = buildStep(processId, 'Approve', 3);
+  return graphFrom([prepare, review, approve], [
+    transition(prepare.crmId, review.crmId, 'Submitted', 1),
+    transition(review.crmId, approve.crmId, 'Accepted', 1),
+    transition(review.crmId, prepare.crmId, 'Returned', 2),
+    terminal(approve.crmId, 'Approved', 1),
+    transition(approve.crmId, review.crmId, 'Rejected', 2),
+  ]);
 }
 
-function route(outcomeId: string, name: string, sequenceNumber: number, nextStepId: string): WorkflowRoute {
-  return { crmId: tmpId(), name, subject: name, sequenceNumber, filter: '', outcomeId, nextStepId };
+function buildEscalationApproval(processId: string): TemplateGraph {
+  const submit = buildStep(processId, 'Submit Request', 1);
+  const manager = buildStep(processId, 'Manager Approval', 2);
+  const senior = buildStep(processId, 'Senior Approval', 3);
+  return graphFrom([submit, manager, senior], [
+    transition(submit.crmId, manager.crmId, 'Submitted', 1),
+    transition(manager.crmId, senior.crmId, 'Approved', 1),
+    transition(manager.crmId, submit.crmId, 'Rejected', 2),
+    terminal(senior.crmId, 'Approved', 1),
+    transition(senior.crmId, submit.crmId, 'Rejected', 2),
+  ]);
+}
+
+function buildRequestFulfillment(processId: string): TemplateGraph {
+  const log = buildStep(processId, 'Log Request', 1);
+  const work = buildStep(processId, 'Work Request', 2);
+  const close = buildStep(processId, 'Confirm & Close', 3);
+  return graphFrom([log, work, close], [
+    transition(log.crmId, work.crmId, 'Assigned', 1),
+    transition(work.crmId, close.crmId, 'Resolved', 1),
+    terminal(close.crmId, 'Closed', 1),
+  ]);
 }
 
 export const PROCESS_TEMPLATES: ProcessTemplate[] = [
@@ -86,6 +135,7 @@ export const PROCESS_TEMPLATES: ProcessTemplate[] = [
     id: 'blank',
     name: 'Blank process',
     description: 'Start from scratch with a single step.',
+    icon: '📄',
     stepCount: 1,
     build: buildBlank,
   },
@@ -93,8 +143,33 @@ export const PROCESS_TEMPLATES: ProcessTemplate[] = [
     id: 'two-step-approval',
     name: 'Two-step approval',
     description: 'Submit → Manager Approval, with an Approved / Rejected decision that loops back on reject.',
+    icon: '✅',
     stepCount: 2,
     build: buildTwoStepApproval,
+  },
+  {
+    id: 'three-step-review',
+    name: 'Three-step review',
+    description: 'Maker → Checker → Approver governance chain; each stage can return the item to the previous one.',
+    icon: '🔎',
+    stepCount: 3,
+    build: buildThreeStepReview,
+  },
+  {
+    id: 'escalation-approval',
+    name: 'Two-level approval',
+    description: 'Submit → Manager → Senior approval escalation; a rejection at any level returns to the submitter.',
+    icon: '🏛️',
+    stepCount: 3,
+    build: buildEscalationApproval,
+  },
+  {
+    id: 'request-fulfillment',
+    name: 'Request fulfilment',
+    description: 'Log → Work → Confirm & Close — a linear service-request flow with no approval gate.',
+    icon: '🛠️',
+    stepCount: 3,
+    build: buildRequestFulfillment,
   },
 ];
 

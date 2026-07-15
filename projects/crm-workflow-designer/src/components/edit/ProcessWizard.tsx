@@ -268,7 +268,7 @@ function MethodPicker({
   const tiles: { id: string; icon: string; title: string; desc: string; disabled?: boolean }[] = [
     ...PROCESS_TEMPLATES.map((t) => ({
       id: t.id,
-      icon: t.id === 'blank' ? '📄' : '✅',
+      icon: t.icon,
       title: t.name,
       desc: t.description,
     })),
