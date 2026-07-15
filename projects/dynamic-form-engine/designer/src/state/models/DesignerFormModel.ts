@@ -22,6 +22,9 @@ export interface DesignerFormModel {
   summaryMode?: SummaryMode | null;
   // DFE-FBE-002: form-completion progress bar.
   showProgressBar?: boolean;
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate on the final step (label present ⇒ active).
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
   powerAutomateFlowId: string | null;
   confirmationMessage: string | null;
   confirmationRecordRefAttribute: string | null;

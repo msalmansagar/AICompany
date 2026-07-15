@@ -35,6 +35,8 @@ export interface UpdateFormDto {
   showProgressBar?: boolean;
   powerAutomateFlowId?: string | null;
   confirmationMessage?: string | null;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
   confirmationRecordRefAttribute?: string | null;
   accessGroupId?: string | null;
 }
@@ -109,6 +111,12 @@ export class FormDefinitionService {
     }
     if (dto.confirmationMessage !== undefined) {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE] = dto.confirmationMessage;
+    }
+    if (dto.submitConfirmationLabel !== undefined) {
+      data[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL] = dto.submitConfirmationLabel;
+    }
+    if (dto.submitConfirmationMessage !== undefined) {
+      data[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE] = dto.submitConfirmationMessage;
     }
     if (dto.confirmationRecordRefAttribute !== undefined) {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE] = dto.confirmationRecordRefAttribute;
@@ -276,6 +284,12 @@ export class FormDefinitionService {
         : null,
       confirmationMessage: record[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE]
         ? String(record[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE])
+        : null,
+      submitConfirmationLabel: record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL]
+        ? String(record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL])
+        : null,
+      submitConfirmationMessage: record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE]
+        ? String(record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE])
         : null,
       confirmationRecordRefAttribute: record[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE]
         ? String(record[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE])

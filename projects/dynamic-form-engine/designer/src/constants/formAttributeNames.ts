@@ -17,6 +17,9 @@ export const FORM_DEFINITION_ATTRS = {
   SHOW_PROGRESS_BAR: 'qdb_show_progress_bar',        // DFE-FBE-002
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate (label present ⇒ gate active).
+  SUBMIT_CONFIRMATION_LABEL: 'qdb_submit_confirmation_label',
+  SUBMIT_CONFIRMATION_MESSAGE: 'qdb_submit_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
   ACCESS_GROUP_ID: 'qdb_access_group_id',
   CREATED_BY: 'createdby',
