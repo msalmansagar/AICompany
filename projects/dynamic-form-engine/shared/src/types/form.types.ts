@@ -369,9 +369,20 @@ export interface SubmissionMapping {
 
 // ── Field definition ──────────────────────────────────────────
 
+// DFE-TABZONE-001: where a field is placed within its tab. 'body' (default) keeps
+// the field inside a section exactly as before; 'header'/'footer' place it directly
+// in the tab's header/footer zone with the section reference optional.
+export type FieldPlacement = 'header' | 'footer' | 'body';
+
 export interface FieldDefinition {
   id: string;
+  // Section this field belongs to. Empty string for header/footer-placed fields
+  // that target a tab directly (see placement/tabId).
   sectionId: string;
+  // DFE-TABZONE-001: tab this field targets when placement is 'header'/'footer'.
+  tabId?: string;
+  // DFE-TABZONE-001: placement zone within the tab. Absent ⇒ 'body' (legacy).
+  placement?: FieldPlacement;
   fieldType: FieldType;
   schemaName: string;              // logical name used as form field key
   label: string;
@@ -482,6 +493,10 @@ export interface TabDefinition {
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
+  // DFE-TABZONE-001: fields placed directly in the tab header/footer zones
+  // (additive; default [] for existing forms). Body fields stay in section.fields.
+  headerFields?: FieldDefinition[];
+  footerFields?: FieldDefinition[];
 }
 
 // ── Form version ──────────────────────────────────────────────
@@ -599,6 +614,12 @@ export interface GridSchemaHashResult {
 
 // ── Form definition (root) ────────────────────────────────────
 
+// DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+export interface SubmitConfirmationConfig {
+  checkboxLabel: string;           // label shown next to the acknowledgement checkbox
+  dialogMessage?: string;          // body text of the confirmation dialog
+}
+
 export interface FormDefinition {
   id: string;
   formCode: string;                // URL-safe identifier, e.g. 'loan-application'
@@ -629,6 +650,9 @@ export interface FormDefinition {
   // DFE-FBE-002: show a form-completion progress bar above the tab strip (default off).
   showProgressBar?: boolean;
   submissionMappings: SubmissionMapping[];
+  // DFE-SUBMITCONFIRM-001: when set, the final step shows an acknowledgement checkbox;
+  // ticking it opens a confirmation dialog and enables Submit. Absent ⇒ no gate (legacy).
+  submitConfirmation?: SubmitConfirmationConfig;
   buttons: FormButton[];
   tabs: TabDefinition[];
   // DFE-DESIGN: optional design payload embedded by the backend on the form definition response.

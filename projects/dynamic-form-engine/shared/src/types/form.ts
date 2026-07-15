@@ -123,11 +123,19 @@ export interface InfoCardScreen {
   sections: InfoCardSection[];
 }
 
+// DFE-TABZONE-001: placement zone within a tab. 'body' (default) keeps the field
+// inside a section; 'header'/'footer' place it directly in the tab zone.
+export type FieldPlacement = 'header' | 'footer' | 'body';
+
 export interface FieldDefinition {
   fieldId: string;
   fieldKey: string;
   fieldType: FieldType;
   displayLabel: string;
+  // DFE-TABZONE-001: tab targeted when placement is 'header'/'footer'.
+  tabId?: string;
+  // DFE-TABZONE-001: placement zone within the tab. Absent ⇒ 'body' (legacy).
+  placement?: FieldPlacement;
   placeholder?: string;
   prefix?: string;
   suffix?: string;
@@ -197,6 +205,10 @@ export interface TabDefinition {
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
+  // DFE-TABZONE-001: fields placed directly in the tab header/footer zones
+  // (additive; default [] for existing forms). Body fields stay in section.fields.
+  headerFields?: FieldDefinition[];
+  footerFields?: FieldDefinition[];
 }
 
 export type ButtonAction = 'submit' | 'saveDraft' | 'cancel' | 'reset';
@@ -332,6 +344,12 @@ export interface SubmissionMapping {
   fieldMappings: Record<string, string>;
 }
 
+// DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+export interface SubmitConfirmationConfig {
+  checkboxLabel: string;
+  dialogMessage?: string;
+}
+
 export interface FormDefinition {
   formId: string;
   formCode: string;
@@ -349,6 +367,8 @@ export interface FormDefinition {
   buttons: FormButton[];
   businessRules: BusinessRule[];
   submissionMappings: SubmissionMapping[];
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate on the final step (absent ⇒ no gate).
+  submitConfirmation?: SubmitConfirmationConfig;
   infoCards: InfoCardScreen[];
   allowInfocardSkip: boolean;
   infocardBackLabel?: string;
