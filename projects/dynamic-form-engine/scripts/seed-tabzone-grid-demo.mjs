@@ -2,8 +2,8 @@
  * Seeds a Dataverse demo form (org5869857f) for the new features:
  *   - fields placed in the tab HEADER and FOOTER zones (DFE-TABZONE-001)
  *   - an entry grid with a DOCUMENT-UPLOAD column (DFE-GRIDFILE)
- * NOTE: the submit-confirmation gate has no Dataverse backing yet (frontend/mock
- * only), so it is not part of this seed.
+ *   - a manual SUBMIT-CONFIRMATION gate (DFE-SUBMITCONFIRM-001)
+ * Re-running on an already-seeded form just adds/refreshes the gate columns.
  *
  * Run: node scripts/seed-tabzone-grid-demo.mjs   (requires DV_CLIENT_SECRET)
  */
@@ -38,6 +38,16 @@ async function get(token, path) {
   if (!res.ok) throw new Error(`GET ${path} → ${res.status}: ${j.error?.message}`);
   return j;
 }
+async function patch(token, path, body) {
+  const res = await fetch(`${API_BASE}/${path}`, { method: 'PATCH', headers: h(token), body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`PATCH ${path} → ${res.status}: ${(await res.json().catch(() => ({}))).error?.message}`);
+}
+
+// DFE-SUBMITCONFIRM-001: acknowledgement gate columns on the form definition.
+const SUBMIT_CONFIRMATION = {
+  qdb_submit_confirmation_label: 'I confirm the information above is accurate and complete',
+  qdb_submit_confirmation_message: 'You are about to submit this application. Do you want to continue?',
+};
 
 // Picklist codes (from CrmMetadataService + provision-tabzone-schema).
 const FT = { text: 100000001, number: 100000003, interactiveGrid: 100000021 };
@@ -54,7 +64,10 @@ async function main() {
 
   const existing = await get(t, `qdb_form_definitions?$filter=qdb_form_code eq '${FORM_CODE}' and statecode eq 0&$select=qdb_form_definitionid&$top=1`);
   if (existing.value?.length) {
-    console.log(`\n⚠  Already exists (${existing.value[0].qdb_form_definitionid}). Delete it first to re-seed.\n`);
+    // Already seeded (tabs/sections/fields) — just add/refresh the submit-confirmation gate.
+    const id = existing.value[0].qdb_form_definitionid;
+    await patch(t, `qdb_form_definitions(${id})`, SUBMIT_CONFIRMATION);
+    console.log(`\n✓ Form already existed (${id}) — added submit-confirmation gate columns.\n`);
     process.exit(0);
   }
 
@@ -74,6 +87,7 @@ async function main() {
     qdb_allow_save_draft: false,
     qdb_confirmation_message: 'Your application has been submitted.',
     qdb_allow_infocard_skip: false,
+    ...SUBMIT_CONFIRMATION,
   });
   const fid = form.qdb_form_definitionid;
   console.log(`[1] Form: ${fid}`);
