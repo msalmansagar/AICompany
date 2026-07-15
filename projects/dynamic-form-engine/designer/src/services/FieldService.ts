@@ -6,6 +6,8 @@ import {
   PICKLIST_TO_FIELD_TYPE,
   COLUMN_SPAN_TO_PICKLIST,
   PICKLIST_TO_COLUMN_SPAN,
+  PLACEMENT_TO_PICKLIST,
+  PICKLIST_TO_PLACEMENT,
   BOOL_RENDER_STYLE_TO_PICKLIST,
   PICKLIST_TO_BOOL_RENDER_STYLE,
   INFO_CARD_STYLE_TO_PICKLIST,
@@ -31,6 +33,9 @@ export interface CreateFieldDto {
   defaultValue: string | null;
   sortOrder: number;
   columnSpan: 1 | 2 | 3;
+  // DFE-TABZONE-001 — tab header/footer placement (tabId set for header/footer).
+  placement?: 'header' | 'footer' | 'body' | null;
+  tabId?: string | null;
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   maxRows?: number | null;
@@ -79,6 +84,9 @@ export interface UpdateFieldDto {
   defaultValue?: string | null;
   sortOrder?: number;
   columnSpan?: 1 | 2 | 3;
+  // DFE-TABZONE-001 — tab header/footer placement (tabId set for header/footer).
+  placement?: 'header' | 'footer' | 'body' | null;
+  tabId?: string | null;
   currencyCode?: string | null;
   decimalPlaces?: number | null;
   maxRows?: number | null;
@@ -137,6 +145,8 @@ export class FieldService {
       [FORM_FIELD_ATTRS.COLUMN_SPAN]: columnSpanCode,
     };
 
+    if (dto.placement != null) payload[FORM_FIELD_ATTRS.PLACEMENT] = PLACEMENT_TO_PICKLIST[dto.placement] ?? PLACEMENT_TO_PICKLIST.body;
+    if (dto.tabId) payload[`${FORM_FIELD_ATTRS.TAB_ID}@odata.bind`] = `/qdb_form_tabs(${dto.tabId})`;
     if (dto.defaultValue != null) payload[FORM_FIELD_ATTRS.DEFAULT_VALUE] = dto.defaultValue;
     if (dto.currencyCode != null) payload[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
@@ -190,6 +200,8 @@ export class FieldService {
     if (dto.columnSpan !== undefined) {
       data[FORM_FIELD_ATTRS.COLUMN_SPAN] = COLUMN_SPAN_TO_PICKLIST[dto.columnSpan] ?? COLUMN_SPAN_TO_PICKLIST[1];
     }
+    if (dto.placement !== undefined) data[FORM_FIELD_ATTRS.PLACEMENT] = dto.placement != null ? PLACEMENT_TO_PICKLIST[dto.placement] : PLACEMENT_TO_PICKLIST.body;
+    if (dto.tabId) data[`${FORM_FIELD_ATTRS.TAB_ID}@odata.bind`] = `/qdb_form_tabs(${dto.tabId})`;
     if (dto.currencyCode !== undefined) data[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
@@ -260,6 +272,8 @@ export class FieldService {
 
     // Extended columns added in Sprint 4/5 — only available after schema deployment.
     const EXTENDED_SELECT = [
+      FORM_FIELD_ATTRS.PLACEMENT,
+      FORM_FIELD_ATTRS.TAB_ID_VALUE,
       FORM_FIELD_ATTRS.BOOL_RENDER_STYLE,
       FORM_FIELD_ATTRS.TRUE_LABEL,
       FORM_FIELD_ATTRS.FALSE_LABEL,
@@ -324,6 +338,11 @@ export class FieldService {
     return {
       id: String(record[FORM_FIELD_ATTRS.ID] ?? ''),
       sectionId: String(record[FORM_FIELD_ATTRS.SECTION_ID_VALUE] ?? ''),
+      // DFE-TABZONE-001 — placement/tab (default body; legacy records have no code).
+      placement: PICKLIST_TO_PLACEMENT[Number(record[FORM_FIELD_ATTRS.PLACEMENT])] ?? 'body',
+      tabId: record[FORM_FIELD_ATTRS.TAB_ID_VALUE]
+        ? String(record[FORM_FIELD_ATTRS.TAB_ID_VALUE])
+        : null,
       label: String(record[FORM_FIELD_ATTRS.LABEL] ?? ''),
       code: String(record[FORM_FIELD_ATTRS.CODE] ?? ''),
       fieldType,

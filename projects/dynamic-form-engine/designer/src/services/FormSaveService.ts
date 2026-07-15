@@ -22,6 +22,18 @@ function resolveRealId(id: string, resolvedIds: Record<string, string>): string 
   return resolvedIds[id] ?? id;
 }
 
+// DFE-TABZONE-001: a header/footer field targets the tab that owns its section
+// (temp ids resolved to real). Body fields have no zone tab.
+function resolveZoneTabId(
+  field: { placement?: 'header' | 'footer' | 'body'; tabId?: string | null; sectionId: string },
+  sections: Record<string, { tabId: string }>,
+  resolvedIds: Record<string, string>,
+): string | null {
+  if (!field.placement || field.placement === 'body') return null;
+  const rawTabId = field.tabId ?? sections[field.sectionId]?.tabId;
+  return rawTabId ? resolveRealId(rawTabId, resolvedIds) : null;
+}
+
 /** True when the (resolved) id refers to a persisted, non-deleted record. */
 function isPersistableId(id: string, resolvedIds: Record<string, string>, deleted: Set<string>): boolean {
   return !deleted.has(id) && !resolveRealId(id, resolvedIds).startsWith('tmp_');
@@ -175,6 +187,9 @@ export class FormSaveService {
           defaultValue: field.defaultValue,
           sortOrder: field.sortOrder,
           columnSpan: field.columnSpan,
+          // DFE-TABZONE-001: header/footer placement + the tab whose zone it renders in.
+          placement: field.placement ?? 'body',
+          tabId: resolveZoneTabId(field, sections, resolvedIds),
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
@@ -282,6 +297,9 @@ export class FormSaveService {
           defaultValue: field.defaultValue,
           sortOrder: field.sortOrder,
           columnSpan: field.columnSpan,
+          // DFE-TABZONE-001: header/footer placement + the tab whose zone it renders in.
+          placement: field.placement ?? 'body',
+          tabId: resolveZoneTabId(field, sections, resolvedIds),
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,

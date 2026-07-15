@@ -101,6 +101,10 @@ export interface DesignerFieldModel {
   /** CRM GUID or 'tmp_field_<timestamp>' */
   id: string;
   sectionId: string;
+  // DFE-TABZONE-001 — tab header/footer placement. Absent/body ⇒ renders in the
+  // section body (legacy). Header/Footer render in the tab zone; tabId targets the tab.
+  placement?: 'header' | 'footer' | 'body';
+  tabId?: string | null;
   label: string;
   code: string;
   fieldType: string;

@@ -111,6 +111,10 @@ export const FORM_FIELD_ATTRS = {
   MAX_ROWS: 'qdb_max_rows',
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
+  // DFE-TABZONE-001 — tab header/footer placement
+  PLACEMENT: 'qdb_placement',                      // Picklist — see PLACEMENT_TO_PICKLIST
+  TAB_ID: 'qdb_form_tab_id',                        // use for create/update (header/footer)
+  TAB_ID_VALUE: '_qdb_form_tab_id_value',           // use for $select and read
   PARENT_FIELD_ID: 'qdb_parent_field_id',
   PARENT_FIELD_ID_VALUE: '_qdb_parent_field_id_value',
   // Sprint 3 — custom field type
@@ -147,6 +151,19 @@ export const FORM_FIELD_ATTRS = {
   GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
   GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
 } as const;
+
+// DFE-TABZONE-001 — qdb_placement optionset codes.
+export const PLACEMENT_TO_PICKLIST: Record<string, number> = {
+  header: 100000000,
+  footer: 100000001,
+  body: 100000002,
+};
+
+export const PICKLIST_TO_PLACEMENT: Record<number, 'header' | 'footer' | 'body'> = {
+  100000000: 'header',
+  100000001: 'footer',
+  100000002: 'body',
+};
 
 // Picklist codes for qdb_field_type
 export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
