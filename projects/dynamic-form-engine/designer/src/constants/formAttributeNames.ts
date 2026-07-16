@@ -153,6 +153,12 @@ export const FORM_FIELD_ATTRS = {
   GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
   GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
   GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
+  // DFE-GRIDSRC-001: grid data source + display config
+  GRID_DATA_SOURCE: 'qdb_grid_data_source',
+  GRID_JSON_DATA: 'qdb_grid_json_data',
+  GRID_DISPLAY_MODE: 'qdb_grid_display_mode',
+  GRID_SELECTABLE: 'qdb_grid_selectable',
+  GRID_CARD_ICON: 'qdb_grid_card_icon',
 } as const;
 
 // DFE-TABZONE-001 — qdb_placement optionset codes.

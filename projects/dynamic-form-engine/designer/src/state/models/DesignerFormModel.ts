@@ -160,5 +160,11 @@ export interface DesignerFieldModel {
   gridFilterExpression: string | null;
   gridDependsOnFieldId: string | null;
   gridDependsOnFilterTemplate: string | null;
+  // DFE-GRIDSRC-001: data source + display config for selection/display grids.
+  gridDataSource?: 'entity' | 'json' | null;
+  gridJsonData?: string | null;
+  gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridSelectable?: boolean | null;
+  gridCardIcon?: string | null;
   gridColumns: DesignerGridColumnConfig[];
 }

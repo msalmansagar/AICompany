@@ -5,7 +5,9 @@ import {
   Divider,
   Field,
   Input,
+  Switch,
   Text,
+  Textarea,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -40,6 +42,11 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
 
   const mode = field.gridMode ?? 'selection';
   const selectionMode = field.gridSelectionMode ?? 'single';
+  // DFE-GRIDSRC-001: data source (Dataverse entity vs static JSON), display mode,
+  // and interactivity for selection/display grids.
+  const dataSource = field.gridDataSource ?? 'entity';
+  const displayMode = field.gridDisplayMode ?? 'columns';
+  const selectable = field.gridSelectable !== false;
 
   const handleModeChange = useCallback(
     (m: 'selection' | 'entry') => { updateField(field.id, { gridMode: m }); },
@@ -81,107 +88,194 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
         </div>
       </Field>
 
-      {/* Entity name — both modes */}
-      <Field
-        label="Target Entity"
-        hint="Dataverse entity logical name"
-        required
-      >
-        <Input
-          value={field.gridEntityName ?? ''}
-          placeholder="e.g. account"
-          onChange={(_, d) => updateField(field.id, { gridEntityName: d.value || null })}
-          style={{ fontFamily: 'monospace' }}
-        />
-      </Field>
+      {/* Entity name — entry mode, or selection with a Dataverse data source */}
+      {(mode === 'entry' || dataSource === 'entity') && (
+        <Field
+          label="Target Entity"
+          hint="Dataverse entity logical name"
+          required
+        >
+          <Input
+            value={field.gridEntityName ?? ''}
+            placeholder="e.g. account"
+            onChange={(_, d) => updateField(field.id, { gridEntityName: d.value || null })}
+            style={{ fontFamily: 'monospace' }}
+          />
+        </Field>
+      )}
 
-      {/* Selection mode config */}
+      {/* Selection / display config */}
       {mode === 'selection' && (
         <>
-          <Field label="Selection Mode">
-            <div className={styles.selectionRow}>
+          {/* DFE-GRIDSRC-001: data source */}
+          <Field label="Data Source">
+            <div className={styles.modeRow}>
               <Button
-                className={styles.selectionButton}
-                appearance={selectionMode === 'single' ? 'primary' : 'outline'}
+                className={styles.modeButton}
+                appearance={dataSource === 'entity' ? 'primary' : 'outline'}
                 size="small"
-                onClick={() => handleSelectionModeChange('single')}
-                aria-pressed={selectionMode === 'single'}
+                onClick={() => updateField(field.id, { gridDataSource: 'entity' })}
+                aria-pressed={dataSource === 'entity'}
               >
-                Single
+                Entity
               </Button>
               <Button
-                className={styles.selectionButton}
-                appearance={selectionMode === 'multi' ? 'primary' : 'outline'}
+                className={styles.modeButton}
+                appearance={dataSource === 'json' ? 'primary' : 'outline'}
                 size="small"
-                onClick={() => handleSelectionModeChange('multi')}
-                aria-pressed={selectionMode === 'multi'}
+                onClick={() => updateField(field.id, { gridDataSource: 'json' })}
+                aria-pressed={dataSource === 'json'}
               >
-                Multi
+                JSON
               </Button>
             </div>
           </Field>
 
-          <Field
-            label="Saved View ID"
-            hint="System View GUID to drive columns and filter (optional)"
-          >
-            <Input
-              value={field.gridSavedViewId ?? ''}
-              placeholder="e.g. 00000000-0000-0000-0000-000000000000"
-              onChange={(_, d) => updateField(field.id, { gridSavedViewId: d.value || null })}
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+          {dataSource === 'json' && (
+            <Field label="JSON Data" hint="A JSON array of row objects; keys map to the column attributes below.">
+              <Textarea
+                value={field.gridJsonData ?? ''}
+                placeholder={'[{"name":"Alice","role":"Engineer"}]'}
+                onChange={(_, d) => updateField(field.id, { gridJsonData: d.value || null })}
+                rows={5}
+                style={{ fontFamily: 'monospace', fontSize: '12px' }}
+              />
+            </Field>
+          )}
+
+          {/* DFE-GRIDSRC-001: display mode */}
+          <Field label="Display As">
+            <div className={styles.modeRow}>
+              <Button
+                className={styles.modeButton}
+                appearance={displayMode === 'columns' ? 'primary' : 'outline'}
+                size="small"
+                onClick={() => updateField(field.id, { gridDisplayMode: 'columns' })}
+                aria-pressed={displayMode === 'columns'}
+              >
+                Columns
+              </Button>
+              <Button
+                className={styles.modeButton}
+                appearance={displayMode === 'infocard' ? 'primary' : 'outline'}
+                size="small"
+                onClick={() => updateField(field.id, { gridDisplayMode: 'infocard' })}
+                aria-pressed={displayMode === 'infocard'}
+              >
+                InfoCard
+              </Button>
+            </div>
+          </Field>
+
+          {displayMode === 'infocard' && (
+            <Field label="Card Icon" hint="Fluent icon name shown on each card (optional), e.g. PersonRegular">
+              <Input
+                value={field.gridCardIcon ?? ''}
+                placeholder="e.g. PersonRegular"
+                onChange={(_, d) => updateField(field.id, { gridCardIcon: d.value || null })}
+                style={{ fontFamily: 'monospace' }}
+              />
+            </Field>
+          )}
+
+          <Field label="Selectable" hint="Off = read-only display (no row selection).">
+            <Switch
+              checked={selectable}
+              onChange={(_, d) => updateField(field.id, { gridSelectable: d.checked })}
             />
           </Field>
 
-          <Field
-            label="Filter Expression"
-            hint="OData/FetchXML filter applied server-side (optional)"
-          >
-            <Input
-              value={field.gridFilterExpression ?? ''}
-              placeholder="e.g. statuscode eq 1"
-              onChange={(_, d) => updateField(field.id, { gridFilterExpression: d.value || null })}
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-            />
-          </Field>
+          {selectable && (
+            <Field label="Selection Mode">
+              <div className={styles.selectionRow}>
+                <Button
+                  className={styles.selectionButton}
+                  appearance={selectionMode === 'single' ? 'primary' : 'outline'}
+                  size="small"
+                  onClick={() => handleSelectionModeChange('single')}
+                  aria-pressed={selectionMode === 'single'}
+                >
+                  Single
+                </Button>
+                <Button
+                  className={styles.selectionButton}
+                  appearance={selectionMode === 'multi' ? 'primary' : 'outline'}
+                  size="small"
+                  onClick={() => handleSelectionModeChange('multi')}
+                  aria-pressed={selectionMode === 'multi'}
+                >
+                  Multi
+                </Button>
+              </div>
+            </Field>
+          )}
 
-          <Field label="Max Rows" hint="Row cap enforced server-side">
-            <Input
-              type="number"
-              value={field.maxRows != null ? String(field.maxRows) : ''}
-              placeholder="200"
-              onChange={(_, d) =>
-                updateField(field.id, { maxRows: d.value ? parseInt(d.value, 10) : null })
-              }
-            />
-          </Field>
+          {/* Entity-source-only settings */}
+          {dataSource === 'entity' && (
+            <>
+              <Field
+                label="Saved View ID"
+                hint="System View GUID to drive columns and filter (optional)"
+              >
+                <Input
+                  value={field.gridSavedViewId ?? ''}
+                  placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+                  onChange={(_, d) => updateField(field.id, { gridSavedViewId: d.value || null })}
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
+              </Field>
 
-          <Divider />
-          <Text className={styles.sectionLabel}>Dynamic Filtering (optional)</Text>
+              <Field
+                label="Filter Expression"
+                hint="OData/FetchXML filter applied server-side (optional)"
+              >
+                <Input
+                  value={field.gridFilterExpression ?? ''}
+                  placeholder="e.g. statuscode eq 1"
+                  onChange={(_, d) => updateField(field.id, { gridFilterExpression: d.value || null })}
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
+              </Field>
 
-          <Field
-            label="Depends On Field"
-            hint="Field code of the controlling field"
-          >
-            <Input
-              value={field.gridDependsOnFieldId ?? ''}
-              placeholder="e.g. cs_filter_status"
-              onChange={(_, d) => updateField(field.id, { gridDependsOnFieldId: d.value || null })}
-              style={{ fontFamily: 'monospace' }}
-            />
-          </Field>
+              <Field label="Max Rows" hint="Row cap enforced server-side">
+                <Input
+                  type="number"
+                  value={field.maxRows != null ? String(field.maxRows) : ''}
+                  placeholder="200"
+                  onChange={(_, d) =>
+                    updateField(field.id, { maxRows: d.value ? parseInt(d.value, 10) : null })
+                  }
+                />
+              </Field>
 
-          <Field
-            label="Filter Template"
-            hint="FetchXML template — use {value} for the controlling field value"
-          >
-            <Input
-              value={field.gridDependsOnFilterTemplate ?? ''}
-              placeholder="e.g. <condition attribute='statuscode' value='{value}' />"
-              onChange={(_, d) => updateField(field.id, { gridDependsOnFilterTemplate: d.value || null })}
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-            />
-          </Field>
+              <Divider />
+              <Text className={styles.sectionLabel}>Dynamic Filtering (optional)</Text>
+
+              <Field
+                label="Depends On Field"
+                hint="Field code of the controlling field"
+              >
+                <Input
+                  value={field.gridDependsOnFieldId ?? ''}
+                  placeholder="e.g. cs_filter_status"
+                  onChange={(_, d) => updateField(field.id, { gridDependsOnFieldId: d.value || null })}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+
+              <Field
+                label="Filter Template"
+                hint="FetchXML template — use {value} for the controlling field value"
+              >
+                <Input
+                  value={field.gridDependsOnFilterTemplate ?? ''}
+                  placeholder="e.g. <condition attribute='statuscode' value='{value}' />"
+                  onChange={(_, d) => updateField(field.id, { gridDependsOnFilterTemplate: d.value || null })}
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
+              </Field>
+            </>
+          )}
         </>
       )}
 

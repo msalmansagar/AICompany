@@ -71,6 +71,12 @@ export interface CreateFieldDto {
   gridFilterExpression?: string | null;
   gridDependsOnFieldId?: string | null;
   gridDependsOnFilterTemplate?: string | null;
+  // DFE-GRIDSRC-001: grid data source + display config
+  gridDataSource?: 'entity' | 'json' | null;
+  gridJsonData?: string | null;
+  gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridSelectable?: boolean | null;
+  gridCardIcon?: string | null;
 }
 
 export interface UpdateFieldDto {
@@ -122,6 +128,12 @@ export interface UpdateFieldDto {
   gridFilterExpression?: string | null;
   gridDependsOnFieldId?: string | null;
   gridDependsOnFilterTemplate?: string | null;
+  // DFE-GRIDSRC-001: grid data source + display config
+  gridDataSource?: 'entity' | 'json' | null;
+  gridJsonData?: string | null;
+  gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridSelectable?: boolean | null;
+  gridCardIcon?: string | null;
 }
 
 export class FieldService {
@@ -178,6 +190,11 @@ export class FieldService {
     if (dto.gridFilterExpression != null) payload[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] = dto.gridFilterExpression;
     if (dto.gridDependsOnFieldId != null) payload[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] = dto.gridDependsOnFieldId;
     if (dto.gridDependsOnFilterTemplate != null) payload[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] = dto.gridDependsOnFilterTemplate;
+    if (dto.gridDataSource != null) payload[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource;
+    if (dto.gridJsonData != null) payload[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData;
+    if (dto.gridDisplayMode != null) payload[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode;
+    if (dto.gridSelectable != null) payload[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable;
+    if (dto.gridCardIcon != null) payload[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -232,6 +249,11 @@ export class FieldService {
     if (dto.gridFilterExpression !== undefined) data[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] = dto.gridFilterExpression ?? null;
     if (dto.gridDependsOnFieldId !== undefined) data[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] = dto.gridDependsOnFieldId ?? null;
     if (dto.gridDependsOnFilterTemplate !== undefined) data[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] = dto.gridDependsOnFilterTemplate ?? null;
+    if (dto.gridDataSource !== undefined) data[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource ?? null;
+    if (dto.gridJsonData !== undefined) data[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData ?? null;
+    if (dto.gridDisplayMode !== undefined) data[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode ?? null;
+    if (dto.gridSelectable !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable ?? null;
+    if (dto.gridCardIcon !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -300,6 +322,11 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE,
+      FORM_FIELD_ATTRS.GRID_DATA_SOURCE,
+      FORM_FIELD_ATTRS.GRID_JSON_DATA,
+      FORM_FIELD_ATTRS.GRID_DISPLAY_MODE,
+      FORM_FIELD_ATTRS.GRID_SELECTABLE,
+      FORM_FIELD_ATTRS.GRID_CARD_ICON,
     ];
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -404,6 +431,11 @@ export class FieldService {
       gridFilterExpression: record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] != null ? String(record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION]) : null,
       gridDependsOnFieldId: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD]) : null,
       gridDependsOnFilterTemplate: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE]) : null,
+      gridDataSource: (record[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] as 'entity' | 'json' | undefined) ?? null,
+      gridJsonData: record[FORM_FIELD_ATTRS.GRID_JSON_DATA] != null ? String(record[FORM_FIELD_ATTRS.GRID_JSON_DATA]) : null,
+      gridDisplayMode: (record[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] as 'columns' | 'infocard' | undefined) ?? null,
+      gridSelectable: record[FORM_FIELD_ATTRS.GRID_SELECTABLE] != null ? Boolean(record[FORM_FIELD_ATTRS.GRID_SELECTABLE]) : null,
+      gridCardIcon: record[FORM_FIELD_ATTRS.GRID_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.GRID_CARD_ICON]) : null,
       gridColumns: [],
     };
   }

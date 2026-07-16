@@ -212,6 +212,11 @@ export class FormSaveService {
           gridFilterExpression: field.gridFilterExpression,
           gridDependsOnFieldId: field.gridDependsOnFieldId,
           gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
+          gridDataSource: field.gridDataSource,
+          gridJsonData: field.gridJsonData,
+          gridDisplayMode: field.gridDisplayMode,
+          gridSelectable: field.gridSelectable,
+          gridCardIcon: field.gridCardIcon,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -322,6 +327,11 @@ export class FormSaveService {
           gridFilterExpression: field.gridFilterExpression,
           gridDependsOnFieldId: field.gridDependsOnFieldId,
           gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
+          gridDataSource: field.gridDataSource,
+          gridJsonData: field.gridJsonData,
+          gridDisplayMode: field.gridDisplayMode,
+          gridSelectable: field.gridSelectable,
+          gridCardIcon: field.gridCardIcon,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
