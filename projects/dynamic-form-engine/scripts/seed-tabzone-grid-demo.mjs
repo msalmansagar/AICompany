@@ -78,7 +78,7 @@ async function seedJsonGrid(t, tabId) {
     qdb_is_required: false, qdb_is_readonly: false, qdb_is_hidden: false,
     qdb_grid_mode: GRID_SELECTION,
     qdb_grid_data_source: 'json', qdb_grid_json_data: TEAM_JSON,
-    qdb_grid_display_mode: 'infocard', qdb_grid_selectable: false, qdb_grid_card_icon: 'PersonRegular',
+    qdb_grid_display_mode: 'infocard', qdb_grid_card_layout: 'row', qdb_grid_selectable: false, qdb_grid_card_icon: 'PersonRegular',
   });
   const gid = grid.qdb_form_fieldid;
   const col = (name, l, a, o) => post(t, 'qdb_grid_column_configs', {
@@ -107,8 +107,16 @@ async function main() {
     const firstTabId = tabs.value?.[0]?.qdb_form_tabid;
     if (firstTabId) {
       const secs = await get(t, `qdb_form_sections?$filter=_qdb_form_tab_id_value eq ${firstTabId} and qdb_label eq 'Team Directory'&$select=qdb_form_sectionid&$top=1`);
-      if (secs.value?.length) console.log('  ↷ Team Directory grid already present');
-      else await seedJsonGrid(t, firstTabId);
+      if (secs.value?.length) {
+        // Refresh the JSON grid's card layout on an already-seeded form.
+        const tf = await get(t, `qdb_form_fields?$filter=qdb_schema_name eq 'qdb_team'&$select=qdb_form_fieldid&$top=1`);
+        if (tf.value?.length) {
+          await patch(t, `qdb_form_fields(${tf.value[0].qdb_form_fieldid})`, { qdb_grid_card_layout: 'row' });
+          console.log('  ✓ Team Directory grid — card layout set to Row');
+        }
+      } else {
+        await seedJsonGrid(t, firstTabId);
+      }
     }
     console.log('\nDone.\n');
     process.exit(0);

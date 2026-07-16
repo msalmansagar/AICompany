@@ -130,7 +130,7 @@ const FORM = {
               displayOrder: 1, columnSpan: 4,
               gridConfig: {
                 gridMode: 'selection', mode: 'selection',
-                dataSource: 'json', displayMode: 'infocard', selectable: false, cardIconName: 'PersonRegular',
+                dataSource: 'json', displayMode: 'infocard', cardLayout: 'row', selectable: false, cardIconName: 'PersonRegular',
                 jsonData: JSON.stringify([
                   { id: 't1', name: 'Alice Rahman', role: 'Lead Engineer', email: 'alice@qdb.qa' },
                   { id: 't2', name: 'Omar Farouk', role: 'Product Designer', email: 'omar@qdb.qa' },

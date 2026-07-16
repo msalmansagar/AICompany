@@ -51,6 +51,7 @@ async function run() {
   await addAttribute(token, 'qdb_grid_data_source', stringAttr('qdb_grid_data_source', 'Grid Data Source', 20));
   await addAttribute(token, 'qdb_grid_json_data', memoAttr('qdb_grid_json_data', 'Grid JSON Data', 100000));
   await addAttribute(token, 'qdb_grid_display_mode', stringAttr('qdb_grid_display_mode', 'Grid Display Mode', 20));
+  await addAttribute(token, 'qdb_grid_card_layout', stringAttr('qdb_grid_card_layout', 'Grid Card Layout', 20));
   await addAttribute(token, 'qdb_grid_selectable', boolAttr('qdb_grid_selectable', 'Grid Selectable'));
   await addAttribute(token, 'qdb_grid_card_icon', stringAttr('qdb_grid_card_icon', 'Grid Card Icon', 100));
   console.log(`${'─'.repeat(56)}\nqdb_form_field grid data-source columns ensured.`);
