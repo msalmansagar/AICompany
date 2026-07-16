@@ -469,6 +469,7 @@ export class CrmMetadataService extends CrmBaseService {
         dataSource: field.qdb_grid_data_source === 'json' ? ('json' as const) : undefined,
         jsonData: field.qdb_grid_json_data ?? undefined,
         displayMode: field.qdb_grid_display_mode === 'infocard' ? ('infocard' as const) : undefined,
+        cardLayout: field.qdb_grid_card_layout === 'row' ? ('row' as const) : undefined,
         selectable: field.qdb_grid_selectable ?? undefined,
         cardIconName: field.qdb_grid_card_icon ?? undefined,
       } : undefined,
@@ -1204,6 +1205,7 @@ interface RawField {
   qdb_grid_data_source?: string;
   qdb_grid_json_data?: string;
   qdb_grid_display_mode?: string;
+  qdb_grid_card_layout?: string;
   qdb_grid_selectable?: boolean;
   qdb_grid_card_icon?: string;
 }

@@ -215,6 +215,7 @@ export class FormSaveService {
           gridDataSource: field.gridDataSource,
           gridJsonData: field.gridJsonData,
           gridDisplayMode: field.gridDisplayMode,
+          gridCardLayout: field.gridCardLayout,
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
         });
@@ -330,6 +331,7 @@ export class FormSaveService {
           gridDataSource: field.gridDataSource,
           gridJsonData: field.gridJsonData,
           gridDisplayMode: field.gridDisplayMode,
+          gridCardLayout: field.gridCardLayout,
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
         });

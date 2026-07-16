@@ -36,6 +36,7 @@ export type GridMode = 'selection' | 'entry';
 // DFE-GRIDSRC-001: grid data source + display configuration.
 export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
+export type GridCardLayout = 'grid' | 'row';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
@@ -64,6 +65,7 @@ export interface GridFieldConfig {
   dataSource?: GridDataSource;     // default 'entity'. 'json' = static jsonData.
   jsonData?: string;               // static JSON array when dataSource === 'json'
   displayMode?: GridDisplayMode;   // default 'columns'. 'infocard' = rich card per row.
+  cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
   // Backend pre-filters to visible columns only; absent if no column configs are defined.

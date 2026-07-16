@@ -91,6 +91,13 @@ describe('SelectionGridField JSON data source (DFE-GRIDSRC-001)', () => {
     expect(screen.getAllByRole('option').length).toBe(2);
   });
 
+  it('renders info cards as horizontal rows when cardLayout is row', () => {
+    renderGrid(jsonGridField({ displayMode: 'infocard', cardLayout: 'row' }));
+    // Row layout renders inline "Label:" prefixes (one per row).
+    expect(screen.getAllByText('Role:').length).toBe(2);
+    expect(screen.getByText('Alice')).toBeTruthy();
+  });
+
   it('falls back to empty for invalid JSON without crashing', () => {
     renderGrid(jsonGridField({ jsonData: 'not json' }));
     expect(screen.getByText(/no records found/i)).toBeTruthy();

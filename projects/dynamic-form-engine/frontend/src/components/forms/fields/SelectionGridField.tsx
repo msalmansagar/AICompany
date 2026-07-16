@@ -174,6 +174,40 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground1,
     wordBreak: 'break-word',
   },
+  // DFE-GRIDSRC-001: row (list-style) info-card layout — full-width horizontal cards.
+  cardList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: tokens.spacingVerticalS,
+  },
+  cardItemRow: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalM,
+    width: '100%',
+    boxSizing: 'border-box',
+  },
+  cardRowBody: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexWrap: 'wrap',
+    columnGap: tokens.spacingHorizontalL,
+    rowGap: tokens.spacingVerticalXXS,
+  },
+  cardRowField: {
+    display: 'inline-flex',
+    gap: tokens.spacingHorizontalXS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorNeutralForeground2,
+  },
+  cardTitleInline: {
+    marginBottom: 0,
+    marginRight: tokens.spacingHorizontalS,
+  },
   // Non-blocking loading overlay — shown when re-fetching with existing records
   refetchOverlay: {
     position: 'relative',
@@ -376,6 +410,8 @@ export function SelectionGridField({
   const isJsonSource = gridConfig?.dataSource === 'json';
   const isSelectable = gridConfig?.selectable !== false;
   const defaultViewMode: ViewMode = gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
+  // DFE-GRIDSRC-001: 'row' arranges info cards as full-width horizontal list rows.
+  const isRowLayout = gridConfig?.cardLayout === 'row';
 
   // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
   const dependsOnFieldId = gridConfig?.dependsOnFieldId;
@@ -727,7 +763,7 @@ export function SelectionGridField({
       {/* Card view */}
       {viewMode === 'card' && (
         <div
-          className={`${styles.cardGrid} ${isRefetching ? styles.contentDimmed : ''}`}
+          className={`${isRowLayout ? styles.cardList : styles.cardGrid} ${isRefetching ? styles.contentDimmed : ''}`}
           role={isSelectable ? 'listbox' : 'list'}
           aria-multiselectable={isSelectable && selectionMode === 'multi'}
           aria-label={`${field.label} card view`}
@@ -740,10 +776,13 @@ export function SelectionGridField({
               // DFE-GRIDSRC-001: read-only display grids render non-interactive info cards.
               const interactive = isSelectable && !isReadonly;
               const isSelected = isSelectable && selectedIds.has(record.id);
+              const heading = resolveRecordDisplayValue(record.values, sortedCols[0]?.targetAttribute ?? '')
+                || record.id.slice(0, 8);
+              const bodyCols = sortedCols.slice(1);
               return (
                 <div
                   key={record.id}
-                  className={`${styles.cardItem} ${isSelected ? styles.cardItemSelected : ''}`}
+                  className={`${styles.cardItem} ${isRowLayout ? styles.cardItemRow : ''} ${isSelected ? styles.cardItemSelected : ''}`}
                   onClick={interactive ? () => toggleRow(record.id) : undefined}
                   role={interactive ? 'option' : 'listitem'}
                   aria-selected={interactive ? isSelected : undefined}
@@ -769,25 +808,38 @@ export function SelectionGridField({
                   {gridConfig?.cardIconName && (
                     <span
                       aria-hidden="true"
-                      style={{ display: 'block', color: tokens.colorBrandForeground1, marginBottom: tokens.spacingVerticalXS }}
+                      style={isRowLayout
+                        ? { display: 'inline-flex', color: tokens.colorBrandForeground1, flexShrink: 0 }
+                        : { display: 'block', color: tokens.colorBrandForeground1, marginBottom: tokens.spacingVerticalXS }}
                     >
-                      <DynamicIcon iconName={gridConfig.cardIconName} size={24} />
+                      <DynamicIcon iconName={gridConfig.cardIconName} size={isRowLayout ? 20 : 24} />
                     </span>
                   )}
-                  <Text className={styles.cardTitle}>
-                    {resolveRecordDisplayValue(record.values, sortedCols[0]?.targetAttribute ?? '')
-                      || record.id.slice(0, 8)}
-                  </Text>
-                  <div className={styles.cardFieldRow}>
-                    {sortedCols.slice(1).map((col) => (
-                      <div key={col.columnId}>
-                        <Text className={styles.cardFieldLabel}>{col.columnLabel}</Text>
-                        <Text className={styles.cardFieldValue} block>
-                          {resolveRecordDisplayValue(record.values, col.targetAttribute) || '—'}
-                        </Text>
+                  {isRowLayout ? (
+                    <div className={styles.cardRowBody}>
+                      <Text className={`${styles.cardTitle} ${styles.cardTitleInline}`}>{heading}</Text>
+                      {bodyCols.map((col) => (
+                        <span key={col.columnId} className={styles.cardRowField}>
+                          <span className={styles.cardFieldLabel}>{col.columnLabel}:</span>
+                          {' '}{resolveRecordDisplayValue(record.values, col.targetAttribute) || '—'}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <Text className={styles.cardTitle}>{heading}</Text>
+                      <div className={styles.cardFieldRow}>
+                        {bodyCols.map((col) => (
+                          <div key={col.columnId}>
+                            <Text className={styles.cardFieldLabel}>{col.columnLabel}</Text>
+                            <Text className={styles.cardFieldValue} block>
+                              {resolveRecordDisplayValue(record.values, col.targetAttribute) || '—'}
+                            </Text>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    </>
+                  )}
                 </div>
               );
             })

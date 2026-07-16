@@ -164,6 +164,7 @@ export interface DesignerFieldModel {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
   gridColumns: DesignerGridColumnConfig[];

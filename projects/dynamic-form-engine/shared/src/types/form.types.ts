@@ -551,6 +551,8 @@ export type GridSelectionMode = 'single' | 'multi';
 // DFE-GRIDSRC-001: where a selection/display grid's rows come from, and how they render.
 export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
+// Info-card arrangement: 'grid' = multi-column cards; 'row' = full-width horizontal rows.
+export type GridCardLayout = 'grid' | 'row';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
@@ -587,6 +589,7 @@ export interface GridFieldConfig {
   dataSource?: GridDataSource;     // default 'entity' (Dataverse). 'json' = static jsonData.
   jsonData?: string;               // static JSON array (string) when dataSource === 'json'
   displayMode?: GridDisplayMode;   // default 'columns' (table). 'infocard' = rich card per row.
+  cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
   // DFE-ADD-002: flat mapper aliases used by CrmMetadataService

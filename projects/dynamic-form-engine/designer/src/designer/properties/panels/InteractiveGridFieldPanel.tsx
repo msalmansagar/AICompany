@@ -46,6 +46,7 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
   // and interactivity for selection/display grids.
   const dataSource = field.gridDataSource ?? 'entity';
   const displayMode = field.gridDisplayMode ?? 'columns';
+  const cardLayout = field.gridCardLayout ?? 'grid';
   const selectable = field.gridSelectable !== false;
 
   const handleModeChange = useCallback(
@@ -168,14 +169,38 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
           </Field>
 
           {displayMode === 'infocard' && (
-            <Field label="Card Icon" hint="Fluent icon name shown on each card (optional), e.g. PersonRegular">
-              <Input
-                value={field.gridCardIcon ?? ''}
-                placeholder="e.g. PersonRegular"
-                onChange={(_, d) => updateField(field.id, { gridCardIcon: d.value || null })}
-                style={{ fontFamily: 'monospace' }}
-              />
-            </Field>
+            <>
+              <Field label="Card Layout" hint="Grid = multi-column cards; Row = full-width horizontal list rows.">
+                <div className={styles.modeRow}>
+                  <Button
+                    className={styles.modeButton}
+                    appearance={cardLayout === 'grid' ? 'primary' : 'outline'}
+                    size="small"
+                    onClick={() => updateField(field.id, { gridCardLayout: 'grid' })}
+                    aria-pressed={cardLayout === 'grid'}
+                  >
+                    Grid
+                  </Button>
+                  <Button
+                    className={styles.modeButton}
+                    appearance={cardLayout === 'row' ? 'primary' : 'outline'}
+                    size="small"
+                    onClick={() => updateField(field.id, { gridCardLayout: 'row' })}
+                    aria-pressed={cardLayout === 'row'}
+                  >
+                    Row
+                  </Button>
+                </div>
+              </Field>
+              <Field label="Card Icon" hint="Fluent icon name shown on each card (optional), e.g. PersonRegular">
+                <Input
+                  value={field.gridCardIcon ?? ''}
+                  placeholder="e.g. PersonRegular"
+                  onChange={(_, d) => updateField(field.id, { gridCardIcon: d.value || null })}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+            </>
           )}
 
           <Field label="Selectable" hint="Off = read-only display (no row selection).">

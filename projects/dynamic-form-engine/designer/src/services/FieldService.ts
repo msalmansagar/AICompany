@@ -75,6 +75,7 @@ export interface CreateFieldDto {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
 }
@@ -132,6 +133,7 @@ export interface UpdateFieldDto {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
 }
@@ -193,6 +195,7 @@ export class FieldService {
     if (dto.gridDataSource != null) payload[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource;
     if (dto.gridJsonData != null) payload[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData;
     if (dto.gridDisplayMode != null) payload[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode;
+    if (dto.gridCardLayout != null) payload[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] = dto.gridCardLayout;
     if (dto.gridSelectable != null) payload[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable;
     if (dto.gridCardIcon != null) payload[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon;
 
@@ -252,6 +255,7 @@ export class FieldService {
     if (dto.gridDataSource !== undefined) data[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource ?? null;
     if (dto.gridJsonData !== undefined) data[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData ?? null;
     if (dto.gridDisplayMode !== undefined) data[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode ?? null;
+    if (dto.gridCardLayout !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] = dto.gridCardLayout ?? null;
     if (dto.gridSelectable !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable ?? null;
     if (dto.gridCardIcon !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon ?? null;
 
@@ -325,6 +329,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_DATA_SOURCE,
       FORM_FIELD_ATTRS.GRID_JSON_DATA,
       FORM_FIELD_ATTRS.GRID_DISPLAY_MODE,
+      FORM_FIELD_ATTRS.GRID_CARD_LAYOUT,
       FORM_FIELD_ATTRS.GRID_SELECTABLE,
       FORM_FIELD_ATTRS.GRID_CARD_ICON,
     ];
@@ -434,6 +439,7 @@ export class FieldService {
       gridDataSource: (record[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] as 'entity' | 'json' | undefined) ?? null,
       gridJsonData: record[FORM_FIELD_ATTRS.GRID_JSON_DATA] != null ? String(record[FORM_FIELD_ATTRS.GRID_JSON_DATA]) : null,
       gridDisplayMode: (record[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] as 'columns' | 'infocard' | undefined) ?? null,
+      gridCardLayout: (record[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] as 'grid' | 'row' | undefined) ?? null,
       gridSelectable: record[FORM_FIELD_ATTRS.GRID_SELECTABLE] != null ? Boolean(record[FORM_FIELD_ATTRS.GRID_SELECTABLE]) : null,
       gridCardIcon: record[FORM_FIELD_ATTRS.GRID_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.GRID_CARD_ICON]) : null,
       gridColumns: [],
