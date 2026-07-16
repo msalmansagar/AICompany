@@ -465,6 +465,12 @@ export class CrmMetadataService extends CrmBaseService {
         filterExpression: field.qdb_grid_filter_expression ?? undefined,
         dependsOnFieldId: field.qdb_grid_depends_on_field_schema ?? undefined,
         dependsOnFilterTemplate: field.qdb_grid_depends_on_filter_template ?? undefined,
+        // DFE-GRIDSRC-001: data source + display config (passthrough strings/bool).
+        dataSource: field.qdb_grid_data_source === 'json' ? ('json' as const) : undefined,
+        jsonData: field.qdb_grid_json_data ?? undefined,
+        displayMode: field.qdb_grid_display_mode === 'infocard' ? ('infocard' as const) : undefined,
+        selectable: field.qdb_grid_selectable ?? undefined,
+        cardIconName: field.qdb_grid_card_icon ?? undefined,
       } : undefined,
       validationRules: validationMap.get(field.qdb_form_fieldid) ?? [],
       businessRules: businessRulesMap.get(field.qdb_form_fieldid) ?? [],
@@ -1194,6 +1200,12 @@ interface RawField {
   qdb_grid_filter_expression?: string;
   qdb_grid_depends_on_field_schema?: string;
   qdb_grid_depends_on_filter_template?: string;
+  // DFE-GRIDSRC-001: grid data source + display config
+  qdb_grid_data_source?: string;
+  qdb_grid_json_data?: string;
+  qdb_grid_display_mode?: string;
+  qdb_grid_selectable?: boolean;
+  qdb_grid_card_icon?: string;
 }
 
 interface RawOption {
