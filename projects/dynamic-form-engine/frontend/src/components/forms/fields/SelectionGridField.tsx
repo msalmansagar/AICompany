@@ -45,6 +45,7 @@ import type { GridColumnConfig, GridRecord } from '@qdb/shared';
 type ViewMode = 'table' | 'card';
 import { useFormContext } from '../../../contexts/FormContext';
 import { useSelectionGridData } from '../../../hooks/useSelectionGridData';
+import { DynamicIcon } from '../DynamicIcon';
 import type { ControlProps } from '../FieldRenderer';
 
 const useStyles = makeStyles({
@@ -268,6 +269,23 @@ export function resolveRecordDisplayValue(
   return '';
 }
 
+// DFE-GRIDSRC-001: parses a grid's static JSON data source into GridRecords.
+// A JSON array of objects; each object's `id` (or its index) is the record id and
+// the object is the values map. Never throws — invalid/non-array JSON → [].
+function parseJsonGridRecords(jsonData: string | undefined): GridRecord[] {
+  if (!jsonData || !jsonData.trim().startsWith('[')) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonData);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null && !Array.isArray(row))
+    .map((row, index) => ({ id: row.id != null ? String(row.id) : `json-${index}`, values: row }));
+}
+
 // ── Per-column filter cell ────────────────────────────────────────────────────
 
 type FilterCellStyles = ReturnType<typeof useStyles>;
@@ -353,6 +371,12 @@ export function SelectionGridField({
   const selectionMode = gridConfig?.selectionMode ?? 'single';
   const columnConfigs = gridConfig?.columnConfigs ?? [];
 
+  // DFE-GRIDSRC-001: data source (entity fetch vs static JSON), display mode, and
+  // interactivity. Read-only display grids show no selection controls or value.
+  const isJsonSource = gridConfig?.dataSource === 'json';
+  const isSelectable = gridConfig?.selectable !== false;
+  const defaultViewMode: ViewMode = gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
+
   // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
   const dependsOnFieldId = gridConfig?.dependsOnFieldId;
   const dependsOnRaw = dependsOnFieldId ? fieldValues[dependsOnFieldId] : undefined;
@@ -361,7 +385,7 @@ export function SelectionGridField({
     : undefined;
 
 
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
 
   // Per-column filter state:
   //   columnFilterInputs — live values (updated on every keystroke / select change)
@@ -423,16 +447,24 @@ export function SelectionGridField({
     activeFilterCount > 0 ? columnFilters : undefined,
   );
 
+  // DFE-GRIDSRC-001: JSON source parses static rows client-side (no fetch/pagination);
+  // entity source uses the lazy fetch hook above.
+  const jsonRecords = useMemo(
+    () => (isJsonSource ? parseJsonGridRecords(gridConfig?.jsonData) : []),
+    [isJsonSource, gridConfig?.jsonData],
+  );
+  const records = isJsonSource ? jsonRecords : gridData.records;
+
   // Track whether we have records from a previous load so we can show a
   // non-blocking spinner instead of replacing content with skeletons.
-  const hasExistingRecords = gridData.records.length > 0;
-  const isInitialLoad = gridData.status === 'idle' || (gridData.status === 'loading' && !hasExistingRecords);
-  const isRefetching = gridData.status === 'loading' && hasExistingRecords;
+  const hasExistingRecords = records.length > 0;
+  const isInitialLoad = !isJsonSource && (gridData.status === 'idle' || (gridData.status === 'loading' && !hasExistingRecords));
+  const isRefetching = !isJsonSource && gridData.status === 'loading' && hasExistingRecords;
 
   // BC-010: register an initial empty value on mount so required validation
   // fires even when this tab is never activated by the user.
   useEffect(() => {
-    if (fieldValues[field.schemaName] === undefined) {
+    if (isSelectable && fieldValues[field.schemaName] === undefined) {
       updateFieldValue(field.schemaName, selectionMode === 'multi' ? [] : null);
     }
   // Only run on mount — field identity does not change after mount.
@@ -444,13 +476,13 @@ export function SelectionGridField({
   // from deps prevents double-loads when dependsOnValue triggers loadPage recreation.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (isTabActive) gridData.activate();
+    if (isTabActive && !isJsonSource) gridData.activate();
   }, [isTabActive]);
 
   // Keep a ref to the latest records so toggleSelectAll doesn't need records in
   // the columns memo dep array (which would recompute all column defs on every fetch).
-  const recordsRef = useRef<GridRecord[]>(gridData.records);
-  recordsRef.current = gridData.records;
+  const recordsRef = useRef<GridRecord[]>(records);
+  recordsRef.current = records;
 
   // Updates both local selection state and form context atomically — intentional dual-write.
   const syncSelectionToFormState = useCallback(
@@ -522,7 +554,8 @@ export function SelectionGridField({
     // Multi-select: prepend a select-all checkbox column.
     // recordsRef used instead of gridData.records so this memo doesn't
     // invalidate on every fetch — column structure is independent of record data.
-    if (selectionMode === 'multi') {
+    // DFE-GRIDSRC-001: omitted for read-only display grids.
+    if (selectionMode === 'multi' && isSelectable) {
       colDefs.push({
         id: '__select__',
         header: () => {
@@ -584,10 +617,10 @@ export function SelectionGridField({
     }
 
     return colDefs;
-  }, [sortedCols, selectionMode, selectedIds, toggleRow, toggleSelectAll, sortState, handleSortColumn, styles.thSortable, styles.sortIcon, styles.sortIconActive]);
+  }, [sortedCols, selectionMode, isSelectable, selectedIds, toggleRow, toggleSelectAll, sortState, handleSortColumn, styles.thSortable, styles.sortIcon, styles.sortIconActive]);
 
   const table = useReactTable({
-    data: gridData.records,
+    data: records,
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -695,30 +728,32 @@ export function SelectionGridField({
       {viewMode === 'card' && (
         <div
           className={`${styles.cardGrid} ${isRefetching ? styles.contentDimmed : ''}`}
-          role="listbox"
-          aria-multiselectable={selectionMode === 'multi'}
+          role={isSelectable ? 'listbox' : 'list'}
+          aria-multiselectable={isSelectable && selectionMode === 'multi'}
           aria-label={`${field.label} card view`}
           aria-busy={isRefetching}
         >
-          {gridData.records.length === 0 ? (
+          {records.length === 0 ? (
             <Text className={styles.emptyState}>No records found.</Text>
           ) : (
-            gridData.records.map((record) => {
-              const isSelected = selectedIds.has(record.id);
+            records.map((record) => {
+              // DFE-GRIDSRC-001: read-only display grids render non-interactive info cards.
+              const interactive = isSelectable && !isReadonly;
+              const isSelected = isSelectable && selectedIds.has(record.id);
               return (
                 <div
                   key={record.id}
                   className={`${styles.cardItem} ${isSelected ? styles.cardItemSelected : ''}`}
-                  onClick={() => toggleRow(record.id)}
-                  role="option"
-                  aria-selected={isSelected}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
+                  onClick={interactive ? () => toggleRow(record.id) : undefined}
+                  role={interactive ? 'option' : 'listitem'}
+                  aria-selected={interactive ? isSelected : undefined}
+                  tabIndex={interactive ? 0 : undefined}
+                  onKeyDown={interactive ? (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
                       toggleRow(record.id);
                     }
-                  }}
+                  } : undefined}
                 >
                   {isSelected && (
                     <Badge
@@ -729,6 +764,15 @@ export function SelectionGridField({
                       size="small"
                       aria-label="Selected"
                     />
+                  )}
+                  {/* DFE-GRIDSRC-001: rich info card — optional icon, heading, then fields. */}
+                  {gridConfig?.cardIconName && (
+                    <span
+                      aria-hidden="true"
+                      style={{ display: 'block', color: tokens.colorBrandForeground1, marginBottom: tokens.spacingVerticalXS }}
+                    >
+                      <DynamicIcon iconName={gridConfig.cardIconName} size={24} />
+                    </span>
                   )}
                   <Text className={styles.cardTitle}>
                     {resolveRecordDisplayValue(record.values, sortedCols[0]?.targetAttribute ?? '')
@@ -778,7 +822,7 @@ export function SelectionGridField({
               </tr>
             ))}
             <tr role="row" aria-label="Column filters">
-              {selectionMode === 'multi' && (
+              {selectionMode === 'multi' && isSelectable && (
                 <td className={styles.filterCell} />
               )}
               {sortedCols.map((col) => (
@@ -801,26 +845,27 @@ export function SelectionGridField({
             ) : (
               table.getRowModel().rows.map((row) => {
                 const record = row.original as GridRecord;
-                const isSelected = selectedIds.has(record.id);
+                // DFE-GRIDSRC-001: read-only display rows are not clickable/selectable.
+                const interactive = isSelectable && !isReadonly;
+                const isSelected = isSelectable && selectedIds.has(record.id);
+                const rowClass = [interactive ? styles.rowClickable : '', isSelected ? styles.rowSelected : '']
+                  .filter(Boolean)
+                  .join(' ');
 
                 return (
                   <tr
                     key={row.id}
-                    className={
-                      isSelected
-                        ? `${styles.rowClickable} ${styles.rowSelected}`
-                        : styles.rowClickable
-                    }
-                    aria-selected={isSelected}
-                    onClick={() => toggleRow(record.id)}
+                    className={rowClass || undefined}
+                    aria-selected={interactive ? isSelected : undefined}
+                    onClick={interactive ? () => toggleRow(record.id) : undefined}
                     role="row"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
+                    tabIndex={interactive ? 0 : undefined}
+                    onKeyDown={interactive ? (e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
                         toggleRow(record.id);
                       }
-                    }}
+                    } : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <td
@@ -842,7 +887,7 @@ export function SelectionGridField({
         </table>
       </div>}
 
-      {(gridData.page > 1 || gridData.hasNextPage) && (
+      {!isJsonSource && (gridData.page > 1 || gridData.hasNextPage) && (
         <div className={styles.paginationRow}>
           <Text className={styles.paginationInfo}>
             Page {gridData.page}
