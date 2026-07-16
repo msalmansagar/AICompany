@@ -120,6 +120,31 @@ const FORM = {
             }),
           ],
         },
+        {
+          id: 'sec-team', tabId: 'tab-1', label: 'Team Directory', displayOrder: 3, columns: 1,
+          isCollapsible: false, isCollapsedByDefault: false, isVisible: true,
+          fields: [
+            field({
+              id: 'f-team', sectionId: 'sec-team', fieldType: 'interactive-grid',
+              schemaName: 'qdb_team', label: 'Project Team (JSON source → InfoCard display)',
+              displayOrder: 1, columnSpan: 4,
+              gridConfig: {
+                gridMode: 'selection', mode: 'selection',
+                dataSource: 'json', displayMode: 'infocard', selectable: false, cardIconName: 'PersonRegular',
+                jsonData: JSON.stringify([
+                  { id: 't1', name: 'Alice Rahman', role: 'Lead Engineer', email: 'alice@qdb.qa' },
+                  { id: 't2', name: 'Omar Farouk', role: 'Product Designer', email: 'omar@qdb.qa' },
+                  { id: 't3', name: 'Sara Khan', role: 'QA Analyst', email: 'sara@qdb.qa' },
+                ]),
+                columnConfigs: [
+                  { columnId: 'tc-name', displayOrder: 1, columnLabel: 'Name', targetAttribute: 'name', columnFieldType: 'text' },
+                  { columnId: 'tc-role', displayOrder: 2, columnLabel: 'Role', targetAttribute: 'role', columnFieldType: 'text' },
+                  { columnId: 'tc-email', displayOrder: 3, columnLabel: 'Email', targetAttribute: 'email', columnFieldType: 'text' },
+                ],
+              },
+            }),
+          ],
+        },
       ],
     },
   ],

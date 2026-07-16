@@ -55,7 +55,42 @@ const CS = { one: 100000001, two: 100000002 };
 const COL = { one: 100000001, two: 100000002 };
 const BA = { submit: 100000001 };
 const GRID_ENTRY = 100000001;
+const GRID_SELECTION = 100000000;
 const PL = { header: 100000000, footer: 100000001 };
+
+// DFE-GRIDSRC-001: a JSON-source, read-only, info-card display grid.
+const TEAM_JSON = JSON.stringify([
+  { id: 't1', name: 'Alice Rahman', role: 'Lead Engineer', email: 'alice@qdb.qa' },
+  { id: 't2', name: 'Omar Farouk', role: 'Product Designer', email: 'omar@qdb.qa' },
+  { id: 't3', name: 'Sara Khan', role: 'QA Analyst', email: 'sara@qdb.qa' },
+]);
+
+async function seedJsonGrid(t, tabId) {
+  const sec = await post(t, 'qdb_form_sections', {
+    'qdb_form_tab_id@odata.bind': `/qdb_form_tabs(${tabId})`,
+    qdb_label: 'Team Directory', qdb_display_order: 3, qdb_columns: COL.one,
+    qdb_is_collapsible: false, qdb_is_collapsed_by_default: false, qdb_is_visible: true,
+  });
+  const grid = await post(t, 'qdb_form_fields', {
+    'qdb_form_section_id@odata.bind': `/qdb_form_sections(${sec.qdb_form_sectionid})`,
+    qdb_schema_name: 'qdb_team', qdb_field_type: FT.interactiveGrid,
+    qdb_label: 'Project Team (JSON source → InfoCard display)', qdb_display_order: 1, qdb_column_span: CS.two,
+    qdb_is_required: false, qdb_is_readonly: false, qdb_is_hidden: false,
+    qdb_grid_mode: GRID_SELECTION,
+    qdb_grid_data_source: 'json', qdb_grid_json_data: TEAM_JSON,
+    qdb_grid_display_mode: 'infocard', qdb_grid_selectable: false, qdb_grid_card_icon: 'PersonRegular',
+  });
+  const gid = grid.qdb_form_fieldid;
+  const col = (name, l, a, o) => post(t, 'qdb_grid_column_configs', {
+    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${gid})`,
+    qdb_grid_column_configname: name, qdb_column_label: l, qdb_column_attribute: a,
+    qdb_column_field_type: 'text', qdb_display_order: o, qdb_is_visible: true, qdb_is_editable: false,
+  });
+  await col('team-col-name', 'Name', 'name', 1);
+  await col('team-col-role', 'Role', 'role', 2);
+  await col('team-col-email', 'Email', 'email', 3);
+  console.log('  ✓ Team Directory (JSON → InfoCard) grid');
+}
 
 async function main() {
   console.log(`\n=== Seeding "${FORM_CODE}" (tab header/footer + grid upload) ===\n`);
@@ -64,10 +99,18 @@ async function main() {
 
   const existing = await get(t, `qdb_form_definitions?$filter=qdb_form_code eq '${FORM_CODE}' and statecode eq 0&$select=qdb_form_definitionid&$top=1`);
   if (existing.value?.length) {
-    // Already seeded (tabs/sections/fields) — just add/refresh the submit-confirmation gate.
+    // Already seeded — refresh the submit-confirmation gate and ensure the JSON grid.
     const id = existing.value[0].qdb_form_definitionid;
     await patch(t, `qdb_form_definitions(${id})`, SUBMIT_CONFIRMATION);
-    console.log(`\n✓ Form already existed (${id}) — added submit-confirmation gate columns.\n`);
+    console.log(`✓ Form already existed (${id}) — refreshed submit-confirmation gate.`);
+    const tabs = await get(t, `qdb_form_tabs?$filter=_qdb_form_definition_id_value eq ${id}&$select=qdb_form_tabid&$orderby=qdb_display_order asc&$top=1`);
+    const firstTabId = tabs.value?.[0]?.qdb_form_tabid;
+    if (firstTabId) {
+      const secs = await get(t, `qdb_form_sections?$filter=_qdb_form_tab_id_value eq ${firstTabId} and qdb_label eq 'Team Directory'&$select=qdb_form_sectionid&$top=1`);
+      if (secs.value?.length) console.log('  ↷ Team Directory grid already present');
+      else await seedJsonGrid(t, firstTabId);
+    }
+    console.log('\nDone.\n');
     process.exit(0);
   }
 
@@ -151,6 +194,9 @@ async function main() {
   // 7. Footer-zone field
   await zoneField({ qdb_schema_name: 'qdb_reviewer_notes', qdb_field_type: FT.text, qdb_label: 'Reviewer Notes', qdb_placement: PL.footer, qdb_display_order: 1, qdb_column_span: CS.two });
   console.log('[7] Footer field: Reviewer Notes');
+
+  // 7b. JSON-source, read-only, info-card display grid.
+  await seedJsonGrid(t, tabId);
 
   // 8. Submit button
   await post(t, 'qdb_form_buttons', {
