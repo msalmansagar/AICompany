@@ -548,6 +548,10 @@ export interface InfoCardScreen {
 export type GridMode = 'selection' | 'entry';
 export type GridSelectionMode = 'single' | 'multi';
 
+// DFE-GRIDSRC-001: where a selection/display grid's rows come from, and how they render.
+export type GridDataSource = 'entity' | 'json';
+export type GridDisplayMode = 'columns' | 'infocard';
+
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
 export interface GridColumnOptionValue {
@@ -579,6 +583,12 @@ export interface GridFieldConfig {
   maxRows: number;
   columnConfigs: GridColumnConfig[];
   columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
+  // DFE-GRIDSRC-001: data source + display configuration (selection/display grids).
+  dataSource?: GridDataSource;     // default 'entity' (Dataverse). 'json' = static jsonData.
+  jsonData?: string;               // static JSON array (string) when dataSource === 'json'
+  displayMode?: GridDisplayMode;   // default 'columns' (table). 'infocard' = rich card per row.
+  selectable?: boolean;            // default true for selection; false = read-only display
+  cardIconName?: string;           // optional Fluent icon shown on each info card
   // DFE-ADD-002: flat mapper aliases used by CrmMetadataService
   mode?: GridMode;
   entityName?: string;

@@ -33,6 +33,9 @@ export type MultiselectRenderStyle = 'dropdown' | 'checkboxes';
 export type RadioRenderStyle = 'list' | 'cards';
 export type GridSelectionMode = 'single' | 'multi';
 export type GridMode = 'selection' | 'entry';
+// DFE-GRIDSRC-001: grid data source + display configuration.
+export type GridDataSource = 'entity' | 'json';
+export type GridDisplayMode = 'columns' | 'infocard';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
@@ -57,6 +60,12 @@ export interface GridColumnConfig {
 export interface GridFieldConfig {
   mode: GridMode;
   selectionMode?: GridSelectionMode;
+  // DFE-GRIDSRC-001: data source + display configuration.
+  dataSource?: GridDataSource;     // default 'entity'. 'json' = static jsonData.
+  jsonData?: string;               // static JSON array when dataSource === 'json'
+  displayMode?: GridDisplayMode;   // default 'columns'. 'infocard' = rich card per row.
+  selectable?: boolean;            // default true for selection; false = read-only display
+  cardIconName?: string;           // optional Fluent icon shown on each info card
   // Backend pre-filters to visible columns only; absent if no column configs are defined.
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
