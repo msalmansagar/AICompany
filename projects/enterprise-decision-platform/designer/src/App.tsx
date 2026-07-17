@@ -13,6 +13,8 @@ import { DecisionTableEditor } from './table/DecisionTableEditor';
 import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ConditionBuilder } from './conditions/ConditionBuilder';
 import { emptyConditions, conditionsToPcrm, type ConditionModel } from './conditions/conditionModel';
+import { installGoRulesDocRedirect, type DocGuide } from './gorules/docRedirect';
+import { DocsSidePane } from './gorules/DocsSidePane';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
 import { DependencyView } from './rulesets/DependencyView';
@@ -104,6 +106,14 @@ export function App() {
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem('edp-theme', theme); } catch { /* ignore */ }
   }, [theme]);
+
+  // The GoRules canvas hardcodes its node "Documentation" links to gorules.io; while that
+  // canvas is mounted, open our in-CRM guide pane for the recognised node links instead.
+  const [docsGuide, setDocsGuide] = useState<DocGuide | null>(null);
+  useEffect(() => {
+    if (authorMode !== 'canvas') return;
+    return installGoRulesDocRedirect(setDocsGuide);
+  }, [authorMode]);
 
   const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
   const hasContent = authorMode === 'table' ? table.inputs.length > 0
@@ -555,6 +565,8 @@ export function App() {
           {view !== 'ruleset-editor' && <footer className="status">{status}</footer>}
         </div>
       </div>
+
+      {docsGuide && <DocsSidePane guide={docsGuide} onClose={() => setDocsGuide(null)} />}
     </div>
   );
 }

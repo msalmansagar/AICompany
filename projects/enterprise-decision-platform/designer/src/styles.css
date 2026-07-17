@@ -716,3 +716,17 @@ h1, h2, h3 { text-wrap: balance; }
 .cb-out { display: flex; align-items: center; gap: 6px; }
 .cb-out select, .cb-out input { font: inherit; font-size: 13px; padding: 5px 8px; border: 1px solid var(--n-stroke2); border-radius: var(--radius); background: var(--n-bg1); color: var(--n-fg1); }
 .cb-outname { min-width: 120px; } .cb-outname.muted { color: var(--n-fg2); min-width: 120px; } .cb-outval { flex: 1; max-width: 260px; } .cb-eq { color: var(--n-fg3); }
+
+/* ── Decision-table guide: right-docked slide-in pane (rendered in-app) ── */
+.docs-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.38); display: flex; justify-content: flex-end; }
+.docs-pane { width: 520px; max-width: 92vw; height: 100%; display: flex; flex-direction: column;
+  background: var(--n-bg1); border-left: 1px solid var(--n-stroke1); box-shadow: var(--shadow16);
+  animation: docs-slide .18s ease; }
+@keyframes docs-slide { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .docs-pane { animation: none; } }
+.docs-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 14px; border-bottom: 1px solid var(--n-stroke1); font-size: 14px; color: var(--n-fg1); }
+.docs-pane-close { border: none; background: transparent; cursor: pointer; font-size: 15px; line-height: 1;
+  color: var(--n-fg2); width: 28px; height: 28px; border-radius: var(--radius); }
+.docs-pane-close:hover { background: var(--n-bg1-hover); color: var(--n-fg1); }
+.docs-pane-frame { flex: 1 1 auto; width: 100%; border: none; background: var(--n-bg1); }
