@@ -187,6 +187,38 @@ No 1000+ star OSS report engine meets all constraints:
 
 ---
 
+## Area 10 — Client-Side Charting Library (V2-Dashboard chart widgets) — clears gate DC-3
+
+**Added 2026-07-19** for the CEO-approved **V2-Dashboard** increment (Milestone M2.5). CEO checkpoint gate **DC-3** requires an MIT-licensed, client-side charting library (1000+ stars) for the dashboard chart widgets, documented here before any chart-widget frontend build.
+
+Requirement: render the dashboard/report **chart widget** in the browser (React + Fluent designer, deployed as a CRM web resource). Must cover column, bar, line, area, pie, donut; emit **click events on segments** (for entity-exact cross-filter and report drill-down); support tooltips/legends; and keep bundle size web-resource-friendly. On-screen only — server-side PNG export is already covered by **ScottPlot (Area 5)**. The prototype hand-rolled these charts in raw SVG/CSS; this "adopt" decision replaces that "build" baseline.
+
+| Library | Repo | Stars | License | Rendering | React fit | Click events | Verdict |
+|---|---|---|---|---|---|---|---|
+| **Recharts** | [recharts/recharts](https://github.com/recharts/recharts) | 27.4k | MIT | SVG | Native (composable components) | Yes — carries datum payload | **ADOPT** |
+| Apache ECharts (+ echarts-for-react) | [apache/echarts](https://github.com/apache/echarts) | 66k | Apache-2.0 | Canvas | Wrapper ([hustcc/echarts-for-react](https://github.com/hustcc/echarts-for-react), MIT) | Yes | RUNNER-UP / future |
+| Chart.js (+ react-chartjs-2) | [chartjs/Chart.js](https://github.com/chartjs/Chart.js) | 65k | MIT | Canvas | Wrapper (MIT) | Yes — clunkier payload | FALLBACK |
+| Plotly.js | [plotly/plotly.js](https://github.com/plotly/plotly.js) | 17k | MIT | SVG/WebGL | Wrapper | Yes | REJECT — ~3 MB bundle |
+| visx | [airbnb/visx](https://github.com/airbnb/visx) | 19k | MIT | SVG primitives | Native (low-level) | Build-your-own | REJECT — it *is* "build" |
+| nivo | [plouc/nivo](https://github.com/plouc/nivo) | 13k | MIT | SVG/Canvas | Native | Yes | ALT |
+| Victory | [FormidableLabs/victory](https://github.com/FormidableLabs/victory) | ~11k | MIT | SVG | Native | Yes | ALT — heavier, slower cadence |
+
+**Decision: ADOPT Recharts** (`recharts`, npm, v2.x / v3, MIT).
+
+Recharts (27.4k stars, MIT) is a declarative, **React-composable** chart library built on D3 primitives — it matches the designer's React + Fluent component model with the least friction. It renders **SVG**, so chart segments are real DOM nodes whose `onClick` handlers carry the clicked datum — exactly what the **entity-exact cross-filter** (CEO scope lock) and the report **drill-down** require. It covers all six required types out of the box (`BarChart` for column and horizontal bar, `LineChart`, `AreaChart`, `PieChart`, donut via `innerRadius`). It is tree-shakeable and materially lighter than canvas/WebGL engines, which matters for a bundled CRM web resource. MIT — no revenue-tier or copyleft trap.
+
+Only the **chart** widget needs this library. The other V2-Dashboard widgets (gauge, progress, status badge, profile, checklist, matrix) are HTML/CSS/inline-SVG and require no charting dependency, consistent with the prototype.
+
+**Runner-up — Apache ECharts (Apache-2.0, 66k stars) via `echarts-for-react` (MIT):** a more powerful canvas engine with a far larger chart catalogue (treemap, heatmap, gauge, combo, geo/map, sankey). Adopt ECharts **later** if/when the roadmap's advanced chart types (treemap/heatmap/geo — see `dotnetreport-comparison.md` gap G-5) are pulled into scope, or if canvas performance for very dense charts is needed. Heavier bundle and more imperative config, so not warranted for the six V1-dashboard chart types.
+
+**Fallback — Chart.js + `react-chartjs-2` (MIT, 65k stars):** lightweight canvas option; viable if a Recharts blocker emerges, but its imperative config and clunkier click-payload extraction make it second choice for this React-first designer.
+
+**Rejected:** Plotly.js (MIT but ~3 MB bundle — too heavy for a web resource); visx (MIT primitives — you build the charts yourself, which is the "build" baseline, not "adopt").
+
+**DC-3 status: CLEARED** — an MIT-licensed, 1000+ star client-side charting library (Recharts) has been selected and documented. No new license trap introduced.
+
+---
+
 ## Adoption Summary
 
 | Area | Adopted Library | Repo | Stars | License | NuGet / npm Package |
@@ -195,7 +227,8 @@ No 1000+ star OSS report engine meets all constraints:
 | PDF Generation | QuestPDF | QuestPDF/QuestPDF | 14.1k | Dual* | `QuestPDF` |
 | Word (.docx) | Open XML SDK | dotnet/Open-XML-SDK | 4.6k | MIT | `DocumentFormat.OpenXml` |
 | Excel (.xlsx) | ClosedXML | ClosedXML/ClosedXML | 5.6k | MIT | `ClosedXML` |
-| Chart-to-PNG | ScottPlot | ScottPlot/ScottPlot | 6.7k | MIT | `ScottPlot` |
+| Chart-to-PNG (server) | ScottPlot | ScottPlot/ScottPlot | 6.7k | MIT | `ScottPlot` |
+| Charting (client, V2-Dashboard) | Recharts | recharts/recharts | 27.4k | MIT | `recharts` |
 | Dataverse (cloud) | Dataverse ServiceClient | microsoft/PowerPlatform-DataverseServiceClient | 315** | MIT | `Microsoft.PowerPlatform.Dataverse.Client` |
 | CRM on-prem | XRM SDK | NuGet only | N/A | MS EULA | `Microsoft.CrmSdk.CoreAssemblies` |
 | Query Builder UI | react-querybuilder | react-querybuilder/react-querybuilder | 1.7k | MIT | `react-querybuilder` + `@react-querybuilder/fluent` |
