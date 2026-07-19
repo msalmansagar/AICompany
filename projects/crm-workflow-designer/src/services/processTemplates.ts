@@ -24,13 +24,13 @@ export interface ProcessTemplate {
   build: (processId: string) => TemplateGraph;
 }
 
-function tmpId(): string {
+function generateTemporaryId(): string {
   return `tmp_${crypto.randomUUID()}`;
 }
 
 function buildStep(processId: string, name: string, sequenceNo: number): WorkflowStep {
   return {
-    crmId: tmpId(),
+    crmId: generateTemporaryId(),
     name,
     schemaName: '',
     sequenceNo,
@@ -59,14 +59,14 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
   outcome: WorkflowOutcome;
   route: WorkflowRoute;
 } {
-  const outcome: WorkflowOutcome = { crmId: tmpId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: toStepId };
-  const route: WorkflowRoute = { crmId: tmpId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
+  const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: toStepId };
+  const route: WorkflowRoute = { crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
   return { outcome, route };
 }
 
 /** A terminal branch — a labelled outcome that ends the process (no edge). */
 function terminal(fromStepId: string, label: string, seq: number): WorkflowOutcome {
-  return { crmId: tmpId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: null };
+  return { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: null };
 }
 
 function graphFrom(steps: WorkflowStep[], parts: (WorkflowOutcome | { outcome: WorkflowOutcome; route: WorkflowRoute })[]): TemplateGraph {

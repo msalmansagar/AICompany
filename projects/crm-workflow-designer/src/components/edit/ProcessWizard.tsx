@@ -63,6 +63,7 @@ export function ProcessWizard({
 
   const isTemplateMethod = method !== null && method !== METHOD_SOP && method !== METHOD_CLONE;
   const parentSameAsTask = !!taskEntityId && taskEntityId === parentEntityId;
+  const activeTemplate = isTemplateMethod && method ? getTemplate(method) : undefined;
 
   // Entities are needed for the template binding step; load once up-front.
   useEffect(() => {
@@ -123,33 +124,16 @@ export function ProcessWizard({
     }
   }, [step, method, name, taskEntityId, regardingFieldId, parentEntityId, selectedCloneId]);
 
-  const handleNext = useCallback(() => {
-    if (!canProceed) return;
-    if (step === 'method') {
-      if (method === METHOD_SOP) { onStartFromSop(); return; }
-      if (method === METHOD_CLONE) { loadCloneList(); setStep('clone'); return; }
-      setStep('basics');
-      return;
-    }
-    if (step === 'basics') { setStep('binding'); return; }
-    if (step === 'binding') { setStep('review'); return; }
-    if (step === 'clone') { setStep('review'); return; }
-    if (step === 'review') { handleCreate(); }
-  }, [canProceed, step, method, onStartFromSop, loadCloneList]);
-
-  const handleBack = useCallback(() => {
-    if (step === 'basics' || step === 'clone') setStep('method');
-    else if (step === 'binding') setStep('basics');
-    else if (step === 'review') setStep(method === METHOD_CLONE ? 'clone' : 'binding');
-  }, [step, method]);
-
-  function handleCreate() {
+  const handleCreate = useCallback(() => {
     if (method === METHOD_CLONE) {
       if (selectedCloneId) onClone(selectedCloneId);
       return;
     }
     const template = method ? getTemplate(method) : undefined;
-    if (!template || !taskEntityId || !regardingFieldId || !parentEntityId) return;
+    if (!template || !taskEntityId || !regardingFieldId || !parentEntityId) {
+      setError('Cannot create process: a template and all data bindings are required.');
+      return;
+    }
 
     const processId = `tmp_${crypto.randomUUID()}`;
     const process: WorkflowProcess = {
@@ -167,7 +151,29 @@ export function ProcessWizard({
     };
     const graph = template.build(processId);
     onCreateInMemory(process, graph.steps, graph.outcomes, graph.routes);
-  }
+  }, [method, selectedCloneId, onClone, taskEntityId, regardingFieldId, parentEntityId, name, onCreateInMemory]);
+
+  const handleNext = useCallback(() => {
+    if (!canProceed) return;
+    setError(null);
+    if (step === 'method') {
+      if (method === METHOD_SOP) { onStartFromSop(); return; }
+      if (method === METHOD_CLONE) { loadCloneList(); setStep('clone'); return; }
+      setStep('basics');
+      return;
+    }
+    if (step === 'basics') { setStep('binding'); return; }
+    if (step === 'binding') { setStep('review'); return; }
+    if (step === 'clone') { setStep('review'); return; }
+    if (step === 'review') { handleCreate(); }
+  }, [canProceed, step, method, onStartFromSop, loadCloneList, handleCreate]);
+
+  const handleBack = useCallback(() => {
+    setError(null);
+    if (step === 'basics' || step === 'clone') setStep('method');
+    else if (step === 'binding') setStep('basics');
+    else if (step === 'review') setStep(method === METHOD_CLONE ? 'clone' : 'binding');
+  }, [step, method]);
 
   const isLastStep = step === 'review';
   const nextLabel = isLastStep
@@ -193,7 +199,7 @@ export function ProcessWizard({
             )}
 
             {step === 'basics' && isTemplateMethod && (
-              <BasicsStep name={name} onName={setName} templateName={getTemplate(method!)?.name ?? ''} />
+              <BasicsStep name={name} onName={setName} templateName={activeTemplate?.name ?? ''} />
             )}
 
             {step === 'binding' && (
@@ -225,8 +231,8 @@ export function ProcessWizard({
             {step === 'review' && (
               <ReviewStep
                 method={method}
-                templateName={isTemplateMethod ? getTemplate(method!)?.name ?? '' : ''}
-                stepCount={isTemplateMethod ? getTemplate(method!)?.stepCount ?? 0 : 0}
+                templateName={activeTemplate?.name ?? ''}
+                stepCount={activeTemplate?.stepCount ?? 0}
                 name={name}
                 taskEntityName={taskEntityName}
                 regardingFieldName={regardingFieldName}
