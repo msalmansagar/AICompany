@@ -2,7 +2,7 @@
 // Shared TypeScript contracts — used by both frontend and backend
 // ─────────────────────────────────────────────────────────────
 
-import type { DesignPayload } from './design.types';
+import type { DesignPayload } from './design.types.js';
 
 // ── Field type enumeration ────────────────────────────────────
 
