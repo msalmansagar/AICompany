@@ -984,6 +984,30 @@ Five implementations: `PdfExportRenderer` (QuestPDF), `ExcelExportRenderer` (Clo
 
 ---
 
+### ADR-RPT-008: Dashboard Fan-Out Concurrency Control and OBO Query Execution Model
+
+**Status:** Accepted — 2026-07-19 (satisfies Phase-4 authorization condition AUTH-C-1)
+**Context:** A V2-Dashboard (Milestone M2.5) loads up to 12 widgets, each **independently bound** to its own entity, query, and aggregation — up to 12 CRM queries per dashboard open, per user. At the DC-1 assumed peak (20 concurrent 12-widget opens; ASSUMPTION-1, QDB-confirmed), a naive fan-out issues **240 simultaneous Dataverse requests against a single service principal — a 4.6× overrun** of Dataverse's ~52-concurrent-request-per-user-identity service-protection limit, causing guaranteed 429 throttling. On-prem 9.x has no cloud-style limit, but 240 concurrent Organization Service connections saturate a typical 100-connection SQL pool. QDB's **DC-2 sign-off permits cloud execution in a permitted Azure region**, making a cloud-first path production-viable while on-prem 9.x remains a supported target. The DC-1 spike (`dc1-fanout-spike.md`) sets the SLA (per-widget P95 ≤ 4 s; dashboard-load P95 ≤ 15 s cold) and requires an approved concurrency model before any `DashboardExecutionService` code is written.
+
+**Decision:** Introduce a dedicated **`DashboardExecutionService`** in the ASP.NET Core middle tier that governs dashboard fan-out. It composes existing components (`IReportDataProvider`, `ICacheStore` per ADR-RPT-007, `IJobOrchestrator`) **without modifying them** — V1 report execution is untouched. It applies six controls:
+1. **Delegated (OBO) execution to distribute quota per user identity.** On **cloud**, each dashboard execution acquires the requesting user's delegated Dataverse token via **MSAL On-Behalf-Of**, so the ~52-request limit applies per *individual user*, not per shared service principal. On **on-prem 9.x**, use Organization Service **impersonation** (`CallerId` / `CallerObjectId`) on the service-account connection — same quota-distribution principle, different mechanism (aligns with ADR-RPT-006's dual entry point).
+2. **Two-level concurrency caps.** A **per-dashboard `SemaphoreSlim(6)`** (config `Dashboard:MaxConcurrentWidgetQueries`) bounds simultaneous widget fetches for one dashboard open — each user stays at ≤ 6 of their own limit (~11.5%). A **global process `SemaphoreSlim`** (config `Dashboard:MaxConcurrentQueries`, default **40** cloud / **30** on-prem) backstops total concurrent CRM connections across the middle-tier process.
+3. **Same-entity request grouping.** Widgets hitting the same entity in one dashboard are coalesced into a single **OData `$batch`** (cloud) / **`ExecuteMultiple` with `ContinueOnError = true`** (on-prem), reducing the 12-widget Customer-360 fixture from 12 requests to ~7.
+4. **Role-keyed cache reuse with pre-warm.** Each widget result is cached under `SHA-256(widgetId | sorted(paramsJson) | roleSetHash)` (ADR-RPT-007), pre-warmed by a background job on dashboard publish. **When a Customer-360 entity is user-owned (DC-1b), the widget cache key additionally includes `userId`** for those widgets, preserving row-level correctness.
+5. **Progressive (staged) load.** The dashboard returns a skeleton immediately; widgets stream in as queries resolve — perceived latency ≪ worst-case total.
+6. **Resilience.** Per-target retry that **honours the Dataverse `Retry-After` header** with exponential backoff, a per-target **circuit breaker**, and **in-flight request coalescing** (dedupe concurrent identical cache-key requests so a burst collapses to one CRM call).
+
+**Consequences:**
+- Effective concurrent Dataverse requests per user identity drop from a naive process-wide 240 to **6 per user** (~11.5% of the cloud limit; well within on-prem pool headroom). Zero 429s expected in production at the stated peak.
+- **OBO requires app-registration API permissions + admin consent** on cloud, and a **verified impersonation-privileged service account** on on-prem; both must be confirmed at M1 integration (AUTH-C-3 / DC-1c).
+- All fan-out logic is isolated in `DashboardExecutionService`, protecting the V1 critical path.
+- The **DC-1a load test** (20 concurrent cold-cache 12-widget opens; P95 ≤ 4 s; zero 429s; both targets) is the **M2.5 exit gate** validating this ADR in practice (AUTH-C-5).
+- The cache holds unmasked data — inherits ADR-RPT-007's network-segmentation and service-account-only-access constraints.
+
+**Alternatives rejected:** Shared service-principal fan-out (the naive model — guaranteed 4.6× throttling); unbounded parallel fan-out with retry-only (retries amplify load under throttling; no SLA guarantee); client-side fan-out from the browser web resource (exposes tokens/queries, no server-side batching or caching, worse throttling); a single merged mega-query per dashboard (impossible — widgets bind to different entities with different aggregations).
+
+---
+
 ## 11. ADR Index
 
 *Updated after every new ADR. Stored at `projects/report-engine/adrs/index.md`.*
@@ -997,6 +1021,7 @@ Five implementations: `PdfExportRenderer` (QuestPDF), `ExcelExportRenderer` (Clo
 | ADR-RPT-005 | NCalc for sandboxed formula evaluation (C-5 compliance) | Accepted | 2026-07-07 | Architect |
 | ADR-RPT-006 | Dual CRM entry point — Custom Action+Plugin vs Custom API | Accepted | 2026-07-07 | Architect |
 | ADR-RPT-007 | Role-keyed cache with post-retrieval masking | Accepted | 2026-07-07 | Architect |
+| ADR-RPT-008 | Dashboard fan-out concurrency control and OBO query execution | Accepted | 2026-07-19 | Architect |
 
 ---
 
