@@ -62,6 +62,7 @@ export function ProcessWizard({
   const [error, setError] = useState<string | null>(null);
 
   const isTemplateMethod = method !== null && method !== METHOD_SOP && method !== METHOD_CLONE;
+  const parentSameAsTask = !!taskEntityId && taskEntityId === parentEntityId;
 
   // Entities are needed for the template binding step; load once up-front.
   useEffect(() => {
@@ -116,7 +117,7 @@ export function ProcessWizard({
     switch (step) {
       case 'method': return method !== null;
       case 'basics': return name.trim().length > 0;
-      case 'binding': return !!taskEntityId && !!regardingFieldId && !!parentEntityId;
+      case 'binding': return !!taskEntityId && !!regardingFieldId && !!parentEntityId && taskEntityId !== parentEntityId;
       case 'clone': return selectedCloneId !== null;
       case 'review': return true;
     }
@@ -206,6 +207,7 @@ export function ProcessWizard({
                 onTaskEntity={handleTaskEntityChange}
                 onRegardingField={(id, n) => { setRegardingFieldId(id); setRegardingFieldName(n); }}
                 onParentEntity={(id, n) => { setParentEntityId(id); setParentEntityName(n); }}
+                parentSameAsTask={parentSameAsTask}
               />
             )}
 
@@ -335,7 +337,7 @@ function BasicsStep({
 function BindingStep({
   entities, fields, isLoadingFields,
   taskEntityId, regardingFieldId, parentEntityId,
-  onTaskEntity, onRegardingField, onParentEntity,
+  onTaskEntity, onRegardingField, onParentEntity, parentSameAsTask,
 }: {
   entities: AutoNumberEntityOption[];
   fields: AutoNumberFieldOption[];
@@ -346,6 +348,7 @@ function BindingStep({
   onTaskEntity: (id: string, name: string) => void;
   onRegardingField: (id: string, name: string) => void;
   onParentEntity: (id: string, name: string) => void;
+  parentSameAsTask: boolean;
 }) {
   return (
     <div>
@@ -365,6 +368,9 @@ function BindingStep({
       <div style={fieldGroupStyle}>
         <SearchableDropdown label="Parent entity" placeholder="Search and select entity…" options={entities} value={parentEntityId} onChange={onParentEntity} required />
         <div style={hintStyle}>The business record the process runs on (e.g. Loan Application).</div>
+        {parentSameAsTask && (
+          <div style={fieldErrorStyle}>Parent entity must be different from the task entity.</div>
+        )}
       </div>
     </div>
   );
@@ -529,6 +535,7 @@ const tileDescStyle: React.CSSProperties = { fontSize: 11, color: '#64748b', lin
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 16 };
 const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
 const hintStyle: React.CSSProperties = { fontSize: 11, color: '#94a3b8', lineHeight: 1.4 };
+const fieldErrorStyle: React.CSSProperties = { fontSize: 11, color: '#dc2626', fontWeight: 600, lineHeight: 1.4 };
 const inputStyle: React.CSSProperties = {
   height: 34, padding: '0 10px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6,
   color: '#1e293b', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box',
