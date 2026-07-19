@@ -1712,7 +1712,7 @@ function tabParameters(body, r) {
 
 /* ---- Drilldown ---- */
 function tabDrilldown(body, r) {
-  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>Configurable drilldown drives navigation like <b>Customer → Applications → Facilities → Collaterals → Documents → Tasks → Approvals</b>. V1 delivers single-level drill + clickable rows; multi-level and N:N in V2. Stored in <span class="kbd">qdb_reportrelationship</span>.</div></div>`));
+  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>Configurable drilldown drives navigation like <b>Customer → Applications → Facilities → Collaterals → Documents → Tasks → Approvals</b>. V1 delivers single-level drill + clickable rows; multi-level and N:N in V2. Set <b>Sub-report</b> to embed another report's output inline for each parent record. Stored in <span class="kbd">qdb_reportrelationship</span>.</div></div>`));
   const card = el(`<div class="section-card"><h3>Relationships &amp; drilldown</h3><div class="hint">Ordered by drill level.</div></div>`);
   const cols = [{t:"Parent entity"},{t:"Child entity"},{t:"Type"},{t:"Relationship / join"},{t:"Level",num:true},{t:"Opens record"},{t:"Sub-report"}];
   const rowHtml = (d,i) => `<tr>
@@ -1723,7 +1723,7 @@ function tabDrilldown(body, r) {
     <td><input class="fluent-input" data-i="${i}" data-k="schema" value="${esc(d.schema)}"></td>
     <td><input class="fluent-input" type="number" data-i="${i}" data-k="level" data-num value="${d.level}" style="width:56px"></td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="opens" ${d.opens?"checked":""}></td>
-    <td><input class="fluent-input" data-i="${i}" data-k="sub" value="${esc(d.sub)}" placeholder="—"></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="sub">${opts(["(none)", ...REPORTS.map(x=>x.name)], d.sub||"(none)")}</select></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.relationships, rowHtml, () => { r.relationships.push({parent:"",child:"",type:"1:N (One-to-many)",schema:"",level:r.relationships.length+1,opens:true,sub:""}); renderTab(); }, "Add relationship"));
   body.appendChild(card); bindInputs(card, r.relationships);
@@ -2003,6 +2003,7 @@ function renderManualDesigner(c) {
   const cmd = el(`<div class="cmdbar">
     <button class="cmd" id="md_back">${ic("back")}Back</button><div class="cmd-sep"></div>
     <button class="cmd primary" id="md_save">${ic("save")}Save</button>
+    <button class="cmd" id="md_settings">${ic("edit")}All report settings</button>
     <button class="cmd" id="md_wizard">${ic("play")}Open in wizard style</button>
     <div class="cmd-spacer"></div><span class="pill draft" style="margin-right:8px">Manual designer · Draft</span>
   </div>`);
@@ -2017,6 +2018,7 @@ function renderManualDesigner(c) {
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
   $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); toast("Report saved"); };
+  $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
 }
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
@@ -2042,12 +2044,25 @@ function dsPanel(r) {
     tree = `<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span></div>${mainCols}<h4 class="mt">Related entities</h4>${rels||'<div class="page-sub">No related entities.</div>'}`;
   }
   const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
+  const ds0 = (r.dataSources && r.dataSources[0]) || {};
   host.innerHTML = `<h4>Data source</h4>
+    <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
+    <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
     <div class="mini-field"><label>Main CRM entity</label><select class="fluent-select" id="md_entity"><option value="" ${!ent?"selected":""}>— Select entity —</option>${Object.keys(ATTR_CATALOG).map(e=>`<option ${e===ent?"selected":""}>${esc(e)}</option>`).join("")}</select></div>
+    <button class="btn sm" id="md_newds" style="margin-bottom:6px">${ic("add")}New data source</button>
     <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
     ${tree}
     <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
     <button class="btn sm" id="md_addext">${ic("add")}Add external source</button>`;
+  $("#md_ds").onchange = e => {
+    const ds = DATASOURCES.find(x=>x.name===e.target.value);
+    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
+    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; if (ds.entity && ATTR_CATALOG[ds.entity]) { r.mainEntity = ds.entity; r._dsExpanded = {}; } }
+    else r.dataSources[0].name = "";
+    dsPanel(r);
+  };
+  $("#md_srctype").onchange = e => { r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }]; r.dataSources[0].type = e.target.value; };
+  $("#md_newds").onclick = () => openEntityForm("datasource");
   $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; dsPanel(r); };
   host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => { const k = n.dataset.exp; if (k==="__main") return; r._dsExpanded[k] = !r._dsExpanded[k]; dsPanel(r); });
   host.querySelectorAll("[data-fattr]").forEach(it => {
@@ -2085,6 +2100,13 @@ function renderCanvas(r) {
     return { valCol, data: gs.map((g,i)=>({ label:g, v: valCol ? rows.filter(x=>x[catCol.key]===g).reduce((s,x)=>s+(+x[valCol.key]||0),0) : rows.filter(x=>x[catCol.key]===g).length, color: CHART_PALETTE[i%CHART_PALETTE.length] })) };
   };
   const sectionHtml = (t, idx) => {
+    if (t.displayAs==="subreport") {
+      const rep = t.subReport && t.subReport!=="(none)" ? t.subReport : "";
+      const inner = rep
+        ? `<div style="border:1px dashed var(--ac);border-radius:8px;padding:16px;background:var(--acb)"><div style="display:flex;align-items:center;gap:8px;color:var(--acd);font-weight:700">${ic("doc")} Sub-report: ${esc(rep)}</div><div style="font-size:12px;color:#605e5c;margin-top:6px">Embedded report — runs inline for each ${esc(t.entity||r.mainEntity)} record${t.subLink?` · linked on <b>${esc(t.subLink)}</b>`:""}.</div></div>`
+        : `<div class="drop-empty">Pick a report to embed — set it in the section properties on the right (Show as → Sub-report).</div>`;
+      return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}${inner}</div>`;
+    }
     if (t.displayAs==="chart" || t.displayAs==="infocards") {
       const filled = t.columns.filter(c=>!c.placeholder);
       if (!filled.length) return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}<div class="drop-empty">Drop a category field (+ a number field) to build a ${t.displayAs==="chart"?"chart":"set of info cards"}</div></div>`;
@@ -2188,9 +2210,10 @@ function renderProps(r) {
     host.innerHTML = `<h4>Section</h4>
       <div class="mini-field"><label>Name</label><input class="fluent-input" id="p_sname" value="${esc(t.name)}"></div>
       <div class="mini-field"><label>Role</label><select class="fluent-select" id="p_srole">${opts2([["master","Master / header"],["child","Detail (child)"]], t.role)}</select></div>
-      <div class="mini-field"><label>Show as</label><select class="fluent-select" id="p_sdisp">${opts2([["table","Table"],["header","Header (label : value)"],["chart","Chart"],["infocards","Info cards"]], t.displayAs||"table")}</select></div>
+      <div class="mini-field"><label>Show as</label><select class="fluent-select" id="p_sdisp">${opts2([["table","Table"],["header","Header (label : value)"],["chart","Chart"],["infocards","Info cards"],["subreport","Sub-report (embed a report)"]], t.displayAs||"table")}</select></div>
       ${t.displayAs==="chart"?`<div class="mini-field"><label>Chart type</label><select class="fluent-select" id="p_schart">${opts2(CHART_TYPES.map(x=>[x,x]), t.chartType||"Column")}</select></div>`:""}
       ${t.displayAs==="infocards"?`<div class="mini-field"><label>Card icon</label><select class="fluent-select" id="p_sicon">${opts2(CARD_ICONS.map(x=>[x,x]), t.cardIcon||"chart")}</select></div>`:""}
+      ${t.displayAs==="subreport"?`<div class="mini-field"><label>Embedded report</label><select class="fluent-select" id="p_ssub">${opts(["(none)", ...REPORTS.map(x=>x.name)], t.subReport||"(none)")}</select></div><div class="mini-field"><label>Link field (optional)</label><input class="fluent-input" id="p_ssublink" value="${esc(t.subLink||"")}" placeholder="e.g. qdb_customerid"></div>`:""}
       <div class="mini-field"><label>Column layout (header)</label><select class="fluent-select" id="p_scols">${opts2([["auto","Auto"],["1","1 column"],["2","2 columns"],["3","3 columns"],["4","4 columns"]], String(t.cols||"auto"))}</select></div>
       <label class="toggle"><input type="checkbox" id="p_stot" ${t.showTotals?"checked":""}><span class="track"></span><span class="tlabel">Totals (Subtotal / Tax / Total)</span></label>
       <button class="btn sm" id="p_sdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Delete section</button>`;
@@ -2230,6 +2253,8 @@ function bindProps(r) {
     q("#p_sdisp").onchange = e => { t.displayAs=e.target.value; paint(); renderProps(r); };
     const sc = q("#p_schart"); if (sc) sc.onchange = e => { t.chartType=e.target.value; paint(); };
     const si = q("#p_sicon"); if (si) si.onchange = e => { t.cardIcon=e.target.value; paint(); };
+    const psub = q("#p_ssub"); if (psub) psub.onchange = e => { t.subReport = e.target.value==="(none)" ? "" : e.target.value; paint(); };
+    const psublink = q("#p_ssublink"); if (psublink) psublink.oninput = e => { t.subLink = e.target.value; paint(); };
     q("#p_scols").onchange = e => { t.cols=e.target.value; paint(); };
     q("#p_stot").onchange = e => { t.showTotals=e.target.checked; paint(); };
     q("#p_sdel").onclick = () => { D.tables=D.tables.filter(x=>x!==t); r._sel=null; refresh(); };
@@ -2249,7 +2274,7 @@ const WIZ_STEPS = [
   { key:"basics", title:"Basics", desc:"Name & category" },
   { key:"data", title:"Data", desc:"Entity & source" },
   { key:"columns", title:"Columns", desc:"Header / master fields" },
-  { key:"details", title:"Detail tables", desc:"Associated child tables" },
+  { key:"details", title:"Details & sub-reports", desc:"Child tables + embedded reports" },
   { key:"filters", title:"Filters & parameters", desc:"Optional" },
   { key:"etl", title:"Transform (ETL)", desc:"Clean & reshape data" },
   { key:"layout", title:"Layout & preview", desc:"Shape & live preview" },
@@ -2271,9 +2296,9 @@ const wiz = { step:0, draft:null };
 function openWizard() {
   wiz.step = 0;
   wiz.draft = { start:"blank", ssrsPick:"", dupPick:"", name:"", description:"", category:"Operational", module:"", owner:"Salman Sagar", governed:false,
-    mainEntity:"qdb_loanapplication", sourceType:"FetchXML", joins:[], externalSources:[], columns:[], colMeta:{}, detailTables:[], filters:[], parameters:[], etl:[],
+    mainEntity:"qdb_loanapplication", dataSourceName:"", sourceType:"FetchXML", joins:[], externalSources:[], columns:[], colMeta:{}, detailTables:[], subReports:[], filters:[], parameters:[], etl:[],
     layoutType:"Tabular Report", exports:["PDF","Excel","CSV"], theme:"qdb", languages:["en"], primaryLang:"en", previewLang:"en", logoData:null, renderMode:"report", chartType:"Column", cardIcon:"chart",
-    placements:{ form:false, grid:true, dashboard:false, subgrid:false, sitemap:false, entity:"", role:"", passRecord:true, passSelected:true, passUserBu:true } };
+    placements:{ form:false, grid:true, dashboard:false, subgrid:false, sitemap:false, entity:"", role:"", passRecord:true, passSelected:true, passUserBu:true, passFields:[] } };
   renderWizard();
 }
 function applyStart(d) {
@@ -2374,8 +2399,13 @@ function wizDataForm(host, d) {
         <div class="field col-2"><label class="lbl">Parameters passed</label><input class="fluent-input" data-xi="${i}" data-xk="pass" value="${esc(x.pass)}" placeholder="branchCode, dateFrom → source"></div>
       </div></div>`).join("") : "";
 
-  host.innerHTML = `<div class="wtitle">What data is this report about?</div><div class="wsub">Pick the primary CRM entity, join more entities, and blend in data from external systems your admin has already connected.</div>
-    <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The main table the report is built on.</div>
+  host.innerHTML = `<div class="wtitle">What data is this report about?</div><div class="wsub">Start by picking a <b>reusable data source</b> your team already defined — you don't create one each time. Then refine the entity, joins, and external blends.</div>
+    <div class="section-card" style="max-width:900px"><h3>Data source</h3><div class="hint">Choose an existing data source from the shared registry (Configuration → Data Sources). It sets the entity and read method below.</div>
+      <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:6px">
+        <div class="field" style="max-width:440px;flex:1"><label class="lbl">Reusable data source</label><select class="fluent-select" id="wz_ds">${datasourceOptions(d.dataSourceName)}</select></div>
+        <button class="btn sm" id="wz_newds">${ic("add")}New data source</button>
+      </div></div>
+    <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The main table the report is built on — pre-set from the data source, still editable.</div>
       <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label><select class="fluent-select" id="wz_entity">${opts(entities, d.mainEntity)}</select></div>
       <label class="lbl" style="display:block;margin-bottom:8px">Read via</label>
       <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${Object.keys(SRC_DESC).map(s=>`<div class="choice-card ${d.sourceType===s?"sel":""}" data-src="${esc(s)}" style="padding:12px"><div class="cc-t">${esc(s)}</div><div class="cc-d">${esc(SRC_DESC[s])}</div></div>`).join("")}</div></div>
@@ -2390,6 +2420,13 @@ function wizDataForm(host, d) {
       ${extCards}
       <button class="btn sm btn-add" id="wz_addext">${ic("add")}Add external source</button></div>`;
 
+  $("#wz_ds").onchange = (e) => {
+    const ds = DATASOURCES.find(x=>x.name===e.target.value);
+    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; if (ds.entity && ATTR_CATALOG[ds.entity] && ds.entity !== d.mainEntity) { d.mainEntity = ds.entity; d.columns = []; } }
+    else d.dataSourceName = "";
+    wizDataForm(host,d);
+  };
+  $("#wz_newds").onclick = () => openEntityForm("datasource");
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
   host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => { d.sourceType = c.dataset.src; host.querySelectorAll("[data-src]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); });
   host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.joins[+inp.dataset.ji][inp.dataset.jk] = inp.value; if(inp.dataset.jk==="joinType"||inp.dataset.jk==="entity") wizDataForm(host,d); }));
@@ -2588,10 +2625,25 @@ function wizDetails(host, d) {
       <div class="attr-pick">${attrs.map(at=>`<label class="attr-item ${t.columns.some(c=>c.attr===at.a)?"sel":""}" data-dtcol="${i}" data-attr="${esc(at.a)}"><input type="checkbox" ${t.columns.some(c=>c.attr===at.a)?"checked":""}><div><div class="an">${esc(at.n)}</div><div class="at">${esc(at.t)}</div></div></label>`).join("")}</div>
     </div>`; }).join("")
     : `<div class="info-banner">${ic("info")}<div>No detail tables yet. Add associated child tables (e.g. <b>Invoice → Line Items, Payments</b>) — they render as detail sections under the header record in <b>Master-Detail</b> and <b>Invoice</b> layouts.</div></div>`;
-  host.innerHTML = `<div class="wtitle">Associated detail tables <span class="rel-tag">Optional</span></div><div class="wsub">Attach one or more child tables related to <b>${esc(d.mainEntity)}</b>. This builds a <b>one header + many tables</b> report — the header is your Columns selection, each detail table appears below it.</div>
+  d.subReports = d.subReports || [];
+  const subCards = d.subReports.length
+    ? d.subReports.map((s,i)=>`<div class="section-card" style="max-width:840px;display:flex;justify-content:space-between;align-items:center"><div>${ic("doc")} <b>${esc(s.report)}</b>${s.link?` <span class="rel-tag">linked on ${esc(s.link)}</span>`:""}</div><button class="del" data-srdel="${i}">${ic("trash")}</button></div>`).join("")
+    : `<div class="info-banner">${ic("info")}<div>No sub-reports yet. Embed an existing report to run <b>inline for each header record</b> (e.g. show <b>Facilities</b> under each <b>Customer</b>). Sub-reports render in Master-Detail / Invoice layouts and can be linked on a matching field.</div></div>`;
+  const otherReports = REPORTS.map(x=>x.name).filter(n=>n!==d.name);
+  host.innerHTML = `<div class="wtitle">Detail tables &amp; sub-reports <span class="rel-tag">Optional</span></div><div class="wsub">Attach child tables related to <b>${esc(d.mainEntity)}</b>, and/or embed existing reports as <b>sub-reports</b> that run inline for each header record.</div>
+    <h3 style="margin:6px 0 4px">Detail tables</h3>
     ${tablesHtml}
-    <div class="canvas-toolbar" style="margin-top:10px">${avail.length?avail.map(rel=>`<button class="btn sm" data-adddt="${esc(rel.entity)}">${ic("add")}${esc(rel.label)}</button>`).join(""):'<span class="canvas-hint">All related entities added.</span>'}</div>`;
+    <div class="canvas-toolbar" style="margin-top:10px">${avail.length?avail.map(rel=>`<button class="btn sm" data-adddt="${esc(rel.entity)}">${ic("add")}${esc(rel.label)}</button>`).join(""):'<span class="canvas-hint">All related entities added.</span>'}</div>
+    <h3 style="margin:22px 0 4px">Sub-reports</h3>
+    ${subCards}
+    <div class="canvas-toolbar" style="margin-top:10px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="max-width:300px"><label class="lbl">Report to embed</label><select class="fluent-select" id="wz_subrep">${otherReports.length?opts(otherReports, otherReports[0]):'<option>— no other reports —</option>'}</select></div>
+      <div class="field" style="max-width:200px"><label class="lbl">Link field (optional)</label><input class="fluent-input" id="wz_sublink" placeholder="e.g. qdb_customerid"></div>
+      <button class="btn sm" id="wz_addsub" ${otherReports.length?"":"disabled"}>${ic("add")}Add sub-report</button>
+    </div>`;
   host.querySelectorAll("[data-adddt]").forEach(b=>b.onclick=()=>{ const rel=rels.find(x=>x.entity===b.dataset.adddt); const cat=ATTR_CATALOG[rel.entity]||[]; d.detailTables.push({entity:rel.entity,label:rel.label,columns:cat.slice(0,3).map(a=>({name:a.n,attr:a.a,type:a.t})),showTotals:false}); wizDetails(host,d); });
+  const addSubBtn = $("#wz_addsub"); if (addSubBtn) addSubBtn.onclick = () => { d.subReports.push({ report:$("#wz_subrep").value, link:$("#wz_sublink").value.trim() }); wizDetails(host,d); };
+  host.querySelectorAll("[data-srdel]").forEach(b=>b.onclick=()=>{ d.subReports.splice(+b.dataset.srdel,1); wizDetails(host,d); });
   host.querySelectorAll("[data-dtdel]").forEach(b=>b.onclick=()=>{ d.detailTables.splice(+b.dataset.dtdel,1); wizDetails(host,d); });
   host.querySelectorAll("[data-dtot]").forEach(cb=>cb.onchange=()=>{ d.detailTables[+cb.dataset.dtot].showTotals=cb.checked; });
   host.querySelectorAll("[data-dtcol]").forEach(it=>it.onclick=(e)=>{ e.preventDefault(); const i=+it.dataset.dtcol, attr=it.dataset.attr, t=d.detailTables[i]; const at=(ATTR_CATALOG[t.entity]||[]).find(x=>x.a===attr)||{a:attr,n:attr,t:"Text"}; const j=t.columns.findIndex(c=>c.attr===attr); if(j>=0)t.columns.splice(j,1); else t.columns.push({name:at.n,attr:at.a,type:at.t}); wizDetails(host,d); });
@@ -2737,13 +2789,18 @@ function wizPlacement(host, d) {
         <label class="toggle"><input type="checkbox" id="wz_precord" ${p.passRecord?"checked":""}><span class="track"></span><span class="tlabel">Pass current record ID</span></label>
         <label class="toggle"><input type="checkbox" id="wz_pselected" ${p.passSelected?"checked":""}><span class="track"></span><span class="tlabel">Pass selected grid rows</span></label>
         <label class="toggle"><input type="checkbox" id="wz_puserbu" ${p.passUserBu?"checked":""}><span class="track"></span><span class="tlabel">Pass user &amp; business unit</span></label>
-      </div></div>`;
+      </div>
+      <label class="lbl" style="display:block;margin:18px 0 8px">Pass specific fields as parameters <span class="hint-inline">— pick fields from the in-context record; their values flow into the report as parameters at run time</span></label>
+      <div class="chips" id="wz_passfields">${(ATTR_CATALOG[p.entity||d.mainEntity]||[]).map(a=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-pf="${esc(a.a)}" ${(p.passFields||[]).includes(a.a)?"checked":""}>${esc(a.n)} <span class="rel-tag" style="margin-left:4px">${esc(a.t)}</span></label>`).join("")||'<span class="page-sub">Select a target entity to choose fields.</span>'}</div>
+      ${(p.passFields||[]).length?`<div class="hint-inline" style="margin-top:8px">Passing: ${(p.passFields||[]).map(a=>{const m=(ATTR_CATALOG[p.entity||d.mainEntity]||[]).find(x=>x.a===a);return esc(m?m.n:a);}).join(", ")} → report parameters.</div>`:""}
+    </div>`;
   host.querySelectorAll("[data-surf]").forEach(c=>c.onclick=()=>{ const k=c.dataset.surf; p[k]=!p[k]; c.classList.toggle("sel",p[k]); });
-  $("#wz_pentity").onchange = e => p.entity = e.target.value;
+  $("#wz_pentity").onchange = e => { p.entity = e.target.value; const valid=(ATTR_CATALOG[p.entity]||[]).map(a=>a.a); p.passFields=(p.passFields||[]).filter(x=>valid.includes(x)); wizPlacement(host, d); };
   $("#wz_prole").oninput = e => p.role = e.target.value;
   $("#wz_precord").onchange = e => p.passRecord = e.target.checked;
   $("#wz_pselected").onchange = e => p.passSelected = e.target.checked;
   $("#wz_puserbu").onchange = e => p.passUserBu = e.target.checked;
+  host.querySelectorAll("[data-pf]").forEach(cb => cb.onchange = () => { p.passFields = p.passFields||[]; const a=cb.dataset.pf; if (cb.checked) { if(!p.passFields.includes(a)) p.passFields.push(a); } else p.passFields = p.passFields.filter(x=>x!==a); wizPlacement(host, d); });
 }
 /* Renders a representative preview body for ANY of the 25 layout types — theme-aware + i18n */
 const CHART_TYPES = ["Column","Bar","Line","Area","Pie","Donut"];
@@ -3004,7 +3061,7 @@ function wizReview(host, d) {
   const etlTxt = d.etl.length ? d.etl.map(s=>s.op).join(", ") : "—";
   const surfTxt = [["form","Form"],["grid","Grid"],["dashboard","Dashboard"],["subgrid","Subgrid"],["sitemap","Sitemap"]].filter(([k])=>d.placements[k]).map(([,v])=>v).join(", ") || "—";
   const detTxt = (d.detailTables||[]).filter(t=>t.columns.length).length ? d.detailTables.filter(t=>t.columns.length).map(t=>`${t.label} (${t.columns.length}${t.showTotals?", totals":""})`).join(", ") : "—";
-  const rows = [["Name",d.name||"—"],["Category",d.category],["Module",d.module||"—"],["Owner",d.owner],["Governed",d.governed?"Yes — needs approver":"No"],["Main entity (header)",d.mainEntity],["Data source",d.sourceType],["Joined entities",joinsTxt],["External sources",extTxt],["Header columns",cols],["Detail tables",detTxt],["Transform (ETL)",etlTxt],["Layout",d.layoutType],["Theme",themeName],["Languages",langTxt],["Used in CRM",surfTxt],["Exports",d.exports.join(", ")||"—"]];
+  const rows = [["Name",d.name||"—"],["Category",d.category],["Module",d.module||"—"],["Owner",d.owner],["Governed",d.governed?"Yes — needs approver":"No"],["Main entity (header)",d.mainEntity],["Data source",d.sourceType],["Joined entities",joinsTxt],["External sources",extTxt],["Header columns",cols],["Detail tables",detTxt],["Sub-reports",(d.subReports||[]).length?d.subReports.map(s=>s.report).join(", "):"—"],["Transform (ETL)",etlTxt],["Layout",d.layoutType],["Theme",themeName],["Languages",langTxt],["Used in CRM",surfTxt],["Exports",d.exports.join(", ")||"—"]];
   host.innerHTML = `<div class="wtitle">Review &amp; create</div><div class="wsub">Here's your starting report. After creating, you'll land in the full designer to add filters, parameters, drilldown, transformations, formulas, security and ribbon placement.</div>
     <div class="section-card" style="max-width:720px">${rows.map(r=>`<div class="review-row"><div class="rk">${esc(r[0])}</div><div class="rv">${esc(r[1])}</div></div>`).join("")}</div>
     <div class="info-banner" style="max-width:720px">${ic("info")}<div>Creating this report saves a <b>Draft</b>. It won't run in production until you publish it.</div></div>`;
@@ -3025,7 +3082,7 @@ function wizNext() {
 function wizCreate() {
   const d = wiz.draft, def = newDefinition(null), cat = ATTR_CATALOG[d.mainEntity] || [];
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
-  def.dataSources = [{ name:"Primary", type:d.sourceType, connector:"", query:"", primary:true, joinL:"", joinR:"" }];
+  def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connector:"", query:"", primary:true, joinL:"", joinR:"" }];
   def.columns = d.columns.map(a => { const m = cat.find(x=>x.a===a); const rightAlign = m && ["Currency","Decimal","Whole number"].includes(m.t); const meta = (d.colMeta||{})[a] || {};
     return { name:m?m.n:a, entity:d.mainEntity, attribute:a, type:m?m.t:"Text", format:"", width:120, align:rightAlign?"Right":"Left", agg:(m&&m.t==="Currency")?"Sum":"None", masked:false, visible:true, label:meta.label||(m?m.n:a), labelPos:meta.labelPos||"left" }; });
   def.filters = (d.filters||[]).map(f => ({ attribute:f.attribute, operator:f.operator, value:f.value, param:(f.param&&f.param!=="(none)")?f.param:"", token:"(none)", group:0, andor:"And" }));
@@ -3047,6 +3104,8 @@ function wizCreate() {
   def.versions = [{ n:1, by:d.owner, on:"2026-07-15 12:00", note:"Created via wizard", current:true }];
   def.joins = d.joins.slice(); def.externalSources = d.externalSources.slice();
   def.detailTables = (d.detailTables||[]).map(t=>({ entity:t.entity, label:t.label, showTotals:t.showTotals, columns:t.columns.slice() }));
+  def.subReports = (d.subReports||[]).map(s=>({ report:s.report, link:s.link||"" }));
+  (d.subReports||[]).forEach(s => def.relationships.push({ parent:d.mainEntity, child:s.report, type:"Sub-report", schema:s.link||"", level:def.relationships.length+1, opens:false, sub:s.report }));
   def.theme = d.theme; def.languages = d.languages.slice(); def.primaryLang = d.primaryLang; def.logoData = d.logoData || null; def.renderMode = d.renderMode || "report";
   def.id = "r" + (REPORTS.length + 1);
   document.getElementById("wizOverlay").remove();
@@ -3137,6 +3196,10 @@ let AUDIT_LOGS = [
   { report:"Customer 360 Drilldown", entity:"qdb_reportdefinition", action:"Create", by:"L. Haddad", on:"2026-07-07 09:03" }
 ];
 
+function datasourceOptions(selectedName) {
+  return `<option value="">— Select a data source —</option>` +
+    DATASOURCES.filter(x=>x.status==="Active").map(x=>`<option value="${esc(x.name)}" ${selectedName===x.name?"selected":""}>${esc(x.name)} · ${esc(x.type)}${x.entity&&x.entity!=="—"?" · "+esc(x.entity):""}</option>`).join("");
+}
 function dataSourcesView() {
   return `<table class="grid"><thead><tr><th>Name</th><th>Type</th><th>Target entity</th><th>Connector</th><th>Status</th></tr></thead><tbody>${DATASOURCES.map(r=>`<tr><td class="link-cell">${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.entity)}</td><td>${esc(r.connector)}</td><td><span class="pill ${r.status==="Active"?"published":"draft"}">${esc(r.status)}</span></td></tr>`).join("")}</tbody></table>`;
 }
