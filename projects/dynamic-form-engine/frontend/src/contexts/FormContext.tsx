@@ -13,6 +13,7 @@ import type {
   FormFieldValues,
   RuleEvaluationResult,
   DraftSubmission,
+  ScopedButton,
 } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
@@ -51,6 +52,8 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldReadonly: {},
   fieldValues: {},
   filteredOptions: {},
+  buttonVisibility: {},
+  buttonEnabledState: {},
 };
 
 const FormContext = createContext<FormContextValue | null>(null);
@@ -167,8 +170,19 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
 
     ruleDebounceTimer.current = setTimeout(() => {
       const allRules = collectAllRules(formDefinition);
+      const allButtons = collectAllButtons(formDefinition);
 
-      void ruleEngine.evaluate(allRules, fieldValues).then((result) => {
+      void Promise.all([
+        ruleEngine.evaluate(allRules, fieldValues),
+        ruleEngine.evaluateButtons(allButtons, fieldValues),
+      ]).then(([fieldResult, buttonResult]) => {
+        // DFE-CBTN-001: fold per-button conditional state into the rule state so
+        // ScopedButtonBar reads visibility/enablement from a single source.
+        const result: RuleEvaluationResult = {
+          ...fieldResult,
+          buttonVisibility: buttonResult.buttonVisibility,
+          buttonEnabledState: buttonResult.buttonEnabledState,
+        };
         setRuleState(result);
 
         // Apply setValue/clearValue/calculateValue from rules
@@ -358,6 +372,19 @@ function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
 function collectAllRules(formDefinition: FormDefinition) {
   // DFE-TABZONE-001: header/footer fields can trigger business rules too.
   return getAllFormFields(formDefinition).flatMap((field) => field.businessRules);
+}
+
+// DFE-CBTN-001: every scoped button in the form (tab- and section-placed), so
+// their conditional visibility/enablement can be evaluated each rule cycle.
+function collectAllButtons(formDefinition: FormDefinition): ScopedButton[] {
+  const buttons: ScopedButton[] = [];
+  for (const tab of formDefinition.tabs) {
+    if (tab.buttons) buttons.push(...tab.buttons);
+    for (const section of tab.sections) {
+      if (section.buttons) buttons.push(...section.buttons);
+    }
+  }
+  return buttons;
 }
 
 function computeVisibleFieldIds(

@@ -223,6 +223,13 @@ export type ScopedButtonAction =
   | SaveDraftActionConfig
   | CallApiActionConfig;
 
+// DFE-CBTN-001: a set of conditions combined by `logic`, evaluated against live
+// field values to drive a scoped button's visibility or enablement.
+export interface ButtonConditionSet {
+  conditions: RuleCondition[];
+  logic: LogicalOperator;
+}
+
 export interface ScopedButton {
   id: string;
   placementScope: ButtonPlacementScope;
@@ -235,6 +242,11 @@ export interface ScopedButton {
   confirmationMessage?: string;
   action: ScopedButtonAction;  // discriminated by action.type
   isActive: boolean;
+  // DFE-CBTN-001: optional conditional visibility / enablement. When present the
+  // set is evaluated live against field values and overrides the static
+  // isVisible / isActive flag; when absent, the static flag applies (legacy).
+  visibleWhen?: ButtonConditionSet;
+  enabledWhen?: ButtonConditionSet;
 }
 
 /** Resolved extra-parameter envelope produced server-side at submit time. */
@@ -783,4 +795,9 @@ export interface RuleEvaluationResult {
   fieldReadonly: Record<string, boolean>;
   fieldValues: Record<string, unknown>; // fields that had values set/cleared/calculated
   filteredOptions: Record<string, OptionValue[]>;
+  // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
+  // is present only when that button declares the corresponding condition set;
+  // absent ⇒ the button's static isVisible / isActive flag applies (legacy).
+  buttonVisibility: Record<string, boolean>;
+  buttonEnabledState: Record<string, boolean>;
 }

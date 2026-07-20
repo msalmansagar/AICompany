@@ -324,6 +324,38 @@ export type ScopedButtonAction =
   | SaveDraftActionConfig
   | CallApiActionConfig;
 
+// DFE-CBTN-001: condition types for conditional button visibility / enablement.
+// Mobile carries the types (parity with form.types.ts) but v1 defers runtime
+// evaluation — see brd-cbtn-approval.md OQ-006.
+export type LogicalOperator = 'AND' | 'OR';
+
+export type ConditionOperator =
+  | 'equals'
+  | 'notEquals'
+  | 'isEmpty'
+  | 'isNotEmpty'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'greaterThanOrEqual'
+  | 'lessThanOrEqual'
+  | 'contains'
+  | 'inList'
+  | 'notInList';
+
+export interface RuleCondition {
+  fieldId: string;
+  operator: ConditionOperator;
+  value?: string | number | boolean | string[];
+  logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
+}
+
+// DFE-CBTN-001: a set of conditions combined by `logic`, evaluated against live
+// field values to drive a scoped button's visibility or enablement.
+export interface ButtonConditionSet {
+  conditions: RuleCondition[];
+  logic: LogicalOperator;
+}
+
 export interface ScopedButton {
   id: string;
   placementScope: ButtonPlacementScope;
@@ -336,6 +368,11 @@ export interface ScopedButton {
   confirmationMessage?: string;
   action: ScopedButtonAction;  // discriminated by action.type
   isActive: boolean;
+  // DFE-CBTN-001: optional conditional visibility / enablement. When present the
+  // set is evaluated live against field values and overrides the static
+  // isVisible / isActive flag; when absent, the static flag applies (legacy).
+  visibleWhen?: ButtonConditionSet;
+  enabledWhen?: ButtonConditionSet;
 }
 
 /** Resolved extra-parameter envelope produced server-side at submit time. */

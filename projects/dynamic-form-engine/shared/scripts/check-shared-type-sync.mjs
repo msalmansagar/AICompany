@@ -35,6 +35,7 @@ const SYNCED_TYPES = [
   'CallApiResponseMapping',
   'CallApiActionConfig',
   'ScopedButtonAction',
+  'ButtonConditionSet',
   'ScopedButton',
   'ResolvedExtraParams',
 ];
