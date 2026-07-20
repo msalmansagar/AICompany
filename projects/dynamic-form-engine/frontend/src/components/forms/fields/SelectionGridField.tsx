@@ -284,6 +284,16 @@ export function resolveRecordDisplayValue(
   values: Record<string, unknown>,
   attribute: string,
 ): string {
+  // FetchXml-sourced grids (saved-view queries) return the formatted display value
+  // under `attr@FormattedValue` — for both lookups AND option-sets. Check this before
+  // the raw attribute so lookup/optionset columns show the name/label, not the GUID/code.
+  const fetchXmlFormatted =
+    values?.[`${attribute}@OData.Community.Display.V1.FormattedValue`];
+  if (fetchXmlFormatted !== null && fetchXmlFormatted !== undefined) {
+    return String(fetchXmlFormatted);
+  }
+
+  // OData Web API convention for a lookup's formatted value.
   const formattedLookup =
     values?.[`_${attribute}_value@OData.Community.Display.V1.FormattedValue`];
   if (formattedLookup !== null && formattedLookup !== undefined) {

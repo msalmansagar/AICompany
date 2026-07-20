@@ -27,6 +27,16 @@ describe('resolveRecordDisplayValue', () => {
     expect(resolveRecordDisplayValue(values, 'qdb_serviceref')).toBe('Service A');
   });
 
+  it('resolves the FetchXml formatted-value form `attr@FormattedValue` (saved-view grids)', () => {
+    // FetchXml results annotate lookups AND option-sets under the plain attribute
+    // name, not the OData `_attr_value` form — must resolve to the name/label.
+    const lookup = { parentcustomerid: SERVICE_REF_GUID, 'parentcustomerid@OData.Community.Display.V1.FormattedValue': 'Qatar National Bank' };
+    expect(resolveRecordDisplayValue(lookup, 'parentcustomerid')).toBe('Qatar National Bank');
+
+    const optionset = { gender: 1, 'gender@OData.Community.Display.V1.FormattedValue': 'Male' };
+    expect(resolveRecordDisplayValue(optionset, 'gender')).toBe('Male');
+  });
+
   it('returns an empty string for null, undefined, or missing values', () => {
     expect(resolveRecordDisplayValue({}, 'qdb_serviceref')).toBe('');
     expect(resolveRecordDisplayValue({ qdb_serviceref: null }, 'qdb_serviceref')).toBe('');
