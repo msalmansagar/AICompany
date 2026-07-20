@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Qdb.FormEngine.Core.Abstractions;
 using Qdb.FormEngine.Core.Models;
 
@@ -221,20 +222,45 @@ namespace Qdb.FormEngine.Core.Generation
 
         private GridColumnConfig BuildGridColumn(Entity column)
         {
-            var optionsJson = column.GetAttributeValue<string>("qdb_column_options_json") ?? "[]";
-            List<GridColumnOptionValue> options;
-            try { options = JsonConvert.DeserializeObject<List<GridColumnOptionValue>>(optionsJson) ?? new List<GridColumnOptionValue>(); }
-            catch { options = new List<GridColumnOptionValue>(); }
-
-            return new GridColumnConfig
+            var config = new GridColumnConfig
             {
                 ColumnId = column.Id,
                 DisplayOrder = column.GetAttributeValue<int>("qdb_display_order"),
                 ColumnLabel = Resolve(column.Id, "qdb_grid_column_config", "qdb_column_label", column.GetAttributeValue<string>("qdb_column_label")),
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
-                Options = options
+                Options = new List<GridColumnOptionValue>()
             };
+            ApplyColumnOptionsJson(config, column.GetAttributeValue<string>("qdb_column_options_json"));
+            return config;
+        }
+
+        // The grid-column options JSON has TWO shapes (mirrors the designer encoder and
+        // the Node backend decoder): a bare array of { value, label } (options only), OR a
+        // v2 object { v:2, options:[...], filterType, lookupTargetEntity, lookupDisplayAttribute }
+        // carrying filter/lookup metadata. Parse BOTH — a bare-array-only parse silently
+        // dropped v2 columns' options AND all their lookup config, so lookup columns rendered
+        // blank in-CRM (worked in local dev, which decodes both).
+        private static void ApplyColumnOptionsJson(GridColumnConfig config, string optionsJson)
+        {
+            if (string.IsNullOrWhiteSpace(optionsJson)) return;
+            try
+            {
+                var token = JToken.Parse(optionsJson);
+                if (token is JArray arr)
+                {
+                    config.Options = arr.ToObject<List<GridColumnOptionValue>>() ?? config.Options;
+                }
+                else if (token is JObject obj)
+                {
+                    if (obj["options"] is JArray v2Options)
+                        config.Options = v2Options.ToObject<List<GridColumnOptionValue>>() ?? config.Options;
+                    config.FilterType = (string)obj["filterType"];
+                    config.LookupTargetEntity = (string)obj["lookupTargetEntity"];
+                    config.LookupDisplayAttribute = (string)obj["lookupDisplayAttribute"];
+                }
+            }
+            catch { /* malformed options JSON — leave defaults (empty options, no filter meta) */ }
         }
 
         private List<ValidationRule> BuildValidationRules(Guid fieldId)
