@@ -18,7 +18,8 @@
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-    <!-- TODO(build): Microsoft.PowerPlatform.Dataverse.Client (cloud), Microsoft.CrmSdk.CoreAssemblies (on-prem), Polly (resilience) -->
+    <PackageReference Include="Polly.Core" Version="8.4.2" />
+    <!-- TODO(build): Microsoft.PowerPlatform.Dataverse.Client (cloud), Microsoft.CrmSdk.CoreAssemblies (on-prem) -->
   </ItemGroup>
 
 </Project>
