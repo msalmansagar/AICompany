@@ -267,6 +267,11 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("confirmationMessage", NullValueHandling = NullValueHandling.Ignore)] public string ConfirmationMessage { get; set; }
         [JsonProperty("action")] public object Action { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
+        // DFE-CBTN-001: optional per-button conditional visibility / enablement. Emitted
+        // verbatim as { conditions: [...], logic: "AND"|"OR" }; omitted when null so the
+        // button falls back to its static isVisible / isActive flag (legacy behavior).
+        [JsonProperty("visibleWhen", NullValueHandling = NullValueHandling.Ignore)] public object VisibleWhen { get; set; }
+        [JsonProperty("enabledWhen", NullValueHandling = NullValueHandling.Ignore)] public object EnabledWhen { get; set; }
     }
 
     /// <summary>Grid field configuration for interactive-grid and repeatingGrid field types.</summary>

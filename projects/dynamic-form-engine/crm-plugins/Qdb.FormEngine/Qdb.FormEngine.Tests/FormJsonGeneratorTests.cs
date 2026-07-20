@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xrm.Sdk;
+using Newtonsoft.Json.Linq;
 using Moq;
 using Qdb.FormEngine.Core.Abstractions;
 using Qdb.FormEngine.Core.Generation;
@@ -147,6 +148,56 @@ namespace Qdb.FormEngine.Tests
 
             // Assert — the malformed button is dropped, leaving no buttons
             Assert.Null(result.Tabs[0].Buttons);
+        }
+
+        [Fact]
+        public void Generate_WithButtonConditions_EmbedsVisibleAndEnabledWhen()
+        {
+            // Arrange — DFE-CBTN-001: per-button visible/enabled condition sets.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var button = MakeScopedButton(formId, tabId, null, "tab", "Approve", "saveDraft", "{}");
+            button["qdb_visible_conditions_json"] =
+                "{\"conditions\":[{\"fieldId\":\"qdb_status\",\"operator\":\"equals\",\"value\":\"submitted\"}],\"logic\":\"AND\"}";
+            button["qdb_enabled_conditions_json"] =
+                "{\"conditions\":[{\"fieldId\":\"qdb_amount\",\"operator\":\"isNotEmpty\"}],\"logic\":\"OR\"}";
+            rawData.ScopedButtons = new List<Entity> { button };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — both condition sets emitted verbatim in runtime shape
+            var btn = result.Tabs[0].Buttons[0];
+            var vis = Assert.IsType<JObject>(btn.VisibleWhen);
+            Assert.Equal("AND", vis["logic"].ToString());
+            Assert.Equal("qdb_status", vis["conditions"][0]["fieldId"].ToString());
+            Assert.Equal("equals", vis["conditions"][0]["operator"].ToString());
+            var en = Assert.IsType<JObject>(btn.EnabledWhen);
+            Assert.Equal("OR", en["logic"].ToString());
+            Assert.Equal("qdb_amount", en["conditions"][0]["fieldId"].ToString());
+        }
+
+        [Fact]
+        public void Generate_WithInvalidOrEmptyButtonConditions_OmitsThem()
+        {
+            // Arrange — invalid JSON and empty must both drop to null (button falls back to
+            // its static isVisible/isActive — legacy behavior preserved).
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var button = MakeScopedButton(formId, tabId, null, "tab", "Plain", "saveDraft", "{}");
+            button["qdb_visible_conditions_json"] = "{not valid json";
+            button["qdb_enabled_conditions_json"] = "";
+            rawData.ScopedButtons = new List<Entity> { button };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var btn = result.Tabs[0].Buttons[0];
+            Assert.Null(btn.VisibleWhen);
+            Assert.Null(btn.EnabledWhen);
         }
 
         [Fact]
