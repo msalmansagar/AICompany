@@ -42,8 +42,11 @@ const useStyles = makeStyles({
     boxSizing: 'border-box',
   },
   cardInfo: {
-    backgroundColor: tokens.colorBrandBackground2,
-    borderLeftColor: tokens.colorBrandForeground1,
+    // Fixed blue palette (not brand tokens) so the card stays a light tint with
+    // readable dark text regardless of the tenant's brand ramp — matches the
+    // warning/success/error variants, which all use palette (not brand) colors.
+    backgroundColor: tokens.colorPaletteBlueBackground2,
+    borderLeftColor: tokens.colorPaletteBlueBorderActive,
   },
   cardWarning: {
     backgroundColor: tokens.colorPaletteGoldBackground2,
@@ -58,7 +61,7 @@ const useStyles = makeStyles({
     borderLeftColor: tokens.colorPaletteRedForeground1,
   },
   iconInfo: {
-    color: tokens.colorBrandForeground1,
+    color: tokens.colorPaletteBlueForeground2,
     flexShrink: 0,
     paddingTop: '2px',
   },
