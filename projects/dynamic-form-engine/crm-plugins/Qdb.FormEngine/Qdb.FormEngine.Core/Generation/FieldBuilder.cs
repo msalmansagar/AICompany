@@ -258,6 +258,7 @@ namespace Qdb.FormEngine.Core.Generation
                     config.FilterType = (string)obj["filterType"];
                     config.LookupTargetEntity = (string)obj["lookupTargetEntity"];
                     config.LookupDisplayAttribute = (string)obj["lookupDisplayAttribute"];
+                    config.LookupValueAttribute = (string)obj["lookupValueAttribute"];
                 }
             }
             catch { /* malformed options JSON — leave defaults (empty options, no filter meta) */ }

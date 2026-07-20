@@ -5,7 +5,7 @@
 // Run: node --env-file=scripts/.env scripts/seed-grid-fileupload-demo.mjs
 const TENANT = process.env.DV_TENANT_ID, CLIENT = process.env.DV_CLIENT_ID, SECRET = process.env.DV_CLIENT_SECRET, URL = process.env.DV_DATAVERSE_URL;
 const API = `${URL}/api/data/v9.2`;
-const FORM_CODE = 'grid-lookup-file-demo';
+const FORM_CODE = 'grid-lookup-valattr-demo';
 
 const FT = { text: 100000001, interactiveGrid: 100000021 };
 const CS = { one: 100000001, two: 100000002 };
@@ -59,7 +59,7 @@ await col('fud-col-cat', 'Category', 'qdb_category', 'dropdown', 2,
   JSON.stringify([{ value: 'legal', label: 'Legal' }, { value: 'financial', label: 'Financial' }, { value: 'technical', label: 'Technical' }]));
 // DFE — editable entity-sourced lookup column (fetches account records).
 await col('fud-col-company', 'Company', 'qdb_company', 'lookup', 3,
-  JSON.stringify({ v: 2, filterType: 'lookup', lookupTargetEntity: 'account', lookupDisplayAttribute: 'name' }));
+  JSON.stringify({ v: 2, filterType: "lookup", lookupTargetEntity: "account", lookupDisplayAttribute: "name", lookupValueAttribute: "accountnumber" }));
 await col('fud-col-file', 'Document', 'qdb_file', 'file', 4);
 
 await post('qdb_form_buttons', { 'qdb_form_definition_id@odata.bind': `/qdb_form_definitions(${fid})`, qdb_label: 'Submit', qdb_action: BTN_SUBMIT, qdb_display_order: 1, qdb_is_primary: true, qdb_is_visible: true, qdb_is_active: true, qdb_confirmation_required: false });

@@ -55,6 +55,7 @@ export interface GridColumnConfig {
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  lookupValueAttribute?: string;
   options?: GridColumnOptionValue[];
 }
 

@@ -98,6 +98,7 @@ export interface DesignerGridColumnConfig {
   filterType: GridColumnFilterType;
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
+  lookupValueAttribute: string | null;
 }
 
 export interface DesignerFieldModel {

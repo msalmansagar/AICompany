@@ -547,6 +547,7 @@ export class CrmMetadataService extends CrmBaseService {
         filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
         lookupTargetEntity: meta.lookupTargetEntity,
         lookupDisplayAttribute: meta.lookupDisplayAttribute,
+        lookupValueAttribute: meta.lookupValueAttribute,
       });
       map.set(fieldId, existing);
     }
@@ -1346,6 +1347,7 @@ interface ParsedColumnMeta {
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  lookupValueAttribute?: string;
 }
 
 function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
@@ -1363,6 +1365,7 @@ function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
           : undefined,
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
+        lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : undefined,
       };
     }
     return {};

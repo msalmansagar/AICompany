@@ -583,6 +583,9 @@ export interface GridColumnConfig {
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  // The target-entity attribute used as the stored record ID. Absent ⇒ the
+  // entity's primary key ({entity}id) — see CrmLookupService.
+  lookupValueAttribute?: string;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
 }

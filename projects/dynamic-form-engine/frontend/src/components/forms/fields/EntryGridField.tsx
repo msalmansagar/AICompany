@@ -361,6 +361,7 @@ function EntryGridCell({
           isReadonly={isReadonly}
           entityName={col.lookupTargetEntity ?? ''}
           displayAttribute={col.lookupDisplayAttribute ?? 'name'}
+          valueAttribute={col.lookupValueAttribute}
           cellId={cellId}
           headerId={headerId}
           onChange={handleChange}
@@ -397,6 +398,8 @@ interface GridLookupCellProps {
   isReadonly: boolean;
   entityName: string;
   displayAttribute: string;
+  // Target-entity attribute stored as the record ID; undefined ⇒ primary key.
+  valueAttribute?: string;
   cellId: string;
   headerId: string;
   onChange: (value: unknown) => void;
@@ -415,6 +418,7 @@ function GridLookupCell({
   isReadonly,
   entityName,
   displayAttribute,
+  valueAttribute,
   cellId,
   headerId,
   onChange,
@@ -424,6 +428,7 @@ function GridLookupCell({
   const { results, isSearching, search, loadInitial, clearResults } = useLookupSearch({
     entityName,
     displayAttribute: displayAttribute || 'name',
+    valueAttribute,
     maxResults: 10,
   });
 

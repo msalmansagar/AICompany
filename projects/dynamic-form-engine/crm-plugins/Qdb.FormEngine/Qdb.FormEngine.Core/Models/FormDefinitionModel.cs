@@ -302,6 +302,7 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("filterType")] public string FilterType { get; set; }
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
+        [JsonProperty("lookupValueAttribute")] public string LookupValueAttribute { get; set; }
         [JsonProperty("options")] public List<GridColumnOptionValue> Options { get; set; }
     }
 
