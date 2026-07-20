@@ -25,6 +25,7 @@ additional research.
    - 2.10 Authentication & Access Control
    - 2.11 Mobile (React Native) — structure, navigation, state, auth, fields, gaps
    - 2.12 Backend API
+   - 2.13 Recent Feature Enhancements (2026-07) — grid lookup fix, info-card grid, grid file upload, conditional buttons, submit gate
 3. [Roadmap — Phase 1: Web Table Stakes (0–3 months)](#3-roadmap--phase-1-table-stakes)
 4. [Roadmap — Phase 1b: Mobile Bug Fixes (0–3 months)](#3b-roadmap--phase-1-mobile-bug-fixes)
    - RM-002 Draft Resume
@@ -903,6 +904,55 @@ have not been configured. The `extra.eas.projectId` in `app.json` is still
 | `POST` | `/admin/info-cards` | Create info card |
 | `PUT` | `/admin/info-cards/:id` | Update info card |
 | `DELETE` | `/admin/info-cards/:id` | Delete info card |
+
+---
+
+### 2.13 Recent Feature Enhancements (2026-07) `[DONE]`
+
+Five enhancements shipped in July 2026. **New Dataverse columns at a glance:**
+
+| # | Feature | New columns | Entity |
+|---|---------|-------------|--------|
+| 1 | Grid lookup binding fix | *(none — runtime fix)* | — |
+| 2 | Info-card display inside grid | `qdb_grid_data_source`, `qdb_grid_json_data`, `qdb_grid_display_mode`, `qdb_grid_selectable`, `qdb_grid_card_icon`, `qdb_grid_card_layout` | `qdb_form_field` |
+| 3 | File-upload column inside grid | *(none — new `file` value on the existing `qdb_column_field_type`)* | `qdb_grid_column_config` |
+| 4 | Conditional buttons (show/hide + enable/disable) | `qdb_visible_conditions_json`, `qdb_enabled_conditions_json` | `qdb_form_scoped_button` |
+| 5 | Submit-confirmation gate | `qdb_submit_confirmation_label`, `qdb_submit_confirmation_message` | `qdb_form_definition` |
+
+All columns are additive and idempotently provisioned via `scripts/provision-*.mjs`. **Two form-JSON generators exist** — the Node backend (`CrmMetadataService`, local dev / middle-tier) and the **C# plugin (`FormJsonGenerator`, the in-CRM path via render cache)** — any new form config must be mapped in BOTH.
+
+#### 2.13.1 Interactive Grid — Lookup Column Resolution Fix
+
+Lookup columns rendered blank because the grid resolved cell values by exact schema-name key (`row[qdb_serviceref]`), but the Web API returns lookups under `_{schema}_value` (GUID) and `_{schema}_value@OData.Community.Display.V1.FormattedValue` (friendly name).
+- **Fix:** `resolveRecordDisplayValue` helper (formatted name → direct value → raw lookup GUID, null-safe) in `frontend/.../fields/SelectionGridField.tsx`, applied at table-cell and card bindings. Non-lookup fields keep the direct-key path.
+- **New fields:** none (pure runtime fix). Commit `9c8480fc`.
+
+#### 2.13.2 Interactive Grid — Info-Card Display + JSON Data Source (DFE-GRIDSRC-001)
+
+A selection grid can source rows from an **Entity or static JSON**, render as **Columns or a rich InfoCard** (grid or row layout), and be **selectable or read-only** — all designer-configurable with user-defined columns.
+- **Model (`GridFieldConfig`):** `dataSource: 'entity'|'json'`, `jsonData` (static array string), `displayMode: 'columns'|'infocard'`, `cardLayout: 'grid'|'row'`, `selectable` (false = read-only), `cardIconName`.
+- **Runtime:** `SelectionGridField.tsx` (`parseJsonGridRecords`, view-mode toggle, rich info-card body). **Designer:** `InteractiveGridFieldPanel.tsx`. **Backend:** `CrmMetadataService` maps the 6 columns into `gridConfig`.
+- **New fields:** 6 on `qdb_form_field` (see table). Commits `53bf14c0`…`3e7441fe`.
+
+#### 2.13.3 Interactive Grid — File-Upload Column (DFE-GRIDFILE)
+
+An entry grid column can be a **document upload** (one file per cell), reusing `filesApi.upload`.
+- **Runtime:** `EntryGridCell` `'file'` case (`GridFileCell`); summary shows the filename. **Designer:** column-type option `File`. Rows are JSON-serialised on submit — backend unchanged.
+- **New fields:** none — a new `file` value on the existing `qdb_column_field_type` (grid column config). Commit `306315e7`.
+
+#### 2.13.4 Conditional Buttons — Show/Hide + Enable/Disable (DFE-CBTN-001)
+
+Scoped buttons (tab/section) can **show/hide** and **enable/disable** based on live field values, configured per-button in the designer. Two independent condition sets (`visibleWhen`/`enabledWhen`), each `{ conditions: RuleCondition[]; logic: 'AND'|'OR' }`, evaluated by the existing `RuleEngine`. No conditions ⇒ static `isVisible`/`isActive` (legacy).
+- **Runtime:** `RuleEngine.evaluateButtons` + `FormContext` + `ScopedButtonBar` (render iff `effectiveVisible && (effectiveEnabled || hasEnabledWhen)`; disabled ⇒ `aria-disabled`). **Designer:** condition builders + pre-write validation (`ScopedButtonsPanel`, `ScopedButtonDesignService`). **C# plugin:** `FormJsonGenerator.BuildScopedButton` maps the columns into the published blob (required for in-CRM). `RuleCondition.fieldId` = field **schema name**.
+- **New fields:** 2 on `qdb_form_scoped_button` (see table). Commits `233445b6`, `80a247d3`.
+
+#### 2.13.5 Submit-Confirmation Gate (DFE-SUBMITCONFIRM-001)
+
+A config-driven acknowledgement gate on the summary/submit step: an **acknowledgement checkbox** must be ticked before **Submit** is enabled; on submit a **confirmation dialog** is shown.
+- **Model (`FormDefinition`):** `submitConfirmation?: { label, message }`. **Runtime:** `SubmitButton` gate (checkbox + dialog) in the summary step. **Designer:** Properties-panel fields. Absent config ⇒ no gate (legacy).
+- **New fields:** `qdb_submit_confirmation_label` (String 200), `qdb_submit_confirmation_message` (Memo 2000) on `qdb_form_definition`. Commits `5b5477cc`, `8892dfdc`, `9b9ff296`, `1a7361ab`.
+
+**Also shipped in the same window (not among the 5 above):** tab **header/footer field placement** (DFE-TABZONE-001 — `qdb_placement` + a field→tab lookup on `qdb_form_field`); standalone **Info Card field** rendering JSON rows with icon+label; and the **`@qdb/shared` ESM migration** (`03b21faa`, infra fix so the Node backend boots).
 
 ---
 
