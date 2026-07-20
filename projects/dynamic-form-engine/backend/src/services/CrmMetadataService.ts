@@ -440,6 +440,8 @@ export class CrmMetadataService extends CrmBaseService {
       infoCardTitle: field.qdb_info_card_title,
       infoCardBody: field.qdb_info_card_body,
       infoCardIcon: field.qdb_info_card_icon,
+      infoCardListType: this.mapInfoCardListType(field.qdb_info_card_list_type),
+      infoCardListMarker: this.mapInfoCardListMarker(field.qdb_info_card_list_marker),
       infoCardDownloadUrl: field.qdb_info_card_download_url,
       infoCardDownloadLabel: field.qdb_info_card_download_label,
       infoCardDownloadIcon: field.qdb_info_card_download_icon,
@@ -916,6 +918,15 @@ export class CrmMetadataService extends CrmBaseService {
     return code === undefined || code === null ? undefined : (map[code] ?? undefined);
   }
 
+  // DFE-INFOLIST-001: validate the info-card list style strings.
+  private mapInfoCardListType(v: string | undefined): 'bullet' | 'numbered-arabic' | 'numbered-roman' | undefined {
+    return v === 'bullet' || v === 'numbered-arabic' || v === 'numbered-roman' ? v : undefined;
+  }
+
+  private mapInfoCardListMarker(v: string | undefined): 'circle' | 'plain' | 'none' | undefined {
+    return v === 'circle' || v === 'plain' || v === 'none' ? v : undefined;
+  }
+
   private mapGridMode(code: number | undefined): 'selection' | 'entry' {
     return code === 100000001 ? 'entry' : 'selection';
   }
@@ -1168,6 +1179,8 @@ interface RawField {
   qdb_info_card_title?: string;
   qdb_info_card_body?: string;
   qdb_info_card_icon?: string;
+  qdb_info_card_list_type?: string;
+  qdb_info_card_list_marker?: string;
   qdb_info_card_download_url?: string;
   qdb_info_card_download_label?: string;
   qdb_info_card_download_icon?: string;

@@ -135,6 +135,9 @@ export interface DesignerFieldModel {
   falseLabel: string | null;
   // Sprint 4 — info-card inline field config
   infoCardStyle: 'info' | 'warning' | 'success' | 'error' | null;
+  // DFE-INFOLIST-001 — optional so existing field factories/fixtures don't break.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardTitle: string | null;
   infoCardBody: string | null;
   infoCardIcon: string | null;

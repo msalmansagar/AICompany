@@ -134,6 +134,8 @@ export const FORM_FIELD_ATTRS = {
   INFO_CARD_DOWNLOAD_URL: 'qdb_info_card_download_url',
   INFO_CARD_DOWNLOAD_LABEL: 'qdb_info_card_download_label',
   INFO_CARD_DOWNLOAD_ICON: 'qdb_info_card_download_icon',
+  INFO_CARD_LIST_TYPE: 'qdb_info_card_list_type',
+  INFO_CARD_LIST_MARKER: 'qdb_info_card_list_marker',
   // File field — template download before upload
   FILE_DOWNLOAD_LABEL: 'qdb_file_download_label',
   FILE_DOWNLOAD_ICON: 'qdb_file_download_icon',

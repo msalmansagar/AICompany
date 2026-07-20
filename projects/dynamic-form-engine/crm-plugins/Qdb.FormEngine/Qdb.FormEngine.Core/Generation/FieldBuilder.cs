@@ -83,6 +83,8 @@ namespace Qdb.FormEngine.Core.Generation
                 InfoCardTitle = Resolve(fieldId, "qdb_form_field", "qdb_info_card_title", field.GetAttributeValue<string>("qdb_info_card_title")),
                 InfoCardBody = Resolve(fieldId, "qdb_form_field", "qdb_info_card_body", field.GetAttributeValue<string>("qdb_info_card_body")),
                 InfoCardIcon = field.GetAttributeValue<string>("qdb_info_card_icon"),
+                InfoCardListType = field.GetAttributeValue<string>("qdb_info_card_list_type"),
+                InfoCardListMarker = field.GetAttributeValue<string>("qdb_info_card_list_marker"),
                 InfoCardDownloadUrl = field.GetAttributeValue<string>("qdb_info_card_download_url"),
                 InfoCardDownloadLabel = Resolve(fieldId, "qdb_form_field", "qdb_info_card_download_label", field.GetAttributeValue<string>("qdb_info_card_download_label")),
                 InfoCardDownloadIcon = field.GetAttributeValue<string>("qdb_info_card_download_icon"),

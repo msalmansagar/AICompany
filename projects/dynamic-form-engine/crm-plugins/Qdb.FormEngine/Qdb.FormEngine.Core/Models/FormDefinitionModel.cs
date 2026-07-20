@@ -120,6 +120,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("infoCardTitle")] public string InfoCardTitle { get; set; }
         [JsonProperty("infoCardBody")] public string InfoCardBody { get; set; }
         [JsonProperty("infoCardIcon")] public string InfoCardIcon { get; set; }
+        [JsonProperty("infoCardListType", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardListType { get; set; }
+        [JsonProperty("infoCardListMarker", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardListMarker { get; set; }
         [JsonProperty("infoCardDownloadUrl")] public string InfoCardDownloadUrl { get; set; }
         [JsonProperty("infoCardDownloadLabel")] public string InfoCardDownloadLabel { get; set; }
         [JsonProperty("infoCardDownloadIcon")] public string InfoCardDownloadIcon { get; set; }

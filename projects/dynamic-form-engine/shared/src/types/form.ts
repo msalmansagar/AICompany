@@ -175,6 +175,9 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  // DFE-INFOLIST-001: render the body (newline-split) as a list.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman';
+  infoCardListMarker?: 'circle' | 'plain' | 'none';
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
   infoCardDownloadIcon?: string;

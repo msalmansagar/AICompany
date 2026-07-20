@@ -28,6 +28,28 @@ function resolveStyle(raw: string | undefined): InfoCardStyle {
   return valid.includes(raw as InfoCardStyle) ? (raw as InfoCardStyle) : 'info';
 }
 
+// DFE-INFOLIST-001 — configurable body list (no external package).
+function toRoman(n: number): string {
+  const table: Array<[number, string]> = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+  let out = '';
+  let remaining = n;
+  for (const [value, symbol] of table) {
+    while (remaining >= value) { out += symbol; remaining -= value; }
+  }
+  return out || String(n);
+}
+
+function splitListItems(body: string | undefined): string[] {
+  if (!body) return [];
+  return body.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+}
+
+function markerText(listType: NonNullable<FieldDefinition['infoCardListType']>, index: number): string {
+  if (listType === 'bullet') return '•';
+  if (listType === 'numbered-roman') return toRoman(index + 1);
+  return `${index + 1}`;
+}
+
 function CardIcon({ iconName, cardStyle }: { iconName: string | undefined; cardStyle: InfoCardStyle }) {
   const color = BORDER_COLORS[cardStyle];
 
@@ -45,6 +67,8 @@ function CardIcon({ iconName, cardStyle }: { iconName: string | undefined; cardS
 export function FormInfoCardField({ field }: Props) {
   const cardStyle = resolveStyle(field.infoCardStyle);
   const borderColor = BORDER_COLORS[cardStyle];
+  const listItems = field.infoCardListType ? splitListItems(field.infoCardBody) : [];
+  const listMarker = field.infoCardListMarker ?? 'plain';
 
   const handleDownload = useCallback(() => {
     if (field.infoCardDownloadUrl) {
@@ -65,7 +89,24 @@ export function FormInfoCardField({ field }: Props) {
         {field.infoCardTitle ? (
           <Text style={styles.title}>{field.infoCardTitle}</Text>
         ) : null}
-        {field.infoCardBody ? (
+        {field.infoCardListType && listItems.length > 0 ? (
+          <View style={styles.listWrap}>
+            {listItems.map((item, index) => (
+              <View key={index} style={styles.listItem}>
+                {listMarker !== 'none' ? (
+                  listMarker === 'circle' ? (
+                    <View style={styles.markerCircle}>
+                      <Text style={styles.markerCircleText}>{markerText(field.infoCardListType!, index)}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.marker}>{markerText(field.infoCardListType!, index)}</Text>
+                  )
+                ) : null}
+                <Text style={[styles.body, styles.listItemText]}>{item}</Text>
+              </View>
+            ))}
+          </View>
+        ) : field.infoCardBody ? (
           <Text style={styles.body}>{field.infoCardBody}</Text>
         ) : null}
         {field.infoCardDownloadUrl ? (
@@ -121,6 +162,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#555',
     lineHeight: 18,
+  },
+  listWrap: {
+    marginTop: 2,
+  },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  listItemText: {
+    flex: 1,
+  },
+  marker: {
+    fontSize: 13,
+    color: '#555',
+    lineHeight: 18,
+    minWidth: 20,
+    marginRight: 8,
+  },
+  markerCircle: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 4,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#c8c8c8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  markerCircleText: {
+    fontSize: 11,
+    color: '#555',
   },
   downloadRow: {
     marginTop: 6,

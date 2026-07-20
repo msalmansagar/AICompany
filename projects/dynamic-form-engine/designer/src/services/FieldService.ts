@@ -20,6 +20,14 @@ import {
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
 
+// DFE-INFOLIST-001: validate the info-card list style strings read from Dataverse.
+function mapInfoCardListType(v: unknown): DesignerFieldModel['infoCardListType'] {
+  return v === 'bullet' || v === 'numbered-arabic' || v === 'numbered-roman' ? v : null;
+}
+function mapInfoCardListMarker(v: unknown): DesignerFieldModel['infoCardListMarker'] {
+  return v === 'circle' || v === 'plain' || v === 'none' ? v : null;
+}
+
 export interface CreateFieldDto {
   sectionId: string;
   label: string;
@@ -49,6 +57,8 @@ export interface CreateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardDownloadUrl?: string | null;
   infoCardDownloadLabel?: string | null;
   infoCardDownloadIcon?: string | null;
@@ -107,6 +117,8 @@ export interface UpdateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardDownloadUrl?: string | null;
   infoCardDownloadLabel?: string | null;
   infoCardDownloadIcon?: string | null;
@@ -173,6 +185,8 @@ export class FieldService {
     if (dto.infoCardTitle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle;
     if (dto.infoCardBody != null) payload[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody;
     if (dto.infoCardIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon;
+    if (dto.infoCardListType != null) payload[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE] = dto.infoCardListType;
+    if (dto.infoCardListMarker != null) payload[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER] = dto.infoCardListMarker;
     if (dto.infoCardDownloadUrl != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl;
     if (dto.infoCardDownloadLabel != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel;
     if (dto.infoCardDownloadIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon;
@@ -233,6 +247,8 @@ export class FieldService {
     if (dto.infoCardTitle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle ?? null;
     if (dto.infoCardBody !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody ?? null;
     if (dto.infoCardIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon ?? null;
+    if (dto.infoCardListType !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE] = dto.infoCardListType ?? null;
+    if (dto.infoCardListMarker !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER] = dto.infoCardListMarker ?? null;
     if (dto.infoCardDownloadUrl !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl ?? null;
     if (dto.infoCardDownloadLabel !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel ?? null;
     if (dto.infoCardDownloadIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon ?? null;
@@ -310,6 +326,8 @@ export class FieldService {
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL,
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL,
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON,
+      FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE,
+      FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER,
       FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL,
       FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON,
       FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING,
@@ -413,6 +431,8 @@ export class FieldService {
       infoCardTitle: record[FORM_FIELD_ATTRS.INFO_CARD_TITLE] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_TITLE]) : null,
       infoCardBody: record[FORM_FIELD_ATTRS.INFO_CARD_BODY] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_BODY]) : null,
       infoCardIcon: record[FORM_FIELD_ATTRS.INFO_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_ICON]) : null,
+      infoCardListType: mapInfoCardListType(record[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE]),
+      infoCardListMarker: mapInfoCardListMarker(record[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER]),
       infoCardDownloadUrl: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL]) : null,
       infoCardDownloadLabel: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL]) : null,
       infoCardDownloadIcon: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON]) : null,
