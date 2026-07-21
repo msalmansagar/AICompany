@@ -209,3 +209,18 @@ The four conditions that must be cleared before production deployment:
 | C4 | Ratify ADR-14 to "Accepted" (Architect + CEO sign-off) | Low | Architect / CEO |
 
 Additionally, the live-org Wave-0 verification session (VP-1…VP-7, wave-0-pin-governance-verification.md) remains a manual gate that must be completed on org5869857f before production deployment.
+
+---
+
+## Remediation applied (branch `chore/edp-wave0-gate`, 2026-07-21)
+
+| Item | Resolution |
+|------|-----------|
+| **C1 — npm audit** | **Triaged → accept.** All 3 critical/high are **dev-tooling only**: `vitest` (critical — requires the Vitest UI server, which never runs in production), `vite` (dev-server path traversal), `brace-expansion` (build-time DoS). The designer ships as a **static web resource**; none have a production runtime surface. Optional: bump vite/vitest to patched majors in a dedicated toolchain PR — not a deploy blocker. |
+| **C2 — IsProduction() fail-safe test** | **Done.** Added `Production_flag_unreadable_fails_safe_and_enforces` (query throws → enforces). Pin-plugin suite now 9/9. |
+| **SEC-06 — version drift** | **Done.** `bre-register.js` + `bre-register-meta.js` synced `1.0.9.0` → `1.0.23.0` (bump to 1.0.24 at the W0-1 cutover). |
+| **SEC-07 — token rotation** | **Done.** Comment added flagging `publickeytoken` for replacement at W0-1. |
+| **C3 — nullable warnings** | **Deferred** (Recommended, not required). 5 CS8602/CS8604 warnings (1 a false positive); the rest are `JsonDocument.Parse` null-guards touching 4 runtime files → dedicated cleanup PR to avoid regression surface here. |
+| **C4 — ratify ADR-14** | Open — Architect + CEO sign-off (owner decision). |
+
+Blockers B-1…B-4 (SNK rotation, entity audit, SoD live tests, PDPPL) are unchanged — they require out-of-band human/infra actions.
