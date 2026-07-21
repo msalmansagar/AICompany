@@ -15,4 +15,12 @@ public interface IReportExecutor
     /// </summary>
     Task<Result<ReportResult>> ExecuteAsync(
         Guid reportId, ReportExecutionRequest request, ReportExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Drills down through a relationship: runs the related (child) entity's query filtered to the
+    /// given parent key. Returns <see cref="DomainError.NotFound"/> when the report or relationship
+    /// does not exist.
+    /// </summary>
+    Task<Result<ReportResult>> ExecuteDrilldownAsync(
+        Guid reportId, Guid relationshipId, string parentKey, ReportExecutionContext context, CancellationToken cancellationToken);
 }

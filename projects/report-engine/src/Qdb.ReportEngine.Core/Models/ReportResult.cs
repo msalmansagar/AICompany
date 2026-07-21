@@ -1,5 +1,11 @@
 namespace Qdb.ReportEngine.Core.Models;
 
+/// <summary>Inputs for a drilldown: the parent row's key value to filter the related child query.</summary>
+public sealed record ReportDrilldownRequest
+{
+    public required string ParentKey { get; init; }
+}
+
 /// <summary>Runtime inputs for executing a report: prompt values and an optional row-limit override.</summary>
 public sealed record ReportExecutionRequest
 {

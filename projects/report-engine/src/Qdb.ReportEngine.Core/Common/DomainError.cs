@@ -19,4 +19,6 @@ public sealed record DomainError(string Code, string Message)
     public static DomainError QueryFailed(string entity) => new("query_failed", $"Query against {entity} failed.");
 
     public static DomainError UnsupportedFormat(string format) => new("unsupported_format", $"Export format '{format}' is not supported.");
+
+    public static DomainError Invalid(string reason) => new("invalid_request", reason);
 }

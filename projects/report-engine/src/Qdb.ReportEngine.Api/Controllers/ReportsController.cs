@@ -46,6 +46,31 @@ public sealed class ReportsController(
             : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
     }
 
+    /// <summary>Drills down through a relationship: returns the related child rows for a parent key.</summary>
+    [HttpPost("{reportId:guid}/relationships/{relationshipId:guid}/drilldown")]
+    public async Task<ActionResult<ReportResult>> Drilldown(
+        Guid reportId,
+        Guid relationshipId,
+        [FromBody] ReportDrilldownRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrEmpty(request.ParentKey))
+        {
+            return BadRequest(new { code = "invalid_request", message = "parentKey is required." });
+        }
+
+        var context = BuildContext();
+        var result = await executor.ExecuteDrilldownAsync(reportId, relationshipId, request.ParentKey, context, cancellationToken);
+        if (result.IsSuccess)
+        {
+            return Ok(result.Value);
+        }
+
+        return result.Error!.Code == "not_found"
+            ? NotFound(new { result.Error.Code, result.Error.Message })
+            : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+    }
+
     /// <summary>Executes the report and returns it as a downloadable file (CSV or Excel).</summary>
     [HttpPost("{reportId:guid}/export")]
     public async Task<IActionResult> Export(
