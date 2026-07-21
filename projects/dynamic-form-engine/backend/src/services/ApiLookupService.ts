@@ -1,5 +1,5 @@
 import type { LookupResult } from '@qdb/shared';
-import type { EndpointRegistry, RegisteredEndpoint } from './EndpointRegistry.js';
+import type { IEndpointRegistry, RegisteredEndpoint } from './EndpointRegistry.js';
 import { ValidationError, RateLimitError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -37,12 +37,12 @@ export class ApiLookupService {
   private readonly callTimestamps = new Map<string, number[]>();
 
   constructor(
-    private readonly registry: EndpointRegistry,
+    private readonly registry: IEndpointRegistry,
     private readonly options: { cacheTtlMs: number; rateLimitPerMin: number },
   ) {}
 
   async search(params: ApiLookupParams): Promise<ApiLookupOutcome> {
-    const endpoint = this.registry.resolve(params.endpointKey);
+    const endpoint = await this.registry.resolve(params.endpointKey);
     if (!endpoint) {
       logger.warn(
         { endpointKey: params.endpointKey, formCode: params.formCode ?? null },
@@ -78,7 +78,7 @@ export class ApiLookupService {
   }
 
   /** Returns the active endpoint keys — safe to expose to the designer. */
-  activeKeys(): string[] {
+  async activeKeys(): Promise<string[]> {
     return this.registry.activeKeys();
   }
 

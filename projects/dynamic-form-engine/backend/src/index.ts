@@ -17,6 +17,7 @@ import { CrmAuditService } from './services/CrmAuditService.js';
 import { CrmDataService } from './services/CrmDataService.js';
 import { CrmLookupService } from './services/CrmLookupService.js';
 import { EndpointRegistry } from './services/EndpointRegistry.js';
+import { DataverseEndpointRegistry } from './services/DataverseEndpointRegistry.js';
 import { ApiLookupService } from './services/ApiLookupService.js';
 import { CrmSubmissionService } from './services/CrmSubmissionService.js';
 import { CrmMetadataService } from './services/CrmMetadataService.js';
@@ -122,8 +123,15 @@ const lookupService = config.MOCK_CRM
 // the PDPPL data-egress hard gate. Inactive => the proxy/registry routes stay inert.
 const apiLookupActive =
   config.API_LOOKUP_ENABLED && (config.NODE_ENV !== 'production' || config.API_LOOKUP_ALLOW_PROD);
-const apiLookupService = apiLookupActive
-  ? new ApiLookupService(new EndpointRegistry(config.API_LOOKUP_ENDPOINT_REGISTRY), {
+// Registry source: the qdb_lookupendpoint Dataverse table for real environments;
+// the env-var JSON only as a fallback under MOCK_CRM (local dev without Dataverse).
+const endpointRegistry = apiLookupActive
+  ? (config.MOCK_CRM
+      ? new EndpointRegistry(config.API_LOOKUP_ENDPOINT_REGISTRY)
+      : new DataverseEndpointRegistry(authService, config.API_LOOKUP_CACHE_TTL_MS))
+  : null;
+const apiLookupService = endpointRegistry
+  ? new ApiLookupService(endpointRegistry, {
       cacheTtlMs: config.API_LOOKUP_CACHE_TTL_MS,
       rateLimitPerMin: config.API_LOOKUP_RATE_LIMIT_PER_MIN,
     })

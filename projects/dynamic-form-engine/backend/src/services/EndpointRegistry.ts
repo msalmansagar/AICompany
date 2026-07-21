@@ -18,7 +18,14 @@ const endpointSchema = z.object({
 
 export type RegisteredEndpoint = z.infer<typeof endpointSchema>;
 
-export class EndpointRegistry {
+// Both the env-var registry (below) and the Dataverse-backed registry satisfy this.
+// resolve/activeKeys may be sync (env) or async (Dataverse); callers await either.
+export interface IEndpointRegistry {
+  resolve(endpointKey: string): RegisteredEndpoint | null | Promise<RegisteredEndpoint | null>;
+  activeKeys(): string[] | Promise<string[]>;
+}
+
+export class EndpointRegistry implements IEndpointRegistry {
   private readonly byKey: Map<string, RegisteredEndpoint>;
 
   constructor(registryJson: string) {

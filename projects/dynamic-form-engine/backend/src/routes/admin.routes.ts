@@ -25,9 +25,9 @@ export function createAdminRouter(
   // GET /api/admin/endpoint-registry/keys — the only registry data ever exposed:
   // the list of active endpoint keys, so the designer can offer an approved-key
   // dropdown. Returns [] when the feature is inactive (never the URLs or credentials).
-  router.get('/endpoint-registry/keys', (req: Request, res: Response) => {
+  router.get('/endpoint-registry/keys', async (req: Request, res: Response) => {
     assertCrmAdminRole(req);
-    const keys = apiLookupService ? apiLookupService.activeKeys() : [];
+    const keys = apiLookupService ? await apiLookupService.activeKeys() : [];
     const response: ApiResponse<string[]> = { success: true, data: keys };
     res.json(response);
   });
