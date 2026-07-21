@@ -317,4 +317,4 @@ const toggleBtnStyle: React.CSSProperties = {
   width: 40, height: 26, fontSize: 11, fontWeight: 500, border: '1px solid #334155',
   borderRadius: 4, background: 'transparent', color: '#94a3b8', cursor: 'pointer',
 };
-const toggleBtnActiveStyle: React.CSSProperties = { background: '#1d4ed8', borderColor: '#3b82f6', color: '#fff' };
+const toggleBtnActiveStyle: React.CSSProperties = { background: '#1d4ed8', border: '1px solid #3b82f6', color: '#fff' };
