@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDashboardExecutionService, DashboardExecutionService>();
         services.AddScoped<IReportDataProvider, CrmReportDataProvider>();
         services.AddScoped<IReportDefinitionLoader, ReportDefinitionLoader>();
+        services.AddScoped<IReportExecutor, ReportExecutor>();
         services.AddScoped<ISecurityEnforcer, CrmSecurityEnforcer>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();
