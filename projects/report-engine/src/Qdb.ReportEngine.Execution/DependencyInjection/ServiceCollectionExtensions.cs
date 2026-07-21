@@ -21,6 +21,7 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddReportEngineExecution(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<DashboardOptions>(configuration.GetSection(DashboardOptions.SectionName));
+        services.Configure<DataverseOptions>(configuration.GetSection(DataverseOptions.SectionName));
 
         // Process-wide singletons.
         services.AddSingleton<DashboardConcurrencyGate>();
@@ -30,11 +31,29 @@ public static class ServiceCollectionExtensions
         // Per-request / stateless services.
         services.AddScoped<IDashboardExecutionService, DashboardExecutionService>();
         services.AddScoped<IReportDataProvider, CrmReportDataProvider>();
-        services.AddScoped<IDataverseConnectionFactory, DataverseConnectionFactory>();
         services.AddScoped<ISecurityEnforcer, CrmSecurityEnforcer>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();
 
+        AddDataverseConnectivity(services, configuration);
         return services;
+    }
+
+    // Uses the live Web API path when Dataverse is configured; otherwise a stub so the host still
+    // boots and dashboards degrade gracefully (each widget reports "not configured").
+    private static void AddDataverseConnectivity(IServiceCollection services, IConfiguration configuration)
+    {
+        var dataverse = configuration.GetSection(DataverseOptions.SectionName).Get<DataverseOptions>() ?? new DataverseOptions();
+        if (dataverse.IsConfigured)
+        {
+            services.AddHttpClient();
+            services.AddSingleton<IDataverseTokenProvider, MsalTokenProvider>();
+            services.AddSingleton<IEntitySetResolver, EntitySetResolver>();
+            services.AddScoped<IDataverseConnectionFactory, WebApiDataverseConnectionFactory>();
+        }
+        else
+        {
+            services.AddScoped<IDataverseConnectionFactory, StubDataverseConnectionFactory>();
+        }
     }
 }

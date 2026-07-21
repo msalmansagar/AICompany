@@ -15,4 +15,6 @@ public sealed record DomainError(string Code, string Message)
     public static DomainError PermissionDenied(string entity) => new("permission_denied", $"No read access to {entity}.");
 
     public static DomainError NotImplemented(string what) => new("not_implemented", $"{what} is not implemented in the scaffold.");
+
+    public static DomainError QueryFailed(string entity) => new("query_failed", $"Query against {entity} failed.");
 }
