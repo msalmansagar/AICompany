@@ -47,7 +47,7 @@ public sealed class ReportExecutor(
                 ? query.Columns.Concat(FormulaEvaluator.Columns(definition.Formulas)).ToList()
                 : query.Columns;
 
-            return Result<ReportResult>.Success(new ReportResult
+            var result = new ReportResult
             {
                 ReportId = definition.Id,
                 ReportName = definition.Name,
@@ -56,7 +56,8 @@ public sealed class ReportExecutor(
                 RowCount = rows.Count,
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
                 Duration = stopwatch.Elapsed
-            });
+            };
+            return Result<ReportResult>.Success(ReportTransformationPipeline.Apply(definition.Transformations, result));
         }
         catch (DataverseThrottledException)
         {

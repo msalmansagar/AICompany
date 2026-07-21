@@ -45,8 +45,52 @@ public sealed record ReportDefinition
     /// <summary>Computed columns evaluated per row after the query, in evaluation order.</summary>
     public IReadOnlyList<ReportFormula> Formulas { get; init; } = [];
 
+    /// <summary>Post-query dataset transformations, applied in step order.</summary>
+    public IReadOnlyList<ReportTransformation> Transformations { get; init; } = [];
+
+    /// <summary>Relationships to related entities/reports (drilldown, sub-report, inline expansion).</summary>
+    public IReadOnlyList<ReportRelationship> Relationships { get; init; } = [];
+
     /// <summary>The report's layout, if one is configured.</summary>
     public ReportLayout? Layout { get; init; }
+}
+
+/// <summary>A post-query transformation step (qdb_reporttransformation) configured by JSON.</summary>
+public sealed record ReportTransformation
+{
+    public required Guid Id { get; init; }
+
+    public CodedValue? TransformType { get; init; }
+
+    /// <summary>Transform-specific configuration as JSON.</summary>
+    public string? ConfigJson { get; init; }
+
+    public int StepOrder { get; init; }
+
+    public bool Enabled { get; init; }
+}
+
+/// <summary>A relationship from the report to related data (qdb_reportrelationship) — drives drilldown.</summary>
+public sealed record ReportRelationship
+{
+    public required Guid Id { get; init; }
+
+    public CodedValue? RelationshipType { get; init; }
+
+    /// <summary>How the related data opens: open record, sub-report, or inline expansion.</summary>
+    public CodedValue? OpenType { get; init; }
+
+    public string? ParentAlias { get; init; }
+
+    public string? ParentKey { get; init; }
+
+    public string? ChildAlias { get; init; }
+
+    public string? ChildKey { get; init; }
+
+    public int Depth { get; init; }
+
+    public string? ExternalJoinJson { get; init; }
 }
 
 /// <summary>A computed column (qdb_reportformula): an expression evaluated per row over other columns.</summary>

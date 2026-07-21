@@ -78,6 +78,26 @@ public static class ReportDefinitionFetch
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 
+    /// <summary>Transformations directly under the report.</summary>
+    public static string Transformations(Guid reportId) =>
+        Fetch("qdb_reporttransformation",
+            attributes:
+            [
+                "qdb_reporttransformationid", "qdb_transformtype", "qdb_configjson",
+                "qdb_steporder", "qdb_enabled"
+            ],
+            filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
+
+    /// <summary>Relationships (drilldown/sub-report) directly under the report.</summary>
+    public static string Relationships(Guid reportId) =>
+        Fetch("qdb_reportrelationship",
+            attributes:
+            [
+                "qdb_reportrelationshipid", "qdb_relationshiptype", "qdb_opentype", "qdb_parentalias",
+                "qdb_parentkey", "qdb_childalias", "qdb_childkey", "qdb_depth", "qdb_externaljoinjson"
+            ],
+            filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
+
     /// <summary>Formulas (computed columns) directly under the report.</summary>
     public static string Formulas(Guid reportId) =>
         Fetch("qdb_reportformula",

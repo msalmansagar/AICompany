@@ -44,6 +44,8 @@ public static class ReportDefinitionAssembler
             Filters = rows.Filters.Select(MapFilter).OrderBy(f => f.Sequence).ToList(),
             Parameters = rows.Parameters.Select(MapParameter).OrderBy(p => p.DisplayOrder).ToList(),
             Formulas = rows.Formulas.Select(MapFormula).OrderBy(f => f.EvaluationOrder).ToList(),
+            Transformations = rows.Transformations.Select(MapTransformation).OrderBy(t => t.StepOrder).ToList(),
+            Relationships = rows.Relationships.Select(MapRelationship).OrderBy(r => r.Depth).ToList(),
             Layout = rows.Layouts.Count > 0 ? MapLayout(rows.Layouts[0]) : null
         };
     }
@@ -128,6 +130,28 @@ public static class ReportDefinitionAssembler
         IsConditional = RowReader.Bool(row, "qdb_isconditional")
     };
 
+    private static ReportTransformation MapTransformation(IReadOnlyDictionary<string, object?> row) => new()
+    {
+        Id = RowReader.Guid(row, "qdb_reporttransformationid") ?? Guid.Empty,
+        TransformType = RowReader.Coded(row, "qdb_transformtype"),
+        ConfigJson = RowReader.String(row, "qdb_configjson"),
+        StepOrder = RowReader.IntOrZero(row, "qdb_steporder"),
+        Enabled = RowReader.Bool(row, "qdb_enabled")
+    };
+
+    private static ReportRelationship MapRelationship(IReadOnlyDictionary<string, object?> row) => new()
+    {
+        Id = RowReader.Guid(row, "qdb_reportrelationshipid") ?? Guid.Empty,
+        RelationshipType = RowReader.Coded(row, "qdb_relationshiptype"),
+        OpenType = RowReader.Coded(row, "qdb_opentype"),
+        ParentAlias = RowReader.String(row, "qdb_parentalias"),
+        ParentKey = RowReader.String(row, "qdb_parentkey"),
+        ChildAlias = RowReader.String(row, "qdb_childalias"),
+        ChildKey = RowReader.String(row, "qdb_childkey"),
+        Depth = RowReader.IntOrZero(row, "qdb_depth"),
+        ExternalJoinJson = RowReader.String(row, "qdb_externaljoinjson")
+    };
+
     private static ReportLayout MapLayout(IReadOnlyDictionary<string, object?> row) => new()
     {
         Id = RowReader.Guid(row, "qdb_reportlayoutid") ?? Guid.Empty,
@@ -156,6 +180,10 @@ public sealed record RawReportRows
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Parameters { get; init; } = [];
 
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Formulas { get; init; } = [];
+
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> Transformations { get; init; } = [];
+
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> Relationships { get; init; } = [];
 
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Layouts { get; init; } = [];
 }
