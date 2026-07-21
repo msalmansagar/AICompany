@@ -80,6 +80,52 @@ public sealed class ReportQueryBuilderTests
         Assert.DoesNotContain("<filter", query.FetchXml); // no value, no default → no condition, no filter
     }
 
+    [Fact]
+    public void Build_AggregateColumns_EmitsAggregateFetchWithGroupByAndNoTop()
+    {
+        var definition = Report(columns:
+        [
+            GroupColumn("statecode", groupOrder: 1),
+            MeasureColumn("accountid", "Count", sort: 2)
+        ]);
+
+        var query = ReportQueryBuilder.Build(definition, new ReportExecutionRequest());
+
+        Assert.True(query.IsAggregate);
+        Assert.Contains("<fetch aggregate=\"true\">", query.FetchXml);
+        Assert.DoesNotContain("top=", query.FetchXml);
+        Assert.Contains("name=\"statecode\" alias=\"statecode\" groupby=\"true\"", query.FetchXml);
+        Assert.Contains("name=\"accountid\" alias=\"accountid\" aggregate=\"count\"", query.FetchXml);
+        Assert.Contains("<order alias=\"statecode\"", query.FetchXml);
+    }
+
+    [Fact]
+    public void Build_NoAggregateFunction_StaysProjection()
+    {
+        var query = ReportQueryBuilder.Build(Report(columns: [Column("name", 1)]), new ReportExecutionRequest());
+
+        Assert.False(query.IsAggregate);
+        Assert.Contains("top=", query.FetchXml);
+    }
+
+    private static ReportColumn GroupColumn(string logical, int groupOrder) => new()
+    {
+        Id = Guid.NewGuid(),
+        ColumnLogicalName = logical,
+        GroupOrder = groupOrder,
+        AggregateFunction = new CodedValue(null, "None"),
+        IsVisible = true
+    };
+
+    private static ReportColumn MeasureColumn(string logical, string aggregate, int sort) => new()
+    {
+        Id = Guid.NewGuid(),
+        ColumnLogicalName = logical,
+        SortOrder = sort,
+        AggregateFunction = new CodedValue(null, aggregate),
+        IsVisible = true
+    };
+
     private static ReportDefinition Report(
         IReadOnlyList<ReportColumn> columns, IReadOnlyList<ReportFilter>? filters = null, int? rowLimit = null) => new()
     {

@@ -49,7 +49,7 @@ public sealed class ReportExecutor(
                 Columns = query.Columns,
                 Rows = rows,
                 RowCount = rows.Count,
-                Truncated = rows.Count >= query.RowLimit,
+                Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
                 Duration = stopwatch.Elapsed
             });
         }

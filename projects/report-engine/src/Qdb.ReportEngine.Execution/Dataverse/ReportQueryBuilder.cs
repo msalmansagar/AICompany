@@ -29,6 +29,13 @@ public static class ReportQueryBuilder
     private static readonly HashSet<string> MultiValueOperators = new(StringComparer.Ordinal)
         { "between", "in", "not-in" };
 
+    // qdb_aggregatefunction option-set labels → FetchXML aggregate operators ("None" = not a measure).
+    private static readonly IReadOnlyDictionary<string, string> Aggregates =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Sum"] = "sum", ["Count"] = "count", ["Avg"] = "avg", ["Min"] = "min", ["Max"] = "max"
+        };
+
     /// <summary>Builds the query for <paramref name="definition"/> under <paramref name="request"/>.</summary>
     public static ReportQuery Build(ReportDefinition definition, ReportExecutionRequest request)
     {
@@ -38,15 +45,31 @@ public static class ReportQueryBuilder
         var rootEntity = definition.MainEntityLogicalName ?? FirstMappingEntity(definition)
             ?? throw new InvalidOperationException($"Report {definition.Id} has no entity to query.");
         var columns = ColumnsFor(definition, rootEntity);
+        var isAggregate = columns.Any(IsMeasure);
 
         var entity = new XElement("entity", new XAttribute("name", rootEntity));
-        AddProjection(entity, columns);
+        if (isAggregate)
+        {
+            AddAggregateProjection(entity, columns);
+        }
+        else
+        {
+            AddProjection(entity, columns);
+        }
+
         AddFilters(entity, definition, request.ParameterValues);
+        if (isAggregate)
+        {
+            AddGroupOrders(entity, columns);
+        }
 
         var rowLimit = request.RowLimitOverride ?? definition.RowLimit ?? DefaultRowLimit;
-        var fetch = new XElement("fetch", new XAttribute("top", rowLimit), entity);
+        // Aggregate fetch does not accept a top attribute; the projection query caps rows with top.
+        var fetch = isAggregate
+            ? new XElement("fetch", new XAttribute("aggregate", "true"), entity)
+            : new XElement("fetch", new XAttribute("top", rowLimit), entity);
 
-        return new ReportQuery(fetch.ToString(SaveOptions.DisableFormatting), rootEntity, ToResultColumns(columns), rowLimit);
+        return new ReportQuery(fetch.ToString(SaveOptions.DisableFormatting), rootEntity, ToResultColumns(columns), rowLimit, isAggregate);
     }
 
     private static void AddProjection(XElement entity, IReadOnlyList<ReportColumn> columns)
@@ -64,6 +87,39 @@ public static class ReportQueryBuilder
                 new XAttribute("alias", Alias(column))));
         }
     }
+
+    // Aggregate mode: measures carry an aggregate operator; every other column becomes a group-by.
+    private static void AddAggregateProjection(XElement entity, IReadOnlyList<ReportColumn> columns)
+    {
+        foreach (var column in columns)
+        {
+            var attribute = new XElement("attribute",
+                new XAttribute("name", column.ColumnLogicalName!),
+                new XAttribute("alias", Alias(column)));
+            if (IsMeasure(column))
+            {
+                attribute.Add(new XAttribute("aggregate", Aggregates[column.AggregateFunction!.Label!]));
+            }
+            else
+            {
+                attribute.Add(new XAttribute("groupby", "true"));
+            }
+
+            entity.Add(attribute);
+        }
+    }
+
+    private static void AddGroupOrders(XElement entity, IReadOnlyList<ReportColumn> columns)
+    {
+        var groupColumns = columns.Where(c => !IsMeasure(c)).OrderBy(c => c.GroupOrder);
+        foreach (var column in groupColumns)
+        {
+            entity.Add(new XElement("order", new XAttribute("alias", Alias(column))));
+        }
+    }
+
+    private static bool IsMeasure(ReportColumn column) =>
+        column.AggregateFunction?.Label is { } label && Aggregates.ContainsKey(label);
 
     private static void AddFilters(XElement entity, ReportDefinition definition, IReadOnlyDictionary<string, string?> parameters)
     {
@@ -182,5 +238,6 @@ public static class ReportQueryBuilder
             .FirstOrDefault(e => !string.IsNullOrEmpty(e));
 }
 
-/// <summary>The built query: FetchXML, the root entity, the output columns, and the row limit.</summary>
-public sealed record ReportQuery(string FetchXml, string RootEntity, IReadOnlyList<ReportResultColumn> Columns, int RowLimit);
+/// <summary>The built query: FetchXML, the root entity, the output columns, the row limit, and whether it aggregates.</summary>
+public sealed record ReportQuery(
+    string FetchXml, string RootEntity, IReadOnlyList<ReportResultColumn> Columns, int RowLimit, bool IsAggregate = false);
