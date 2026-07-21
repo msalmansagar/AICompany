@@ -39,6 +39,9 @@ const documentTemplateSchema = z.object({
   downloadDocumentSetting: z.string().min(1, 'downloadDocumentSetting is required'),
 });
 
+// Annotation GUID or a mock id (mock-annotation-<ts>) — no slashes/spaces, bounded length.
+const fileIdSchema = z.string().regex(/^[a-zA-Z0-9-]{1,100}$/, 'Invalid file id');
+
 export function createFilesRouter(
   fileService: CrmFileService | null,
   documentService: CrmDocumentService | null = null,
@@ -138,6 +141,24 @@ export function createFilesRouter(
     res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
     res.setHeader('Content-Length', result.content.length);
     res.send(result.content);
+  });
+
+  // GET /api/files/:id
+  // Streams a previously uploaded document (file field or grid cell) for download.
+  router.get('/:id', async (req: Request, res: Response) => {
+    const id = fileIdSchema.parse(req.params.id);
+
+    if (!fileService) {
+      res.status(503).json({ success: false, error: { code: 'FILES_UNAVAILABLE', message: 'File storage is not configured' } });
+      return;
+    }
+
+    const { content, fileName, mimeType } = await fileService.downloadFromCrmNotes(id);
+    const safeFileName = fileName.replace(/["\\]/g, '_');
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
+    res.setHeader('Content-Length', content.length);
+    res.send(content);
   });
 
   // DELETE /api/files/:fileId

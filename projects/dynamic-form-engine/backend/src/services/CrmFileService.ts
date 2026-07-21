@@ -35,6 +35,19 @@ export class CrmFileService extends CrmBaseService {
     return response.annotationid;
   }
 
+  // DFE-SUMMARY-DL — retrieve a previously uploaded document (file field or grid cell)
+  // for download from the summary step.
+  async downloadFromCrmNotes(annotationId: string): Promise<{ content: Buffer; fileName: string; mimeType: string }> {
+    const annotation = await this.crmFetch<{ documentbody?: string; filename?: string; mimetype?: string }>(
+      `/annotations(${annotationId})?$select=documentbody,filename,mimetype`,
+    );
+    return {
+      content: Buffer.from(annotation.documentbody ?? '', 'base64'),
+      fileName: annotation.filename ?? 'download',
+      mimeType: annotation.mimetype || 'application/octet-stream',
+    };
+  }
+
   async uploadToSharePoint(params: {
     file: Buffer;
     fileName: string;

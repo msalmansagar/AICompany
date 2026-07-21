@@ -723,4 +723,13 @@ export class MockFileService {
   }): Promise<string> {
     return `https://mock.sharepoint.com/files/${Date.now()}`;
   }
+
+  // DFE-SUMMARY-DL — placeholder content so the summary download works in local dev.
+  async downloadFromCrmNotes(annotationId: string): Promise<{ content: Buffer; fileName: string; mimeType: string }> {
+    return {
+      content: Buffer.from(`Mock uploaded document (${annotationId}).\n`, 'utf-8'),
+      fileName: 'uploaded-document.txt',
+      mimeType: 'text/plain',
+    };
+  }
 }

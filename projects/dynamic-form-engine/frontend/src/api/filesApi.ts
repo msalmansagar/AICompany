@@ -74,4 +74,31 @@ export const filesApi = {
     anchor.remove();
     URL.revokeObjectURL(url);
   },
+
+  // DFE-SUMMARY-DL — download a previously uploaded document by its stored URL
+  // (e.g. '/api/files/<annotationId>'). Streams via the authenticated API and triggers
+  // a browser download without leaving the page.
+  downloadFile: async (fileUrl: string, fallbackName = 'download'): Promise<void> => {
+    const token = await acquireBearerToken();
+    const response = await axios.get<Blob>(fileUrl, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'blob',
+    });
+
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    let fileName = fallbackName;
+    if (disposition) {
+      const match = /filename="([^"]+)"/.exec(disposition);
+      if (match?.[1]) fileName = match[1];
+    }
+
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  },
 };
