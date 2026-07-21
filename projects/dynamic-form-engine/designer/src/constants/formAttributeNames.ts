@@ -73,6 +73,16 @@ export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated'
   100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
 };
 
+// DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
+export const NUMBER_DISPLAY_STYLE_TO_PICKLIST: Record<string, number> = {
+  textbox: 100000001,
+  bar:     100000002,
+};
+export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'> = {
+  100000001: 'textbox',
+  100000002: 'bar',
+};
+
 export const FORM_SECTION_ATTRS = {
   ID: 'qdb_form_sectionid',
   TAB_ID: 'qdb_form_tab_id',               // use for create/update
@@ -112,6 +122,9 @@ export const FORM_FIELD_ATTRS = {
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
   MAX_ROWS: 'qdb_max_rows',
+  NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
+  BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
+  BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
   // DFE-TABZONE-001 — tab header/footer placement

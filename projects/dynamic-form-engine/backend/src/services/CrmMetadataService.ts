@@ -429,6 +429,10 @@ export class CrmMetadataService extends CrmBaseService {
       lookupConfig: lookupMap.get(field.qdb_form_fieldid),
       currencyCode: field.qdb_currency_code,
       decimalPlaces: field.qdb_decimal_places,
+      // DFE-NUMBAR
+      ...(field.qdb_number_display_style === 100000002 ? { numberDisplayStyle: 'bar' as const } : {}),
+      ...(field.qdb_bar_max_field_schema ? { barMaxFieldSchemaName: field.qdb_bar_max_field_schema } : {}),
+      ...(field.qdb_bar_value_field_schema ? { barValueFieldSchemaName: field.qdb_bar_value_field_schema } : {}),
       maxRows: field.qdb_max_rows,
       componentKey: field.qdb_component_key,
       trueLabel: field.qdb_true_label,
@@ -1183,6 +1187,10 @@ interface RawField {
   qdb_currency_code?: string;
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
+  // DFE-NUMBAR
+  qdb_number_display_style?: number;
+  qdb_bar_max_field_schema?: string;
+  qdb_bar_value_field_schema?: string;
   qdb_component_key?: string;
   // DFE-FBE-001 Label field
   qdb_static_content?: string;

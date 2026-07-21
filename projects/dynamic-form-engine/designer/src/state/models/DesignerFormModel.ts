@@ -127,6 +127,10 @@ export interface DesignerFieldModel {
   defaultValue: string | null;
   currencyCode: string | null;
   decimalPlaces: number | null;
+  // DFE-NUMBAR: number/decimal/currency display style + the fields providing the bar's value/max.
+  numberDisplayStyle?: 'textbox' | 'bar' | null;
+  barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows: number | null;
   sortOrder: number;
   columnSpan: 1 | 2 | 3;

@@ -104,6 +104,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("fileUploadConfig")] public FileUploadConfig FileUploadConfig { get; set; }
         [JsonProperty("currencyCode")] public string CurrencyCode { get; set; }
         [JsonProperty("decimalPlaces")] public int? DecimalPlaces { get; set; }
+        [JsonProperty("numberDisplayStyle", NullValueHandling = NullValueHandling.Ignore)] public string NumberDisplayStyle { get; set; }
+        [JsonProperty("barMaxFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarMaxFieldSchemaName { get; set; }
+        [JsonProperty("barValueFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarValueFieldSchemaName { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }
         // DFE-FBE-001: Label field — static content + optional data-bound source field.
