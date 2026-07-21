@@ -94,7 +94,7 @@ public static class ReportDefinitionFetch
             attributes:
             [
                 "qdb_reportrelationshipid", "qdb_relationshiptype", "qdb_opentype", "qdb_parentalias",
-                "qdb_parentkey", "qdb_childalias", "qdb_childkey", "qdb_depth", "qdb_externaljoinjson"
+                "qdb_parentkey", "qdb_childalias", "qdb_childkey", "qdb_depth", "qdb_externaljoinjson", "qdb_subreportid"
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 

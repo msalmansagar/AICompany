@@ -13,7 +13,7 @@ public sealed class DrilldownPlannerTests
     {
         var definition = ReportWithChild();
 
-        var result = DrilldownPlanner.BuildChildDefinition(definition, RelId, "acc-123");
+        var result = DrilldownPlanner.BuildChildDefinition(definition, Relationship("con", "parentcustomerid"), "acc-123");
 
         Assert.True(result.IsSuccess);
         var child = result.Value;
@@ -26,23 +26,9 @@ public sealed class DrilldownPlannerTests
     }
 
     [Fact]
-    public void BuildChildDefinition_UnknownRelationship_Fails()
-    {
-        var result = DrilldownPlanner.BuildChildDefinition(ReportWithChild(), Guid.NewGuid(), "acc-123");
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal("not_found", result.Error!.Code);
-    }
-
-    [Fact]
     public void BuildChildDefinition_ChildAliasWithoutMapping_Fails()
     {
-        var definition = ReportWithChild() with
-        {
-            Relationships = [Relationship("missing", "parentcustomerid")]
-        };
-
-        var result = DrilldownPlanner.BuildChildDefinition(definition, RelId, "acc-123");
+        var result = DrilldownPlanner.BuildChildDefinition(ReportWithChild(), Relationship("missing", "parentcustomerid"), "acc-123");
 
         Assert.False(result.IsSuccess);
         Assert.Equal("not_found", result.Error!.Code);

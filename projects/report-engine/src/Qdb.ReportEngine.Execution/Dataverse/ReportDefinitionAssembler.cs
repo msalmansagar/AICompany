@@ -149,7 +149,8 @@ public static class ReportDefinitionAssembler
         ChildAlias = RowReader.String(row, "qdb_childalias"),
         ChildKey = RowReader.String(row, "qdb_childkey"),
         Depth = RowReader.IntOrZero(row, "qdb_depth"),
-        ExternalJoinJson = RowReader.String(row, "qdb_externaljoinjson")
+        ExternalJoinJson = RowReader.String(row, "qdb_externaljoinjson"),
+        SubReportId = RowReader.Guid(row, "qdb_subreportid")
     };
 
     private static ReportLayout MapLayout(IReadOnlyDictionary<string, object?> row) => new()

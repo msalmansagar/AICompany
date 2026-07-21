@@ -10,18 +10,13 @@ namespace Qdb.ReportEngine.Execution.Dataverse;
 /// </summary>
 public static class DrilldownPlanner
 {
-    /// <summary>Builds the child-query definition for <paramref name="relationshipId"/>, or a failure.</summary>
+    /// <summary>Builds the child-query definition for <paramref name="relationship"/>, or a failure.</summary>
     public static Result<ReportDefinition> BuildChildDefinition(
-        ReportDefinition definition, Guid relationshipId, string parentKey)
+        ReportDefinition definition, ReportRelationship relationship, string parentKey)
     {
         ArgumentNullException.ThrowIfNull(definition);
+        ArgumentNullException.ThrowIfNull(relationship);
         ArgumentException.ThrowIfNullOrEmpty(parentKey);
-
-        var relationship = definition.Relationships.FirstOrDefault(r => r.Id == relationshipId);
-        if (relationship is null)
-        {
-            return Result<ReportDefinition>.Failure(DomainError.NotFound($"Relationship {relationshipId}"));
-        }
 
         if (string.IsNullOrEmpty(relationship.ChildKey))
         {

@@ -50,15 +50,45 @@ public sealed class ReportExecutor(
             return Result<ReportResult>.Failure(definitionResult.Error!);
         }
 
-        var childResult = DrilldownPlanner.BuildChildDefinition(definitionResult.Value, relationshipId, parentKey);
+        var relationship = definitionResult.Value.Relationships.FirstOrDefault(r => r.Id == relationshipId);
+        if (relationship is null)
+        {
+            return Result<ReportResult>.Failure(DomainError.NotFound($"Relationship {relationshipId}"));
+        }
+
+        return relationship.SubReportId is { } subReportId && subReportId != Guid.Empty
+            ? await RunSubReportAsync(subReportId, relationship, parentKey, context, cancellationToken).ConfigureAwait(false)
+            : await RunChildEntity(definitionResult.Value, relationship, parentKey, context, cancellationToken).ConfigureAwait(false);
+    }
+
+    // A relationship that embeds another report: load that report, scope it to the parent, run it.
+    private async Task<Result<ReportResult>> RunSubReportAsync(
+        Guid subReportId, ReportRelationship relationship, string parentKey, ReportExecutionContext context, CancellationToken cancellationToken)
+    {
+        var subResult = await definitionLoader.LoadAsync(subReportId, context, cancellationToken).ConfigureAwait(false);
+        if (!subResult.IsSuccess)
+        {
+            return Result<ReportResult>.Failure(subResult.Error!);
+        }
+
+        var scoped = SubReportPlanner.ScopeToParent(subResult.Value, relationship.ChildKey, parentKey);
+        var query = ReportQueryBuilder.Build(scoped, new ReportExecutionRequest());
+        return await RunAsync(scoped, query, context, scoped.Formulas, scoped.Transformations, cancellationToken).ConfigureAwait(false);
+    }
+
+    // A relationship without a sub-report: query the related child entity by the parent key.
+    private Task<Result<ReportResult>> RunChildEntity(
+        ReportDefinition definition, ReportRelationship relationship, string parentKey, ReportExecutionContext context, CancellationToken cancellationToken)
+    {
+        var childResult = DrilldownPlanner.BuildChildDefinition(definition, relationship, parentKey);
         if (!childResult.IsSuccess)
         {
-            return Result<ReportResult>.Failure(childResult.Error!);
+            return Task.FromResult(Result<ReportResult>.Failure(childResult.Error!));
         }
 
         var childDefinition = childResult.Value;
         var query = ReportQueryBuilder.Build(childDefinition, new ReportExecutionRequest());
-        return await RunAsync(childDefinition, query, context, [], [], cancellationToken).ConfigureAwait(false);
+        return RunAsync(childDefinition, query, context, [], [], cancellationToken);
     }
 
     // Opens a per-user connection, runs the query, shapes rows, applies formulas, then transformations.

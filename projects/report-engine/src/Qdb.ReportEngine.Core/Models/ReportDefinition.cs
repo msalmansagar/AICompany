@@ -91,6 +91,9 @@ public sealed record ReportRelationship
     public int Depth { get; init; }
 
     public string? ExternalJoinJson { get; init; }
+
+    /// <summary>The report embedded as a sub-report (qdb_subreportid), when this opens a sub-report.</summary>
+    public Guid? SubReportId { get; init; }
 }
 
 /// <summary>A computed column (qdb_reportformula): an expression evaluated per row over other columns.</summary>
