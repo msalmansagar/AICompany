@@ -1,12 +1,20 @@
 # Phase 3 Architecture — Dataverse ERD & Schema (Workstream 2 of 4)
 
+> **⚠️ AS-BUILT NOTICE (2026-07-21).** This document is the original *design draft*. The
+> schema was subsequently built in `org5869857f` with a refined, more-normalized design and
+> different (more idiomatic) field names. **The deployed schema is canonical**, not the field
+> lists below. For the authoritative field names, types, lookups, and the draft→as-built
+> mapping, see **`schema-reconciliation.md`** and the machine-readable **`schema-manifest.json`**.
+> Deployed solution unique name is **`qdb_reportengine`** (not `QdbReportEngine`). All 18 tables
+> exist and are empty; no teardown is planned.
+
 | | |
 |---|---|
 | **Engagement** | RPT-ENG-001 (report-engine) |
-| **Document** | Dataverse ERD + full 18-table schema |
-| **Solution** | `QdbReportEngine` · publisher prefix `qdb_` |
+| **Document** | Dataverse ERD + full 18-table schema (design draft — see as-built notice) |
+| **Solution (as-built)** | `qdb_reportengine` · publisher prefix `qdb_` |
 | **Targets** | Dynamics 365 on-prem 9.x **and** Dataverse cloud (identical, portable schema) |
-| **Date** | 2026-07-07 |
+| **Date** | 2026-07-07 (draft) · reconciled 2026-07-21 |
 
 ## Conventions (apply to every table — stated once)
 - **Primary key:** platform GUID `qdb_<table>id` (Unique Identifier). No integer keys (enterprise rule).
