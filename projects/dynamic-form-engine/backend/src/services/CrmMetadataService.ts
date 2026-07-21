@@ -393,6 +393,7 @@ export class CrmMetadataService extends CrmBaseService {
       // DFE-NUMBAR: bar (100000002) vs textbox default (omitted).
       ...(field.qdb_number_display_style === 100000002 ? { numberDisplayStyle: 'bar' as const } : {}),
       ...(field.qdb_bar_max_field_schema ? { barMaxFieldSchemaName: field.qdb_bar_max_field_schema } : {}),
+      ...(field.qdb_bar_value_field_schema ? { barValueFieldSchemaName: field.qdb_bar_value_field_schema } : {}),
       trueLabel: field.qdb_true_label,
       falseLabel: field.qdb_false_label,
       boolRenderStyle: this.mapBooleanRenderStyle(field.qdb_boolean_render_style),
@@ -1058,6 +1059,7 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_number_display_style?: number;
   qdb_bar_max_field_schema?: string;
+  qdb_bar_value_field_schema?: string;
   qdb_max_rows?: number;
   qdb_component_key?: string;
   // DFE-FBE-001 Label field

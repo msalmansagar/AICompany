@@ -35,6 +35,7 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
     f => f.id !== field.id && NUMERIC_TYPES.includes(f.fieldType),
   );
   const currentMax = maxOptions.find(f => f.code === field.barMaxFieldSchemaName);
+  const currentValue = maxOptions.find(f => f.code === field.barValueFieldSchemaName);
 
   return (
     <div className={styles.root}>
@@ -46,7 +47,7 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
             if (data.optionValue === 'bar') {
               updateField(field.id, { numberDisplayStyle: 'bar' });
             } else {
-              updateField(field.id, { numberDisplayStyle: 'textbox', barMaxFieldSchemaName: null });
+              updateField(field.id, { numberDisplayStyle: 'textbox', barMaxFieldSchemaName: null, barValueFieldSchemaName: null });
             }
           }}
         >
@@ -56,7 +57,23 @@ export function NumberFieldPanel({ field }: Props): React.ReactElement {
       </Field>
 
       {isBar && (
-        <Field label="Maximum from field" hint="The bar fills to this field's value ÷ the selected field's value">
+        <Field label="Value from field" hint="The bar's fill value. Leave empty to use this field's own value.">
+          <Dropdown
+            selectedOptions={field.barValueFieldSchemaName ? [field.barValueFieldSchemaName] : []}
+            value={currentValue ? (currentValue.label || currentValue.code) : (field.barValueFieldSchemaName ?? '')}
+            placeholder="This field's own value"
+            onOptionSelect={(_, data) => updateField(field.id, { barValueFieldSchemaName: data.optionValue || null })}
+          >
+            <Option value="">This field's own value</Option>
+            {maxOptions.map(f => (
+              <Option key={f.id} value={f.code}>{f.label || f.code}</Option>
+            ))}
+          </Dropdown>
+        </Field>
+      )}
+
+      {isBar && (
+        <Field label="Maximum from field" hint="The bar fills to the value ÷ the selected field's value">
           <Dropdown
             selectedOptions={field.barMaxFieldSchemaName ? [field.barMaxFieldSchemaName] : []}
             value={currentMax ? (currentMax.label || currentMax.code) : (field.barMaxFieldSchemaName ?? '')}

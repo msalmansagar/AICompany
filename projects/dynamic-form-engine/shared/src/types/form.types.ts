@@ -364,9 +364,10 @@ export interface FieldDefinition {
   currencyCode?: string;           // currency fields
   decimalPlaces?: number;          // decimal / currency fields
   // DFE-NUMBAR: number/decimal/currency display style. 'bar' = read-only utilization gauge
-  // (this field's value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
+  // (bar value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
   numberDisplayStyle?: 'textbox' | 'bar';
-  barMaxFieldSchemaName?: string;  // schema name of the field providing the bar's maximum (total)
+  barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
+  barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 

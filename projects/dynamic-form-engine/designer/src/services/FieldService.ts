@@ -37,6 +37,7 @@ export interface CreateFieldDto {
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
   barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
   // Sprint 3
   componentKey?: string | null;
@@ -87,6 +88,7 @@ export interface UpdateFieldDto {
   decimalPlaces?: number | null;
   numberDisplayStyle?: 'textbox' | 'bar' | null;
   barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
   // Sprint 3
   componentKey?: string | null;
@@ -148,6 +150,7 @@ export class FieldService {
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle != null) payload[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle];
     if (dto.barMaxFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
+    if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
     if (dto.boolRenderStyle != null) payload[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle];
@@ -202,6 +205,7 @@ export class FieldService {
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
     if (dto.numberDisplayStyle !== undefined) data[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = dto.numberDisplayStyle != null ? NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle] : null;
     if (dto.barMaxFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
+    if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
     if (dto.boolRenderStyle !== undefined) data[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = dto.boolRenderStyle != null ? BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle] : null;
@@ -273,6 +277,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.BOOL_RENDER_STYLE,
       FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE,
       FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA,
+      FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA,
       FORM_FIELD_ATTRS.TRUE_LABEL,
       FORM_FIELD_ATTRS.FALSE_LABEL,
       FORM_FIELD_ATTRS.INFO_CARD_STYLE,
@@ -357,6 +362,7 @@ export class FieldService {
         ? (PICKLIST_TO_NUMBER_DISPLAY_STYLE[Number(record[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE])] ?? null)
         : null,
       barMaxFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] as string) ?? null,
+      barValueFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] as string) ?? null,
       maxRows: record[FORM_FIELD_ATTRS.MAX_ROWS] != null
         ? Number(record[FORM_FIELD_ATTRS.MAX_ROWS])
         : null,

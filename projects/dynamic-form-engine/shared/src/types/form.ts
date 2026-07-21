@@ -147,6 +147,7 @@ export interface FieldDefinition {
   // DFE-NUMBAR: number/decimal/currency display style (bar = read-only utilization gauge).
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;
+  barValueFieldSchemaName?: string;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
   multiselectRenderStyle?: MultiselectRenderStyle;

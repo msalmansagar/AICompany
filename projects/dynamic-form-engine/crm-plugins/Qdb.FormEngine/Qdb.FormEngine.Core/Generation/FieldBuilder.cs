@@ -73,6 +73,7 @@ namespace Qdb.FormEngine.Core.Generation
                 ComponentKey = field.GetAttributeValue<string>("qdb_component_key"),
                 NumberDisplayStyle = field.GetAttributeValue<OptionSetValue>("qdb_number_display_style")?.Value == 100000002 ? "bar" : null,
                 BarMaxFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_max_field_schema"),
+                BarValueFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_value_field_schema"),
                 TrueLabel = Resolve(fieldId, "qdb_form_field", "qdb_true_label", field.GetAttributeValue<string>("qdb_true_label")),
                 FalseLabel = Resolve(fieldId, "qdb_form_field", "qdb_false_label", field.GetAttributeValue<string>("qdb_false_label")),
                 BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_boolean_render_style")),
