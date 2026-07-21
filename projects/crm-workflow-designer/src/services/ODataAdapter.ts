@@ -2,6 +2,7 @@ import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
+import { escapeODataLiteral } from './odataEscape';
 import { withRetry } from './withRetry';
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type {
@@ -375,7 +376,7 @@ export class ODataAdapter implements ISopAdapter {
 
   async getUsers(search?: string): Promise<UserOption[]> {
     const filter = search
-      ? `&$filter=isdisabled eq false and contains(fullname,'${encodeURIComponent(search)}')`
+      ? `&$filter=isdisabled eq false and contains(fullname,'${escapeODataLiteral(search)}')`
       : `&$filter=isdisabled eq false`;
     const data = await this.get<{ value: Record<string, unknown>[] }>(
       `systemusers?$select=systemuserid,fullname,domainname${filter}&$top=5000&$orderby=fullname asc`
@@ -445,7 +446,7 @@ export class ODataAdapter implements ISopAdapter {
 
   async getRoles(search?: string): Promise<CrmRole[]> {
     const searchFilter = search
-      ? ` and contains(qdb_name,'${encodeURIComponent(search)}')`
+      ? ` and contains(qdb_name,'${escapeODataLiteral(search)}')`
       : '';
     const data = await this.get<{ value: Record<string, unknown>[] }>(
       `${ENTITY_SETS.role}?$select=qdb_roleid,qdb_name,qdb_description,qdb_department,statecode,statuscode` +

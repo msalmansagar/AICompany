@@ -3,6 +3,7 @@ import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { assertGuid, isTemporaryId } from '@/services/assertGuid';
 import { AuditService } from '@/services/AuditService';
+import { logError } from '@/services/logError';
 
 interface UseSaveResult {
   isSaving: boolean;
@@ -161,7 +162,8 @@ export function useWorkflowSave(): UseSaveResult {
         await adapter.updateProcess(resolvedProcessId, { snapshot: positionPayload });
       }
 
-      // 6. Process deletions
+      // 6. Process deletions (each recorded to the audit log)
+      const auditService = new AuditService(adapter);
       for (const deletedId of deletedIds) {
         if (isTemporaryId(deletedId)) continue;
         assertGuid(deletedId, 'deletedId');
@@ -169,11 +171,12 @@ export function useWorkflowSave(): UseSaveResult {
         if (entityType === 'step') await adapter.deleteStep(deletedId);
         else if (entityType === 'outcome') await adapter.deleteOutcome(deletedId);
         else if (entityType === 'route') await adapter.deleteRoute(deletedId);
+        else continue;
+        await auditService.log('DELETE', deletedId, { entityType });
       }
 
       // 7. Audit
       if (!isTemporaryId(resolvedProcessId)) {
-        const auditService = new AuditService(adapter);
         await auditService.log('SAVE_DRAFT', resolvedProcessId, {
           stepCount: Object.keys(steps).length,
         });
@@ -183,7 +186,7 @@ export function useWorkflowSave(): UseSaveResult {
       showToast('Workflow saved successfully.', 'success');
     } catch (err) {
       const message = extractCrmMessage(err);
-      console.error('[useWorkflowSave] Save failed:', err);
+      logError('useWorkflowSave', err);
       setError(message);
       showToast(`Save failed: ${message}`, 'error');
     } finally {

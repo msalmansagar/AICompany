@@ -1,5 +1,7 @@
 import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
+import { escapeODataLiteral } from './odataEscape';
+import { logError } from './logError';
 import type {
   CrmRole,
   SopSummary,
@@ -397,7 +399,7 @@ export class DataverseAdapter implements ISopAdapter {
   async getUsers(search?: string): Promise<UserOption[]> {
     try {
       const searchFilter = search
-        ? ` and (contains(fullname,'${search}') or contains(domainname,'${search}'))`
+        ? ` and (contains(fullname,'${escapeODataLiteral(search)}') or contains(domainname,'${escapeODataLiteral(search)}'))`
         : '';
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
@@ -595,7 +597,7 @@ export class DataverseAdapter implements ISopAdapter {
   async getRoles(search?: string): Promise<CrmRole[]> {
     try {
       const searchFilter = search
-        ? ` and contains(qdb_name,'${search}')`
+        ? ` and contains(qdb_name,'${escapeODataLiteral(search)}')`
         : '';
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
@@ -1060,7 +1062,7 @@ function buildODataHeaders(): HeadersInit {
 // This converts it so React Query and catch blocks receive a real Error with the detail.
 function asError(err: unknown, context: string): Error {
   // Always log the raw error so it's visible in browser DevTools regardless of UI state
-  console.error(`[DataverseAdapter:${context}] raw error →`, err);
+  logError(`DataverseAdapter:${context}`, err);
   if (err instanceof Error) return err;
   if (typeof err === 'object' && err !== null) {
     const xrm = err as Record<string, unknown>;
