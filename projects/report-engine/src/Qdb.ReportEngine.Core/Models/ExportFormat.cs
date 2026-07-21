@@ -4,7 +4,8 @@ namespace Qdb.ReportEngine.Core.Models;
 public enum ExportFormat
 {
     Csv,
-    Excel
+    Excel,
+    Word
 }
 
 /// <summary>A rendered export: the file bytes plus how to serve them.</summary>

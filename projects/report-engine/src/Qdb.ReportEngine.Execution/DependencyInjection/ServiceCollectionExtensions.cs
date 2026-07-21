@@ -39,6 +39,7 @@ public static class ServiceCollectionExtensions
         // Report exporters (registered as a set; ReportExportService selects by format).
         services.AddSingleton<IReportExporter, CsvReportExporter>();
         services.AddSingleton<IReportExporter, ExcelReportExporter>();
+        services.AddSingleton<IReportExporter, WordReportExporter>();
         services.AddSingleton<IReportExportService, ReportExportService>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();

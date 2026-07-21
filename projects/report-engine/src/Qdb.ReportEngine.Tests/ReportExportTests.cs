@@ -37,6 +37,22 @@ public sealed class ReportExportTests
     }
 
     [Fact]
+    public void Word_ProducesReadableDocxWithHeaderAndCells()
+    {
+        var file = new WordReportExporter().Export(Sample());
+
+        Assert.Equal("Active-Accounts.docx", file.FileName);
+        using var document = DocumentFormat.OpenXml.Packaging.WordprocessingDocument.Open(new MemoryStream(file.Content), false);
+        var texts = document.MainDocumentPart!.Document.Body!
+            .Descendants<DocumentFormat.OpenXml.Wordprocessing.Text>()
+            .Select(t => t.Text)
+            .ToList();
+        Assert.Contains("Name", texts);
+        Assert.Contains("Doha, Inc", texts);
+        Assert.Contains("Acme", texts);
+    }
+
+    [Fact]
     public void Service_DispatchesByFormat()
     {
         var service = new ReportExportService([new CsvReportExporter(), new ExcelReportExporter()]);
