@@ -42,8 +42,30 @@ public sealed record ReportDefinition
 
     public IReadOnlyList<ReportParameter> Parameters { get; init; } = [];
 
+    /// <summary>Computed columns evaluated per row after the query, in evaluation order.</summary>
+    public IReadOnlyList<ReportFormula> Formulas { get; init; } = [];
+
     /// <summary>The report's layout, if one is configured.</summary>
     public ReportLayout? Layout { get; init; }
+}
+
+/// <summary>A computed column (qdb_reportformula): an expression evaluated per row over other columns.</summary>
+public sealed record ReportFormula
+{
+    public required Guid Id { get; init; }
+
+    /// <summary>Output column alias for the computed value.</summary>
+    public string? FormulaAlias { get; init; }
+
+    /// <summary>The expression (NCalc DSL) referencing other column aliases.</summary>
+    public string? Expression { get; init; }
+
+    public CodedValue? ResultDataType { get; init; }
+
+    /// <summary>Order this formula is evaluated in; later formulas may reference earlier results.</summary>
+    public int EvaluationOrder { get; init; }
+
+    public bool IsConditional { get; init; }
 }
 
 /// <summary>A data source within a report (qdb_reportdatasource) and its entity mappings.</summary>

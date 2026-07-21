@@ -43,6 +43,7 @@ public static class ReportDefinitionAssembler
                 .OrderBy(d => d.ExecutionOrder).ToList(),
             Filters = rows.Filters.Select(MapFilter).OrderBy(f => f.Sequence).ToList(),
             Parameters = rows.Parameters.Select(MapParameter).OrderBy(p => p.DisplayOrder).ToList(),
+            Formulas = rows.Formulas.Select(MapFormula).OrderBy(f => f.EvaluationOrder).ToList(),
             Layout = rows.Layouts.Count > 0 ? MapLayout(rows.Layouts[0]) : null
         };
     }
@@ -117,6 +118,16 @@ public static class ReportDefinitionAssembler
         LookupTargetEntity = RowReader.String(row, "qdb_lookuptargetentity")
     };
 
+    private static ReportFormula MapFormula(IReadOnlyDictionary<string, object?> row) => new()
+    {
+        Id = RowReader.Guid(row, "qdb_reportformulaid") ?? Guid.Empty,
+        FormulaAlias = RowReader.String(row, "qdb_formulaalias"),
+        Expression = RowReader.String(row, "qdb_expression"),
+        ResultDataType = RowReader.Coded(row, "qdb_resultdatatype"),
+        EvaluationOrder = RowReader.IntOrZero(row, "qdb_evaluationorder"),
+        IsConditional = RowReader.Bool(row, "qdb_isconditional")
+    };
+
     private static ReportLayout MapLayout(IReadOnlyDictionary<string, object?> row) => new()
     {
         Id = RowReader.Guid(row, "qdb_reportlayoutid") ?? Guid.Empty,
@@ -143,6 +154,8 @@ public sealed record RawReportRows
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Filters { get; init; } = [];
 
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Parameters { get; init; } = [];
+
+    public IReadOnlyList<IReadOnlyDictionary<string, object?>> Formulas { get; init; } = [];
 
     public IReadOnlyList<IReadOnlyDictionary<string, object?>> Layouts { get; init; } = [];
 }

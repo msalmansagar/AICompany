@@ -41,12 +41,17 @@ public sealed class ReportExecutor(
                 .RetrieveMultipleAsync(query.RootEntity, query.FetchXml, cancellationToken)
                 .ConfigureAwait(false);
 
-            var rows = ReportRowShaper.Shape(query.Columns, rawRows);
+            var shaped = ReportRowShaper.Shape(query.Columns, rawRows);
+            var rows = FormulaEvaluator.Apply(definition.Formulas, shaped);
+            var columns = definition.Formulas.Count > 0
+                ? query.Columns.Concat(FormulaEvaluator.Columns(definition.Formulas)).ToList()
+                : query.Columns;
+
             return Result<ReportResult>.Success(new ReportResult
             {
                 ReportId = definition.Id,
                 ReportName = definition.Name,
-                Columns = query.Columns,
+                Columns = columns,
                 Rows = rows,
                 RowCount = rows.Count,
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,

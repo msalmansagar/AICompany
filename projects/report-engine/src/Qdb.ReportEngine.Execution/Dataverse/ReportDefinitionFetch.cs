@@ -78,6 +78,16 @@ public static class ReportDefinitionFetch
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 
+    /// <summary>Formulas (computed columns) directly under the report.</summary>
+    public static string Formulas(Guid reportId) =>
+        Fetch("qdb_reportformula",
+            attributes:
+            [
+                "qdb_reportformulaid", "qdb_formulaalias", "qdb_expression", "qdb_resultdatatype",
+                "qdb_evaluationorder", "qdb_isconditional"
+            ],
+            filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
+
     /// <summary>Layout(s) directly under the report.</summary>
     public static string Layouts(Guid reportId) =>
         Fetch("qdb_reportlayout",

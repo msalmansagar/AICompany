@@ -21,6 +21,7 @@ public sealed class ReportDefinitionLoader(
     private static readonly Guid ColumnsKey = Guid.Parse("00000000-0000-0000-0000-0000000000c0");
     private static readonly Guid FiltersKey = Guid.Parse("00000000-0000-0000-0000-0000000000f1");
     private static readonly Guid ParametersKey = Guid.Parse("00000000-0000-0000-0000-0000000000a2");
+    private static readonly Guid FormulasKey = Guid.Parse("00000000-0000-0000-0000-0000000000fa");
     private static readonly Guid LayoutsKey = Guid.Parse("00000000-0000-0000-0000-0000000000ab");
 
     /// <inheritdoc />
@@ -52,6 +53,7 @@ public sealed class ReportDefinitionLoader(
                 Columns = children[ColumnsKey],
                 Filters = children[FiltersKey],
                 Parameters = children[ParametersKey],
+                Formulas = children[FormulasKey],
                 Layouts = children[LayoutsKey]
             };
 
@@ -75,6 +77,7 @@ public sealed class ReportDefinitionLoader(
         new(ColumnsKey, "qdb_reportcolumn", ReportDefinitionFetch.Columns(reportId)),
         new(FiltersKey, "qdb_reportfilter", ReportDefinitionFetch.Filters(reportId)),
         new(ParametersKey, "qdb_reportparameter", ReportDefinitionFetch.Parameters(reportId)),
+        new(FormulasKey, "qdb_reportformula", ReportDefinitionFetch.Formulas(reportId)),
         new(LayoutsKey, "qdb_reportlayout", ReportDefinitionFetch.Layouts(reportId))
     ];
 }
