@@ -10,7 +10,8 @@ namespace Qdb.ReportEngine.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/reports")]
-public sealed class ReportsController(IReportDefinitionLoader loader, IReportExecutor executor) : ControllerBase
+public sealed class ReportsController(
+    IReportDefinitionLoader loader, IReportExecutor executor, IReportExportService exportService) : ControllerBase
 {
     /// <summary>Loads the report definition and its children by id.</summary>
     [HttpGet("{reportId:guid}")]
@@ -43,6 +44,50 @@ public sealed class ReportsController(IReportDefinitionLoader loader, IReportExe
         return result.Error!.Code == "not_found"
             ? NotFound(new { result.Error.Code, result.Error.Message })
             : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+    }
+
+    /// <summary>Executes the report and returns it as a downloadable file (CSV or Excel).</summary>
+    [HttpPost("{reportId:guid}/export")]
+    public async Task<IActionResult> Export(
+        Guid reportId,
+        [FromQuery] string format,
+        [FromBody] ReportExecutionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryParseFormat(format, out var exportFormat))
+        {
+            return BadRequest(new { code = "unsupported_format", message = $"Unknown export format '{format}'. Use csv or excel." });
+        }
+
+        var context = BuildContext();
+        var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
+        if (!execution.IsSuccess)
+        {
+            return execution.Error!.Code == "not_found"
+                ? NotFound(new { execution.Error.Code, execution.Error.Message })
+                : StatusCode(StatusCodes.Status502BadGateway, new { execution.Error.Code, execution.Error.Message });
+        }
+
+        var export = exportService.Export(execution.Value, exportFormat);
+        return export.IsSuccess
+            ? File(export.Value.Content, export.Value.ContentType, export.Value.FileName)
+            : BadRequest(new { export.Error!.Code, export.Error.Message });
+    }
+
+    private static bool TryParseFormat(string? format, out ExportFormat exportFormat)
+    {
+        switch (format?.ToLowerInvariant())
+        {
+            case "csv":
+                exportFormat = ExportFormat.Csv;
+                return true;
+            case "excel" or "xlsx":
+                exportFormat = ExportFormat.Excel;
+                return true;
+            default:
+                exportFormat = default;
+                return false;
+        }
     }
 
     // TODO(build): resolve the execution context from the authenticated principal (mirrors DashboardsController).

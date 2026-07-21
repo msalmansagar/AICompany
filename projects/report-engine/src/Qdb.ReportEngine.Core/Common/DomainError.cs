@@ -17,4 +17,6 @@ public sealed record DomainError(string Code, string Message)
     public static DomainError NotImplemented(string what) => new("not_implemented", $"{what} is not implemented in the scaffold.");
 
     public static DomainError QueryFailed(string entity) => new("query_failed", $"Query against {entity} failed.");
+
+    public static DomainError UnsupportedFormat(string format) => new("unsupported_format", $"Export format '{format}' is not supported.");
 }

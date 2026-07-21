@@ -22,6 +22,7 @@
     <PackageReference Include="Polly.Core" Version="8.4.2" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.66.2" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
     <!-- On-prem 9.x Organization Service path (Microsoft.CrmSdk.CoreAssemblies) is a later increment. -->
   </ItemGroup>
 

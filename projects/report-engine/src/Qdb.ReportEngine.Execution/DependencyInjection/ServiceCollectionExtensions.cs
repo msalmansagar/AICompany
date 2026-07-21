@@ -5,6 +5,7 @@ using Qdb.ReportEngine.Core.Configuration;
 using Qdb.ReportEngine.Execution.Caching;
 using Qdb.ReportEngine.Execution.Dashboards;
 using Qdb.ReportEngine.Execution.Dataverse;
+using Qdb.ReportEngine.Execution.Export;
 using Qdb.ReportEngine.Execution.Resilience;
 using Qdb.ReportEngine.Execution.Security;
 
@@ -34,6 +35,11 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReportDefinitionLoader, ReportDefinitionLoader>();
         services.AddScoped<IReportExecutor, ReportExecutor>();
         services.AddScoped<ISecurityEnforcer, CrmSecurityEnforcer>();
+
+        // Report exporters (registered as a set; ReportExportService selects by format).
+        services.AddSingleton<IReportExporter, CsvReportExporter>();
+        services.AddSingleton<IReportExporter, ExcelReportExporter>();
+        services.AddSingleton<IReportExportService, ReportExportService>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();
 
