@@ -53,6 +53,28 @@ public sealed class ReportExportTests
     }
 
     [Fact]
+    public void Pdf_ProducesPdfFileSignature()
+    {
+        var file = new PdfReportExporter().Export(Sample());
+
+        Assert.Equal("application/pdf", file.ContentType);
+        Assert.Equal("Active-Accounts.pdf", file.FileName);
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(file.Content, 0, 4)); // PDF magic
+        Assert.True(file.Content.Length > 400);
+    }
+
+    [Fact]
+    public void Image_ProducesPngFileSignature()
+    {
+        var file = new ImageReportExporter().Export(Sample());
+
+        Assert.Equal("image/png", file.ContentType);
+        Assert.Equal("Active-Accounts.png", file.FileName);
+        // PNG 8-byte magic number.
+        Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, file.Content.Take(8).ToArray());
+    }
+
+    [Fact]
     public void Service_DispatchesByFormat()
     {
         var service = new ReportExportService([new CsvReportExporter(), new ExcelReportExporter()]);

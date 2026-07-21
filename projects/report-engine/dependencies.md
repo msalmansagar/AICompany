@@ -41,7 +41,15 @@ Requirement: produce styled PDF reports on-prem (no internet) and in Azure. HTML
 | iText7 | [itext/itext7-dotnet](https://github.com/criipto/itext7-dotnet) | N/A | AGPL-3.0 | Active | Yes | **LICENSE TRAP** |
 | DinkToPdf (wkhtmltopdf) | [rdvojmoc/DinkToPdf](https://github.com/rdvojmoc/DinkToPdf) | 1.2k | MIT | 2017 | Yes | ABANDONED |
 
-**Decision: ADOPT QuestPDF**
+**Decision: SUPERSEDED — now ADOPT PdfSharp/MigraDoc (MIT). See ADR-RPT-009.**
+
+> **2026-07-21 (ADR-RPT-009):** QuestPDF's Community license excludes organizations over ~$1M
+> revenue; QDB (a national development bank) exceeds that, so QuestPDF Community is not usable and
+> attesting eligibility would be false. PDF export now uses **PdfSharp/MigraDoc (MIT)** — no revenue
+> gate. The QuestPDF go-live license check is removed for the PDF path. Original QuestPDF rationale
+> retained below for history.
+
+**Original decision (historical): ADOPT QuestPDF**
 
 QuestPDF (14.1k stars, v2026.7.0) offers a fluent C# API for code-first PDF layout, requires no internet at runtime, and runs on Windows and Linux. It is the most actively maintained .NET PDF library.
 

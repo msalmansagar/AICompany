@@ -56,7 +56,7 @@ public sealed class ReportsController(
     {
         if (!TryParseFormat(format, out var exportFormat))
         {
-            return BadRequest(new { code = "unsupported_format", message = $"Unknown export format '{format}'. Use csv, excel, or word." });
+            return BadRequest(new { code = "unsupported_format", message = $"Unknown export format '{format}'. Use csv, excel, word, pdf, or image." });
         }
 
         var context = BuildContext();
@@ -86,6 +86,12 @@ public sealed class ReportsController(
                 return true;
             case "word" or "docx":
                 exportFormat = ExportFormat.Word;
+                return true;
+            case "pdf":
+                exportFormat = ExportFormat.Pdf;
+                return true;
+            case "image" or "png":
+                exportFormat = ExportFormat.Image;
                 return true;
             default:
                 exportFormat = default;

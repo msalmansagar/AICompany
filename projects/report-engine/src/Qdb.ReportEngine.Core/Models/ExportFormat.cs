@@ -5,7 +5,9 @@ public enum ExportFormat
 {
     Csv,
     Excel,
-    Word
+    Word,
+    Pdf,
+    Image
 }
 
 /// <summary>A rendered export: the file bytes plus how to serve them.</summary>

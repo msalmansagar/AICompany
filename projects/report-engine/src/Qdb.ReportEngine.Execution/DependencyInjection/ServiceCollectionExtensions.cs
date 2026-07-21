@@ -40,6 +40,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IReportExporter, CsvReportExporter>();
         services.AddSingleton<IReportExporter, ExcelReportExporter>();
         services.AddSingleton<IReportExporter, WordReportExporter>();
+        services.AddSingleton<IReportExporter, PdfReportExporter>();
+        services.AddSingleton<IReportExporter, ImageReportExporter>();
         services.AddSingleton<IReportExportService, ReportExportService>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();
