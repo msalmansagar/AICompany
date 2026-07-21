@@ -3,6 +3,7 @@
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import type { ISopAdapter } from './ISopAdapter';
+import { emptySlaFields } from './slaStepFields';
 import type { CreateProcessFromSopRequest, StepAssignment } from '@/types/SopTypes';
 
 export async function deriveProcessFromSop(
@@ -39,6 +40,7 @@ export async function deriveProcessFromSop(
     const assignment = request.stepAssignments.find((a) => a.sopStepId === sopStep.id);
 
     const workflowStepId = await adapter.createStep({
+      ...emptySlaFields(),
       name: sopStep.name,
       schemaName: '',
       sequenceNo: sopStep.sequenceNo,

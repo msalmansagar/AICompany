@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
+import { emptySlaFields } from '@/services/slaStepFields';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import { computeEditLayout } from '@/services/EditGraphLayout';
@@ -281,6 +282,7 @@ function resolveConnectSourceStepId(selectedId: string | null, stepOrder: string
 
 function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
+    ...emptySlaFields(),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',
     sequenceNo,

@@ -3,6 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
+import { mapSlaFields, buildSlaBody, activeEscalationLookup, SLA_SELECT_COLUMNS } from './slaStepFields';
 import { withRetry } from './withRetry';
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type {
@@ -199,7 +200,7 @@ export class ODataAdapter implements ISopAdapter {
   async getSteps(processId: string): Promise<WorkflowStep[]> {
     assertGuid(processId, 'processId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}`
+      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}`
     );
     return data.value.map(mapStep);
   }
@@ -233,7 +234,32 @@ export class ODataAdapter implements ISopAdapter {
     if (data.teamId           && tm) body[`${tm}@odata.bind`] = `/teams(${data.teamId})`;
     if (data.roundRobinTeamId && rr) body[`${rr}@odata.bind`] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${ENTITY_SETS.process}(${data.processId})`;
+    await this.bindEscalationLookup(data, E, body);
     return body;
+  }
+
+  // Binds the active escalation target lookup and null-clears the other two.
+  // Verify null-clear semantics on the live org during provisioning (arch Risk R-2).
+  private async bindEscalationLookup(
+    data: Partial<Omit<WorkflowStep, 'crmId'>>,
+    entity: string,
+    body: Record<string, unknown>
+  ): Promise<void> {
+    if (data.slaEnabled === undefined) return;
+    const active = activeEscalationLookup(data);
+    const lookups = [
+      { attribute: 'qdb_escalation_user' as const, set: 'systemusers' },
+      { attribute: 'qdb_escalation_team' as const, set: 'teams' },
+      { attribute: 'qdb_escalation_role' as const, set: ENTITY_SETS.role },
+    ];
+    for (const { attribute, set } of lookups) {
+      if (active && active.attribute === attribute) {
+        const nav = await this.resolveNavProp(entity, attribute);
+        if (nav) body[`${nav}@odata.bind`] = `/${set}(${active.id})`;
+      } else {
+        body[`_${attribute}_value`] = null;
+      }
+    }
   }
 
   async deleteStep(id: string): Promise<void> {
@@ -723,6 +749,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
     roundRobinTeamName: null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
+    ...mapSlaFields(raw),
   };
 }
 
@@ -765,6 +792,7 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
+  Object.assign(body, buildSlaBody(data));
   return body;
 }
 
