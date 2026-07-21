@@ -22,3 +22,10 @@ public interface IReportExportService
     /// </summary>
     Result<ExportedFile> Export(ReportResult result, ExportFormat format);
 }
+
+/// <summary>Renders a report result to a chart image.</summary>
+public interface IReportChartService
+{
+    /// <summary>Renders <paramref name="result"/> as a chart per <paramref name="options"/>.</summary>
+    Result<ExportedFile> Render(ReportResult result, ChartOptions options);
+}

@@ -11,7 +11,10 @@ namespace Qdb.ReportEngine.Api.Controllers;
 [ApiController]
 [Route("api/reports")]
 public sealed class ReportsController(
-    IReportDefinitionLoader loader, IReportExecutor executor, IReportExportService exportService) : ControllerBase
+    IReportDefinitionLoader loader,
+    IReportExecutor executor,
+    IReportExportService exportService,
+    IReportChartService chartService) : ControllerBase
 {
     /// <summary>Loads the report definition and its children by id.</summary>
     [HttpGet("{reportId:guid}")]
@@ -69,6 +72,32 @@ public sealed class ReportsController(
         return result.Error!.Code == "not_found"
             ? NotFound(new { result.Error.Code, result.Error.Message })
             : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+    }
+
+    /// <summary>Executes the report and renders it as a chart PNG (column/bar/line/pie).</summary>
+    [HttpPost("{reportId:guid}/chart")]
+    public async Task<IActionResult> Chart(
+        Guid reportId,
+        [FromQuery] string? type,
+        [FromQuery] string? category,
+        [FromQuery] string? value,
+        [FromBody] ReportExecutionRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var context = BuildContext();
+        var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
+        if (!execution.IsSuccess)
+        {
+            return execution.Error!.Code == "not_found"
+                ? NotFound(new { execution.Error.Code, execution.Error.Message })
+                : StatusCode(StatusCodes.Status502BadGateway, new { execution.Error.Code, execution.Error.Message });
+        }
+
+        var options = new ChartOptions(string.IsNullOrEmpty(type) ? "column" : type, category, value);
+        var chart = chartService.Render(execution.Value, options);
+        return chart.IsSuccess
+            ? File(chart.Value.Content, chart.Value.ContentType, chart.Value.FileName)
+            : BadRequest(new { chart.Error!.Code, chart.Error.Message });
     }
 
     /// <summary>Executes the report and returns it as a downloadable file (CSV or Excel).</summary>
