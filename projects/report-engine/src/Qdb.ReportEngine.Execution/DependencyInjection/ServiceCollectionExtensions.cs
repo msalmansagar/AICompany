@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
         // Per-request / stateless services.
         services.AddScoped<IDashboardExecutionService, DashboardExecutionService>();
         services.AddScoped<IReportDataProvider, CrmReportDataProvider>();
+        services.AddScoped<IReportDefinitionLoader, ReportDefinitionLoader>();
         services.AddScoped<ISecurityEnforcer, CrmSecurityEnforcer>();
         services.AddSingleton<IWidgetQueryPlanner, WidgetQueryPlanner>();
         services.AddSingleton<IWidgetExecutionPolicy, WidgetExecutionPolicy>();
