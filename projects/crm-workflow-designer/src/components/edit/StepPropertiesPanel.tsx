@@ -4,6 +4,7 @@ import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { SlaEscalationSection } from './SlaEscalationSection';
 
 interface StepPropertiesPanelProps {
   stepId: string | null;
@@ -309,6 +310,10 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
             + Add Decision
           </button>
         )}
+
+        <div style={dividerStyle} />
+
+        <SlaEscalationSection step={step} setStep={setStep} adapter={adapter} />
 
         <div style={dividerStyle} />
 
