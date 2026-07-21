@@ -161,6 +161,13 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("maxResults")] public int MaxResults { get; set; }
         [JsonProperty("dependsOnFieldId")] public Guid? DependsOnFieldId { get; set; }
         [JsonProperty("dependsOnFilterTemplate")] public string DependsOnFilterTemplate { get; set; }
+        // DFE-APILOOKUP-001 — NullValueHandling.Ignore keeps entity-sourced lookups byte-identical.
+        [JsonProperty("source", NullValueHandling = NullValueHandling.Ignore)] public string Source { get; set; }
+        [JsonProperty("apiEndpointKey", NullValueHandling = NullValueHandling.Ignore)] public string ApiEndpointKey { get; set; }
+        [JsonProperty("apiValuePath", NullValueHandling = NullValueHandling.Ignore)] public string ApiValuePath { get; set; }
+        [JsonProperty("apiLabelPath", NullValueHandling = NullValueHandling.Ignore)] public string ApiLabelPath { get; set; }
+        [JsonProperty("apiSearchParamName", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchParamName { get; set; }
+        [JsonProperty("apiSearchMode", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchMode { get; set; }
     }
 
     /// <summary>Validation rule applied to a field before form submission.</summary>

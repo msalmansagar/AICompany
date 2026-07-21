@@ -16,6 +16,8 @@ import { CrmAuthService } from './services/CrmAuthService.js';
 import { CrmAuditService } from './services/CrmAuditService.js';
 import { CrmDataService } from './services/CrmDataService.js';
 import { CrmLookupService } from './services/CrmLookupService.js';
+import { EndpointRegistry } from './services/EndpointRegistry.js';
+import { ApiLookupService } from './services/ApiLookupService.js';
 import { CrmSubmissionService } from './services/CrmSubmissionService.js';
 import { CrmMetadataService } from './services/CrmMetadataService.js';
 import { CrmFileService } from './services/CrmFileService.js';
@@ -115,6 +117,21 @@ const lookupService = config.MOCK_CRM
   ? (new MockLookupService() as unknown as CrmLookupService)
   : new CrmLookupService(authService);
 
+// DFE-APILOOKUP-001: external-API lookup source (staging-only V1).
+// Active only when the flag is on AND (not production, or prod explicitly allowed) —
+// the PDPPL data-egress hard gate. Inactive => the proxy/registry routes stay inert.
+const apiLookupActive =
+  config.API_LOOKUP_ENABLED && (config.NODE_ENV !== 'production' || config.API_LOOKUP_ALLOW_PROD);
+const apiLookupService = apiLookupActive
+  ? new ApiLookupService(new EndpointRegistry(config.API_LOOKUP_ENDPOINT_REGISTRY), {
+      cacheTtlMs: config.API_LOOKUP_CACHE_TTL_MS,
+      rateLimitPerMin: config.API_LOOKUP_RATE_LIMIT_PER_MIN,
+    })
+  : null;
+if (config.API_LOOKUP_ENABLED && !apiLookupActive) {
+  logger.warn('API_LOOKUP_ENABLED is set but blocked by the production data-egress gate (API_LOOKUP_ALLOW_PROD=false)');
+}
+
 const submissionService = config.MOCK_CRM
   ? (new MockSubmissionService() as unknown as CrmSubmissionService)
   : new CrmSubmissionService(authService, auditService);
@@ -199,7 +216,7 @@ async function bootstrap(): Promise<void> {
   }
 
   app.use('/api', authMiddleware);
-  app.use('/api/lookups', createLookupsRouter(lookupService));
+  app.use('/api/lookups', createLookupsRouter(lookupService, apiLookupService));
   app.use('/api/forms', createFormsRouter(
     metadataService,
     dataService,
@@ -220,7 +237,7 @@ async function bootstrap(): Promise<void> {
   app.use('/api/themes', createThemesRouter(designService));
   app.use('/api/form-design', createFormDesignRouter(designService));
   app.use('/api/admin/cache/design', createDesignCacheRouter(designService));
-  app.use('/api/admin', createAdminRouter(metadataService, designService));
+  app.use('/api/admin', createAdminRouter(metadataService, designService, apiLookupService));
   if (infoCardAdminService) {
     app.use('/api/admin', createInfoCardsAdminRouter(infoCardAdminService));
   }

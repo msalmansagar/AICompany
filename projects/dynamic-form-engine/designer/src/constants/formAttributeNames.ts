@@ -299,6 +299,13 @@ export const FORM_LOOKUP_CONFIG_ATTRS = {
   FILTER_QUERY: 'qdb_filter_expression',
   SEARCH_MIN_CHARS: 'qdb_search_min_chars',
   MAX_RESULTS: 'qdb_max_results',
+  // DFE-APILOOKUP-001 — external-API source.
+  SOURCE: 'qdb_lookup_source',
+  API_ENDPOINT_KEY: 'qdb_lookup_api_endpoint_key',
+  API_VALUE_PATH: 'qdb_lookup_api_value_path',
+  API_LABEL_PATH: 'qdb_lookup_api_label_path',
+  API_SEARCH_PARAM: 'qdb_lookup_api_search_param',
+  API_SEARCH_MODE: 'qdb_lookup_api_search_mode',
 } as const;
 
 export const FORM_SUBMISSION_MAPPING_ATTRS = {

@@ -12,6 +12,13 @@ export interface UpsertLookupConfigDto {
   filterQuery: string | null;
   searchMinChars?: number;
   maxResults?: number;
+  // DFE-APILOOKUP-001 — external-API source.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string | null;
+  apiValuePath?: string | null;
+  apiLabelPath?: string | null;
+  apiSearchParamName?: string | null;
+  apiSearchMode?: 'typeahead' | 'fetchAll' | null;
 }
 
 export class LookupConfigService {
@@ -41,6 +48,12 @@ export class LookupConfigService {
       FORM_LOOKUP_CONFIG_ATTRS.FILTER_QUERY,
       FORM_LOOKUP_CONFIG_ATTRS.SEARCH_MIN_CHARS,
       FORM_LOOKUP_CONFIG_ATTRS.MAX_RESULTS,
+      FORM_LOOKUP_CONFIG_ATTRS.SOURCE,
+      FORM_LOOKUP_CONFIG_ATTRS.API_ENDPOINT_KEY,
+      FORM_LOOKUP_CONFIG_ATTRS.API_VALUE_PATH,
+      FORM_LOOKUP_CONFIG_ATTRS.API_LABEL_PATH,
+      FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_PARAM,
+      FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_MODE,
     ].join(',');
 
     const filter = `${FORM_LOOKUP_CONFIG_ATTRS.FIELD_ID_VALUE} eq ${fieldId}`;
@@ -79,6 +92,7 @@ export class LookupConfigService {
       [FORM_LOOKUP_CONFIG_ATTRS.DISPLAY_FIELD]: dto.displayField,
       [FORM_LOOKUP_CONFIG_ATTRS.VALUE_FIELD]: dto.valueField,
       [FORM_LOOKUP_CONFIG_ATTRS.FILTER_QUERY]: dto.filterQuery,
+      ...apiFieldData(dto),
     };
     if (dto.searchMinChars !== undefined) data[FORM_LOOKUP_CONFIG_ATTRS.SEARCH_MIN_CHARS] = dto.searchMinChars;
     if (dto.maxResults !== undefined) data[FORM_LOOKUP_CONFIG_ATTRS.MAX_RESULTS] = dto.maxResults;
@@ -98,6 +112,7 @@ export class LookupConfigService {
       [FORM_LOOKUP_CONFIG_ATTRS.FILTER_QUERY]: dto.filterQuery,
       [FORM_LOOKUP_CONFIG_ATTRS.SEARCH_MIN_CHARS]: dto.searchMinChars ?? 3,
       [FORM_LOOKUP_CONFIG_ATTRS.MAX_RESULTS]: dto.maxResults ?? 10,
+      ...apiFieldData(dto),
     };
 
     const result = await withRetry(
@@ -108,6 +123,8 @@ export class LookupConfigService {
   }
 
   private mapRecordToModel(record: Record<string, unknown>): DesignerLookupConfig {
+    const source = record[FORM_LOOKUP_CONFIG_ATTRS.SOURCE];
+    const searchMode = record[FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_MODE];
     return {
       targetEntity: String(record[FORM_LOOKUP_CONFIG_ATTRS.TARGET_ENTITY] ?? ''),
       displayField: String(record[FORM_LOOKUP_CONFIG_ATTRS.DISPLAY_FIELD] ?? ''),
@@ -117,6 +134,30 @@ export class LookupConfigService {
         : null,
       searchMinChars: Number(record[FORM_LOOKUP_CONFIG_ATTRS.SEARCH_MIN_CHARS] ?? 3),
       maxResults: Number(record[FORM_LOOKUP_CONFIG_ATTRS.MAX_RESULTS] ?? 10),
+      source: source === 'api' ? 'api' : source === 'entity' ? 'entity' : undefined,
+      apiEndpointKey: nullableString(record[FORM_LOOKUP_CONFIG_ATTRS.API_ENDPOINT_KEY]),
+      apiValuePath: nullableString(record[FORM_LOOKUP_CONFIG_ATTRS.API_VALUE_PATH]),
+      apiLabelPath: nullableString(record[FORM_LOOKUP_CONFIG_ATTRS.API_LABEL_PATH]),
+      apiSearchParamName: nullableString(record[FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_PARAM]),
+      apiSearchMode: searchMode === 'typeahead' || searchMode === 'fetchAll' ? searchMode : null,
     };
   }
+}
+
+// DFE-APILOOKUP-001 — the API-source columns for a create/update payload. Always written
+// (null when unset) so switching a field back to entity source clears stale API config.
+function apiFieldData(dto: UpsertLookupConfigDto): Record<string, unknown> {
+  const isApi = dto.source === 'api';
+  return {
+    [FORM_LOOKUP_CONFIG_ATTRS.SOURCE]: dto.source ?? 'entity',
+    [FORM_LOOKUP_CONFIG_ATTRS.API_ENDPOINT_KEY]: isApi ? dto.apiEndpointKey ?? null : null,
+    [FORM_LOOKUP_CONFIG_ATTRS.API_VALUE_PATH]: isApi ? dto.apiValuePath ?? null : null,
+    [FORM_LOOKUP_CONFIG_ATTRS.API_LABEL_PATH]: isApi ? dto.apiLabelPath ?? null : null,
+    [FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_PARAM]: isApi ? dto.apiSearchParamName ?? null : null,
+    [FORM_LOOKUP_CONFIG_ATTRS.API_SEARCH_MODE]: isApi ? dto.apiSearchMode ?? 'typeahead' : null,
+  };
+}
+
+function nullableString(value: unknown): string | null {
+  return value ? String(value) : null;
 }

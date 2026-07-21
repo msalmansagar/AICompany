@@ -141,7 +141,14 @@ namespace Qdb.FormEngine.Core.Generation
                 SearchMinChars = config.GetAttributeValue<int>("qdb_search_min_chars"),
                 MaxResults = config.GetAttributeValue<int>("qdb_max_results"),
                 DependsOnFieldId = EntityHelper.GetNullableLookupId(config, "qdb_depends_on_field_id"),
-                DependsOnFilterTemplate = config.GetAttributeValue<string>("qdb_depends_on_filter_template")
+                DependsOnFilterTemplate = config.GetAttributeValue<string>("qdb_depends_on_filter_template"),
+                // DFE-APILOOKUP-001 — external-API source columns (null on entity lookups).
+                Source = config.GetAttributeValue<string>("qdb_lookup_source"),
+                ApiEndpointKey = config.GetAttributeValue<string>("qdb_lookup_api_endpoint_key"),
+                ApiValuePath = config.GetAttributeValue<string>("qdb_lookup_api_value_path"),
+                ApiLabelPath = config.GetAttributeValue<string>("qdb_lookup_api_label_path"),
+                ApiSearchParamName = config.GetAttributeValue<string>("qdb_lookup_api_search_param"),
+                ApiSearchMode = config.GetAttributeValue<string>("qdb_lookup_api_search_mode")
             };
         }
 

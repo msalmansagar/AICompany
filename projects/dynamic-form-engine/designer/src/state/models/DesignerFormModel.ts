@@ -82,6 +82,13 @@ export interface DesignerLookupConfig {
   filterQuery: string | null;
   searchMinChars: number;
   maxResults: number;
+  // DFE-APILOOKUP-001 — optional so existing entity-lookup config stays unchanged.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string | null;
+  apiValuePath?: string | null;
+  apiLabelPath?: string | null;
+  apiSearchParamName?: string | null;
+  apiSearchMode?: 'typeahead' | 'fetchAll' | null;
 }
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';

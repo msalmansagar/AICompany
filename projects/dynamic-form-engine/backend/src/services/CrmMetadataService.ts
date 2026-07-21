@@ -731,6 +731,13 @@ export class CrmMetadataService extends CrmBaseService {
         maxResults: lc.qdb_max_results ?? 10,
         dependsOnFieldId,
         dependsOnFilterTemplate: lc.qdb_depends_on_filter_template,
+        // DFE-APILOOKUP-001 — absent source stays undefined so entity lookups are unchanged.
+        source: this.mapLookupSource(lc.qdb_lookup_source),
+        apiEndpointKey: lc.qdb_lookup_api_endpoint_key,
+        apiValuePath: lc.qdb_lookup_api_value_path,
+        apiLabelPath: lc.qdb_lookup_api_label_path,
+        apiSearchParamName: lc.qdb_lookup_api_search_param,
+        apiSearchMode: this.mapLookupSearchMode(lc.qdb_lookup_api_search_mode),
       });
     }
 
@@ -925,6 +932,16 @@ export class CrmMetadataService extends CrmBaseService {
 
   private mapInfoCardListMarker(v: string | undefined): 'circle' | 'plain' | 'none' | undefined {
     return v === 'circle' || v === 'plain' || v === 'none' ? v : undefined;
+  }
+
+  // DFE-APILOOKUP-001 — absent/unknown source is left undefined so the frontend and
+  // C# path both treat it as the default 'entity' behaviour (no migration needed).
+  private mapLookupSource(v: string | undefined): 'entity' | 'api' | undefined {
+    return v === 'entity' || v === 'api' ? v : undefined;
+  }
+
+  private mapLookupSearchMode(v: string | undefined): 'typeahead' | 'fetchAll' | undefined {
+    return v === 'typeahead' || v === 'fetchAll' ? v : undefined;
   }
 
   private mapGridMode(code: number | undefined): 'selection' | 'entry' {
@@ -1266,6 +1283,13 @@ interface RawLookupConfig {
   qdb_max_results?: number;
   _qdb_depends_on_field_id_value?: string;
   qdb_depends_on_filter_template?: string;
+  // DFE-APILOOKUP-001
+  qdb_lookup_source?: string;
+  qdb_lookup_api_endpoint_key?: string;
+  qdb_lookup_api_value_path?: string;
+  qdb_lookup_api_label_path?: string;
+  qdb_lookup_api_search_param?: string;
+  qdb_lookup_api_search_mode?: string;
 }
 
 interface RawSubmissionMapping {

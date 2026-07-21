@@ -3,6 +3,7 @@ import {
   Button,
   Field,
   Input,
+  Select,
   Spinner,
   Text,
   Textarea,
@@ -74,6 +75,12 @@ export function LookupConfigScreen(): React.ReactElement {
     filterQuery: field?.lookupConfig?.filterQuery ?? null,
     searchMinChars: field?.lookupConfig?.searchMinChars ?? 3,
     maxResults: field?.lookupConfig?.maxResults ?? 10,
+    source: field?.lookupConfig?.source ?? 'entity',
+    apiEndpointKey: field?.lookupConfig?.apiEndpointKey ?? null,
+    apiValuePath: field?.lookupConfig?.apiValuePath ?? null,
+    apiLabelPath: field?.lookupConfig?.apiLabelPath ?? null,
+    apiSearchParamName: field?.lookupConfig?.apiSearchParamName ?? null,
+    apiSearchMode: field?.lookupConfig?.apiSearchMode ?? 'typeahead',
   }));
 
   const [isDirty, setIsDirty] = useState(false);
@@ -125,6 +132,12 @@ export function LookupConfigScreen(): React.ReactElement {
           filterQuery: config.filterQuery,
           searchMinChars: config.searchMinChars,
           maxResults: config.maxResults,
+          source: config.source,
+          apiEndpointKey: config.apiEndpointKey,
+          apiValuePath: config.apiValuePath,
+          apiLabelPath: config.apiLabelPath,
+          apiSearchParamName: config.apiSearchParamName,
+          apiSearchMode: config.apiSearchMode,
         });
         setSaveSuccess(true);
       } catch (err) {
@@ -136,7 +149,17 @@ export function LookupConfigScreen(): React.ReactElement {
     setIsDirty(false);
   }, [selectedId, updateField, config, crmService]);
 
-  const canSave = !isSaving && isDirty && config.targetEntity.trim().length > 0 && config.displayField.trim().length > 0 && config.valueField.trim().length > 0;
+  const isApi = config.source === 'api';
+  const entityValid =
+    config.targetEntity.trim().length > 0 &&
+    config.displayField.trim().length > 0 &&
+    config.valueField.trim().length > 0;
+  // FR-032: an API-sourced lookup must name an endpoint key + the value/label paths.
+  const apiValid =
+    (config.apiEndpointKey ?? '').trim().length > 0 &&
+    (config.apiValuePath ?? '').trim().length > 0 &&
+    (config.apiLabelPath ?? '').trim().length > 0;
+  const canSave = !isSaving && isDirty && (isApi ? apiValid : entityValid);
 
   if (!field) {
     return (
@@ -174,56 +197,143 @@ export function LookupConfigScreen(): React.ReactElement {
 
         <div className={styles.form}>
           <Field
-            label="Target Entity"
-            required
-            hint="The logical name of the Dataverse table to query (e.g. contact, account)."
+            label="Data Source"
+            hint="Query a Dataverse table, or fetch options from an approved external API."
           >
-            <Input
-              value={config.targetEntity}
-              onChange={(_, data) => patch({ targetEntity: data.value.toLowerCase() })}
-              placeholder="e.g. contact"
-              style={{ fontFamily: 'monospace' }}
-            />
+            <Select
+              value={config.source ?? 'entity'}
+              onChange={(_, data) => patch({ source: data.value === 'api' ? 'api' : 'entity' })}
+            >
+              <option value="entity">CRM Entity</option>
+              <option value="api">External API</option>
+            </Select>
           </Field>
 
-          <Field
-            label="Display Field"
-            required
-            hint="The column shown to the user in the dropdown (e.g. fullname)."
-          >
-            <Input
-              value={config.displayField}
-              onChange={(_, data) => patch({ displayField: data.value.toLowerCase() })}
-              placeholder="e.g. fullname"
-              style={{ fontFamily: 'monospace' }}
-            />
-          </Field>
+          {!isApi && (
+            <>
+              <Field
+                label="Target Entity"
+                required
+                hint="The logical name of the Dataverse table to query (e.g. contact, account)."
+              >
+                <Input
+                  value={config.targetEntity}
+                  onChange={(_, data) => patch({ targetEntity: data.value.toLowerCase() })}
+                  placeholder="e.g. contact"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
 
-          <Field
-            label="Value Field"
-            required
-            hint="The column stored as the submission value — usually the primary key (e.g. contactid)."
-          >
-            <Input
-              value={config.valueField}
-              onChange={(_, data) => patch({ valueField: data.value.toLowerCase() })}
-              placeholder="e.g. contactid"
-              style={{ fontFamily: 'monospace' }}
-            />
-          </Field>
+              <Field
+                label="Display Field"
+                required
+                hint="The column shown to the user in the dropdown (e.g. fullname)."
+              >
+                <Input
+                  value={config.displayField}
+                  onChange={(_, data) => patch({ displayField: data.value.toLowerCase() })}
+                  placeholder="e.g. fullname"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
 
-          <Field
-            label="Filter Query (optional)"
-            hint="OData filter expression to restrict the lookup results (e.g. statecode eq 0)."
-          >
-            <Textarea
-              value={config.filterQuery ?? ''}
-              onChange={(_, data) => patch({ filterQuery: data.value || null })}
-              placeholder="e.g. statecode eq 0 and customertypecode eq 1"
-              rows={3}
-              style={{ fontFamily: 'monospace', fontSize: '12px' }}
-            />
-          </Field>
+              <Field
+                label="Value Field"
+                required
+                hint="The column stored as the submission value — usually the primary key (e.g. contactid)."
+              >
+                <Input
+                  value={config.valueField}
+                  onChange={(_, data) => patch({ valueField: data.value.toLowerCase() })}
+                  placeholder="e.g. contactid"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+
+              <Field
+                label="Filter Query (optional)"
+                hint="OData filter expression to restrict the lookup results (e.g. statecode eq 0)."
+              >
+                <Textarea
+                  value={config.filterQuery ?? ''}
+                  onChange={(_, data) => patch({ filterQuery: data.value || null })}
+                  placeholder="e.g. statecode eq 0 and customertypecode eq 1"
+                  rows={3}
+                  style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                />
+              </Field>
+            </>
+          )}
+
+          {isApi && (
+            <>
+              <Field
+                label="Endpoint Key"
+                required
+                hint="An approved key registered server-side. The URL and credentials stay on the backend — an unrecognised key is rejected."
+              >
+                <Input
+                  value={config.apiEndpointKey ?? ''}
+                  onChange={(_, data) => patch({ apiEndpointKey: data.value || null })}
+                  placeholder="e.g. hr-employees"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+
+              <Field
+                label="Value Path"
+                required
+                hint="Dot-path to the value in each API item (e.g. id, data.id)."
+              >
+                <Input
+                  value={config.apiValuePath ?? ''}
+                  onChange={(_, data) => patch({ apiValuePath: data.value || null })}
+                  placeholder="e.g. id"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+
+              <Field
+                label="Label Path"
+                required
+                hint="Dot-path to the display label in each API item (e.g. name, data.displayName)."
+              >
+                <Input
+                  value={config.apiLabelPath ?? ''}
+                  onChange={(_, data) => patch({ apiLabelPath: data.value || null })}
+                  placeholder="e.g. name"
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+
+              <Field
+                label="Search Mode"
+                hint="Typeahead sends the typed term to the API; Fetch All loads once and filters locally."
+              >
+                <Select
+                  value={config.apiSearchMode ?? 'typeahead'}
+                  onChange={(_, data) => patch({ apiSearchMode: data.value === 'fetchAll' ? 'fetchAll' : 'typeahead' })}
+                >
+                  <option value="typeahead">Typeahead (server-side search)</option>
+                  <option value="fetchAll">Fetch All (filter locally)</option>
+                </Select>
+              </Field>
+
+              {config.apiSearchMode !== 'fetchAll' && (
+                <Field
+                  label="Search Param Name"
+                  hint="Query parameter that carries the typed term to the API (e.g. q, search)."
+                >
+                  <Input
+                    value={config.apiSearchParamName ?? ''}
+                    onChange={(_, data) => patch({ apiSearchParamName: data.value || null })}
+                    placeholder="e.g. q"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                </Field>
+              )}
+            </>
+          )}
         </div>
 
         <div className={styles.actions}>

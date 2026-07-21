@@ -292,6 +292,15 @@ export interface LookupConfig {
   maxResults: number;
   dependsOnFieldId?: string;       // filter this lookup based on another field's value
   dependsOnFilterTemplate?: string; // OData filter template with {dependsOnValue} placeholder
+  // DFE-APILOOKUP-001: external-API source. Absent/'entity' => the CRM-entity path above.
+  // When 'api', the backend resolves apiEndpointKey against a server-side registry and
+  // proxies the call — no URL or credential ever reaches the browser.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string;         // opaque key resolved server-side; required when source='api'
+  apiValuePath?: string;           // dot-path to the value in each API response item (e.g. 'id')
+  apiLabelPath?: string;           // dot-path to the label in each API response item (e.g. 'name')
+  apiSearchParamName?: string;     // query param carrying the typed term (typeahead mode)
+  apiSearchMode?: 'typeahead' | 'fetchAll'; // absent => 'typeahead'
 }
 
 // ── Validation rule ───────────────────────────────────────────
@@ -772,6 +781,8 @@ export interface ResponseMeta {
   page?: number;
   pageSize?: number;
   hasMore?: boolean;
+  // DFE-APILOOKUP-001: non-fatal degradation signal (e.g. 'timeout', 'upstream_error').
+  warning?: string;
 }
 
 // ── Lookup search result ──────────────────────────────────────

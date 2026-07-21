@@ -124,7 +124,7 @@ export function LookupControl({
 }: ControlProps) {
   const styles = useStyles();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { fieldValues, updateFieldValue } = useFormContext();
+  const { fieldValues, updateFieldValue, formCode } = useFormContext();
   const [inputText, setInputText] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<DropdownPos>({ top: 0, left: 0, width: 0 });
@@ -142,12 +142,34 @@ export function LookupControl({
     return lookupConfig?.filterExpression;
   }, [lookupConfig?.dependsOnFilterTemplate, lookupConfig?.filterExpression, dependsOnValue]);
 
+  // DFE-APILOOKUP-001 — when the config is API-sourced, resolve options via the backend proxy.
+  const apiSource = useMemo(() => {
+    if (lookupConfig?.source !== 'api' || !lookupConfig.apiEndpointKey) return undefined;
+    return {
+      endpointKey: lookupConfig.apiEndpointKey,
+      valuePath: lookupConfig.apiValuePath ?? 'id',
+      labelPath: lookupConfig.apiLabelPath ?? 'name',
+      searchParamName: lookupConfig.apiSearchParamName,
+      searchMode: lookupConfig.apiSearchMode,
+      formCode,
+    };
+  }, [
+    lookupConfig?.source,
+    lookupConfig?.apiEndpointKey,
+    lookupConfig?.apiValuePath,
+    lookupConfig?.apiLabelPath,
+    lookupConfig?.apiSearchParamName,
+    lookupConfig?.apiSearchMode,
+    formCode,
+  ]);
+
   const { results, isSearching, searchError, search, loadInitial, clearResults } = useLookupSearch({
     entityName: lookupConfig?.entityLogicalName ?? '',
     displayAttribute: lookupConfig?.displayAttribute ?? 'name',
     valueAttribute: lookupConfig?.valueAttribute,
     maxResults: lookupConfig?.maxResults ?? 10,
     filterExpression: effectiveFilter,
+    apiSource,
   });
 
   const rawValue = fieldValues[field.schemaName] as LookupValue | null | undefined;
