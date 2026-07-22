@@ -626,6 +626,7 @@ export interface GridFieldConfig {
   relationshipAttribute?: string;  // Mode B: parent lookup attribute
   minRows?: number;                // Mode B
   maxRows: number;
+  pageSize?: number;               // records per page for entity selection grids (runtime default 50)
   columnConfigs: GridColumnConfig[];
   columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
   // DFE-GRIDSRC-001: data source + display configuration (selection/display grids).

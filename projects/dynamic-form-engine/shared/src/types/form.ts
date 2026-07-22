@@ -72,6 +72,7 @@ export interface GridFieldConfig {
   // Backend pre-filters to visible columns only; absent if no column configs are defined.
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
+  pageSize?: number;               // records per page for entity selection grids (runtime default 50)
   savedViewId?: string;
   entityName?: string;
   minRows?: number;

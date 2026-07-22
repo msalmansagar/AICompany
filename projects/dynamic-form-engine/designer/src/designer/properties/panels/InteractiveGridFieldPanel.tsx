@@ -262,13 +262,24 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
                 />
               </Field>
 
-              <Field label="Max Rows" hint="Row cap enforced server-side">
+              <Field label="Max Rows" hint="Total row cap across all pages, enforced server-side">
                 <Input
                   type="number"
                   value={field.maxRows != null ? String(field.maxRows) : ''}
                   placeholder="200"
                   onChange={(_, d) =>
                     updateField(field.id, { maxRows: d.value ? parseInt(d.value, 10) : null })
+                  }
+                />
+              </Field>
+
+              <Field label="Rows per Page" hint="Records shown per page before Next/Previous (default 50)">
+                <Input
+                  type="number"
+                  value={field.gridPageSize != null ? String(field.gridPageSize) : ''}
+                  placeholder="50"
+                  onChange={(_, d) =>
+                    updateField(field.id, { gridPageSize: d.value ? parseInt(d.value, 10) : null })
                   }
                 />
               </Field>

@@ -122,6 +122,7 @@ export const FORM_FIELD_ATTRS = {
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
   MAX_ROWS: 'qdb_max_rows',
+  GRID_PAGE_SIZE: 'qdb_grid_page_size',
   NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
   BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR

@@ -190,5 +190,6 @@ export interface DesignerFieldModel {
   gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
+  gridPageSize?: number | null;    // records per page for entity selection grids (runtime default 50)
   gridColumns: DesignerGridColumnConfig[];
 }

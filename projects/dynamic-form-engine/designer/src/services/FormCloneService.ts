@@ -82,6 +82,7 @@ export class FormCloneService {
             currencyCode: field.currencyCode,
             decimalPlaces: field.decimalPlaces,
             maxRows: field.maxRows,
+            gridPageSize: field.gridPageSize,
           });
 
           await Promise.all([

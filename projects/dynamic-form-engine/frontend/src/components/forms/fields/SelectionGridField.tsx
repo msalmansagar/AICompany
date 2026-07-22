@@ -485,7 +485,7 @@ export function SelectionGridField({
 
   const gridData = useSelectionGridData(
     field.id,
-    50,
+    gridConfig?.pageSize ?? 50,
     dependsOnValue,
     undefined,
     sortState.column ?? undefined,
