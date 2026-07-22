@@ -17,6 +17,14 @@ public sealed class ReportsController(
     IReportExportService exportService,
     IReportChartService chartService) : ControllerBase
 {
+    /// <summary>Lists the reports the caller can see (the catalog).</summary>
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<ReportSummary>>> List(CancellationToken cancellationToken)
+    {
+        var result = await loader.ListAsync(BuildContext(), cancellationToken);
+        return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
+    }
+
     /// <summary>Loads the report definition and its children by id.</summary>
     [HttpGet("{reportId:guid}")]
     public async Task<ActionResult<ReportDefinition>> Get(Guid reportId, CancellationToken cancellationToken)

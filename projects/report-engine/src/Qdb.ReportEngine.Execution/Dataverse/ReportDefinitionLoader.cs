@@ -78,6 +78,34 @@ public sealed class ReportDefinitionLoader(
         }
     }
 
+    /// <inheritdoc />
+    public async Task<Result<IReadOnlyList<ReportSummary>>> ListAsync(ReportExecutionContext context, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        try
+        {
+            await using var connection = await connectionFactory.CreateForUserAsync(context, cancellationToken).ConfigureAwait(false);
+            var rows = await connection
+                .RetrieveMultipleAsync("qdb_reportdefinition", ReportDefinitionFetch.List(), cancellationToken)
+                .ConfigureAwait(false);
+            return Result<IReadOnlyList<ReportSummary>>.Success(rows.Select(ReportDefinitionAssembler.MapSummary).ToList());
+        }
+        catch (DataverseThrottledException)
+        {
+            throw;
+        }
+        catch (DataverseAccessDeniedException ex)
+        {
+            return Result<IReadOnlyList<ReportSummary>>.Failure(DomainError.PermissionDenied(ex.Entity));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Failed to list reports (corr {CorrelationId})", context.CorrelationId);
+            return Result<IReadOnlyList<ReportSummary>>.Failure(DomainError.QueryFailed("report list"));
+        }
+    }
+
     private static IReadOnlyList<BatchQuery> ChildQueries(Guid reportId) =>
     [
         new(DataSourcesKey, "qdb_reportdatasource", ReportDefinitionFetch.DataSources(reportId)),

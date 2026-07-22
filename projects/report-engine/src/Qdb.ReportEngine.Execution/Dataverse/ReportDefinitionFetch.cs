@@ -9,6 +9,16 @@ namespace Qdb.ReportEngine.Execution.Dataverse;
 /// </summary>
 public static class ReportDefinitionFetch
 {
+    /// <summary>All report definitions as lightweight summaries (the catalog), ordered by name.</summary>
+    public static string List()
+    {
+        var entity = Entity("qdb_reportdefinition",
+            "qdb_reportdefinitionid", "qdb_name", "qdb_reportcode", "qdb_description",
+            "qdb_mainentitylogicalname", "qdb_category", "qdb_status");
+        entity.Add(new XElement("order", new XAttribute("attribute", "qdb_name")));
+        return Wrap(entity, top: 200);
+    }
+
     /// <summary>The report definition record itself.</summary>
     public static string Definition(Guid reportId) =>
         Fetch("qdb_reportdefinition", top: 1,

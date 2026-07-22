@@ -15,4 +15,7 @@ public interface IReportDefinitionLoader
     /// when no such definition exists.
     /// </summary>
     Task<Result<ReportDefinition>> LoadAsync(Guid reportId, ReportExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>Lists the reports the user can see (the catalog), as lightweight summaries.</summary>
+    Task<Result<IReadOnlyList<ReportSummary>>> ListAsync(ReportExecutionContext context, CancellationToken cancellationToken);
 }

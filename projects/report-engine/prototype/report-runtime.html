@@ -1,0 +1,390 @@
+<meta charset="utf-8" />
+<title>Report Engine — Runtime Viewer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ============ Fluent / Power Platform design tokens (shared with the Designer) ============ */
+  :root {
+    --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --primary:#0078d4; --primary-hover:#106ebe; --primary-pressed:#005a9e; --primary-tint:#deecf9; --primary-tint-2:#eff6fc;
+    --bg:#f3f2f1; --surface:#ffffff; --surface-alt:#faf9f8; --nav-bg:#f3f2f1;
+    --border:#edebe9; --border-strong:#e1dfdd; --border-input:#8a8886;
+    --text:#201f1e; --text-secondary:#605e5c; --text-disabled:#a19f9d;
+    --success:#107c10; --success-bg:#dff6dd; --warning:#ca7c11; --warning-bg:#fff4ce; --error:#a4262c; --error-bg:#fde7e9; --neutral-chip:#f3f2f1;
+    --shadow-8:0 1.6px 3.6px rgba(0,0,0,.13),0 .3px .9px rgba(0,0,0,.11); --shadow-16:0 3.2px 7.2px rgba(0,0,0,.13),0 .6px 1.8px rgba(0,0,0,.11); --shadow-64:0 12.8px 28.8px rgba(0,0,0,.22),0 2.4px 7.2px rgba(0,0,0,.18);
+    --radius:2px; --radius-lg:4px;
+    --header-bg:#0078d4; --header-border:#005a9e; --header-fg:#fff; --header-fg-dim:rgba(255,255,255,.82);
+    --header-hover:rgba(255,255,255,.16); --header-accent:rgba(255,255,255,.7);
+    --header-search-bg:rgba(255,255,255,.16); --header-search-border:rgba(255,255,255,.32); --header-search-ph:rgba(255,255,255,.72);
+    --header-avatar-bg:#fff; --header-avatar-fg:#0078d4; --app-bg-image:none; --surface-blur:none;
+  }
+  @media (prefers-color-scheme: dark){ :root{
+    --primary:#2899f5; --primary-hover:#3aa0f3; --primary-pressed:#1a86dc; --primary-tint:#0b3a5c; --primary-tint-2:#10334d;
+    --bg:#1b1a19; --surface:#292827; --surface-alt:#201f1e; --nav-bg:#1b1a19;
+    --border:#3b3a39; --border-strong:#484644; --border-input:#605e5c; --text:#f3f2f1; --text-secondary:#c8c6c4; --text-disabled:#797775;
+    --success:#6bb700; --success-bg:#1f2e10; --warning:#fce100; --warning-bg:#3a3410; --error:#f1707b; --error-bg:#3a1416; --neutral-chip:#3b3a39;
+    --shadow-8:0 1.6px 3.6px rgba(0,0,0,.4); --shadow-16:0 3.2px 7.2px rgba(0,0,0,.5); --shadow-64:0 12.8px 28.8px rgba(0,0,0,.6);
+    --header-bg:#141312; --header-border:#3b3a39; --header-fg:#f3f2f1; --header-fg-dim:rgba(243,242,241,.72);
+    --header-hover:rgba(255,255,255,.08); --header-accent:#2899f5; --header-search-bg:rgba(255,255,255,.06); --header-search-border:rgba(255,255,255,.14); --header-search-ph:rgba(243,242,241,.5);
+    --header-avatar-bg:#2899f5; --header-avatar-fg:#0b1a26; }}
+  :root[data-theme="dark"]{ --primary:#2899f5; --primary-hover:#3aa0f3; --primary-pressed:#1a86dc; --primary-tint:#0b3a5c; --primary-tint-2:#10334d;
+    --bg:#1b1a19; --surface:#292827; --surface-alt:#201f1e; --nav-bg:#1b1a19; --border:#3b3a39; --border-strong:#484644; --border-input:#605e5c;
+    --text:#f3f2f1; --text-secondary:#c8c6c4; --text-disabled:#797775; --success:#6bb700; --success-bg:#1f2e10; --warning:#fce100; --warning-bg:#3a3410; --error:#f1707b; --error-bg:#3a1416; --neutral-chip:#3b3a39;
+    --shadow-8:0 1.6px 3.6px rgba(0,0,0,.4); --shadow-16:0 3.2px 7.2px rgba(0,0,0,.5); --shadow-64:0 12.8px 28.8px rgba(0,0,0,.6);
+    --header-bg:#141312; --header-border:#3b3a39; --header-fg:#f3f2f1; --header-fg-dim:rgba(243,242,241,.72); --header-hover:rgba(255,255,255,.08); --header-accent:#2899f5;
+    --header-search-bg:rgba(255,255,255,.06); --header-search-border:rgba(255,255,255,.14); --header-search-ph:rgba(243,242,241,.5); --header-avatar-bg:#2899f5; --header-avatar-fg:#0b1a26; }
+  :root[data-theme="light"]{ --primary:#0078d4; --primary-hover:#106ebe; --primary-pressed:#005a9e; --primary-tint:#deecf9; --primary-tint-2:#eff6fc;
+    --bg:#f3f2f1; --surface:#fff; --surface-alt:#faf9f8; --nav-bg:#f3f2f1; --border:#edebe9; --border-strong:#e1dfdd; --border-input:#8a8886;
+    --text:#201f1e; --text-secondary:#605e5c; --text-disabled:#a19f9d; --success:#107c10; --success-bg:#dff6dd; --warning:#ca7c11; --warning-bg:#fff4ce; --error:#a4262c; --error-bg:#fde7e9; --neutral-chip:#f3f2f1;
+    --header-bg:#0078d4; --header-border:#005a9e; --header-fg:#fff; --header-fg-dim:rgba(255,255,255,.82); --header-hover:rgba(255,255,255,.16); --header-accent:rgba(255,255,255,.7);
+    --header-search-bg:rgba(255,255,255,.16); --header-search-border:rgba(255,255,255,.32); --header-search-ph:rgba(255,255,255,.72); --header-avatar-bg:#fff; --header-avatar-fg:#0078d4; --app-bg-image:none; --surface-blur:none; }
+  :root[data-theme="glass"]{ --primary:#5b5bd6; --primary-hover:#4d4dc7; --primary-pressed:#3f3fb0; --primary-tint:rgba(91,91,214,.18); --primary-tint-2:rgba(91,91,214,.10);
+    --bg:rgba(248,250,255,.30); --surface:rgba(255,255,255,.55); --surface-alt:rgba(255,255,255,.38); --nav-bg:rgba(255,255,255,.28);
+    --border:rgba(255,255,255,.55); --border-strong:rgba(255,255,255,.72); --border-input:rgba(110,110,150,.45); --text:#1c1c2e; --text-secondary:#494963; --text-disabled:#9a9ab0;
+    --success:#0f7a4f; --success-bg:rgba(16,124,74,.16); --warning:#b5730a; --warning-bg:rgba(202,124,17,.16); --error:#c0392b; --error-bg:rgba(164,38,44,.16); --neutral-chip:rgba(120,120,150,.14);
+    --shadow-8:0 4px 16px rgba(31,38,90,.10); --shadow-16:0 8px 28px rgba(31,38,90,.14); --shadow-64:0 24px 60px rgba(31,38,90,.24); --radius:8px; --radius-lg:16px;
+    --app-bg-image:linear-gradient(135deg,#c2e9fb 0%,#e0c3fc 46%,#ffd3e0 100%); --surface-blur:saturate(1.5) blur(16px);
+    --header-bg:rgba(255,255,255,.32); --header-border:rgba(255,255,255,.5); --header-fg:#1c1c2e; --header-fg-dim:rgba(28,28,46,.66); --header-hover:rgba(255,255,255,.55); --header-accent:#5b5bd6;
+    --header-search-bg:rgba(255,255,255,.5); --header-search-border:rgba(255,255,255,.62); --header-search-ph:rgba(28,28,46,.5); --header-avatar-bg:#5b5bd6; --header-avatar-fg:#fff; }
+  :root[data-theme="vibrant"]{ --primary:#7c3aed; --primary-hover:#6d28d9; --primary-pressed:#5b21b6; --primary-tint:#ede9fe; --primary-tint-2:#f5f3ff;
+    --bg:rgba(250,248,255,.82); --surface:#fff; --surface-alt:#f7f5ff; --nav-bg:rgba(255,255,255,.55); --border:rgba(124,58,237,.14); --border-strong:rgba(124,58,237,.24); --border-input:#b9a7e8;
+    --text:#1e1b2e; --text-secondary:#5a5470; --text-disabled:#a99fc0; --success:#0f9d58; --success-bg:#e3f7ec; --warning:#d97706; --warning-bg:#fef3e2; --error:#e11d48; --error-bg:#fde7ec; --neutral-chip:#efeafc;
+    --shadow-8:0 6px 18px rgba(124,58,237,.16); --shadow-16:0 10px 30px rgba(124,58,237,.20); --shadow-64:0 26px 64px rgba(124,58,237,.32); --radius:8px; --radius-lg:16px;
+    --app-bg-image:linear-gradient(135deg,#6366f1 0%,#a855f7 40%,#ec4899 74%,#f59e0b 100%); --surface-blur:saturate(1.4) blur(14px);
+    --header-bg:linear-gradient(90deg,#7c3aed 0%,#db2777 100%); --header-border:rgba(255,255,255,.22); --header-fg:#fff; --header-fg-dim:rgba(255,255,255,.85); --header-hover:rgba(255,255,255,.2); --header-accent:rgba(255,255,255,.85);
+    --header-search-bg:rgba(255,255,255,.2); --header-search-border:rgba(255,255,255,.4); --header-search-ph:rgba(255,255,255,.75); --header-avatar-bg:#fff; --header-avatar-fg:#7c3aed; }
+
+  *{box-sizing:border-box;} html,body{height:100%;}
+  body{margin:0; font-family:var(--font); color:var(--text); background-color:var(--bg); background-image:var(--app-bg-image); background-attachment:fixed; background-size:cover; font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{margin:0; font-weight:600;} button{font-family:inherit;} a{color:var(--primary);}
+  .app{display:grid; grid-template-rows:48px 1fr; height:100vh; overflow:hidden;}
+
+  .app-header{display:flex; align-items:center; gap:8px; height:48px; padding:0 8px 0 8px; background:var(--header-bg); border-bottom:1px solid var(--header-border); position:relative; z-index:30;}
+  .app-title{display:flex; align-items:baseline; gap:10px;}
+  .app-title .env{color:var(--header-fg-dim); font-weight:400;} .app-title .name{font-weight:600; font-size:16px; color:var(--header-fg);}
+  .header-accent{width:3px; height:24px; background:var(--header-accent); border-radius:2px; margin:0 2px;}
+  .header-spacer{flex:1;}
+  .icon-btn{display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border:none; background:transparent; cursor:pointer; color:var(--header-fg-dim); border-radius:var(--radius);}
+  .icon-btn:hover{background:var(--header-hover); color:var(--header-fg);}
+  .runas{display:flex; align-items:center; gap:6px; height:30px; padding:0 10px; border-radius:16px; background:var(--header-search-bg); border:1px solid var(--header-search-border); color:var(--header-fg); font-size:12.5px; cursor:pointer;}
+  .avatar{width:32px; height:32px; border-radius:50%; background:var(--header-avatar-bg); color:var(--header-avatar-fg); display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:600; margin-left:2px;}
+  .theme-menu{position:absolute; top:46px; right:8px; z-index:60; width:236px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-64); padding:6px; display:none;}
+  .theme-menu.open{display:block;}
+  .theme-menu .tm-h{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); font-weight:700; padding:8px 8px 6px;}
+  .theme-opt{display:flex; align-items:center; gap:11px; padding:8px; border-radius:var(--radius); cursor:pointer; border:none; background:transparent; width:100%; text-align:left; color:var(--text); font-family:inherit; font-size:13.5px;}
+  .theme-opt:hover{background:var(--surface-alt);} .theme-opt .sw{width:36px; height:24px; border-radius:6px; border:1px solid rgba(0,0,0,.14); flex-shrink:0;}
+  .sw-light{background:#fff;} .sw-dark{background:#201f1e;} .sw-glass{background:linear-gradient(135deg,#c2e9fb,#e0c3fc,#ffd3e0);} .sw-vibrant{background:linear-gradient(135deg,#6366f1,#a855f7,#ec4899);}
+  [data-theme="glass"] .app-header,[data-theme="vibrant"] .app-header,[data-theme="glass"] .nav,[data-theme="vibrant"] .nav,[data-theme="glass"] .cmdbar,[data-theme="vibrant"] .cmdbar,[data-theme="glass"] .card,[data-theme="vibrant"] .card,[data-theme="glass"] .menu,[data-theme="vibrant"] .menu{-webkit-backdrop-filter:var(--surface-blur); backdrop-filter:var(--surface-blur);}
+
+  .body{display:grid; grid-template-columns:220px 1fr; height:calc(100vh - 48px); overflow:hidden;}
+  .nav{background:var(--nav-bg); border-right:1px solid var(--border-strong); padding:8px 6px; overflow:auto;}
+  .nav-group-label{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); font-weight:700; padding:12px 10px 4px;}
+  .nav-item{display:flex; align-items:center; gap:10px; width:100%; border:none; background:transparent; color:var(--text); padding:8px 10px; border-radius:var(--radius); cursor:pointer; text-align:left; font-size:13.5px;}
+  .nav-item:hover{background:var(--surface-alt);} .nav-item.active{background:var(--primary-tint); color:var(--primary); font-weight:600;}
+  .content{overflow:auto; padding:0;}
+
+  .cmdbar{display:flex; align-items:center; gap:8px; padding:8px 16px; background:var(--surface); border-bottom:1px solid var(--border-strong); position:sticky; top:0; z-index:20; flex-wrap:wrap;}
+  .page{padding:16px 20px 40px;}
+  .crumb{color:var(--text-secondary); font-size:12.5px; margin-bottom:2px;} .crumb b{color:var(--text);}
+  .btn{display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text); border-radius:var(--radius); cursor:pointer; font-size:13.5px;}
+  .btn:hover{background:var(--surface-alt);} .btn.primary{background:var(--primary); border-color:var(--primary); color:#fff;} .btn.primary:hover{background:var(--primary-hover);}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .menu-wrap{position:relative;}
+  .menu{position:absolute; top:36px; left:0; z-index:40; min-width:180px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-64); padding:4px; display:none;}
+  .menu.open{display:block;} .menu button{display:flex; width:100%; align-items:center; gap:8px; padding:8px 10px; border:none; background:transparent; color:var(--text); border-radius:var(--radius); cursor:pointer; text-align:left; font-size:13.5px;}
+  .menu button:hover{background:var(--surface-alt);}
+
+  .card-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px;}
+  .card{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); padding:16px; cursor:pointer; transition:box-shadow .1s, transform .1s;}
+  .card:hover{box-shadow:var(--shadow-16); transform:translateY(-1px);}
+  .card .code{font-size:11px; font-weight:700; letter-spacing:.4px; color:var(--primary); text-transform:uppercase;}
+  .card h3{font-size:15px; margin:4px 0 6px;} .card .desc{color:var(--text-secondary); font-size:12.5px; min-height:34px;}
+  .chip{display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px; border-radius:11px; background:var(--neutral-chip); color:var(--text-secondary); font-size:11.5px; font-weight:600;}
+  .card .foot{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+
+  .panel{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); padding:16px; margin-bottom:16px;}
+  .panel h4{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); margin-bottom:12px;}
+  .fields{display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:12px;}
+  .field label{display:block; font-size:12px; color:var(--text-secondary); margin-bottom:4px; font-weight:600;}
+  .field input, .field select{width:100%; height:32px; padding:0 8px; border:1px solid var(--border-input); border-radius:var(--radius); background:var(--surface); color:var(--text); font-size:13.5px; font-family:inherit;}
+  .field .req{color:var(--error);}
+
+  .grid-wrap{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); overflow:auto;}
+  table.res{border-collapse:collapse; width:100%; font-size:13px;}
+  table.res th{position:sticky; top:0; background:var(--surface-alt); text-align:left; padding:9px 12px; border-bottom:1px solid var(--border-strong); font-weight:600; white-space:nowrap; z-index:1;}
+  table.res td{padding:8px 12px; border-bottom:1px solid var(--border);}
+  table.res tr:hover td{background:var(--primary-tint-2);}
+  table.res td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .drillbtn{border:1px solid var(--border-strong); background:var(--surface); color:var(--primary); border-radius:var(--radius); height:24px; padding:0 8px; font-size:12px; cursor:pointer;}
+  .drillbtn:hover{background:var(--primary-tint-2);}
+
+  .chartbox{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); padding:12px; margin-bottom:16px; text-align:center;}
+  .chartbox img{max-width:100%; border-radius:var(--radius);}
+  .meta-row{display:flex; gap:16px; flex-wrap:wrap; color:var(--text-secondary); font-size:12.5px; margin:2px 0 12px;}
+  .meta-row b{color:var(--text);}
+  .empty{text-align:center; color:var(--text-secondary); padding:60px 20px;}
+  .empty svg{opacity:.4; margin-bottom:12px;}
+  .spinner{width:18px; height:18px; border:2px solid var(--border-strong); border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .modal-back{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:none; align-items:center; justify-content:center;}
+  .modal-back.open{display:flex;}
+  .modal{background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow-64); width:min(920px,94vw); max-height:88vh; overflow:auto; padding:0;}
+  .modal .m-head{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border-strong);}
+  .modal .m-body{padding:16px 18px;}
+
+  .toast-wrap{position:fixed; bottom:20px; right:20px; z-index:200; display:flex; flex-direction:column; gap:8px;}
+  .toast{background:var(--surface); border:1px solid var(--border-strong); border-left:3px solid var(--primary); border-radius:var(--radius); box-shadow:var(--shadow-16); padding:10px 14px; min-width:240px; font-size:13px; animation:pop .14s ease;}
+  .toast.error{border-left-color:var(--error);} .toast.success{border-left-color:var(--success);}
+  @keyframes pop{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+</style>
+
+<div class="app">
+  <header class="app-header">
+    <div class="header-accent"></div>
+    <div class="app-title"><span class="env">Power Apps</span><span class="name">Report Engine</span></div>
+    <div class="header-spacer"></div>
+    <button class="runas" id="runAs" title="Change who reports run as (impersonation)">
+      <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6c0-2.5 2.2-4 5-4s5 1.5 5 4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+      <span id="runAsLabel">Running as: app</span>
+    </button>
+    <button class="icon-btn" id="themeToggle" title="Change theme">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1.5A7.5 7.5 0 001.5 9c0 3.6 3 5.5 5.7 5.1 1-.15 1.3-1.2.7-1.9-.6-.7-.2-1.7.7-1.7H12a4.5 4.5 0 004.5-4.5C16.5 3.9 13 1.5 9 1.5zM5 8a1 1 0 110-2 1 1 0 010 2zm2.6-2.6a1 1 0 110-2 1 1 0 010 2zm3.8 0a1 1 0 110-2 1 1 0 010 2zM13 8a1 1 0 110-2 1 1 0 010 2z" fill="currentColor"/></svg>
+    </button>
+    <div class="theme-menu" id="themeMenu">
+      <div class="tm-h">Appearance</div>
+      <button class="theme-opt" data-set-theme="light"><span class="sw sw-light"></span><span>Light</span></button>
+      <button class="theme-opt" data-set-theme="dark"><span class="sw sw-dark"></span><span>Dark</span></button>
+      <button class="theme-opt" data-set-theme="glass"><span class="sw sw-glass"></span><span>Glass</span></button>
+      <button class="theme-opt" data-set-theme="vibrant"><span class="sw sw-vibrant"></span><span>Vibrant</span></button>
+    </div>
+    <button class="icon-btn" id="settingsBtn" title="Connection settings">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 6.5A2.5 2.5 0 109 11.5 2.5 2.5 0 009 6.5zm6-.3l-1.3-.2a4.7 4.7 0 00-.5-1.2l.8-1a.6.6 0 00-.1-.8l-1-1a.6.6 0 00-.8-.1l-1 .8a4.7 4.7 0 00-1.2-.5L9.8 1a.6.6 0 00-.6-.5H7.8a.6.6 0 00-.6.5L7 2.2a4.7 4.7 0 00-1.2.5l-1-.8a.6.6 0 00-.8.1l-1 1a.6.6 0 00-.1.8l.8 1a4.7 4.7 0 00-.5 1.2L1.9 6.2a.6.6 0 00-.5.6v1.4a.6.6 0 00.5.6l1.3.2c.1.4.3.8.5 1.2l-.8 1a.6.6 0 00.1.8l1 1a.6.6 0 00.8.1l1-.8c.4.2.8.4 1.2.5l.2 1.3a.6.6 0 00.6.5h1.4a.6.6 0 00.6-.5l.2-1.3c.4-.1.8-.3 1.2-.5l1 .8a.6.6 0 00.8-.1l1-1a.6.6 0 00.1-.8l-.8-1c.2-.4.4-.8.5-1.2l1.3-.2a.6.6 0 00.5-.6V6.8a.6.6 0 00-.5-.6z" fill="currentColor"/></svg>
+    </button>
+    <div class="avatar" title="Runtime Viewer">RV</div>
+  </header>
+
+  <div class="body">
+    <nav class="nav">
+      <div class="nav-group-label">Run</div>
+      <button class="nav-item active" data-nav="catalog"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2h9l3 3v9H2V2zm9 0v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4 8h8M4 10h8M4 12h5" stroke="currentColor" stroke-width="1.1"/></svg><span>Report Catalog</span></button>
+    </nav>
+    <main class="content" id="content"></main>
+  </div>
+</div>
+
+<div class="modal-back" id="modalBack"><div class="modal" id="modal"></div></div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+"use strict";
+/* Report Engine — Runtime Viewer (RPT-ENG-001). Self-contained, no deps.
+   Calls the live middle-tier: GET /api/reports, GET/POST /api/reports/{id}/(execute|export|chart|drilldown). */
+
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const NUMERIC = /^-?[\d,]*\.?\d+$/;
+
+// In a CRM web resource these come from Xrm; here they're editable in Settings.
+const state = {
+  apiBase: localStorage.getItem("re-api") || "http://localhost:5215",
+  callerId: localStorage.getItem("re-caller") || "",   // empty = run as the service app
+  callerName: localStorage.getItem("re-caller-name") || "app",
+  theme: localStorage.getItem("re-theme") || "light",
+  reports: [], view: "catalog", current: null
+};
+
+function toast(msg, kind){ const t=document.createElement("div"); t.className="toast "+(kind||""); t.textContent=msg; $("#toasts").appendChild(t); setTimeout(()=>t.remove(), 4200); }
+
+function api(path, opts={}){
+  const headers = Object.assign({ "Accept":"application/json" }, opts.headers||{});
+  if (state.callerId) headers["X-Report-Caller-Id"] = state.callerId;
+  return fetch(state.apiBase.replace(/\/$/,"") + path, Object.assign({}, opts, { headers }));
+}
+async function apiJson(path, opts){ const r=await api(path, opts); const body = r.status===204?null:await r.json().catch(()=>null); if(!r.ok) throw new Error((body&&body.message)||("HTTP "+r.status)); return body; }
+
+/* ---------------- catalog ---------------- */
+async function loadCatalog(){
+  const c = $("#content");
+  c.innerHTML = `<div class="cmdbar"><b>Report Catalog</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="reload">↻ Refresh</button></div><div class="page"><div class="empty"><span class="spinner"></span> Loading reports…</div></div>`;
+  $("#reload").onclick = loadCatalog;
+  try {
+    state.reports = await apiJson("/api/reports");
+    renderCatalog();
+  } catch(e){ c.querySelector(".page").innerHTML = errorState(e.message); }
+}
+function renderCatalog(){
+  const cards = state.reports.map(r => `
+    <div class="card" data-open="${r.id}">
+      <div class="code">${esc(r.reportCode||"REPORT")}</div>
+      <h3>${esc(r.name)}</h3>
+      <div class="desc">${esc(r.description||"")}</div>
+      <div class="foot"><span class="chip">${esc(r.mainEntityLogicalName||"—")}</span>${r.status?`<span class="chip">${esc(r.status.label||r.status.code)}</span>`:""}</div>
+    </div>`).join("");
+  $("#content .page").innerHTML = state.reports.length ? `<div class="card-grid">${cards}</div>` : errorState("No reports found for this user.");
+  document.querySelectorAll("[data-open]").forEach(el => el.onclick = () => openReport(el.dataset.open));
+}
+
+/* ---------------- run a report ---------------- */
+async function openReport(id){
+  state.view="run";
+  const c=$("#content");
+  c.innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Catalog</button><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="empty"><span class="spinner"></span> Loading report…</div></div>`;
+  $("#back").onclick = loadCatalog;
+  try {
+    const def = await apiJson("/api/reports/"+id);
+    state.current = { def, result:null };
+    renderRun();
+  } catch(e){ c.querySelector(".page").innerHTML = errorState(e.message); }
+}
+
+function renderRun(){
+  const { def } = state.current;
+  const params = def.parameters||[];
+  const paramFields = params.map(p => {
+    const t = (p.paramType&&p.paramType.label)||"Text";
+    const type = /date/i.test(t)?"date":/number/i.test(t)?"number":"text";
+    return `<div class="field"><label>${esc(p.label||p.parameterName)} ${p.isRequired?'<span class="req">*</span>':''}</label>
+      <input data-param="${esc(p.parameterName)}" type="${type}" value="${esc(p.defaultValue||"")}" placeholder="${esc(t)}"/></div>`;
+  }).join("");
+  const rels = (def.relationships||[]).filter(r => r.childKey);
+  $("#content").innerHTML = `
+    <div class="cmdbar">
+      <button class="btn" id="back">← Catalog</button>
+      <button class="btn primary" id="run">▶ Run report</button>
+      <div class="menu-wrap"><button class="btn" id="exportBtn">⬇ Export ▾</button>
+        <div class="menu" id="exportMenu">${["csv","excel","word","pdf","image"].map(f=>`<button data-export="${f}">${f.toUpperCase()}</button>`).join("")}</div></div>
+      <div class="menu-wrap"><button class="btn" id="chartBtn">📊 Chart ▾</button>
+        <div class="menu" id="chartMenu">${["column","bar","line","pie"].map(t=>`<button data-chart="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}</div></div>
+      <div class="header-spacer" style="flex:1"></div>
+    </div>
+    <div class="page">
+      <div class="crumb">Report Catalog / <b>${esc(def.name)}</b></div>
+      <h2 style="margin:2px 0 6px">${esc(def.name)}</h2>
+      <div class="meta-row"><span><b>Code:</b> ${esc(def.reportCode||"—")}</span><span><b>Entity:</b> ${esc(def.mainEntityLogicalName||"—")}</span>
+        ${def.isGoverned?'<span class="chip">Governed</span>':''}${rels.length?`<span class="chip">${rels.length} drill-path${rels.length>1?"s":""}</span>`:''}</div>
+      ${params.length?`<div class="panel"><h4>Parameters</h4><div class="fields">${paramFields}</div></div>`:''}
+      <div id="chartHost"></div>
+      <div id="resultHost"><div class="empty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
+        <div>Press <b>Run report</b> to load data.</div></div></div>
+    </div>`;
+  $("#back").onclick = loadCatalog;
+  $("#run").onclick = runReport;
+  wireMenu("#exportBtn","#exportMenu", b => exportReport(b.dataset.export));
+  wireMenu("#chartBtn","#chartMenu", b => chartReport(b.dataset.chart));
+}
+
+function collectParams(){
+  const values = {};
+  document.querySelectorAll("[data-param]").forEach(i => { if(i.value!=="") values[i.dataset.param]=i.value; });
+  return { parameterValues: values };
+}
+
+async function runReport(){
+  const { def } = state.current;
+  const host = $("#resultHost"); host.innerHTML = `<div class="empty"><span class="spinner"></span> Running…</div>`;
+  try {
+    const result = await apiJson("/api/reports/"+def.id+"/execute", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
+    state.current.result = result;
+    renderResult(result);
+    toast(`${result.rowCount} row${result.rowCount===1?"":"s"} returned`, "success");
+  } catch(e){ host.innerHTML = errorState(e.message); toast(e.message,"error"); }
+}
+
+function renderResult(result){
+  const rels = (state.current.def.relationships||[]).filter(r => r.childKey && r.parentKey);
+  const cols = result.columns;
+  const drillCol = rels.length ? rels[0] : null;
+  const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
+  const head = cols.map(c=>`<th>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
+  const rows = result.rows.map(row => {
+    const tds = cols.map(c => { const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text; const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!==""; return `<td class="${num?"num":""}">${esc(t)}</td>`; }).join("");
+    const key = hasKey ? (row.cells[drillCol.parentKey]||{}).text : null;
+    const drill = hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(drillCol))} ↗</button></td>` : "";
+    return `<tr>${tds}${drill}</tr>`;
+  }).join("");
+  $("#resultHost").innerHTML = `
+    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${Math.round(parseDur(result.duration))} ms</span></div>
+    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
+  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
+}
+function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
+
+async function drilldown(rel, parentKey){
+  openModal(`<div class="m-head"><b>Drilldown — ${esc(drillLabel(rel))}</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div><div class="m-body"><div class="empty"><span class="spinner"></span> Loading related…</div></div>`);
+  try {
+    const result = await apiJson(`/api/reports/${state.current.def.id}/relationships/${rel.id}/drilldown`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ parentKey }) });
+    const head = result.columns.map(c=>`<th>${esc(c.label||c.alias)}</th>`).join("");
+    const rows = result.rows.map(r=>`<tr>${result.columns.map(c=>`<td>${esc((r.cells[c.alias]||{}).text||"")}</td>`).join("")}</tr>`).join("");
+    $("#modal .m-body").innerHTML = `<div class="meta-row"><b>${esc(result.reportName)}</b><span>${result.rowCount} rows</span></div><div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${result.columns.length}" style="text-align:center;color:var(--text-secondary);padding:20px">No related rows.</td></tr>`}</tbody></table></div>`;
+  } catch(e){ $("#modal .m-body").innerHTML = errorState(e.message); }
+}
+
+async function exportReport(fmt){
+  toast(`Exporting ${fmt.toUpperCase()}…`);
+  try {
+    const r = await api(`/api/reports/${state.current.def.id}/export?format=${fmt}`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
+    if(!r.ok){ const b=await r.json().catch(()=>({})); throw new Error(b.message||("HTTP "+r.status)); }
+    await downloadBlob(r);
+    toast(`${fmt.toUpperCase()} downloaded`, "success");
+  } catch(e){ toast(e.message,"error"); }
+}
+async function chartReport(type){
+  const host=$("#chartHost"); host.innerHTML = `<div class="chartbox"><span class="spinner"></span> Rendering chart…</div>`;
+  try {
+    const r = await api(`/api/reports/${state.current.def.id}/chart?type=${type}`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
+    if(!r.ok){ const b=await r.json().catch(()=>({})); throw new Error(b.message||("HTTP "+r.status)); }
+    const url = URL.createObjectURL(await r.blob());
+    host.innerHTML = `<div class="chartbox"><img src="${url}" alt="chart"/><div style="margin-top:6px"><button class="btn" id="closeChart">Hide chart</button></div></div>`;
+    $("#closeChart").onclick = ()=>host.innerHTML="";
+  } catch(e){ host.innerHTML=""; toast(e.message,"error"); }
+}
+async function downloadBlob(r){
+  const blob = await r.blob();
+  const cd = r.headers.get("Content-Disposition")||""; const m = /filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i.exec(cd);
+  const name = m?decodeURIComponent(m[1]):"report";
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+}
+
+/* ---------------- settings / impersonation ---------------- */
+function openSettings(){
+  openModal(`<div class="m-head"><b>Connection & identity</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
+    <div class="m-body">
+      <div class="field" style="margin-bottom:12px"><label>Middle-tier API base URL</label><input id="s_api" value="${esc(state.apiBase)}"/></div>
+      <div class="field" style="margin-bottom:6px"><label>Run reports as — user id (impersonation), blank = service app</label><input id="s_caller" value="${esc(state.callerId)}" placeholder="Dataverse systemuserid GUID"/></div>
+      <div class="field" style="margin-bottom:12px"><label>Label for that user (display only)</label><input id="s_name" value="${esc(state.callerName)}"/></div>
+      <p style="color:var(--text-secondary); font-size:12px">In a Power Platform / on-prem web resource these come from the signed-in CRM session (userSettings.userId). Here you can set them to test row-level security.</p>
+      <div style="text-align:right; margin-top:8px"><button class="btn" onclick="closeModal()">Cancel</button> <button class="btn primary" id="s_save">Save</button></div>
+    </div>`);
+  $("#s_save").onclick = () => {
+    state.apiBase = $("#s_api").value.trim() || state.apiBase;
+    state.callerId = $("#s_caller").value.trim();
+    state.callerName = $("#s_name").value.trim() || (state.callerId?"user":"app");
+    localStorage.setItem("re-api", state.apiBase); localStorage.setItem("re-caller", state.callerId); localStorage.setItem("re-caller-name", state.callerName);
+    $("#runAsLabel").textContent = "Running as: " + state.callerName;
+    closeModal(); toast("Settings saved"); loadCatalog();
+  };
+}
+
+/* ---------------- shared UI ---------------- */
+function wireMenu(btnSel, menuSel, onPick){
+  const btn=$(btnSel), menu=$(menuSel);
+  btn.onclick = (e)=>{ e.stopPropagation(); document.querySelectorAll(".menu.open").forEach(m=>m!==menu&&m.classList.remove("open")); menu.classList.toggle("open"); };
+  menu.querySelectorAll("button").forEach(b => b.onclick = ()=>{ menu.classList.remove("open"); onPick(b); });
+}
+function errorState(msg){ return `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v.5"/></svg><div style="color:var(--error)">${esc(msg)}</div><div style="margin-top:8px"><button class="btn" onclick="loadCatalog()">Back to catalog</button></div></div>`; }
+function openModal(html){ $("#modal").innerHTML=html; $("#modalBack").classList.add("open"); }
+function closeModal(){ $("#modalBack").classList.remove("open"); }
+function parseDur(d){ if(!d) return 0; const p=String(d).split(":"); return (+p[0])*3600000+(+p[1])*60000+(parseFloat(p[2]||0))*1000; }
+
+/* ---------------- boot ---------------- */
+function applyTheme(t){ state.theme=t; document.documentElement.setAttribute("data-theme",t); localStorage.setItem("re-theme",t); }
+applyTheme(state.theme);
+$("#runAsLabel").textContent = "Running as: " + state.callerName;
+$("#themeToggle").onclick = (e)=>{ e.stopPropagation(); $("#themeMenu").classList.toggle("open"); };
+document.querySelectorAll("[data-set-theme]").forEach(b => b.onclick = ()=>{ applyTheme(b.dataset.setTheme); $("#themeMenu").classList.remove("open"); toast("Theme: "+b.dataset.setTheme); });
+$("#settingsBtn").onclick = openSettings; $("#runAs").onclick = openSettings;
+$("#modalBack").onclick = (e)=>{ if(e.target===$("#modalBack")) closeModal(); };
+document.addEventListener("click", ()=> document.querySelectorAll(".menu.open, .theme-menu.open").forEach(m=>m.classList.remove("open")));
+loadCatalog();
+</script>

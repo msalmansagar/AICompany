@@ -130,6 +130,18 @@ public static class ReportDefinitionAssembler
         IsConditional = RowReader.Bool(row, "qdb_isconditional")
     };
 
+    /// <summary>Maps a definition row to a lightweight <see cref="ReportSummary"/> for the catalog.</summary>
+    public static ReportSummary MapSummary(IReadOnlyDictionary<string, object?> row) => new()
+    {
+        Id = RowReader.Guid(row, "qdb_reportdefinitionid") ?? Guid.Empty,
+        Name = RowReader.String(row, "qdb_name") ?? string.Empty,
+        ReportCode = RowReader.String(row, "qdb_reportcode"),
+        Description = RowReader.String(row, "qdb_description"),
+        MainEntityLogicalName = RowReader.String(row, "qdb_mainentitylogicalname"),
+        Category = RowReader.Coded(row, "qdb_category"),
+        Status = RowReader.Coded(row, "qdb_status")
+    };
+
     private static ReportTransformation MapTransformation(IReadOnlyDictionary<string, object?> row) => new()
     {
         Id = RowReader.Guid(row, "qdb_reporttransformationid") ?? Guid.Empty,

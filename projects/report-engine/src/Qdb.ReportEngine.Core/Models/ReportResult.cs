@@ -1,5 +1,23 @@
 namespace Qdb.ReportEngine.Core.Models;
 
+/// <summary>A lightweight report entry for listing (the catalog the viewer shows).</summary>
+public sealed record ReportSummary
+{
+    public required Guid Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public string? ReportCode { get; init; }
+
+    public string? Description { get; init; }
+
+    public string? MainEntityLogicalName { get; init; }
+
+    public CodedValue? Category { get; init; }
+
+    public CodedValue? Status { get; init; }
+}
+
 /// <summary>Inputs for a drilldown: the parent row's key value to filter the related child query.</summary>
 public sealed record ReportDrilldownRequest
 {
