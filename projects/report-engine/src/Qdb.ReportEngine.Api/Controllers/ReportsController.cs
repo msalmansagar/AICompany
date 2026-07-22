@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Qdb.ReportEngine.Core.Abstractions;
+using Qdb.ReportEngine.Core.Common;
 using Qdb.ReportEngine.Core.Models;
 
 namespace Qdb.ReportEngine.Api.Controllers;
@@ -27,9 +28,7 @@ public sealed class ReportsController(
             return Ok(result.Value);
         }
 
-        return result.Error!.Code == "not_found"
-            ? NotFound(new { result.Error.Code, result.Error.Message })
-            : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+        return Problem(result.Error!);
     }
 
     /// <summary>Executes the report and returns its shaped tabular result.</summary>
@@ -44,9 +43,7 @@ public sealed class ReportsController(
             return Ok(result.Value);
         }
 
-        return result.Error!.Code == "not_found"
-            ? NotFound(new { result.Error.Code, result.Error.Message })
-            : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+        return Problem(result.Error!);
     }
 
     /// <summary>Drills down through a relationship: returns the related child rows for a parent key.</summary>
@@ -69,9 +66,7 @@ public sealed class ReportsController(
             return Ok(result.Value);
         }
 
-        return result.Error!.Code == "not_found"
-            ? NotFound(new { result.Error.Code, result.Error.Message })
-            : StatusCode(StatusCodes.Status502BadGateway, new { result.Error.Code, result.Error.Message });
+        return Problem(result.Error!);
     }
 
     /// <summary>Executes the report and renders it as a chart PNG (column/bar/line/pie).</summary>
@@ -88,9 +83,7 @@ public sealed class ReportsController(
         var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
         if (!execution.IsSuccess)
         {
-            return execution.Error!.Code == "not_found"
-                ? NotFound(new { execution.Error.Code, execution.Error.Message })
-                : StatusCode(StatusCodes.Status502BadGateway, new { execution.Error.Code, execution.Error.Message });
+            return Problem(execution.Error!);
         }
 
         var options = new ChartOptions(string.IsNullOrEmpty(type) ? "column" : type, category, value);
@@ -117,9 +110,7 @@ public sealed class ReportsController(
         var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
         if (!execution.IsSuccess)
         {
-            return execution.Error!.Code == "not_found"
-                ? NotFound(new { execution.Error.Code, execution.Error.Message })
-                : StatusCode(StatusCodes.Status502BadGateway, new { execution.Error.Code, execution.Error.Message });
+            return Problem(execution.Error!);
         }
 
         var export = exportService.Export(execution.Value, exportFormat);
@@ -153,10 +144,30 @@ public sealed class ReportsController(
         }
     }
 
-    // TODO(build): resolve the execution context from the authenticated principal (mirrors DashboardsController).
-    private static ReportExecutionContext BuildContext() => new()
+    private ActionResult Problem(DomainError error) => error.Code switch
     {
-        UserId = Guid.Empty,
-        RoleSetHash = "anonymous"
+        "not_found" => NotFound(new { error.Code, error.Message }),
+        "permission_denied" => StatusCode(StatusCodes.Status403Forbidden, new { error.Code, error.Message }),
+        _ => StatusCode(StatusCodes.Status502BadGateway, new { error.Code, error.Message })
     };
+
+    // The report runs as this user (impersonation → row-level security). The web resource passes the
+    // signed-in user's id (Xrm.Utility.getGlobalContext().userSettings.userId).
+    // TODO(prod-auth): derive the caller from a validated CRM/AAD token rather than trusting the
+    // header directly — the middle-tier must authenticate the caller before impersonating.
+    private ReportExecutionContext BuildContext()
+    {
+        var userId = ResolveCallerId();
+        return new ReportExecutionContext
+        {
+            UserId = userId,
+            RoleSetHash = userId == Guid.Empty ? "anonymous" : userId.ToString("N")
+        };
+    }
+
+    private Guid ResolveCallerId()
+    {
+        var header = Request.Headers["X-Report-Caller-Id"].FirstOrDefault() ?? Request.Headers["MSCRMCallerID"].FirstOrDefault();
+        return Guid.TryParse(header, out var id) ? id : Guid.Empty;
+    }
 }

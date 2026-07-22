@@ -130,6 +130,10 @@ public sealed class ReportExecutor(
         {
             throw; // let the caller's resilience policy honour Retry-After.
         }
+        catch (DataverseAccessDeniedException ex)
+        {
+            return Result<ReportResult>.Failure(DomainError.PermissionDenied(ex.Entity));
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to execute report {ReportId} (corr {CorrelationId})", definition.Id, context.CorrelationId);

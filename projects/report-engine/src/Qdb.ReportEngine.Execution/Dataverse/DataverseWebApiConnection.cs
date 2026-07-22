@@ -33,9 +33,10 @@ public sealed class DataverseWebApiConnection(
         var path = await BuildFetchPathAsync(entityLogicalName, fetchXml, cancellationToken).ConfigureAwait(false);
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.TryAddWithoutValidation("Prefer", IncludeFormattedValues);
+        ApplyImpersonation(request);
 
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        await EnsureSuccessOrThrottleAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrottleAsync(response, entityLogicalName, cancellationToken).ConfigureAwait(false);
 
         var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         return ODataJson.ReadValueRows(json);
@@ -68,8 +69,9 @@ public sealed class DataverseWebApiConnection(
         content.Headers.ContentType = new MediaTypeHeaderValue("multipart/mixed") { Parameters = { new NameValueHeaderValue("boundary", boundary) } };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, $"api/data/{apiVersion}/$batch") { Content = content };
+        ApplyImpersonation(request);
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        await EnsureSuccessOrThrottleAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrottleAsync(response, queries[0].EntityLogicalName, cancellationToken).ConfigureAwait(false);
 
         var responseBoundary = ReadResponseBoundary(response.Content.Headers.ContentType);
         var payload = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -118,12 +120,27 @@ public sealed class DataverseWebApiConnection(
         return boundary.Trim('"');
     }
 
-    private static async Task EnsureSuccessOrThrottleAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    // Runs the request as the report's user (row-level security applies), when a user is set.
+    // The middle-tier's identity must hold "Act on Behalf of Another User" for this to be honoured.
+    private void ApplyImpersonation(HttpRequestMessage request)
+    {
+        if (ExecutingUserId != Guid.Empty)
+        {
+            request.Headers.TryAddWithoutValidation("MSCRMCallerID", ExecutingUserId.ToString());
+        }
+    }
+
+    private static async Task EnsureSuccessOrThrottleAsync(HttpResponseMessage response, string entity, CancellationToken cancellationToken)
     {
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
             var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(10);
             throw new DataverseThrottledException(retryAfter);
+        }
+
+        if (response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            throw new DataverseAccessDeniedException(entity);
         }
 
         if (!response.IsSuccessStatusCode)

@@ -67,6 +67,10 @@ public sealed class ReportDefinitionLoader(
         {
             throw; // let the caller's resilience policy retry.
         }
+        catch (DataverseAccessDeniedException ex)
+        {
+            return Result<ReportDefinition>.Failure(DomainError.PermissionDenied(ex.Entity));
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to load report {ReportId} (corr {CorrelationId})", reportId, context.CorrelationId);
