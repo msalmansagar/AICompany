@@ -30,27 +30,39 @@ public sealed class DashboardsController(
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
     }
 
-    /// <summary>Executes a dashboard and returns all widget results once resolved.</summary>
+    /// <summary>
+    /// Executes the stored dashboard identified by <paramref name="dashboardId"/> and returns all
+    /// widget results once resolved. The definition is loaded from Dataverse (as the user) — never
+    /// taken from the request body — so record-level security on the definition is honoured.
+    /// </summary>
     [HttpPost("{dashboardId:guid}/execute")]
-    public async Task<ActionResult<DashboardResult>> Execute(
-        Guid dashboardId,
-        [FromBody] DashboardDefinition dashboard,
-        CancellationToken cancellationToken)
+    public async Task<ActionResult<DashboardResult>> Execute(Guid dashboardId, CancellationToken cancellationToken)
     {
         var context = BuildContext();
-        var result = await executionService.ExecuteAsync(dashboard, context, cancellationToken);
+        var loaded = await loader.LoadAsync(dashboardId, context, cancellationToken);
+        if (!loaded.IsSuccess)
+        {
+            return Problem(loaded.Error!);
+        }
+
+        var result = await executionService.ExecuteAsync(loaded.Value, context, cancellationToken);
         return Ok(result);
     }
 
-    /// <summary>Executes a dashboard and streams each widget result as it resolves (NDJSON).</summary>
+    /// <summary>Executes the stored dashboard and streams each widget result as it resolves.</summary>
     [HttpPost("{dashboardId:guid}/stream")]
     public async IAsyncEnumerable<WidgetResult> Stream(
         Guid dashboardId,
-        [FromBody] DashboardDefinition dashboard,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var context = BuildContext();
-        await foreach (var widget in executionService.ExecuteStreamAsync(dashboard, context, cancellationToken))
+        var loaded = await loader.LoadAsync(dashboardId, context, cancellationToken);
+        if (!loaded.IsSuccess)
+        {
+            yield break;
+        }
+
+        await foreach (var widget in executionService.ExecuteStreamAsync(loaded.Value, context, cancellationToken))
         {
             yield return widget;
         }

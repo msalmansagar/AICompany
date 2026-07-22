@@ -36,6 +36,9 @@ public interface IDataverseConnection : IAsyncDisposable
     /// </summary>
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<IReadOnlyDictionary<string, object?>>>> RetrieveMultipleBatchAsync(
         IReadOnlyList<BatchQuery> queries, CancellationToken cancellationToken);
+
+    /// <summary>Creates a record in <paramref name="entityLogicalName"/> from <paramref name="attributes"/>.</summary>
+    Task CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken);
 }
 
 /// <summary>One FetchXML query in a batch, tagged with the widget id it resolves.</summary>

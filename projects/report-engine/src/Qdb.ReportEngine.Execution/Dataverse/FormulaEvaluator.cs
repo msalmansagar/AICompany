@@ -58,8 +58,18 @@ public static class FormulaEvaluator
         return new ReportResultRow { Cells = cells };
     }
 
+    // Bounds a pathological/malicious stored formula: a very long or deeply nested expression can
+    // exhaust CPU or overflow the stack during evaluation (NCalc offers no mid-eval cancellation).
+    private const int MaxExpressionLength = 1000;
+    private const int MaxNestingDepth = 32;
+
     private static ReportCell EvaluateOne(string expression, IReadOnlyDictionary<string, object?> parameters)
     {
+        if (expression.Length > MaxExpressionLength || NestingDepth(expression) > MaxNestingDepth)
+        {
+            return new ReportCell(null, null);
+        }
+
         try
         {
             var evaluator = new Expression(expression, ExpressionOptions.NoCache);
@@ -75,5 +85,23 @@ public static class FormulaEvaluator
         {
             return new ReportCell(null, null);
         }
+    }
+
+    private static int NestingDepth(string expression)
+    {
+        int depth = 0, max = 0;
+        foreach (var ch in expression)
+        {
+            if (ch == '(')
+            {
+                max = Math.Max(max, ++depth);
+            }
+            else if (ch == ')')
+            {
+                depth--;
+            }
+        }
+
+        return max;
     }
 }

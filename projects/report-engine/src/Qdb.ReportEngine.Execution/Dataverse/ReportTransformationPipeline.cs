@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using Qdb.ReportEngine.Core.Models;
 
 namespace Qdb.ReportEngine.Execution.Dataverse;
@@ -12,22 +13,22 @@ namespace Qdb.ReportEngine.Execution.Dataverse;
 public static class ReportTransformationPipeline
 {
     /// <summary>Applies <paramref name="transformations"/> to <paramref name="result"/> in step order.</summary>
-    public static ReportResult Apply(IReadOnlyList<ReportTransformation> transformations, ReportResult result)
+    public static ReportResult Apply(IReadOnlyList<ReportTransformation> transformations, ReportResult result, ILogger? logger = null)
     {
         ArgumentNullException.ThrowIfNull(transformations);
         ArgumentNullException.ThrowIfNull(result);
 
         foreach (var transformation in transformations.Where(t => t.Enabled).OrderBy(t => t.StepOrder))
         {
-            result = ApplyOne(transformation, result);
+            result = ApplyOne(transformation, result, logger);
         }
 
         return result;
     }
 
-    private static ReportResult ApplyOne(ReportTransformation transformation, ReportResult result)
+    private static ReportResult ApplyOne(ReportTransformation transformation, ReportResult result, ILogger? logger)
     {
-        var config = ParseConfig(transformation.ConfigJson);
+        var config = ParseConfig(transformation.ConfigJson, transformation, logger);
         if (config is null)
         {
             return result;
@@ -266,7 +267,7 @@ public static class ReportTransformationPipeline
         return map;
     }
 
-    private static JsonDocument? ParseConfig(string? json)
+    private static JsonDocument? ParseConfig(string? json, ReportTransformation transformation, ILogger? logger)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
@@ -277,8 +278,12 @@ public static class ReportTransformationPipeline
         {
             return JsonDocument.Parse(json);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            // Surfacing this matters: a malformed Masking config would otherwise silently leave PII
+            // unmasked with no signal.
+            logger?.LogWarning(ex, "Transformation {TransformationId} ({TransformType}) has malformed ConfigJson; step skipped.",
+                transformation.Id, transformation.TransformType?.Label);
             return null;
         }
     }

@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IReportDefinitionLoader, ReportDefinitionLoader>();
         services.AddScoped<IDashboardDefinitionLoader, DashboardDefinitionLoader>();
         services.AddScoped<IReportExecutor, ReportExecutor>();
+        services.AddScoped<IReportExecutionLogger, ReportExecutionLogger>();
         services.AddScoped<ISecurityEnforcer, CrmSecurityEnforcer>();
 
         // Report exporters (registered as a set; ReportExportService selects by format).

@@ -18,12 +18,13 @@ public sealed class CsvReportExporter : IReportExporter
     {
         ArgumentNullException.ThrowIfNull(result);
 
+        const string crlf = "\r\n"; // RFC 4180 §2 mandates CRLF regardless of host OS.
         var builder = new StringBuilder();
-        builder.AppendLine(string.Join(',', result.Columns.Select(c => Escape(c.Label ?? c.Alias))));
+        builder.Append(string.Join(',', result.Columns.Select(c => Escape(c.Label ?? c.Alias)))).Append(crlf);
         foreach (var row in result.Rows)
         {
             var cells = result.Columns.Select(c => Escape(row.Cells.TryGetValue(c.Alias, out var cell) ? cell.Text : null));
-            builder.AppendLine(string.Join(',', cells));
+            builder.Append(string.Join(',', cells)).Append(crlf);
         }
 
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(builder.ToString())).ToArray();

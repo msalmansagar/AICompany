@@ -16,6 +16,7 @@ namespace Qdb.ReportEngine.Execution.Dataverse;
 public sealed class ReportExecutor(
     IReportDefinitionLoader definitionLoader,
     IDataverseConnectionFactory connectionFactory,
+    IReportExecutionLogger executionLogger,
     ILogger<ReportExecutor> logger) : IReportExecutor
 {
     /// <inheritdoc />
@@ -25,16 +26,39 @@ public sealed class ReportExecutor(
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
+        var startedOn = DateTimeOffset.UtcNow;
+        var reportName = "(not loaded)";
+        Result<ReportResult> outcome;
+
         var definitionResult = await definitionLoader.LoadAsync(reportId, context, cancellationToken).ConfigureAwait(false);
         if (!definitionResult.IsSuccess)
         {
-            return Result<ReportResult>.Failure(definitionResult.Error!);
+            outcome = Result<ReportResult>.Failure(definitionResult.Error!);
+        }
+        else
+        {
+            var definition = definitionResult.Value;
+            reportName = definition.Name;
+            reportId = definition.Id;
+            var query = ReportQueryBuilder.Build(definition, request);
+            outcome = await RunAsync(definition, query, context, definition.Formulas, definition.Transformations, cancellationToken)
+                .ConfigureAwait(false);
         }
 
-        var definition = definitionResult.Value;
-        var query = ReportQueryBuilder.Build(definition, request);
-        return await RunAsync(definition, query, context, definition.Formulas, definition.Transformations, cancellationToken)
-            .ConfigureAwait(false);
+        await executionLogger.LogAsync(new ReportExecutionRecord
+        {
+            ReportId = reportId,
+            ReportName = reportName,
+            UserId = context.UserId,
+            CorrelationId = context.CorrelationId,
+            StartedOn = startedOn,
+            DurationMs = outcome.IsSuccess ? (int)outcome.Value.Duration.TotalMilliseconds : 0,
+            RowCount = outcome.IsSuccess ? outcome.Value.RowCount : 0,
+            Success = outcome.IsSuccess,
+            ErrorCode = outcome.IsSuccess ? null : outcome.Error!.Code
+        }, cancellationToken).ConfigureAwait(false);
+
+        return outcome;
     }
 
     /// <inheritdoc />
@@ -124,7 +148,7 @@ public sealed class ReportExecutor(
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
                 Duration = stopwatch.Elapsed
             };
-            return Result<ReportResult>.Success(ReportTransformationPipeline.Apply(transformations, result));
+            return Result<ReportResult>.Success(ReportTransformationPipeline.Apply(transformations, result, logger));
         }
         catch (DataverseThrottledException)
         {

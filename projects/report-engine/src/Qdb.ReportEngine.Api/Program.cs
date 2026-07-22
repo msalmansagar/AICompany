@@ -12,6 +12,12 @@ builder.Services.AddEndpointsApiExplorer();
 // the "Cors:Origins" setting; when unset, dev allows any origin.
 const string CorsPolicy = "ReportEngineCors";
 var corsOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+if (corsOrigins.Length == 0 && !builder.Environment.IsDevelopment())
+{
+    // Never fall back to an open CORS policy outside Development — a wildcard origin combined with
+    // per-user execution would let any site read a signed-in user's data.
+    throw new InvalidOperationException("Cors:Origins must be configured outside the Development environment.");
+}
 builder.Services.AddCors(options => options.AddPolicy(CorsPolicy, policy =>
 {
     policy.AllowAnyHeader().AllowAnyMethod().WithExposedHeaders("Content-Disposition");
@@ -21,7 +27,7 @@ builder.Services.AddCors(options => options.AddPolicy(CorsPolicy, policy =>
     }
     else
     {
-        policy.SetIsOriginAllowed(_ => true);
+        policy.SetIsOriginAllowed(_ => true); // Development only — guarded above.
     }
 }));
 

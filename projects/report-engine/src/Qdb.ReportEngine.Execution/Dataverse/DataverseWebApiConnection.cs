@@ -81,6 +81,23 @@ public sealed class DataverseWebApiConnection(
     }
 
     /// <inheritdoc />
+    public async Task CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(entityLogicalName);
+        ArgumentNullException.ThrowIfNull(attributes);
+
+        var entitySet = await entitySetResolver.ResolveAsync(entityLogicalName, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/data/{apiVersion}/{entitySet}")
+        {
+            Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(attributes), System.Text.Encoding.UTF8, "application/json")
+        };
+        ApplyImpersonation(request);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrottleAsync(response, entityLogicalName, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
         httpClient.Dispose();
@@ -145,8 +162,9 @@ public sealed class DataverseWebApiConnection(
 
         if (!response.IsSuccessStatusCode)
         {
-            var detail = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-            throw new HttpRequestException($"Dataverse request failed ({(int)response.StatusCode}): {detail}");
+            // Do not surface the raw OData error body — it can carry schema/query detail that would
+            // then land in application logs (which have broader read access than the data itself).
+            throw new HttpRequestException($"Dataverse request failed with status {(int)response.StatusCode}.");
         }
     }
 }
