@@ -761,14 +761,87 @@ export class CrmMetadataService extends CrmBaseService {
     );
 
     const fieldIdSet = new Set(fieldIds);
+    // Reverse index so designer-authored rules (which reference fields by schema code)
+    // can be keyed by the trigger/target field GUID the runtime expects.
+    const schemaToGuid = new Map<string, string>();
+    for (const [guid, schema] of fieldGuidToSchema) schemaToGuid.set(schema, guid);
+
     const map = new Map<string, BusinessRule[]>();
 
     for (const rule of response.value) {
-      const triggerGuid = this.extractTriggerFieldGuid(rule.qdb_conditions_json);
-      if (!triggerGuid || !fieldIdSet.has(triggerGuid)) continue;
+      // The designer serialises the whole rule (BusinessRuleDefinition) into
+      // qdb_conditions_json using schema codes + nested actions; legacy/seed rows use a
+      // flat conditions array plus the qdb_action / qdb_target_field structured columns.
+      const parsed = this.convertDesignerRule(rule, schemaToGuid) ?? this.convertLegacyRule(rule, fieldGuidToSchema);
+      if (!parsed.triggerGuid || !fieldIdSet.has(parsed.triggerGuid) || parsed.rules.length === 0) continue;
 
-      const existing = map.get(triggerGuid) ?? [];
-      existing.push({
+      const existing = map.get(parsed.triggerGuid) ?? [];
+      existing.push(...parsed.rules);
+      map.set(parsed.triggerGuid, existing);
+    }
+
+    return map;
+  }
+
+  // Converts a designer-authored rule (BusinessRuleDefinition JSON in qdb_conditions_json)
+  // into one runtime BusinessRule per action. Returns null when the JSON is not the designer
+  // format, so the caller falls back to the legacy structured-column path.
+  private convertDesignerRule(
+    rule: RawBusinessRule,
+    schemaToGuid: Map<string, string>,
+  ): { triggerGuid: string | undefined; rules: BusinessRule[] } | null {
+    let def: RawDesignerRuleDefinition;
+    try {
+      def = JSON.parse(rule.qdb_conditions_json ?? '') as RawDesignerRuleDefinition;
+    } catch {
+      return null;
+    }
+    if (!def || typeof def !== 'object' || Array.isArray(def) || typeof def.trigger_field_code !== 'string' || !Array.isArray(def.actions)) {
+      return null;
+    }
+
+    const conditions: RuleCondition[] = [];
+    for (const c of def.condition_group?.conditions ?? []) {
+      const operator = DESIGNER_OPERATOR_MAP[c.operator];
+      if (!operator) continue; // drop conditions with no runtime-equivalent operator
+      conditions.push({
+        fieldId: c.field_code, // schema code — the runtime keys form data by schema name
+        operator,
+        value: c.value != null ? this.parseConditionValue(c.value) : undefined,
+      });
+    }
+    const conditionsLogic: LogicalOperator = def.condition_group?.logical_operator === 'OR' ? 'OR' : 'AND';
+
+    const rules: BusinessRule[] = [];
+    for (const action of def.actions) {
+      const mappedAction = DESIGNER_ACTION_MAP[action.action_type];
+      if (!mappedAction) continue; // e.g. show_message has no runtime equivalent
+      rules.push({
+        id: rule.qdb_form_business_ruleid,
+        name: rule.qdb_name,
+        description: rule.qdb_description,
+        conditions,
+        conditionsLogic,
+        action: mappedAction,
+        targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
+        targetSectionId: undefined,
+        targetTabId: undefined,
+        actionValue: action.value,
+        priority: rule.qdb_priority ?? 100,
+        isActive: true,
+      });
+    }
+    return { triggerGuid: schemaToGuid.get(def.trigger_field_code), rules };
+  }
+
+  // Legacy/seed rule: flat conditions array + structured qdb_action / qdb_target columns.
+  private convertLegacyRule(
+    rule: RawBusinessRule,
+    fieldGuidToSchema: Map<string, string>,
+  ): { triggerGuid: string | undefined; rules: BusinessRule[] } {
+    return {
+      triggerGuid: this.extractTriggerFieldGuid(rule.qdb_conditions_json),
+      rules: [{
         id: rule.qdb_form_business_ruleid,
         name: rule.qdb_name,
         description: rule.qdb_description,
@@ -781,11 +854,8 @@ export class CrmMetadataService extends CrmBaseService {
         actionValue: rule.qdb_action_value,
         priority: rule.qdb_priority ?? 100,
         isActive: true,
-      });
-      map.set(triggerGuid, existing);
-    }
-
-    return map;
+      }],
+    };
   }
 
   private extractTriggerFieldGuid(conditionsJson: string | undefined): string | undefined {
@@ -1358,6 +1428,38 @@ interface RawBusinessRule {
   qdb_priority?: number;
   qdb_is_active?: boolean;
 }
+
+// The designer serialises rules as this shape into qdb_conditions_json (schema codes,
+// nested actions) — distinct from the flat legacy conditions array + structured columns.
+interface RawDesignerRuleDefinition {
+  version?: string;
+  trigger_field_code: string;
+  condition_group?: {
+    logical_operator?: 'AND' | 'OR';
+    conditions?: Array<{ field_code: string; operator: string; value?: string | null }>;
+  };
+  actions: Array<{ action_type: string; target_field_code: string; value?: string }>;
+}
+
+// Designer snake_case operators/actions → runtime camelCase vocab. Unmapped entries
+// (e.g. not_contains, show_message) are dropped rather than passed through invalid.
+const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
+  equals: 'equals',
+  not_equals: 'notEquals',
+  contains: 'contains',
+  is_empty: 'isEmpty',
+  is_not_empty: 'isNotEmpty',
+  greater_than: 'greaterThan',
+  less_than: 'lessThan',
+};
+
+const DESIGNER_ACTION_MAP: Record<string, BusinessRuleAction> = {
+  show_field: 'showField',
+  hide_field: 'hideField',
+  set_required: 'makeRequired',
+  clear_required: 'makeOptional',
+  set_value: 'setValue',
+};
 
 interface RawFieldLabel {
   qdb_fieldlabelid: string;
