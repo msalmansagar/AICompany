@@ -348,6 +348,40 @@ namespace Qdb.FormEngine.Tests
             Assert.Null(result.ShowProgressBar);
         }
 
+        [Fact]
+        public void Generate_WithDesignerFormatRule_ParsesActionTargetAndConditions()
+        {
+            // DFE-BRJSON-FIX — the designer stores the whole rule (schema codes + nested actions)
+            // in qdb_conditions_json. The in-CRM generator must parse it, not just structured columns.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var targetFieldId = rawData.Fields[0].Id; // schema "qdb_hidden_field"
+
+            var rule = new Entity("qdb_form_business_rule", Guid.NewGuid());
+            rule["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            rule["qdb_name"] = "Designer hide rule";
+            rule["qdb_conditions_json"] =
+                "{\"version\":\"1.0\",\"trigger_field_code\":\"qdb_status\",\"trigger_event\":\"on_change\"," +
+                "\"condition_group\":{\"logical_operator\":\"AND\",\"conditions\":[" +
+                "{\"field_code\":\"qdb_status\",\"operator\":\"equals\",\"value\":\"closed\"}]}," +
+                "\"actions\":[{\"action_type\":\"hide_field\",\"target_field_code\":\"qdb_hidden_field\"}]}";
+            rule["qdb_priority"] = 1;
+            rule["qdb_is_active"] = true;
+            rawData.BusinessRules = new List<Entity> { rule };
+
+            var result = _generator.Generate(rawData, "en");
+
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.Single(field.BusinessRules);
+            var br = field.BusinessRules[0];
+            Assert.Equal("hideField", br.Action);                    // action_type mapped
+            Assert.Equal(targetFieldId, br.TargetFieldId.Value);     // target_field_code resolved to GUID
+            Assert.Equal("AND", br.ConditionsLogic);
+            Assert.Single(br.Conditions);
+            Assert.Equal("qdb_status", br.Conditions[0].FieldId);    // schema code, not a GUID
+            Assert.Equal("equals", br.Conditions[0].Operator);
+        }
+
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

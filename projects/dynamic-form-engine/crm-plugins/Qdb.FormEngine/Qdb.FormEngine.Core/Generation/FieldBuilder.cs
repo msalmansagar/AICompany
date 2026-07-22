@@ -151,8 +151,23 @@ namespace Qdb.FormEngine.Core.Generation
                 ApiValuePath = config.GetAttributeValue<string>("qdb_lookup_api_value_path"),
                 ApiLabelPath = config.GetAttributeValue<string>("qdb_lookup_api_label_path"),
                 ApiSearchParamName = config.GetAttributeValue<string>("qdb_lookup_api_search_param"),
-                ApiSearchMode = config.GetAttributeValue<string>("qdb_lookup_api_search_mode")
+                ApiSearchMode = config.GetAttributeValue<string>("qdb_lookup_api_search_mode"),
+                // DFE-LKPCOL-001 — multi-column + per-language display.
+                DisplayColumns = ParseDisplayColumns(config.GetAttributeValue<string>("qdb_display_columns_json"))
             };
+        }
+
+        private static List<LookupDisplayColumn> ParseDisplayColumns(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                var columns = JsonConvert.DeserializeObject<List<LookupDisplayColumn>>(json);
+                if (columns == null) return null;
+                var valid = columns.Where(c => c != null && !string.IsNullOrEmpty(c.Attribute)).ToList();
+                return valid.Count > 0 ? valid : null;
+            }
+            catch { return null; }
         }
 
         private FileUploadConfig BuildFileUploadConfig(Entity field, string fieldType)
@@ -303,24 +318,137 @@ namespace Qdb.FormEngine.Core.Generation
                 .ToList();
         }
 
+        // DFE-BRJSON-FIX — the designer serialises a whole rule (BusinessRuleDefinition: schema
+        // codes + nested actions) into qdb_conditions_json; legacy/seed rows use a flat conditions
+        // array + the structured qdb_action / qdb_target_field columns. Handle both. Rules are keyed
+        // (as before) by target field — the runtime flattens every field's rules for evaluation.
+        private static readonly Dictionary<string, string> DesignerOperatorMap = new Dictionary<string, string>
+        {
+            { "equals", "equals" }, { "not_equals", "notEquals" }, { "contains", "contains" },
+            { "is_empty", "isEmpty" }, { "is_not_empty", "isNotEmpty" },
+            { "greater_than", "greaterThan" }, { "less_than", "lessThan" }
+        };
+        private static readonly Dictionary<string, string> DesignerActionMap = new Dictionary<string, string>
+        {
+            { "show_field", "showField" }, { "hide_field", "hideField" },
+            { "set_required", "makeRequired" }, { "clear_required", "makeOptional" },
+            { "set_value", "setValue" }
+        };
+
+        private Dictionary<string, Guid> _schemaToGuid;
+        private Dictionary<Guid, string> _guidToSchema;
+        private void EnsureFieldMaps()
+        {
+            if (_schemaToGuid != null) return;
+            _schemaToGuid = new Dictionary<string, Guid>();
+            _guidToSchema = new Dictionary<Guid, string>();
+            if (_rawData.Fields == null) return;
+            foreach (var f in _rawData.Fields)
+            {
+                var schema = f.GetAttributeValue<string>("qdb_schema_name");
+                if (!string.IsNullOrEmpty(schema))
+                {
+                    _schemaToGuid[schema] = f.Id;
+                    _guidToSchema[f.Id] = schema;
+                }
+            }
+        }
+
         private List<BusinessRule> BuildBusinessRules(Guid fieldId)
         {
             if (_rawData.BusinessRules == null) return new List<BusinessRule>();
-            return _rawData.BusinessRules
-                .Where(r => EntityHelper.GetNullableLookupId(r, "qdb_target_field_id") == fieldId)
-                .OrderBy(r => r.GetAttributeValue<int>("qdb_priority"))
-                .Select(BuildBusinessRule)
-                .ToList();
+            EnsureFieldMaps();
+            var result = new List<BusinessRule>();
+            foreach (var rule in _rawData.BusinessRules.OrderBy(r => r.GetAttributeValue<int>("qdb_priority")))
+            {
+                var definition = TryParseDesignerDefinition(rule.GetAttributeValue<string>("qdb_conditions_json"));
+                if (definition != null) AppendDesignerRules(rule, definition, fieldId, result);
+                else AppendLegacyRule(rule, fieldId, result);
+            }
+            return result;
         }
 
-        private BusinessRule BuildBusinessRule(Entity rule)
+        private static JObject TryParseDesignerDefinition(string json)
         {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                var token = JToken.Parse(json);
+                var obj = token as JObject;
+                if (obj != null && obj["trigger_field_code"] != null && obj["actions"] is JArray) return obj;
+            }
+            catch { }
+            return null;
+        }
+
+        private void AppendDesignerRules(Entity rule, JObject def, Guid fieldId, List<BusinessRule> result)
+        {
+            var group = def["condition_group"] as JObject;
+            var conditions = new List<RuleCondition>();
+            var rawConditions = group != null ? group["conditions"] as JArray : null;
+            if (rawConditions != null)
+            {
+                foreach (var c in rawConditions.OfType<JObject>())
+                {
+                    var op = (string)c["operator"];
+                    string mappedOp;
+                    if (op == null || !DesignerOperatorMap.TryGetValue(op, out mappedOp)) continue;
+                    conditions.Add(new RuleCondition
+                    {
+                        FieldId = (string)c["field_code"],
+                        Operator = mappedOp,
+                        Value = c["value"] == null || c["value"].Type == JTokenType.Null ? null : (object)(string)c["value"]
+                    });
+                }
+            }
+            var logic = (string)(group != null ? group["logical_operator"] : null) == "OR" ? "OR" : "AND";
+            var priority = rule.GetAttributeValue<int>("qdb_priority");
+
+            foreach (var action in (def["actions"] as JArray).OfType<JObject>())
+            {
+                var actionType = (string)action["action_type"];
+                string mappedAction;
+                if (actionType == null || !DesignerActionMap.TryGetValue(actionType, out mappedAction)) continue;
+                var targetCode = (string)action["target_field_code"];
+                Guid targetGuid;
+                if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out targetGuid)) continue;
+                if (targetGuid != fieldId) continue;
+
+                result.Add(new BusinessRule
+                {
+                    Id = rule.Id,
+                    Name = rule.GetAttributeValue<string>("qdb_name"),
+                    Description = rule.GetAttributeValue<string>("qdb_description"),
+                    Conditions = conditions,
+                    ConditionsLogic = logic,
+                    Action = mappedAction,
+                    TargetFieldId = targetGuid,
+                    ActionValue = (string)action["value"],
+                    Priority = priority,
+                    IsActive = true
+                });
+            }
+        }
+
+        private void AppendLegacyRule(Entity rule, Guid fieldId, List<BusinessRule> result)
+        {
+            var target = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id");
+            if (target != fieldId) return;
+
             var conditionsJson = rule.GetAttributeValue<string>("qdb_conditions_json") ?? "[]";
             List<RuleCondition> conditions;
             try { conditions = JsonConvert.DeserializeObject<List<RuleCondition>>(conditionsJson) ?? new List<RuleCondition>(); }
             catch { conditions = new List<RuleCondition>(); }
+            // Resolve legacy GUID field references to schema names to match the runtime.
+            foreach (var c in conditions)
+            {
+                Guid g;
+                string schema;
+                if (c.FieldId != null && Guid.TryParse(c.FieldId, out g) && _guidToSchema.TryGetValue(g, out schema))
+                    c.FieldId = schema;
+            }
 
-            return new BusinessRule
+            result.Add(new BusinessRule
             {
                 Id = rule.Id,
                 Name = rule.GetAttributeValue<string>("qdb_name"),
@@ -328,13 +456,13 @@ namespace Qdb.FormEngine.Core.Generation
                 Conditions = conditions,
                 ConditionsLogic = PicklistMapper.ToLogicalOperator(EntityHelper.GetOptionSetValue(rule, "qdb_conditions_logic")),
                 Action = PicklistMapper.ToBusinessRuleAction(EntityHelper.GetOptionSetValue(rule, "qdb_action")),
-                TargetFieldId = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id"),
+                TargetFieldId = target,
                 TargetSectionId = EntityHelper.GetNullableLookupId(rule, "qdb_target_section_id"),
                 TargetTabId = EntityHelper.GetNullableLookupId(rule, "qdb_target_tab_id"),
                 ActionValue = rule.GetAttributeValue<string>("qdb_action_value"),
                 Priority = rule.GetAttributeValue<int>("qdb_priority"),
                 IsActive = rule.GetAttributeValue<bool>("qdb_is_active")
-            };
+            });
         }
 
         private string Resolve(Guid recordId, string entityName, string fieldName, string fallback)

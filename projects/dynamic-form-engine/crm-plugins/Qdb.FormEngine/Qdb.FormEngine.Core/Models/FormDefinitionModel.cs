@@ -171,6 +171,15 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("apiLabelPath", NullValueHandling = NullValueHandling.Ignore)] public string ApiLabelPath { get; set; }
         [JsonProperty("apiSearchParamName", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchParamName { get; set; }
         [JsonProperty("apiSearchMode", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchMode { get; set; }
+        // DFE-LKPCOL-001 — multi-column + per-language display.
+        [JsonProperty("displayColumns", NullValueHandling = NullValueHandling.Ignore)] public List<LookupDisplayColumn> DisplayColumns { get; set; }
+    }
+
+    public sealed class LookupDisplayColumn
+    {
+        [JsonProperty("attribute")] public string Attribute { get; set; }
+        [JsonProperty("arabicAttribute", NullValueHandling = NullValueHandling.Ignore)] public string ArabicAttribute { get; set; }
+        [JsonProperty("header", NullValueHandling = NullValueHandling.Ignore)] public string Header { get; set; }
     }
 
     /// <summary>Validation rule applied to a field before form submission.</summary>
@@ -213,7 +222,9 @@ namespace Qdb.FormEngine.Core.Models
     /// <summary>A single condition within a business rule's condition set.</summary>
     public sealed class RuleCondition
     {
-        [JsonProperty("fieldId")] public Guid FieldId { get; set; }
+        // Schema name (matches the runtime, which keys form data by schema name). Legacy rows
+        // store a GUID here that is resolved to the schema name during assembly.
+        [JsonProperty("fieldId")] public string FieldId { get; set; }
         [JsonProperty("operator")] public string Operator { get; set; }
         [JsonProperty("value")] public object Value { get; set; }
         [JsonProperty("logicalOperator")] public string LogicalOperator { get; set; }
