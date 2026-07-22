@@ -1413,6 +1413,80 @@ async function saveDashboardToServer(dashboard) {
   }
 }
 
+// Option-set codes are 100000000-based (verified against the org); aggregate "None" is omitted.
+const RPT_OPERATOR_CODES = { "Equals":100000000,"Not equals":100000001,"Contains":100000002,"Begins with":100000003,"Ends with":100000004,"Greater than":100000005,"Less than":100000006,"Between":100000007,"In":100000008,"Not in":100000009,"Is null":100000010,"Is not null":100000011,"Last X days":100000012,"This month":100000013,"This year":100000014 };
+const RPT_AGG_CODES = { "Sum":100000001,"Count":100000002,"Average":100000003,"Avg":100000003,"Min":100000004,"Max":100000005 };
+function coded(code, label) { return code == null ? null : { code, label }; }
+
+// Maps the designer's report onto the ReportDefinition the API persists. First slice: definition +
+// one data source/entity mapping + visible columns + filters + parameters + layout + formulas.
+// Transformations and relationships (drilldown) are not mapped yet — a documented follow-up.
+function reportToDefinition(report) {
+  const alias = "t";
+  const columns = (report.columns || []).filter(c => c.visible !== false).map((c, i) => ({
+    id: newGuid(),
+    columnLogicalName: c.attribute || c.name,
+    outputAlias: c.attribute || c.name,
+    aggregateFunction: (c.agg && c.agg !== "None") ? coded(RPT_AGG_CODES[c.agg] ?? null, c.agg) : null,
+    sortOrder: i + 1,
+    groupOrder: 0,
+    isVisible: c.visible !== false
+  }));
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    name: report.name || "Untitled report",
+    description: report.description || null,
+    mainEntityLogicalName: report.mainEntity || null,
+    isGoverned: !!report.governed,
+    rowLimit: report.rowLimit || null,
+    timeoutMs: report.timeout ? report.timeout * 1000 : null,
+    dataSources: [{
+      id: newGuid(),
+      name: (report.dataSources && report.dataSources[0] && report.dataSources[0].name) || "Primary source",
+      isPrimary: true,
+      sourceAlias: alias,
+      entityMappings: [{
+        id: newGuid(), entityLogicalName: report.mainEntity || "account", entityAlias: alias, depth: 0, columns
+      }]
+    }],
+    filters: (report.filters || []).map((f, i) => ({
+      id: newGuid(),
+      fieldAlias: f.attribute,
+      operator: coded(RPT_OPERATOR_CODES[f.operator] ?? null, f.operator),
+      value: f.value || null,
+      sequence: i + 1,
+      groupId: f.group != null ? String(f.group) : null,
+      isRuntimePrompt: !!(f.param && f.param !== "")
+    })),
+    parameters: (report.parameters || []).map((p, i) => ({
+      id: newGuid(),
+      parameterName: p.name,
+      label: p.prompt || p.name,
+      isRequired: !!p.required,
+      defaultValue: p.def || null,
+      displayOrder: i + 1,
+      lookupTargetEntity: p.lookup || null
+    })),
+    formulas: (report.formulas || []).map((f, i) => ({
+      id: newGuid(), formulaAlias: f.target || f.name, expression: f.expression, evaluationOrder: i + 1, isConditional: false
+    })),
+    layout: report.layout ? { id: newGuid(), themeColor: report.layout.themeColor || "#0078d4", layoutJson: JSON.stringify(report.layout) } : null
+  };
+}
+async function saveReportToServer(report) {
+  try {
+    const response = await apiFetch("/api/reports", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reportToDefinition(report))
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
+    report.savedId = body.id;
+    toast("Report saved to Dataverse", "ok");
+  } catch (error) {
+    toast("Save failed — " + error.message, "err");
+  }
+}
+
 // The reverse of dashboardToDefinition: turn a persisted DashboardDefinition back into the
 // composer's in-memory model so a saved dashboard can be reopened and edited. Composer widget
 // kinds are the lowercased enum names; aggregations match the enum verbatim. cardIcon/badge
@@ -1640,8 +1714,8 @@ function renderDesigner(c) {
 
   pivot.querySelectorAll(".pivot-tab").forEach(t => t.onclick = () => { state.tab = t.dataset.tab; render(); });
   $("#dBack").onclick = () => { state.view = "reports"; render(); };
-  $("#dSave").onclick = () => { syncReportToList(); toast("Report saved"); };
-  $("#dSaveClose").onclick = () => { syncReportToList(); state.view="reports"; render(); toast("Report saved"); };
+  $("#dSave").onclick = () => { syncReportToList(); saveReportToServer(state.report); };
+  $("#dSaveClose").onclick = async () => { syncReportToList(); await saveReportToServer(state.report); state.view="reports"; render(); };
   $("#dPublish").onclick = () => {
     if (r.governed && r.approver === r.owner) { toast("Governed reports need an approver different from the author (BR-3)", "warn"); return; }
     if (r.status === "Published") { r.status = "Unpublished"; toast("Report unpublished"); }
@@ -2158,7 +2232,7 @@ function renderManualDesigner(c) {
   renderManualDesigner._refresh = refresh;
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
-  $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); toast("Report saved"); };
+  $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); saveReportToServer(r); };
   $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
 }

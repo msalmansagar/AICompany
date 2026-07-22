@@ -13,6 +13,7 @@ namespace Qdb.ReportEngine.Api.Controllers;
 [Route("api/reports")]
 public sealed class ReportsController(
     IReportDefinitionLoader loader,
+    IReportDefinitionWriter writer,
     IReportExecutor executor,
     IReportExportService exportService,
     IReportChartService chartService) : ControllerBase
@@ -23,6 +24,25 @@ public sealed class ReportsController(
     {
         var result = await loader.ListAsync(BuildContext(), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
+    }
+
+    /// <summary>
+    /// Persists a report composed in the designer (the definition and all its children) as the
+    /// requesting user, and returns the new report id. The client-supplied <c>Id</c> is ignored — a
+    /// new record is always created.
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<object>> Create([FromBody] ReportDefinition definition, CancellationToken cancellationToken)
+    {
+        if (definition is null || string.IsNullOrWhiteSpace(definition.Name))
+        {
+            return BadRequest(new { code = "invalid_request", message = "A report name is required." });
+        }
+
+        var result = await writer.CreateAsync(definition, BuildContext(), cancellationToken);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(Get), new { reportId = result.Value }, new { id = result.Value })
+            : Problem(result.Error!);
     }
 
     /// <summary>Loads the report definition and its children by id.</summary>
