@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Dynamics 365 / Dataverse plugin assembly. Targets .NET Framework 4.6.2 (the plugin sandbox
+    runtime for both on-prem 9.x and Dataverse cloud). Builds cross-platform via the reference-
+    assemblies package, so no full framework install is required for `dotnet build`.
+
+    Strong-naming: on-prem registration requires a signed assembly. Generate a key once
+    (`sn -k Qdb.ReportEngine.CrmPlugin.snk`) and set SignAssembly=true. Left off by default so the
+    project builds without the Windows SDK present; Dataverse cloud accepts unsigned assemblies.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>Qdb.ReportEngine.CrmPlugin</AssemblyName>
+    <RootNamespace>Qdb.ReportEngine.CrmPlugin</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <SignAssembly>false</SignAssembly>
+    <AssemblyOriginatorKeyFile>Qdb.ReportEngine.CrmPlugin.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!-- System.Net.Http ships with the framework but is not auto-referenced by the SDK for net462. -->
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.56" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
