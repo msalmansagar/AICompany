@@ -244,12 +244,12 @@ export class DataverseAdapter implements ISopAdapter {
       { attribute: 'qdb_escalationrole' as const, set: SET.role },
     ];
     for (const { attribute, set } of lookups) {
-      if (active && active.attribute === attribute) {
-        const nav = await this.resolveNavProp(entity, attribute);
-        if (nav) body[`${nav}@odata.bind`] = `/${set}(${active.id})`;
-      } else {
-        body[`_${attribute}_value`] = null;
-      }
+      const nav = await this.resolveNavProp(entity, attribute);
+      if (!nav) continue;
+      // Clear an inactive lookup via `{nav}@odata.bind: null` — a Dataverse lookup
+      // CANNOT be nulled through its `_x_value` field (R-2), only the nav-prop bind.
+      body[`${nav}@odata.bind`] =
+        active && active.attribute === attribute ? `/${set}(${active.id})` : null;
     }
   }
 
