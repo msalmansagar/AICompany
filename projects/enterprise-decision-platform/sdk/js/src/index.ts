@@ -59,6 +59,22 @@ export interface RuleSetResult {
   readonly result: unknown;
 }
 
+export interface SchemaResult {
+  readonly meta: ResponseMeta;
+  readonly inputs: unknown;
+  readonly outputs: unknown;
+}
+
+export interface ReadResult {
+  readonly meta: ResponseMeta;
+  readonly result: unknown;
+}
+
+export interface ExplainRequest {
+  readonly executionLogId: string;
+  readonly correlationId?: string;
+}
+
 /** @deprecated use {@link DecisionResult}. */
 export type EvaluateResult = DecisionResult;
 /** @deprecated use {@link DecisionRequest}. */
@@ -121,6 +137,21 @@ export class EdpClient {
       ruleSetId: request.ruleSetId,
       input: request.input ?? {},
     });
+  }
+
+  /** Get a rule's input/output schema. */
+  getSchema(request: ValidateRequest): Promise<SchemaResult> {
+    return this.post('/v1/rules/schema', { ...meta(request.correlationId), rule: request.rule });
+  }
+
+  /** Get a rule's version history (rule addressed by id or name). */
+  getHistory(request: ValidateRequest): Promise<ReadResult> {
+    return this.post('/v1/rules/history', { ...meta(request.correlationId), rule: request.rule });
+  }
+
+  /** Explain a past decision by its execution-log id. */
+  explain(request: ExplainRequest): Promise<ReadResult> {
+    return this.post('/v1/decisions/explain', { ...meta(request.correlationId), executionLogId: request.executionLogId });
   }
 
   private async post<T>(path: string, envelope: unknown): Promise<T> {

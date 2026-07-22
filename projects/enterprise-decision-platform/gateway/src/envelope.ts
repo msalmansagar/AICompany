@@ -104,6 +104,12 @@ export interface DecisionRuntime {
   validate(args: { versionId: string }): Promise<ValidateOutcome>;
   /** ExecuteRuleSet — evaluate a governed set; returns the set's native aggregate payload. */
   evaluateRuleSet(args: { ruleSetId: string; input: Record<string, unknown> }): Promise<{ result: unknown }>;
+  /** GetInputSchema + GetOutputSchema — the rule's input/output field shapes. */
+  getSchema(args: { versionId: string }): Promise<{ inputs: unknown; outputs: unknown }>;
+  /** GetRuleHistory — the versions of a rule (native payload passed through). */
+  getHistory(args: { id?: string; name?: string }): Promise<{ result: unknown }>;
+  /** ExplainDecision — a grounded narration of a past execution (native payload passed through). */
+  explain(args: { executionLogId: string }): Promise<{ result: unknown }>;
 }
 
 /** Response envelope for a validation. */
@@ -118,3 +124,30 @@ export interface RuleSetResponse {
   readonly meta: Pick<ResponseMeta, 'correlationId' | 'requestId'>;
   readonly result: unknown;
 }
+
+/** Response envelope for a rule schema read. */
+export interface SchemaResponse {
+  readonly meta: Pick<ResponseMeta, 'correlationId' | 'requestId'>;
+  readonly inputs: unknown;
+  readonly outputs: unknown;
+}
+
+/** Response envelope for a generic read (history, explanation) — native payload under `result`. */
+export interface ReadResponse {
+  readonly meta: Pick<ResponseMeta, 'correlationId' | 'requestId'>;
+  readonly result: unknown;
+}
+
+/** Read request that references a rule (schema, history). */
+export const RuleReadRequestSchema = z.object({
+  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  rule: RuleRefSchema,
+});
+export type RuleReadRequest = z.infer<typeof RuleReadRequestSchema>;
+
+/** Explain a past decision by its execution-log id. */
+export const ExplainRequestSchema = z.object({
+  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  executionLogId: z.string().uuid(),
+});
+export type ExplainRequest = z.infer<typeof ExplainRequestSchema>;

@@ -2,6 +2,9 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { GatewayConfig } from './config.js';
 import type { DecisionRuntime } from './envelope.js';
 import { registerDecisionRoutes } from './routes/decisions.js';
+import { openApiDocument, docsHtml } from './openapi.js';
+
+const PUBLIC_PATHS = new Set(['/health', '/openapi.json', '/docs']);
 
 export interface AppDeps {
   readonly config: GatewayConfig;
@@ -16,10 +19,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   const app = Fastify({ logger: false, requestIdHeader: 'x-request-id' });
 
   app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/openapi.json', async () => openApiDocument);
+  app.get('/docs', async (_request, reply) => reply.type('text/html').send(docsHtml));
 
   // API-key authentication for the decision surface. Empty key set = auth disabled (dev only).
   app.addHook('onRequest', async (request, reply) => {
-    if (request.url === '/health') return;
+    const path = request.url.split('?')[0] ?? request.url;
+    if (PUBLIC_PATHS.has(path)) return;
     if (deps.config.apiKeys.length === 0) return;
     const provided = request.headers['x-api-key'];
     const key = Array.isArray(provided) ? provided[0] : provided;

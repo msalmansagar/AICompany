@@ -48,6 +48,25 @@ class FakeRuntime implements DecisionRuntime {
     this.ruleSetCalls.push(args);
     return { result: { policy: 'FirstMatch', matchedCount: 1, results: [{ key: 'a', matched: true }] } };
   }
+
+  schemaCalls: Array<{ versionId: string }> = [];
+  historyCalls: Array<{ id?: string; name?: string }> = [];
+  explainCalls: Array<{ executionLogId: string }> = [];
+
+  async getSchema(args: { versionId: string }): Promise<{ inputs: unknown; outputs: unknown }> {
+    this.schemaCalls.push(args);
+    return { inputs: [{ name: 'revenue', type: 'Currency' }], outputs: [{ name: 'creditTier' }] };
+  }
+
+  async getHistory(args: { id?: string; name?: string }): Promise<{ result: unknown }> {
+    this.historyCalls.push(args);
+    return { result: [{ version: 1, state: 'Published' }] };
+  }
+
+  async explain(args: { executionLogId: string }): Promise<{ result: unknown }> {
+    this.explainCalls.push(args);
+    return { result: { narration: 'Matched the Gold row because revenue >= 1000000.' } };
+  }
 }
 
 const KEY = { 'x-api-key': 'secret-key' };
@@ -139,5 +158,52 @@ describe('EDP gateway — decision surface', () => {
     const res = await app.inject({ method: 'POST', url: '/v1/rule-sets/evaluate', headers: KEY, payload: { ruleSetId: 'not-a-guid', input: {} } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('invalid_request');
+  });
+
+  it('schema: resolves then returns inputs + outputs', async () => {
+    const runtime = new FakeRuntime({ resolvedVersionId: 'ver-s' });
+    const app = buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/rules/schema', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.inputs).toEqual([{ name: 'revenue', type: 'Currency' }]);
+    expect(body.outputs).toEqual([{ name: 'creditTier' }]);
+    expect(runtime.schemaCalls[0]?.versionId).toBe('ver-s');
+  });
+
+  it('history: passes the rule id/name straight to the runtime', async () => {
+    const runtime = new FakeRuntime();
+    const app = buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/rules/history', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().result).toEqual([{ version: 1, state: 'Published' }]);
+    expect(runtime.historyCalls[0]).toEqual({ id: undefined, name: 'Account Credit Tier' });
+    expect(runtime.resolveCalls).toHaveLength(0); // history does not resolve a version
+  });
+
+  it('explain: requires a uuid execution-log id', async () => {
+    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const bad = await app.inject({ method: 'POST', url: '/v1/decisions/explain', headers: KEY, payload: { executionLogId: 'nope' } });
+    expect(bad.statusCode).toBe(400);
+    const ok = await app.inject({ method: 'POST', url: '/v1/decisions/explain', headers: KEY, payload: { executionLogId: V1 } });
+    expect(ok.statusCode).toBe(200);
+    expect((ok.json().result as { narration: string }).narration).toContain('Gold row');
+  });
+
+  it('serves the OpenAPI document without auth', async () => {
+    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const res = await app.inject({ method: 'GET', url: '/openapi.json' });
+    expect(res.statusCode).toBe(200);
+    const doc = res.json();
+    expect(doc.openapi).toBe('3.1.0');
+    expect(doc.paths['/v1/decisions/evaluate']).toBeDefined();
+    expect(doc.paths['/v1/rules/schema']).toBeDefined();
+  });
+
+  it('serves the docs page without auth', async () => {
+    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const res = await app.inject({ method: 'GET', url: '/docs' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
   });
 });
