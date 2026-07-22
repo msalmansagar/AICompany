@@ -8,16 +8,25 @@ envelope (ADR-EDS-04) onto the `qdb_edp_*` Custom API, and maps the result back.
 > Node + TypeScript + Fastify, per the Maqsad backend-API default (see ADR-15, which records the
 > deviation from the design doc's illustrative ASP.NET naming).
 
-## Endpoint
+## Endpoints
 
-`POST /v1/decisions:evaluate` — evaluate a decision.
+| Method + path | Operation | Backing Custom API |
+|---|---|---|
+| `POST /v1/decisions/evaluate` | Evaluate a decision (durable — writes an execution log) | `qdb_edp_EvaluateDecision` |
+| `POST /v1/decisions/test` | Test a decision (no durable write) | `qdb_edp_TestRule` |
+| `POST /v1/rules/validate` | Validate a rule's structure | `qdb_edp_ValidateRule` |
+| `POST /v1/rule-sets/evaluate` | Evaluate a governed rule set | `qdb_edp_ExecuteRuleSet` |
+| `GET /health` | Liveness (no auth) | — |
+
+A rule is addressed by `versionId`, `id`, or `name` (the gateway resolves the latest published
+version via `qdb_edp_GetPublishedVersion`).
 
 ```jsonc
-// request (canonical envelope)
+// POST /v1/decisions/evaluate  — request (canonical envelope)
 {
-  "meta":   { "correlationId": "optional-caller-id" },
-  "rule":   { "name": "Account Credit Tier" },       // or { "versionId": "<guid>" } or { "id": "<rule guid>" }
-  "input":  { "revenue": 1500000 },
+  "meta":    { "correlationId": "optional-caller-id" },
+  "rule":    { "name": "Account Credit Tier" },   // or { "versionId": "<guid>" } / { "id": "<rule guid>" }
+  "input":   { "revenue": 1500000 },
   "options": { "includeTrace": false }
 }
 ```
@@ -25,17 +34,20 @@ envelope (ADR-EDS-04) onto the `qdb_edp_*` Custom API, and maps the result back.
 ```jsonc
 // 200 response
 {
-  "meta":   { "correlationId": "...", "requestId": "...", "executionId": null, "elapsedMs": 14 },
+  "meta":    { "correlationId": "...", "requestId": "...", "executionId": null, "elapsedMs": 14 },
   "matched": true,
   "outputs": { "creditTier": "Gold", "discount": 15 },
   "diagnostics": null
 }
 ```
 
+`/v1/decisions/test` returns the same shape (with `executionId: null`).
+`/v1/rules/validate` → `{ meta, valid, diagnostics }`.
+`/v1/rule-sets/evaluate` (body `{ ruleSetId, input }`) → `{ meta, result }`, where `result` is the
+set's native aggregate (policy, matched count, per-member results).
+
 Errors return `{ meta, error: { code, message, details? } }` with `invalid_request` (400),
 `unauthorized` (401), `rule_not_found` (404), or `runtime_error` (502).
-
-`GET /health` → `{ "status": "ok" }` (no auth).
 
 ## Auth
 
@@ -70,7 +82,9 @@ npm run build && npm start
 
 ## MVP scope / follow-ups
 
-Evaluate is implemented end-to-end. Not yet: the remaining EDS operations (validate, test,
-execute-rule-set, the `Get*` reads), rate limiting, OpenAPI doc, and containerisation. The
-`DataverseRuntime` field mapping (`GetPublishedVersion` result, `EvaluateDecision` outputs)
-should be smoke-checked against the live API before production use.
+The decision-execution surface is implemented end-to-end: **evaluate, test, validate,
+evaluate-rule-set**. Not yet: the `Get*` read/management operations (schema, history, analytics,
+explain), rate limiting, an OpenAPI document, and containerisation. The `DataverseRuntime` field
+mapping — especially the `ResultJson` shapes for TestRule / ValidateRule / ExecuteRuleSet and the
+`GetPublishedVersion` result — should be smoke-checked against the live API before production use
+(the runtime tolerates camelCase/PascalCase but the exact keys are unverified against the org).

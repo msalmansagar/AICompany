@@ -1,5 +1,5 @@
 import type { GatewayConfig } from './config.js';
-import type { DecisionRuntime } from './envelope.js';
+import type { DecisionRuntime, EvaluateOutcome, ValidateOutcome } from './envelope.js';
 
 /**
  * DecisionRuntime backed by the Dataverse decision Custom API (ADR-EDS-02: transport-only).
@@ -51,6 +51,40 @@ export class DataverseRuntime implements DecisionRuntime {
       elapsedMs: typeof body.ElapsedMs === 'number' ? body.ElapsedMs : null,
       executionId: typeof body.ExecutionId === 'string' ? body.ExecutionId : null,
     };
+  }
+
+  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
+    const body = await this.post(`${this.api}/qdb_edp_TestRule`, {
+      RuleVersionId: args.versionId,
+      InputsJson: JSON.stringify(args.input),
+    });
+    const rj = parseResultJson(body); // TestRule returns a single ResultJson
+    const elapsed = pick(rj, ['elapsedMs', 'ElapsedMs']);
+    return {
+      matched: Boolean(pick(rj, ['matched', 'Matched'])),
+      outputs: (pick(rj, ['outputs', 'Outputs']) as Record<string, unknown>) ?? {},
+      trace: args.includeTrace ? pick(rj, ['trace', 'Trace']) ?? null : undefined,
+      diagnostics: pick(rj, ['diagnostics', 'Diagnostics']) ?? null,
+      elapsedMs: typeof elapsed === 'number' ? elapsed : null,
+      executionId: null, // test writes no durable log
+    };
+  }
+
+  async validate(args: { versionId: string }): Promise<ValidateOutcome> {
+    const body = await this.post(`${this.api}/qdb_edp_ValidateRule`, { RuleVersionId: args.versionId });
+    const rj = parseResultJson(body);
+    return {
+      valid: Boolean(pick(rj, ['isValid', 'valid', 'IsValid'])),
+      diagnostics: pick(rj, ['diagnostics', 'Diagnostics']) ?? [],
+    };
+  }
+
+  async evaluateRuleSet(args: { ruleSetId: string; input: Record<string, unknown> }): Promise<{ result: unknown }> {
+    const body = await this.post(`${this.api}/qdb_edp_ExecuteRuleSet`, {
+      RuleSetId: args.ruleSetId,
+      InputsJson: JSON.stringify(args.input),
+    });
+    return { result: parseResultJson(body) };
   }
 
   private async accessToken(): Promise<string> {
@@ -122,4 +156,12 @@ function firstString(source: Record<string, unknown>, keys: readonly string[]): 
     if (typeof value === 'string' && value.length > 0) return value;
   }
   return null;
+}
+
+/** First present value among candidate keys — tolerates camelCase vs PascalCase ResultJson shapes. */
+function pick(source: Record<string, unknown>, keys: readonly string[]): unknown {
+  for (const key of keys) {
+    if (source[key] !== undefined) return source[key];
+  }
+  return undefined;
 }

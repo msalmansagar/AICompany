@@ -37,6 +37,24 @@ export const EvaluateRequestSchema = z.object({
 
 export type EvaluateRequest = z.infer<typeof EvaluateRequestSchema>;
 
+/** Test is Evaluate without a durable execution-log write (TestRule). Same envelope shape. */
+export const TestRequestSchema = EvaluateRequestSchema;
+
+/** Validate a rule's structure/metadata (ValidateRule). */
+export const ValidateRequestSchema = z.object({
+  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  rule: RuleRefSchema,
+});
+export type ValidateRequest = z.infer<typeof ValidateRequestSchema>;
+
+/** Evaluate a governed rule set by its id (ExecuteRuleSet). */
+export const EvaluateRuleSetRequestSchema = z.object({
+  meta: z.object({ correlationId: z.string().min(1).optional(), source: z.string().min(1).optional() }).optional(),
+  ruleSetId: z.string().uuid(),
+  input: z.record(z.unknown()).default({}),
+});
+export type EvaluateRuleSetRequest = z.infer<typeof EvaluateRuleSetRequestSchema>;
+
 export interface ResponseMeta {
   readonly correlationId: string;
   readonly requestId: string;
@@ -62,18 +80,41 @@ export interface ErrorResponse {
  * Custom API; tests supply a fake. Keeping this an interface is what makes the gateway
  * transport-only and testable without a live org.
  */
+export interface EvaluateOutcome {
+  readonly matched: boolean;
+  readonly outputs: Record<string, unknown>;
+  readonly trace: unknown;
+  readonly diagnostics: unknown;
+  readonly elapsedMs: number | null;
+  readonly executionId: string | null;
+}
+
+export interface ValidateOutcome {
+  readonly valid: boolean;
+  readonly diagnostics: unknown;
+}
+
 export interface DecisionRuntime {
   resolvePublishedVersion(ref: { id?: string; name?: string }): Promise<{ versionId: string }>;
-  evaluate(args: {
-    versionId: string;
-    input: Record<string, unknown>;
-    includeTrace: boolean;
-  }): Promise<{
-    matched: boolean;
-    outputs: Record<string, unknown>;
-    trace: unknown;
-    diagnostics: unknown;
-    elapsedMs: number | null;
-    executionId: string | null;
-  }>;
+  /** EvaluateDecision — durable (writes an execution log). */
+  evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome>;
+  /** TestRule — same decision, no durable write. */
+  test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome>;
+  /** ValidateRule — structural validation of a rule version. */
+  validate(args: { versionId: string }): Promise<ValidateOutcome>;
+  /** ExecuteRuleSet — evaluate a governed set; returns the set's native aggregate payload. */
+  evaluateRuleSet(args: { ruleSetId: string; input: Record<string, unknown> }): Promise<{ result: unknown }>;
+}
+
+/** Response envelope for a validation. */
+export interface ValidateResponse {
+  readonly meta: Pick<ResponseMeta, 'correlationId' | 'requestId'>;
+  readonly valid: boolean;
+  readonly diagnostics: unknown;
+}
+
+/** Response envelope for a rule-set evaluation (native aggregate passed through under `result`). */
+export interface RuleSetResponse {
+  readonly meta: Pick<ResponseMeta, 'correlationId' | 'requestId'>;
+  readonly result: unknown;
 }

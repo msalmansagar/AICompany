@@ -2,8 +2,7 @@
  * EDP Decision SDK — a thin, typed client for the Decision Gateway.
  *
  * Per ADR-EDS-09 the SDK is an *envelope builder only*: it assembles the canonical request,
- * calls `POST /v1/decisions:evaluate`, and returns the typed response. It contains no decision
- * logic and no Dataverse knowledge — that lives behind the gateway.
+ * calls the gateway, and returns the typed response. No decision logic, no Dataverse knowledge.
  */
 
 export interface RuleRef {
@@ -15,25 +14,55 @@ export interface RuleRef {
   readonly name?: string;
 }
 
-export interface EvaluateRequest {
+export interface DecisionRequest {
   readonly rule: RuleRef;
   readonly input?: Record<string, unknown>;
   readonly includeTrace?: boolean;
   readonly correlationId?: string;
 }
 
-export interface EvaluateResult {
-  readonly meta: {
-    readonly correlationId: string;
-    readonly requestId: string;
-    readonly executionId: string | null;
-    readonly elapsedMs: number | null;
-  };
+export interface ValidateRequest {
+  readonly rule: RuleRef;
+  readonly correlationId?: string;
+}
+
+export interface RuleSetRequest {
+  readonly ruleSetId: string;
+  readonly input?: Record<string, unknown>;
+  readonly correlationId?: string;
+}
+
+export interface ResponseMeta {
+  readonly correlationId: string;
+  readonly requestId: string;
+  readonly executionId?: string | null;
+  readonly elapsedMs?: number | null;
+}
+
+export interface DecisionResult {
+  readonly meta: ResponseMeta;
   readonly matched: boolean;
   readonly outputs: Record<string, unknown>;
   readonly trace?: unknown;
   readonly diagnostics?: unknown;
 }
+
+export interface ValidateResult {
+  readonly meta: ResponseMeta;
+  readonly valid: boolean;
+  readonly diagnostics: unknown;
+}
+
+export interface RuleSetResult {
+  readonly meta: ResponseMeta;
+  /** The rule set's native aggregate payload (policy, matched count, per-member results). */
+  readonly result: unknown;
+}
+
+/** @deprecated use {@link DecisionResult}. */
+export type EvaluateResult = DecisionResult;
+/** @deprecated use {@link DecisionRequest}. */
+export type EvaluateRequest = DecisionRequest;
 
 export interface EdpClientOptions {
   readonly baseUrl: string;
@@ -67,29 +96,56 @@ export class EdpClient {
     this.doFetch = f;
   }
 
-  /** Evaluate a decision. Throws {@link EdpDecisionError} on a non-2xx response. */
-  async evaluate(request: EvaluateRequest): Promise<EvaluateResult> {
-    const envelope = {
-      ...(request.correlationId ? { meta: { correlationId: request.correlationId } } : {}),
-      rule: request.rule,
-      input: request.input ?? {},
-      options: { includeTrace: request.includeTrace ?? false },
-    };
+  /** Evaluate a decision (durable — writes an execution log). */
+  evaluate(request: DecisionRequest): Promise<DecisionResult> {
+    return this.post('/v1/decisions/evaluate', decisionEnvelope(request));
+  }
 
+  /** Test a decision (no durable write). */
+  test(request: DecisionRequest): Promise<DecisionResult> {
+    return this.post('/v1/decisions/test', decisionEnvelope(request));
+  }
+
+  /** Validate a rule's structure. */
+  validate(request: ValidateRequest): Promise<ValidateResult> {
+    return this.post('/v1/rules/validate', {
+      ...meta(request.correlationId),
+      rule: request.rule,
+    });
+  }
+
+  /** Evaluate a governed rule set by id. */
+  evaluateRuleSet(request: RuleSetRequest): Promise<RuleSetResult> {
+    return this.post('/v1/rule-sets/evaluate', {
+      ...meta(request.correlationId),
+      ruleSetId: request.ruleSetId,
+      input: request.input ?? {},
+    });
+  }
+
+  private async post<T>(path: string, envelope: unknown): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.apiKey) headers['x-api-key'] = this.apiKey;
 
-    const res = await this.doFetch(`${this.baseUrl}/v1/decisions:evaluate`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(envelope),
-    });
-
+    const res = await this.doFetch(`${this.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(envelope) });
     const body: unknown = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = (body as { error?: { code?: string; message?: string; details?: unknown } }).error;
       throw new EdpDecisionError(err?.code ?? 'gateway_error', err?.message ?? `Gateway returned ${res.status}.`, res.status, err?.details);
     }
-    return body as EvaluateResult;
+    return body as T;
   }
+}
+
+function meta(correlationId?: string): { meta?: { correlationId: string } } {
+  return correlationId ? { meta: { correlationId } } : {};
+}
+
+function decisionEnvelope(request: DecisionRequest): unknown {
+  return {
+    ...meta(request.correlationId),
+    rule: request.rule,
+    input: request.input ?? {},
+    options: { includeTrace: request.includeTrace ?? false },
+  };
 }

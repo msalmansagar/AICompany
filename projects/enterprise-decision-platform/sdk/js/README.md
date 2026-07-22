@@ -38,7 +38,16 @@ try {
 ## API
 
 - `new EdpClient({ baseUrl, apiKey?, fetch? })` — `fetch` is injectable for tests / non-global-fetch runtimes.
-- `evaluate({ rule, input?, includeTrace?, correlationId? }) → Promise<EvaluateResult>`
+- `evaluate({ rule, input?, includeTrace?, correlationId? }) → Promise<DecisionResult>` — durable.
+- `test({ rule, input?, includeTrace?, correlationId? }) → Promise<DecisionResult>` — no durable write.
+- `validate({ rule, correlationId? }) → Promise<ValidateResult>` — `{ valid, diagnostics }`.
+- `evaluateRuleSet({ ruleSetId, input?, correlationId? }) → Promise<RuleSetResult>` — `{ result }` (set aggregate).
+
+```ts
+await edp.test({ rule: { name: 'Account Credit Tier' }, input: { revenue: 5_000 } });
+const v = await edp.validate({ rule: { name: 'Account Credit Tier' } });   // v.valid, v.diagnostics
+const s = await edp.evaluateRuleSet({ ruleSetId, input: { revenue: 5_000 } }); // s.result
+```
 
 ## Build & test
 

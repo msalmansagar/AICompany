@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildApp } from '../src/app.js';
 import type { GatewayConfig } from '../src/config.js';
-import type { DecisionRuntime } from '../src/envelope.js';
+import type { DecisionRuntime, EvaluateOutcome, ValidateOutcome } from '../src/envelope.js';
 import { RuntimeError } from '../src/dataverseRuntime.js';
 
 const baseConfig: GatewayConfig = {
@@ -13,6 +13,9 @@ const baseConfig: GatewayConfig = {
 class FakeRuntime implements DecisionRuntime {
   resolveCalls: Array<{ id?: string; name?: string }> = [];
   evaluateCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean }> = [];
+  testCalls: Array<{ versionId: string; input: Record<string, unknown>; includeTrace: boolean }> = [];
+  validateCalls: Array<{ versionId: string }> = [];
+  ruleSetCalls: Array<{ ruleSetId: string; input: Record<string, unknown> }> = [];
 
   constructor(private readonly opts: { resolvedVersionId?: string; throwOnResolve?: boolean } = {}) {}
 
@@ -22,22 +25,35 @@ class FakeRuntime implements DecisionRuntime {
     return { versionId: this.opts.resolvedVersionId ?? 'resolved-version' };
   }
 
-  async evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }) {
+  private outcome(): EvaluateOutcome {
+    return { matched: true, outputs: { creditTier: 'Gold', discount: 15 }, trace: [{ kind: 'tableRow', priority: 1 }], diagnostics: null, elapsedMs: 14, executionId: 'exec-1' };
+  }
+
+  async evaluate(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
     this.evaluateCalls.push(args);
-    return {
-      matched: true,
-      outputs: { creditTier: 'Gold', discount: 15 },
-      trace: [{ kind: 'tableRow', priority: 1 }],
-      diagnostics: null,
-      elapsedMs: 14,
-      executionId: 'exec-1',
-    };
+    return this.outcome();
+  }
+
+  async test(args: { versionId: string; input: Record<string, unknown>; includeTrace: boolean }): Promise<EvaluateOutcome> {
+    this.testCalls.push(args);
+    return { ...this.outcome(), executionId: null };
+  }
+
+  async validate(args: { versionId: string }): Promise<ValidateOutcome> {
+    this.validateCalls.push(args);
+    return { valid: false, diagnostics: [{ code: 'EDP001', severity: 'Warning', message: 'target entity not in metadata' }] };
+  }
+
+  async evaluateRuleSet(args: { ruleSetId: string; input: Record<string, unknown> }): Promise<{ result: unknown }> {
+    this.ruleSetCalls.push(args);
+    return { result: { policy: 'FirstMatch', matchedCount: 1, results: [{ key: 'a', matched: true }] } };
   }
 }
 
 const KEY = { 'x-api-key': 'secret-key' };
+const V1 = '00000000-0000-0000-0000-000000000001';
 
-describe('EDP gateway — POST /v1/decisions:evaluate', () => {
+describe('EDP gateway — decision surface', () => {
   it('health check needs no auth', async () => {
     const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'GET', url: '/health' });
@@ -47,56 +63,81 @@ describe('EDP gateway — POST /v1/decisions:evaluate', () => {
 
   it('rejects a request without a valid API key', async () => {
     const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
-    const res = await app.inject({ method: 'POST', url: '/v1/decisions:evaluate', payload: { rule: { versionId: '00000000-0000-0000-0000-000000000001' }, input: {} } });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', payload: { rule: { versionId: V1 }, input: {} } });
     expect(res.statusCode).toBe(401);
     expect(res.json().error.code).toBe('unauthorized');
   });
 
-  it('rejects an invalid envelope (no rule reference)', async () => {
+  it('evaluate: rejects an invalid envelope (no rule reference)', async () => {
     const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
-    const res = await app.inject({ method: 'POST', url: '/v1/decisions:evaluate', headers: KEY, payload: { input: {} } });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { input: {} } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('invalid_request');
   });
 
-  it('evaluates by explicit version id and maps the response envelope', async () => {
+  it('evaluate: by explicit version id, maps the response envelope', async () => {
     const runtime = new FakeRuntime();
     const app = buildApp({ config: baseConfig, runtime });
-    const res = await app.inject({
-      method: 'POST',
-      url: '/v1/decisions:evaluate',
-      headers: KEY,
-      payload: { meta: { correlationId: 'corr-9' }, rule: { versionId: '00000000-0000-0000-0000-000000000001' }, input: { revenue: 1500000 } },
-    });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { meta: { correlationId: 'corr-9' }, rule: { versionId: V1 }, input: { revenue: 1500000 } } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.matched).toBe(true);
-    expect(body.outputs).toEqual({ creditTier: 'Gold', discount: 15 });
+    expect(body).toMatchObject({ matched: true, outputs: { creditTier: 'Gold', discount: 15 } });
     expect(body.meta).toMatchObject({ correlationId: 'corr-9', executionId: 'exec-1', elapsedMs: 14 });
-    expect(body.trace).toBeUndefined(); // includeTrace defaults false
-    expect(runtime.resolveCalls).toHaveLength(0); // versionId given -> no resolution
+    expect(body.trace).toBeUndefined();
+    expect(runtime.resolveCalls).toHaveLength(0);
     expect(runtime.evaluateCalls[0]?.input).toEqual({ revenue: 1500000 });
   });
 
-  it('resolves a rule by name before evaluating', async () => {
+  it('evaluate: resolves a rule by name and includes trace when asked', async () => {
     const runtime = new FakeRuntime({ resolvedVersionId: 'ver-abc' });
     const app = buildApp({ config: baseConfig, runtime });
-    const res = await app.inject({
-      method: 'POST',
-      url: '/v1/decisions:evaluate',
-      headers: KEY,
-      payload: { rule: { name: 'Account Credit Tier' }, input: { revenue: 500000 }, options: { includeTrace: true } },
-    });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { name: 'Account Credit Tier' }, input: { revenue: 500000 }, options: { includeTrace: true } } });
     expect(res.statusCode).toBe(200);
     expect(runtime.resolveCalls[0]).toEqual({ name: 'Account Credit Tier' });
     expect(runtime.evaluateCalls[0]?.versionId).toBe('ver-abc');
     expect(res.json().trace).toEqual([{ kind: 'tableRow', priority: 1 }]);
   });
 
-  it('returns 404 when the rule has no published version', async () => {
+  it('evaluate: 404 when the rule has no published version', async () => {
     const app = buildApp({ config: baseConfig, runtime: new FakeRuntime({ throwOnResolve: true }) });
-    const res = await app.inject({ method: 'POST', url: '/v1/decisions:evaluate', headers: KEY, payload: { rule: { name: 'Missing' }, input: {} } });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { name: 'Missing' }, input: {} } });
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe('rule_not_found');
+  });
+
+  it('test: runs the decision with no durable execution id', async () => {
+    const runtime = new FakeRuntime();
+    const app = buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/decisions/test', headers: KEY, payload: { rule: { versionId: V1 }, input: { revenue: 1500000 } } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ matched: true, meta: { executionId: null } });
+    expect(runtime.testCalls).toHaveLength(1);
+  });
+
+  it('validate: resolves then returns valid + diagnostics', async () => {
+    const runtime = new FakeRuntime({ resolvedVersionId: 'ver-v' });
+    const app = buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/rules/validate', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.valid).toBe(false);
+    expect(body.diagnostics).toHaveLength(1);
+    expect(runtime.validateCalls[0]?.versionId).toBe('ver-v');
+  });
+
+  it('rule-sets: evaluates by id and passes the native aggregate through', async () => {
+    const runtime = new FakeRuntime();
+    const app = buildApp({ config: baseConfig, runtime });
+    const res = await app.inject({ method: 'POST', url: '/v1/rule-sets/evaluate', headers: KEY, payload: { ruleSetId: V1, input: { revenue: 2000 } } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().result).toMatchObject({ policy: 'FirstMatch', matchedCount: 1 });
+    expect(runtime.ruleSetCalls[0]).toEqual({ ruleSetId: V1, input: { revenue: 2000 } });
+  });
+
+  it('rule-sets: rejects a non-uuid set id', async () => {
+    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const res = await app.inject({ method: 'POST', url: '/v1/rule-sets/evaluate', headers: KEY, payload: { ruleSetId: 'not-a-guid', input: {} } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('invalid_request');
   });
 });
