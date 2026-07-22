@@ -12,7 +12,9 @@ namespace Qdb.ReportEngine.Api.Controllers;
 [ApiController]
 [Route("api/dashboards")]
 public sealed class DashboardsController(
-    IDashboardExecutionService executionService, IDashboardDefinitionLoader loader) : ControllerBase
+    IDashboardExecutionService executionService,
+    IDashboardDefinitionLoader loader,
+    IDashboardWriter writer) : ControllerBase
 {
     /// <summary>Lists the dashboards the caller can see (the catalog).</summary>
     [HttpGet]
@@ -20,6 +22,50 @@ public sealed class DashboardsController(
     {
         var result = await loader.ListAsync(BuildContext(), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
+    }
+
+    /// <summary>
+    /// Persists a dashboard composed in the designer (the dashboard, its sections, and each section's
+    /// widgets) as the requesting user, and returns the new dashboard id. The client-supplied
+    /// <c>Id</c> is ignored — a new record is always created.
+    /// </summary>
+    [HttpPost]
+    public async Task<ActionResult<object>> Create([FromBody] DashboardDefinition dashboard, CancellationToken cancellationToken)
+    {
+        if (dashboard is null || string.IsNullOrWhiteSpace(dashboard.Title))
+        {
+            return BadRequest(new { code = "invalid_request", message = "A dashboard title is required." });
+        }
+
+        var result = await writer.CreateAsync(dashboard, BuildContext(), cancellationToken);
+        return result.IsSuccess
+            ? CreatedAtAction(nameof(Get), new { dashboardId = result.Value }, new { id = result.Value })
+            : Problem(result.Error!);
+    }
+
+    /// <summary>
+    /// Updates dashboard <paramref name="dashboardId"/> in place, replacing its sections and widgets
+    /// from the request body. Lets a dashboard loaded into the designer be edited and re-saved without
+    /// creating a duplicate.
+    /// </summary>
+    [HttpPut("{dashboardId:guid}")]
+    public async Task<ActionResult<object>> Update(Guid dashboardId, [FromBody] DashboardDefinition dashboard, CancellationToken cancellationToken)
+    {
+        if (dashboard is null || string.IsNullOrWhiteSpace(dashboard.Title))
+        {
+            return BadRequest(new { code = "invalid_request", message = "A dashboard title is required." });
+        }
+
+        var result = await writer.UpdateAsync(dashboardId, dashboard, BuildContext(), cancellationToken);
+        return result.IsSuccess ? Ok(new { id = result.Value }) : Problem(result.Error!);
+    }
+
+    /// <summary>Deletes dashboard <paramref name="dashboardId"/> and its sections and widgets.</summary>
+    [HttpDelete("{dashboardId:guid}")]
+    public async Task<ActionResult> Delete(Guid dashboardId, CancellationToken cancellationToken)
+    {
+        var result = await writer.DeleteAsync(dashboardId, BuildContext(), cancellationToken);
+        return result.IsSuccess ? NoContent() : Problem(result.Error!);
     }
 
     /// <summary>Loads a persisted dashboard definition by id.</summary>

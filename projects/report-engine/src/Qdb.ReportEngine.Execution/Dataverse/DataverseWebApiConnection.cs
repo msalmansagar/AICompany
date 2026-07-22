@@ -81,7 +81,7 @@ public sealed class DataverseWebApiConnection(
     }
 
     /// <inheritdoc />
-    public async Task CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken)
+    public async Task<Guid> CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrEmpty(entityLogicalName);
         ArgumentNullException.ThrowIfNull(attributes);
@@ -95,6 +95,55 @@ public sealed class DataverseWebApiConnection(
 
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         await EnsureSuccessOrThrottleAsync(response, entityLogicalName, cancellationToken).ConfigureAwait(false);
+        return ParseEntityId(response);
+    }
+
+    /// <inheritdoc />
+    public async Task UpdateAsync(string entityLogicalName, Guid id, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(entityLogicalName);
+        ArgumentNullException.ThrowIfNull(attributes);
+
+        var entitySet = await entitySetResolver.ResolveAsync(entityLogicalName, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/data/{apiVersion}/{entitySet}({id})")
+        {
+            Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(attributes), System.Text.Encoding.UTF8, "application/json")
+        };
+        // If-Match:* makes this update-only — without it, PATCH to a missing id would create a record.
+        request.Headers.TryAddWithoutValidation("If-Match", "*");
+        ApplyImpersonation(request);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrottleAsync(response, entityLogicalName, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task DeleteAsync(string entityLogicalName, Guid id, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(entityLogicalName);
+
+        var entitySet = await entitySetResolver.ResolveAsync(entityLogicalName, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Delete, $"api/data/{apiVersion}/{entitySet}({id})");
+        ApplyImpersonation(request);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessOrThrottleAsync(response, entityLogicalName, cancellationToken).ConfigureAwait(false);
+    }
+
+    // OData-EntityId header is like "https://…/api/data/v9.2/qdb_dashboards(<guid>)".
+    private static Guid ParseEntityId(HttpResponseMessage response)
+    {
+        if (response.Headers.TryGetValues("OData-EntityId", out var values))
+        {
+            var open = values.First().LastIndexOf('(');
+            var close = values.First().LastIndexOf(')');
+            if (open >= 0 && close > open && Guid.TryParse(values.First()[(open + 1)..close], out var id))
+            {
+                return id;
+            }
+        }
+
+        return Guid.Empty;
     }
 
     /// <inheritdoc />

@@ -724,6 +724,7 @@
   .toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
   .toast.info .dot { background: var(--primary); }
   .toast.warn .dot { background: var(--warning); }
+  .toast.err .dot { background: var(--error); }
 
   .info-banner {
     display: flex; gap: 10px; align-items: flex-start; background: var(--primary-tint-2); border: 1px solid var(--border-strong);
@@ -1318,7 +1319,11 @@ const state = {
   report: null,
   selectedReportId: null,
   dashboard: null,
-  navCollapsed: false
+  navCollapsed: false,
+  // Middle-tier connection. In a CRM web resource these come from the signed-in Xrm session;
+  // standalone they fall back to the local API and "run as service app" (blank caller).
+  apiBase: localStorage.getItem("re-api") || "http://localhost:5215",
+  callerId: localStorage.getItem("re-caller") || ""
 };
 
 /* ---------- small helpers ---------- */
@@ -1339,6 +1344,142 @@ function toast(msg, kind="ok") {
   const t = el(`<div class="toast ${kind==="ok"?"":kind}"><span class="dot"></span><span>${esc(msg)}</span></div>`);
   $("#toasts").appendChild(t);
   setTimeout(() => { t.style.transition="opacity .3s"; t.style.opacity="0"; setTimeout(()=>t.remove(),300); }, 2600);
+}
+
+/* ---------- middle-tier API (dashboard persistence) ---------- */
+function apiFetch(path, opts={}) {
+  const headers = Object.assign({ "Accept":"application/json" }, opts.headers||{});
+  if (state.callerId) headers["X-Report-Caller-Id"] = state.callerId;
+  return fetch(state.apiBase.replace(/\/$/,"") + path, Object.assign({}, opts, { headers }));
+}
+function newGuid() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = Math.random()*16|0; return (c==="x" ? r : (r&0x3|0x8)).toString(16);
+  });
+}
+// Composer widget kinds/aggregations are lowercase; the API contract is PascalCase enums.
+const WIDGET_KIND_MAP = { metric:"Metric", gauge:"Gauge", badge:"Badge", progress:"Progress", chart:"Chart", infocards:"InfoCards", profile:"Profile", checklist:"Checklist", matrix:"Matrix", table:"Table" };
+const AGGREGATION_MAP = { sum:"Sum", average:"Average", avg:"Average", count:"Count", max:"Max", min:"Min" };
+function toWidgetKind(kind) { return WIDGET_KIND_MAP[String(kind||"").toLowerCase()] || "Metric"; }
+function toAggregation(agg) { return AGGREGATION_MAP[String(agg||"sum").toLowerCase()] || "Sum"; }
+
+// Maps the composer's in-memory dashboard onto the DashboardDefinition the API persists. The id
+// fields are placeholders — the server always creates a new record and assigns real ids.
+function dashboardToDefinition(dashboard) {
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    title: dashboard.title || "Untitled dashboard",
+    isGoverned: !!dashboard.isGoverned,
+    sections: (dashboard.sections || []).map(section => ({
+      id: newGuid(),
+      title: section.title || null,
+      columns: Math.min(Math.max(section.cols || 4, 1), 4),
+      widgets: (section.widgets || []).map(widget => ({
+        id: newGuid(),
+        kind: toWidgetKind(widget.widget),
+        entity: widget.entity || "account",
+        groupByAttribute: widget.groupBy || null,
+        measureAttribute: widget.measure || null,
+        aggregation: toAggregation(widget.agg),
+        title: widget.title || null,
+        chartType: widget.chartType || null
+      }))
+    }))
+  };
+}
+// A dashboard that was loaded from Dataverse (has savedId) updates in place (PUT); a new one is
+// created (POST). This keeps edit→save a true round-trip instead of duplicating the record.
+async function saveDashboardToServer(dashboard) {
+  const button = $("#dash_save");
+  if (button) button.disabled = true;
+  const isUpdate = !!dashboard.savedId;
+  const path = isUpdate ? "/api/dashboards/" + dashboard.savedId : "/api/dashboards";
+  try {
+    const response = await apiFetch(path, {
+      method: isUpdate ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dashboardToDefinition(dashboard))
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
+    dashboard.savedId = (body && body.id) || dashboard.savedId;
+    toast(isUpdate ? "Dashboard updated in Dataverse" : "Dashboard saved to Dataverse", "ok");
+    refreshSavedDashboards();
+  } catch (error) {
+    toast("Save failed — " + error.message, "err");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+// The reverse of dashboardToDefinition: turn a persisted DashboardDefinition back into the
+// composer's in-memory model so a saved dashboard can be reopened and edited. Composer widget
+// kinds are the lowercased enum names; aggregations match the enum verbatim. cardIcon/badge
+// hints aren't persisted server-side, so they fall back to defaults on reload.
+function definitionToDashboard(def) {
+  return {
+    id: def.id,
+    savedId: def.id,
+    title: def.title || "Untitled dashboard",
+    owner: "Saved",
+    modified: new Date().toISOString().slice(0, 10),
+    isGoverned: !!def.isGoverned,
+    _seq: 0, _sel: null, _preview: false,
+    sections: (def.sections || []).map(section => ({
+      id: section.id || newGuid(),
+      title: section.title || "",
+      cols: Math.min(Math.max(section.columns || 4, 1), 4),
+      widgets: (section.widgets || []).map(widget => ({
+        id: widget.id || newGuid(),
+        title: widget.title || "",
+        widget: String(widget.kind || "Metric").toLowerCase(),
+        entity: widget.entity || "account",
+        groupBy: widget.groupByAttribute || "",
+        measure: widget.measureAttribute || "",
+        agg: widget.aggregation || "Sum",
+        chartType: widget.chartType || "Column",
+        cardIcon: "money", badgeText: "", badgeLevel: ""
+      }))
+    }))
+  };
+}
+
+// Persisted-dashboard catalog (GET /api/dashboards). null = not yet fetched this session.
+let SAVED_DASHBOARDS = null;
+async function refreshSavedDashboards() {
+  try {
+    const response = await apiFetch("/api/dashboards");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    SAVED_DASHBOARDS = await response.json();
+  } catch (error) {
+    // API may be unreachable in pure-prototype use — degrade to "no saved dashboards".
+    SAVED_DASHBOARDS = [];
+  }
+  if (state.view === "dashboards") render();
+}
+async function openSavedDashboard(id) {
+  try {
+    const response = await apiFetch("/api/dashboards/" + id);
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
+    openDashboardComposer(definitionToDashboard(body));
+  } catch (error) {
+    toast("Couldn't open saved dashboard — " + error.message, "err");
+  }
+}
+async function deleteSavedDashboard(id) {
+  try {
+    const response = await apiFetch("/api/dashboards/" + id, { method: "DELETE" });
+    if (!response.ok && response.status !== 204) {
+      const body = await response.json().catch(() => null);
+      throw new Error((body && body.message) || ("HTTP " + response.status));
+    }
+    toast("Dashboard deleted from Dataverse", "ok");
+    await refreshSavedDashboards();
+  } catch (error) {
+    toast("Delete failed — " + error.message, "err");
+  }
 }
 
 /* ============================ CANVAS ENGINE (shared) ============================ */
@@ -3669,7 +3810,7 @@ function renderDashboardComposer(host) {
   $("#dash_undo").onclick = () => { dashUndo(D); render(); };
   $("#dash_redo").onclick = () => { dashRedo(D); render(); };
   $("#dash_preview").onclick = () => { D._preview = !D._preview; D._sel=null; render(); };
-  $("#dash_save").onclick = () => toast("Dashboard saved (prototype)", "info");
+  $("#dash_save").onclick = () => saveDashboardToServer(D);
   $("#dash_title").onfocus = () => pushHistory(D);
   $("#dash_title").oninput = e => { D.title = e.target.value; };
   const fe = $("#fld_entity"); if (fe) fe.onchange = e => { D._fieldEntity = e.target.value; render(); };
@@ -3804,28 +3945,41 @@ function renderDashboards(c) {
     <div class="cmd-spacer"></div>
     <button class="cmd" id="dbNewReport">${ic("doc")}New report instead</button>
   </div>`);
-  const rowHtml = d => `<tr data-id="${esc(d.id)}"><td class="row-check"><input type="checkbox"></td><td><span class="link-cell">${esc(d.title)}</span></td><td>${esc(d.owner)}</td><td>${countWidgets(d)}</td><td>${esc(d.modified)}</td></tr>`;
+  // Saved (Dataverse) dashboards are shown first with a badge; the local samples follow as
+  // design references. `_saved` rows reopen by loading the persisted definition from the API.
+  const saved = (SAVED_DASHBOARDS || []).map(s => ({ id: s.id, title: s.title, owner: "Saved", modified: "Dataverse", widgets: s.widgetCount, _saved: true }));
+  const samples = DASHBOARDS.map(d => ({ id: d.id, title: d.title, owner: d.owner, modified: d.modified, widgets: countWidgets(d), _saved: false }));
+  const rows = saved.concat(samples);
+  const badge = `<span class="pill" style="margin-left:8px;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--primary-bg,rgba(0,120,212,.12));color:var(--primary)">Saved</span>`;
+  const rowHtml = d => `<tr data-id="${esc(d.id)}" data-saved="${d._saved?"1":"0"}"><td class="row-check"><input type="checkbox"></td><td><span class="link-cell">${esc(d.title)}</span>${d._saved?badge:""}</td><td>${esc(d.owner)}</td><td>${esc(String(d.widgets))}</td><td>${esc(d.modified)}</td></tr>`;
+  const loading = SAVED_DASHBOARDS === null ? " · loading saved dashboards…" : ` · ${saved.length} saved in Dataverse`;
   const scroll = el(`<div class="scroll"><div class="page">
-    <div class="page-head"><div><h1>Dashboards</h1><div class="page-sub">${DASHBOARDS.length} interactive dashboards · a grid of independently data-bound widgets (metrics, charts, gauges, info cards, tables…)</div></div></div>
-    <div class="grid-wrap"><table class="grid" role="grid"><thead><tr><th class="row-check"><input type="checkbox" disabled></th><th>Dashboard name</th><th>Owner</th><th>Widgets</th><th>Modified</th></tr></thead><tbody>${DASHBOARDS.map(rowHtml).join("")}</tbody></table></div>
+    <div class="page-head"><div><h1>Dashboards</h1><div class="page-sub">${rows.length} interactive dashboards${loading} · a grid of independently data-bound widgets (metrics, charts, gauges, info cards, tables…)</div></div></div>
+    <div class="grid-wrap"><table class="grid" role="grid"><thead><tr><th class="row-check"><input type="checkbox" disabled></th><th>Dashboard name</th><th>Owner</th><th>Widgets</th><th>Modified</th></tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table></div>
   </div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
-  let selId = null;
-  const btns = () => ["dbOpen","dbClone","dbDelete"].forEach(id => $("#"+id).disabled = !selId);
+  if (SAVED_DASHBOARDS === null) refreshSavedDashboards();
+  let selId = null, selSaved = false;
+  const btns = () => { $("#dbOpen").disabled = !selId; $("#dbClone").disabled = !selId || selSaved; $("#dbDelete").disabled = !selId; };
+  const openRow = (id, isSaved) => isSaved ? openSavedDashboard(id) : openDashboardComposer(DASHBOARDS.find(d => d.id === id));
   scroll.querySelectorAll("tbody tr").forEach(tr => {
     tr.addEventListener("click", e => {
       if (e.target.closest(".link-cell")) return;
       scroll.querySelectorAll("tbody tr").forEach(x => x.classList.remove("selected"));
       tr.classList.add("selected"); tr.querySelector("input").checked = true;
-      selId = tr.dataset.id; btns();
+      selId = tr.dataset.id; selSaved = tr.dataset.saved === "1"; btns();
     });
-    tr.querySelector(".link-cell").addEventListener("click", () => openDashboardComposer(DASHBOARDS.find(d => d.id === tr.dataset.id)));
+    tr.querySelector(".link-cell").addEventListener("click", () => openRow(tr.dataset.id, tr.dataset.saved === "1"));
   });
   $("#dbNew").onclick = () => openNewDashboardChooser();
   $("#dbNewReport").onclick = () => { state.view = "reports"; render(); setTimeout(openNewChooser, 30); };
-  $("#dbOpen").onclick = () => selId && openDashboardComposer(DASHBOARDS.find(d => d.id === selId));
+  $("#dbOpen").onclick = () => selId && openRow(selId, selSaved);
   $("#dbClone").onclick = () => { const d = DASHBOARDS.find(x=>x.id===selId); if(!d) return; const copy = JSON.parse(JSON.stringify(d)); copy.id = "d"+(DASHBOARDS.length+1); copy.title = d.title+" (copy)"; copy.modified = "2026-07-19"; DASHBOARDS.unshift(copy); render(); toast("Dashboard cloned to a new draft"); };
-  $("#dbDelete").onclick = () => { const i = DASHBOARDS.findIndex(x=>x.id===selId); if (i>=0) { DASHBOARDS.splice(i,1); selId=null; render(); toast("Dashboard deleted"); } };
+  $("#dbDelete").onclick = () => {
+    if (!selId) return;
+    if (selSaved) { deleteSavedDashboard(selId); return; }
+    const i = DASHBOARDS.findIndex(x=>x.id===selId); if (i>=0) { DASHBOARDS.splice(i,1); selId=null; render(); toast("Dashboard deleted"); }
+  };
 }
 
 /* ============================ ICONS ============================ */

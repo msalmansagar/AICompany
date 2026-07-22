@@ -37,8 +37,20 @@ public interface IDataverseConnection : IAsyncDisposable
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<IReadOnlyDictionary<string, object?>>>> RetrieveMultipleBatchAsync(
         IReadOnlyList<BatchQuery> queries, CancellationToken cancellationToken);
 
-    /// <summary>Creates a record in <paramref name="entityLogicalName"/> from <paramref name="attributes"/>.</summary>
-    Task CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken);
+    /// <summary>
+    /// Creates a record in <paramref name="entityLogicalName"/> from <paramref name="attributes"/>
+    /// and returns its id (from the <c>OData-EntityId</c> response header).
+    /// </summary>
+    Task<Guid> CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Updates the record <paramref name="id"/> in <paramref name="entityLogicalName"/> with
+    /// <paramref name="attributes"/> (PATCH, update-only — never an upsert-create).
+    /// </summary>
+    Task UpdateAsync(string entityLogicalName, Guid id, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken);
+
+    /// <summary>Deletes the record <paramref name="id"/> from <paramref name="entityLogicalName"/>.</summary>
+    Task DeleteAsync(string entityLogicalName, Guid id, CancellationToken cancellationToken);
 }
 
 /// <summary>One FetchXML query in a batch, tagged with the widget id it resolves.</summary>

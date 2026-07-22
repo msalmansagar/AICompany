@@ -37,8 +37,14 @@ public sealed class StubDataverseConnectionFactory(IOptions<DashboardOptions> op
             IReadOnlyList<BatchQuery> queries, CancellationToken cancellationToken) =>
             throw new NotSupportedException($"Dataverse is not configured ({_target}); cannot execute queries.");
 
-        public Task CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken) =>
+        public Task<Guid> CreateAsync(string entityLogicalName, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken) =>
             throw new NotSupportedException($"Dataverse is not configured ({_target}); cannot create records.");
+
+        public Task UpdateAsync(string entityLogicalName, Guid id, IReadOnlyDictionary<string, object?> attributes, CancellationToken cancellationToken) =>
+            throw new NotSupportedException($"Dataverse is not configured ({_target}); cannot update records.");
+
+        public Task DeleteAsync(string entityLogicalName, Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException($"Dataverse is not configured ({_target}); cannot delete records.");
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
