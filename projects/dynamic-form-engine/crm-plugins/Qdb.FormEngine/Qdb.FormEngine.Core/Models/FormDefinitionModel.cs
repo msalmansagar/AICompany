@@ -310,8 +310,20 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("mode")] public string Mode { get; set; }
         [JsonProperty("entityName")] public string EntityName { get; set; }
         [JsonProperty("filterExpression")] public string FilterExpression { get; set; }
-        [JsonProperty("dependsOnFieldId")] public Guid? DependsOnFieldId { get; set; }
-        [JsonProperty("dependsOnFilterTemplate")] public string DependsOnFilterTemplate { get; set; }
+        // Comma-separated form-field schema names driving the depends-on filter template.
+        [JsonProperty("dependsOnFieldId", NullValueHandling = NullValueHandling.Ignore)] public string DependsOnFieldId { get; set; }
+        [JsonProperty("dependsOnFilterTemplate", NullValueHandling = NullValueHandling.Ignore)] public string DependsOnFilterTemplate { get; set; }
+        // DFE-GRIDSRC-001: data source + display configuration.
+        [JsonProperty("dataSource", NullValueHandling = NullValueHandling.Ignore)] public string DataSource { get; set; }
+        [JsonProperty("jsonData", NullValueHandling = NullValueHandling.Ignore)] public string JsonData { get; set; }
+        [JsonProperty("displayMode", NullValueHandling = NullValueHandling.Ignore)] public string DisplayMode { get; set; }
+        [JsonProperty("cardLayout", NullValueHandling = NullValueHandling.Ignore)] public string CardLayout { get; set; }
+        [JsonProperty("selectable", NullValueHandling = NullValueHandling.Ignore)] public bool? Selectable { get; set; }
+        [JsonProperty("cardIconName", NullValueHandling = NullValueHandling.Ignore)] public string CardIconName { get; set; }
+        // Paging + view configuration.
+        [JsonProperty("pageSize", NullValueHandling = NullValueHandling.Ignore)] public int? PageSize { get; set; }
+        [JsonProperty("pagingStyle", NullValueHandling = NullValueHandling.Ignore)] public string PagingStyle { get; set; }
+        [JsonProperty("viewMode", NullValueHandling = NullValueHandling.Ignore)] public string ViewMode { get; set; }
     }
 
     /// <summary>Column configuration within a grid field.</summary>

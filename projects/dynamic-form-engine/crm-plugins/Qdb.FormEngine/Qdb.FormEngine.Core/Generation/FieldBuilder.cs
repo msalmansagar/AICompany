@@ -231,10 +231,26 @@ namespace Qdb.FormEngine.Core.Generation
                 SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_selection_mode")),
                 MinRows = field.Contains("qdb_grid_min_rows") ? field.GetAttributeValue<int>("qdb_grid_min_rows") : 0,
                 MaxRows = field.Contains("qdb_max_rows") ? field.GetAttributeValue<int>("qdb_max_rows") : 200,
+                PageSize = field.Contains("qdb_grid_page_size") ? field.GetAttributeValue<int>("qdb_grid_page_size") : (int?)null,
+                PagingStyle = field.GetAttributeValue<string>("qdb_grid_paging_style") == "numbered" ? "numbered" : null,
+                ViewMode = NormalizeViewMode(field.GetAttributeValue<string>("qdb_grid_view_mode")),
                 FilterExpression = field.GetAttributeValue<string>("qdb_grid_filter_expression"),
+                DependsOnFieldId = field.GetAttributeValue<string>("qdb_grid_depends_on_field_schema"),
                 DependsOnFilterTemplate = field.GetAttributeValue<string>("qdb_grid_depends_on_filter_template"),
+                DataSource = field.GetAttributeValue<string>("qdb_grid_data_source") == "json" ? "json" : null,
+                JsonData = field.GetAttributeValue<string>("qdb_grid_json_data"),
+                DisplayMode = field.GetAttributeValue<string>("qdb_grid_display_mode") == "infocard" ? "infocard" : null,
+                CardLayout = field.GetAttributeValue<string>("qdb_grid_card_layout") == "row" ? "row" : null,
+                Selectable = field.Contains("qdb_grid_selectable") ? field.GetAttributeValue<bool>("qdb_grid_selectable") : (bool?)null,
+                CardIconName = field.GetAttributeValue<string>("qdb_grid_card_icon"),
                 ColumnConfigs = BuildGridColumns(fieldId)
             };
+        }
+
+        // Only 'table' and 'card' are explicit modes; 'both' (default) is omitted.
+        private static string NormalizeViewMode(string raw)
+        {
+            return raw == "table" || raw == "card" ? raw : null;
         }
 
         private List<GridColumnConfig> BuildGridColumns(Guid fieldId)
