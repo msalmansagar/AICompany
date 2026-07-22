@@ -7,6 +7,9 @@ export interface LookupSearchParams {
   valueAttribute?: string;
   filter?: string;
   max?: number;
+  // DFE-LKPCOL-001 — display columns as a JSON string + the current form language.
+  columns?: string;
+  lang?: string;
 }
 
 // DFE-APILOOKUP-001 — query for the external-API proxy route. The endpointKey resolves

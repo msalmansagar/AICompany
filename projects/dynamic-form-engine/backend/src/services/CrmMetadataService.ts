@@ -12,6 +12,7 @@ import type {
   RuleCondition,
   OptionValue,
   LookupConfig,
+  LookupDisplayColumn,
   SubmissionMapping,
   FormVersion,
   FieldType,
@@ -744,6 +745,8 @@ export class CrmMetadataService extends CrmBaseService {
         apiLabelPath: lc.qdb_lookup_api_label_path,
         apiSearchParamName: lc.qdb_lookup_api_search_param,
         apiSearchMode: this.mapLookupSearchMode(lc.qdb_lookup_api_search_mode),
+        // DFE-LKPCOL-001 — multi-column + Arabic-source display.
+        displayColumns: this.parseDisplayColumns(lc.qdb_display_columns_json),
       });
     }
 
@@ -1018,6 +1021,26 @@ export class CrmMetadataService extends CrmBaseService {
 
   private mapLookupSearchMode(v: string | undefined): 'typeahead' | 'fetchAll' | undefined {
     return v === 'typeahead' || v === 'fetchAll' ? v : undefined;
+  }
+
+  // DFE-LKPCOL-001 — parse the display-columns JSON, keeping only well-formed entries.
+  private parseDisplayColumns(json: string | undefined): LookupDisplayColumn[] | undefined {
+    if (!json) return undefined;
+    try {
+      const parsed = JSON.parse(json) as unknown;
+      if (!Array.isArray(parsed)) return undefined;
+      const columns = parsed
+        .filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === 'object')
+        .filter((c) => typeof c.attribute === 'string' && c.attribute.length > 0)
+        .map((c) => ({
+          attribute: c.attribute as string,
+          arabicAttribute: typeof c.arabicAttribute === 'string' && c.arabicAttribute ? c.arabicAttribute : undefined,
+          header: typeof c.header === 'string' && c.header ? c.header : undefined,
+        }));
+      return columns.length > 0 ? columns : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private mapGridMode(code: number | undefined): 'selection' | 'entry' {
@@ -1370,6 +1393,7 @@ interface RawLookupConfig {
   qdb_lookup_api_label_path?: string;
   qdb_lookup_api_search_param?: string;
   qdb_lookup_api_search_mode?: string;
+  qdb_display_columns_json?: string;
 }
 
 interface RawSubmissionMapping {

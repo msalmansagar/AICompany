@@ -1,5 +1,5 @@
 ﻿import { useCallback, useRef, useState } from 'react';
-import type { LookupResult } from '@qdb/shared';
+import type { LookupResult, LookupDisplayColumn } from '@qdb/shared';
 import { lookupApi } from '../api/lookupApi';
 
 const DEFAULT_DEBOUNCE_MS = 300;
@@ -23,6 +23,9 @@ export interface UseLookupSearchOptions {
   filterExpression?: string;
   debounceMs?: number;
   apiSource?: ApiLookupSource;
+  // DFE-LKPCOL-001 — multi-column + language-aware display (entity lookups only).
+  displayColumns?: LookupDisplayColumn[];
+  lang?: string;
 }
 
 export interface UseLookupSearchResult {
@@ -42,6 +45,8 @@ export function useLookupSearch({
   filterExpression,
   debounceMs = DEFAULT_DEBOUNCE_MS,
   apiSource,
+  displayColumns,
+  lang,
 }: UseLookupSearchOptions): UseLookupSearchResult {
   const [results, setResults] = useState<LookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -76,6 +81,8 @@ export function useLookupSearch({
               valueAttribute,
               max: maxResults,
               filter: filterExpression,
+              columns: displayColumns && displayColumns.length > 0 ? JSON.stringify(displayColumns) : undefined,
+              lang,
             }, abortController.current.signal);
         const envelope = response as unknown as { data: LookupResult[]; meta?: { warning?: string } };
         // FR-026: a proxy degradation (timeout/upstream error) returns empty data +
@@ -92,7 +99,7 @@ export function useLookupSearch({
         setIsSearching(false);
       }
     },
-    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, apiSource],
+    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, apiSource, displayColumns, lang],
   );
 
   const search = useCallback(

@@ -4,7 +4,27 @@ import { z } from 'zod';
 import type { CrmLookupService } from '../services/CrmLookupService.js';
 import type { ApiLookupService } from '../services/ApiLookupService.js';
 import { ForbiddenError } from '../utils/errors.js';
-import type { ApiResponse, LookupResult } from '@qdb/shared';
+import type { ApiResponse, LookupResult, LookupDisplayColumn } from '@qdb/shared';
+
+// DFE-LKPCOL-001 — the frontend passes the display columns as a JSON string; keep only
+// well-formed entries with a source attribute.
+function parseColumns(json: string | undefined): LookupDisplayColumn[] | undefined {
+  if (!json) return undefined;
+  try {
+    const parsed = JSON.parse(json) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    const columns = parsed
+      .filter((c): c is Record<string, unknown> => Boolean(c) && typeof c === 'object' && typeof (c as { attribute?: unknown }).attribute === 'string')
+      .map((c) => ({
+        attribute: c.attribute as string,
+        arabicAttribute: typeof c.arabicAttribute === 'string' ? c.arabicAttribute : undefined,
+        header: typeof c.header === 'string' ? c.header : undefined,
+      }));
+    return columns.length > 0 ? columns : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // search is optional — omit to return initial records, provide to filter
 const querySchema = z.object({
@@ -13,6 +33,9 @@ const querySchema = z.object({
   valueAttribute: z.string().optional(),
   filter: z.string().optional(),
   max: z.coerce.number().min(1).max(50).default(10),
+  // DFE-LKPCOL-001 — JSON array of { attribute, arabicAttribute?, header? } + form language.
+  columns: z.string().optional(),
+  lang: z.string().optional(),
 });
 
 // DFE-APILOOKUP-001: external-API proxy query. endpointKey resolves server-side;
@@ -72,6 +95,8 @@ export function createLookupsRouter(
       searchTerm: query.search,
       filterExpression: query.filter,
       maxResults: query.max,
+      displayColumns: parseColumns(query.columns),
+      lang: query.lang,
     });
 
     const response: ApiResponse<LookupResult[]> = { success: true, data: results };

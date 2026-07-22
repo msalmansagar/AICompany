@@ -22,6 +22,8 @@ import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../componen
 
 export interface FormContextValue {
   formCode: string;
+  // DFE-LKPCOL-001: active form language (BCP-47), so controls can request language-aware data.
+  lang?: string;
   formDefinition: FormDefinition | null;
   isLoading: boolean;
   error: string | null;
@@ -312,6 +314,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const contextValue = useMemo<FormContextValue>(
     () => ({
       formCode,
+      lang,
       formDefinition,
       isLoading,
       error,
@@ -333,7 +336,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       resetForm,
     }),
     [
-      formCode, formDefinition, isLoading, error, fieldValues, ruleState,
+      formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
       validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
       submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],

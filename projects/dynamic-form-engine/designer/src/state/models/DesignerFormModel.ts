@@ -89,6 +89,14 @@ export interface DesignerLookupConfig {
   apiLabelPath?: string | null;
   apiSearchParamName?: string | null;
   apiSearchMode?: 'typeahead' | 'fetchAll' | null;
+  // DFE-LKPCOL-001 — multi-column + per-language display.
+  displayColumns?: DesignerLookupDisplayColumn[] | null;
+}
+
+export interface DesignerLookupDisplayColumn {
+  attribute: string;
+  arabicAttribute?: string | null;
+  header?: string | null;
 }
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';

@@ -14,7 +14,7 @@ import { ArrowLeftRegular, CheckmarkRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import { CrmContext } from '@/app/App';
 import { LookupConfigService } from '@/services/LookupConfigService';
-import type { DesignerLookupConfig } from '@/state/models/DesignerFormModel';
+import type { DesignerLookupConfig, DesignerLookupDisplayColumn } from '@/state/models/DesignerFormModel';
 
 const useStyles = makeStyles({
   root: {
@@ -81,6 +81,7 @@ export function LookupConfigScreen(): React.ReactElement {
     apiLabelPath: field?.lookupConfig?.apiLabelPath ?? null,
     apiSearchParamName: field?.lookupConfig?.apiSearchParamName ?? null,
     apiSearchMode: field?.lookupConfig?.apiSearchMode ?? 'typeahead',
+    displayColumns: field?.lookupConfig?.displayColumns ?? null,
   }));
 
   const [isDirty, setIsDirty] = useState(false);
@@ -111,6 +112,20 @@ export function LookupConfigScreen(): React.ReactElement {
     setIsDirty(true);
   }, []);
 
+  // DFE-LKPCOL-001 — display-columns editor mutations.
+  const addColumn = useCallback(() => {
+    setConfig(prev => ({ ...prev, displayColumns: [...(prev.displayColumns ?? []), { attribute: '', arabicAttribute: null, header: null }] }));
+    setIsDirty(true);
+  }, []);
+  const patchColumn = useCallback((index: number, update: Partial<DesignerLookupDisplayColumn>) => {
+    setConfig(prev => ({ ...prev, displayColumns: (prev.displayColumns ?? []).map((c, i) => (i === index ? { ...c, ...update } : c)) }));
+    setIsDirty(true);
+  }, []);
+  const removeColumn = useCallback((index: number) => {
+    setConfig(prev => ({ ...prev, displayColumns: (prev.displayColumns ?? []).filter((_, i) => i !== index) }));
+    setIsDirty(true);
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (!selectedId) return;
     setSaveError(null);
@@ -132,6 +147,7 @@ export function LookupConfigScreen(): React.ReactElement {
           filterQuery: config.filterQuery,
           searchMinChars: config.searchMinChars,
           maxResults: config.maxResults,
+          displayColumns: config.displayColumns,
           source: config.source,
           apiEndpointKey: config.apiEndpointKey,
           apiValuePath: config.apiValuePath,
@@ -261,6 +277,40 @@ export function LookupConfigScreen(): React.ReactElement {
                   rows={3}
                   style={{ fontFamily: 'monospace', fontSize: '12px' }}
                 />
+              </Field>
+
+              <Field
+                label="Display Columns (optional)"
+                hint="Show multiple columns in the dropdown. Each column has a source attribute, an optional Arabic-source attribute, and a header. Leave empty to use the single Display Field."
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(config.displayColumns ?? []).map((col, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <Input
+                        value={col.attribute}
+                        placeholder="attribute (e.g. name)"
+                        onChange={(_, d) => patchColumn(i, { attribute: d.value })}
+                        style={{ fontFamily: 'monospace', flex: 1 }}
+                      />
+                      <Input
+                        value={col.arabicAttribute ?? ''}
+                        placeholder="arabic attr (optional)"
+                        onChange={(_, d) => patchColumn(i, { arabicAttribute: d.value || null })}
+                        style={{ fontFamily: 'monospace', flex: 1 }}
+                      />
+                      <Input
+                        value={col.header ?? ''}
+                        placeholder="header"
+                        onChange={(_, d) => patchColumn(i, { header: d.value || null })}
+                        style={{ flex: 1 }}
+                      />
+                      <Button size="small" appearance="subtle" onClick={() => removeColumn(i)} aria-label="Remove column">✕</Button>
+                    </div>
+                  ))}
+                  <Button size="small" appearance="secondary" onClick={addColumn} style={{ alignSelf: 'flex-start' }}>
+                    + Add column
+                  </Button>
+                </div>
               </Field>
             </>
           )}

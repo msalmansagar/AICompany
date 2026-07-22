@@ -81,6 +81,39 @@ const useStyles = makeStyles({
       backgroundColor: tokens.colorBrandBackground2Hover,
     },
   },
+  // DFE-LKPCOL-001 — multi-column dropdown (columns share equal width).
+  optionMultiColumn: {
+    display: 'grid',
+    gridAutoColumns: '1fr',
+    gridAutoFlow: 'column',
+    columnGap: tokens.spacingHorizontalM,
+  },
+  columnCell: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  columnHeaderRow: {
+    display: 'grid',
+    gridAutoColumns: '1fr',
+    gridAutoFlow: 'column',
+    columnGap: tokens.spacingHorizontalM,
+    paddingLeft: tokens.spacingHorizontalM,
+    paddingRight: tokens.spacingHorizontalM,
+    paddingBottom: tokens.spacingVerticalXS,
+    borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+    marginBottom: '2px',
+  },
+  columnHeaderCell: {
+    fontSize: tokens.fontSizeBase200,
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground3,
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
   checkmark: {
     marginLeft: tokens.spacingHorizontalS,
     color: tokens.colorBrandForeground1,
@@ -124,7 +157,7 @@ export function LookupControl({
 }: ControlProps) {
   const styles = useStyles();
   const containerRef = useRef<HTMLDivElement>(null);
-  const { fieldValues, updateFieldValue, formCode } = useFormContext();
+  const { fieldValues, updateFieldValue, formCode, lang } = useFormContext();
   const [inputText, setInputText] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<DropdownPos>({ top: 0, left: 0, width: 0 });
@@ -163,6 +196,10 @@ export function LookupControl({
     formCode,
   ]);
 
+  // DFE-LKPCOL-001 — multi-column + language-aware display (entity source only).
+  const displayColumns = lookupConfig?.source === 'api' ? undefined : lookupConfig?.displayColumns;
+  const isMultiColumn = Boolean(displayColumns && displayColumns.length > 0);
+
   const { results, isSearching, searchError, search, loadInitial, clearResults } = useLookupSearch({
     entityName: lookupConfig?.entityLogicalName ?? '',
     displayAttribute: lookupConfig?.displayAttribute ?? 'name',
@@ -170,6 +207,8 @@ export function LookupControl({
     maxResults: lookupConfig?.maxResults ?? 10,
     filterExpression: effectiveFilter,
     apiSource,
+    displayColumns,
+    lang,
   });
 
   const rawValue = fieldValues[field.schemaName] as LookupValue | null | undefined;
@@ -313,6 +352,16 @@ export function LookupControl({
             <div className={styles.statusRow}>No results found</div>
           )}
 
+          {!isSearching && isMultiColumn && displayColumns && results.length > 0 && (
+            <div className={styles.columnHeaderRow} role="presentation">
+              {displayColumns.map((col) => (
+                <span key={col.attribute} className={styles.columnHeaderCell}>
+                  {col.header ?? col.attribute}
+                </span>
+              ))}
+            </div>
+          )}
+
           {!isSearching &&
             results.map((result) => {
               const isSelected = result.id === rawValue?.id;
@@ -323,12 +372,21 @@ export function LookupControl({
                   aria-selected={isSelected}
                   className={mergeClasses(
                     styles.option,
+                    isMultiColumn && styles.optionMultiColumn,
                     isSelected && styles.optionSelected,
                   )}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSelect(result)}
                 >
-                  {result.displayName}
+                  {isMultiColumn && displayColumns ? (
+                    displayColumns.map((col) => (
+                      <span key={col.attribute} className={styles.columnCell}>
+                        {String(result.additionalAttributes?.[col.attribute] ?? '')}
+                      </span>
+                    ))
+                  ) : (
+                    result.displayName
+                  )}
                   {isSelected && <span className={styles.checkmark}>âœ“</span>}
                 </button>
               );

@@ -319,6 +319,7 @@ export const FORM_LOOKUP_CONFIG_ATTRS = {
   API_LABEL_PATH: 'qdb_lookup_api_label_path',
   API_SEARCH_PARAM: 'qdb_lookup_api_search_param',
   API_SEARCH_MODE: 'qdb_lookup_api_search_mode',
+  DISPLAY_COLUMNS_JSON: 'qdb_display_columns_json',  // DFE-LKPCOL-001
 } as const;
 
 export const FORM_SUBMISSION_MAPPING_ATTRS = {

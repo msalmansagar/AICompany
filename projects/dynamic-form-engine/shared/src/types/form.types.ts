@@ -301,6 +301,16 @@ export interface LookupConfig {
   apiLabelPath?: string;           // dot-path to the label in each API response item (e.g. 'name')
   apiSearchParamName?: string;     // query param carrying the typed term (typeahead mode)
   apiSearchMode?: 'typeahead' | 'fetchAll'; // absent => 'typeahead'
+  // DFE-LKPCOL-001: multiple display columns (rendered as a table with headers) + per-column
+  // Arabic source. Absent => the single displayAttribute above. The first column is the value
+  // stored as the selection's displayName.
+  displayColumns?: LookupDisplayColumn[];
+}
+
+export interface LookupDisplayColumn {
+  attribute: string;         // source attribute (English / default)
+  arabicAttribute?: string;  // source attribute used when the form language is Arabic
+  header?: string;           // column header shown in the dropdown
 }
 
 // ── Validation rule ───────────────────────────────────────────
