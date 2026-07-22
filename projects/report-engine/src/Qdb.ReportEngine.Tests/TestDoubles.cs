@@ -107,3 +107,14 @@ internal sealed class FakeDashboardLoader(Result<DashboardDefinition> load) : ID
     public Task<Result<IReadOnlyList<DashboardSummary>>> ListAsync(ReportExecutionContext context, CancellationToken cancellationToken)
         => Task.FromResult(Result<IReadOnlyList<DashboardSummary>>.Success([]));
 }
+
+/// <summary>A report loader stub returning a preset definition (or a failure) — lets the writer's
+/// update and delete paths be tested without a live CRM.</summary>
+internal sealed class FakeReportDefinitionLoader(Result<ReportDefinition> load) : IReportDefinitionLoader
+{
+    public Task<Result<ReportDefinition>> LoadAsync(Guid reportId, ReportExecutionContext context, CancellationToken cancellationToken)
+        => Task.FromResult(load);
+
+    public Task<Result<IReadOnlyList<ReportSummary>>> ListAsync(ReportExecutionContext context, CancellationToken cancellationToken)
+        => Task.FromResult(Result<IReadOnlyList<ReportSummary>>.Success([]));
+}

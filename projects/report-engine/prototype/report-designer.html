@@ -1473,17 +1473,92 @@ function reportToDefinition(report) {
     layout: report.layout ? { id: newGuid(), themeColor: report.layout.themeColor || "#0078d4", layoutJson: JSON.stringify(report.layout) } : null
   };
 }
+// A report loaded from Dataverse (has savedId) updates in place (PUT); a new one is created (POST).
 async function saveReportToServer(report) {
+  const isUpdate = !!report.savedId;
+  const path = isUpdate ? "/api/reports/" + report.savedId : "/api/reports";
   try {
-    const response = await apiFetch("/api/reports", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reportToDefinition(report))
+    const response = await apiFetch(path, {
+      method: isUpdate ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reportToDefinition(report))
     });
     const body = await response.json().catch(() => null);
     if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
-    report.savedId = body.id;
-    toast("Report saved to Dataverse", "ok");
+    report.savedId = (body && body.id) || report.savedId;
+    toast(isUpdate ? "Report updated in Dataverse" : "Report saved to Dataverse", "ok");
+    refreshSavedReports();
   } catch (error) {
     toast("Save failed — " + error.message, "err");
+  }
+}
+
+// Reverse of reportToDefinition. Starts from a full default report (so every array the designer
+// touches exists) and overwrites what was persisted, so a saved report reopens ready to edit.
+const RPT_AGG_LABELS = { 100000001:"Sum", 100000002:"Count", 100000003:"Average", 100000004:"Min", 100000005:"Max" };
+function aggLabel(aggregate) { return aggregate && aggregate.code != null ? (RPT_AGG_LABELS[aggregate.code] || "None") : "None"; }
+function definitionToReport(def) {
+  const report = newDefinition(null);
+  report.id = def.id;
+  report.savedId = def.id;
+  report.name = def.name || "Untitled report";
+  report.description = def.description || "";
+  report.mainEntity = def.mainEntityLogicalName || report.mainEntity;
+  report.governed = !!def.isGoverned;
+  report.rowLimit = def.rowLimit || report.rowLimit;
+  report.timeout = def.timeoutMs ? Math.round(def.timeoutMs / 1000) : report.timeout;
+  report.status = "Draft"; report.owner = "Saved";
+
+  const columns = [];
+  (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
+    columns.push({ name: c.outputAlias || c.columnLogicalName, entity: m.entityLogicalName || def.mainEntityLogicalName,
+      attribute: c.columnLogicalName, type: "Text", format: "", width: 120, align: "Left", agg: aggLabel(c.aggregateFunction), masked: false, visible: c.isVisible !== false });
+  })));
+  if (columns.length) report.columns = columns;
+  report.filters = (def.filters || []).map(f => ({ attribute: f.fieldAlias, operator: (f.operator && f.operator.label) || "Equals",
+    value: f.value || "", param: f.isRuntimePrompt ? "param" : "", token: "(none)", group: f.groupId ? (Number(f.groupId) || 0) : 0, andor: "And" }));
+  report.parameters = (def.parameters || []).map(p => ({ name: p.parameterName, prompt: p.label || p.parameterName, type: "Text",
+    required: !!p.isRequired, def: p.defaultValue || "", token: "(none)", lookup: p.lookupTargetEntity || "" }));
+  report.formulas = (def.formulas || []).map(f => ({ name: f.formulaAlias, expression: f.expression || "", type: "Number", target: f.formulaAlias }));
+  report.dataSources = (def.dataSources || []).map(ds => ({ name: ds.name || "Primary source", type: "FetchXML", connector: "", query: "", primary: !!ds.isPrimary, joinL: "", joinR: "" }));
+  if (def.dataSources && def.dataSources.length === 0) report.dataSources = newDefinition(null).dataSources;
+  if (def.layout && def.layout.layoutJson) { try { report.layout = JSON.parse(def.layout.layoutJson); } catch (e) { /* keep default layout */ } }
+  return report;
+}
+
+// Persisted-report catalog (GET /api/reports). null = not yet fetched this session.
+let SAVED_REPORTS = null;
+async function refreshSavedReports() {
+  try {
+    const response = await apiFetch("/api/reports");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    SAVED_REPORTS = await response.json();
+  } catch (error) {
+    SAVED_REPORTS = [];
+  }
+  if (state.view === "reports" || state.view === "myreports") render();
+}
+async function openSavedReport(id) {
+  try {
+    const response = await apiFetch("/api/reports/" + id);
+    const body = await response.json().catch(() => null);
+    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
+    state.report = definitionToReport(body);
+    state.selectedReportId = state.report.id;
+    state.view = "designer"; state.tab = "general"; render();
+  } catch (error) {
+    toast("Couldn't open saved report — " + error.message, "err");
+  }
+}
+async function deleteSavedReport(id) {
+  try {
+    const response = await apiFetch("/api/reports/" + id, { method: "DELETE" });
+    if (!response.ok && response.status !== 204) {
+      const body = await response.json().catch(() => null);
+      throw new Error((body && body.message) || ("HTTP " + response.status));
+    }
+    toast("Report deleted from Dataverse", "ok");
+    await refreshSavedReports();
+  } catch (error) {
+    toast("Delete failed — " + error.message, "err");
   }
 }
 
@@ -1598,7 +1673,15 @@ function render() {
 /* ============================ REPORTS LIST ============================ */
 function renderReports(c) {
   const mine = state.view === "myreports";
-  const list = mine ? REPORTS.filter(r => r.owner === "Salman Sagar") : REPORTS;
+  // Saved (Dataverse) reports first with a badge, then the local samples. Only the "All Reports" view
+  // shows saved reports; "My Reports" stays the local sample subset.
+  const saved = (mine ? [] : (SAVED_REPORTS || [])).map(s => ({
+    id: s.id, name: s.name, category: (s.category && s.category.label) || "—", module: "—",
+    owner: "Saved", status: "Draft", version: "—", modified: "Dataverse", governed: false, _saved: true
+  }));
+  const locals = (mine ? REPORTS.filter(r => r.owner === "Salman Sagar") : REPORTS).map(r => ({ ...r, _saved: false }));
+  const list = saved.concat(locals);
+  if (!mine && SAVED_REPORTS === null) refreshSavedReports();
   const cmd = el(`<div class="cmdbar">
     <button class="cmd primary" id="btnNew">${ic("add")}New report</button>
     <button class="cmd" id="btnNewDash">${ic("chart")}New dashboard</button>
@@ -1613,7 +1696,7 @@ function renderReports(c) {
     <button class="cmd" id="btnExportView">${ic("excel")}Export to Excel</button>
   </div>`);
   const scroll = el(`<div class="scroll"><div class="page">
-    <div class="page-head"><div><h1>${mine?"My Reports":"All Reports"}</h1><div class="page-sub">${list.length} report definitions · metadata-driven · run on Dynamics 365 on-prem 9.x and Dataverse cloud</div></div></div>
+    <div class="page-head"><div><h1>${mine?"My Reports":"All Reports"}</h1><div class="page-sub">${list.length} report definitions${mine?"":(SAVED_REPORTS===null?" · loading saved…":` · ${saved.length} saved in Dataverse`)} · metadata-driven · run on Dynamics 365 on-prem 9.x and Dataverse cloud</div></div></div>
     <div class="grid-wrap"><table class="grid" role="grid">
       <thead><tr>
         <th class="row-check"><input type="checkbox" disabled></th>
@@ -1625,9 +1708,14 @@ function renderReports(c) {
   </div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
 
+  let selSaved = false;
+  const openRow = (id, isSaved) => isSaved ? openSavedReport(id) : openDesigner(id);
   const refreshButtons = () => {
     const has = !!state.selectedReportId;
-    ["btnEdit","btnClone","btnRun","btnPublish","btnDelete"].forEach(id => $("#"+id).disabled = !has);
+    $("#btnEdit").disabled = !has;
+    $("#btnDelete").disabled = !has;
+    // Clone/Run/Publish act on local sample state only.
+    ["btnClone","btnRun","btnPublish"].forEach(id => $("#"+id).disabled = !has || selSaved);
   };
   scroll.querySelectorAll("tbody tr").forEach(tr => {
     tr.addEventListener("click", (e) => {
@@ -1635,13 +1723,13 @@ function renderReports(c) {
       scroll.querySelectorAll("tbody tr").forEach(x => x.classList.remove("selected"));
       tr.classList.add("selected");
       const cb = tr.querySelector("input"); cb.checked = true;
-      state.selectedReportId = tr.dataset.id; refreshButtons();
+      state.selectedReportId = tr.dataset.id; selSaved = tr.dataset.saved === "1"; refreshButtons();
     });
-    tr.querySelector(".link-cell").addEventListener("click", () => openDesigner(tr.dataset.id));
+    tr.querySelector(".link-cell").addEventListener("click", () => openRow(tr.dataset.id, tr.dataset.saved === "1"));
   });
   $("#btnNew").onclick = () => openNewChooser();
   $("#btnNewDash").onclick = () => { state.view = "dashboards"; render(); setTimeout(openNewDashboardChooser, 30); };
-  $("#btnEdit").onclick = () => state.selectedReportId && openDesigner(state.selectedReportId);
+  $("#btnEdit").onclick = () => state.selectedReportId && openRow(state.selectedReportId, selSaved);
   $("#btnRun").onclick = () => { const r = REPORTS.find(x=>x.id===state.selectedReportId); openDesigner(state.selectedReportId); setTimeout(()=>{ state.tab="preview"; render(); openRunDialog(); }, 40); };
   $("#btnClone").onclick = () => {
     const r = REPORTS.find(x=>x.id===state.selectedReportId); if(!r) return;
@@ -1653,6 +1741,8 @@ function renderReports(c) {
     r.status = "Published"; r.version++; r.modified="2026-07-15"; render(); toast(`“${r.name}” published as v${r.version}`);
   };
   $("#btnDelete").onclick = () => {
+    if (!state.selectedReportId) return;
+    if (selSaved) { deleteSavedReport(state.selectedReportId); state.selectedReportId=null; return; }
     const r = REPORTS.find(x=>x.id===state.selectedReportId); if(!r) return;
     REPORTS = REPORTS.filter(x=>x.id!==r.id); state.selectedReportId=null; render(); toast("Report deleted", "warn");
   };
@@ -1660,11 +1750,12 @@ function renderReports(c) {
   $("#btnExportView").onclick = () => exportViewCsv(list);
 }
 function rowHtml(r) {
-  return `<tr data-id="${r.id}">
+  const badge = r._saved ? `<span class="pill" style="margin-left:8px;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--primary-bg,rgba(0,120,212,.12));color:var(--primary)">Saved</span>` : "";
+  return `<tr data-id="${r.id}" data-saved="${r._saved?"1":"0"}">
     <td class="row-check"><input type="checkbox"></td>
-    <td><span class="link-cell">${esc(r.name)}</span></td>
+    <td><span class="link-cell">${esc(r.name)}</span>${badge}</td>
     <td>${esc(r.category)}</td><td>${esc(r.module)}</td><td>${esc(r.owner)}</td>
-    <td><span class="pill ${r.status.toLowerCase()}">${r.status}</span></td>
+    <td><span class="pill ${String(r.status).toLowerCase()}">${r.status}</span></td>
     <td class="num">${r.version}</td><td>${esc(r.modified)}</td>
     <td>${r.governed?ic("check"):"—"}</td>
   </tr>`;

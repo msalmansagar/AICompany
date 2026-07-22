@@ -13,4 +13,13 @@ public interface IReportDefinitionWriter
 {
     /// <summary>Creates a new report from <paramref name="definition"/> and returns its new id.</summary>
     Task<Result<Guid>> CreateAsync(ReportDefinition definition, ReportExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Updates report <paramref name="reportId"/> in place from <paramref name="definition"/>,
+    /// replacing all of its children. Returns the id on success.
+    /// </summary>
+    Task<Result<Guid>> UpdateAsync(Guid reportId, ReportDefinition definition, ReportExecutionContext context, CancellationToken cancellationToken);
+
+    /// <summary>Deletes report <paramref name="reportId"/> and all of its children.</summary>
+    Task<Result<Guid>> DeleteAsync(Guid reportId, ReportExecutionContext context, CancellationToken cancellationToken);
 }

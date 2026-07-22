@@ -45,6 +45,30 @@ public sealed class ReportsController(
             : Problem(result.Error!);
     }
 
+    /// <summary>
+    /// Updates report <paramref name="reportId"/> in place, replacing its children from the request
+    /// body — so a report loaded into the designer can be edited and re-saved without duplicating.
+    /// </summary>
+    [HttpPut("{reportId:guid}")]
+    public async Task<ActionResult<object>> Update(Guid reportId, [FromBody] ReportDefinition definition, CancellationToken cancellationToken)
+    {
+        if (definition is null || string.IsNullOrWhiteSpace(definition.Name))
+        {
+            return BadRequest(new { code = "invalid_request", message = "A report name is required." });
+        }
+
+        var result = await writer.UpdateAsync(reportId, definition, BuildContext(), cancellationToken);
+        return result.IsSuccess ? Ok(new { id = result.Value }) : Problem(result.Error!);
+    }
+
+    /// <summary>Deletes report <paramref name="reportId"/> and all of its children.</summary>
+    [HttpDelete("{reportId:guid}")]
+    public async Task<ActionResult> Delete(Guid reportId, CancellationToken cancellationToken)
+    {
+        var result = await writer.DeleteAsync(reportId, BuildContext(), cancellationToken);
+        return result.IsSuccess ? NoContent() : Problem(result.Error!);
+    }
+
     /// <summary>Loads the report definition and its children by id.</summary>
     [HttpGet("{reportId:guid}")]
     public async Task<ActionResult<ReportDefinition>> Get(Guid reportId, CancellationToken cancellationToken)
