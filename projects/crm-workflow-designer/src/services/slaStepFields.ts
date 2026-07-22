@@ -1,4 +1,4 @@
-import type { WorkflowStep } from '@/types/WorkflowTypes';
+import type { WorkflowStep, SlaDurationUnit, EscalationAction } from '@/types/WorkflowTypes';
 import {
   SLA_DURATION_UNIT_CODES,
   SLA_DURATION_UNIT_FROM_CODE,
@@ -120,6 +120,30 @@ export function activeEscalationLookup(
     return { attribute: 'qdb_escalation_role', id: data.escalationRoleId };
   }
   return null;
+}
+
+const SLA_UNIT_LABELS: Record<SlaDurationUnit, string> = {
+  Hours: 'Hours',
+  CalendarDays: 'Calendar Days',
+  BusinessDays: 'Business Days',
+};
+
+const ESCALATION_ACTION_LABELS: Record<EscalationAction, string> = {
+  Reassign: 'Reassign',
+  Notify: 'Notify',
+  Flag: 'Flag',
+  ReassignAndNotify: 'Reassign & Notify',
+};
+
+/** A short "SLA: 2 Business Days | Notify" summary for badges, or null when SLA is off. */
+export function slaSummaryText(
+  step: Pick<WorkflowStep, 'slaEnabled' | 'slaDuration' | 'slaDurationUnit' | 'escalationEnabled' | 'escalationAction'>
+): string | null {
+  if (!step.slaEnabled) return null;
+  const unit = step.slaDurationUnit ? SLA_UNIT_LABELS[step.slaDurationUnit] : '';
+  const sla = `SLA: ${step.slaDuration ?? '?'} ${unit}`.trim();
+  if (!step.escalationEnabled || !step.escalationAction) return sla;
+  return `${sla} | ${ESCALATION_ACTION_LABELS[step.escalationAction]}`;
 }
 
 /** The SLA/escalation columns to request in a getSteps `$select`. */

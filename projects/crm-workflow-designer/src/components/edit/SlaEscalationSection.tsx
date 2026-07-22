@@ -10,6 +10,7 @@ import type {
 } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { validateSlaConfig } from '@/validators/slaValidator';
+import { slaSummaryText } from '@/services/slaStepFields';
 
 interface SlaEscalationSectionProps {
   step: WorkflowStep;
@@ -78,7 +79,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
       <button type="button" style={headerStyle} onClick={() => setExpanded((v) => !v)}>
         <span style={caretStyle}>{expanded ? '▾' : '▸'}</span>
         <span>SLA &amp; Escalation</span>
-        {!expanded && step.slaEnabled && <span style={summaryBadgeStyle}>{summaryText(step)}</span>}
+        {!expanded && step.slaEnabled && <span style={summaryBadgeStyle}>{slaSummaryText(step)}</span>}
       </button>
 
       {expanded && (
@@ -211,14 +212,6 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
       )}
     </div>
   );
-}
-
-function summaryText(step: WorkflowStep): string {
-  const unit = UNIT_OPTIONS.find((u) => u.value === step.slaDurationUnit)?.label ?? '';
-  const sla = `SLA: ${step.slaDuration ?? '?'} ${unit}`.trim();
-  if (!step.escalationEnabled || !step.escalationAction) return sla;
-  const action = ACTION_OPTIONS.find((a) => a.value === step.escalationAction)?.label ?? '';
-  return `${sla} | ${action}`;
 }
 
 // --- small building blocks ---

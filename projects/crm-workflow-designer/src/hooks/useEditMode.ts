@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptySlaFields, slaSummaryText } from '@/services/slaStepFields';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import { computeEditLayout } from '@/services/EditGraphLayout';
@@ -103,6 +103,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         assigneeName: resolveAssigneeName(step),
         isSelected: selectedId === `step_${stepId}`,
         hasError: errorStepIds.has(step.crmId),
+        slaSummary: slaSummaryText(step),
       };
 
       return {
