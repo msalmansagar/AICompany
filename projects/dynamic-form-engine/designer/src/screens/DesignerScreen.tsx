@@ -384,6 +384,7 @@ export function DesignerScreen(): React.ReactElement {
           currencyCode: null,
           decimalPlaces: null,
           maxRows: null,
+          maxFiles: null,
           gridPageSize: null,
           gridPagingStyle: null,
           sortOrder: existingFieldIds.length,

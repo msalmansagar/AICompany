@@ -82,6 +82,7 @@ export class FormCloneService {
             currencyCode: field.currencyCode,
             decimalPlaces: field.decimalPlaces,
             maxRows: field.maxRows,
+            maxFiles: field.maxFiles,
             gridPageSize: field.gridPageSize,
             gridPagingStyle: field.gridPagingStyle,
           });

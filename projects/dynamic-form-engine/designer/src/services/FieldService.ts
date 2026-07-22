@@ -52,6 +52,7 @@ export interface CreateFieldDto {
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
+  maxFiles?: number | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -117,6 +118,7 @@ export interface UpdateFieldDto {
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
+  maxFiles?: number | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -192,6 +194,7 @@ export class FieldService {
     if (dto.barMaxFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.maxFiles != null) payload[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
     if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
     if (dto.boolRenderStyle != null) payload[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle];
     if (dto.trueLabel != null) payload[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel;
@@ -259,6 +262,7 @@ export class FieldService {
     if (dto.barMaxFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
     if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.maxFiles !== undefined) data[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
     if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
     if (dto.boolRenderStyle !== undefined) data[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = dto.boolRenderStyle != null ? BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle] : null;
     if (dto.trueLabel !== undefined) data[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel ?? null;
@@ -334,6 +338,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA,
       FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA,
       FORM_FIELD_ATTRS.MAX_ROWS,
+      FORM_FIELD_ATTRS.MAX_FILES,
       FORM_FIELD_ATTRS.COMPONENT_KEY,
     ];
 
@@ -444,6 +449,9 @@ export class FieldService {
       barValueFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] as string) ?? null,
       maxRows: record[FORM_FIELD_ATTRS.MAX_ROWS] != null
         ? Number(record[FORM_FIELD_ATTRS.MAX_ROWS])
+        : null,
+      maxFiles: record[FORM_FIELD_ATTRS.MAX_FILES] != null
+        ? Number(record[FORM_FIELD_ATTRS.MAX_FILES])
         : null,
       sortOrder: Number(record[FORM_FIELD_ATTRS.SORT_ORDER] ?? 0),
       columnSpan,

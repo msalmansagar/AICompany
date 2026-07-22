@@ -140,6 +140,7 @@ export interface DesignerFieldModel {
   barMaxFieldSchemaName?: string | null;
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;
+  maxFiles?: number | null;        // file fields: max documents a user may upload (default 1)
   sortOrder: number;
   columnSpan: 1 | 2 | 3;
   /** Present for dropdown, multi_select, radio field types */
