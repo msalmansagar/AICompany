@@ -5,6 +5,7 @@ import {
   Divider,
   Field,
   Input,
+  Select,
   Switch,
   Text,
   Textarea,
@@ -286,26 +287,15 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
               </Field>
 
               <Field label="Paging Style" hint="Previous/Next buttons, or numbered page buttons">
-                <div className={styles.modeRow}>
-                  <Button
-                    className={styles.modeButton}
-                    appearance={pagingStyle === 'prevnext' ? 'primary' : 'outline'}
-                    size="small"
-                    onClick={() => updateField(field.id, { gridPagingStyle: 'prevnext' })}
-                    aria-pressed={pagingStyle === 'prevnext'}
-                  >
-                    Prev / Next
-                  </Button>
-                  <Button
-                    className={styles.modeButton}
-                    appearance={pagingStyle === 'numbered' ? 'primary' : 'outline'}
-                    size="small"
-                    onClick={() => updateField(field.id, { gridPagingStyle: 'numbered' })}
-                    aria-pressed={pagingStyle === 'numbered'}
-                  >
-                    Numbered
-                  </Button>
-                </div>
+                <Select
+                  value={pagingStyle}
+                  onChange={(_, d) =>
+                    updateField(field.id, { gridPagingStyle: d.value as 'prevnext' | 'numbered' })
+                  }
+                >
+                  <option value="prevnext">Prev / Next</option>
+                  <option value="numbered">Numbered</option>
+                </Select>
               </Field>
 
               <Divider />
