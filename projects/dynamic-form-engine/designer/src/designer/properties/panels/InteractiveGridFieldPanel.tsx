@@ -316,12 +316,12 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
               <Text className={styles.sectionLabel}>Dynamic Filtering (optional)</Text>
 
               <Field
-                label="Depends On Field"
-                hint="Field code of the controlling field"
+                label="Depends On Field(s)"
+                hint="One or more controlling form-field schema names, comma-separated. Each supplies a {schemaName} value to the template below."
               >
                 <Input
                   value={field.gridDependsOnFieldId ?? ''}
-                  placeholder="e.g. cs_filter_status"
+                  placeholder="e.g. cs_service, cs_region, statuscode"
                   onChange={(_, d) => updateField(field.id, { gridDependsOnFieldId: d.value || null })}
                   style={{ fontFamily: 'monospace' }}
                 />
@@ -329,11 +329,11 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
 
               <Field
                 label="Filter Template"
-                hint="FetchXML template — use {value} for the controlling field value"
+                hint="Boolean filter over the grid entity: conditions joined by and/or with parentheses; values via {fieldSchemaName}. Quote text/GUID values, leave numbers unquoted. Empty fields drop their condition."
               >
                 <Input
                   value={field.gridDependsOnFilterTemplate ?? ''}
-                  placeholder="e.g. <condition attribute='statuscode' value='{value}' />"
+                  placeholder="e.g. cs_service eq '{cs_service}' and ( cs_region eq '{cs_region}' or statuscode eq {statuscode} )"
                   onChange={(_, d) => updateField(field.id, { gridDependsOnFilterTemplate: d.value || null })}
                   style={{ fontFamily: 'monospace', fontSize: '12px' }}
                 />

@@ -463,12 +463,24 @@ export function SelectionGridField({
   // Pager UI: 'numbered' page buttons vs default Previous/Next.
   const pagingStyle = gridConfig?.pagingStyle ?? 'prevnext';
 
-  // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
-  const dependsOnFieldId = gridConfig?.dependsOnFieldId;
-  const dependsOnRaw = dependsOnFieldId ? fieldValues[dependsOnFieldId] : undefined;
-  const dependsOnValue = dependsOnRaw !== undefined && dependsOnRaw !== null
-    ? String(dependsOnRaw)
-    : undefined;
+  // Depends-on filtering: dependsOnFieldId is a comma-separated list of form-field
+  // schema names. Each supplies a {schemaName} placeholder value to the filter template;
+  // 'dependsOnValue' aliases the first field for single-field (legacy) templates.
+  const dependsOnSchemas = useMemo(
+    () => (gridConfig?.dependsOnFieldId ?? '').split(',').map((schema) => schema.trim()).filter(Boolean),
+    [gridConfig?.dependsOnFieldId],
+  );
+  const dependsOnValues = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const schema of dependsOnSchemas) {
+      const raw = fieldValues[schema];
+      map[schema] = raw !== undefined && raw !== null ? String(raw) : '';
+    }
+    if (dependsOnSchemas.length > 0) {
+      map.dependsOnValue = map[dependsOnSchemas[0]] ?? '';
+    }
+    return map;
+  }, [dependsOnSchemas, fieldValues]);
 
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
@@ -526,7 +538,7 @@ export function SelectionGridField({
   const gridData = useSelectionGridData(
     field.id,
     gridConfig?.pageSize ?? 50,
-    dependsOnValue,
+    dependsOnValues,
     undefined,
     sortState.column ?? undefined,
     sortState.column ? sortState.direction : undefined,

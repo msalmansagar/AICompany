@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import { CrmBaseService } from './CrmBaseService.js';
+import { buildDependsOnFilter } from './gridFilterExpression.js';
 import { logger } from '../utils/logger.js';
 import { CrmApiError, NotFoundError, ValidationError } from '../utils/errors.js';
 import type { CrmAuthService } from './CrmAuthService.js';
@@ -83,7 +84,7 @@ interface BuildFetchXmlParams {
   pageSize: number;
   filterExpression: string | undefined;
   dependsOnFilterTemplate: string | undefined;
-  dependsOnValue: string | undefined;
+  dependsOnValues: Record<string, string> | undefined;
   searchText: string | undefined;
   searchAttributes: string[];
   sortBy: string | undefined;
@@ -116,7 +117,9 @@ export class CrmGridDataService extends CrmBaseService {
     page: number,
     pageSize: number,
     correlationId: string,
-    dependsOnValue?: string,
+    // Map of {placeholder name → value} resolving the depends-on filter template.
+    // Single-field forms send { dependsOnValue }; multi-field forms send one entry per field schema.
+    dependsOnValues?: Record<string, string>,
     // Retained for positional-signature stability. Cursor cookies are no longer used —
     // the grid pages by page-number (see buildFetchXml). Callers may still pass a value; it is ignored.
     _pagingCookie?: string,
@@ -145,7 +148,7 @@ export class CrmGridDataService extends CrmBaseService {
       pageSize,
       filterExpression: fieldConfig.filterExpression,
       dependsOnFilterTemplate: fieldConfig.dependsOnFilterTemplate,
-      dependsOnValue,
+      dependsOnValues,
       searchText,
       searchAttributes,
       sortBy: validatedSortBy,
@@ -318,7 +321,7 @@ export class CrmGridDataService extends CrmBaseService {
 function buildFetchXml(params: BuildFetchXmlParams): string {
   const {
     baseXml, page, pageSize,
-    filterExpression, dependsOnFilterTemplate, dependsOnValue,
+    filterExpression, dependsOnFilterTemplate, dependsOnValues,
     searchText, searchAttributes, sortBy, sortDirection,
     columnFilters, columnConfigs,
   } = params;
@@ -370,13 +373,12 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     if (cond) conditions.push(cond);
   }
 
-  if (dependsOnFilterTemplate && dependsOnValue !== undefined && dependsOnValue !== '') {
-    const resolved = dependsOnFilterTemplate.replace(
-      '{dependsOnValue}',
-      sanitizeFilterValue(dependsOnValue),
-    );
-    const cond = parseFilterCondition(resolved);
-    if (cond) conditions.push(cond);
+  // Depends-on filter: a maker-authored boolean template (and/or/grouping) whose
+  // {placeholder} tokens resolve from the form-field values. Compiles to a FetchXML
+  // subtree; empty/missing field values prune their conditions (partial filtering).
+  if (dependsOnFilterTemplate) {
+    const dependsOnFilter = buildDependsOnFilter(dependsOnFilterTemplate, dependsOnValues ?? {});
+    if (dependsOnFilter) conditions.push(dependsOnFilter);
   }
 
   if (searchText && searchText.trim() && searchAttributes.length > 0) {
@@ -526,10 +528,6 @@ function escapeXmlAttribute(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-function sanitizeFilterValue(value: string): string {
-  return value.slice(0, 200).replace(/'/g, "''");
 }
 
 const ODATA_ANNOTATION_SUFFIX = '@OData.Community.Display.V1.FormattedValue';
