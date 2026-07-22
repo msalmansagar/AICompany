@@ -61,3 +61,19 @@ Both reviews independently reached the same conclusion and overlap heavily on th
 3. **B1** — needs the auth-scheme confirmation (AAD JWT bearer proposed): add auth middleware + `[Authorize]`, derive caller from a validated token claim, reject unauthenticated with 401.
 4. **B6, P7** — need QDB: named Azure region (AUTH-C-2) + written PDPPL sign-off (AUTH-C-6); then implement OBO + residency validation.
 5. **P1, P2, P6, remaining hardening/clean-code.**
+
+## Remediation status (2026-07-22, commit a02150d7)
+
+**Fixed + verified (batches 1+2):**
+- **B5** ✅ CORS fails startup outside Development when `Cors:Origins` is unset (no wildcard fallback).
+- **B3** ✅ Dashboard execute/stream load the stored definition by route id (as the user); client body no longer executed. *(Live-verified: 5 widgets, no body.)*
+- **B4** ✅ Execution audit-log writer (`IReportExecutionLogger`) writes `qdb_reportexecutionlog` with the service identity (append-only, user-uncsuppressible), capturing acting user/duration/rowcount/outcome; wired into `ReportExecutor`. *(Live-verified: a row is written on execute.)* Follow-up: dashboard-execution logging + a dedicated "run-by" field.
+- **B2** ✅ Real `CrmSecurityEnforcer` — impersonated top-1 read-access probe (403→no-access, cached per role set); `IsUserOwnedEntityAsync` conservative to prevent cross-user cache bleed. Follow-up: real `OwnershipType` metadata.
+- **P3** ✅ NCalc length + nesting-depth guard. **P4** ✅ malformed transform config logs a warning. **Hardening** ✅ CSV CRLF; Dataverse error body not logged verbatim; viewer object-URL revoke + `parseDur` day fix.
+
+**Still open:**
+- **B1** (auth middleware + token-claim identity) — needs the auth-scheme confirmation (AAD JWT bearer proposed).
+- **B6** (PDPPL residency + AUTH-C-2 region + AUTH-C-6 sign-off) — needs QDB.
+- Pre-prod: P1 (coalescer CT), P2 (distributed cache), P5 (filter GroupId nesting), P6 (HTTPS/HSTS), P7 (OBO), P8/P9 (impersonation-privilege guard + SP role doc). Remaining hardening + clean-code refactors.
+
+Build clean; 82 tests green.
