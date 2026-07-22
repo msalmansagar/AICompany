@@ -4077,6 +4077,19 @@ document.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape") toggleThemeMenu(false); });
 
+// When hosted as a CRM web resource, take the identity + middle-tier URL from Xrm / the URL,
+// so dashboard persistence runs as the signed-in user against the deployer-configured API.
+function initCrmContext() {
+  try {
+    const apiParam = new URLSearchParams(location.search).get("api");
+    if (apiParam) state.apiBase = apiParam;
+    const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+    if (!xrm || !xrm.Utility) return;
+    state.callerId = String(xrm.Utility.getGlobalContext().userSettings.userId || "").replace(/[{}]/g, "");
+  } catch (e) { /* standalone prototype — fall back to localStorage/localhost */ }
+}
+initCrmContext();
+
 applyTheme(readStoredTheme() ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 
