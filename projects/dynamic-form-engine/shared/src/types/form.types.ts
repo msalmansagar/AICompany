@@ -593,6 +593,7 @@ export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
 // Info-card arrangement: 'grid' = multi-column cards; 'row' = full-width horizontal rows.
 export type GridCardLayout = 'grid' | 'row';
+export type GridPagingStyle = 'prevnext' | 'numbered';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
@@ -627,6 +628,7 @@ export interface GridFieldConfig {
   minRows?: number;                // Mode B
   maxRows: number;
   pageSize?: number;               // records per page for entity selection grids (runtime default 50)
+  pagingStyle?: GridPagingStyle;   // pager UI: 'prevnext' (default) or 'numbered' page buttons
   columnConfigs: GridColumnConfig[];
   columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
   // DFE-GRIDSRC-001: data source + display configuration (selection/display grids).

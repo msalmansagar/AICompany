@@ -47,6 +47,7 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
   const dataSource = field.gridDataSource ?? 'entity';
   const displayMode = field.gridDisplayMode ?? 'columns';
   const cardLayout = field.gridCardLayout ?? 'grid';
+  const pagingStyle = field.gridPagingStyle ?? 'prevnext';
   const selectable = field.gridSelectable !== false;
 
   const handleModeChange = useCallback(
@@ -282,6 +283,29 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
                     updateField(field.id, { gridPageSize: d.value ? parseInt(d.value, 10) : null })
                   }
                 />
+              </Field>
+
+              <Field label="Paging Style" hint="Previous/Next buttons, or numbered page buttons">
+                <div className={styles.modeRow}>
+                  <Button
+                    className={styles.modeButton}
+                    appearance={pagingStyle === 'prevnext' ? 'primary' : 'outline'}
+                    size="small"
+                    onClick={() => updateField(field.id, { gridPagingStyle: 'prevnext' })}
+                    aria-pressed={pagingStyle === 'prevnext'}
+                  >
+                    Prev / Next
+                  </Button>
+                  <Button
+                    className={styles.modeButton}
+                    appearance={pagingStyle === 'numbered' ? 'primary' : 'outline'}
+                    size="small"
+                    onClick={() => updateField(field.id, { gridPagingStyle: 'numbered' })}
+                    aria-pressed={pagingStyle === 'numbered'}
+                  >
+                    Numbered
+                  </Button>
+                </div>
               </Field>
 
               <Divider />

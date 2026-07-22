@@ -83,6 +83,7 @@ export class FormCloneService {
             decimalPlaces: field.decimalPlaces,
             maxRows: field.maxRows,
             gridPageSize: field.gridPageSize,
+            gridPagingStyle: field.gridPagingStyle,
           });
 
           await Promise.all([

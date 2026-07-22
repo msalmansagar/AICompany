@@ -123,6 +123,7 @@ export const FORM_FIELD_ATTRS = {
   DECIMAL_PLACES: 'qdb_decimal_places',
   MAX_ROWS: 'qdb_max_rows',
   GRID_PAGE_SIZE: 'qdb_grid_page_size',
+  GRID_PAGING_STYLE: 'qdb_grid_paging_style',
   NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
   BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR

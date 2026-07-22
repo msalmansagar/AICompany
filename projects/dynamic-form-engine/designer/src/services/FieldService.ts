@@ -94,6 +94,7 @@ export interface CreateFieldDto {
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
   gridPageSize?: number | null;
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;
 }
 
 export interface UpdateFieldDto {
@@ -158,6 +159,7 @@ export interface UpdateFieldDto {
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
   gridPageSize?: number | null;
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;
 }
 
 export class FieldService {
@@ -226,6 +228,7 @@ export class FieldService {
     if (dto.gridSelectable != null) payload[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable;
     if (dto.gridCardIcon != null) payload[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon;
     if (dto.gridPageSize != null) payload[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize;
+    if (dto.gridPagingStyle != null) payload[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -292,6 +295,7 @@ export class FieldService {
     if (dto.gridSelectable !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable ?? null;
     if (dto.gridCardIcon !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon ?? null;
     if (dto.gridPageSize !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize ?? null;
+    if (dto.gridPagingStyle !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -372,6 +376,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_SELECTABLE,
       FORM_FIELD_ATTRS.GRID_CARD_ICON,
       FORM_FIELD_ATTRS.GRID_PAGE_SIZE,
+      FORM_FIELD_ATTRS.GRID_PAGING_STYLE,
     ];
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -490,6 +495,7 @@ export class FieldService {
       gridSelectable: record[FORM_FIELD_ATTRS.GRID_SELECTABLE] != null ? Boolean(record[FORM_FIELD_ATTRS.GRID_SELECTABLE]) : null,
       gridCardIcon: record[FORM_FIELD_ATTRS.GRID_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.GRID_CARD_ICON]) : null,
       gridPageSize: record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] != null ? Number(record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE]) : null,
+      gridPagingStyle: (record[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] as 'prevnext' | 'numbered' | undefined) ?? null,
       gridColumns: [],
     };
   }

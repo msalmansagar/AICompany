@@ -191,5 +191,6 @@ export interface DesignerFieldModel {
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
   gridPageSize?: number | null;    // records per page for entity selection grids (runtime default 50)
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;  // pager UI (default prevnext)
   gridColumns: DesignerGridColumnConfig[];
 }

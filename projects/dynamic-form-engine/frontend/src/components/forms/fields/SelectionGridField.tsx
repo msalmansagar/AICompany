@@ -108,6 +108,17 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalXS,
   },
+  // Numbered pager: page-number buttons flanked by prev/next arrows.
+  numberedPager: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXXS,
+    flexWrap: 'wrap',
+  },
+  pageEllipsis: {
+    padding: `0 ${tokens.spacingHorizontalXXS}`,
+    color: tokens.colorNeutralForeground3,
+  },
   skeletonRows: {
     display: 'flex',
     flexDirection: 'column',
@@ -330,6 +341,25 @@ function parseJsonGridRecords(jsonData: string | undefined): GridRecord[] {
     .map((row, index) => ({ id: row.id != null ? String(row.id) : `json-${index}`, values: row }));
 }
 
+// Builds the windowed page list for the numbered pager: always the first and last
+// page, the current page with one neighbour on each side, and 'ellipsis' markers for
+// the gaps. e.g. current 5 of 10 → [1, 'ellipsis', 4, 5, 6, 'ellipsis', 10].
+export function buildPageList(current: number, total: number): Array<number | 'ellipsis'> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = new Set<number>([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result: Array<number | 'ellipsis'> = [];
+  let previous = 0;
+  for (const page of sorted) {
+    if (page - previous > 1) result.push('ellipsis');
+    result.push(page);
+    previous = page;
+  }
+  return result;
+}
+
 // ── Per-column filter cell ────────────────────────────────────────────────────
 
 type FilterCellStyles = ReturnType<typeof useStyles>;
@@ -422,6 +452,8 @@ export function SelectionGridField({
   const defaultViewMode: ViewMode = gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
   // DFE-GRIDSRC-001: 'row' arranges info cards as full-width horizontal list rows.
   const isRowLayout = gridConfig?.cardLayout === 'row';
+  // Pager UI: 'numbered' page buttons vs default Previous/Next.
+  const pagingStyle = gridConfig?.pagingStyle ?? 'prevnext';
 
   // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
   const dependsOnFieldId = gridConfig?.dependsOnFieldId;
@@ -957,27 +989,64 @@ export function SelectionGridField({
             {gridData.totalCount ? ` · ${gridData.totalCount} records` : ''}
             {gridData.isCapped && ' · row limit applied'}
           </Text>
-          <div className={styles.paginationButtons}>
-            <Button
-              appearance="secondary"
-              icon={<ChevronLeftRegular />}
-              disabled={gridData.page <= 1}
-              onClick={() => gridData.loadPage(gridData.page - 1)}
-              aria-label="Previous page"
-            >
-              Previous
-            </Button>
-            <Button
-              appearance="secondary"
-              iconPosition="after"
-              icon={<ChevronRightRegular />}
-              disabled={!gridData.hasNextPage}
-              onClick={() => gridData.loadPage(gridData.page + 1)}
-              aria-label="Next page"
-            >
-              Next
-            </Button>
-          </div>
+          {pagingStyle === 'numbered' && gridData.totalPages ? (
+            <div className={styles.numberedPager} role="navigation" aria-label="Grid pagination">
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<ChevronLeftRegular />}
+                disabled={gridData.page <= 1}
+                onClick={() => gridData.loadPage(gridData.page - 1)}
+                aria-label="Previous page"
+              />
+              {buildPageList(gridData.page, gridData.totalPages).map((entry, index) =>
+                entry === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className={styles.pageEllipsis} aria-hidden="true">…</span>
+                ) : (
+                  <Button
+                    key={entry}
+                    appearance={entry === gridData.page ? 'primary' : 'subtle'}
+                    size="small"
+                    onClick={() => gridData.loadPage(entry)}
+                    aria-label={`Page ${entry}`}
+                    aria-current={entry === gridData.page ? 'page' : undefined}
+                  >
+                    {entry}
+                  </Button>
+                ),
+              )}
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<ChevronRightRegular />}
+                disabled={!gridData.hasNextPage}
+                onClick={() => gridData.loadPage(gridData.page + 1)}
+                aria-label="Next page"
+              />
+            </div>
+          ) : (
+            <div className={styles.paginationButtons}>
+              <Button
+                appearance="secondary"
+                icon={<ChevronLeftRegular />}
+                disabled={gridData.page <= 1}
+                onClick={() => gridData.loadPage(gridData.page - 1)}
+                aria-label="Previous page"
+              >
+                Previous
+              </Button>
+              <Button
+                appearance="secondary"
+                iconPosition="after"
+                icon={<ChevronRightRegular />}
+                disabled={!gridData.hasNextPage}
+                onClick={() => gridData.loadPage(gridData.page + 1)}
+                aria-label="Next page"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -37,6 +37,7 @@ export type GridMode = 'selection' | 'entry';
 export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
 export type GridCardLayout = 'grid' | 'row';
+export type GridPagingStyle = 'prevnext' | 'numbered';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
@@ -73,6 +74,7 @@ export interface GridFieldConfig {
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
   pageSize?: number;               // records per page for entity selection grids (runtime default 50)
+  pagingStyle?: GridPagingStyle;   // pager UI: 'prevnext' (default) or 'numbered' page buttons
   savedViewId?: string;
   entityName?: string;
   minRows?: number;

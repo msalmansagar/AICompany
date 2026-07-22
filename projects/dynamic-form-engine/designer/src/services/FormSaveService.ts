@@ -219,6 +219,7 @@ export class FormSaveService {
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
           gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -336,6 +337,7 @@ export class FormSaveService {
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
           gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields

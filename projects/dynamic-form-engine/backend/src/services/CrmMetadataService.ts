@@ -468,6 +468,7 @@ export class CrmMetadataService extends CrmBaseService {
         minRows: field.qdb_grid_min_rows ?? undefined,
         maxRows: field.qdb_max_rows ?? 200,
         pageSize: field.qdb_grid_page_size ?? undefined,
+        pagingStyle: field.qdb_grid_paging_style === 'numbered' ? ('numbered' as const) : undefined,
         savedViewId: field.qdb_saved_view_id ?? undefined,
         // Alias names (used by new mapper references)
         mode: this.mapGridMode(field.qdb_grid_mode),
@@ -1284,6 +1285,7 @@ interface RawField {
   qdb_decimal_places?: number;
   qdb_max_rows?: number;
   qdb_grid_page_size?: number;
+  qdb_grid_paging_style?: string;
   // DFE-NUMBAR
   qdb_number_display_style?: number;
   qdb_bar_max_field_schema?: string;

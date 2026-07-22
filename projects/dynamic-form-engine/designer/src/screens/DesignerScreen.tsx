@@ -385,6 +385,7 @@ export function DesignerScreen(): React.ReactElement {
           decimalPlaces: null,
           maxRows: null,
           gridPageSize: null,
+          gridPagingStyle: null,
           sortOrder: existingFieldIds.length,
           columnSpan: 1,
           options: [],
