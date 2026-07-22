@@ -241,8 +241,10 @@ export class CrmMetadataService extends CrmBaseService {
 
     for (const tab of form.tabs) {
       ids.add(tab.id);
+      for (const btn of tab.buttons ?? []) ids.add(btn.id);
       for (const section of tab.sections) {
         ids.add(section.id);
+        for (const btn of section.buttons ?? []) ids.add(btn.id);
         for (const field of section.fields) {
           ids.add(field.id);
           for (const rule of field.validationRules) ids.add(rule.id);

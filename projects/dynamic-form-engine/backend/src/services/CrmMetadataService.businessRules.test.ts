@@ -8,7 +8,7 @@ import { CrmMetadataService } from './CrmMetadataService.js';
 
 const mockAuthService = { getAccessToken: () => Promise.resolve('t') } as never;
 function service(): any {
-  return new CrmMetadataService(mockAuthService, new LRUCache<string, never>({ max: 1, ttl: 1 }));
+  return new CrmMetadataService(mockAuthService, new LRUCache({ max: 1, ttl: 1 }) as never);
 }
 
 const SCHEMA_TO_GUID = new Map<string, string>([
