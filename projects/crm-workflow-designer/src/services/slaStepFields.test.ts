@@ -4,6 +4,7 @@ import {
   buildSlaBody,
   activeEscalationLookup,
   emptySlaFields,
+  slaSummaryText,
 } from '@/services/slaStepFields';
 import {
   SLA_DURATION_UNIT_CODES,
@@ -118,6 +119,22 @@ describe('activeEscalationLookup', () => {
   it('should_return_null_when_sla_or_escalation_is_off', () => {
     expect(activeEscalationLookup({ slaEnabled: false, escalationEnabled: true })).toBeNull();
     expect(activeEscalationLookup({ slaEnabled: true, escalationEnabled: false })).toBeNull();
+  });
+});
+
+describe('slaSummaryText', () => {
+  it('should_return_null_when_sla_is_off', () => {
+    expect(slaSummaryText({ slaEnabled: false, slaDuration: 2, slaDurationUnit: 'Hours', escalationEnabled: false, escalationAction: null })).toBeNull();
+  });
+
+  it('should_summarise_sla_without_escalation', () => {
+    expect(slaSummaryText({ slaEnabled: true, slaDuration: 2, slaDurationUnit: 'BusinessDays', escalationEnabled: false, escalationAction: null }))
+      .toBe('SLA: 2 Business Days');
+  });
+
+  it('should_append_the_escalation_action_when_enabled', () => {
+    expect(slaSummaryText({ slaEnabled: true, slaDuration: 4, slaDurationUnit: 'Hours', escalationEnabled: true, escalationAction: 'Notify' }))
+      .toBe('SLA: 4 Hours | Notify');
   });
 });
 
