@@ -543,7 +543,7 @@ export class ODataAdapter implements ISopAdapter {
   async getSopSteps(sopId: string): Promise<SopStep[]> {
     assertGuid(sopId, 'sopId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.sopStep}?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value` +
+      `${ENTITY_SETS.sopStep}?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${SLA_SELECT_COLUMNS}` +
       `&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
     );
     return data.value.map(mapSopStep);
@@ -563,6 +563,8 @@ export class ODataAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${ENTITY_SETS.role}(${data.roleId})`;
     }
+    Object.assign(body, buildSlaBody(data));
+    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), 'qdb_sopstep', { user: 'systemusers', team: 'teams', role: ENTITY_SETS.role }));
     return this.post(ENTITY_SETS.sopStep, body);
   }
 
@@ -580,6 +582,8 @@ export class ODataAdapter implements ISopAdapter {
         ? `/${ENTITY_SETS.role}(${data.roleId})`
         : null;
     }
+    Object.assign(body, buildSlaBody(data));
+    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), 'qdb_sopstep', { user: 'systemusers', team: 'teams', role: ENTITY_SETS.role }));
     await this.patch(`${ENTITY_SETS.sopStep}(${id})`, body);
   }
 

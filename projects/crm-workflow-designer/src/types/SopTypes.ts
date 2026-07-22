@@ -144,7 +144,7 @@ export interface UpdateSopRequest {
   recordTypeId?: string | null;
 }
 
-export interface CreateSopStepRequest {
+export interface CreateSopStepRequest extends SlaFields {
   name: string;
   description: string;
   sequenceNo: number;
@@ -155,7 +155,7 @@ export interface CreateSopStepRequest {
   decisionLabel?: string | null;
 }
 
-export interface UpdateSopStepRequest {
+export type UpdateSopStepRequest = Partial<SlaFields> & {
   name?: string;
   description?: string;
   sequenceNo?: number;
@@ -163,7 +163,7 @@ export interface UpdateSopStepRequest {
   stepType?: SopStepType;
   executionChannel?: SopExecutionChannel | null;
   decisionLabel?: string | null;
-}
+};
 
 export interface CreateSopOutcomeRequest {
   name: string;

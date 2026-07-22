@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { SopStep, SopOutcome, CrmRole, SopStepType, SopExecutionChannel } from '@/types/SopTypes';
 import { SOP_STEP_TYPE_META } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
+import { SlaEscalationSection } from '@/components/edit/SlaEscalationSection';
 
 const STEP_TYPES = Object.entries(SOP_STEP_TYPE_META) as [SopStepType, typeof SOP_STEP_TYPE_META[SopStepType]][];
 
@@ -168,6 +169,8 @@ export function SopStepPanel({
             ))}
           </select>
         </FieldGroup>
+
+        <SlaEscalationSection value={step} onChange={onUpdateStep} adapter={adapter} />
 
         <div style={sectionHeaderStyle}>
           <span style={sectionTitleStyle}>Outcomes ({outcomes.length})</span>
