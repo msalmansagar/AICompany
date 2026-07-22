@@ -24,9 +24,10 @@
  */
 
 const { loadCrmConfig, getToken, buildHeaders } = require('./crm-api-client');
+const CODES = require('./sla-option-codes');
 
 const ENTITY = 'qdb_work_item_steps';
-const LANG = 1033;
+const LANG = Number(process.env.DATAVERSE_LANG ?? 1033);
 
 function label(text) {
   return {
@@ -44,19 +45,37 @@ function optionLabel(text) {
 const GLOBAL_OPTION_SETS = [
   {
     name: 'qdb_sladurationunit', display: 'SLA Duration Unit',
-    options: [[100000000, 'Hours'], [100000001, 'Calendar Days'], [100000002, 'Business Days']],
+    options: [
+      [CODES.SLA_DURATION_UNIT.Hours, 'Hours'],
+      [CODES.SLA_DURATION_UNIT.CalendarDays, 'Calendar Days'],
+      [CODES.SLA_DURATION_UNIT.BusinessDays, 'Business Days'],
+    ],
   },
   {
     name: 'qdb_slabasis', display: 'SLA Basis',
-    options: [[100000000, 'Task Created'], [100000001, 'Task Assigned'], [100000002, 'Previous Step Completed']],
+    options: [
+      [CODES.SLA_BASIS.TaskCreated, 'Task Created'],
+      [CODES.SLA_BASIS.TaskAssigned, 'Task Assigned'],
+      [CODES.SLA_BASIS.PreviousStepCompleted, 'Previous Step Completed'],
+    ],
   },
   {
     name: 'qdb_escalationaction', display: 'Escalation Action',
-    options: [[100000000, 'Reassign'], [100000001, 'Notify'], [100000002, 'Flag'], [100000003, 'Reassign and Notify']],
+    options: [
+      [CODES.ESCALATION_ACTION.Reassign, 'Reassign'],
+      [CODES.ESCALATION_ACTION.Notify, 'Notify'],
+      [CODES.ESCALATION_ACTION.Flag, 'Flag'],
+      [CODES.ESCALATION_ACTION.ReassignAndNotify, 'Reassign and Notify'],
+    ],
   },
   {
     name: 'qdb_escalationtargettype', display: 'Escalation Target Type',
-    options: [[100000000, 'Specific User'], [100000001, 'Specific Team'], [100000002, 'Manager of Assignee'], [100000003, 'Role']],
+    options: [
+      [CODES.ESCALATION_TARGET_TYPE.SpecificUser, 'Specific User'],
+      [CODES.ESCALATION_TARGET_TYPE.SpecificTeam, 'Specific Team'],
+      [CODES.ESCALATION_TARGET_TYPE.ManagerOfAssignee, 'Manager of Assignee'],
+      [CODES.ESCALATION_TARGET_TYPE.Role, 'Role'],
+    ],
   },
 ];
 
