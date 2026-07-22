@@ -2,7 +2,7 @@ import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
-import { mapSlaFields, buildSlaBody, activeEscalationLookup, SLA_SELECT_COLUMNS } from './slaStepFields';
+import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
 import type {
   CrmRole,
   SopSummary,
@@ -224,33 +224,15 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.teamId           && tm) body[`${tm}@odata.bind`] = `/teams(${data.teamId})`;
     if (data.roundRobinTeamId && rr) body[`${rr}@odata.bind`] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${SET.process}(${data.processId})`;
-    await this.bindEscalationLookup(data, E, body);
+    Object.assign(
+      body,
+      await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), E, {
+        user: 'systemusers',
+        team: 'teams',
+        role: SET.role,
+      })
+    );
     return body;
-  }
-
-  // Binds the active escalation target lookup and null-clears the other two.
-  // Null-clear via `_x_value: null` is the Xrm.WebApi path; verify on the live org
-  // during provisioning (architecture Risk R-2).
-  private async bindEscalationLookup(
-    data: Partial<Omit<WorkflowStep, 'crmId'>>,
-    entity: string,
-    body: Record<string, unknown>
-  ): Promise<void> {
-    if (data.slaEnabled === undefined) return;
-    const active = activeEscalationLookup(data);
-    const lookups = [
-      { attribute: 'qdb_escalationuser' as const, set: 'systemusers' },
-      { attribute: 'qdb_escalationteam' as const, set: 'teams' },
-      { attribute: 'qdb_escalationrole' as const, set: SET.role },
-    ];
-    for (const { attribute, set } of lookups) {
-      const nav = await this.resolveNavProp(entity, attribute);
-      if (!nav) continue;
-      // Clear an inactive lookup via `{nav}@odata.bind: null` — a Dataverse lookup
-      // CANNOT be nulled through its `_x_value` field (R-2), only the nav-prop bind.
-      body[`${nav}@odata.bind`] =
-        active && active.attribute === attribute ? `/${set}(${active.id})` : null;
-    }
   }
 
   // --- Outcomes ---
@@ -881,8 +863,6 @@ export class DataverseAdapter implements ISopAdapter {
 }
 
 // --- Mappers ---
-
-const FMT = '@OData.Community.Display.V1.FormattedValue';
 
 function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {

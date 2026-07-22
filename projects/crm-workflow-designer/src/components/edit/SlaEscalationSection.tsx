@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { isSopAdapter } from '@/services/ISopAdapter';
 import type {
@@ -11,6 +11,7 @@ import type {
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { validateSlaConfig } from '@/validators/slaValidator';
 import { slaSummaryText } from '@/services/slaStepFields';
+import { logError } from '@/services/logError';
 
 interface SlaEscalationSectionProps {
   step: WorkflowStep;
@@ -18,7 +19,10 @@ interface SlaEscalationSectionProps {
   adapter: ICrmAdapter;
 }
 
-type Option = { id: string; name: string };
+interface Option {
+  id: string;
+  name: string;
+}
 
 const UNIT_OPTIONS: Array<{ value: SlaDurationUnit; label: string }> = [
   { value: 'Hours', label: 'Hours' },
@@ -59,18 +63,38 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
     [setStep, step]
   );
 
+  const usersFetched = useRef(false);
+  const teamsFetched = useRef(false);
+  const rolesFetched = useRef(false);
+
+  // A new adapter invalidates any previously-loaded lookup options.
+  useEffect(() => {
+    usersFetched.current = false;
+    teamsFetched.current = false;
+    rolesFetched.current = false;
+  }, [adapter]);
+
   const targetType = step.escalationTargetType;
   useEffect(() => {
-    if (targetType === 'SpecificUser' && users.length === 0) {
-      adapter.getUsers().then((list) => setUsers(list.map((u) => ({ id: u.id, name: u.fullName })))).catch(() => setUsers([]));
+    if (targetType === 'SpecificUser' && !usersFetched.current) {
+      usersFetched.current = true;
+      adapter.getUsers()
+        .then((list) => setUsers(list.map((u) => ({ id: u.id, name: u.fullName }))))
+        .catch((error) => { logError('SlaEscalationSection:loadUsers', error); setUsers([]); });
     }
-    if (targetType === 'SpecificTeam' && teams.length === 0) {
-      adapter.getTeams().then(setTeams).catch(() => setTeams([]));
+    if (targetType === 'SpecificTeam' && !teamsFetched.current) {
+      teamsFetched.current = true;
+      adapter.getTeams()
+        .then(setTeams)
+        .catch((error) => { logError('SlaEscalationSection:loadTeams', error); setTeams([]); });
     }
-    if (targetType === 'Role' && roles.length === 0 && isSopAdapter(adapter)) {
-      adapter.getRoles().then((list) => setRoles(list.map((r) => ({ id: r.id, name: r.name })))).catch(() => setRoles([]));
+    if (targetType === 'Role' && !rolesFetched.current && isSopAdapter(adapter)) {
+      rolesFetched.current = true;
+      adapter.getRoles()
+        .then((list) => setRoles(list.map((r) => ({ id: r.id, name: r.name }))))
+        .catch((error) => { logError('SlaEscalationSection:loadRoles', error); setRoles([]); });
     }
-  }, [targetType, adapter, users.length, teams.length, roles.length]);
+  }, [targetType, adapter]);
 
   const errors = validateSlaConfig(step);
 

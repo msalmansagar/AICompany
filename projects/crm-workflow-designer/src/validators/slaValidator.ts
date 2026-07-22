@@ -38,36 +38,37 @@ const MESSAGES = {
  * config; enforcement is the CWFD-005 runtime's concern.
  */
 export function validateSlaConfig(step: SlaConfigInput): FieldErrorMap {
-  const errors: FieldErrorMap = {};
   if (!step.slaEnabled) {
-    if (step.escalationEnabled) errors.escalationEnabled = MESSAGES.escalationWithoutSla;
-    return errors;
+    return step.escalationEnabled ? { escalationEnabled: MESSAGES.escalationWithoutSla } : {};
   }
-  validateSlaFields(step, errors);
-  validateEscalation(step, errors);
-  return errors;
+  return { ...validateSlaFields(step), ...validateEscalation(step) };
 }
 
-function validateSlaFields(step: SlaConfigInput, errors: FieldErrorMap): void {
+function validateSlaFields(step: SlaConfigInput): FieldErrorMap {
+  const errors: FieldErrorMap = {};
   if (!isPositiveInteger(step.slaDuration)) errors.slaDuration = MESSAGES.duration;
   if (!step.slaDurationUnit) errors.slaDurationUnit = MESSAGES.unit;
   if (!step.slaBasis) errors.slaBasis = MESSAGES.basis;
   if (step.slaWarningPct !== null && !isInRange(step.slaWarningPct, 1, 99)) {
     errors.slaWarningPct = MESSAGES.warningPct;
   }
+  return errors;
 }
 
-function validateEscalation(step: SlaConfigInput, errors: FieldErrorMap): void {
-  if (!step.escalationEnabled) return;
+function validateEscalation(step: SlaConfigInput): FieldErrorMap {
+  if (!step.escalationEnabled) return {};
+  const errors: FieldErrorMap = {};
   if (!step.escalationAction) errors.escalationAction = MESSAGES.escalationAction;
   if (!step.escalationTargetType) {
     errors.escalationTargetType = MESSAGES.escalationTargetType;
-    return;
+    return errors;
   }
-  validateEscalationTarget(step, errors);
+  return { ...errors, ...validateEscalationTarget(step) };
 }
 
-function validateEscalationTarget(step: SlaConfigInput, errors: FieldErrorMap): void {
+function validateEscalationTarget(step: SlaConfigInput): FieldErrorMap {
+  const errors: FieldErrorMap = {};
+  // ManagerOfAssignee needs no lookup — resolved by the runtime.
   if (step.escalationTargetType === 'SpecificUser' && !step.escalationUserId) {
     errors.escalationUserId = MESSAGES.escalationUser;
   }
@@ -77,7 +78,7 @@ function validateEscalationTarget(step: SlaConfigInput, errors: FieldErrorMap): 
   if (step.escalationTargetType === 'Role' && !step.escalationRoleId) {
     errors.escalationRoleId = MESSAGES.escalationRole;
   }
-  // ManagerOfAssignee needs no lookup — resolved by the runtime.
+  return errors;
 }
 
 function isPositiveInteger(value: number | null): boolean {

@@ -15,7 +15,9 @@ import {
 // architecture flagged (R-1): one source of truth, one set of unit tests. The
 // lookup navigation-property binds stay per-adapter (they need resolveNavProp).
 
-const FMT = '@OData.Community.Display.V1.FormattedValue';
+/** The Dataverse annotation that carries a lookup/option-set's display text. */
+export const ODATA_FORMATTED_VALUE_ANNOTATION = '@OData.Community.Display.V1.FormattedValue';
+const FMT = ODATA_FORMATTED_VALUE_ANNOTATION;
 
 /** The SLA/escalation slice of a WorkflowStep. */
 export type SlaStepFields = Pick<
@@ -120,6 +122,42 @@ export function activeEscalationLookup(
     return { attribute: 'qdb_escalationrole', id: data.escalationRoleId };
   }
   return null;
+}
+
+/** OData entity-set names for the three escalation lookup targets. */
+export interface EscalationLookupSets {
+  user: string;
+  team: string;
+  role: string;
+}
+
+/**
+ * Builds the `{navProp}@odata.bind` patches for the escalation lookups: binds the
+ * active target and clears the other two (a Dataverse lookup can only be nulled
+ * through its nav-prop bind, never its `_x_value` — see R-2). Shared by both
+ * adapters; each passes its own `resolveNavProp` and entity-set names.
+ */
+export async function buildEscalationBindPatches(
+  data: Partial<WorkflowStep>,
+  resolveNavProp: (entity: string, attribute: string) => Promise<string>,
+  entity: string,
+  sets: EscalationLookupSets
+): Promise<Record<string, string | null>> {
+  if (data.slaEnabled === undefined) return {};
+  const active = activeEscalationLookup(data);
+  const lookups = [
+    { attribute: 'qdb_escalationuser' as const, set: sets.user },
+    { attribute: 'qdb_escalationteam' as const, set: sets.team },
+    { attribute: 'qdb_escalationrole' as const, set: sets.role },
+  ];
+  const patches: Record<string, string | null> = {};
+  for (const { attribute, set } of lookups) {
+    const nav = await resolveNavProp(entity, attribute);
+    if (!nav) continue;
+    patches[`${nav}@odata.bind`] =
+      active && active.attribute === attribute ? `/${set}(${active.id})` : null;
+  }
+  return patches;
 }
 
 const SLA_UNIT_LABELS: Record<SlaDurationUnit, string> = {
