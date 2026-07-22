@@ -80,9 +80,9 @@ const PICKLIST_FIELDS = [
 ];
 
 const LOOKUP_FIELDS = [
-  { logical: 'qdb_escalation_user', schema: 'qdb_EscalationUser', display: 'Escalation User', target: 'systemuser', relationship: 'qdb_escalationuser_workitemstep' },
-  { logical: 'qdb_escalation_team', schema: 'qdb_EscalationTeam', display: 'Escalation Team', target: 'team', relationship: 'qdb_escalationteam_workitemstep' },
-  { logical: 'qdb_escalation_role', schema: 'qdb_EscalationRole', display: 'Escalation Role', target: 'qdb_role', relationship: 'qdb_escalationrole_workitemstep' },
+  { logical: 'qdb_escalationuser', schema: 'qdb_EscalationUser', display: 'Escalation User', target: 'systemuser', relationship: 'qdb_escalationuser_workitemstep' },
+  { logical: 'qdb_escalationteam', schema: 'qdb_EscalationTeam', display: 'Escalation Team', target: 'team', relationship: 'qdb_escalationteam_workitemstep' },
+  { logical: 'qdb_escalationrole', schema: 'qdb_EscalationRole', display: 'Escalation Role', target: 'qdb_role', relationship: 'qdb_escalationrole_workitemstep' },
 ];
 
 // --- Existence checks (idempotency) ---
@@ -155,7 +155,16 @@ async function createIntegerField(apiBase, token, f) {
   });
 }
 
+async function optionSetMetadataId(apiBase, token, name) {
+  const res = await fetch(`${apiBase}/GlobalOptionSetDefinitions(Name='${name}')?$select=MetadataId`, { headers: buildHeaders(token) });
+  if (!res.ok) throw new Error(`Option-set id lookup ${res.status}: ${await res.text()}`);
+  const { MetadataId } = await res.json();
+  return MetadataId;
+}
+
 async function createPicklistField(apiBase, token, f) {
+  // A global option set must be bound by its MetadataId (GUID), not by Name.
+  const metadataId = await optionSetMetadataId(apiBase, token, f.optionSet);
   await post(apiBase, token, attributesPath(), {
     '@odata.type': 'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
     AttributeType: 'Picklist',
@@ -164,7 +173,7 @@ async function createPicklistField(apiBase, token, f) {
     LogicalName: f.logical,
     DisplayName: label(f.display),
     RequiredLevel: { Value: 'None' },
-    'GlobalOptionSet@odata.bind': `/GlobalOptionSetDefinitions(Name='${f.optionSet}')`,
+    'GlobalOptionSet@odata.bind': `/GlobalOptionSetDefinitions(${metadataId})`,
   });
 }
 

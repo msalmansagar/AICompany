@@ -239,9 +239,9 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.slaEnabled === undefined) return;
     const active = activeEscalationLookup(data);
     const lookups = [
-      { attribute: 'qdb_escalation_user' as const, set: 'systemusers' },
-      { attribute: 'qdb_escalation_team' as const, set: 'teams' },
-      { attribute: 'qdb_escalation_role' as const, set: SET.role },
+      { attribute: 'qdb_escalationuser' as const, set: 'systemusers' },
+      { attribute: 'qdb_escalationteam' as const, set: 'teams' },
+      { attribute: 'qdb_escalationrole' as const, set: SET.role },
     ];
     for (const { attribute, set } of lookups) {
       if (active && active.attribute === attribute) {

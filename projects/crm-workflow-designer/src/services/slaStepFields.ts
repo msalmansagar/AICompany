@@ -67,12 +67,12 @@ export function mapSlaFields(raw: Record<string, unknown>): SlaStepFields {
     escalationEnabled: (raw['qdb_escalation_enabled'] as boolean) ?? false,
     escalationAction: fromCode(ESCALATION_ACTION_FROM_CODE, raw['qdb_escalation_action']),
     escalationTargetType: fromCode(ESCALATION_TARGET_TYPE_FROM_CODE, raw['qdb_escalation_target_type']),
-    escalationUserId: (raw['_qdb_escalation_user_value'] as string | null) ?? null,
-    escalationUserName: (raw[`_qdb_escalation_user_value${FMT}`] as string | null) ?? null,
-    escalationTeamId: (raw['_qdb_escalation_team_value'] as string | null) ?? null,
-    escalationTeamName: (raw[`_qdb_escalation_team_value${FMT}`] as string | null) ?? null,
-    escalationRoleId: (raw['_qdb_escalation_role_value'] as string | null) ?? null,
-    escalationRoleName: (raw[`_qdb_escalation_role_value${FMT}`] as string | null) ?? null,
+    escalationUserId: (raw['_qdb_escalationuser_value'] as string | null) ?? null,
+    escalationUserName: (raw[`_qdb_escalationuser_value${FMT}`] as string | null) ?? null,
+    escalationTeamId: (raw['_qdb_escalationteam_value'] as string | null) ?? null,
+    escalationTeamName: (raw[`_qdb_escalationteam_value${FMT}`] as string | null) ?? null,
+    escalationRoleId: (raw['_qdb_escalationrole_value'] as string | null) ?? null,
+    escalationRoleName: (raw[`_qdb_escalationrole_value${FMT}`] as string | null) ?? null,
   };
 }
 
@@ -108,16 +108,16 @@ export function buildSlaBody(data: Partial<WorkflowStep>): Record<string, unknow
 /** Which escalation lookup (if any) is active for the given target type. */
 export function activeEscalationLookup(
   data: Partial<WorkflowStep>
-): { attribute: 'qdb_escalation_user' | 'qdb_escalation_team' | 'qdb_escalation_role'; id: string } | null {
+): { attribute: 'qdb_escalationuser' | 'qdb_escalationteam' | 'qdb_escalationrole'; id: string } | null {
   if (!data.slaEnabled || !data.escalationEnabled) return null;
   if (data.escalationTargetType === 'SpecificUser' && data.escalationUserId) {
-    return { attribute: 'qdb_escalation_user', id: data.escalationUserId };
+    return { attribute: 'qdb_escalationuser', id: data.escalationUserId };
   }
   if (data.escalationTargetType === 'SpecificTeam' && data.escalationTeamId) {
-    return { attribute: 'qdb_escalation_team', id: data.escalationTeamId };
+    return { attribute: 'qdb_escalationteam', id: data.escalationTeamId };
   }
   if (data.escalationTargetType === 'Role' && data.escalationRoleId) {
-    return { attribute: 'qdb_escalation_role', id: data.escalationRoleId };
+    return { attribute: 'qdb_escalationrole', id: data.escalationRoleId };
   }
   return null;
 }
@@ -156,9 +156,9 @@ export const SLA_SELECT_COLUMNS = [
   'qdb_escalation_enabled',
   'qdb_escalation_action',
   'qdb_escalation_target_type',
-  '_qdb_escalation_user_value',
-  '_qdb_escalation_team_value',
-  '_qdb_escalation_role_value',
+  '_qdb_escalationuser_value',
+  '_qdb_escalationteam_value',
+  '_qdb_escalationrole_value',
 ].join(',');
 
 function clearedSlaBody(): Record<string, unknown> {

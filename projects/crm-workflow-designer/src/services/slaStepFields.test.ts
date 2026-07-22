@@ -81,7 +81,7 @@ describe('mapSlaFields', () => {
       qdb_escalation_enabled: true,
       qdb_escalation_action: ESCALATION_ACTION_CODES.Notify,
       qdb_escalation_target_type: ESCALATION_TARGET_TYPE_CODES.SpecificUser,
-      _qdb_escalation_user_value: 'user-guid',
+      _qdb_escalationuser_value: 'user-guid',
     };
     const fields = mapSlaFields(raw);
     expect(fields.slaEnabled).toBe(true);
@@ -99,17 +99,17 @@ describe('activeEscalationLookup', () => {
 
   it('should_return_the_user_lookup_for_specific_user', () => {
     const result = activeEscalationLookup({ ...base, escalationTargetType: 'SpecificUser', escalationUserId: 'u1' });
-    expect(result).toEqual({ attribute: 'qdb_escalation_user', id: 'u1' });
+    expect(result).toEqual({ attribute: 'qdb_escalationuser', id: 'u1' });
   });
 
   it('should_return_the_team_lookup_for_specific_team', () => {
     const result = activeEscalationLookup({ ...base, escalationTargetType: 'SpecificTeam', escalationTeamId: 't1' });
-    expect(result).toEqual({ attribute: 'qdb_escalation_team', id: 't1' });
+    expect(result).toEqual({ attribute: 'qdb_escalationteam', id: 't1' });
   });
 
   it('should_return_the_role_lookup_for_role', () => {
     const result = activeEscalationLookup({ ...base, escalationTargetType: 'Role', escalationRoleId: 'r1' });
-    expect(result).toEqual({ attribute: 'qdb_escalation_role', id: 'r1' });
+    expect(result).toEqual({ attribute: 'qdb_escalationrole', id: 'r1' });
   });
 
   it('should_return_null_for_manager_of_assignee', () => {
