@@ -449,7 +449,15 @@ export function SelectionGridField({
   // interactivity. Read-only display grids show no selection controls or value.
   const isJsonSource = gridConfig?.dataSource === 'json';
   const isSelectable = gridConfig?.selectable !== false;
-  const defaultViewMode: ViewMode = gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
+  // viewOption controls which views are offered: 'both' shows the Table/Cards toggle,
+  // 'table'/'card' lock to a single view and hide the toggle.
+  const viewOption = gridConfig?.viewMode ?? 'both';
+  const showViewToggle = viewOption === 'both';
+  const defaultViewMode: ViewMode = viewOption === 'card'
+    ? 'card'
+    : viewOption === 'table'
+      ? 'table'
+      : gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
   // DFE-GRIDSRC-001: 'row' arranges info cards as full-width horizontal list rows.
   const isRowLayout = gridConfig?.cardLayout === 'row';
   // Pager UI: 'numbered' page buttons vs default Previous/Next.
@@ -765,42 +773,49 @@ export function SelectionGridField({
         </Text>
       )}
 
-      {/* Toolbar: active filter count + view toggle */}
-      <div className={styles.toolbarRow}>
-        {activeFilterCount > 0 && (
-          <div className={styles.activeFilterBadge}>
-            <FilterRegular />
-            <Text size={200}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
-            <Button
-              appearance="transparent"
-              size="small"
-              icon={<DismissRegular />}
-              onClick={clearAllFilters}
-              aria-label="Clear all filters"
-            />
-          </div>
-        )}
-        <ToggleButton
-          icon={<TableRegular />}
-          checked={viewMode === 'table'}
-          onClick={() => setViewMode('table')}
-          size="small"
-          aria-label="Table view"
-          appearance={viewMode === 'table' ? 'primary' : 'subtle'}
-        >
-          Table
-        </ToggleButton>
-        <ToggleButton
-          icon={<GridRegular />}
-          checked={viewMode === 'card'}
-          onClick={() => setViewMode('card')}
-          size="small"
-          aria-label="Card view"
-          appearance={viewMode === 'card' ? 'primary' : 'subtle'}
-        >
-          Cards
-        </ToggleButton>
-      </div>
+      {/* Toolbar: active filter count + view toggle. Rendered only when there's
+          something to show — the toggle (view mode 'both') or an active filter. */}
+      {(showViewToggle || activeFilterCount > 0) && (
+        <div className={styles.toolbarRow}>
+          {activeFilterCount > 0 && (
+            <div className={styles.activeFilterBadge}>
+              <FilterRegular />
+              <Text size={200}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
+              <Button
+                appearance="transparent"
+                size="small"
+                icon={<DismissRegular />}
+                onClick={clearAllFilters}
+                aria-label="Clear all filters"
+              />
+            </div>
+          )}
+          {showViewToggle && (
+            <>
+              <ToggleButton
+                icon={<TableRegular />}
+                checked={viewMode === 'table'}
+                onClick={() => setViewMode('table')}
+                size="small"
+                aria-label="Table view"
+                appearance={viewMode === 'table' ? 'primary' : 'subtle'}
+              >
+                Table
+              </ToggleButton>
+              <ToggleButton
+                icon={<GridRegular />}
+                checked={viewMode === 'card'}
+                onClick={() => setViewMode('card')}
+                size="small"
+                aria-label="Card view"
+                appearance={viewMode === 'card' ? 'primary' : 'subtle'}
+              >
+                Cards
+              </ToggleButton>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Card view */}
       {viewMode === 'card' && (

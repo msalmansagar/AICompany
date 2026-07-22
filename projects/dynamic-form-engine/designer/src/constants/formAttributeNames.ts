@@ -175,6 +175,7 @@ export const FORM_FIELD_ATTRS = {
   GRID_DATA_SOURCE: 'qdb_grid_data_source',
   GRID_JSON_DATA: 'qdb_grid_json_data',
   GRID_DISPLAY_MODE: 'qdb_grid_display_mode',
+  GRID_VIEW_MODE: 'qdb_grid_view_mode',
   GRID_CARD_LAYOUT: 'qdb_grid_card_layout',
   GRID_SELECTABLE: 'qdb_grid_selectable',
   GRID_CARD_ICON: 'qdb_grid_card_icon',

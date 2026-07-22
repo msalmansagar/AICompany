@@ -188,6 +188,7 @@ export interface DesignerFieldModel {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridViewMode?: 'both' | 'table' | 'card' | null;   // which grid views are offered (default both)
   gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;

@@ -49,6 +49,7 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
   const displayMode = field.gridDisplayMode ?? 'columns';
   const cardLayout = field.gridCardLayout ?? 'grid';
   const pagingStyle = field.gridPagingStyle ?? 'prevnext';
+  const gridViewMode = field.gridViewMode ?? 'both';
   const selectable = field.gridSelectable !== false;
 
   const handleModeChange = useCallback(
@@ -168,6 +169,19 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
                 InfoCard
               </Button>
             </div>
+          </Field>
+
+          <Field label="View Mode" hint="Which views the user gets: Both (with a toggle), List only, or Cards only.">
+            <Select
+              value={gridViewMode}
+              onChange={(_, d) =>
+                updateField(field.id, { gridViewMode: d.value as 'both' | 'table' | 'card' })
+              }
+            >
+              <option value="both">Both (toggle)</option>
+              <option value="table">List only</option>
+              <option value="card">Cards only</option>
+            </Select>
           </Field>
 
           {displayMode === 'infocard' && (
