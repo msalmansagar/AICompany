@@ -5,6 +5,7 @@ import {
   activeEscalationLookup,
   emptySlaFields,
   slaSummaryText,
+  buildEscalationBindPatches,
 } from '@/services/slaStepFields';
 import {
   SLA_DURATION_UNIT_CODES,
@@ -135,6 +136,48 @@ describe('slaSummaryText', () => {
   it('should_append_the_escalation_action_when_enabled', () => {
     expect(slaSummaryText({ slaEnabled: true, slaDuration: 4, slaDurationUnit: 'Hours', escalationEnabled: true, escalationAction: 'Notify' }))
       .toBe('SLA: 4 Hours | Notify');
+  });
+
+  it('should_render_a_question_mark_when_duration_is_null', () => {
+    expect(slaSummaryText({ slaEnabled: true, slaDuration: null, slaDurationUnit: 'BusinessDays', escalationEnabled: false, escalationAction: null }))
+      .toBe('SLA: ? Business Days');
+  });
+});
+
+describe('buildEscalationBindPatches', () => {
+  const resolveNav = async (_entity: string, attribute: string) => attribute;
+  const sets = { user: 'systemusers', team: 'teams', role: 'qdb_roles' };
+
+  it('should_return_empty_and_not_resolve_when_slaEnabled_is_undefined', async () => {
+    let calls = 0;
+    const spy = async (_e: string, a: string) => { calls++; return a; };
+    const patches = await buildEscalationBindPatches({}, spy, 'qdb_work_item_steps', sets);
+    expect(patches).toEqual({});
+    expect(calls).toBe(0);
+  });
+
+  it('should_null_all_three_lookups_when_sla_disabled', async () => {
+    const patches = await buildEscalationBindPatches({ slaEnabled: false }, resolveNav, 'E', sets);
+    expect(patches).toEqual({
+      'qdb_escalationuser@odata.bind': null,
+      'qdb_escalationteam@odata.bind': null,
+      'qdb_escalationrole@odata.bind': null,
+    });
+  });
+
+  it('should_bind_the_active_user_and_null_the_others', async () => {
+    const patches = await buildEscalationBindPatches(
+      { slaEnabled: true, escalationEnabled: true, escalationTargetType: 'SpecificUser', escalationUserId: 'u1' },
+      resolveNav, 'E', sets
+    );
+    expect(patches['qdb_escalationuser@odata.bind']).toBe('/systemusers(u1)');
+    expect(patches['qdb_escalationteam@odata.bind']).toBeNull();
+    expect(patches['qdb_escalationrole@odata.bind']).toBeNull();
+  });
+
+  it('should_skip_lookups_whose_navprop_resolves_to_empty_string', async () => {
+    const patches = await buildEscalationBindPatches({ slaEnabled: false }, async () => '', 'E', sets);
+    expect(patches).toEqual({});
   });
 });
 
