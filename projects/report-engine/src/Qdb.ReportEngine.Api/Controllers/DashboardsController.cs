@@ -38,11 +38,16 @@ public sealed class DashboardsController(IDashboardExecutionService executionSer
         }
     }
 
-    // TODO(build): resolve the execution context from the authenticated principal — user id,
-    // business unit, delegated (OBO) token, and role-set hash. Placeholder for the scaffold.
-    private static ReportExecutionContext BuildContext() => new()
+    // Widgets execute as this user (impersonation → row-level security). The web resource passes the
+    // signed-in user's id; production must derive it from a validated token, not a raw header.
+    private ReportExecutionContext BuildContext()
     {
-        UserId = Guid.Empty,
-        RoleSetHash = "anonymous"
-    };
+        var header = Request.Headers["X-Report-Caller-Id"].FirstOrDefault() ?? Request.Headers["MSCRMCallerID"].FirstOrDefault();
+        var userId = Guid.TryParse(header, out var id) ? id : Guid.Empty;
+        return new ReportExecutionContext
+        {
+            UserId = userId,
+            RoleSetHash = userId == Guid.Empty ? "anonymous" : userId.ToString("N")
+        };
+    }
 }

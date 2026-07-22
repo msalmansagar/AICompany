@@ -132,6 +132,27 @@
   .modal .m-head{display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--border-strong);}
   .modal .m-body{padding:16px 18px;}
 
+  /* dashboard widgets */
+  .dash-sec{margin-bottom:16px;} .dash-sec .sec-title{font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); font-weight:700; margin:0 0 8px;}
+  .dash-grid{display:grid; gap:12px;}
+  .widget{background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-8); padding:14px; min-height:118px;}
+  .widget .wt{font-size:12px; color:var(--text-secondary); font-weight:600; margin-bottom:8px;}
+  .kpi{font-size:34px; font-weight:700; line-height:1.1;} .kpi-sub{color:var(--text-secondary); font-size:12px;}
+  .bars{display:flex; flex-direction:column; gap:7px;}
+  .bar-row{display:grid; grid-template-columns:96px 1fr 48px; align-items:center; gap:8px; font-size:12px;}
+  .bar-row .bl{color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .bar-track{height:16px; background:var(--surface-alt); border-radius:8px; overflow:hidden;} .bar-fill{height:100%; border-radius:8px;}
+  .bar-row .bv{text-align:right; font-variant-numeric:tabular-nums; font-weight:600;}
+  .donut-wrap{display:flex; align-items:center; gap:16px;}
+  .donut{width:118px; height:118px; border-radius:50%; position:relative; flex-shrink:0;}
+  .donut::after{content:""; position:absolute; inset:26px; background:var(--surface); border-radius:50%;}
+  .donut-c{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px; z-index:1;}
+  .legend{display:flex; flex-direction:column; gap:5px; font-size:12px; min-width:0;} .legend .li{display:flex; align-items:center; gap:7px;} .legend .dot{width:10px; height:10px; border-radius:2px; flex-shrink:0;}
+  .icards{display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:10px;}
+  .icard{background:var(--surface-alt); border-radius:var(--radius-lg); padding:10px 12px;} .icard .iv{font-size:22px; font-weight:700;} .icard .il{font-size:11.5px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .wtable{width:100%; border-collapse:collapse; font-size:12.5px;} .wtable td{padding:5px 6px; border-bottom:1px solid var(--border);} .wtable td:last-child{text-align:right; font-weight:600;}
+  .werror{color:var(--error); font-size:12px;}
+
   .toast-wrap{position:fixed; bottom:20px; right:20px; z-index:200; display:flex; flex-direction:column; gap:8px;}
   .toast{background:var(--surface); border:1px solid var(--border-strong); border-left:3px solid var(--primary); border-radius:var(--radius); box-shadow:var(--shadow-16); padding:10px 14px; min-width:240px; font-size:13px; animation:pop .14s ease;}
   .toast.error{border-left-color:var(--error);} .toast.success{border-left-color:var(--success);}
@@ -167,6 +188,7 @@
     <nav class="nav">
       <div class="nav-group-label">Run</div>
       <button class="nav-item active" data-nav="catalog"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2 2h9l3 3v9H2V2zm9 0v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4 8h8M4 10h8M4 12h5" stroke="currentColor" stroke-width="1.1"/></svg><span>Report Catalog</span></button>
+      <button class="nav-item" data-nav="dashboards"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg><span>Dashboards</span></button>
     </nav>
     <main class="content" id="content"></main>
   </div>
@@ -366,6 +388,78 @@ function openSettings(){
   };
 }
 
+/* ---------------- dashboards ---------------- */
+const PAL = ["#0078d4","#2899f5","#00b7c3","#498205","#8764b8","#e3008c","#ca5010","#986f0b"];
+const DASHBOARDS = [
+  { id:"aa000000-0000-0000-0000-0000000000d1", title:"Accounts Overview",
+    subtitle:"Fan-out over the account table (ADR-RPT-008)",
+    sections:[
+      { id:"55000000-0000-0000-0000-0000000000a0", title:"Key metrics", columns:3, widgets:[
+        { id:"b0000000-0000-0000-0000-0000000000a1", kind:"Metric", title:"Total Accounts", entity:"account", aggregation:"Count" },
+        { id:"b0000000-0000-0000-0000-0000000000a2", kind:"Chart", chartType:"donut", title:"By Status", entity:"account", groupByAttribute:"statecode", aggregation:"Count" },
+        { id:"b0000000-0000-0000-0000-0000000000a3", kind:"Chart", chartType:"bar", title:"By Owner", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" }
+      ]},
+      { id:"55000000-0000-0000-0000-0000000000b0", title:"Breakdown", columns:2, widgets:[
+        { id:"b0000000-0000-0000-0000-0000000000a4", kind:"InfoCards", title:"Accounts per owner", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" },
+        { id:"b0000000-0000-0000-0000-0000000000a5", kind:"Table", title:"Owner detail", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" }
+      ]}
+    ]},
+  { id:"aa000000-0000-0000-0000-0000000000d2", title:"Contacts Overview",
+    subtitle:"Fan-out over the contact table",
+    sections:[
+      { id:"55000000-0000-0000-0000-0000000000c0", title:"Contacts", columns:3, widgets:[
+        { id:"b0000000-0000-0000-0000-0000000000b1", kind:"Metric", title:"Total Contacts", entity:"contact", aggregation:"Count" },
+        { id:"b0000000-0000-0000-0000-0000000000b2", kind:"Chart", chartType:"bar", title:"By Owner", entity:"contact", groupByAttribute:"ownerid", aggregation:"Count" },
+        { id:"b0000000-0000-0000-0000-0000000000b3", kind:"Chart", chartType:"donut", title:"By Status", entity:"contact", groupByAttribute:"statecode", aggregation:"Count" }
+      ]}
+    ]}
+];
+
+function loadDashboards(){
+  state.view="dashboards";
+  const cards = DASHBOARDS.map(d => `<div class="card" data-dash="${d.id}">
+    <div class="code">DASHBOARD</div><h3>${esc(d.title)}</h3><div class="desc">${esc(d.subtitle||"")}</div>
+    <div class="foot"><span class="chip">${d.sections.reduce((n,s)=>n+s.widgets.length,0)} widgets</span><span class="chip">${d.sections.length} sections</span></div></div>`).join("");
+  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="card-grid">${cards}</div></div>`;
+  document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(DASHBOARDS.find(d=>d.id===el.dataset.dash)));
+}
+
+async function openDashboard(dash){
+  state.view="dashrun";
+  const sections = dash.sections.map(s => `<div class="dash-sec">${s.title?`<div class="sec-title">${esc(s.title)}</div>`:''}
+    <div class="dash-grid" style="grid-template-columns:repeat(${s.columns||3},1fr)">
+    ${s.widgets.map(w=>`<div class="widget" id="w_${w.id}"><div class="wt">${esc(w.title||w.kind)}</div><div class="kpi-sub"><span class="spinner"></span></div></div>`).join("")}</div></div>`).join("");
+  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><b style="margin-left:6px">${esc(dash.title)}</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="refresh">↻ Refresh</button></div><div class="page">${sections}</div>`;
+  $("#back").onclick = loadDashboards; $("#refresh").onclick = () => openDashboard(dash);
+  try {
+    const result = await apiJson("/api/dashboards/"+dash.id+"/execute", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(dash) });
+    const byId = {}; result.widgets.forEach(w => byId[w.widgetId]=w);
+    dash.sections.forEach(s => s.widgets.forEach(w => { const el=$("#w_"+w.id); if(el) el.outerHTML = renderWidget(w, byId[w.id]); }));
+    toast(`Dashboard resolved in ${Math.round(parseDur(result.totalDuration))} ms`, "success");
+  } catch(e){ toast(e.message,"error"); document.querySelectorAll(".widget .kpi-sub").forEach(x=>x.innerHTML=`<span class="werror">failed</span>`); }
+}
+
+function renderWidget(w, wr){
+  const data = (wr && wr.data) || [];
+  let body;
+  if (wr && wr.accessDenied) body = `<div class="werror">No access</div>`;
+  else if (wr && wr.error) body = `<div class="werror">${esc((wr.error.message)||wr.error.code)}</div>`;
+  else switch(w.kind){
+    case "Metric": case "Badge": case "Progress": case "Gauge": body = wKpi(data); break;
+    case "Chart": body = (w.chartType==="donut"||w.chartType==="pie") ? wDonut(data) : wBars(data); break;
+    case "InfoCards": body = wCards(data); break;
+    default: body = wTable(data);
+  }
+  return `<div class="widget"><div class="wt">${esc(w.title||w.kind)}</div>${body}</div>`;
+}
+const sumV = d => d.reduce((a,p)=>a+(+p.value||0),0);
+function compact(v){ v=+v||0; const a=Math.abs(v); if(a>=1e9) return (v/1e9).toFixed(1)+"bn"; if(a>=1e6) return (v/1e6).toFixed(1)+"M"; if(a>=1e3) return (v/1e3).toFixed(1)+"k"; return String(Math.round(v*100)/100); }
+function wKpi(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const v = d.length===1?d[0].value:sumV(d); return `<div class="kpi">${compact(v)}</div><div class="kpi-sub">${d.length>1?d.length+" groups":esc(d[0].label||"")}</div>`; }
+function wBars(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const max=Math.max(...d.map(p=>+p.value||0),1); return `<div class="bars">${d.map((p,i)=>`<div class="bar-row"><span class="bl" title="${esc(p.label)}">${esc(p.label)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,(+p.value/max)*100)}%;background:${PAL[i%PAL.length]}"></div></div><span class="bv">${compact(p.value)}</span></div>`).join("")}</div>`; }
+function wDonut(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const total=sumV(d)||1; let acc=0; const stops=d.map((p,i)=>{const a0=acc/total*360; acc+=(+p.value||0); return `${PAL[i%PAL.length]} ${a0}deg ${acc/total*360}deg`;}).join(","); const legend=d.map((p,i)=>`<div class="li"><span class="dot" style="background:${PAL[i%PAL.length]}"></span><span class="bl" style="flex:1" title="${esc(p.label)}">${esc(p.label)}</span><b>${compact(p.value)}</b></div>`).join(""); return `<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops})"><div class="donut-c">${compact(total)}</div></div><div class="legend">${legend}</div></div>`; }
+function wCards(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; return `<div class="icards">${d.map((p,i)=>`<div class="icard"><div class="iv" style="color:${PAL[i%PAL.length]}">${compact(p.value)}</div><div class="il" title="${esc(p.label)}">${esc(p.label)}</div></div>`).join("")}</div>`; }
+function wTable(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; return `<table class="wtable">${d.map(p=>`<tr><td>${esc(p.label)}</td><td>${compact(p.value)}</td></tr>`).join("")}</table>`; }
+
 /* ---------------- shared UI ---------------- */
 function wireMenu(btnSel, menuSel, onPick){
   const btn=$(btnSel), menu=$(menuSel);
@@ -386,5 +480,9 @@ document.querySelectorAll("[data-set-theme]").forEach(b => b.onclick = ()=>{ app
 $("#settingsBtn").onclick = openSettings; $("#runAs").onclick = openSettings;
 $("#modalBack").onclick = (e)=>{ if(e.target===$("#modalBack")) closeModal(); };
 document.addEventListener("click", ()=> document.querySelectorAll(".menu.open, .theme-menu.open").forEach(m=>m.classList.remove("open")));
+document.querySelectorAll(".nav-item[data-nav]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active")); b.classList.add("active");
+  if (b.dataset.nav === "dashboards") loadDashboards(); else loadCatalog();
+});
 loadCatalog();
 </script>
