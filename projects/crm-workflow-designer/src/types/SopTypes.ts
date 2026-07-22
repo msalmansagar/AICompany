@@ -1,4 +1,5 @@
 // src/types/SopTypes.ts
+import type { SlaFields } from './WorkflowTypes';
 
 export type SopExecutionChannel = 'crm' | 'manual';
 
@@ -89,7 +90,7 @@ export interface Sop {
   recordTypeName: string | null;
 }
 
-export interface SopStep {
+export interface SopStep extends SlaFields {
   id: string;
   name: string;
   description: string;

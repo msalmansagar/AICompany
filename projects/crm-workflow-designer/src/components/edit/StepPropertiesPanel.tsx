@@ -313,7 +313,11 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <SlaEscalationSection step={step} setStep={setStep} adapter={adapter} />
+        <SlaEscalationSection
+          value={step}
+          onChange={(patch) => setStep({ ...step, ...patch })}
+          adapter={adapter}
+        />
 
         <div style={dividerStyle} />
 

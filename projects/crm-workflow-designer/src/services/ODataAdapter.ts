@@ -851,6 +851,7 @@ function mapSopStep(raw: Record<string, unknown>): SopStep {
     stepType: SOP_STEP_TYPE_FROM_OPTION_VALUE[raw['qdb_steptypecode'] as number] ?? 'step',
     executionChannel: channelRaw === 'crm' || channelRaw === 'manual' ? channelRaw : null,
     decisionLabel: (raw['qdb_decisionlabel'] as string | null) ?? null,
+    ...mapSlaFields(raw),
   };
 }
 

@@ -6,7 +6,9 @@ import {
   emptySlaFields,
   slaSummaryText,
   buildEscalationBindPatches,
+  copySlaFields,
 } from '@/services/slaStepFields';
+import type { SlaFields } from '@/types/WorkflowTypes';
 import {
   SLA_DURATION_UNIT_CODES,
   SLA_DURATION_UNIT_FROM_CODE,
@@ -141,6 +143,31 @@ describe('slaSummaryText', () => {
   it('should_render_a_question_mark_when_duration_is_null', () => {
     expect(slaSummaryText({ slaEnabled: true, slaDuration: null, slaDurationUnit: 'BusinessDays', escalationEnabled: false, escalationAction: null }))
       .toBe('SLA: ? Business Days');
+  });
+});
+
+describe('copySlaFields', () => {
+  it('should_copy_all_sla_fields_verbatim_from_the_source', () => {
+    const source: SlaFields = {
+      ...emptySlaFields(),
+      slaEnabled: true,
+      slaDuration: 3,
+      slaDurationUnit: 'BusinessDays',
+      escalationEnabled: true,
+      escalationAction: 'Notify',
+      escalationTargetType: 'SpecificUser',
+      escalationUserId: 'u1',
+      escalationUserName: 'Amina',
+    };
+    expect(copySlaFields(source)).toEqual(source);
+  });
+
+  it('should_ignore_non_sla_fields_on_the_source', () => {
+    const source = { ...emptySlaFields(), slaEnabled: true, slaDuration: 5, name: 'irrelevant', id: 'x' };
+    const copied = copySlaFields(source as SlaFields);
+    expect(copied).not.toHaveProperty('name');
+    expect(copied).not.toHaveProperty('id');
+    expect(copied.slaDuration).toBe(5);
   });
 });
 

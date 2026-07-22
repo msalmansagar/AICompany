@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { isSopAdapter } from '@/services/ISopAdapter';
 import type {
-  WorkflowStep,
+  SlaFields,
   SlaDurationUnit,
   SlaBasis,
   EscalationAction,
@@ -14,9 +14,11 @@ import { slaSummaryText } from '@/services/slaStepFields';
 import { logError } from '@/services/logError';
 
 interface SlaEscalationSectionProps {
-  step: WorkflowStep;
-  setStep: (step: WorkflowStep) => void;
+  value: SlaFields;
+  onChange: (patch: Partial<SlaFields>) => void;
   adapter: ICrmAdapter;
+  /** When true (e.g. a published SOP), edits are suppressed. */
+  disabled?: boolean;
 }
 
 interface Option {
@@ -52,15 +54,15 @@ const TARGET_TYPE_OPTIONS: Array<{ value: EscalationTargetType; label: string }>
   { value: 'Role', label: 'Role' },
 ];
 
-export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSectionProps) {
+export function SlaEscalationSection({ value, onChange, adapter, disabled = false }: SlaEscalationSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const [users, setUsers] = useState<Option[]>([]);
   const [teams, setTeams] = useState<Option[]>([]);
   const [roles, setRoles] = useState<Option[]>([]);
 
   const patch = useCallback(
-    (fields: Partial<WorkflowStep>) => setStep({ ...step, ...fields }),
-    [setStep, step]
+    (fields: Partial<SlaFields>) => { if (!disabled) onChange(fields); },
+    [onChange, disabled]
   );
 
   const usersFetched = useRef(false);
@@ -74,7 +76,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
     rolesFetched.current = false;
   }, [adapter]);
 
-  const targetType = step.escalationTargetType;
+  const targetType = value.escalationTargetType;
   useEffect(() => {
     if (targetType === 'SpecificUser' && !usersFetched.current) {
       usersFetched.current = true;
@@ -96,14 +98,14 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
     }
   }, [targetType, adapter]);
 
-  const errors = validateSlaConfig(step);
+  const errors = validateSlaConfig(value);
 
   return (
     <div>
       <button type="button" style={headerStyle} onClick={() => setExpanded((v) => !v)}>
         <span style={caretStyle}>{expanded ? '▾' : '▸'}</span>
         <span>SLA &amp; Escalation</span>
-        {!expanded && step.slaEnabled && <span style={summaryBadgeStyle}>{slaSummaryText(step)}</span>}
+        {!expanded && value.slaEnabled && <span style={summaryBadgeStyle}>{slaSummaryText(value)}</span>}
       </button>
 
       {expanded && (
@@ -112,16 +114,16 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
             Configuration only — SLA enforcement requires the CWFD-005 runtime to be active.
           </div>
 
-          <ToggleRow label="Enable SLA" on={step.slaEnabled} onChange={(on) => patch({ slaEnabled: on })} />
+          <ToggleRow label="Enable SLA" on={value.slaEnabled} onChange={(on) => patch({ slaEnabled: on })} />
 
-          {step.slaEnabled && (
+          {value.slaEnabled && (
             <>
               <div style={rowStyle}>
                 <Field label="Duration" error={errors.slaDuration} style={{ flex: 1 }}>
                   <input
                     type="number"
                     min={1}
-                    value={step.slaDuration ?? ''}
+                    value={value.slaDuration ?? ''}
                     onChange={(e) => patch({ slaDuration: e.target.value === '' ? null : Number(e.target.value) })}
                     style={inputStyle}
                     placeholder="e.g. 2"
@@ -129,7 +131,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
                 </Field>
                 <Field label="Unit" error={errors.slaDurationUnit} style={{ flex: 1 }}>
                   <Select
-                    value={step.slaDurationUnit ?? ''}
+                    value={value.slaDurationUnit ?? ''}
                     onChange={(v) => patch({ slaDurationUnit: (v || null) as SlaDurationUnit | null })}
                     options={UNIT_OPTIONS}
                   />
@@ -138,7 +140,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
 
               <Field label="SLA clock starts when" error={errors.slaBasis}>
                 <Select
-                  value={step.slaBasis ?? ''}
+                  value={value.slaBasis ?? ''}
                   onChange={(v) => patch({ slaBasis: (v || null) as SlaBasis | null })}
                   options={BASIS_OPTIONS}
                 />
@@ -149,7 +151,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
                   type="number"
                   min={1}
                   max={99}
-                  value={step.slaWarningPct ?? ''}
+                  value={value.slaWarningPct ?? ''}
                   onChange={(e) => patch({ slaWarningPct: e.target.value === '' ? null : Number(e.target.value) })}
                   style={inputStyle}
                   placeholder="optional"
@@ -158,15 +160,15 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
 
               <ToggleRow
                 label="Enable Escalation"
-                on={step.escalationEnabled}
+                on={value.escalationEnabled}
                 onChange={(on) => patch({ escalationEnabled: on })}
               />
 
-              {step.escalationEnabled && (
+              {value.escalationEnabled && (
                 <>
                   <Field label="Escalation action" error={errors.escalationAction}>
                     <Select
-                      value={step.escalationAction ?? ''}
+                      value={value.escalationAction ?? ''}
                       onChange={(v) => patch({ escalationAction: (v || null) as EscalationAction | null })}
                       options={ACTION_OPTIONS}
                     />
@@ -174,7 +176,7 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
 
                   <Field label="Target type" error={errors.escalationTargetType}>
                     <Select
-                      value={step.escalationTargetType ?? ''}
+                      value={value.escalationTargetType ?? ''}
                       onChange={(v) =>
                         patch({
                           escalationTargetType: (v || null) as EscalationTargetType | null,
@@ -190,40 +192,40 @@ export function SlaEscalationSection({ step, setStep, adapter }: SlaEscalationSe
                     />
                   </Field>
 
-                  {step.escalationTargetType === 'SpecificUser' && (
+                  {value.escalationTargetType === 'SpecificUser' && (
                     <FieldError error={errors.escalationUserId}>
                       <SearchableDropdown
                         label="Escalation user"
                         placeholder="Search users…"
                         options={users}
-                        value={step.escalationUserId}
+                        value={value.escalationUserId}
                         onChange={(id, name) => patch({ escalationUserId: id, escalationUserName: name })}
                       />
                     </FieldError>
                   )}
-                  {step.escalationTargetType === 'SpecificTeam' && (
+                  {value.escalationTargetType === 'SpecificTeam' && (
                     <FieldError error={errors.escalationTeamId}>
                       <SearchableDropdown
                         label="Escalation team"
                         placeholder="Search teams…"
                         options={teams}
-                        value={step.escalationTeamId}
+                        value={value.escalationTeamId}
                         onChange={(id, name) => patch({ escalationTeamId: id, escalationTeamName: name })}
                       />
                     </FieldError>
                   )}
-                  {step.escalationTargetType === 'Role' && (
+                  {value.escalationTargetType === 'Role' && (
                     <FieldError error={errors.escalationRoleId}>
                       <SearchableDropdown
                         label="Escalation role"
                         placeholder="Search roles…"
                         options={roles}
-                        value={step.escalationRoleId}
+                        value={value.escalationRoleId}
                         onChange={(id, name) => patch({ escalationRoleId: id, escalationRoleName: name })}
                       />
                     </FieldError>
                   )}
-                  {step.escalationTargetType === 'ManagerOfAssignee' && (
+                  {value.escalationTargetType === 'ManagerOfAssignee' && (
                     <div style={hintStyle}>
                       Manager of the assignee is resolved by the runtime using the CRM user hierarchy. No selection needed.
                     </div>
