@@ -360,16 +360,22 @@ export function FileUploadControl({
         </div>
       )}
 
-      {/* Explicit add-more affordance once at least one document is present. */}
+      {/* Explicit add-more affordance once at least one document is present.
+          The hidden input must stay mounted here — open() clicks it, and the
+          drag-and-drop dropzone above (which also carries the input) is not
+          rendered once files exist. */}
       {canAddMore && uploadEntries.length > 0 && (
-        <Button
-          appearance="secondary"
-          icon={<DocumentAddRegular />}
-          onClick={open}
-          style={{ marginTop: tokens.spacingVerticalS }}
-        >
-          Add new Document
-        </Button>
+        <>
+          <input {...getInputProps()} aria-label={`Upload more files for ${field.label}`} />
+          <Button
+            appearance="secondary"
+            icon={<DocumentAddRegular />}
+            onClick={open}
+            style={{ marginTop: tokens.spacingVerticalS }}
+          >
+            Add new Document
+          </Button>
+        </>
       )}
     </div>
   );
