@@ -3,7 +3,7 @@
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import type { ISopAdapter } from './ISopAdapter';
-import { emptySlaFields } from './slaStepFields';
+import { copySlaFields } from './slaStepFields';
 import type { CreateProcessFromSopRequest, StepAssignment } from '@/types/SopTypes';
 
 export async function deriveProcessFromSop(
@@ -40,7 +40,9 @@ export async function deriveProcessFromSop(
     const assignment = request.stepAssignments.find((a) => a.sopStepId === sopStep.id);
 
     const workflowStepId = await adapter.createStep({
-      ...emptySlaFields(),
+      // Inherit the SOP step's SLA/escalation config onto the derived process step
+      // (a one-time snapshot; independently editable afterward).
+      ...copySlaFields(sopStep),
       name: sopStep.name,
       schemaName: '',
       sequenceNo: sopStep.sequenceNo,

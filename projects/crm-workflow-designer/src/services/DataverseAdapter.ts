@@ -716,7 +716,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.sopStep,
-        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${SLA_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapSopStep);
@@ -736,6 +736,8 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${SET.role}(${data.roleId})`;
     }
+    Object.assign(body, buildSlaBody(data));
+    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, { user: 'systemusers', team: 'teams', role: SET.role }));
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.sopStep, body));
     return result.id;
   }
@@ -752,6 +754,8 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId ? `/${SET.role}(${data.roleId})` : null;
     }
+    Object.assign(body, buildSlaBody(data));
+    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, { user: 'systemusers', team: 'teams', role: SET.role }));
     await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.sopStep, id, body));
   }
 
@@ -1040,6 +1044,7 @@ function mapSopStep(raw: Record<string, unknown>): SopStep {
     stepType: SOP_STEP_TYPE_FROM_OPTION_VALUE[raw['qdb_steptypecode'] as number] ?? 'step',
     executionChannel: channelRaw === 'crm' || channelRaw === 'manual' ? channelRaw : null,
     decisionLabel: (raw['qdb_decisionlabel'] as string | null) ?? null,
+    ...mapSlaFields(raw),
   };
 }
 

@@ -22,7 +22,29 @@ export type SlaBasis = 'TaskCreated' | 'TaskAssigned' | 'PreviousStepCompleted';
 export type EscalationAction = 'Reassign' | 'Notify' | 'Flag' | 'ReassignAndNotify';
 export type EscalationTargetType = 'SpecificUser' | 'SpecificTeam' | 'ManagerOfAssignee' | 'Role';
 
-export interface WorkflowStep {
+/**
+ * SLA/escalation config fields — shared by process steps (WorkflowStep) and SOP
+ * template steps (SopStep). Config-only; consumed by the future CWFD-005 runtime,
+ * inert until then. All nullable; slaEnabled defaults to false.
+ */
+export interface SlaFields {
+  slaEnabled: boolean;
+  slaDuration: number | null;
+  slaDurationUnit: SlaDurationUnit | null;
+  slaBasis: SlaBasis | null;
+  slaWarningPct: number | null;
+  escalationEnabled: boolean;
+  escalationAction: EscalationAction | null;
+  escalationTargetType: EscalationTargetType | null;
+  escalationUserId: string | null;
+  escalationUserName: string | null;
+  escalationTeamId: string | null;
+  escalationTeamName: string | null;
+  escalationRoleId: string | null;
+  escalationRoleName: string | null;
+}
+
+export interface WorkflowStep extends SlaFields {
   crmId: string;
   name: string;
   schemaName: string;
@@ -43,23 +65,6 @@ export interface WorkflowStep {
   roundRobinTeamId: string | null;
   roundRobinTeamName: string | null;
   processId: string;
-
-  // SLA & escalation config (DP-2). Config-only — consumed by the future CWFD-005
-  // runtime; inert until then. All nullable; slaEnabled defaults to false.
-  slaEnabled: boolean;
-  slaDuration: number | null;
-  slaDurationUnit: SlaDurationUnit | null;
-  slaBasis: SlaBasis | null;
-  slaWarningPct: number | null;
-  escalationEnabled: boolean;
-  escalationAction: EscalationAction | null;
-  escalationTargetType: EscalationTargetType | null;
-  escalationUserId: string | null;
-  escalationUserName: string | null;
-  escalationTeamId: string | null;
-  escalationTeamName: string | null;
-  escalationRoleId: string | null;
-  escalationRoleName: string | null;
 }
 
 export interface AutoNumberEntityOption {

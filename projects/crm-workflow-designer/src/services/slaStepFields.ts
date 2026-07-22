@@ -1,4 +1,4 @@
-import type { WorkflowStep, SlaDurationUnit, EscalationAction } from '@/types/WorkflowTypes';
+import type { WorkflowStep, SlaFields, SlaDurationUnit, EscalationAction } from '@/types/WorkflowTypes';
 import {
   SLA_DURATION_UNIT_CODES,
   SLA_DURATION_UNIT_FROM_CODE,
@@ -55,6 +55,30 @@ export function emptySlaFields(): SlaStepFields {
     escalationTeamName: null,
     escalationRoleId: null,
     escalationRoleName: null,
+  };
+}
+
+/**
+ * One-time copy of the SLA/escalation fields from a source (e.g. a SOP template
+ * step) — used to inherit config onto a process step derived from a SOP. The
+ * derived step is then independently editable (a snapshot, not a live link).
+ */
+export function copySlaFields(source: SlaFields): SlaStepFields {
+  return {
+    slaEnabled: source.slaEnabled,
+    slaDuration: source.slaDuration,
+    slaDurationUnit: source.slaDurationUnit,
+    slaBasis: source.slaBasis,
+    slaWarningPct: source.slaWarningPct,
+    escalationEnabled: source.escalationEnabled,
+    escalationAction: source.escalationAction,
+    escalationTargetType: source.escalationTargetType,
+    escalationUserId: source.escalationUserId,
+    escalationUserName: source.escalationUserName,
+    escalationTeamId: source.escalationTeamId,
+    escalationTeamName: source.escalationTeamName,
+    escalationRoleId: source.escalationRoleId,
+    escalationRoleName: source.escalationRoleName,
   };
 }
 
