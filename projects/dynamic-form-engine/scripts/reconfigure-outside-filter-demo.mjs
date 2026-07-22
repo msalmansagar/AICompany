@@ -100,17 +100,21 @@ for (const schema of ['demo_name_results', 'demo_type_results']) {
 }
 // (Full Name columns are already text-filterable by default — no change needed.)
 
-// ── 3. Static baseline (Layer 1) + explicit max rows ──────────────────────────
-console.log('\nSetting static baseline + max rows…');
+// ── 3. Static baseline (Layer 1) + max rows + page size ───────────────────────
+// Page size 10 with the 200-row cap → up to ~6 visible pages for the ~60-row set,
+// so the Prev/Next pager is obvious in every section.
+const PAGE_SIZE = 10;
+console.log(`\nSetting static baseline + max rows + page size (${PAGE_SIZE})…`);
 // Section 1 baseline: always restrict to active records, stacked with the outside field + column filters.
 await patch(`qdb_form_fields(${gridBySchema['demo_name_results']})`, {
   qdb_grid_filter_expression: 'statecode eq 0',
   qdb_grid_max_rows: 200,
+  qdb_grid_page_size: PAGE_SIZE,
 });
-console.log("  ✓ demo_name_results: baseline `statecode eq 0` + maxRows 200");
+console.log(`  ✓ demo_name_results: baseline \`statecode eq 0\` + maxRows 200 + pageSize ${PAGE_SIZE}`);
 for (const schema of ['demo_type_results', 'demo_company_results']) {
-  await patch(`qdb_form_fields(${gridBySchema[schema]})`, { qdb_grid_max_rows: 200 });
-  console.log(`  ✓ ${schema}: maxRows 200`);
+  await patch(`qdb_form_fields(${gridBySchema[schema]})`, { qdb_grid_max_rows: 200, qdb_grid_page_size: PAGE_SIZE });
+  console.log(`  ✓ ${schema}: maxRows 200 + pageSize ${PAGE_SIZE}`);
 }
 
 console.log('\n=== Reconfigure complete. ===');
