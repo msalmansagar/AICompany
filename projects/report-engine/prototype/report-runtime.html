@@ -390,51 +390,43 @@ function openSettings(){
 
 /* ---------------- dashboards ---------------- */
 const PAL = ["#0078d4","#2899f5","#00b7c3","#498205","#8764b8","#e3008c","#ca5010","#986f0b"];
-const DASHBOARDS = [
-  { id:"aa000000-0000-0000-0000-0000000000d1", title:"Accounts Overview",
-    subtitle:"Fan-out over the account table (ADR-RPT-008)",
-    sections:[
-      { id:"55000000-0000-0000-0000-0000000000a0", title:"Key metrics", columns:3, widgets:[
-        { id:"b0000000-0000-0000-0000-0000000000a1", kind:"Metric", title:"Total Accounts", entity:"account", aggregation:"Count" },
-        { id:"b0000000-0000-0000-0000-0000000000a2", kind:"Chart", chartType:"donut", title:"By Status", entity:"account", groupByAttribute:"statecode", aggregation:"Count" },
-        { id:"b0000000-0000-0000-0000-0000000000a3", kind:"Chart", chartType:"bar", title:"By Owner", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" }
-      ]},
-      { id:"55000000-0000-0000-0000-0000000000b0", title:"Breakdown", columns:2, widgets:[
-        { id:"b0000000-0000-0000-0000-0000000000a4", kind:"InfoCards", title:"Accounts per owner", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" },
-        { id:"b0000000-0000-0000-0000-0000000000a5", kind:"Table", title:"Owner detail", entity:"account", groupByAttribute:"ownerid", aggregation:"Count" }
-      ]}
-    ]},
-  { id:"aa000000-0000-0000-0000-0000000000d2", title:"Contacts Overview",
-    subtitle:"Fan-out over the contact table",
-    sections:[
-      { id:"55000000-0000-0000-0000-0000000000c0", title:"Contacts", columns:3, widgets:[
-        { id:"b0000000-0000-0000-0000-0000000000b1", kind:"Metric", title:"Total Contacts", entity:"contact", aggregation:"Count" },
-        { id:"b0000000-0000-0000-0000-0000000000b2", kind:"Chart", chartType:"bar", title:"By Owner", entity:"contact", groupByAttribute:"ownerid", aggregation:"Count" },
-        { id:"b0000000-0000-0000-0000-0000000000b3", kind:"Chart", chartType:"donut", title:"By Status", entity:"contact", groupByAttribute:"statecode", aggregation:"Count" }
-      ]}
-    ]}
-];
+let DASHBOARDS = []; // catalog, loaded from GET /api/dashboards
 
-function loadDashboards(){
+async function loadDashboards(){
   state.view="dashboards";
-  const cards = DASHBOARDS.map(d => `<div class="card" data-dash="${d.id}">
-    <div class="code">DASHBOARD</div><h3>${esc(d.title)}</h3><div class="desc">${esc(d.subtitle||"")}</div>
-    <div class="foot"><span class="chip">${d.sections.reduce((n,s)=>n+s.widgets.length,0)} widgets</span><span class="chip">${d.sections.length} sections</span></div></div>`).join("");
-  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="card-grid">${cards}</div></div>`;
-  document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(DASHBOARDS.find(d=>d.id===el.dataset.dash)));
+  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="dreload">↻ Refresh</button></div><div class="page"><div class="empty"><span class="spinner"></span> Loading dashboards…</div></div>`;
+  $("#dreload").onclick = loadDashboards;
+  try {
+    DASHBOARDS = await apiJson("/api/dashboards");
+    const cards = DASHBOARDS.map(d => `<div class="card" data-dash="${d.id}">
+      <div class="code">${esc(d.dashboardCode||"DASHBOARD")}</div><h3>${esc(d.title)}</h3><div class="desc">${esc(d.description||"")}</div></div>`).join("");
+    $("#content .page").innerHTML = DASHBOARDS.length ? `<div class="card-grid">${cards}</div>` : errorState("No dashboards found for this user.");
+    document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(el.dataset.dash));
+  } catch(e){ $("#content .page").innerHTML = errorState(e.message); }
 }
 
-async function openDashboard(dash){
+async function openDashboard(id){
   state.view="dashrun";
-  const sections = dash.sections.map(s => `<div class="dash-sec">${s.title?`<div class="sec-title">${esc(s.title)}</div>`:''}
+  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="empty"><span class="spinner"></span> Loading dashboard…</div></div>`;
+  $("#back").onclick = loadDashboards;
+  try { renderDashboard(await apiJson("/api/dashboards/"+id)); }
+  catch(e){ $("#content .page").innerHTML = errorState(e.message); }
+}
+
+function renderDashboard(def){
+  const sections = def.sections.map(s => `<div class="dash-sec">${s.title?`<div class="sec-title">${esc(s.title)}</div>`:''}
     <div class="dash-grid" style="grid-template-columns:repeat(${s.columns||3},1fr)">
     ${s.widgets.map(w=>`<div class="widget" id="w_${w.id}"><div class="wt">${esc(w.title||w.kind)}</div><div class="kpi-sub"><span class="spinner"></span></div></div>`).join("")}</div></div>`).join("");
-  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><b style="margin-left:6px">${esc(dash.title)}</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="refresh">↻ Refresh</button></div><div class="page">${sections}</div>`;
-  $("#back").onclick = loadDashboards; $("#refresh").onclick = () => openDashboard(dash);
+  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><b style="margin-left:6px">${esc(def.title)}</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="refresh">↻ Refresh</button></div><div class="page">${sections}</div>`;
+  $("#back").onclick = loadDashboards; $("#refresh").onclick = () => openDashboard(def.id);
+  runDashboard(def);
+}
+
+async function runDashboard(def){
   try {
-    const result = await apiJson("/api/dashboards/"+dash.id+"/execute", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(dash) });
+    const result = await apiJson("/api/dashboards/"+def.id+"/execute", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(def) });
     const byId = {}; result.widgets.forEach(w => byId[w.widgetId]=w);
-    dash.sections.forEach(s => s.widgets.forEach(w => { const el=$("#w_"+w.id); if(el) el.outerHTML = renderWidget(w, byId[w.id]); }));
+    def.sections.forEach(s => s.widgets.forEach(w => { const el=$("#w_"+w.id); if(el) el.outerHTML = renderWidget(w, byId[w.id]); }));
     toast(`Dashboard resolved in ${Math.round(parseDur(result.totalDuration))} ms`, "success");
   } catch(e){ toast(e.message,"error"); document.querySelectorAll(".widget .kpi-sub").forEach(x=>x.innerHTML=`<span class="werror">failed</span>`); }
 }
@@ -472,9 +464,24 @@ function closeModal(){ $("#modalBack").classList.remove("open"); }
 function parseDur(d){ if(!d) return 0; const p=String(d).split(":"); return (+p[0])*3600000+(+p[1])*60000+(parseFloat(p[2]||0))*1000; }
 
 /* ---------------- boot ---------------- */
+// When hosted as a CRM web resource, take the identity + environment from Xrm instead of Settings.
+function initXrm(){
+  try {
+    const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+    if (!xrm || !xrm.Utility) return false;
+    const ctx = xrm.Utility.getGlobalContext();
+    const us = ctx.userSettings;
+    state.callerId = String(us.userId || "").replace(/[{}]/g, "");
+    state.callerName = us.userName || "user";
+    const apiParam = new URLSearchParams(location.search).get("api"); // deployer configures the middle-tier URL
+    if (apiParam) state.apiBase = apiParam;
+    return true;
+  } catch(e){ return false; }
+}
 function applyTheme(t){ state.theme=t; document.documentElement.setAttribute("data-theme",t); localStorage.setItem("re-theme",t); }
+const inCrm = initXrm();
 applyTheme(state.theme);
-$("#runAsLabel").textContent = "Running as: " + state.callerName;
+$("#runAsLabel").textContent = "Running as: " + state.callerName + (inCrm ? "" : " (dev)");
 $("#themeToggle").onclick = (e)=>{ e.stopPropagation(); $("#themeMenu").classList.toggle("open"); };
 document.querySelectorAll("[data-set-theme]").forEach(b => b.onclick = ()=>{ applyTheme(b.dataset.setTheme); $("#themeMenu").classList.remove("open"); toast("Theme: "+b.dataset.setTheme); });
 $("#settingsBtn").onclick = openSettings; $("#runAs").onclick = openSettings;

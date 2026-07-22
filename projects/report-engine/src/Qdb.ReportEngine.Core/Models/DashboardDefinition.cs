@@ -29,6 +29,9 @@ public sealed record DashboardSection
     /// <summary>Column count 1–4.</summary>
     public int Columns { get; init; } = 4;
 
+    /// <summary>Order of this section within the dashboard.</summary>
+    public int Sequence { get; init; }
+
     public IReadOnlyList<DashboardWidget> Widgets { get; init; } = [];
 }
 
@@ -51,6 +54,31 @@ public sealed record DashboardWidget
     public string? MeasureAttribute { get; init; }
 
     public Aggregation Aggregation { get; init; } = Aggregation.Sum;
+
+    /// <summary>Display title (does not affect the query).</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Chart sub-type for chart widgets (donut/bar/…); a rendering hint only.</summary>
+    public string? ChartType { get; init; }
+
+    /// <summary>Order of this widget within its section.</summary>
+    public int Sequence { get; init; }
+}
+
+/// <summary>A lightweight dashboard entry for the catalog.</summary>
+public sealed record DashboardSummary
+{
+    public required Guid Id { get; init; }
+
+    public required string Title { get; init; }
+
+    public string? DashboardCode { get; init; }
+
+    public string? Description { get; init; }
+
+    public int WidgetCount { get; init; }
+
+    public int SectionCount { get; init; }
 }
 
 /// <summary>The visual type a widget renders as (drives no query behaviour — data binding does).</summary>
