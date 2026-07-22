@@ -2,6 +2,7 @@ import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
+import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
 import type {
   CrmRole,
   SopSummary,
@@ -180,7 +181,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -223,6 +224,14 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.teamId           && tm) body[`${tm}@odata.bind`] = `/teams(${data.teamId})`;
     if (data.roundRobinTeamId && rr) body[`${rr}@odata.bind`] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${SET.process}(${data.processId})`;
+    Object.assign(
+      body,
+      await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), E, {
+        user: 'systemusers',
+        team: 'teams',
+        role: SET.role,
+      })
+    );
     return body;
   }
 
@@ -855,8 +864,6 @@ export class DataverseAdapter implements ISopAdapter {
 
 // --- Mappers ---
 
-const FMT = '@OData.Community.Display.V1.FormattedValue';
-
 function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
@@ -896,6 +903,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
     roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
+    ...mapSlaFields(raw),
   };
 }
 
@@ -946,6 +954,7 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
+  Object.assign(body, buildSlaBody(data));
   return body;
 }
 

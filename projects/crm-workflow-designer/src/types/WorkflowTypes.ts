@@ -16,6 +16,12 @@ export interface WorkflowProcess {
 
 export type AssignToType = 'user' | 'team' | 'roundRobin';
 
+// --- SLA & escalation configuration (DP-2) ---
+export type SlaDurationUnit = 'Hours' | 'CalendarDays' | 'BusinessDays';
+export type SlaBasis = 'TaskCreated' | 'TaskAssigned' | 'PreviousStepCompleted';
+export type EscalationAction = 'Reassign' | 'Notify' | 'Flag' | 'ReassignAndNotify';
+export type EscalationTargetType = 'SpecificUser' | 'SpecificTeam' | 'ManagerOfAssignee' | 'Role';
+
 export interface WorkflowStep {
   crmId: string;
   name: string;
@@ -37,6 +43,23 @@ export interface WorkflowStep {
   roundRobinTeamId: string | null;
   roundRobinTeamName: string | null;
   processId: string;
+
+  // SLA & escalation config (DP-2). Config-only — consumed by the future CWFD-005
+  // runtime; inert until then. All nullable; slaEnabled defaults to false.
+  slaEnabled: boolean;
+  slaDuration: number | null;
+  slaDurationUnit: SlaDurationUnit | null;
+  slaBasis: SlaBasis | null;
+  slaWarningPct: number | null;
+  escalationEnabled: boolean;
+  escalationAction: EscalationAction | null;
+  escalationTargetType: EscalationTargetType | null;
+  escalationUserId: string | null;
+  escalationUserName: string | null;
+  escalationTeamId: string | null;
+  escalationTeamName: string | null;
+  escalationRoleId: string | null;
+  escalationRoleName: string | null;
 }
 
 export interface AutoNumberEntityOption {
@@ -110,3 +133,45 @@ export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
   roundRobin: 100000002,
   team: 100000002,
 };
+
+// --- SLA & escalation option-set codes (DP-2) ---
+// Global Dataverse option sets: qdb_SLADurationUnit, qdb_SLABasis,
+// qdb_EscalationAction, qdb_EscalationTargetType.
+
+export const SLA_DURATION_UNIT_CODES: Record<SlaDurationUnit, number> = {
+  Hours: 100000000,
+  CalendarDays: 100000001,
+  BusinessDays: 100000002,
+};
+
+export const SLA_BASIS_CODES: Record<SlaBasis, number> = {
+  TaskCreated: 100000000,
+  TaskAssigned: 100000001,
+  PreviousStepCompleted: 100000002,
+};
+
+export const ESCALATION_ACTION_CODES: Record<EscalationAction, number> = {
+  Reassign: 100000000,
+  Notify: 100000001,
+  Flag: 100000002,
+  ReassignAndNotify: 100000003,
+};
+
+export const ESCALATION_TARGET_TYPE_CODES: Record<EscalationTargetType, number> = {
+  SpecificUser: 100000000,
+  SpecificTeam: 100000001,
+  ManagerOfAssignee: 100000002,
+  Role: 100000003,
+};
+
+/** Inverts a code map. Safe only for maps with unique integer codes. */
+function invertCodeMap<T extends string>(map: Record<T, number>): Record<number, T> {
+  return Object.fromEntries(
+    Object.entries(map).map(([key, code]) => [code as number, key as T])
+  ) as Record<number, T>;
+}
+
+export const SLA_DURATION_UNIT_FROM_CODE = invertCodeMap(SLA_DURATION_UNIT_CODES);
+export const SLA_BASIS_FROM_CODE = invertCodeMap(SLA_BASIS_CODES);
+export const ESCALATION_ACTION_FROM_CODE = invertCodeMap(ESCALATION_ACTION_CODES);
+export const ESCALATION_TARGET_TYPE_FROM_CODE = invertCodeMap(ESCALATION_TARGET_TYPE_CODES);
