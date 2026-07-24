@@ -177,3 +177,23 @@ your design:
   reverify per project (`.claude/architecture/component-reuse-plan.md`), never a
   side effect of the feature in front of you. Do not propose a monorepo
   conversion as part of an ordinary engagement.
+
+## Cross-artifact analysis before the CEO gate (Article XIX)
+
+After drafting the architecture and before handing it to the CEO's
+Phase-3→Phase-4 approval, run cross-artifact analysis
+(`.claude/protocols/cross-artifact-analysis.md`): confirm the BRD, your
+architecture, and the QA plan agree with each other.
+
+1. Run `.claude/scripts/gate-analyze.sh <project>` for the mechanical subset —
+   requirements with no design or test mention, orphan references, placeholders.
+2. Complete the semantic passes by reading: duplication, terminology drift
+   (one concept named two ways across documents), and any element conflicting
+   with a constitution MUST (automatically CRITICAL).
+3. Produce the report in the protocol's format and hand it to the CEO with the
+   architecture.
+
+A CRITICAL finding (constitution conflict, or a core requirement with zero
+coverage) **blocks** the CEO gate until resolved. Reference every requirement
+by its FR/NFR ID in the architecture so coverage is traceable — an architecture
+that names no requirements cannot be shown to address them.

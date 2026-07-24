@@ -180,3 +180,22 @@ complete, unambiguous, consistent, and testable before anything is built from it
   warn-only craft smells.
 
 Adopted from GitHub Spec-Kit. Detail: `.claude/protocols/requirements-quality.md`
+
+## Article XIX — Artifacts Must Agree Before Build
+Before the architecture→build CEO checkpoint (Article VIII, checkpoint 2), the
+engagement's artifacts are checked for mutual consistency: the BRD, the
+architecture, and the QA plan must agree with each other.
+
+- Every requirement is addressed by an architecture element and covered by a
+  test; design elements tied to no requirement are flagged as scope creep.
+- No terminology drift (one concept, one name across all documents); no
+  contradictory stack or behaviour choices between documents.
+- Any element conflicting with a constitution MUST is CRITICAL and blocks the
+  gate — the fix is to change the artifact, never to reinterpret the article.
+
+`.claude/scripts/gate-analyze.sh` does the mechanical coverage subset; the
+semantic passes are the architect's reading. A CRITICAL finding does not reach
+the CEO until resolved.
+
+Adopted from GitHub Spec-Kit `/speckit.analyze`. Detail:
+`.claude/protocols/cross-artifact-analysis.md`
