@@ -1,0 +1,16 @@
+{
+  "name": "@mss/dataverse-metadata",
+  "version": "0.1.0",
+  "description": "Canonical Dataverse entity schema + field metadata service (MSS Technologies global library)",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/CrmMetadataService.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

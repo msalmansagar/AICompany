@@ -199,3 +199,21 @@ the CEO until resolved.
 
 Adopted from GitHub Spec-Kit `/speckit.analyze`. Detail:
 `.claude/protocols/cross-artifact-analysis.md`
+
+## Article XX — Inherit From Global, Don't Re-Implement
+Cross-cutting platform capabilities — Dataverse metadata extraction, lookup and
+option-set resolution, schema provisioning, and the shared look-and-feel — live
+once in `global/` and are inherited by every project.
+
+- A new project scaffolds from `global/templates/project-base/` and uses the
+  `@mss/*` shared packages. It does not write its own metadata or lookup service.
+- Building a copy of a capability that already lives in `global/` is a review
+  rejection. If the shared package lacks something, extend it in `global/` so
+  every project gains it — never fork it locally.
+- Dataverse has two runtimes that cannot share one client (a browser cannot hold
+  a secret): each shared package ships a contract plus `node/` and `browser/`
+  implementations.
+- Existing duplicates are migrated onto the shared packages one project at a
+  time, with a live-org reverify each — never in a big bang.
+
+Detail: `global/README.md`
