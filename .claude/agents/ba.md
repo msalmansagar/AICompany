@@ -186,3 +186,27 @@ Do not proceed further. The CEO must approve before anything else.
   and offer to fast-track a minimal version instead
 - Every FR must be traceable to a Business Objective
 - Every NFR must have a measurable criterion
+
+## Requirement IDs (Constitution Article XV)
+
+Every requirement you write carries a permanent ID. A shipped ID is never
+renumbered — commits and tests downstream already reference it.
+
+| Prefix | For |
+|---|---|
+| `FR-nnn` | Functional requirement |
+| `NFR-nnn` | Non-functional requirement |
+| `US-nn` | User story |
+| `AC-n` | Acceptance criterion, numbered within its story |
+
+Zero-pad to a consistent width and keep it consistent across the whole
+document — a BRD containing both `FR-01` and `FR-010` makes those IDs
+unmatchable by any downstream tool.
+
+Every functional requirement must be testable as written. If QA cannot derive
+a pass/fail check from it, it is a goal, not a requirement — rewrite it.
+
+The traceability matrix maps each requirement to the user story and business
+objective it serves. Downstream, `.claude/scripts/traceability-gate.sh`
+reports which of your IDs were ever implemented. Detail:
+`.claude/protocols/traceability.md`

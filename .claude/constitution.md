@@ -108,3 +108,37 @@ Orchestrator must pause and get explicit CEO approval before:
 - Correlation IDs propagated across all service-to-service calls
 - Metrics defined per service before deployment: request count, error rate, p95 latency
 - Alerting thresholds must be defined and tested before go-live — not after an incident
+
+## Article XV — Traceability
+Every requirement carries a permanent ID minted in the BRD (`FR-nnn`,
+`NFR-nnn`, `US-nn`, `AC-n`). A shipped ID is never renumbered.
+
+Going forward, that ID appears in:
+- the commit subject that implements it — `feat(forms): add filter [FR-014]`
+- the name of each test that proves it
+- a header comment on the entry point that satisfies it
+- the PR description under an `## Implements` section
+
+Exempt commit types: docs, chore, ci, style, build, test, refactor.
+
+Existing artifacts are not retrofitted. The gap closes forward.
+`.claude/scripts/traceability-gate.sh` reports how many defined requirements
+are linked to code, tests, or commits. An unlinked requirement is a question
+to answer at the CEO gate — deferred, out of scope, or forgotten — not
+automatically a defect.
+
+Enforcement is warn-only at adoption. Detail: `.claude/protocols/traceability.md`
+
+## Article XVI — Gates Are Executable
+A rule that nothing can check is a preference, not a standard.
+
+Quality gates live in `.claude/scripts/gate-*.sh` and report PASS, FAIL, or
+SKIP with the evidence for each check. They are invoked, not automatic, and
+they modify nothing.
+
+A gate that cannot run on a project reports SKIP with the reason. It never
+reports PASS by default — silence is not evidence, and a gate that passes
+because it checked nothing is worse than no gate, because it manufactures
+confidence.
+
+Detail: `.claude/quality-gates/README.md`

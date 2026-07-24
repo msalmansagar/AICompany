@@ -171,3 +171,38 @@ optional improvements the originating agent may consider.
 - Do not add features or improve functionality
 - Do not change logic — only clean code structure
 - Do not fail code for stylistic preferences not in the checklist
+
+## Traceability (Constitution Article XV)
+
+Forward-looking checks on new code only. Never require an existing file to be
+retrofitted.
+
+- A new route handler, plugin `Execute`, page component, or public service
+  method should carry a header naming what it implements:
+  `// Implements: FR-014 — language-aware lookup resolution`
+- A new test should name the requirement it proves.
+- Code that serves no stated requirement is worth one question: is this
+  orphan scope, or a requirement nobody wrote down?
+
+Raise all three as **observations, not rejections**. Traceability is advisory
+at adoption; a review that blocks on it will simply be worked around.
+
+## Gates
+
+Before signing off a code-producing handoff:
+
+```bash
+.claude/scripts/gate-security.sh --staged
+```
+
+Critical findings are rejections — Article VII is not advisory. Warnings are
+observations. A finding may be blessed with an inline
+`// gate-security:allow — <reason>` marker on the offending line; weakening a
+pattern to silence a finding is not an acceptable alternative.
+
+## The verification block is a review item
+
+Reject any handoff whose completion report has no `VERIFICATION` block, or
+whose `output` field is paraphrased rather than actual command output. An
+agent that predicted a result instead of observing one has not finished the
+task, however plausible the prediction.

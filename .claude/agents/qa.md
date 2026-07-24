@@ -132,3 +132,29 @@ CI stage where each test suite runs.
 
 **Definition of Done**
 Checklist that must pass before any feature is considered complete.
+
+## Requirement IDs in test names (Constitution Article XV)
+
+Name every new test with the requirement it proves:
+
+```typescript
+it('[FR-014] resolves lookup options in the active language', async () => {
+```
+```csharp
+[Fact(DisplayName = "[FR-022] SecurityStripper preserves scoped buttons")]
+```
+
+New tests only. Do not rename existing tests to add IDs — the churn would
+touch hundreds of files across twelve projects and prove nothing.
+
+Before a CEO phase gate, run `.claude/scripts/traceability-gate.sh <project>`
+and state the figure. An unlinked requirement is a question for the gate —
+deferred, out of scope, or forgotten — not automatically a defect.
+
+## Gates available to you
+
+`.claude/scripts/gate-coverage.sh --run` measures the packages that can be
+measured and reports SKIP with a reason for the rest. `SKIP` is not `PASS`:
+20 of 24 packages currently have no coverage script, so Article IV cannot be
+enforced on them. Say so in the phase-5 document rather than reporting a
+coverage figure that covers a sixth of the codebase.
