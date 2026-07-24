@@ -1,0 +1,63 @@
+{
+  "agent": "qa",
+  "updated_at": "2026-07-24",
+  "learned_patterns": [
+    {
+      "id": "QA-P-001",
+      "name": "Live-org round trip is the acceptance evidence for CRM work",
+      "context": "Any change that reaches Dynamics or Dataverse",
+      "pattern": "Create a real record, read it back through the exact path the runtime uses, assert on that output, then delete the record. Unit and integration suites are necessary but never sufficient — the cache path, the security stripper, the deployed bundle and the live-metadata path all diverge.",
+      "confidence": "high",
+      "times_applied": 6,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "QA-P-002",
+      "name": "Test the sentinel, not just the happy value",
+      "context": "Contracts that document a special value (version 0 = latest, blank caller = service account)",
+      "pattern": "Every documented sentinel gets its own test. Two production-blocking defects came from sentinels that were treated as convention rather than contract.",
+      "confidence": "high",
+      "times_applied": 2,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    }
+  ],
+  "common_mistakes": [
+    {
+      "id": "QA-M-001",
+      "mistake": "Verifying a web-resource change without a hard refresh",
+      "symptom": "Test reports the old behaviour and the fix is wrongly rejected",
+      "prevention": "Ctrl+F5 is a required step in any script that verifies a republished bundle.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "QA-M-002",
+      "mistake": "Testing a plugin fix on the first invocation after deployment",
+      "symptom": "The sandbox serves the previous AppDomain, so the first result is always stale",
+      "prevention": "Re-run once before recording a result.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "QA-M-003",
+      "mistake": "Driving browser verification by screen coordinates",
+      "symptom": "Clicks drift onto the wrong element; refs go stale after a tab switch; screenshots time out",
+      "prevention": "Click by element ref, re-read the page after any tab switch, and prefer get_page_text over screenshots on slow pages.",
+      "source": { "project": "crm-workflow-designer", "date": "2026-07" }
+    }
+  ],
+  "preferred_approaches": [
+    {
+      "scenario": "Every new API endpoint",
+      "approach": "Happy path, validation failure, and auth failure at minimum — per .claude/rules/common.md.",
+      "rationale": "Auth failure is the case most often skipped and the one that matters most to the auditor."
+    },
+    {
+      "scenario": "Reporting a defect",
+      "approach": "Number it, state the failing input and the observed output, and record it in the phase-5 document so the CEO can gate on it by ID.",
+      "rationale": "Numbered defects flow into approve-with-conditions blockers in projects/state.yml."
+    }
+  ],
+  "performance_metrics": {
+    "tasks_completed": 0,
+    "notes": "Seeded from DFE, Report Engine and CWFD QA phases."
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "agent": "crm-onprem",
+  "updated_at": "2026-07-24",
+  "learned_patterns": [
+    {
+      "id": "CRM-P-001",
+      "name": "Build one merged, signed 4.7.1 assembly for both cloud and on-premise",
+      "context": "Plugin assembly targeting for D365 9.x on-prem and Dataverse cloud",
+      "pattern": "Set TargetFrameworkVersion=v4.7.1 with a FrameworkPathOverride onto the NuGet reference assemblies, ILMerge the dependencies, sign with the .snk, and ship the dist output. Cloud enforces the 4.7.1 ceiling and on-prem accepts it, so a single artifact serves both.",
+      "confidence": "high",
+      "times_applied": 3,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "CRM-P-002",
+      "name": "Generate the solution manifest from build output",
+      "context": "Packaging web resources into a hand-built solution ZIP",
+      "pattern": "Walk the dist directory at package time and emit RootComponents plus customizations.xml entries with deterministic md5-derived GUIDs. Never maintain the list by hand.",
+      "confidence": "high",
+      "times_applied": 4,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "CRM-P-003",
+      "name": "try/catch-degrade every optional metadata read",
+      "context": "Reading schema that may not be provisioned in a given org",
+      "pattern": "Each optional table read gets its own try/catch that degrades to absent. The same binary then works before and after provisioning, so a stakeholder gate stays a data decision rather than a code branch.",
+      "confidence": "high",
+      "times_applied": 4,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    }
+  ],
+  "common_mistakes": [
+    {
+      "id": "CRM-M-001",
+      "mistake": "Registering the thin bin/Release assembly instead of the merged, signed dist assembly",
+      "symptom": "FileNotFoundException on an external reference (Newtonsoft 13.0.0.0) at plugin runtime",
+      "prevention": "Register from dist/ only. Changing the signing token requires unregister + re-register; Update is refused.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "CRM-M-002",
+      "mistake": "Reading lookups with the OData _<attr>_value form inside a plugin",
+      "symptom": "Lookup reads null in the plugin while the equivalent Web API client works",
+      "prevention": "Plugins use the SDK logical lookup name and EntityReference. The _value form is Web API only.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "CRM-M-003",
+      "mistake": "Rebuilding a model field-by-field and silently dropping properties",
+      "symptom": "SecurityStripper.Strip dropped Design and the scoped tab/section Buttons. Latent for weeks — the cloud live-metadata path masked it, and the in-CRM engine reads the cache, so buttons and design never appeared in CRM while every test passed.",
+      "prevention": "Any transform that reconstructs a domain model needs a test asserting field parity against the source model, not just the fields the transform is nominally about.",
+      "cost": "weeks latent, found only by live-org inspection",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "CRM-M-004",
+      "mistake": "Judging a plugin deployment by its first invocation",
+      "symptom": "Fix appears not to work; the sandbox served the previous AppDomain",
+      "prevention": "Wait 30-60s and re-run once before concluding anything.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "CRM-M-005",
+      "mistake": "Matching a version field exactly when the contract says 0 means latest",
+      "symptom": "FindActiveCache matched qdb_published_version exactly, so the documented 'version 0 = latest active' never matched and every form load failed.",
+      "prevention": "When a sentinel value is documented, assert it in a test. Sentinels are contract, not convention.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    }
+  ],
+  "preferred_approaches": [
+    {
+      "scenario": "Long-running work inside a plugin",
+      "approach": "Async handoff to a queue or job record. Constitution Article X — the sandbox has a two-minute hard limit and no outbound network calls.",
+      "rationale": "Synchronous work that grows past the limit fails in production under load rather than in test."
+    },
+    {
+      "scenario": "Verifying a plugin change",
+      "approach": "Deploy, wait, re-run once, then read the actual record or cache entry the runtime consumes.",
+      "rationale": "Test-suite green has repeatedly coexisted with a broken CRM path — see CRM-M-003."
+    }
+  ],
+  "performance_metrics": {
+    "tasks_completed": 0,
+    "notes": "Delivery timing not yet tracked. Seeded from DFE and Report Engine engagements."
+  }
+}

@@ -1,8 +1,8 @@
-# Maqsad AI
+# MSS Technologies
 
-**An AI-native enterprise software company where 17 specialist Claude Code agents design, build, test, and ship production software — directed by a single CEO.**
+**An AI-native enterprise software company where 19 specialist Claude Code agents design, build, test, and ship production software — directed by a single CEO.**
 
-Maqsad AI is not a framework, library, or boilerplate. It is a fully operational software company running inside a git repository. The CEO gives a business objective. The Orchestrator routes it through a mandatory 7-phase delivery pipeline. Specialist agents — Business Analyst, Architect, Backend Engineer, Frontend Engineer, CRM Developer, and 12 others — execute those phases across a multi-domain portfolio covering web, mobile, Dynamics CRM, Power Platform, F&O ERP, and AI agents.
+MSS Technologies is not a framework, library, or boilerplate. It is a fully operational software company running inside a git repository. The CEO gives a business objective. The Orchestrator routes it through a mandatory 7-phase delivery pipeline. Specialist agents — Business Analyst, Architect, Backend Engineer, Frontend Engineer, CRM Developer, and 12 others — execute those phases across a multi-domain portfolio covering web, mobile, Dynamics CRM, Power Platform, F&O ERP, and AI agents.
 
 The result: **production-ready deliverables governed by a clean-code constitution, enforced quality gates, and a BRD-first process** — where nothing gets designed or built without CEO-approved requirements.
 
@@ -41,7 +41,7 @@ No phase may be skipped. The BRD is the entry gate. Nothing gets designed or bui
 
 ---
 
-## Agent Roster (17 Specialists)
+## Agent Roster (19 Specialists)
 
 ### Strategy & Requirements
 | Agent | Role |
@@ -54,6 +54,7 @@ No phase may be skipped. The BRD is the entry gate. Nothing gets designed or bui
 | Agent | Role |
 |---|---|
 | `architect` | End-to-end solution design, system boundaries, ADRs, integration patterns |
+| `ui-ux-designer` | Information architecture, user flows, component specs, accessibility, Arabic/RTL — runs before frontend |
 
 ### Implementation
 | Agent | Role |
@@ -74,7 +75,58 @@ No phase may be skipped. The BRD is the entry gate. Nothing gets designed or bui
 | `github-researcher` | Searches GitHub before any build — adopt over build (1000+ stars threshold) |
 | `code-reviewer` | Clean code review on every agent output — non-negotiable |
 | `qa` | TDD strategy, test cases, E2E, performance benchmarks |
-| `auditor` | Security review, compliance, governance gaps, data residency |
+| `security-engineer` | Threat models, authn/authz, injection, secrets, dependency and licence risk |
+| `auditor` | Compliance, governance gaps, data residency, audit trail, regulatory review |
+
+---
+
+## Workflows
+
+Not every instruction needs a BRD. The orchestrator classifies the work first,
+then runs the matching workflow.
+
+| Work type | Workflow | Gate |
+|---|---|---|
+| New product, system, or client engagement | `new-project` | BRD, CEO-approved |
+| Capability that changes what the system promises | `new-feature` | BRD, CEO-approved |
+| Refinement within the approved contract | `enhancement` | change note |
+| Specified behaviour that does not work | `bug-fix` | defect record |
+| Shipping approved work to an environment | `release` | CEO ship decision |
+
+The test is **the contract, not the diff size**. Definitions:
+[`.claude/workflows/`](.claude/workflows/README.md)
+
+---
+
+## Company Memory
+
+Agents do not start cold. Every agent reads its own experience file and the
+shared knowledge base before producing anything:
+
+```
+.claude/memory/
+├── company-knowledge.json     gotchas, patterns, anti-patterns, environments
+├── decision-log.json          decisions with lasting consequence, and why
+└── agent-experiences/*.json   per-agent learned patterns and past mistakes
+```
+
+Seeded from delivery on regulated-client engagements — solution-packaging rules, plugin
+framework targeting, option-set encoding, cache and bundle behaviour. Each
+entry was paid for once already. See
+[`.claude/memory/memory-system.md`](.claude/memory/memory-system.md).
+
+---
+
+## Verification
+
+No agent may report a task complete without executing a proving command,
+reading its real output, and including that output in its completion report.
+
+A green test suite is necessary and **never sufficient** for work that
+reaches CRM — the cache path, the security stripper, the deployed bundle and
+the live-metadata path all diverge, and each has hidden a defect behind
+passing tests. Protocol:
+[`.claude/protocols/verification-before-completion.md`](.claude/protocols/verification-before-completion.md)
 
 ---
 
@@ -295,4 +347,4 @@ This company structure was inspired by:
 
 ## License
 
-Proprietary — Maqsad AI
+Proprietary — MSS Technologies
