@@ -1,0 +1,73 @@
+{
+  "agent": "frontend",
+  "updated_at": "2026-07-24",
+  "learned_patterns": [
+    {
+      "id": "FE-P-001",
+      "name": "Stable filenames for CRM web-resource bundles",
+      "context": "Vite builds packaged as Dynamics web resources",
+      "pattern": "Disable content hashing for web-resource builds. CRM's own /{orgCustomizationVersion}/webresources/ path token busts cache on Publish, and stable names keep the solution manifest and the deployed record set from accumulating orphans.",
+      "confidence": "high",
+      "times_applied": 2,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "FE-P-002",
+      "name": "Build-time module swap for the in-CRM renderer",
+      "context": "Reusing one React renderer across the portal and an in-CRM web resource",
+      "pattern": "Keep a single renderer and swap the data-access modules at build time via a dedicated Vite config, so the portal talks to the Node backend and the web resource talks to Xrm.WebApi without forking the component tree.",
+      "confidence": "high",
+      "times_applied": 1,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    }
+  ],
+  "common_mistakes": [
+    {
+      "id": "FE-M-001",
+      "mistake": "Consuming @qdb/shared from a Vite config that lacks the alias",
+      "symptom": "White page. The bundle downloads but never executes — a value-import produces a module-graph SyntaxError that kills it silently.",
+      "prevention": "Every Vite config consuming @qdb/shared needs the alias to shared/src/server.ts, matching the frontend config. Fixed in 3e1a9bb after the issue was parked for days as 'root cause unknown'.",
+      "cost": "days of parked debugging across two engagements",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "FE-M-002",
+      "mistake": "Appending a cache-busting query string to web-resource asset URLs",
+      "symptom": "Works on cloud, HTTP 500 on-premise",
+      "prevention": "The on-prem web resource handler rejects query strings outright. Never emit ?v= — use the platform's path token.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "FE-M-003",
+      "mistake": "Reading a lookup grid column by its plain attribute name",
+      "symptom": "Lookup cells render blank while text columns are fine",
+      "prevention": "Web API returns _<attr>_value plus a FormattedValue annotation. Remap the label into values[attr] — grid cells read that directly with no fallback.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "FE-M-004",
+      "mistake": "Looking up a DOM anchor by a config GUID with case-sensitive getElementById",
+      "symptom": "Section navigation silently no-ops — config GUIDs are often uppercase, DOM ids lowercase",
+      "prevention": "Match case-insensitively and use the definition's own id. Also resolve the owning tab and switch to it before scrolling, with a rAF retry until the anchor renders.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "FE-M-005",
+      "mistake": "Verifying a republished bundle on a normal reload",
+      "symptom": "Old behaviour persists after a correct fix",
+      "prevention": "Ctrl+F5. The browser caches the previous web-resource bundle.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    }
+  ],
+  "preferred_approaches": [
+    {
+      "scenario": "Adding a field to a shared form type",
+      "approach": "Edit both shared/src/types/form.types.ts (backend + frontend) and form.ts (mobile), make it optional, and let the parity check at shared/scripts/check-shared-type-sync.mjs gate the build.",
+      "rationale": "The two files are resolved by different tsconfig paths; editing one leaves the other package blind to the field."
+    }
+  ],
+  "performance_metrics": {
+    "tasks_completed": 0,
+    "notes": "Seeded from DFE web, designer and in-CRM runtime work."
+  }
+}

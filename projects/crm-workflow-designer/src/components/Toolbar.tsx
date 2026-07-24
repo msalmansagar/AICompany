@@ -7,6 +7,7 @@ import { useExport } from '@/hooks/useExport';
 import { useLoadWorkflow } from '@/hooks/useLoadWorkflow';
 import type { WorkflowProcess } from '@/types/WorkflowTypes';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { logError } from '@/services/logError';
 
 interface ToolbarProps {
   onRequestNew?: () => void;
@@ -72,7 +73,7 @@ export function Toolbar({
         : (typeof err === 'object' && err !== null && 'message' in err)
           ? String((err as Record<string, unknown>)['message'])
           : 'Failed to load workflows.';
-      console.error('[Toolbar] Failed to load process list:', err);
+      logError('Toolbar:loadProcessList', err);
       setListError(msg);
       setProcessList([]);
     } finally {

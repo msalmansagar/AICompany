@@ -37,7 +37,7 @@ namespace EDP.RuleRuntime.Executor
                     : ExecuteConditionSet(rule.Document.Logic, context);
 
                 stopwatch.Stop();
-                return RuleResult.Ok(matched, outputs, context.Trace, stopwatch.ElapsedMilliseconds);
+                return RuleResult.Ok(matched, outputs, context.Trace, stopwatch.ElapsedMilliseconds, context.ReasonCodes);
             }
             catch (RuleRuntimeException ex)
             {
@@ -66,6 +66,7 @@ namespace EDP.RuleRuntime.Executor
                 if (_conditions.Evaluate(rule.When, context))
                 {
                     context.Trace.Add("branch", "matched THEN branch", true);
+                    context.AddReasonCodes(rule.ReasonCodes);
                     return (true, rule.Then.ToDictionary(kv => kv.Key, kv => RuntimeValue.FromJson(kv.Value)));
                 }
             }

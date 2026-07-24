@@ -1,0 +1,65 @@
+{
+  "agent": "architect",
+  "updated_at": "2026-07-24",
+  "learned_patterns": [
+    {
+      "id": "ARC-P-001",
+      "name": "Split build-vs-adopt by layer, not as one decision",
+      "context": "Large subsystems where a single adopt/build choice forces a bad answer",
+      "pattern": "Build the domain engine; adopt narrow, well-licensed libraries for solved sub-problems. Report Engine built the engine and adopted NCalc, QuestPDF, Open XML SDK, ClosedXML and ScottPlot.",
+      "confidence": "high",
+      "times_applied": 1,
+      "source": { "project": "report-engine", "date": "2026-07-07" }
+    },
+    {
+      "id": "ARC-P-002",
+      "name": "Align documents to the as-built schema when the as-built is better",
+      "context": "A drafted schema and a schema the client already deployed had diverged",
+      "pattern": "Compare formally, produce a reconciliation document plus a machine-readable manifest, and add only the genuine gap fields additively. Teardown was rejected because the deployed model was more correct than the draft.",
+      "confidence": "high",
+      "times_applied": 1,
+      "source": { "project": "report-engine", "date": "2026-07-21" }
+    },
+    {
+      "id": "ARC-P-003",
+      "name": "Raise residency and compliance at architecture time",
+      "context": "regulated-client engagements under PDPPL",
+      "pattern": "Data residency, PDPPL sign-off and tenant type are named gates in the architecture document with an owner, not findings discovered in the audit phase. They have blocked go-live on four engagements.",
+      "confidence": "high",
+      "times_applied": 4,
+      "source": { "project": "multiple", "date": "2026-05 onward" }
+    }
+  ],
+  "common_mistakes": [
+    {
+      "id": "ARC-M-001",
+      "mistake": "Designing configuration that carries record GUIDs across orgs",
+      "symptom": "Navigation and lookup config works in dev and silently no-ops elsewhere",
+      "prevention": "Resolve by code, name or alternate key at runtime. Constitution Article V applies to identifiers, not just business rules.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "ARC-M-002",
+      "mistake": "Assuming a cache path and a live path stay equivalent",
+      "symptom": "A model transform dropped fields on the cache path only; cloud masked it for weeks",
+      "prevention": "When two read paths serve the same contract, require a parity test between them in the architecture, not as a QA afterthought.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    }
+  ],
+  "preferred_approaches": [
+    {
+      "scenario": "A feature whose schema is gated on stakeholder approval",
+      "approach": "Design the read path to degrade gracefully when the table is absent, so the gate is a data decision rather than a code branch.",
+      "rationale": "Keeps one binary valid across provisioned and unprovisioned orgs and lets build proceed while the gate is open."
+    },
+    {
+      "scenario": "Any deviation from the default stack",
+      "approach": "ADR in projects/<name>/adrs/, numbered, with the rejected options and their licences stated.",
+      "rationale": "Constitution Article II. Licence traps (EPPlus v5+ Polyform, iText7 AGPL) are only caught if alternatives are written down."
+    }
+  ],
+  "performance_metrics": {
+    "tasks_completed": 0,
+    "notes": "Seeded from Report Engine, DFE and CWFD architecture phases."
+  }
+}

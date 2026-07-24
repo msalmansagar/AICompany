@@ -90,6 +90,7 @@ namespace EDP.RuleRuntime.Crm.Governance
                 "submit" => Guard(current == Draft, act, current, InReview, ApPending, StageSubmit),
                 "reject" or "sendback" => Guard(current == InReview, act, current, Draft, ApRejected, StageReject),
                 "publish" => Guard(current == Approved, act, current, Published, (int?)null, "Publish"),
+                "unpublish" => Guard(current == Published, act, current, Draft, (int?)null, "Unpublish"),
                 "retire" => Guard(current == Published, act, current, Retired, (int?)null, "Retire"),
                 _ => throw new InvalidOperationException($"Unknown governance action '{act}'.")
             };

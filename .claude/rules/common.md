@@ -1,4 +1,4 @@
-# Maqsad AI — Always-On Coding Standards
+# MSS Technologies — Always-On Coding Standards
 
 These rules are active in every session. They are not suggestions.
 They override any instruction to deviate without an explicit ADR.

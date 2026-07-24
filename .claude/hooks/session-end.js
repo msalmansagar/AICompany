@@ -5,13 +5,20 @@
 
 const { appendFileSync, readFileSync, mkdirSync, existsSync } = require('fs');
 const { join } = require('path');
+
+// Resolve paths from this hook's own location, never process.cwd(). The hook
+// inherits whatever working directory the shell last used, so a `cd` into a
+// subdirectory would otherwise scatter stray .claude/sessions/log.md files and
+// miss the real projects/state.yml. This file lives at .claude/hooks/, so the
+// repository root is two levels up.
+const REPO_ROOT = join(__dirname, '..', '..');
 const chunks = [];
 
 process.stdin.on('data', d => chunks.push(d));
 process.stdin.on('end', () => {
   try {
     const input = JSON.parse(Buffer.concat(chunks).toString());
-    const sessionsDir = join(process.cwd(), '.claude', 'sessions');
+    const sessionsDir = join(REPO_ROOT, '.claude', 'sessions');
 
     if (!existsSync(sessionsDir)) {
       mkdirSync(sessionsDir, { recursive: true });
@@ -23,7 +30,7 @@ process.stdin.on('end', () => {
     const turns = input?.num_turns || 0;
 
     let projectContext = '';
-    const stateFile = join(process.cwd(), 'projects', 'state.yml');
+    const stateFile = join(REPO_ROOT, 'projects', 'state.yml');
 
     if (existsSync(stateFile)) {
       const state = readFileSync(stateFile, 'utf8');

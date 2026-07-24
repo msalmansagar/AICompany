@@ -126,7 +126,7 @@ function isQueryConditionControl(value: unknown): value is QueryConditionControl
 
 const containerStyle: React.CSSProperties = {
   width: '100%',
-  height: 400,
+  height: 460,
   position: 'relative',
 };
 
@@ -142,6 +142,7 @@ const loadingStyle: React.CSSProperties = {
 
 function iframeStyle(isLoaded: boolean): React.CSSProperties {
   return {
+    display: 'block',
     width: '100%',
     height: '100%',
     border: '1px solid #e5e7eb',

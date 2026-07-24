@@ -65,6 +65,23 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
 
         [Fact]
+        public void Unpublish_moves_published_back_to_draft()
+        {
+            var (fake, gov, id) = Setup(Published);
+            var r = gov.PerformAction(id, "Unpublish", "pulling from production", Guid.NewGuid());
+            Assert.Equal("Draft", r.NewState);
+            Assert.Equal(Draft, UpdatedState(fake));
+            Assert.Contains(fake.Created, e => e.LogicalName == "qdb_edp_ruleaudit");
+        }
+
+        [Fact]
+        public void Unpublish_is_rejected_when_not_published()
+        {
+            var (_, gov, id) = Setup(Draft);
+            Assert.Throws<InvalidOperationException>(() => gov.PerformAction(id, "Unpublish", null, Guid.NewGuid()));
+        }
+
+        [Fact]
         public void Illegal_transition_is_rejected()
         {
             var (_, gov, id) = Setup(Draft);

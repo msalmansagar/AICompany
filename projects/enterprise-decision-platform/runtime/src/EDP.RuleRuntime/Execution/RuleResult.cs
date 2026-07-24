@@ -10,7 +10,8 @@ namespace EDP.RuleRuntime.Execution
     public sealed class RuleResult
     {
         private RuleResult(bool success, bool matched, IReadOnlyDictionary<string, object?> outputs,
-            ExecutionTrace trace, long elapsedMs, IReadOnlyList<RuleDiagnostic> diagnostics)
+            ExecutionTrace trace, long elapsedMs, IReadOnlyList<RuleDiagnostic> diagnostics,
+            IReadOnlyList<string> reasonCodes)
         {
             Success = success;
             Matched = matched;
@@ -18,6 +19,7 @@ namespace EDP.RuleRuntime.Execution
             Trace = trace;
             ElapsedMilliseconds = elapsedMs;
             Diagnostics = diagnostics;
+            ReasonCodes = reasonCodes;
         }
 
         /// <summary>Evaluation completed without error.</summary>
@@ -31,10 +33,15 @@ namespace EDP.RuleRuntime.Execution
         public long ElapsedMilliseconds { get; }
         public IReadOnlyList<RuleDiagnostic> Diagnostics { get; }
 
-        public static RuleResult Ok(bool matched, IReadOnlyDictionary<string, object?> outputs, ExecutionTrace trace, long elapsedMs)
-            => new RuleResult(true, matched, outputs, trace, elapsedMs, System.Array.Empty<RuleDiagnostic>());
+        /// <summary>Reason codes emitted by the winning row(s)/branch — the machine-readable "why".</summary>
+        public IReadOnlyList<string> ReasonCodes { get; }
+
+        public static RuleResult Ok(bool matched, IReadOnlyDictionary<string, object?> outputs, ExecutionTrace trace, long elapsedMs,
+            IReadOnlyList<string>? reasonCodes = null)
+            => new RuleResult(true, matched, outputs, trace, elapsedMs, System.Array.Empty<RuleDiagnostic>(),
+                reasonCodes ?? System.Array.Empty<string>());
 
         public static RuleResult Failure(IReadOnlyList<RuleDiagnostic> diagnostics, ExecutionTrace trace, long elapsedMs)
-            => new RuleResult(false, false, new Dictionary<string, object?>(), trace, elapsedMs, diagnostics);
+            => new RuleResult(false, false, new Dictionary<string, object?>(), trace, elapsedMs, diagnostics, System.Array.Empty<string>());
     }
 }

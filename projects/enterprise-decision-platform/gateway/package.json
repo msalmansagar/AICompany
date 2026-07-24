@@ -1,0 +1,25 @@
+{
+  "name": "@edp/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EDP Decision Gateway — transport-only REST façade over the Dataverse decision runtime (ADR-EDS-02).",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
+  }
+}

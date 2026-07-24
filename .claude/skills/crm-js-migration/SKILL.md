@@ -391,27 +391,27 @@ global scope collisions with other scripts on the same form.
 
 ```javascript
 // ✅ Namespace pattern
-var Maqsad = Maqsad || {};
-Maqsad.LoanForm = Maqsad.LoanForm || {};
+var MSS Technologies = MSS Technologies || {};
+Mss.LoanForm = Mss.LoanForm || {};
 
-Maqsad.LoanForm.onLoad = function(executionContext) {
+Mss.LoanForm.onLoad = function(executionContext) {
   const formContext = executionContext.getFormContext();
-  Maqsad.LoanForm._applyBusinessRules(formContext);
+  Mss.LoanForm._applyBusinessRules(formContext);
 };
 
-Maqsad.LoanForm.onSave = function(executionContext) {
+Mss.LoanForm.onSave = function(executionContext) {
   const formContext = executionContext.getFormContext();
   const saveArgs = executionContext.getEventArgs();
-  Maqsad.LoanForm._validateAmount(formContext, saveArgs);
+  Mss.LoanForm._validateAmount(formContext, saveArgs);
 };
 
 // Private helpers use underscore prefix convention
-Maqsad.LoanForm._applyBusinessRules = function(formContext) {
+Mss.LoanForm._applyBusinessRules = function(formContext) {
   const status = formContext.getAttribute("statuscode").getValue();
   formContext.getControl("new_approvaldate").setVisible(status === 100000002);
 };
 
-Maqsad.LoanForm._validateAmount = function(formContext, saveArgs) {
+Mss.LoanForm._validateAmount = function(formContext, saveArgs) {
   const amount = formContext.getAttribute("new_amount").getValue();
   if (amount !== null && amount <= 0) {
     saveArgs.preventDefault();

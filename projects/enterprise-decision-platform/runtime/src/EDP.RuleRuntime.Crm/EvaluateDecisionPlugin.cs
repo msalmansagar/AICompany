@@ -63,6 +63,7 @@ namespace EDP.RuleRuntime.Crm
                 context.OutputParameters["Success"] = result.Success;
                 context.OutputParameters["Matched"] = result.Matched;
                 context.OutputParameters["OutputsJson"] = JsonSerializer.Serialize(result.Outputs);
+                context.OutputParameters["ReasonCodesJson"] = JsonSerializer.Serialize(result.ReasonCodes);
                 context.OutputParameters["ElapsedMs"] = (int)result.ElapsedMilliseconds;
                 context.OutputParameters["TraceJson"] = JsonSerializer.Serialize(
                     result.Trace.Steps.Select(s => new { kind = s.Kind, description = s.Description, result = s.Result }));
