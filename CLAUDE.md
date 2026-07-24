@@ -2,17 +2,44 @@
 
 ## Default behavior — always route through the orchestrator
 When the user types any instruction, delegate to @orchestrator.
-The orchestrator enforces the mandatory sequence:
+The orchestrator first classifies the work into one workflow, then
+executes that workflow's phases. See `.claude/workflows/README.md`.
+
+| Work type | Workflow | Gate |
+|---|---|---|
+| New product, system, or client engagement | `new-project.md` | BRD, CEO-approved |
+| Capability that changes what the system promises | `new-feature.md` | BRD, CEO-approved |
+| Refinement within the approved contract | `enhancement.md` | change note |
+| Specified behaviour that does not work | `bug-fix.md` | defect record |
+| Shipping approved work to an environment | `release.md` | CEO ship decision |
+
+For `new-project` and `new-feature` the mandatory sequence is:
 BA → CEO BRD approval → GitHub research → Architecture →
 Technical build → Code review → QA → Audit → CEO final decision.
+No step may be skipped, and the BRD is the entry gate.
 
-No step may be skipped. The BRD is the entry gate for all
-new features. Nothing gets designed or built without it.
-Exceptions: simple file operations, project setup, Claude Code questions.
+`enhancement` and `bug-fix` are deliberate fast paths with no BA phase,
+no architecture phase, and no CEO gate. **The test is the contract, not
+the size of the change**: work that changes what the system promises needs
+a BRD even if it is ten lines; work that delivers what was already promised
+does not, even if it is a thousand.
+Exceptions to all of the above: simple file operations, project setup,
+Claude Code questions.
+
+## Always-on, in every workflow
+- Every agent reads `.claude/memory/agent-experiences/<agent>.json` and
+  `.claude/memory/company-knowledge.json` before starting.
+- Every task ends with a `VERIFICATION` block —
+  `.claude/protocols/verification-before-completion.md`. A green test suite
+  is never sufficient for work that reaches CRM.
+- `code-reviewer` runs after every code-producing agent.
+- Live-org schema provisioning requires explicit user go-ahead, every time.
 
 ## Available agents
 orchestrator, ba, ceo, architect, backend, frontend, middleware,
-crm-developer, github-researcher, code-reviewer, qa, auditor
+crm-onprem, power-platform, fo-developer, mobile, agent-developer,
+devops, ui-ux-designer, github-researcher, code-reviewer, qa,
+security-engineer, auditor
 
 ## Service lines
 - Portal development (Power Pages, Next.js, React)

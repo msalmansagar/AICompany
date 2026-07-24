@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-07-24",
+  "description": "Significant decisions with lasting consequence, and why they were made. A decision belongs here when reversing it would cost real work or when a future agent might otherwise re-open it.",
+
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "date": "2026-07-21",
+      "project": "report-engine",
+      "decision": "Keep the client's already-deployed 18-table schema and align documents and code to it, rather than tearing down and rebuilding from the phase-3 draft.",
+      "alternatives_considered": ["Teardown and rebuild to match the draft schema", "Maintain both and map between them"],
+      "rationale": "The as-built schema was more correct than the draft — deeper normalisation, better parent lookup naming, JSON-consolidated layout. Rebuilding would have destroyed client work to reach a worse model.",
+      "consequences": "Deliverables: schema-reconciliation.md, schema-manifest.json, an as-built banner on phase-3-schema.md. Code is written against the manifest names. Four genuine gap fields were added additively.",
+      "decided_by": "user"
+    },
+    {
+      "id": "DEC-002",
+      "date": "2026-07-07",
+      "project": "report-engine",
+      "decision": "Build the report engine; adopt only narrow point libraries.",
+      "alternatives_considered": ["Adopt an existing reporting framework wholesale", "Build everything including PDF, Excel and chart rendering"],
+      "rationale": "No framework covered metadata-driven CRM-native reporting with the required export set, but PDF, Excel, Word, charting and formula evaluation are solved problems with well-licensed libraries.",
+      "consequences": "Adopted NCalc, QuestPDF, Open XML SDK, ClosedXML, ScottPlot, react-querybuilder. Rejected EPPlus v5+ (Polyform), iText7 (AGPL), Jint and DynamicExpresso (code execution). Recorded in dependencies.md.",
+      "decided_by": "architect + user"
+    },
+    {
+      "id": "DEC-003",
+      "date": "2026-06-30",
+      "project": "dynamic-form-engine",
+      "decision": "Target .NET Framework 4.7.1 for plugin assemblies and persist the target in the csproj via NuGet reference assemblies.",
+      "alternatives_considered": ["Target 4.8 and downgrade only when rejected", "Pass msbuild flags at build time"],
+      "rationale": "Dataverse rejects both 4.8 and 4.7.2 with 0x8004420b, and the build machine has no 4.7.1 targeting pack. Persisting FrameworkPathOverride in the csproj makes plain `dotnet build` reproducible for anyone.",
+      "consequences": "One merged, signed artifact is valid for both cloud and on-prem D365 9.x registration.",
+      "decided_by": "crm-onprem"
+    },
+    {
+      "id": "DEC-004",
+      "date": "2026-07-24",
+      "project": "maqsad-ai",
+      "decision": "Adopt in-repo agent memory, a verification-before-completion protocol, work-type-specific workflows, and dedicated security and UX agents. Defer component extraction, traceability ID enforcement and executable quality gates to a separate engagement.",
+      "alternatives_considered": ["Adopt all seven improvements at once", "Adopt none and keep the current prompt-only governance"],
+      "rationale": "The four adopted items add only new files and prompt directives, so they cannot break a build or a deployment. The three deferred items touch deployed code, intercept every commit, or would fail on projects that have no test script — they need their own scoped engagement.",
+      "consequences": "Implemented on branch chore/agent-infrastructure. Deferred items tracked as INFRA-3 (component reuse), INFRA-4 (traceability), INFRA-6 (executable gates).",
+      "decided_by": "user"
+    }
+  ]
+}

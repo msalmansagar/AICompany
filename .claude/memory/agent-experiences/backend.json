@@ -1,0 +1,77 @@
+{
+  "agent": "backend",
+  "updated_at": "2026-07-24",
+  "learned_patterns": [
+    {
+      "id": "BE-P-001",
+      "name": "Verify Dataverse schema with direct EntityDefinitions lookups",
+      "context": "Confirming that tables exist before building a persistence layer against them",
+      "pattern": "Query EntityDefinitions(LogicalName='x') per table. A filtered or full collection scan is silently paginated and reports tables missing that exist; metadata entities also reject contains and startswith filters.",
+      "confidence": "high",
+      "times_applied": 2,
+      "source": { "project": "report-engine", "date": "2026-07-21" }
+    },
+    {
+      "id": "BE-P-002",
+      "name": "Cache-only serving with an explicit miss contract",
+      "context": "Serving published form definitions from a render cache",
+      "pattern": "When a cache is authoritative, a miss returns a named domain error (404 FORM_NOT_PUBLISHED) rather than falling back to live metadata. The fallback is what hides publishing bugs until production.",
+      "confidence": "high",
+      "times_applied": 1,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    }
+  ],
+  "common_mistakes": [
+    {
+      "id": "BE-M-001",
+      "mistake": "Assuming Dataverse option-set values are 0-based ordinals",
+      "symptom": "Values map to the wrong label, or writes fail validation",
+      "prevention": "Codes are 100000000-based. Read them from metadata and map explicitly.",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "BE-M-002",
+      "mistake": "Using the lowercase logical attribute name for @odata.bind",
+      "symptom": "Navigation property not recognised on create",
+      "prevention": "Navigation properties are PascalCase-prefixed (Qdb_reportdefinitionid). Take the name from metadata verbatim.",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "BE-M-003",
+      "mistake": "Passing an unvalidated caller id for impersonation",
+      "symptom": "Writes return 404 while reads succeed — reads as a missing table",
+      "prevention": "MSCRMCallerID must be a real systemuser id, or blank to run as the service application.",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "BE-M-004",
+      "mistake": "Treating an alternate-key collision as a generic 4xx",
+      "symptom": "Duplicate qdb_reportcode surfaces as an unhelpful error",
+      "prevention": "Unique alternate keys return HTTP 412. Handle it by name; read new record ids from the OData-EntityId response header.",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "BE-M-005",
+      "mistake": "Writing a parent and its children without a transaction",
+      "symptom": "A mid-way child create failure leaves orphaned parent records",
+      "prevention": "Use an OData $batch changeset for multi-entity writes. Open item on both the report and dashboard writers.",
+      "source": { "project": "report-engine", "date": "2026-07-23" }
+    }
+  ],
+  "preferred_approaches": [
+    {
+      "scenario": "Secrets and configuration",
+      "approach": "Zod-validated environment parsing at the boundary; reference variable names in documentation, never values.",
+      "rationale": "Constitution Article VII. An Azure AD secret was committed in an earlier engagement and still requires rotation (SEC-01)."
+    },
+    {
+      "scenario": "Expression or formula evaluation",
+      "approach": "Sandboxed evaluators only — NCalc in .NET, the in-house ExpressionEngine in Node. Jint and DynamicExpresso were rejected on code-execution grounds.",
+      "rationale": "Arbitrary code execution fails the no-code-exec control on every audit."
+    }
+  ],
+  "performance_metrics": {
+    "tasks_completed": 0,
+    "notes": "Seeded from DFE backend and Report Engine middle-tier work."
+  }
+}
