@@ -91,6 +91,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       filterType: 'text',
       lookupTargetEntity: null,
       lookupDisplayAttribute: null,
+      lookupValueAttribute: null,
     };
     updateField(fieldId, { gridColumns: [...columns, newCol] });
   }, [fieldId, columns, updateField]);
@@ -271,6 +272,15 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
                   value={col.lookupDisplayAttribute ?? ''}
                   placeholder="fullname"
                   onChange={(_, d) => handleUpdate(col.id, { lookupDisplayAttribute: d.value || null })}
+                  style={{ fontFamily: 'monospace' }}
+                />
+              </Field>
+              <Field label="Value / ID Attribute" className={styles.fieldRowItem} hint="stored ID — blank ⇒ primary key">
+                <Input
+                  size="small"
+                  value={col.lookupValueAttribute ?? ''}
+                  placeholder="accountid"
+                  onChange={(_, d) => handleUpdate(col.id, { lookupValueAttribute: d.value || null })}
                   style={{ fontFamily: 'monospace' }}
                 />
               </Field>

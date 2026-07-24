@@ -4,6 +4,7 @@ import {
   Button,
   Field,
   Input,
+  Select,
   Textarea,
   makeStyles,
   tokens,
@@ -86,7 +87,7 @@ export function InfoCardFieldPanel({ field }: Props): React.ReactElement {
         />
       </Field>
 
-      <Field label="Body Text">
+      <Field label="Body Text" hint="One item per line when a list style is chosen">
         <Textarea
           value={field.infoCardBody ?? ''}
           placeholder="e.g. Please read before submitting your application."
@@ -94,6 +95,39 @@ export function InfoCardFieldPanel({ field }: Props): React.ReactElement {
           onChange={(_, d) => updateField(field.id, { infoCardBody: d.value || null })}
         />
       </Field>
+
+      <Field label="List Style" hint="Render the body (one item per line) as a list">
+        <Select
+          value={field.infoCardListType ?? ''}
+          onChange={(_, d) =>
+            updateField(field.id, {
+              infoCardListType: (d.value || null) as DesignerFieldModel['infoCardListType'],
+            })
+          }
+        >
+          <option value="">Plain text (no list)</option>
+          <option value="bullet">Bullet list</option>
+          <option value="numbered-arabic">Numbered (1, 2, 3)</option>
+          <option value="numbered-roman">Numbered (I, II, III)</option>
+        </Select>
+      </Field>
+
+      {field.infoCardListType && (
+        <Field label="List Marker" hint="Marker shape for each item">
+          <Select
+            value={field.infoCardListMarker ?? 'plain'}
+            onChange={(_, d) =>
+              updateField(field.id, {
+                infoCardListMarker: (d.value || null) as DesignerFieldModel['infoCardListMarker'],
+              })
+            }
+          >
+            <option value="plain">Plain</option>
+            <option value="circle">Circle</option>
+            <option value="none">None</option>
+          </Select>
+        </Field>
+      )}
 
       <Field label="Icon Name" hint="Fluent UI icon name (optional)">
         <Input

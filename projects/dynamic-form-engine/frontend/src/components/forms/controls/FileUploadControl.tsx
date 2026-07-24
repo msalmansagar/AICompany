@@ -15,6 +15,7 @@ import {
   DeleteRegular,
   ArrowUploadRegular,
   ArrowDownloadRegular,
+  DocumentAddRegular,
 } from '@fluentui/react-icons';
 import { DynamicIcon } from '../DynamicIcon';
 import { useFormContext } from '../../../contexts/FormContext';
@@ -231,13 +232,15 @@ export function FileUploadControl({
     setUploadEntries((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept,
     maxSize,
     maxFiles: maxFiles - uploadEntries.length,
     disabled: isReadonly || uploadEntries.length >= maxFiles,
     multiple: maxFiles > 1,
+    // noClick: the dropzone still accepts drag-and-drop, but "click to add" is driven
+    // by the explicit button below (via open()) once at least one file is present.
   });
 
   const canAddMore = !isReadonly && uploadEntries.length < maxFiles;
@@ -278,7 +281,7 @@ export function FileUploadControl({
           )}
         </button>
       )}
-      {canAddMore && (
+      {canAddMore && uploadEntries.length === 0 && (
         <div
           {...getRootProps()}
           className={`${styles.dropzone} ${isDragActive ? styles.dropzoneActive : ''}`}
@@ -355,6 +358,24 @@ export function FileUploadControl({
             </div>
           ))}
         </div>
+      )}
+
+      {/* Explicit add-more affordance once at least one document is present.
+          The hidden input must stay mounted here — open() clicks it, and the
+          drag-and-drop dropzone above (which also carries the input) is not
+          rendered once files exist. */}
+      {canAddMore && uploadEntries.length > 0 && (
+        <>
+          <input {...getInputProps()} aria-label={`Upload more files for ${field.label}`} />
+          <Button
+            appearance="secondary"
+            icon={<DocumentAddRegular />}
+            onClick={open}
+            style={{ marginTop: tokens.spacingVerticalS }}
+          >
+            Add new Document
+          </Button>
+        </>
       )}
     </div>
   );

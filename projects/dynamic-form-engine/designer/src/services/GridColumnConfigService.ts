@@ -9,7 +9,7 @@ import { withRetry } from './crmRetry';
 // Falls back to a plain array if no filter metadata is set and options exist.
 function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   const hasOptions = col.optionsJson != null && col.optionsJson.trim().startsWith('[');
-  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute;
+  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute || col.lookupValueAttribute;
 
   if (!hasOptions && !hasFilterMeta) return null;
 
@@ -27,6 +27,7 @@ function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   if (col.filterType && col.filterType !== 'none') v2['filterType'] = col.filterType;
   if (col.lookupTargetEntity) v2['lookupTargetEntity'] = col.lookupTargetEntity;
   if (col.lookupDisplayAttribute) v2['lookupDisplayAttribute'] = col.lookupDisplayAttribute;
+  if (col.lookupValueAttribute) v2['lookupValueAttribute'] = col.lookupValueAttribute;
 
   return JSON.stringify(v2);
 }
@@ -37,8 +38,9 @@ function decodeOptionsJson(raw: string | null | undefined): {
   filterType: GridColumnFilterType;
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
+  lookupValueAttribute: string | null;
 } {
-  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null };
+  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null, lookupValueAttribute: null };
   if (!raw) return defaults;
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -56,6 +58,7 @@ function decodeOptionsJson(raw: string | null | undefined): {
         filterType: ft,
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : null,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : null,
+        lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : null,
       };
     }
   } catch { /* fall through */ }
@@ -95,7 +98,8 @@ export class GridColumnConfigService {
     const filterFieldChanged = col.optionsJson !== undefined
       || col.filterType !== undefined
       || col.lookupTargetEntity !== undefined
-      || col.lookupDisplayAttribute !== undefined;
+      || col.lookupDisplayAttribute !== undefined
+      || col.lookupValueAttribute !== undefined;
     if (filterFieldChanged) {
       data[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] = encodeOptionsJson(col as DesignerGridColumnConfig) ?? null;
     }
@@ -168,7 +172,7 @@ export class GridColumnConfigService {
     const rawOptionsJson = record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] != null
       ? String(record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON])
       : null;
-    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute } = decodeOptionsJson(rawOptionsJson);
+    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute, lookupValueAttribute } = decodeOptionsJson(rawOptionsJson);
     return {
       id: String(record[GRID_COLUMN_CONFIG_ATTRS.ID] ?? ''),
       columnLabel: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_LABEL] ?? ''),
@@ -180,6 +184,7 @@ export class GridColumnConfigService {
       filterType,
       lookupTargetEntity,
       lookupDisplayAttribute,
+      lookupValueAttribute,
     };
   }
 }

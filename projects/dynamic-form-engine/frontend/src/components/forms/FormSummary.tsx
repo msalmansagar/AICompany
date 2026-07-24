@@ -9,8 +9,10 @@ import {
   Badge,
 } from '@fluentui/react-components';
 import { DocumentRegular, EditRegular } from '@fluentui/react-icons';
+import { useState } from 'react';
 import { useFormContext } from '../../contexts/FormContext';
 import type { UploadedFileReference } from '../../api/filesApi';
+import { filesApi } from '../../api/filesApi';
 import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
 import { getTabZoneFields } from './tabFields';
 
@@ -383,11 +385,20 @@ function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
                       : tokens.colorNeutralBackground2,
                 }}
               >
-                {cols.map((col) => (
-                  <td key={col.columnId} className={styles.gridTd}>
-                    {formatCellValue(rowVals[col.targetAttribute], col.columnFieldType)}
-                  </td>
-                ))}
+                {cols.map((col) => {
+                  const cellValue = rowVals[col.targetAttribute];
+                  const isDownloadableFile =
+                    col.columnFieldType === 'file' && isFileReference(cellValue);
+                  return (
+                    <td key={col.columnId} className={styles.gridTd}>
+                      {isDownloadableFile ? (
+                        <FileDownloadLink fileRef={cellValue} />
+                      ) : (
+                        formatCellValue(cellValue, col.columnFieldType)
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}
@@ -454,6 +465,40 @@ function formatFileSize(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
+}
+
+// DFE-SUMMARY-DL — download an uploaded document (file field or grid cell) through the
+// authenticated API. A plain href can't carry the bearer token, so downloads go via filesApi.
+function isFileReference(value: unknown): value is UploadedFileReference {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'fileName' in value &&
+    'url' in value
+  );
+}
+
+function FileDownloadLink({ fileRef }: { fileRef: UploadedFileReference }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = () => {
+    setIsDownloading(true);
+    filesApi
+      .downloadFile(fileRef.url, fileRef.fileName)
+      .finally(() => setIsDownloading(false));
+  };
+
+  return (
+    <Link
+      as="button"
+      type="button"
+      onClick={handleDownload}
+      disabled={isDownloading}
+      title={`Download ${fileRef.fileName}`}
+    >
+      {fileRef.fileName}
+    </Link>
+  );
 }
 
 function FieldValueDisplay({ field, value }: FieldValueDisplayProps) {
@@ -538,15 +583,9 @@ function FieldValueDisplay({ field, value }: FieldValueDisplayProps) {
           {value.map((ref) => (
             <div key={ref.fileId} className={styles.fileItem}>
               <DocumentRegular className={styles.fileIcon} aria-hidden="true" />
-              <Link
-                href={ref.previewUrl ?? ref.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={styles.fileName}
-                title={ref.fileName}
-              >
-                {ref.fileName}
-              </Link>
+              <span className={styles.fileName}>
+                <FileDownloadLink fileRef={ref} />
+              </span>
               <span className={styles.fileSize}>{formatFileSize(ref.sizeBytes)}</span>
             </div>
           ))}

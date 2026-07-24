@@ -2,7 +2,7 @@
 // Shared TypeScript contracts — used by both frontend and backend
 // ─────────────────────────────────────────────────────────────
 
-import type { DesignPayload } from './design.types';
+import type { DesignPayload } from './design.types.js';
 
 // ── Field type enumeration ────────────────────────────────────
 
@@ -223,6 +223,13 @@ export type ScopedButtonAction =
   | SaveDraftActionConfig
   | CallApiActionConfig;
 
+// DFE-CBTN-001: a set of conditions combined by `logic`, evaluated against live
+// field values to drive a scoped button's visibility or enablement.
+export interface ButtonConditionSet {
+  conditions: RuleCondition[];
+  logic: LogicalOperator;
+}
+
 export interface ScopedButton {
   id: string;
   placementScope: ButtonPlacementScope;
@@ -235,6 +242,11 @@ export interface ScopedButton {
   confirmationMessage?: string;
   action: ScopedButtonAction;  // discriminated by action.type
   isActive: boolean;
+  // DFE-CBTN-001: optional conditional visibility / enablement. When present the
+  // set is evaluated live against field values and overrides the static
+  // isVisible / isActive flag; when absent, the static flag applies (legacy).
+  visibleWhen?: ButtonConditionSet;
+  enabledWhen?: ButtonConditionSet;
 }
 
 /** Resolved extra-parameter envelope produced server-side at submit time. */
@@ -280,6 +292,25 @@ export interface LookupConfig {
   maxResults: number;
   dependsOnFieldId?: string;       // filter this lookup based on another field's value
   dependsOnFilterTemplate?: string; // OData filter template with {dependsOnValue} placeholder
+  // DFE-APILOOKUP-001: external-API source. Absent/'entity' => the CRM-entity path above.
+  // When 'api', the backend resolves apiEndpointKey against a server-side registry and
+  // proxies the call — no URL or credential ever reaches the browser.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string;         // opaque key resolved server-side; required when source='api'
+  apiValuePath?: string;           // dot-path to the value in each API response item (e.g. 'id')
+  apiLabelPath?: string;           // dot-path to the label in each API response item (e.g. 'name')
+  apiSearchParamName?: string;     // query param carrying the typed term (typeahead mode)
+  apiSearchMode?: 'typeahead' | 'fetchAll'; // absent => 'typeahead'
+  // DFE-LKPCOL-001: multiple display columns (rendered as a table with headers) + per-column
+  // Arabic source. Absent => the single displayAttribute above. The first column is the value
+  // stored as the selection's displayName.
+  displayColumns?: LookupDisplayColumn[];
+}
+
+export interface LookupDisplayColumn {
+  attribute: string;         // source attribute (English / default)
+  arabicAttribute?: string;  // source attribute used when the form language is Arabic
+  header?: string;           // column header shown in the dropdown
 }
 
 // ── Validation rule ───────────────────────────────────────────
@@ -405,6 +436,11 @@ export interface FieldDefinition {
   childFields?: FieldDefinition[]; // repeatingGrid column definitions
   currencyCode?: string;           // currency fields
   decimalPlaces?: number;          // decimal / currency fields
+  // DFE-NUMBAR: number/decimal/currency display style. 'bar' = read-only utilization gauge
+  // (bar value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
+  numberDisplayStyle?: 'textbox' | 'bar';
+  barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
+  barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
@@ -436,6 +472,10 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  // DFE-INFOLIST-001: render the body (newline-split) as a list. Absent ⇒ plain
+  // paragraph (legacy). Marker absent ⇒ 'plain'.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman';
+  infoCardListMarker?: 'circle' | 'plain' | 'none';
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
   infoCardDownloadIcon?: string;
@@ -553,6 +593,8 @@ export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
 // Info-card arrangement: 'grid' = multi-column cards; 'row' = full-width horizontal rows.
 export type GridCardLayout = 'grid' | 'row';
+export type GridPagingStyle = 'prevnext' | 'numbered';
+export type GridViewMode = 'both' | 'table' | 'card';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
@@ -571,6 +613,9 @@ export interface GridColumnConfig {
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  // The target-entity attribute used as the stored record ID. Absent ⇒ the
+  // entity's primary key ({entity}id) — see CrmLookupService.
+  lookupValueAttribute?: string;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
 }
@@ -583,12 +628,15 @@ export interface GridFieldConfig {
   relationshipAttribute?: string;  // Mode B: parent lookup attribute
   minRows?: number;                // Mode B
   maxRows: number;
+  pageSize?: number;               // records per page for entity selection grids (runtime default 50)
+  pagingStyle?: GridPagingStyle;   // pager UI: 'prevnext' (default) or 'numbered' page buttons
   columnConfigs: GridColumnConfig[];
   columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
   // DFE-GRIDSRC-001: data source + display configuration (selection/display grids).
   dataSource?: GridDataSource;     // default 'entity' (Dataverse). 'json' = static jsonData.
   jsonData?: string;               // static JSON array (string) when dataSource === 'json'
   displayMode?: GridDisplayMode;   // default 'columns' (table). 'infocard' = rich card per row.
+  viewMode?: GridViewMode;         // which views are offered: 'both' (toggle), 'table' only, or 'card' only
   cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
@@ -753,6 +801,8 @@ export interface ResponseMeta {
   page?: number;
   pageSize?: number;
   hasMore?: boolean;
+  // DFE-APILOOKUP-001: non-fatal degradation signal (e.g. 'timeout', 'upstream_error').
+  warning?: string;
 }
 
 // ── Lookup search result ──────────────────────────────────────
@@ -783,4 +833,9 @@ export interface RuleEvaluationResult {
   fieldReadonly: Record<string, boolean>;
   fieldValues: Record<string, unknown>; // fields that had values set/cleared/calculated
   filteredOptions: Record<string, OptionValue[]>;
+  // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
+  // is present only when that button declares the corresponding condition set;
+  // absent ⇒ the button's static isVisible / isActive flag applies (legacy).
+  buttonVisibility: Record<string, boolean>;
+  buttonEnabledState: Record<string, boolean>;
 }

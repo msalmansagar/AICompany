@@ -76,6 +76,8 @@ function resolveTypePanel(field: DesignerFieldModel): React.ReactElement | null 
     case 'phone':
       return <TextFieldPanel field={field} />;
     case 'number':
+    case 'decimal':
+    case 'currency':
       return <NumberFieldPanel field={field} />;
     case 'dropdown':
     case 'multi_select':

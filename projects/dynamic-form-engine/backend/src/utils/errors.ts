@@ -79,3 +79,10 @@ export class CacheMissError extends AppError {
     super(message, 503, 'RENDER_CACHE_MISS');
   }
 }
+
+// DFE-APILOOKUP-001: per-endpoint-key + form-code rate limit exceeded.
+export class RateLimitError extends AppError {
+  constructor(message = 'Too many lookup requests — slow down') {
+    super(message, 429, 'RATE_LIMITED');
+  }
+}

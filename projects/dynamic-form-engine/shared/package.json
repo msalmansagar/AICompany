@@ -2,7 +2,10 @@
   "name": "@qdb/shared",
   "version": "1.0.0",
   "description": "Shared TypeScript types and engines for Dynamic Form Engine",
-  "main": "src/index.ts",
+  "type": "module",
+  "main": "src/server.ts",
+  "react-native": "src/index.ts",
+  "browser": "src/index.ts",
   "types": "src/server.ts",
   "scripts": {
     "check:types-sync": "node scripts/check-shared-type-sync.mjs",

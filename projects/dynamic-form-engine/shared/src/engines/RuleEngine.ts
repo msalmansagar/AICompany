@@ -1,5 +1,5 @@
 import { Engine } from 'json-rules-engine';
-import { BusinessRule } from '../types/form';
+import { BusinessRule } from '../types/form.js';
 
 export interface RuleEvaluationResult {
   visibilityMap: Map<string, boolean>;

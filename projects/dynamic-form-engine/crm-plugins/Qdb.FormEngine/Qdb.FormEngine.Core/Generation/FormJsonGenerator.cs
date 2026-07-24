@@ -182,8 +182,33 @@ namespace Qdb.FormEngine.Core.Generation
                 ConfirmationRequired = button.GetAttributeValue<bool>("qdb_confirm_required"),
                 ConfirmationMessage = Resolve(rawData, "qdb_form_scoped_button", button.Id, "qdb_confirm_message", button.GetAttributeValue<string>("qdb_confirm_message")),
                 Action = action,
-                IsActive = true
+                IsActive = true,
+                VisibleWhen = BuildButtonConditionSet(button.GetAttributeValue<string>("qdb_visible_conditions_json")),
+                EnabledWhen = BuildButtonConditionSet(button.GetAttributeValue<string>("qdb_enabled_conditions_json"))
             };
+        }
+
+        // DFE-CBTN-001: parses a per-button condition set (visibleWhen / enabledWhen) from
+        // its JSON memo. The column already stores the runtime shape
+        // { conditions: [...], logic: "AND"|"OR" }, so it is emitted verbatim. Returns null
+        // for empty or structurally-invalid JSON (the button then falls back to its static
+        // isVisible / isActive flag), never throwing.
+        private object BuildButtonConditionSet(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try
+            {
+                var obj = JObject.Parse(json);
+                if (!(obj["conditions"] is JArray)) return null;
+                var logic = obj["logic"]?.ToString();
+                if (logic != "AND" && logic != "OR") return null;
+                return obj;
+            }
+            catch (Exception ex)
+            {
+                _tracingService.Trace("FormJsonGenerator: dropping button condition set with invalid JSON: {0}", ex.Message);
+                return null;
+            }
         }
 
         // Parses the action JSON memo into the discriminated-union object the runtimes expect,

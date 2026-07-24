@@ -13,6 +13,9 @@ export const SCOPED_BUTTON_ATTRS = {
   ACTION_TYPE: 'qdb_action_type',
   ACTION_CONFIG_JSON: 'qdb_action_config_json',
   IS_ACTIVE: 'qdb_is_active',
+  // DFE-CBTN-001: condition sets stored as JSON memo columns.
+  VISIBLE_CONDITIONS_JSON: 'qdb_visible_conditions_json',
+  ENABLED_CONDITIONS_JSON: 'qdb_enabled_conditions_json',
   // OData lookup value fields (read side).
   TAB_VALUE: '_qdb_tab_id_value',
   SECTION_VALUE: '_qdb_section_id_value',
