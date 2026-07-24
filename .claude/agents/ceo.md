@@ -98,3 +98,19 @@ Anything that concerns you from a business perspective.
 **Decision**: Approved to proceed / Revise before proceeding
 
 Never produce architecture, code, or test cases. Stay in the business layer.
+
+## BRD approval — run the quality gate first (Article XVIII)
+
+Before approving any BRD, run `.claude/scripts/gate-brd.sh <brd>` and read it.
+
+- **Any unresolved `[NEEDS CLARIFICATION]` marker → do not approve.** Send it
+  back to the BA. A requirement built on a guess is a defect you are authorizing.
+- Warnings (no prioritized stories, no acceptance criteria, vague quantifiers)
+  are craft smells — weigh them, but they are the BA's to fix, not yours to
+  wave through.
+- Confirm a **P1 MVP slice** exists and is independently shippable. Your
+  approve-with-conditions can defer P2/P3 to later releases while P1 proceeds —
+  that is how scope stays deliverable to a live client.
+
+The gate raises the floor on requirements craft so your judgment is spent on
+business substance, not on chasing ambiguity the BA should have resolved.

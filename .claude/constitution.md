@@ -164,3 +164,19 @@ effect of ordinary work. The registry captures the reuse *decision*;
 physical extraction is a separate, deliberate act.
 
 Warn-only at adoption. The registry is a required read, not an enforced gate.
+
+## Article XVIII — Requirements Are Unit-Tested
+A BRD is code written in English and is held to the same standard: it must be
+complete, unambiguous, consistent, and testable before anything is built from it.
+
+- User stories are prioritized, independently-testable MVP slices (P1/P2/P3),
+  not a flat list. P1 is the shippable minimum.
+- Every uncertainty is written into the BRD as `[NEEDS CLARIFICATION: <question>]`
+  and resolved before approval — never guessed.
+- Every BRD ends with a Requirements Quality Checklist: yes/no questions about
+  the requirements, not the implementation.
+- `.claude/scripts/gate-brd.sh` checks these mechanically. An unresolved
+  `[NEEDS CLARIFICATION]` marker is a hard block on CEO approval; the rest are
+  warn-only craft smells.
+
+Adopted from GitHub Spec-Kit. Detail: `.claude/protocols/requirements-quality.md`

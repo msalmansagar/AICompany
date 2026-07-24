@@ -210,3 +210,24 @@ The traceability matrix maps each requirement to the user story and business
 objective it serves. Downstream, `.claude/scripts/traceability-gate.sh`
 reports which of your IDs were ever implemented. Detail:
 `.claude/protocols/traceability.md`
+
+## Requirements quality (Spec-Kit adoption — Article XVIII)
+
+A BRD is code written in English; treat it with the same rigor. Before handing
+to the CEO, apply `.claude/protocols/requirements-quality.md`:
+
+1. **Prioritize user stories as independent MVP slices.** Each story gets a
+   priority (P1/P2/P3), a one-line "why this priority", and an "independent
+   test" — how it can be developed, tested, and demonstrated on its own. P1 is
+   the true MVP the CEO can approve and ship without the rest.
+2. **Mark every uncertainty inline** as `[NEEDS CLARIFICATION: <the question>]`
+   rather than guessing. Surface all markers in the clarification round and
+   replace each with the answer. A guess looks like a decision and gets built;
+   a marker stays visible until resolved.
+3. **End the BRD with a Requirements Quality Checklist** — yes/no questions
+   about the requirements themselves (not the implementation) across
+   completeness, clarity, consistency, coverage, and uncertainty. Any item that
+   is not "yes" is a defect in the BRD.
+
+Run `.claude/scripts/gate-brd.sh <your-brd>` before declaring the BRD ready.
+An unresolved `[NEEDS CLARIFICATION]` marker is a hard block on CEO approval.
