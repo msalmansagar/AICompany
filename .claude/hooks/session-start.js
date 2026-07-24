@@ -5,12 +5,19 @@
 
 const { readFileSync, existsSync } = require('fs');
 const { join } = require('path');
+
+// Resolve state.yml from this hook's own location, never process.cwd(). The
+// hook inherits whatever working directory the shell last used, so a `cd` into
+// a subdirectory would otherwise miss the real projects/state.yml and silently
+// stop injecting project context. This file lives at .claude/hooks/, so the
+// repository root is two levels up.
+const REPO_ROOT = join(__dirname, '..', '..');
 const chunks = [];
 
 process.stdin.on('data', d => chunks.push(d));
 process.stdin.on('end', () => {
   try {
-    const stateFile = join(process.cwd(), 'projects', 'state.yml');
+    const stateFile = join(REPO_ROOT, 'projects', 'state.yml');
 
     if (!existsSync(stateFile)) {
       process.exit(0);
