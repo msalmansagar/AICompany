@@ -13,9 +13,9 @@ builds from them.
 
 ---
 
-## Artifact mapping (Maqsad AI ⟷ Spec-Kit)
+## Artifact mapping (MSS Technologies ⟷ Spec-Kit)
 
-| Spec-Kit | Maqsad AI |
+| Spec-Kit | MSS Technologies |
 |---|---|
 | `spec.md` | `brd*.md` — functional/non-functional requirements, user stories |
 | `plan.md` | `phase-*-arch*.md`, `phase-*-tech*.md` — architecture, ADRs, data model, stack |

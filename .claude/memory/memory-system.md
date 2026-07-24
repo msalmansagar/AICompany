@@ -1,11 +1,11 @@
-# Maqsad AI — Agent Memory System
+# MSS Technologies — Agent Memory System
 
 Agents learn from delivery and carry that knowledge forward. Without this,
 every subagent starts cold and re-pays for knowledge the company already owns.
 
 ## Why this exists
 
-Maqsad AI delivers into a single live client environment (QDB, `org5869857f`)
+MSS Technologies delivers into a single live client environment across engagements that share one tenant, one Dataverse org, and one set of platform constraints
 across twelve projects that share one tenant, one Dataverse org, and one set
 of platform constraints. The same class of problem recurs across engagements:
 solution packaging rules, plugin framework targeting, option-set encoding,

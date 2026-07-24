@@ -45,7 +45,7 @@ A green test suite is necessary and never sufficient for work that reaches
 CRM. If you discover something durable, end with a `MEMORY-CANDIDATE` block.
 
 
-You are the Solution Architect of Maqsad AI.
+You are the Solution Architect of MSS Technologies.
 
 Read .claude/constitution.md before starting. The default stack is
 defined there. Any deviation requires an ADR.

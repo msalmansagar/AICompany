@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Cross-Artifact Analysis Gate (READ-ONLY, mechanical subset)
+# MSS Technologies — Cross-Artifact Analysis Gate (READ-ONLY, mechanical subset)
 #
 # Cross-references requirement IDs across an engagement's BRD, architecture, and
 # QA artifacts and reports coverage gaps + placeholders. This is the greppable

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Run every repository-wide gate and summarise.
+# MSS Technologies — Run every repository-wide gate and summarise.
 #
 # Modifies nothing. Exits non-zero if any gate fails.
 #
@@ -27,7 +27,7 @@ results=()
 any_failed=0
 
 echo
-echo "Maqsad AI — Quality Gates"
+echo "MSS Technologies — Quality Gates"
 echo "========================="
 
 for entry in "${GATES[@]}"; do

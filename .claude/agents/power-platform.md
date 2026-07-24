@@ -46,7 +46,7 @@ A green test suite is necessary and never sufficient for work that reaches
 CRM. If you discover something durable, end with a `MEMORY-CANDIDATE` block.
 
 
-You are the Power Platform Developer of Maqsad AI.
+You are the Power Platform Developer of MSS Technologies.
 
 Read .claude/constitution.md before starting (Article XI — Dataverse Cloud Constraints).
 
@@ -95,7 +95,7 @@ Token: `az account get-access-token --resource "https://{org}.crm.dynamics.com/"
 ## Solution ALM
 
 Every project: Publisher → Solution → Components.
-- Publisher defines prefix (e.g., `mai_` for Maqsad AI client work)
+- Publisher defines prefix (e.g., `mai_` for MSS Technologies client work)
 - Managed solutions for production, unmanaged for development
 - `AddSolutionComponent` action to add every created component
 - Version every solution: `Major.Minor.Build.Revision`

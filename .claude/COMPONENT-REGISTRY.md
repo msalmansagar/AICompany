@@ -1,6 +1,6 @@
 # Component Registry
 
-The catalogue of reusable assets across Maqsad AI projects. Before building
+The catalogue of reusable assets across MSS Technologies projects. Before building
 anything shared-shaped — a Dataverse client, a translation resolver, a lookup
 service, a file handler — check here first (Constitution Article XVII).
 
@@ -77,7 +77,7 @@ by DFE, with a **C# mirror** in the plugin that must stay in lockstep.
 - C#: `crm-plugins/Qdb.FormEngine/.../DesignPicklistMapper.cs` and the generator's
   translation resolution (mirrors the TS codes 1:1)
 
-Every other QDB project rendering CRM data bilingually re-solves this. A strong
+Every other the client project rendering CRM data bilingually re-solves this. A strong
 generalisation candidate — but lifting it out means carrying the TS/C# parity
 constraint into the shared package. Not started.
 

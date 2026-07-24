@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Preflight Gate (READ-ONLY)
+# MSS Technologies — Preflight Gate (READ-ONLY)
 #
 # Validates locally what would otherwise fail after a push: staged-file safety,
 # typecheck, lint, and tests. Runs no installer and changes no file.

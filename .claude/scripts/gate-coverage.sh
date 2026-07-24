@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Coverage Gate (READ-ONLY)
+# MSS Technologies — Coverage Gate (READ-ONLY)
 #
 # Reports which packages can be measured for test coverage, and measures the
 # ones that can. Constitution Article IV requires 80%.

@@ -1,6 +1,6 @@
 # Dataverse Client — Reconciliation Spec
 
-The Dataverse client is the one component genuinely duplicated across Maqsad
+The Dataverse client is the one component genuinely duplicated across MSS Technologies
 AI project boundaries. This document maps the divergence, defines the contract
 a shared client would share, and states the migration order — so that if
 extraction is ever scheduled (Phase 2 of the component-reuse plan), the design

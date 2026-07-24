@@ -1,8 +1,8 @@
-# Maqsad AI
+# MSS Technologies
 
 **An AI-native enterprise software company where 19 specialist Claude Code agents design, build, test, and ship production software — directed by a single CEO.**
 
-Maqsad AI is not a framework, library, or boilerplate. It is a fully operational software company running inside a git repository. The CEO gives a business objective. The Orchestrator routes it through a mandatory 7-phase delivery pipeline. Specialist agents — Business Analyst, Architect, Backend Engineer, Frontend Engineer, CRM Developer, and 12 others — execute those phases across a multi-domain portfolio covering web, mobile, Dynamics CRM, Power Platform, F&O ERP, and AI agents.
+MSS Technologies is not a framework, library, or boilerplate. It is a fully operational software company running inside a git repository. The CEO gives a business objective. The Orchestrator routes it through a mandatory 7-phase delivery pipeline. Specialist agents — Business Analyst, Architect, Backend Engineer, Frontend Engineer, CRM Developer, and 12 others — execute those phases across a multi-domain portfolio covering web, mobile, Dynamics CRM, Power Platform, F&O ERP, and AI agents.
 
 The result: **production-ready deliverables governed by a clean-code constitution, enforced quality gates, and a BRD-first process** — where nothing gets designed or built without CEO-approved requirements.
 
@@ -110,7 +110,7 @@ shared knowledge base before producing anything:
 └── agent-experiences/*.json   per-agent learned patterns and past mistakes
 ```
 
-Seeded from delivery on QDB engagements — solution-packaging rules, plugin
+Seeded from delivery on regulated-client engagements — solution-packaging rules, plugin
 framework targeting, option-set encoding, cache and bundle behaviour. Each
 entry was paid for once already. See
 [`.claude/memory/memory-system.md`](.claude/memory/memory-system.md).
@@ -347,4 +347,4 @@ This company structure was inspired by:
 
 ## License
 
-Proprietary — Maqsad AI
+Proprietary — MSS Technologies

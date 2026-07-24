@@ -7,7 +7,7 @@ complete; Phases 1 and 2 are unscheduled and gated on an explicit decision.
 
 ## Why this is phased and not a single change
 
-Maqsad AI has **no root `package.json` — it is not a monorepo.** Each project
+MSS Technologies has **no root `package.json` — it is not a monorepo.** Each project
 installs, builds, and deploys independently, several into a live bank Dataverse
 org. The duplication that exists is not copy-paste: it is the same job done
 with different libraries, config contracts, and — for the Dataverse client —

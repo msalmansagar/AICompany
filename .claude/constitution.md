@@ -1,4 +1,4 @@
-# Maqsad AI — Technology Constitution v2.0
+# MSS Technologies — Technology Constitution v2.0
 
 ## Article I — Spec First
 No design or code begins until the Business Analyst has produced a
@@ -157,7 +157,7 @@ packager — check `.claude/COMPONENT-REGISTRY.md` first.
 - If it is single-use, build it plainly. Reuse machinery for a component with
   one caller is YAGNI.
 
-This does not mandate a shared-package monorepo. Maqsad AI projects build and
+This does not mandate a shared-package monorepo. MSS Technologies projects build and
 deploy independently, and extracting shared code across that boundary is its
 own scoped engagement with a live-org reverify per project — never a side
 effect of ordinary work. The registry captures the reuse *decision*;

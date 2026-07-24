@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — CRM Deployment Gate (READ-ONLY)
+# MSS Technologies — CRM Deployment Gate (READ-ONLY)
 #
 # Mechanically checks a Dynamics solution package against the packaging rules
 # that have caused real import failures. Every check below cost at least one

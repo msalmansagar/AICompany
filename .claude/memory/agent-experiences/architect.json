@@ -23,7 +23,7 @@
     {
       "id": "ARC-P-003",
       "name": "Raise residency and compliance at architecture time",
-      "context": "QDB engagements under PDPPL",
+      "context": "regulated-client engagements under PDPPL",
       "pattern": "Data residency, PDPPL sign-off and tenant type are named gates in the architecture document with an owner, not findings discovered in the audit phase. They have blocked go-live on four engagements.",
       "confidence": "high",
       "times_applied": 4,

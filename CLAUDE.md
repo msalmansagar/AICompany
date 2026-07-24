@@ -1,4 +1,4 @@
-# Maqsad AI — Full-Stack Enterprise Software Company
+# MSS Technologies — Full-Stack Enterprise Software Company
 
 ## Default behavior — always route through the orchestrator
 When the user types any instruction, delegate to @orchestrator.

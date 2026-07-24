@@ -1,4 +1,4 @@
-# Maqsad AI — Workflow Selection
+# MSS Technologies — Workflow Selection
 
 The orchestrator classifies every instruction into exactly one workflow before
 delegating anything. Running a full seven-phase engagement for a one-line fix

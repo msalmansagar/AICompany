@@ -9,7 +9,7 @@ agent reports that anything is done.
 
 ## The problem this exists to solve
 
-Maqsad AI has repeatedly produced work that was reported complete, passed its
+MSS Technologies has repeatedly produced work that was reported complete, passed its
 test suite, and did not work in the live environment:
 
 - `SecurityStripper.Strip` dropped `Design` and the scoped tab and section

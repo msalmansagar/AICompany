@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — BRD Quality Gate (READ-ONLY)
+# MSS Technologies — BRD Quality Gate (READ-ONLY)
 #
 # "Unit tests for the requirements." Checks a BRD for the qualities that make it
 # safe to build against: no unresolved uncertainty, prioritized testable stories,

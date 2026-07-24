@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Traceability Gate (READ-ONLY)
+# MSS Technologies — Traceability Gate (READ-ONLY)
 #
 # Reports which requirement IDs defined in a project's documents are
 # referenced by its code, its tests, or its commits.

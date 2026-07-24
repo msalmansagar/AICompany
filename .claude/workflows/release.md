@@ -59,6 +59,6 @@ the user's go-ahead with that fact stated.
 
 ## Production
 
-Production releases on QDB engagements additionally require data residency
+Production releases on regulated-client engagements additionally require data residency
 and PDPPL sign-off to be closed, not merely acknowledged. These are human
 gates held by client stakeholders and cannot be closed by any agent.

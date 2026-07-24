@@ -1,6 +1,6 @@
 # Requirements Quality
 
-Adopted from GitHub's Spec-Kit (spec-driven development). Maqsad AI already has
+Adopted from GitHub's Spec-Kit (spec-driven development). MSS Technologies already has
 a BA→CEO gate; what it lacked was a way to judge whether a BRD is *good* before
 the CEO approves it. A BRD can read complete and still be vague, untestable, or
 silently uncertain — and the CEO agent will approve it because nothing checks.
@@ -83,7 +83,7 @@ Acceptance:
         with a field-level error.
 ```
 
-Why this matters for Maqsad AI:
+Why this matters for MSS Technologies:
 
 - **P1 defines the true MVP** — the CEO can approve a P1-only scope and ship
   value, deferring P2/P3 to later releases. This feeds directly into the

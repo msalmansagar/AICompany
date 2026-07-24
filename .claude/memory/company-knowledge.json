@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "updated_at": "2026-07-24",
-  "description": "Cross-project knowledge for Maqsad AI. Seeded from delivery on QDB engagements (DFE, Report Engine, CWFD, EDP, DXP, Portal Shell). Every entry was paid for once already — read before building, not after failing.",
+  "description": "Cross-project knowledge for MSS Technologies. Seeded from delivery on regulated-client engagements (DFE, Report Engine, CWFD, EDP, DXP, Portal Shell). Every entry was paid for once already — read before building, not after failing.",
 
   "gotchas": [
     {
@@ -358,7 +358,7 @@
   "environments": [
     {
       "id": "ENV-001",
-      "name": "QDB development Dataverse org",
+      "name": "the client development Dataverse org",
       "url": "org5869857f.crm4.dynamics.com",
       "publisher_prefix": "qdb_",
       "solutions": ["QdbDynamicFormEngine", "FormEngine", "qdb_reportengine", "BusinessRuleEngine"],
@@ -373,7 +373,7 @@
       "id": "CMP-001",
       "title": "PDPPL and Qatar data residency are hard release gates, not review comments",
       "domains": ["auditor", "security-engineer", "architect", "ceo"],
-      "detail": "QDB is a Qatari bank. Personal data residency (Qatar North / UAE North Dataverse) and PDPPL sign-off have blocked go-live on multiple engagements (DFE, Report Engine B6, DFE-APILOOKUP). Default deployment regions such as West Europe are not acceptable.",
+      "detail": "the client is a regulated banking client. Personal data residency (Qatar North / UAE North Dataverse) and PDPPL sign-off have blocked go-live on multiple engagements (DFE, Report Engine B6, DFE-APILOOKUP). Default deployment regions such as West Europe are not acceptable.",
       "resolution": "Raise residency and PDPPL at architecture time, not audit time. Any external data egress needs an explicit named gate in the BRD.",
       "confidence": "high",
       "source": { "project": "multiple", "date": "2026-05 onward" }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Maqsad AI — Security Gate (READ-ONLY)
+# MSS Technologies — Security Gate (READ-ONLY)
 #
 # Scans authored source for the violations Constitution Article VII and
 # .claude/rules/common.md prohibit outright.

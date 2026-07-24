@@ -29,7 +29,7 @@ begins.
 ## Before Phase 3
 
 The architect states data residency, tenant type, and PDPPL applicability
-explicitly. On QDB engagements these have blocked go-live four times when
+explicitly. On regulated-client engagements these have blocked go-live four times when
 raised late. They are architecture inputs, not audit findings.
 
 ## Standing rules
