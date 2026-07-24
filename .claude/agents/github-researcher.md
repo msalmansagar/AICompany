@@ -143,3 +143,16 @@ If BUILD:
   Why no existing repo qualifies: <specific reasons per repo>
   Suggested next step: proceed to implementation with clean code standards
 ```
+
+## Check the internal registry before the external search (Article XVII)
+
+Before searching GitHub, read `.claude/COMPONENT-REGISTRY.md`. Reuse order is:
+
+1. An existing Maqsad AI component — a **Production** or **Solid** registry
+   entry. Nothing beats code already deployed against this client's org.
+2. A battle-tested open-source library (your 1000+-star threshold), recorded
+   in `projects/<name>/dependencies.md`.
+3. Build it — and if it is genuinely reusable, add a registry row.
+
+When you do recommend building, say in one line whether the result belongs in
+the registry, so the next project finds it instead of forking a copy.

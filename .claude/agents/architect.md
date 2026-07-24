@@ -158,3 +158,22 @@ After producing any ADR, update or create `projects/<name>/adrs/index.md`:
 Status values: Proposed | Accepted | Deprecated | Superseded
 
 Never produce UI mockups, test cases, or implementation code.
+
+## Reuse before rebuild (Constitution Article XVII)
+
+Read `.claude/COMPONENT-REGISTRY.md` before designing any shared-shaped
+component. Your plan states, explicitly, which registry entries it reuses and
+which it must build new.
+
+For anything Dataverse-client-shaped, read
+`.claude/architecture/dataverse-client-reconciliation.md` first. Two facts bind
+your design:
+
+- A browser / web-resource client and a Node server client are **separate
+  components** — a browser cannot hold a client secret. Never design one client
+  that spans both runtimes.
+- The registry captures the reuse *decision*. Physically extracting shared code
+  across project boundaries is its own scoped engagement with a live-org
+  reverify per project (`.claude/architecture/component-reuse-plan.md`), never a
+  side effect of the feature in front of you. Do not propose a monorepo
+  conversion as part of an ordinary engagement.

@@ -43,6 +43,26 @@
       "rationale": "The four adopted items add only new files and prompt directives, so they cannot break a build or a deployment. The three deferred items touch deployed code, intercept every commit, or would fail on projects that have no test script — they need their own scoped engagement.",
       "consequences": "Implemented on branch chore/agent-infrastructure. Deferred items tracked as INFRA-3 (component reuse), INFRA-4 (traceability), INFRA-6 (executable gates).",
       "decided_by": "user"
+    },
+    {
+      "id": "DEC-005",
+      "date": "2026-07-24",
+      "project": "maqsad-ai",
+      "decision": "INFRA-4 and INFRA-6 implemented at zero-touch scope (warn-only hook, read-only gate scripts). Article XV and XVI added to the constitution.",
+      "alternatives_considered": ["Blocking enforcement from day one", "Wire coverage into every package immediately"],
+      "rationale": "Warn-only and read-only means no project file changes and no blocked commits. Blocking enforcement before new work carries IDs, or a coverage gate that edits 19 package.json files, would either be bypassed or would itself be the invasive change the phasing exists to avoid.",
+      "consequences": "Committed f8d19ab8. Baseline surfaced: 47/791 requirement IDs linked (6%); 4/24 packages coverage-measurable; one genuine security finding (new Function in RenderCacheStore.ts); one stale non-importable solution artifact (designer/deploy/solution). Follow-up: add test:coverage per project, starting with crm-workflow-designer.",
+      "decided_by": "user"
+    },
+    {
+      "id": "DEC-006",
+      "date": "2026-07-24",
+      "project": "maqsad-ai",
+      "decision": "INFRA-3 (component reuse) delivered at Phase 0 only — registry plus reconciliation spec. Physical extraction (Phases 1-2) deferred, gated on a concrete driver.",
+      "alternatives_considered": ["Extract a shared qdb-dataverse-client now", "Convert to a monorepo", "Do nothing on reuse"],
+      "rationale": "No root package.json — not a monorepo. The one genuine cross-project duplication (the Dataverse client) splits into two runtime-incompatible components: a Node confidential client and a browser session client that cannot hold a secret. Extraction means reconciling four divergent implementations and cutting over env-var names across every project's deployment config, one live-org reverify at a time. The registry captures the reuse decision at zero risk; extraction needs a driver (shared bug, a fifth forking project, or the SEC-01 rotation).",
+      "consequences": "Delivered: .claude/COMPONENT-REGISTRY.md, .claude/architecture/dataverse-client-reconciliation.md, component-reuse-plan.md, Article XVII, registry directives in github-researcher and architect. Phases 1-2 unscheduled. INFRA-3 complete at Phase 0.",
+      "decided_by": "user"
     }
   ]
 }

@@ -142,3 +142,25 @@ because it checked nothing is worse than no gate, because it manufactures
 confidence.
 
 Detail: `.claude/quality-gates/README.md`
+
+## Article XVII — Reuse Before Rebuild
+Before building any shared-shaped component — a Dataverse client, a
+translation resolver, a lookup or file service, an auth flow, a solution
+packager — check `.claude/COMPONENT-REGISTRY.md` first.
+
+- If a **Production** or **Solid** entry covers the need, copy and adapt it,
+  and note the reuse in the plan.
+- If the entry is **Divergent**, read its reconciliation note before choosing
+  an implementation. Do not silently prefer one copy over another.
+- If nothing fits and the thing is genuinely reusable, build it and add a
+  registry row so the next project finds it.
+- If it is single-use, build it plainly. Reuse machinery for a component with
+  one caller is YAGNI.
+
+This does not mandate a shared-package monorepo. Maqsad AI projects build and
+deploy independently, and extracting shared code across that boundary is its
+own scoped engagement with a live-org reverify per project — never a side
+effect of ordinary work. The registry captures the reuse *decision*;
+physical extraction is a separate, deliberate act.
+
+Warn-only at adoption. The registry is a required read, not an enforced gate.
