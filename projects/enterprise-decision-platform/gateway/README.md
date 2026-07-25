@@ -14,12 +14,18 @@ envelope (ADR-EDS-04) onto the `qdb_edp_*` Custom API, and maps the result back.
 |---|---|---|
 | `POST /v1/decisions/evaluate` | Evaluate a decision (durable — writes an execution log) | `qdb_edp_EvaluateDecision` |
 | `POST /v1/decisions/test` | Test a decision (no durable write) | `qdb_edp_TestRule` |
+| `POST /v1/decisions/explain` | Explain a past decision by execution-log id | `qdb_edp_ExplainDecision` |
 | `POST /v1/rules/validate` | Validate a rule's structure | `qdb_edp_ValidateRule` |
+| `POST /v1/rules/schema` | Get a rule's input/output schema | `qdb_edp_GetInputSchema` + `GetOutputSchema` |
+| `POST /v1/rules/history` | Get a rule's version history | `qdb_edp_GetRuleHistory` |
 | `POST /v1/rule-sets/evaluate` | Evaluate a governed rule set | `qdb_edp_ExecuteRuleSet` |
+| `GET /openapi.json` · `GET /docs` | OpenAPI 3.1 spec + Swagger UI (no auth) | — |
 | `GET /health` | Liveness (no auth) | — |
 
 A rule is addressed by `versionId`, `id`, or `name` (the gateway resolves the latest published
-version via `qdb_edp_GetPublishedVersion`).
+version via `qdb_edp_GetPublishedVersion`). `history` needs `id` or `name`.
+
+**Interactive docs:** run the gateway and open **`/docs`** (Swagger UI over `/openapi.json`).
 
 ```jsonc
 // POST /v1/decisions/evaluate  — request (canonical envelope)
@@ -82,9 +88,11 @@ npm run build && npm start
 
 ## MVP scope / follow-ups
 
-The decision-execution surface is implemented end-to-end: **evaluate, test, validate,
-evaluate-rule-set**. Not yet: the `Get*` read/management operations (schema, history, analytics,
-explain), rate limiting, an OpenAPI document, and containerisation. The `DataverseRuntime` field
-mapping — especially the `ResultJson` shapes for TestRule / ValidateRule / ExecuteRuleSet and the
-`GetPublishedVersion` result — should be smoke-checked against the live API before production use
-(the runtime tolerates camelCase/PascalCase but the exact keys are unverified against the org).
+Implemented: **evaluate, test, validate, evaluate-rule-set** (all live-smoke-verified against the
+org) plus the reads **schema, history, explain** and a served **OpenAPI 3.1 spec + Swagger UI**.
+Not yet: rate limiting, and containerisation.
+
+**Field-mapping status:** evaluate / test / validate were confirmed against the live org. The
+**reads** (`GetInputSchema` / `GetOutputSchema` / `GetRuleHistory` / `ExplainDecision`) pass the
+Custom API's `ResultJson` straight through and have **not** yet been live-smoke-checked — verify
+their payload shapes against the org before production use.

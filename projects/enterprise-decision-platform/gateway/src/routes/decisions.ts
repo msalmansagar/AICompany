@@ -5,11 +5,15 @@ import {
   TestRequestSchema,
   ValidateRequestSchema,
   EvaluateRuleSetRequestSchema,
+  RuleReadRequestSchema,
+  ExplainRequestSchema,
   type DecisionRuntime,
   type EvaluateOutcome,
   type EvaluateResponse,
   type ValidateResponse,
   type RuleSetResponse,
+  type SchemaResponse,
+  type ReadResponse,
 } from '../envelope.js';
 import { RuntimeError } from '../dataverseRuntime.js';
 
@@ -74,6 +78,49 @@ export function registerDecisionRoutes(app: FastifyInstance, runtime: DecisionRu
     try {
       const { result } = await runtime.evaluateRuleSet({ ruleSetId: p.value.ruleSetId, input: p.value.input });
       const response: RuleSetResponse = { meta: { correlationId: c.correlationId, requestId: c.id }, result };
+      return reply.code(200).send(response);
+    } catch (error) {
+      return fail(reply, c, error);
+    }
+  });
+
+  // Read — the rule's input/output schema.
+  app.post('/v1/rules/schema', async (request, reply) => {
+    const p = parse(RuleReadRequestSchema, request.body);
+    const c = ctx(request.id, request.body);
+    if (!p.ok) return badRequest(reply, c, p.error);
+    try {
+      const versionId = await resolveVersion(runtime, p.value.rule);
+      const { inputs, outputs } = await runtime.getSchema({ versionId });
+      const response: SchemaResponse = { meta: { correlationId: c.correlationId, requestId: c.id }, inputs, outputs };
+      return reply.code(200).send(response);
+    } catch (error) {
+      return fail(reply, c, error);
+    }
+  });
+
+  // Read — the version history of a rule (addressed by id or name).
+  app.post('/v1/rules/history', async (request, reply) => {
+    const p = parse(RuleReadRequestSchema, request.body);
+    const c = ctx(request.id, request.body);
+    if (!p.ok) return badRequest(reply, c, p.error);
+    try {
+      const { result } = await runtime.getHistory({ id: p.value.rule.id, name: p.value.rule.name });
+      const response: ReadResponse = { meta: { correlationId: c.correlationId, requestId: c.id }, result };
+      return reply.code(200).send(response);
+    } catch (error) {
+      return fail(reply, c, error);
+    }
+  });
+
+  // Read — a grounded explanation of a past decision by execution-log id.
+  app.post('/v1/decisions/explain', async (request, reply) => {
+    const p = parse(ExplainRequestSchema, request.body);
+    const c = ctx(request.id, request.body);
+    if (!p.ok) return badRequest(reply, c, p.error);
+    try {
+      const { result } = await runtime.explain({ executionLogId: p.value.executionLogId });
+      const response: ReadResponse = { meta: { correlationId: c.correlationId, requestId: c.id }, result };
       return reply.code(200).send(response);
     } catch (error) {
       return fail(reply, c, error);

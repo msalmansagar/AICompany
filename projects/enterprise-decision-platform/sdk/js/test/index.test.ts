@@ -59,6 +59,30 @@ describe('EdpClient', () => {
     expect(JSON.parse(init.body as string)).toEqual({ ruleSetId: '00000000-0000-0000-0000-000000000009', input: { revenue: 5 } });
   });
 
+  it('getSchema: posts the rule ref to the schema endpoint', async () => {
+    const fetchMock = fakeFetch(200, { meta: {}, inputs: [{ name: 'revenue' }], outputs: [{ name: 'creditTier' }] });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    const res = await client.getSchema({ rule: { name: 'Account Credit Tier' } });
+    expect(res.inputs).toEqual([{ name: 'revenue' }]);
+    expect(lastCall(fetchMock)[0]).toBe('https://gw.example.com/v1/rules/schema');
+  });
+
+  it('getHistory: posts the rule ref to the history endpoint', async () => {
+    const fetchMock = fakeFetch(200, { meta: {}, result: [{ version: 1 }] });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    await client.getHistory({ rule: { id: '00000000-0000-0000-0000-000000000001' } });
+    expect(lastCall(fetchMock)[0]).toBe('https://gw.example.com/v1/rules/history');
+  });
+
+  it('explain: posts the execution-log id', async () => {
+    const fetchMock = fakeFetch(200, { meta: {}, result: { narration: 'x' } });
+    const client = new EdpClient({ baseUrl: 'https://gw.example.com', apiKey: 'k', fetch: fetchMock });
+    await client.explain({ executionLogId: '00000000-0000-0000-0000-000000000009' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('https://gw.example.com/v1/decisions/explain');
+    expect(JSON.parse(init.body as string)).toEqual({ executionLogId: '00000000-0000-0000-0000-000000000009' });
+  });
+
   it('omits the api key header when none is configured', async () => {
     const fetchMock = fakeFetch(200, { meta: {}, matched: false, outputs: {} });
     const client = new EdpClient({ baseUrl: 'https://gw.example.com', fetch: fetchMock });

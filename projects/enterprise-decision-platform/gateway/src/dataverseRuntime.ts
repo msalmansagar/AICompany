@@ -87,6 +87,25 @@ export class DataverseRuntime implements DecisionRuntime {
     return { result: parseResultJson(body) };
   }
 
+  async getSchema(args: { versionId: string }): Promise<{ inputs: unknown; outputs: unknown }> {
+    const p = `%27${encodeURIComponent(args.versionId)}%27`;
+    const inputs = parseResultJson(await this.get(`${this.api}/qdb_edp_GetInputSchema(RuleVersionId=@p)?@p=${p}`));
+    const outputs = parseResultJson(await this.get(`${this.api}/qdb_edp_GetOutputSchema(RuleVersionId=@p)?@p=${p}`));
+    return { inputs, outputs };
+  }
+
+  async getHistory(args: { id?: string; name?: string }): Promise<{ result: unknown }> {
+    const key = args.id ? 'RuleId' : 'RuleName';
+    const value = args.id ?? args.name ?? '';
+    const body = await this.get(`${this.api}/qdb_edp_GetRuleHistory(${key}=@p)?@p=%27${encodeURIComponent(value)}%27`);
+    return { result: parseResultJson(body) };
+  }
+
+  async explain(args: { executionLogId: string }): Promise<{ result: unknown }> {
+    const body = await this.get(`${this.api}/qdb_edp_ExplainDecision(ExecutionLogId=@p)?@p=%27${encodeURIComponent(args.executionLogId)}%27`);
+    return { result: parseResultJson(body) };
+  }
+
   private async accessToken(): Promise<string> {
     const now = Date.now();
     if (this.token && this.token.expiresAt > now + 60_000) return this.token.value;
