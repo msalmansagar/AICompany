@@ -31,9 +31,11 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
   // 1) plugin assembly
   let asm = await first(t, 'pluginassemblies', "name eq 'EDP.RuleRuntime.Crm.Signed'", 'pluginassemblyid');
   if (asm) {
-    await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: '1.0.9.0' });
+    await raw('PATCH', `${API}/pluginassemblies(${asm.pluginassemblyid})`, t, { content: b64, version: '1.0.23.0' }); // SEC-06: keep in sync with the deployed assembly (bump to 1.0.24 at W0-1 cutover)
     console.log('assembly updated:', asm.pluginassemblyid);
   } else {
+    // SEC-07: publickeytoken is the CURRENT strong-name identity. It MUST be replaced with the new token when the
+    // key is rotated (W0-1) — the old key is in git history, so the current identity is considered compromised.
     const r = await raw('POST', `${API}/pluginassemblies`, t, { name: 'EDP.RuleRuntime.Crm.Signed', content: b64, isolationmode: 2, sourcetype: 0, version: '1.0.0.0', culture: 'neutral', publickeytoken: '06949b1887fabe5d' }, sol);
     if (r.status >= 300) throw new Error('assembly ' + r.status + ' ' + r.body.slice(0, 300));
     asm = j(r); console.log('assembly created:', asm.pluginassemblyid);
@@ -81,6 +83,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     { uniquename: 'Success', displayname: 'Success', type: 0 },
     { uniquename: 'Matched', displayname: 'Matched', type: 0 },
     { uniquename: 'OutputsJson', displayname: 'Outputs JSON', type: 10 },
+    { uniquename: 'ReasonCodesJson', displayname: 'Reason Codes JSON', type: 10 },
     { uniquename: 'TraceJson', displayname: 'Trace JSON', type: 10 },
     { uniquename: 'DiagnosticsJson', displayname: 'Diagnostics JSON', type: 10 },
     { uniquename: 'ElapsedMs', displayname: 'Elapsed Ms', type: 7 },

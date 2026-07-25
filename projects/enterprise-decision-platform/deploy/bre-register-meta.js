@@ -8,7 +8,7 @@ const env = (() => { const o = {}; for (const l of fs.readFileSync((process.env.
 const ORG = (env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, ''), HOST = new URL(ORG).host, API = '/api/data/v9.2';
 const SOLUTION = 'BusinessRuleEngine';
 const DLL = (process.env.EDP_DLL_PATH || 'D:/AI Projects/AICompany/projects/enterprise-decision-platform/runtime/pack/EDP.RuleRuntime.Crm.Signed.dll');
-const ASSEMBLY_VERSION = '1.0.9.0';
+const ASSEMBLY_VERSION = '1.0.23.0'; // SEC-06: MUST match the deployed assembly. Bump to 1.0.24 at the W0-1 rotation cutover.
 const PLUGIN_TYPENAME = 'EDP.RuleRuntime.Crm.RuleMetadataPlugin';
 const SEED_VERSION = '1a4a23bd-4f77-f111-ab0e-000d3abcff60'; // Loan Approval — Sample v1 (unpublished)
 const PUBLISHED_RULE = '23f45b83-be77-f111-ab0e-000d3abcff60'; // a rule with a Published version

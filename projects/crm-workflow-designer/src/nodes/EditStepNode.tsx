@@ -9,6 +9,7 @@ export interface EditStepData extends Record<string, unknown> {
   assigneeName: string | null;
   isSelected: boolean;
   hasError: boolean;
+  slaSummary: string | null;
 }
 
 const ASSIGN_TO_LABELS: Record<EditStepData['assignTo'], string> = {
@@ -42,6 +43,9 @@ export function EditStepNode({ data }: NodeProps) {
         </span>
         {stepData.assigneeName && (
           <span style={assigneeNameStyle}>{stepData.assigneeName}</span>
+        )}
+        {stepData.slaSummary && (
+          <span style={slaBadgeStyle} title={stepData.slaSummary}>{stepData.slaSummary}</span>
         )}
       </div>
 
@@ -144,6 +148,21 @@ const assigneeNameStyle: React.CSSProperties = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   flex: 1,
+};
+
+const slaBadgeStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 8px',
+  borderRadius: 99,
+  background: '#78350f',
+  border: '1px solid #b45309',
+  color: '#fcd34d',
+  fontSize: 10,
+  fontWeight: 600,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  maxWidth: '100%',
 };
 
 const handleStyle: React.CSSProperties = {

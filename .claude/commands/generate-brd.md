@@ -17,7 +17,7 @@ Generate a formal BRD for project: $ARGUMENTS
 **Version**: 1.0
 **Date**: [today]
 **Status**: Draft
-**Prepared by**: Maqsad AI — Business Analyst
+**Prepared by**: MSS Technologies — Business Analyst
 
 ---
 

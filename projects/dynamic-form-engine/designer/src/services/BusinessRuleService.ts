@@ -5,6 +5,7 @@ import { FORM_BUSINESS_RULE_ATTRS } from '@/constants/attributeNames';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
 import type { BusinessRuleDefinition } from '@/types/businessRule';
 import { withRetry } from './crmRetry';
+import { toDataversePriority, fromDataversePriority } from './priorityCodec';
 
 export interface CreateBusinessRuleDto {
   formId: string;
@@ -32,7 +33,7 @@ export class BusinessRuleService {
           [`${FORM_BUSINESS_RULE_ATTRS.FORM_ID}@odata.bind`]: `/qdb_form_definitions(${dto.formId})`,
           [FORM_BUSINESS_RULE_ATTRS.NAME]: dto.name,
           [FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE]: dto.isActive,
-          [FORM_BUSINESS_RULE_ATTRS.SORT_ORDER]: dto.sortOrder,
+          [FORM_BUSINESS_RULE_ATTRS.SORT_ORDER]: toDataversePriority(dto.sortOrder),
           [FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION]: JSON.stringify(dto.definition),
         }),
       'createBusinessRule'
@@ -44,7 +45,7 @@ export class BusinessRuleService {
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data[FORM_BUSINESS_RULE_ATTRS.NAME] = dto.name;
     if (dto.isActive !== undefined) data[FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE] = dto.isActive;
-    if (dto.sortOrder !== undefined) data[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] = dto.sortOrder;
+    if (dto.sortOrder !== undefined) data[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] = toDataversePriority(dto.sortOrder);
     if (dto.definition !== undefined) {
       data[FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION] = JSON.stringify(dto.definition);
     }
@@ -119,7 +120,7 @@ export class BusinessRuleService {
       formId: String(record[FORM_BUSINESS_RULE_ATTRS.FORM_ID_VALUE] ?? ''),
       name: String(record[FORM_BUSINESS_RULE_ATTRS.NAME] ?? ''),
       isActive: Boolean(record[FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE]),
-      sortOrder: Number(record[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] ?? 0),
+      sortOrder: fromDataversePriority(Number(record[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] ?? 1)),
       definition,
     };
   }

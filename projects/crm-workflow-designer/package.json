@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "build": "tsc --noEmit && vite build && node scripts/rename-output.mjs",
     "preview": "vite preview",
     "migrate": "npx ts-node scripts/migrate-workflow-schema.ts",
@@ -42,6 +44,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.10"
   }
 }

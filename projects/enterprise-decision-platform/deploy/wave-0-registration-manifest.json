@@ -1,0 +1,502 @@
+{
+  "capturedFor": "W0-1 re-registration pre-flight",
+  "assembly": {
+    "name": "EDP.RuleRuntime.Crm.Signed",
+    "version": "1.0.23.0",
+    "publickeytoken": "06949b1887fabe5d",
+    "culture": "neutral",
+    "isolationmode": 2
+  },
+  "pluginTypes": [
+    {
+      "typename": "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+      "friendlyname": "EDP Governance Action"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "friendlyname": "EDP Rule Metadata"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+      "friendlyname": "EDP EvaluateDecision"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "friendlyname": "EDP Decision Intelligence"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "friendlyname": "EDP Rule Service"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "friendlyname": "EDP Rule Analysis"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "friendlyname": "EDP Append-Only Guard"
+    },
+    {
+      "typename": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "friendlyname": "EDP Delete Audit"
+    }
+  ],
+  "steps": [
+    {
+      "plugin": "EDP.RuleRuntime.Crm.GovernanceActionPlugin",
+      "name": "CustomApi 'qdb_edp_RuleGovernanceAction' implementation",
+      "message": "qdb_edp_RuleGovernanceAction",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "name": "CustomApi 'qdb_edp_GetInputSchema' implementation",
+      "message": "qdb_edp_GetInputSchema",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "name": "CustomApi 'qdb_edp_GetOutputSchema' implementation",
+      "message": "qdb_edp_GetOutputSchema",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "name": "CustomApi 'qdb_edp_GetRuleMetadata' implementation",
+      "message": "qdb_edp_GetRuleMetadata",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleMetadataPlugin",
+      "name": "CustomApi 'qdb_edp_GetPublishedVersion' implementation",
+      "message": "qdb_edp_GetPublishedVersion",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin",
+      "name": "CustomApi 'qdb_edp_EvaluateDecision' implementation",
+      "message": "qdb_edp_EvaluateDecision",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "name": "CustomApi 'qdb_edp_ExplainDecision' implementation",
+      "message": "qdb_edp_ExplainDecision",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin",
+      "name": "CustomApi 'qdb_edp_GetAnalytics' implementation",
+      "message": "qdb_edp_GetAnalytics",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_TestRule' implementation",
+      "message": "qdb_edp_TestRule",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_GetRuleTemplates' implementation",
+      "message": "qdb_edp_GetRuleTemplates",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_GetRuleAnalytics' implementation",
+      "message": "qdb_edp_GetRuleAnalytics",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_ResolveEffectiveVersion' implementation",
+      "message": "qdb_edp_ResolveEffectiveVersion",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_ExecuteDecisionTable' implementation",
+      "message": "qdb_edp_ExecuteDecisionTable",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_GetRuleDocumentation' implementation",
+      "message": "qdb_edp_GetRuleDocumentation",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_ValidateRule' implementation",
+      "message": "qdb_edp_ValidateRule",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_ExecuteRuleSet' implementation",
+      "message": "qdb_edp_ExecuteRuleSet",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_GetRuleHistory' implementation",
+      "message": "qdb_edp_GetRuleHistory",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin",
+      "name": "CustomApi 'qdb_edp_RunScenarios' implementation",
+      "message": "qdb_edp_RunScenarios",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "name": "CustomApi 'qdb_edp_GetDependencies' implementation",
+      "message": "qdb_edp_GetDependencies",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "name": "CustomApi 'qdb_edp_ExplainRule' implementation",
+      "message": "qdb_edp_ExplainRule",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "name": "CustomApi 'qdb_edp_CompareVersions' implementation",
+      "message": "qdb_edp_CompareVersions",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin",
+      "name": "CustomApi 'qdb_edp_AnalyzeRule' implementation",
+      "message": "qdb_edp_AnalyzeRule",
+      "stage": 30,
+      "mode": "sync",
+      "rank": 0,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleaudit Update",
+      "message": "Update",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleaudit Delete",
+      "message": "Delete",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleexecutionlog Update",
+      "message": "Update",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleexecutionlog Delete",
+      "message": "Delete",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleapproval Update",
+      "message": "Update",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.AppendOnlyGuardPlugin",
+      "name": "EDP AppendOnly qdb_edp_ruleapproval Delete",
+      "message": "Delete",
+      "stage": "pre-validation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "name": "EDP DeleteAudit qdb_edp_rule Delete",
+      "message": "Delete",
+      "stage": "pre-operation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    },
+    {
+      "plugin": "EDP.RuleRuntime.Crm.DeleteAuditPlugin",
+      "name": "EDP DeleteAudit qdb_edp_ruleversion Delete",
+      "message": "Delete",
+      "stage": "pre-operation",
+      "mode": "sync",
+      "rank": 1,
+      "filteringattributes": null,
+      "images": []
+    }
+  ],
+  "customApis": [
+    {
+      "uniquename": "qdb_edp_RuleGovernanceAction",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_ruleapproval",
+      "backedBy": "EDP.RuleRuntime.Crm.GovernanceActionPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetInputSchema",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleMetadataPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetOutputSchema",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleMetadataPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetRuleMetadata",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleMetadataPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetPublishedVersion",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleMetadataPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_EvaluateDecision",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ExplainDecision",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetAnalytics",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.DecisionIntelligencePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_TestRule",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvWriteqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetRuleTemplates",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetRuleAnalytics",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": null,
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ResolveEffectiveVersion",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": null,
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ExecuteDecisionTable",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetRuleDocumentation",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ValidateRule",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvWriteqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ExecuteRuleSet",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetRuleHistory",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_RunScenarios",
+      "isfunction": false,
+      "boundentity": null,
+      "executeprivilege": null,
+      "backedBy": "EDP.RuleRuntime.Crm.RuleServicePlugin"
+    },
+    {
+      "uniquename": "qdb_edp_GetDependencies",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_ExplainRule",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_CompareVersions",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin"
+    },
+    {
+      "uniquename": "qdb_edp_AnalyzeRule",
+      "isfunction": true,
+      "boundentity": null,
+      "executeprivilege": "prvReadqdb_edp_rule",
+      "backedBy": "EDP.RuleRuntime.Crm.RuleAnalysisPlugin"
+    }
+  ]
+}

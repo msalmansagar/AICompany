@@ -1,0 +1,67 @@
+{
+  "$comment": "EDP message surface for Dynamics 365 CE ON-PREMISES (9.x). On-prem predates Custom API, so each message below is created as an unbound Custom (Process) Action and the listed plugin type is registered as a synchronous step on that action's message. Input/output arguments map 1:1 from the cloud Custom API params/response properties. Types: String, Boolean, Integer, EntityReference. All read operations that are OData Functions on cloud (cloudFunction=true) become plain Actions here — same ResultJson output, invoked by POST/Execute instead of a GET.",
+  "assembly": "EDP.RuleRuntime.Crm.Signed",
+  "solutionPublisherPrefix": "qdb_edp",
+  "messages": [
+    {
+      "name": "qdb_edp_ValidateRule", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": false,
+      "inputs": [ { "name": "PcrmJson", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_TestRule", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": false,
+      "inputs": [ { "name": "PcrmJson", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false }, { "name": "InputsJson", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_RunScenarios", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": false,
+      "inputs": [ { "name": "PcrmJson", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false }, { "name": "RuleId", "type": "String", "required": false }, { "name": "RuleName", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_ExecuteDecisionTable", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": false,
+      "inputs": [ { "name": "PcrmJson", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false }, { "name": "InputsJson", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_ExecuteRuleSet", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": false,
+      "inputs": [ { "name": "RuleSetId", "type": "String", "required": false }, { "name": "RuleVersionIdsJson", "type": "String", "required": false }, { "name": "InputsJson", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_GetRuleHistory", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": true,
+      "inputs": [ { "name": "RuleId", "type": "String", "required": false }, { "name": "RuleName", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_GetRuleTemplates", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": true,
+      "inputs": [ { "name": "Industry", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_GetRuleDocumentation", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": true,
+      "inputs": [ { "name": "RuleId", "type": "String", "required": false }, { "name": "RuleName", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_GetRuleAnalytics", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": true,
+      "inputs": [ { "name": "RuleId", "type": "String", "required": false }, { "name": "PeriodDays", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_ResolveEffectiveVersion", "plugin": "EDP.RuleRuntime.Crm.RuleServicePlugin", "cloudFunction": true,
+      "inputs": [ { "name": "RuleId", "type": "String", "required": false }, { "name": "RuleName", "type": "String", "required": false }, { "name": "AsOf", "type": "String", "required": false } ],
+      "outputs": [ { "name": "ResultJson", "type": "String" } ]
+    },
+    {
+      "name": "qdb_edp_EvaluateDecision", "plugin": "EDP.RuleRuntime.Crm.EvaluateDecisionPlugin", "cloudFunction": false,
+      "inputs": [ { "name": "PcrmJson", "type": "String", "required": false }, { "name": "RuleVersionId", "type": "String", "required": false }, { "name": "InputsJson", "type": "String", "required": false }, { "name": "TargetRef", "type": "EntityReference", "required": false } ],
+      "outputs": [ { "name": "Success", "type": "Boolean" }, { "name": "Matched", "type": "Boolean" }, { "name": "OutputsJson", "type": "String" }, { "name": "ReasonCodesJson", "type": "String" }, { "name": "TraceJson", "type": "String" }, { "name": "DiagnosticsJson", "type": "String" }, { "name": "ElapsedMs", "type": "Integer" } ]
+    },
+    {
+      "name": "qdb_edp_RuleGovernanceAction", "plugin": "EDP.RuleRuntime.Crm.GovernanceActionPlugin", "cloudFunction": false,
+      "inputs": [ { "name": "RuleVersionId", "type": "String", "required": true }, { "name": "Action", "type": "String", "required": true }, { "name": "Comments", "type": "String", "required": false } ],
+      "outputs": [ { "name": "Success", "type": "Boolean" }, { "name": "NewState", "type": "String" }, { "name": "Message", "type": "String" } ]
+    }
+  ]
+}

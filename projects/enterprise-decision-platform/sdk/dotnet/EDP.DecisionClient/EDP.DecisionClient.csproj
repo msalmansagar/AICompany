@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.0 = usable from .NET 8 apps, .NET Framework services, and CRM plugins. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Edp.DecisionClient</RootNamespace>
+    <AssemblyName>Edp.DecisionClient</AssemblyName>
+    <PackageId>Edp.DecisionClient</PackageId>
+    <Version>0.1.0</Version>
+    <Description>EDP Decision SDK (.NET) — envelope builder for the Decision Gateway (ADR-EDS-09).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+</Project>

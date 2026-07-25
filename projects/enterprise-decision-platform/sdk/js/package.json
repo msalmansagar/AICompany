@@ -1,0 +1,19 @@
+{
+  "name": "@edp/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "EDP Decision SDK (TypeScript) — builds the canonical envelope and calls the Decision Gateway (ADR-EDS-09).",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9"
+  }
+}

@@ -1,4 +1,4 @@
-# Maqsad AI — Technology Constitution v2.0
+# MSS Technologies — Technology Constitution v2.0
 
 ## Article I — Spec First
 No design or code begins until the Business Analyst has produced a
@@ -108,3 +108,112 @@ Orchestrator must pause and get explicit CEO approval before:
 - Correlation IDs propagated across all service-to-service calls
 - Metrics defined per service before deployment: request count, error rate, p95 latency
 - Alerting thresholds must be defined and tested before go-live — not after an incident
+
+## Article XV — Traceability
+Every requirement carries a permanent ID minted in the BRD (`FR-nnn`,
+`NFR-nnn`, `US-nn`, `AC-n`). A shipped ID is never renumbered.
+
+Going forward, that ID appears in:
+- the commit subject that implements it — `feat(forms): add filter [FR-014]`
+- the name of each test that proves it
+- a header comment on the entry point that satisfies it
+- the PR description under an `## Implements` section
+
+Exempt commit types: docs, chore, ci, style, build, test, refactor.
+
+Existing artifacts are not retrofitted. The gap closes forward.
+`.claude/scripts/traceability-gate.sh` reports how many defined requirements
+are linked to code, tests, or commits. An unlinked requirement is a question
+to answer at the CEO gate — deferred, out of scope, or forgotten — not
+automatically a defect.
+
+Enforcement is warn-only at adoption. Detail: `.claude/protocols/traceability.md`
+
+## Article XVI — Gates Are Executable
+A rule that nothing can check is a preference, not a standard.
+
+Quality gates live in `.claude/scripts/gate-*.sh` and report PASS, FAIL, or
+SKIP with the evidence for each check. They are invoked, not automatic, and
+they modify nothing.
+
+A gate that cannot run on a project reports SKIP with the reason. It never
+reports PASS by default — silence is not evidence, and a gate that passes
+because it checked nothing is worse than no gate, because it manufactures
+confidence.
+
+Detail: `.claude/quality-gates/README.md`
+
+## Article XVII — Reuse Before Rebuild
+Before building any shared-shaped component — a Dataverse client, a
+translation resolver, a lookup or file service, an auth flow, a solution
+packager — check `.claude/COMPONENT-REGISTRY.md` first.
+
+- If a **Production** or **Solid** entry covers the need, copy and adapt it,
+  and note the reuse in the plan.
+- If the entry is **Divergent**, read its reconciliation note before choosing
+  an implementation. Do not silently prefer one copy over another.
+- If nothing fits and the thing is genuinely reusable, build it and add a
+  registry row so the next project finds it.
+- If it is single-use, build it plainly. Reuse machinery for a component with
+  one caller is YAGNI.
+
+This does not mandate a shared-package monorepo. MSS Technologies projects build and
+deploy independently, and extracting shared code across that boundary is its
+own scoped engagement with a live-org reverify per project — never a side
+effect of ordinary work. The registry captures the reuse *decision*;
+physical extraction is a separate, deliberate act.
+
+Warn-only at adoption. The registry is a required read, not an enforced gate.
+
+## Article XVIII — Requirements Are Unit-Tested
+A BRD is code written in English and is held to the same standard: it must be
+complete, unambiguous, consistent, and testable before anything is built from it.
+
+- User stories are prioritized, independently-testable MVP slices (P1/P2/P3),
+  not a flat list. P1 is the shippable minimum.
+- Every uncertainty is written into the BRD as `[NEEDS CLARIFICATION: <question>]`
+  and resolved before approval — never guessed.
+- Every BRD ends with a Requirements Quality Checklist: yes/no questions about
+  the requirements, not the implementation.
+- `.claude/scripts/gate-brd.sh` checks these mechanically. An unresolved
+  `[NEEDS CLARIFICATION]` marker is a hard block on CEO approval; the rest are
+  warn-only craft smells.
+
+Adopted from GitHub Spec-Kit. Detail: `.claude/protocols/requirements-quality.md`
+
+## Article XIX — Artifacts Must Agree Before Build
+Before the architecture→build CEO checkpoint (Article VIII, checkpoint 2), the
+engagement's artifacts are checked for mutual consistency: the BRD, the
+architecture, and the QA plan must agree with each other.
+
+- Every requirement is addressed by an architecture element and covered by a
+  test; design elements tied to no requirement are flagged as scope creep.
+- No terminology drift (one concept, one name across all documents); no
+  contradictory stack or behaviour choices between documents.
+- Any element conflicting with a constitution MUST is CRITICAL and blocks the
+  gate — the fix is to change the artifact, never to reinterpret the article.
+
+`.claude/scripts/gate-analyze.sh` does the mechanical coverage subset; the
+semantic passes are the architect's reading. A CRITICAL finding does not reach
+the CEO until resolved.
+
+Adopted from GitHub Spec-Kit `/speckit.analyze`. Detail:
+`.claude/protocols/cross-artifact-analysis.md`
+
+## Article XX — Inherit From Global, Don't Re-Implement
+Cross-cutting platform capabilities — Dataverse metadata extraction, lookup and
+option-set resolution, schema provisioning, and the shared look-and-feel — live
+once in `global/` and are inherited by every project.
+
+- A new project scaffolds from `global/templates/project-base/` and uses the
+  `@mss/*` shared packages. It does not write its own metadata or lookup service.
+- Building a copy of a capability that already lives in `global/` is a review
+  rejection. If the shared package lacks something, extend it in `global/` so
+  every project gains it — never fork it locally.
+- Dataverse has two runtimes that cannot share one client (a browser cannot hold
+  a secret): each shared package ships a contract plus `node/` and `browser/`
+  implementations.
+- Existing duplicates are migrated onto the shared packages one project at a
+  time, with a live-org reverify each — never in a big bang.
+
+Detail: `global/README.md`

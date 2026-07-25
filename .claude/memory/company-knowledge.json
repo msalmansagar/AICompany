@@ -1,0 +1,382 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-07-24",
+  "description": "Cross-project knowledge for MSS Technologies. Seeded from delivery on regulated-client engagements (DFE, Report Engine, CWFD, EDP, DXP, Portal Shell). Every entry was paid for once already — read before building, not after failing.",
+
+  "gotchas": [
+    {
+      "id": "GOT-001",
+      "title": "CRM solution ZIP: every web resource needs its own RootComponent with BOTH id and schemaName",
+      "domains": ["crm-onprem", "power-platform", "devops", "frontend"],
+      "symptom": "Import fails: 'component X of type 61 is not declared in the solution file as a root component', or 'Cannot add a Root Component because it is not in the target system'.",
+      "cause": "CRM validates the manifest against every file in the package at import time. Folder-level wildcards in schemaName are silently ignored. schemaName alone matches by name but finds no DB record; id alone cannot be matched by name.",
+      "resolution": "Generate <RootComponents> dynamically from the actual build output. Each entry: <RootComponent type=\"61\" id=\"{guid}\" schemaName=\"qdb_/path/file.js\" behavior=\"0\" />. The id MUST equal the <WebResourceId> in customizations.xml. Use a deterministic GUID (md5 of the logical name) so re-imports update the same record.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06", "cost": "4 successive import failures" }
+    },
+    {
+      "id": "GOT-002",
+      "title": "customizations.xml <FileName> must start with a forward slash",
+      "domains": ["crm-onprem", "power-platform", "devops"],
+      "symptom": "Import fails: 'Part URI must start with a forward slash.'",
+      "cause": "CRM reads the solution ZIP through the .NET OPC API (System.IO.Packaging); PackUriHelper.CreatePartUri() requires a leading slash.",
+      "resolution": "<FileName>/webresources/qdb_/path/file.js</FileName>. The ZIP entry path itself does NOT need the leading slash — OPC maps webresources/foo.js to /webresources/foo.js automatically.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "GOT-003",
+      "title": "Web resource type codes are not the ones people guess",
+      "domains": ["crm-onprem", "power-platform", "devops"],
+      "resolution": "HTML=1, CSS=2, JS=3, XML=4, PNG=5, JPG=6, GIF=7, ICO=10, SVG=11. The common wrong guess is HTML=5, JS=4, CSS=6.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "GOT-004",
+      "title": "Hand-built solution ZIPs must be unmanaged, and need [Content_Types].xml at the root",
+      "domains": ["crm-onprem", "power-platform", "devops"],
+      "cause": "Managed solutions run stricter pre-import validation that rejects hand-crafted packages even when the format is otherwise correct. OPC requires [Content_Types].xml listing every file extension used.",
+      "resolution": "<Managed>0</Managed> for hand-built packages; include a minimal [Content_Types].xml at ZIP root.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "GOT-005",
+      "title": "Dataverse plugin assemblies cap at .NET Framework 4.7.1",
+      "domains": ["crm-onprem", "backend", "devops"],
+      "symptom": "Assembly registration rejected with 0x8004420b. Rejects 4.8 AND 4.7.2 — not just 4.8.",
+      "resolution": "Build with TargetFrameworkVersion=v4.7.1. If the 4.7.1 targeting pack is absent, add the NuGet ref-assemblies package and set FrameworkPathOverride to $(USERPROFILE)\\.nuget\\packages\\microsoft.netframework.referenceassemblies.net471\\1.0.3\\build\\.NETFramework\\v4.7.1 in the csproj so `dotnet build` works reproducibly without VS msbuild flags.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "GOT-006",
+      "title": "Register the merged+signed dist DLL, never bin/Release",
+      "domains": ["crm-onprem", "devops"],
+      "symptom": "FileNotFoundException on an external reference (e.g. Newtonsoft 13.0.0.0) inside the plugin at runtime.",
+      "cause": "bin/Release is the thin, unsigned assembly without ILMerged dependencies. Only the dist output is merged and signed.",
+      "resolution": "Register the merged+signed assembly from dist/. Note that changing the signing token forces unregister + re-register — Update is refused.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "GOT-007",
+      "title": "Plugin sandbox caches the old assembly after a content PATCH",
+      "domains": ["crm-onprem", "power-platform", "devops"],
+      "symptom": "Deployed a fixed plugin, behaviour is unchanged. The FIRST invocation after the PATCH runs the OLD AppDomain.",
+      "resolution": "Wait 30-60s and retry, and re-run the operation once. Never diagnose a plugin fix on the first post-deploy run.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "GOT-008",
+      "title": "C# plugins read lookups by SDK logical name, not the OData _x_value form",
+      "domains": ["crm-onprem", "backend"],
+      "cause": "The Organization Service SDK and the Web API expose lookups differently. Code ported from a Web API client to a plugin silently reads null.",
+      "resolution": "In plugins use the logical lookup name (EntityReference); the _<attr>_value form is Web API only.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "GOT-009",
+      "title": "Web API grid queries return lookup columns as _<attr>_value, not <attr>",
+      "domains": ["frontend", "backend", "power-platform"],
+      "symptom": "Lookup cells render blank in a grid while text columns are fine.",
+      "resolution": "Read `_<attr>_value` plus the `@OData.Community.Display.V1.FormattedValue` annotation and write the label back into values[attr] — grid cells read values[attr] directly with no formatted-value fallback.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "GOT-010",
+      "title": "A full EntityDefinitions scan is silently paginated",
+      "domains": ["power-platform", "backend", "architect"],
+      "symptom": "Schema check reports tables missing that demonstrably exist — a false '0 of 18 present'.",
+      "cause": "The metadata collection is truncated to the first page with no error. Metadata entities also reject `contains` and `startswith` filters.",
+      "resolution": "Use direct `EntityDefinitions(LogicalName='x')` lookups. They are authoritative. Never verify schema with a filtered scan.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07-21" }
+    },
+    {
+      "id": "GOT-011",
+      "title": "Dataverse option-set codes are 100000000-based, not 0-based ordinals",
+      "domains": ["power-platform", "backend", "crm-onprem", "frontend"],
+      "symptom": "Values map to the wrong label, or writes fail validation, when code assumes 0..n.",
+      "resolution": "Read the real codes from metadata and map explicitly. Never assume ordinal position.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-012",
+      "title": "@odata.bind navigation properties are PascalCase-prefixed",
+      "domains": ["power-platform", "backend"],
+      "resolution": "Use the navigation property name exactly as metadata reports it (e.g. Qdb_reportdefinitionid), not the lowercase logical attribute name.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-013",
+      "title": "Entity SchemaName must keep underscores, and attributes must be created atomically with the entity",
+      "domains": ["power-platform", "architect", "devops"],
+      "symptom": "404 on the new table immediately after creation (metadata propagation lag), or a schema name silently normalised.",
+      "resolution": "SchemaName qdb_form_scoped_button, not qdb_Form_Scoped_Button. Create the entity together with its attributes in one call.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "GOT-014",
+      "title": "Custom API parameter keys must be unqualified and match the plugin exactly",
+      "domains": ["crm-onprem", "power-platform", "backend"],
+      "symptom": "Custom API invocation returns nothing or errors on a parameter the plugin expects.",
+      "resolution": "customapirequestparameter.UniqueName must equal the plugin's InputParameters[...] key exactly, unprefixed. A publisher-prefixed unique name will not bind.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "GOT-015",
+      "title": "On-prem web resource handler returns HTTP 500 on any query string",
+      "domains": ["frontend", "crm-onprem", "devops"],
+      "symptom": "Bundle works on cloud, 500s on-premise. Cache-busting `?v=<ts>` appended to asset URLs is the usual cause.",
+      "resolution": "Never emit query strings on web-resource asset URLs. CRM's own /{orgCustomizationVersion}/webresources/ path token already busts cache on Publish. Use a no-cache meta tag if more is needed.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-28" }
+    },
+    {
+      "id": "GOT-016",
+      "title": "Browsers cache the old web-resource bundle — hard refresh after every republish",
+      "domains": ["frontend", "qa", "power-platform"],
+      "symptom": "Republished a fixed bundle, form still shows old behaviour. A normal reload serves stale.",
+      "resolution": "Ctrl+F5. Include this step in every QA script that verifies a web-resource change, or the test result is meaningless.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "GOT-017",
+      "title": "Impersonation with an invalid caller GUID returns 404 on writes",
+      "domains": ["backend", "power-platform"],
+      "symptom": "Writes 404 while reads succeed; looks like a missing table.",
+      "resolution": "MSCRMCallerID must be a real systemuser id, or blank to run as the service application. Validate the caller id before the call rather than diagnosing the 404.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-018",
+      "title": "A missing Vite alias for a shared package silently blanks the whole bundle",
+      "domains": ["frontend", "devops"],
+      "symptom": "White page. The bundle downloads (visible in the Network tab) but never executes. No obvious console error at first glance.",
+      "cause": "A value-import from @qdb/shared without the alias produces a module-graph SyntaxError that kills the bundle silently.",
+      "resolution": "Every Vite config consuming @qdb/shared needs the alias to shared/src/server.ts, matching the frontend config. Fixed in commit 3e1a9bb (DFE-STYLE-001).",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30", "cost": "days of parked debugging" }
+    },
+    {
+      "id": "GOT-019",
+      "title": "The DFE shared package has TWO parallel type files",
+      "domains": ["backend", "frontend", "mobile", "architect"],
+      "cause": "shared/src/types/form.types.ts is resolved by backend and frontend (via server.ts); shared/src/types/form.ts is resolved by mobile (via index.ts). Both define TabDefinition, FieldDefinition and friends.",
+      "resolution": "Adding a shared field means editing BOTH files, or the omitting package cannot see it. Make new fields optional to avoid breaking the many type literals across mocks and tests. A parity CI check exists at shared/scripts/check-shared-type-sync.mjs.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "GOT-020",
+      "title": "git worktree remove fails on deep node_modules paths on Windows",
+      "domains": ["devops", "all"],
+      "symptom": "'Filename too long' when removing a worktree.",
+      "resolution": "PowerShell: Remove-Item -LiteralPath \"\\\\?\\<path>\" -Recurse -Force, then `git worktree prune`.",
+      "confidence": "high",
+      "source": { "project": "crm-workflow-designer", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-021",
+      "title": "Commit messages through the Bash tool need -F, not a PowerShell heredoc",
+      "domains": ["all"],
+      "symptom": "A stray @ character leaks into the commit message.",
+      "resolution": "Write the message to a file and use `git commit -F <file>`. PowerShell @'...'@ heredocs do not survive the tool boundary cleanly.",
+      "confidence": "high",
+      "source": { "project": "crm-workflow-designer", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-022",
+      "title": "Browser automation: click by ref, never by coordinate",
+      "domains": ["qa", "frontend"],
+      "symptom": "Clicks land on the wrong element; screenshots time out; refs go stale after a tab switch.",
+      "resolution": "Click by element ref. Re-read the page (or use find) after any tab switch. Prefer get_page_text over screenshots when the page is slow.",
+      "confidence": "high",
+      "source": { "project": "crm-workflow-designer", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-023",
+      "title": "Section and form GUIDs differ per org",
+      "domains": ["architect", "backend", "frontend", "power-platform"],
+      "symptom": "A navigation or lookup config that works in dev silently no-ops in another org.",
+      "resolution": "Never hardcode a record GUID in configuration that ships across orgs. Resolve by code/name at runtime. This is Constitution Article V applied to identifiers.",
+      "confidence": "high",
+      "source": { "project": "dynamic-form-engine", "date": "2026-07-01" }
+    },
+    {
+      "id": "GOT-024",
+      "title": "Alternate-key collisions return 412, not 409",
+      "domains": ["backend", "power-platform"],
+      "resolution": "A duplicate on a unique alternate key (e.g. qdb_reportcode) returns HTTP 412. Handle it explicitly; a generic 4xx handler will mislabel it. New record ids come back on the OData-EntityId response header.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07" }
+    },
+    {
+      "id": "GOT-025",
+      "title": "Creates must carry the MSCRM.SolutionUniqueName header",
+      "domains": ["power-platform", "devops", "architect"],
+      "cause": "Without it, components land in the Default Solution (Active layer) and cannot be packaged or shipped.",
+      "resolution": "Set the header on every metadata create. Never author components in the Default Solution. This is Constitution Article XI.",
+      "confidence": "high",
+      "source": { "project": "report-engine", "date": "2026-07-21" }
+    },
+    {
+      "id": "GOT-026",
+      "title": "Subagents stall on large-context, long-output tasks",
+      "domains": ["orchestrator", "all"],
+      "symptom": "CEO / architect / code-reviewer subagents hit the stream watchdog with near-zero progress.",
+      "resolution": "Ground the deliverable in the code first, then either scope the subagent narrowly or author the document directly. Do not retry the same oversized delegation.",
+      "confidence": "medium",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    }
+  ],
+
+  "patterns": [
+    {
+      "id": "PAT-001",
+      "name": "Deterministic GUIDs for idempotent solution packaging",
+      "domains": ["crm-onprem", "power-platform", "devops"],
+      "problem": "Re-importing a solution creates duplicate web-resource records instead of updating them; static manifests go stale because Vite adds content hashes.",
+      "solution": "Derive the WebResourceId from an md5 of the logical name so it is stable across builds, and generate the manifest from the actual build output on every package run. Prefer stable output filenames over content-hashed ones for CRM web resources.",
+      "confidence": "high",
+      "times_applied": 3,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06" }
+    },
+    {
+      "id": "PAT-002",
+      "name": "Verify against the live org, not against the test suite",
+      "domains": ["qa", "backend", "frontend", "power-platform", "crm-onprem"],
+      "problem": "Green unit tests repeatedly coexisted with a feature that did not work in CRM — the SecurityStripper dropped Design and scoped Buttons while every test passed, because the tests exercised the live-metadata path and CRM reads the cache.",
+      "solution": "For any CRM-facing change, the acceptance evidence is a live-org round trip: write a record, read it back through the real path the runtime uses, and paste the output. Test-suite green is necessary, never sufficient.",
+      "confidence": "high",
+      "times_applied": 6,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "PAT-003",
+      "name": "Degrade gracefully when gated schema is absent",
+      "domains": ["backend", "crm-onprem", "architect"],
+      "problem": "Features whose Dataverse tables are gated behind a stakeholder approval would hard-fail every environment that has not provisioned them.",
+      "solution": "Wrap each optional metadata read in its own try/catch that degrades to absent rather than throwing. The read path then works identically before and after provisioning, and the gate becomes a data decision, not a code branch.",
+      "confidence": "high",
+      "times_applied": 4,
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    },
+    {
+      "id": "PAT-004",
+      "name": "Adopt point libraries, build the engine",
+      "domains": ["architect", "github-researcher", "backend"],
+      "problem": "Deciding build-vs-adopt for a large subsystem as a single yes/no forces a bad choice: adopt a framework that does not fit, or rebuild solved problems.",
+      "solution": "Split the decision. Build the domain engine; adopt narrow, well-licensed libraries for solved sub-problems. Report Engine adopted NCalc (sandboxed formulas), QuestPDF, Open XML SDK, ClosedXML, ScottPlot, react-querybuilder — and built the report engine itself.",
+      "confidence": "high",
+      "times_applied": 1,
+      "source": { "project": "report-engine", "date": "2026-07-07" }
+    },
+    {
+      "id": "PAT-005",
+      "name": "Approve with conditions, tracked as numbered blockers",
+      "domains": ["ceo", "auditor", "orchestrator"],
+      "problem": "A binary approve/reject either ships known risk or stalls delivery over items that are not code problems.",
+      "solution": "CEO issues APPROVED WITH CONDITIONS carrying uniquely numbered blockers (MUATC-001, GL-01, B1, C-004) recorded in projects/state.yml with their owner and the milestone they gate. Code work proceeds; the blockers gate the milestone, not the branch.",
+      "confidence": "high",
+      "times_applied": 9,
+      "source": { "project": "multiple", "date": "2026-05 onward" }
+    }
+  ],
+
+  "anti_patterns": [
+    {
+      "id": "ANTI-001",
+      "name": "Hardcoded record GUIDs in shipped configuration",
+      "domains": ["all"],
+      "why": "Record ids differ per org. Config that works in dev silently no-ops in staging and production. Violates Constitution Article V.",
+      "instead": "Resolve by code, name, or alternate key at runtime."
+    },
+    {
+      "id": "ANTI-002",
+      "name": "Claiming completion from a test run alone on CRM work",
+      "domains": ["all"],
+      "why": "The cache path, the security stripper, the bundle, and the live metadata path all diverge. Green tests have repeatedly coexisted with a broken feature.",
+      "instead": "Live-org evidence. See .claude/protocols/verification-before-completion.md."
+    },
+    {
+      "id": "ANTI-003",
+      "name": "Static solution manifests",
+      "domains": ["devops", "crm-onprem", "power-platform"],
+      "why": "Build output filenames change; a hand-maintained RootComponents list goes stale and fails import.",
+      "instead": "Generate the manifest from the build output every time."
+    },
+    {
+      "id": "ANTI-004",
+      "name": "Diagnosing a plugin fix on the first post-deploy invocation",
+      "domains": ["crm-onprem", "devops", "qa"],
+      "why": "The sandbox serves the previous AppDomain for the first call after a content PATCH, so the first result is always stale.",
+      "instead": "Re-run once before drawing any conclusion."
+    },
+    {
+      "id": "ANTI-005",
+      "name": "Printing or committing secrets",
+      "domains": ["all"],
+      "why": "An Azure AD client secret was committed in an earlier engagement and still requires rotation (SEC-01).",
+      "instead": "Reference the .env variable name only. Never echo a secret value into a transcript, log, memory entry, or document."
+    }
+  ],
+
+  "tech_stack_decisions": [
+    {
+      "id": "TSD-001",
+      "decision": "Report rendering libraries",
+      "domains": ["backend", "architect"],
+      "adopted": ["NCalc (sandboxed formula evaluation)", "QuestPDF (PDF)", "Open XML SDK (Word)", "ClosedXML (Excel)", "ScottPlot 5.0.56 (chart PNG)", "react-querybuilder + Fluent (filter UI)"],
+      "rejected": [
+        { "lib": "EPPlus v5+", "reason": "Polyform noncommercial licence" },
+        { "lib": "iText7", "reason": "AGPL" },
+        { "lib": "Jint / DynamicExpresso", "reason": "arbitrary code execution — fails the no-code-exec control" }
+      ],
+      "source": { "project": "report-engine", "date": "2026-07-07" }
+    },
+    {
+      "id": "TSD-002",
+      "decision": "Plugin assemblies target .NET Framework 4.7.1 for both cloud and on-premise",
+      "domains": ["crm-onprem", "devops"],
+      "rationale": "Cloud enforces a 4.7.1 ceiling; on-prem D365 9.x accepts it. One merged+signed artifact is valid for both, so there is no need for two build targets.",
+      "source": { "project": "dynamic-form-engine", "date": "2026-06-30" }
+    }
+  ],
+
+  "environments": [
+    {
+      "id": "ENV-001",
+      "name": "the client development Dataverse org",
+      "url": "org5869857f.crm4.dynamics.com",
+      "publisher_prefix": "qdb_",
+      "solutions": ["QdbDynamicFormEngine", "FormEngine", "qdb_reportengine", "BusinessRuleEngine"],
+      "auth": "Azure AD service principal, client credentials. Credentials live in gitignored .env files (DV_ / AZURE_ prefixed). Client-credentials flow is cloud-only and will not work on-premise.",
+      "notes": "Shared by DFE, Report Engine, CWFD, EDP and Portal Shell. Schema changes here affect multiple engagements — check projects/state.yml before provisioning.",
+      "warning": "SEC-01 — an Azure AD client secret was previously committed and still requires rotation."
+    }
+  ],
+
+  "compliance": [
+    {
+      "id": "CMP-001",
+      "title": "PDPPL and Qatar data residency are hard release gates, not review comments",
+      "domains": ["auditor", "security-engineer", "architect", "ceo"],
+      "detail": "the client is a regulated banking client. Personal data residency (Qatar North / UAE North Dataverse) and PDPPL sign-off have blocked go-live on multiple engagements (DFE, Report Engine B6, DFE-APILOOKUP). Default deployment regions such as West Europe are not acceptable.",
+      "resolution": "Raise residency and PDPPL at architecture time, not audit time. Any external data egress needs an explicit named gate in the BRD.",
+      "confidence": "high",
+      "source": { "project": "multiple", "date": "2026-05 onward" }
+    }
+  ]
+}

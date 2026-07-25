@@ -1,0 +1,40 @@
+#!/bin/sh
+# Maqsad AI — commit-msg hook (WARN-ONLY)
+#
+# Reminds you to reference the requirement a commit implements.
+# This hook NEVER blocks a commit. Every path exits 0, including errors.
+# To make it blocking later, set MAQSAD_TRACEABILITY=strict in your env.
+
+MESSAGE_FILE="$1"
+[ -f "$MESSAGE_FILE" ] || exit 0
+
+SUBJECT=$(head -1 "$MESSAGE_FILE" 2>/dev/null) || exit 0
+
+# Merges, reverts, fixups and squashes carry no requirement of their own.
+case "$SUBJECT" in
+  Merge*|Revert*|fixup!*|squash!*) exit 0 ;;
+esac
+
+# Commit types that legitimately implement no requirement.
+case "$SUBJECT" in
+  docs*|chore*|ci*|style*|build*|test\(*|refactor*) exit 0 ;;
+esac
+
+# Already references a requirement, story, ADR or issue.
+if printf '%s' "$SUBJECT" | grep -qE '\[(FR|US|NFR|AC|B|GL|SEC|DEF)-[0-9]+\]|\[ADR-[A-Z0-9-]+\]|#[0-9]+'; then
+  exit 0
+fi
+
+if [ "$MAQSAD_TRACEABILITY" = "strict" ]; then
+  printf '\n  BLOCKED — no requirement reference in commit subject.\n' >&2
+  printf '  Expected e.g. feat(forms): add lookup filter [FR-014]\n' >&2
+  printf '  See .claude/protocols/traceability.md\n\n' >&2
+  exit 1
+fi
+
+printf '\n  traceability: no requirement reference in this commit subject.\n' >&2
+printf '  Consider: %s [FR-nnn]\n' "$SUBJECT" >&2
+printf '  Exempt types: docs, chore, ci, style, build, test, refactor.\n' >&2
+printf '  This is a reminder only — your commit was created.\n\n' >&2
+
+exit 0

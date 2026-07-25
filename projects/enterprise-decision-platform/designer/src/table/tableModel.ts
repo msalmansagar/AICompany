@@ -20,7 +20,7 @@ export function inputName(i: InputCol): string {
 export function colReady(i: InputCol): boolean { return !!i.field || (!!i.agg && i.agg.fn === 'Count'); }
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
 export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
-export interface Row { cells: Cell[]; outputs: Record<string, string>; }
+export interface Row { cells: Cell[]; outputs: Record<string, string>; reasonCodes?: string[]; }
 export interface TableModel {
   editor: 'edp-table';
   hitPolicy: 'First' | 'Priority' | 'Unique' | 'All';
@@ -111,6 +111,7 @@ export function tableToPcrm(model: TableModel, meta: { name: string; targetEntit
         priority: model.rows.length - idx,
         cells: r.cells.map((c, ci) => cellToPcrm(c, model.inputs[ci])),
         outputs: Object.fromEntries(model.outputs.map((o) => [o.name, coerce(r.outputs[o.name], o.type === 'Number' ? 'number' : o.type === 'Boolean' ? 'boolean' : 'text')])),
+        reasonCodes: (r.reasonCodes ?? []).map((c) => c.trim()).filter(Boolean),
       })),
     },
   };

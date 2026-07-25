@@ -1,4 +1,5 @@
 import type { DecisionGraphType } from '@gorules/jdm-editor';
+import { functionRequest, messageMode } from './messaging';
 
 // Dataverse Web API client — all calls go through the local /dataverse dev proxy
 // (which injects the bearer token). Targets the qdb_edp_ tables in BusinessRuleEngine.
@@ -48,13 +49,14 @@ export function lifecycleLabel(value: number | null | undefined): string {
 export interface RuleRow {
   ruleId: string; name: string; entity: string; status: string;
   versionNumber: number; versionId: string; modifiedOn: string;
+  owner: string; effectiveFrom: string | null; effectiveTo: string | null;
 }
 
-/** All rules with their latest version's status, entity, and version — for the Rules home grid. */
+/** All rules with their latest version's status, entity, owner, and effective window — the catalog grid. */
 export async function listRulesDetailed(): Promise<RuleRow[]> {
   const data = await req<{ value: any[] }>(
-    `/${VERSIONS}?$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_pcrmjson,_qdb_edp_ruleid_value,modifiedon` +
-      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename)&$orderby=qdb_edp_versionnumber desc&$top=250`
+    `/${VERSIONS}?$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_pcrmjson,qdb_edp_effectivefrom,qdb_edp_effectiveto,_qdb_edp_ruleid_value,modifiedon` +
+      `&$expand=qdb_edp_ruleid($select=qdb_edp_rulename),createdby($select=fullname)&$orderby=qdb_edp_versionnumber desc&$top=250`
   );
   const latest = new Map<string, any>();
   for (const v of data.value) {
@@ -74,6 +76,9 @@ export async function listRulesDetailed(): Promise<RuleRow[]> {
         versionNumber: v.qdb_edp_versionnumber ?? 1,
         versionId: v.qdb_edp_ruleversionid as string,
         modifiedOn: v.modifiedon ?? '',
+        owner: v.createdby?.fullname ?? '',
+        effectiveFrom: v.qdb_edp_effectivefrom ?? null,
+        effectiveTo: v.qdb_edp_effectiveto ?? null,
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -143,13 +148,15 @@ export interface LoadedVersion {
   versionNumber: number;
   versionId: string | null;
   lifecycleState: string;
+  effectiveFrom: string | null; // ISO UTC, or null = open-ended
+  effectiveTo: string | null;
 }
 
 export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion | null> {
   const rule = await req<any>(`/${RULES}(${ruleId})?$select=qdb_edp_rulename`);
   const data = await req<{ value: any[] }>(
     `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
-      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate&$orderby=qdb_edp_versionnumber desc&$top=1`
+      `&$select=qdb_edp_ruleversionid,qdb_edp_jdmsourcejson,qdb_edp_pcrmjson,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_effectivefrom,qdb_edp_effectiveto&$orderby=qdb_edp_versionnumber desc&$top=1`
   );
   const v = data.value[0];
   // The target entity lives inside the PCRM — restore it so field pickers can load.
@@ -162,6 +169,8 @@ export async function loadLatestVersion(ruleId: string): Promise<LoadedVersion |
     versionNumber: v?.qdb_edp_versionnumber ?? 0,
     versionId: v?.qdb_edp_ruleversionid ?? null,
     lifecycleState: lifecycleLabel(v?.qdb_edp_lifecyclestate),
+    effectiveFrom: v?.qdb_edp_effectivefrom ?? null,
+    effectiveTo: v?.qdb_edp_effectiveto ?? null,
   };
 }
 
@@ -237,6 +246,69 @@ export async function runScenarios(pcrm: unknown, ruleId: string): Promise<Scena
   return JSON.parse(res.ResultJson ?? '{"total":0,"passed":0,"failed":0,"allPassed":true,"results":[]}');
 }
 
+// ── Decision analytics (qdb_edp_GetRuleAnalytics) ─────────────────────────────
+// Server-side aggregation of qdb_edp_ruleexecutionlog telemetry over a rolling window.
+
+export interface AnalyticsData {
+  periodDays: number; from: string; to: string; ruleId: string | null;
+  total: number; matched: number; noMatch: number; error: number;
+  matchRate: number; errorRate: number;
+  latency: { avgMs: number; p50Ms: number; p95Ms: number; maxMs: number };
+  byDay: { date: string; count: number; errors: number }[];
+  topRules: { versionKey: string; label: string; count: number; errors: number }[];
+  truncated: boolean;
+}
+
+const EMPTY_ANALYTICS = '{"total":0,"matched":0,"noMatch":0,"error":0,"matchRate":0,"errorRate":0,"latency":{"avgMs":0,"p50Ms":0,"p95Ms":0,"maxMs":0},"byDay":[],"topRules":[],"truncated":false}';
+
+/** Aggregated decision telemetry over the last N days (organisation-wide, or scoped to one rule). */
+export async function getRuleAnalytics(periodDays = 30, ruleId?: string): Promise<AnalyticsData> {
+  const params: Record<string, string> = ruleId
+    ? { RuleId: ruleId, PeriodDays: String(periodDays) }
+    : { PeriodDays: String(periodDays) };
+  // Function (GET) on cloud, Action (POST) on-prem — same { ResultJson } envelope.
+  const { method, path, body } = functionRequest(messageMode(), 'qdb_edp_GetRuleAnalytics', params);
+  const res = await req<{ ResultJson?: string }>(path, method, body);
+  return JSON.parse(res.ResultJson ?? EMPTY_ANALYTICS);
+}
+
+// ── Version history + compare ─────────────────────────────────────────────────
+
+export interface VersionRow {
+  versionId: string; versionNumber: number; status: string;
+  effectiveFrom: string | null; effectiveTo: string | null; createdOn: string;
+}
+
+/** All versions of a rule, newest first — for the history/compare picker. */
+export async function listRuleVersions(ruleId: string): Promise<VersionRow[]> {
+  const data = await req<{ value: any[] }>(
+    `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
+      `&$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate,qdb_edp_effectivefrom,qdb_edp_effectiveto,createdon&$orderby=qdb_edp_versionnumber desc`
+  );
+  return data.value.map((v) => ({
+    versionId: v.qdb_edp_ruleversionid,
+    versionNumber: v.qdb_edp_versionnumber ?? 0,
+    status: lifecycleLabel(v.qdb_edp_lifecyclestate),
+    effectiveFrom: v.qdb_edp_effectivefrom ?? null,
+    effectiveTo: v.qdb_edp_effectiveto ?? null,
+    createdOn: v.createdon ?? '',
+  }));
+}
+
+/** A version's canonical PCRM (parsed), for structural comparison. */
+export async function loadVersionPcrm(versionId: string): Promise<unknown> {
+  const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_pcrmjson`);
+  try { return JSON.parse(v.qdb_edp_pcrmjson ?? '{}'); } catch { return {}; }
+}
+
+/** Set (or clear) a version's effective-dating window. Pass null to leave an end open. */
+export async function setEffectiveWindow(versionId: string, fromIso: string | null, toIso: string | null): Promise<void> {
+  await req(`/${VERSIONS}(${versionId})`, 'PATCH', {
+    qdb_edp_effectivefrom: fromIso || null,
+    qdb_edp_effectiveto: toIso || null,
+  });
+}
+
 /** Current lifecycle state label of a version (for the governance bar). */
 export async function getVersionState(versionId: string): Promise<string> {
   const v = await req<any>(`/${VERSIONS}(${versionId})?$select=qdb_edp_lifecyclestate`);
@@ -291,6 +363,19 @@ export async function loadRuleSet(id: string): Promise<LoadedRuleSet> {
     policy: (SET_POLICIES.includes(r.qdb_edp_setpolicy) ? r.qdb_edp_setpolicy : 'Collect') as SetPolicy,
     members: await resolveMembers(parseMembers(r.qdb_edp_membersjson)),
   };
+}
+
+/** Fetch everything the dependency graph needs: all rules + all sets with their members. */
+export async function loadDependencyData(): Promise<{
+  rules: { ruleId: string; name: string; status: string }[];
+  sets: { id: string; name: string; policy: string; members: RuleSetMember[] }[];
+}> {
+  const [rules, setRows] = await Promise.all([listRulesDetailed(), listRuleSets()]);
+  const sets = await Promise.all(setRows.map(async (s) => {
+    const full = await loadRuleSet(s.id);
+    return { id: s.id, name: s.name, policy: full.policy, members: full.members };
+  }));
+  return { rules: rules.map((r) => ({ ruleId: r.ruleId, name: r.name, status: r.status })), sets };
 }
 
 export interface SaveRuleSetInput { id?: string; name: string; description?: string; policy: SetPolicy; members: RuleSetMember[]; }

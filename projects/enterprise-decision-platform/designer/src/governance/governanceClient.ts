@@ -1,7 +1,7 @@
 // Calls the qdb_edp_RuleGovernanceAction Custom API (maker-checker lifecycle).
 // CRM-only: governance runs server-side; in local dev it reports it needs CRM.
 
-export type GovernanceAction = 'Submit' | 'Approve' | 'Reject' | 'Publish' | 'Retire';
+export type GovernanceAction = 'Submit' | 'Approve' | 'Reject' | 'Publish' | 'Unpublish' | 'Retire';
 
 export interface GovernanceResult { success: boolean; newState: string; message: string; }
 

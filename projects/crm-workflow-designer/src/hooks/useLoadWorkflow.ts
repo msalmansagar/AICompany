@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
+import { logError } from '@/services/logError';
 
 interface UseLoadWorkflowResult {
   isLoading: boolean;
@@ -25,7 +26,7 @@ export function useLoadWorkflow(): UseLoadWorkflowResult {
         state: p.workflowState,
       }));
     } catch (err) {
-      console.error('[useLoadWorkflow] loadProcessList failed:', err);
+      logError('useLoadWorkflow:loadProcessList', err);
       throw err;
     }
   }, [adapter]);
@@ -54,7 +55,7 @@ export function useLoadWorkflow(): UseLoadWorkflowResult {
       loadWorkflow(process, steps, allOutcomes, allRoutes, {});
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load workflow.';
-      console.error('[useLoadWorkflow] loadProcess failed:', err);
+      logError('useLoadWorkflow:loadProcess', err);
       setError(msg);
     } finally {
       setIsLoading(false);

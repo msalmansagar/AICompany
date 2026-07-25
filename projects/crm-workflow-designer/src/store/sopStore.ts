@@ -5,6 +5,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { XYPosition } from '@xyflow/react';
 import type { Sop, SopStep, SopOutcome, SopStepType } from '@/types/SopTypes';
 import { SOP_STEP_TYPE_META } from '@/types/SopTypes';
+import { emptySlaFields } from '@/services/slaStepFields';
 
 export interface SopValidationResult {
   code: string;
@@ -245,6 +246,7 @@ export const useSopStore = create<SopStore>()(
             roleName: parentStep?.roleName ?? null,
             roleStatus: parentStep?.roleStatus ?? null,
             stepType: 'step' as const,
+            ...emptySlaFields(),
           };
 
           state.steps[tmpId] = newStep;
@@ -276,6 +278,7 @@ export const useSopStore = create<SopStore>()(
             roleName: parentStep?.roleName ?? null,
             roleStatus: parentStep?.roleStatus ?? null,
             stepType,
+            ...emptySlaFields(),
           };
           state.stepOrder.push(tmpId);
           state.outcomeOrder[tmpId] = [];
@@ -306,6 +309,7 @@ export const useSopStore = create<SopStore>()(
             roleName: sourceStep.roleName,
             roleStatus: sourceStep.roleStatus,
             stepType,
+            ...emptySlaFields(),
           };
           state.stepOrder.push(tmpStepId);
           state.outcomeOrder[tmpStepId] = [];

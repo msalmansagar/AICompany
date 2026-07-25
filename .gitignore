@@ -1,0 +1,39 @@
+# Maqsad AI — repository-wide ignore rules.
+# Verified at creation: none of these patterns matched a tracked file, so this
+# ignores only build output and local artifacts — it untracks nothing.
+
+# ---- Dependencies ----
+node_modules/
+
+# ---- TypeScript / build output ----
+*.tsbuildinfo
+dist/
+build/
+out/
+
+# ---- Vite ----
+.vite/
+
+# ---- Next.js ----
+.next/
+next-env.d.ts
+
+# ---- Turborepo ----
+.turbo/
+
+# ---- Test coverage ----
+coverage/
+
+# ---- .NET (CRM plugins, EDP runtime) ----
+bin/
+obj/
+
+# ---- Local environment (never commit secrets) ----
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db

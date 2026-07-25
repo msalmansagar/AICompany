@@ -8,6 +8,7 @@ export interface EvaluateResult {
   success: boolean;
   matched: boolean;
   outputs: Record<string, unknown>;
+  reasonCodes: string[];
   elapsedMs: number;
   trace: TraceStep[];
   diagnostics: Diagnostic[];
@@ -44,6 +45,7 @@ async function evaluateViaCustomApi(base: string, pcrm: unknown, inputs: Record<
     success: !!d.Success,
     matched: !!d.Matched,
     outputs: safeParse(d.OutputsJson, {}),
+    reasonCodes: safeParse(d.ReasonCodesJson, []),
     elapsedMs: d.ElapsedMs ?? 0,
     trace: safeParse(d.TraceJson, []),
     diagnostics: safeParse(d.DiagnosticsJson, []),

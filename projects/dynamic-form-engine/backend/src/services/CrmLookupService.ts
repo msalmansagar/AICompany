@@ -1,32 +1,37 @@
-﻿import type { LookupResult, LookupDisplayColumn } from '@qdb/shared';
-import { CrmBaseService } from './CrmBaseService.js';
+import type { LookupResult, LookupDisplayColumn } from '@qdb/shared';
 import type { CrmAuthService } from './CrmAuthService.js';
+import { config } from '../config/env.js';
+import {
+  CrmLookupService as GlobalLookupService,
+} from '../global/dataverse-lookup/node/CrmLookupService.js';
+import type {
+  EntityLookupQuery,
+  LookupColumn,
+  LookupOption,
+} from '../global/dataverse-lookup/contract.js';
 
-// DFE-LKPCOL-001 — the source attribute for a column, resolved for the current language.
-function effectiveAttribute(column: LookupDisplayColumn, lang?: string): string {
-  return lang === 'ar' && column.arabicAttribute ? column.arabicAttribute : column.attribute;
-}
+/**
+ * DFE lookup service — a thin adapter over the shared @mss/dataverse-lookup
+ * package (vendored under ../global, see GLOBAL-VERSION). The public API
+ * (constructor + searchLookup) is unchanged, so route consumers are untouched.
+ *
+ * The adapter maps DFE's @qdb/shared shapes to the canonical contract and back;
+ * multi-column, language-aware search and active-record filtering now live in
+ * the shared package (its default active-record policy matches DFE's exactly:
+ * statecode for most, isdisabled for systemuser, none for team).
+ */
+export class CrmLookupService {
+  private readonly lookup: GlobalLookupService;
 
-interface ODataCollection<T> {
-  value: T[];
-}
-
-// Not every entity has a `statecode` column. systemuser/team are active-by-default
-// system entities that use `isdisabled`; entities without any active flag get none.
-const ACTIVE_RECORD_FILTER: Record<string, string | null> = {
-  systemuser: 'isdisabled eq false',
-  team: null,
-};
-
-function activeRecordFilter(entityLogicalName: string): string | null {
-  return entityLogicalName in ACTIVE_RECORD_FILTER
-    ? ACTIVE_RECORD_FILTER[entityLogicalName]
-    : 'statecode eq 0';
-}
-
-export class CrmLookupService extends CrmBaseService {
   constructor(authService: CrmAuthService) {
-    super(authService);
+    // CrmAuthService already exposes getAccessToken() — it IS a TokenProvider.
+    // A generous ceiling preserves the pre-migration behaviour of honouring the
+    // caller's maxResults without an unexpected cap.
+    this.lookup = new GlobalLookupService({
+      dataverseUrl: config.DATAVERSE_URL,
+      tokenProvider: authService,
+      maxResultsCeiling: 5000,
+    });
   }
 
   async searchLookup(params: {
@@ -39,58 +44,36 @@ export class CrmLookupService extends CrmBaseService {
     displayColumns?: LookupDisplayColumn[];
     lang?: string;
   }): Promise<LookupResult[]> {
-    const {
-      entityLogicalName,
-      displayAttribute,
-      searchTerm,
-      filterExpression,
-      maxResults,
-      displayColumns,
-      lang,
-    } = params;
-    const valueAttribute = params.valueAttribute ?? `${entityLogicalName}id`;
+    const query: EntityLookupQuery = {
+      entity: params.entityLogicalName,
+      displayAttribute: params.displayAttribute,
+      valueAttribute: params.valueAttribute,
+      searchTerm: params.searchTerm,
+      filter: params.filterExpression,
+      maxResults: params.maxResults,
+      columns: params.displayColumns?.map(toLookupColumn),
+      language: params.lang,
+    };
 
-    // Multi-column: the first column is the primary (drives search/order + displayName);
-    // every column also contributes to additionalAttributes. Falls back to the single
-    // displayAttribute when no columns are configured (backward compatible).
-    const columns = displayColumns && displayColumns.length > 0 ? displayColumns : undefined;
-    const primaryAttribute = columns ? effectiveAttribute(columns[0], lang) : displayAttribute;
-    const selectAttributes = new Set<string>([valueAttribute, primaryAttribute]);
-    if (columns) for (const c of columns) selectAttributes.add(effectiveAttribute(c, lang));
-
-    const filters: string[] = [];
-    const activeFilter = activeRecordFilter(entityLogicalName);
-    if (activeFilter) filters.push(activeFilter);
-    if (searchTerm) {
-      filters.push(`contains(${primaryAttribute},'${searchTerm.replace(/'/g, "''")}')`);
-    }
-    if (filterExpression) filters.push(filterExpression);
-
-    const query = [
-      `$select=${[...selectAttributes].join(',')}`,
-      filters.length > 0 ? `$filter=${filters.join(' and ')}` : null,
-      `$top=${maxResults}`,
-      `$orderby=${primaryAttribute} asc`,
-    ].filter(Boolean).join('&');
-
-    const response = await this.crmFetch<ODataCollection<Record<string, unknown>>>(
-      `/${entityLogicalName}s?${query}`,
-    );
-
-    return response.value.map((record) => {
-      const result: LookupResult = {
-        id: String(record[valueAttribute] ?? record[`${entityLogicalName}id`] ?? ''),
-        displayName: String(record[primaryAttribute] ?? ''),
-        entityLogicalName,
-      };
-      if (columns) {
-        // Key by the column's base attribute so the frontend (which has the config) can pair
-        // each configured column with its language-resolved value.
-        const additional: Record<string, unknown> = {};
-        for (const c of columns) additional[c.attribute] = record[effectiveAttribute(c, lang)] ?? '';
-        result.additionalAttributes = additional;
-      }
-      return result;
-    });
+    const options = await this.lookup.searchEntity(query);
+    return options.map((option) => toLookupResult(option, params.entityLogicalName));
   }
+}
+
+/** DFE column (arabicAttribute) → canonical column (localizedAttributes.ar). */
+function toLookupColumn(column: LookupDisplayColumn): LookupColumn {
+  return column.arabicAttribute
+    ? { attribute: column.attribute, localizedAttributes: { ar: column.arabicAttribute } }
+    : { attribute: column.attribute };
+}
+
+/** Canonical option → DFE @qdb/shared LookupResult. */
+function toLookupResult(option: LookupOption, entityLogicalName: string): LookupResult {
+  const result: LookupResult = {
+    id: option.id,
+    displayName: option.label,
+    entityLogicalName,
+  };
+  if (option.columns) result.additionalAttributes = option.columns;
+  return result;
 }

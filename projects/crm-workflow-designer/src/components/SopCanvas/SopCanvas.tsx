@@ -15,6 +15,7 @@ import { useSopStore } from '@/store/sopStore';
 import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
 import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
+import { emptySlaFields } from '@/services/slaStepFields';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
 import { SOP_STATUS } from '@/types/SopTypes';
@@ -73,6 +74,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
       sopId: state.sop?.id ?? '',
       roleId: null, roleName: null, roleStatus: null,
       stepType: 'step',
+      ...emptySlaFields(),
     };
     store.addStep(step, { x: 0, y: 0 }); // swimlane layout computes real position
     store.setSelected(tmpId);

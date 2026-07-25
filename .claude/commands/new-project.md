@@ -1,5 +1,5 @@
 ---
-description: "Start a new Maqsad AI full engagement (Pattern A pipeline)"
+description: "Start a new MSS Technologies full engagement (Pattern A pipeline)"
 allowed-tools: Task, Read, Write
 ---
 

@@ -17,6 +17,7 @@ import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
+import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
 import { buildTechnicalGraph } from '../services/TechnicalGraphBuilder';
 import { buildTechNewGraph } from '../services/TechNewGraphBuilder';
@@ -170,7 +171,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
       link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error('[export png]', err);
+      logError('export:png', err);
     } finally {
       setIsExporting(false);
     }
@@ -184,7 +185,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
       pdf.addImage(dataUrl, 'PNG', 0, 0, EXPORT_W, EXPORT_H);
       pdf.save(`${view.data?.process.name ?? 'workflow'}.pdf`);
     } catch (err) {
-      console.error('[export pdf]', err);
+      logError('export:pdf', err);
     } finally {
       setIsExporting(false);
     }

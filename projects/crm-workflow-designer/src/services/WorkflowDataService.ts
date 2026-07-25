@@ -1,5 +1,6 @@
 import type { CrmEnvironmentService, XrmPort } from './CrmEnvironmentService';
 import type { CrmProcess, CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
+import { logError } from './logError';
 
 // Logical entity names — used by Xrm.WebApi.* (it resolves OData set names internally)
 const LOGICAL = {
@@ -261,7 +262,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 }
 
 function toError(err: unknown, context: string): Error {
-  console.error(`[WorkflowDataService:${context}]`, err);
+  logError(`WorkflowDataService:${context}`, err);
   if (err instanceof Error) return err;
   if (typeof err === 'object' && err !== null) {
     const xrm = err as Record<string, unknown>;
