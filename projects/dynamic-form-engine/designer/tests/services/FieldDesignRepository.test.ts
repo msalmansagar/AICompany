@@ -49,10 +49,25 @@ describe('FieldDesignRepository round-trip', () => {
         [FIELD_DESIGN_STYLE_ATTRS.FOCUS_STYLE_JSON]: '{"outline":"2px solid"}',
       }],
     });
-    const [fld] = await repo.getFieldDesigns('fd1');
+    const [fld] = await repo.getFieldDesigns(['fld1']);
     expect(fld.width).toBe('Custom');
     expect(fld.inputStyle).toBe('Standard');
     expect(fld.cssClassName).toBe('qdb-highlight');
     expect(fld.focusStyle).toEqual({ outline: '2px solid' });
+  });
+
+  it('get_scopesQuery_toGivenFieldIds', async () => {
+    vi.mocked(webApi.retrieveMultipleRecords).mockResolvedValueOnce({ entities: [] });
+    await repo.getFieldDesigns(['fld1', 'fld2']);
+    const query = vi.mocked(webApi.retrieveMultipleRecords).mock.calls[0][1];
+    expect(query).toContain(`${FIELD_DESIGN_ATTRS.FIELD_ID_VALUE} eq fld1`);
+    expect(query).toContain(`${FIELD_DESIGN_ATTRS.FIELD_ID_VALUE} eq fld2`);
+    expect(query).not.toContain('ne null');
+  });
+
+  it('get_returnsEmpty_andSkipsQuery_whenNoFieldIds', async () => {
+    const result = await repo.getFieldDesigns([]);
+    expect(result).toEqual([]);
+    expect(webApi.retrieveMultipleRecords).not.toHaveBeenCalled();
   });
 });

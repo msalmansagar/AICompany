@@ -39,13 +39,53 @@ import { BusinessRuleService } from '@/services/BusinessRuleService';
 import { FormDeleteService } from '@/services/FormDeleteService';
 import { FormCloneService } from '@/services/FormCloneService';
 import { AuditLogService } from '@/services/AuditLogService';
+import { DesignService } from '@/services/DesignService';
 import { useDesignerStore } from '@/state/designerStore';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
 import type { DesignerValidationRule } from '@/state/models/DesignerRuleModel';
+import type { DesignPayload } from '@qdb/shared';
 
 const OPTION_FIELD_TYPES = new Set(['dropdown', 'multi_select', 'radio']);
 const LOOKUP_FIELD_TYPES = new Set(['lookup', 'child_entity_grid']);
+
+/**
+ * Loads the persisted design payload for one form, scoped to its own sections and
+ * fields so styling never bleeds across forms. Missing pieces fall back to defaults.
+ */
+async function loadDesignPayload(
+  designService: DesignService,
+  scope: { formId: string; sectionIds: string[]; fieldIds: string[] },
+): Promise<DesignPayload> {
+  // Each design entity loads independently — one failing query must not blank out
+  // the styling that did load, so every getter falls back to its own empty default.
+  const [formDesign, sectionDesigns, fieldDesigns, buttons] = await Promise.all([
+    designService.getFormDesign(scope.formId).catch(() => null),
+    designService.getSectionDesigns(scope.sectionIds).catch(() => []),
+    designService.getFieldDesigns(scope.fieldIds).catch(() => []),
+    designService.getButtonDesigns(scope.formId).catch(() => []),
+  ]);
+
+  const theme = formDesign?.themeId
+    ? await designService.getTheme(formDesign.themeId).catch(() => DEFAULT_DESIGN_PAYLOAD.theme)
+    : DEFAULT_DESIGN_PAYLOAD.theme;
+  const layoutGrid = formDesign?.id
+    ? await designService.getLayoutGrids(formDesign.id).catch(() => [])
+    : [];
+
+  return {
+    theme,
+    formDesign: formDesign ?? DEFAULT_DESIGN_PAYLOAD.formDesign,
+    sectionDesigns: Object.fromEntries(sectionDesigns.map(design => [design.sectionId, design])),
+    fieldDesigns: Object.fromEntries(fieldDesigns.map(design => [design.fieldId, design])),
+    buttonDesigns: {
+      Submit: buttons.find(button => button.buttonType === 'Submit'),
+      SaveDraft: buttons.find(button => button.buttonType === 'SaveDraft'),
+      Cancel: buttons.find(button => button.buttonType === 'Cancel'),
+    },
+    layoutGrid,
+  };
+}
 
 const useStyles = makeStyles({
   container: {
@@ -193,7 +233,19 @@ export function FormListScreen(): React.ReactElement {
         f => (f as typeof f & { _validationRules?: DesignerValidationRule[] })._validationRules ?? []
       );
 
-      loadForm({ form, tabs, sections, fields, validationRules: allValidationRules, businessRules, designPayload: DEFAULT_DESIGN_PAYLOAD });
+      // Styling load is best-effort — a design glitch must never block opening a form.
+      let designPayload = DEFAULT_DESIGN_PAYLOAD;
+      try {
+        designPayload = await loadDesignPayload(new DesignService(webApi), {
+          formId,
+          sectionIds: sections.map(section => section.id),
+          fieldIds: fields.map(field => field.id),
+        });
+      } catch {
+        designPayload = DEFAULT_DESIGN_PAYLOAD;
+      }
+
+      loadForm({ form, tabs, sections, fields, validationRules: allValidationRules, businessRules, designPayload });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open form');
       setIsOpeningForm(false);

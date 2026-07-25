@@ -39,8 +39,8 @@ export class LayoutGridRepository {
 
   async getLayoutGrids(formDesignId: string): Promise<LayoutGrid[]> {
     const select = [
-      LAYOUT_GRID_ATTRS.ID, LAYOUT_GRID_ATTRS.FORM_DESIGN_ID,
-      LAYOUT_GRID_ATTRS.FORM_FIELD_ID, LAYOUT_GRID_ATTRS.COLUMNS_TOTAL,
+      LAYOUT_GRID_ATTRS.ID, LAYOUT_GRID_ATTRS.FORM_DESIGN_ID_VALUE,
+      LAYOUT_GRID_ATTRS.FORM_FIELD_ID_VALUE, LAYOUT_GRID_ATTRS.COLUMNS_TOTAL,
       LAYOUT_GRID_ATTRS.SPAN_MOBILE, LAYOUT_GRID_ATTRS.SPAN_TABLET,
       LAYOUT_GRID_ATTRS.SPAN_DESKTOP,
     ].join(',');
@@ -48,7 +48,7 @@ export class LayoutGridRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.LAYOUT_GRID,
-        `?$select=${select}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID} eq ${formDesignId}`
+        `?$select=${select}&$filter=${LAYOUT_GRID_ATTRS.FORM_DESIGN_ID_VALUE} eq ${formDesignId}`
       ),
       'getLayoutGrids'
     );
