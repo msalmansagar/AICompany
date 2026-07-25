@@ -1,0 +1,19 @@
+{
+  "name": "@mss/dataverse-lookup",
+  "version": "0.1.0",
+  "description": "Canonical Dataverse lookup + option-set resolution (MSS Technologies global library)",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./node": "./src/node/CrmLookupService.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@mss/dataverse-metadata": "^0.1.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
