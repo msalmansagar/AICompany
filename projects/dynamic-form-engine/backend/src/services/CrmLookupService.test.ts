@@ -48,3 +48,50 @@ describe('CrmLookupService.searchLookup active-record filter', () => {
     expect(url).not.toContain('$filter=&');
   });
 });
+
+// DFE-LKPCOL-001 — multi-column + language-aware display.
+describe('CrmLookupService.searchLookup display columns', () => {
+  let service: CrmLookupService;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new CrmLookupService(mockAuthService);
+  });
+
+  function okRows(rows: Array<Record<string, unknown>>) {
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ value: rows }), text: () => Promise.resolve(''), headers: { get: () => null } });
+  }
+
+  const COLUMNS = [
+    { attribute: 'name', arabicAttribute: 'qdb_name_ar', header: 'Name' },
+    { attribute: 'accountnumber', header: 'Account #' },
+  ];
+
+  it('selects_all_column_attributes_and_returns_them_in_additionalAttributes', async () => {
+    mockFetch.mockImplementation(() => okRows([{ accountid: '1', name: 'Acme', accountnumber: 'A-1' }]));
+    const results = await service.searchLookup({ entityLogicalName: 'account', displayAttribute: 'name', maxResults: 10, displayColumns: COLUMNS });
+    const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+    expect(url).toContain('name');
+    expect(url).toContain('accountnumber');
+    expect(results[0].displayName).toBe('Acme'); // first column is the primary label
+    expect(results[0].additionalAttributes).toEqual({ name: 'Acme', accountnumber: 'A-1' });
+  });
+
+  it('uses_the_arabic_attribute_for_the_primary_column_when_lang_is_ar', async () => {
+    mockFetch.mockImplementation(() => okRows([{ accountid: '1', qdb_name_ar: 'أكمي', accountnumber: 'A-1' }]));
+    const results = await service.searchLookup({ entityLogicalName: 'account', displayAttribute: 'name', maxResults: 10, displayColumns: COLUMNS, lang: 'ar', searchTerm: 'أ' });
+    const url = decodeURIComponent(mockFetch.mock.calls[0][0] as string);
+    // primary column resolves to the Arabic attribute for select, order and search
+    expect(url).toContain('qdb_name_ar');
+    expect(url).toContain("contains(qdb_name_ar,'أ')");
+    expect(url).toContain('$orderby=qdb_name_ar');
+    expect(results[0].displayName).toBe('أكمي');
+    expect(results[0].additionalAttributes?.name).toBe('أكمي'); // keyed by base attribute
+  });
+
+  it('falls_back_to_single_displayAttribute_when_no_columns', async () => {
+    mockFetch.mockImplementation(() => okRows([{ accountid: '1', name: 'Acme' }]));
+    const results = await service.searchLookup({ entityLogicalName: 'account', displayAttribute: 'name', maxResults: 10 });
+    expect(results[0].displayName).toBe('Acme');
+    expect(results[0].additionalAttributes).toBeUndefined();
+  });
+});

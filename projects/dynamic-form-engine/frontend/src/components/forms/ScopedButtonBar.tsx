@@ -37,21 +37,37 @@ interface ScopedButtonBarProps {
 export function ScopedButtonBar({ buttons }: ScopedButtonBarProps) {
   const styles = useStyles();
   const dispatch = useScopedButtonAction();
-  const { isSubmitting } = useFormContext();
+  const { isSubmitting, ruleState } = useFormContext();
 
-  const visibleButtons = (buttons ?? [])
-    .filter((button) => button.isVisible && button.isActive)
-    .sort((a, b) => a.displayOrder - b.displayOrder);
+  // DFE-CBTN-001: two independent axes — visibility (isVisible / visibleWhen) and
+  // enablement (isActive / enabledWhen). The `effectiveVisible && (effectiveEnabled
+  // || hasEnabledWhen)` predicate preserves exact legacy rendering for buttons
+  // with no conditions, while letting a conditioned button render but disabled.
+  const renderable = (buttons ?? [])
+    .map((button) => {
+      const hasVisibleWhen = button.visibleWhen != null;
+      const hasEnabledWhen = button.enabledWhen != null;
+      const effectiveVisible = hasVisibleWhen
+        ? ruleState.buttonVisibility[button.id] ?? false
+        : button.isVisible;
+      const effectiveEnabled = hasEnabledWhen
+        ? ruleState.buttonEnabledState[button.id] ?? false
+        : button.isActive;
+      const rendered = effectiveVisible && (effectiveEnabled || hasEnabledWhen);
+      return { button, rendered, effectiveEnabled };
+    })
+    .filter((entry) => entry.rendered)
+    .sort((a, b) => a.button.displayOrder - b.button.displayOrder);
 
-  if (visibleButtons.length === 0) return null;
+  if (renderable.length === 0) return null;
 
   return (
     <div className={styles.bar} role="group" aria-label="Actions">
-      {visibleButtons.map((button) => (
+      {renderable.map(({ button, effectiveEnabled }) => (
         <ScopedButtonItem
           key={button.id}
           button={button}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !effectiveEnabled}
           onActivate={() => dispatch(button)}
         />
       ))}

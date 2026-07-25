@@ -179,6 +179,7 @@ namespace Qdb.FormEngine.Plugins
             AddIds(ids, rawData.ValidationRules);
             AddIds(ids, rawData.GridColumnConfigs);
             AddIds(ids, rawData.Buttons);
+            AddIds(ids, rawData.ScopedButtons); // DFE-CBTN-001 — so scoped-button labels translate
             AddIds(ids, rawData.InfoCardScreens);
             AddIds(ids, rawData.InfoCardSections);
             AddIds(ids, rawData.InfoCardItems);

@@ -1,5 +1,7 @@
 // DFE-NUMBAR — read-only utilization gauge for number/decimal/currency fields.
-// Fills = this field's value ÷ the value of the field named by field.barMaxFieldSchemaName.
+// Fills = the bar value ÷ the value of the field named by field.barMaxFieldSchemaName.
+// The bar value is read live from field.barValueFieldSchemaName when set, otherwise from
+// this field's own value.
 import { makeStyles, tokens } from '@fluentui/react-components';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
@@ -32,7 +34,9 @@ export function NumberBarControl({ field }: ControlProps) {
   const styles = useStyles();
   const { fieldValues } = useFormContext();
 
-  const value = toNumber(fieldValues[field.schemaName]);
+  const value = toNumber(
+    fieldValues[field.barValueFieldSchemaName || field.schemaName],
+  );
   const max = field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0;
   const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
 

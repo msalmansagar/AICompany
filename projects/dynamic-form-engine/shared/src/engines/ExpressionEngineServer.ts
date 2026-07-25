@@ -11,8 +11,8 @@
 // Do NOT import this from mobile — the mobile runtime sends raw expression
 // strings; only the backend evaluates them.
 
-import { ExpressionEngine, ExpressionError } from './ExpressionEngine';
-import type { ExpressionContext, ExpressionValue } from './ExpressionEngine';
+import { ExpressionEngine, ExpressionError } from './ExpressionEngine.js';
+import type { ExpressionContext, ExpressionValue } from './ExpressionEngine.js';
 
 export class ExpressionTimeoutError extends Error {
   constructor(message: string) {

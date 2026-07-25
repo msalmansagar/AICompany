@@ -76,6 +76,13 @@ export default defineConfig({
     // Target ES2020 — Edge Chromium 100+ and Chrome 100+ both support this.
     target: 'es2020',
     rollupOptions: {
+      /**
+       * ADR-004 (DFE-ENH-001 ENT-008): axe-core is licensed MPL-2.0 (file-level copyleft).
+       * Its use is accepted for dev/test only. Listing these packages as external guarantees
+       * they are never bundled into the CRM web resource shipped artifact, so the MPL-2.0
+       * copyleft obligation never applies to the production build.
+       */
+      external: ['axe-core', '@axe-core/playwright', 'vitest-axe', '@playwright/test'],
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
@@ -97,6 +104,12 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // axe-core scans are CPU-intensive in jsdom — allow up to 30s per test.
+    // ENT-008 a11y tests routinely exceed the default 5s; keep this above the
+    // measured ~6.5s baseline so CI doesn't flap under moderate system load.
+    testTimeout: 30_000,
+    // Exclude Playwright E2E specs — they use @playwright/test not vitest
+    exclude: ["tests/e2e/**", "**/node_modules/**"],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

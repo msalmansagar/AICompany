@@ -7,6 +7,7 @@
 // so the stepping, visibility, and completion logic is unit-tested directly.
 
 import type { NavigateActionConfig, TabDefinition, RuleEvaluationResult, FormFieldValues } from '@qdb/shared';
+import { getTabZoneFields } from './tabFields';
 
 export interface NavigationInput {
   action: NavigateActionConfig;
@@ -73,6 +74,14 @@ export function arePrecedingTabsComplete(input: CompletionInput): boolean {
         if (visible && required && isEmptyValue(fieldValues[field.schemaName])) {
           return false;
         }
+      }
+    }
+    // DFE-TABZONE-001: header/footer zone fields also gate tab completion.
+    for (const field of getTabZoneFields(tab)) {
+      const visible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
+      const required = ruleState.fieldRequired[field.id] ?? field.isRequired;
+      if (visible && required && isEmptyValue(fieldValues[field.schemaName])) {
+        return false;
       }
     }
   }

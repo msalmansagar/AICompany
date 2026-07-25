@@ -201,6 +201,29 @@ export function FormProperties(): React.ReactElement {
       </Field>
 
       <Divider />
+      <SectionHeading label="Submit Confirmation" />
+
+      <Field
+        label="Acknowledgement Checkbox Label"
+        hint="When set, the final step shows this checkbox and Submit stays disabled until it is ticked. Leave blank to disable the gate."
+      >
+        <Input
+          value={form.submitConfirmationLabel ?? ''}
+          onChange={(_, data) => updateForm({ submitConfirmationLabel: data.value || null })}
+          placeholder="e.g. I confirm the information is accurate and complete"
+        />
+      </Field>
+
+      <Field label="Confirmation Dialog Message" hint="Body of the popup shown when the box is ticked.">
+        <Textarea
+          value={form.submitConfirmationMessage ?? ''}
+          onChange={(_, data) => updateForm({ submitConfirmationMessage: data.value || null })}
+          placeholder="e.g. Are you sure you want to submit this application?"
+          rows={2}
+        />
+      </Field>
+
+      <Divider />
       <SectionHeading label="Access Control" />
 
       <Field label="Access Group ID" hint="Azure AD group Object ID. Leave blank for any authenticated user.">

@@ -2,7 +2,7 @@
 // Shared TypeScript contracts — used by both frontend and backend
 // ─────────────────────────────────────────────────────────────
 
-import type { DesignPayload } from './design.types';
+import type { DesignPayload } from './design.types.js';
 
 // ── Field type enumeration ────────────────────────────────────
 
@@ -51,7 +51,33 @@ export type ValidationRuleType =
   | 'dateBefore'
   | 'dateAfter'
   | 'crossField'
-  | 'customExpression';
+  | 'customExpression'
+  // DFE-ENH-001 FR-006 — field becomes required when structured conditions are all true
+  | 'conditionalRequired';
+
+// ── Cross-field comparison operator ──────────────────────────────
+// Used by both conditionalRequired rule conditions and cross-field rule comparisons.
+export type CrossFieldComparisonOperator = '==' | '!=' | '<' | '<=' | '>' | '>=';
+
+// ── Structured condition (for conditionalRequired rule) ───────────
+// Purpose-built for validation rules; evolves independently from BusinessRule RuleCondition.
+export type StructuredConditionOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'greater_than'
+  | 'less_than'
+  | 'greater_than_or_equal'
+  | 'less_than_or_equal'
+  | 'is_empty'
+  | 'is_not_empty';
+
+export interface StructuredCondition {
+  /** Schema name of the field whose value drives this condition */
+  fieldRef: string;
+  operator: StructuredConditionOperator;
+  /** Comparison target; null is valid only for is_empty / is_not_empty */
+  value: string | null;
+}
 
 export type BusinessRuleAction =
   | 'showField'
@@ -197,6 +223,13 @@ export type ScopedButtonAction =
   | SaveDraftActionConfig
   | CallApiActionConfig;
 
+// DFE-CBTN-001: a set of conditions combined by `logic`, evaluated against live
+// field values to drive a scoped button's visibility or enablement.
+export interface ButtonConditionSet {
+  conditions: RuleCondition[];
+  logic: LogicalOperator;
+}
+
 export interface ScopedButton {
   id: string;
   placementScope: ButtonPlacementScope;
@@ -209,6 +242,11 @@ export interface ScopedButton {
   confirmationMessage?: string;
   action: ScopedButtonAction;  // discriminated by action.type
   isActive: boolean;
+  // DFE-CBTN-001: optional conditional visibility / enablement. When present the
+  // set is evaluated live against field values and overrides the static
+  // isVisible / isActive flag; when absent, the static flag applies (legacy).
+  visibleWhen?: ButtonConditionSet;
+  enabledWhen?: ButtonConditionSet;
 }
 
 /** Resolved extra-parameter envelope produced server-side at submit time. */
@@ -254,6 +292,25 @@ export interface LookupConfig {
   maxResults: number;
   dependsOnFieldId?: string;       // filter this lookup based on another field's value
   dependsOnFilterTemplate?: string; // OData filter template with {dependsOnValue} placeholder
+  // DFE-APILOOKUP-001: external-API source. Absent/'entity' => the CRM-entity path above.
+  // When 'api', the backend resolves apiEndpointKey against a server-side registry and
+  // proxies the call — no URL or credential ever reaches the browser.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string;         // opaque key resolved server-side; required when source='api'
+  apiValuePath?: string;           // dot-path to the value in each API response item (e.g. 'id')
+  apiLabelPath?: string;           // dot-path to the label in each API response item (e.g. 'name')
+  apiSearchParamName?: string;     // query param carrying the typed term (typeahead mode)
+  apiSearchMode?: 'typeahead' | 'fetchAll'; // absent => 'typeahead'
+  // DFE-LKPCOL-001: multiple display columns (rendered as a table with headers) + per-column
+  // Arabic source. Absent => the single displayAttribute above. The first column is the value
+  // stored as the selection's displayName.
+  displayColumns?: LookupDisplayColumn[];
+}
+
+export interface LookupDisplayColumn {
+  attribute: string;         // source attribute (English / default)
+  arabicAttribute?: string;  // source attribute used when the form language is Arabic
+  header?: string;           // column header shown in the dropdown
 }
 
 // ── Validation rule ───────────────────────────────────────────
@@ -269,12 +326,17 @@ export interface ValidationRule {
   minValue?: number;
   maxValue?: number;
   regexPattern?: string;
-  compareToFieldId?: string;       // for crossField
-  compareToValue?: string;         // for dateBefore / dateAfter with fixed date
-  customExpression?: string;       // safe DSL expression evaluated by ExpressionEngine
-  ruleTemplateId?: string;         // optional link to shared qdb_rule_template record
+  compareToFieldId?: string;        // for legacy crossField (equality only)
+  compareToValue?: string;          // for dateBefore / dateAfter with fixed date
+  customExpression?: string;        // safe DSL expression evaluated by ExpressionEngine
+  ruleTemplateId?: string;          // optional link to shared qdb_rule_template record
   isActive: boolean;
   priority: number;
+  // DFE-ENH-001 FR-006 — all conditions must evaluate to true for the field to become required
+  conditions?: StructuredCondition[];
+  // DFE-ENH-001 FR-007 — extended cross-field: operator and target field schema name
+  crossFieldOperator?: CrossFieldComparisonOperator;
+  crossFieldTargetRef?: string;
 }
 
 // ── Business rule condition ───────────────────────────────────
@@ -338,9 +400,20 @@ export interface SubmissionMapping {
 
 // ── Field definition ──────────────────────────────────────────
 
+// DFE-TABZONE-001: where a field is placed within its tab. 'body' (default) keeps
+// the field inside a section exactly as before; 'header'/'footer' place it directly
+// in the tab's header/footer zone with the section reference optional.
+export type FieldPlacement = 'header' | 'footer' | 'body';
+
 export interface FieldDefinition {
   id: string;
+  // Section this field belongs to. Empty string for header/footer-placed fields
+  // that target a tab directly (see placement/tabId).
   sectionId: string;
+  // DFE-TABZONE-001: tab this field targets when placement is 'header'/'footer'.
+  tabId?: string;
+  // DFE-TABZONE-001: placement zone within the tab. Absent ⇒ 'body' (legacy).
+  placement?: FieldPlacement;
   fieldType: FieldType;
   schemaName: string;              // logical name used as form field key
   label: string;
@@ -364,9 +437,10 @@ export interface FieldDefinition {
   currencyCode?: string;           // currency fields
   decimalPlaces?: number;          // decimal / currency fields
   // DFE-NUMBAR: number/decimal/currency display style. 'bar' = read-only utilization gauge
-  // (this field's value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
+  // (bar value ÷ barMaxFieldSchemaName's value). Undefined/'textbox' = plain input.
   numberDisplayStyle?: 'textbox' | 'bar';
-  barMaxFieldSchemaName?: string;  // schema name of the field providing the bar's maximum (total)
+  barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
+  barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
@@ -398,6 +472,10 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  // DFE-INFOLIST-001: render the body (newline-split) as a list. Absent ⇒ plain
+  // paragraph (legacy). Marker absent ⇒ 'plain'.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman';
+  infoCardListMarker?: 'circle' | 'plain' | 'none';
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
   infoCardDownloadIcon?: string;
@@ -455,6 +533,10 @@ export interface TabDefinition {
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
+  // DFE-TABZONE-001: fields placed directly in the tab header/footer zones
+  // (additive; default [] for existing forms). Body fields stay in section.fields.
+  headerFields?: FieldDefinition[];
+  footerFields?: FieldDefinition[];
 }
 
 // ── Form version ──────────────────────────────────────────────
@@ -506,6 +588,14 @@ export interface InfoCardScreen {
 export type GridMode = 'selection' | 'entry';
 export type GridSelectionMode = 'single' | 'multi';
 
+// DFE-GRIDSRC-001: where a selection/display grid's rows come from, and how they render.
+export type GridDataSource = 'entity' | 'json';
+export type GridDisplayMode = 'columns' | 'infocard';
+// Info-card arrangement: 'grid' = multi-column cards; 'row' = full-width horizontal rows.
+export type GridCardLayout = 'grid' | 'row';
+export type GridPagingStyle = 'prevnext' | 'numbered';
+export type GridViewMode = 'both' | 'table' | 'card';
+
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
 export interface GridColumnOptionValue {
@@ -523,6 +613,9 @@ export interface GridColumnConfig {
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  // The target-entity attribute used as the stored record ID. Absent ⇒ the
+  // entity's primary key ({entity}id) — see CrmLookupService.
+  lookupValueAttribute?: string;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
 }
@@ -535,8 +628,18 @@ export interface GridFieldConfig {
   relationshipAttribute?: string;  // Mode B: parent lookup attribute
   minRows?: number;                // Mode B
   maxRows: number;
+  pageSize?: number;               // records per page for entity selection grids (runtime default 50)
+  pagingStyle?: GridPagingStyle;   // pager UI: 'prevnext' (default) or 'numbered' page buttons
   columnConfigs: GridColumnConfig[];
   columnConfigHash?: string;       // SHA-256 truncated to 16 hex chars
+  // DFE-GRIDSRC-001: data source + display configuration (selection/display grids).
+  dataSource?: GridDataSource;     // default 'entity' (Dataverse). 'json' = static jsonData.
+  jsonData?: string;               // static JSON array (string) when dataSource === 'json'
+  displayMode?: GridDisplayMode;   // default 'columns' (table). 'infocard' = rich card per row.
+  viewMode?: GridViewMode;         // which views are offered: 'both' (toggle), 'table' only, or 'card' only
+  cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
+  selectable?: boolean;            // default true for selection; false = read-only display
+  cardIconName?: string;           // optional Fluent icon shown on each info card
   // DFE-ADD-002: flat mapper aliases used by CrmMetadataService
   mode?: GridMode;
   entityName?: string;
@@ -572,6 +675,12 @@ export interface GridSchemaHashResult {
 
 // ── Form definition (root) ────────────────────────────────────
 
+// DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+export interface SubmitConfirmationConfig {
+  checkboxLabel: string;           // label shown next to the acknowledgement checkbox
+  dialogMessage?: string;          // body text of the confirmation dialog
+}
+
 export interface FormDefinition {
   id: string;
   formCode: string;                // URL-safe identifier, e.g. 'loan-application'
@@ -602,6 +711,9 @@ export interface FormDefinition {
   // DFE-FBE-002: show a form-completion progress bar above the tab strip (default off).
   showProgressBar?: boolean;
   submissionMappings: SubmissionMapping[];
+  // DFE-SUBMITCONFIRM-001: when set, the final step shows an acknowledgement checkbox;
+  // ticking it opens a confirmation dialog and enables Submit. Absent ⇒ no gate (legacy).
+  submitConfirmation?: SubmitConfirmationConfig;
   buttons: FormButton[];
   tabs: TabDefinition[];
   // DFE-DESIGN: optional design payload embedded by the backend on the form definition response.
@@ -689,6 +801,8 @@ export interface ResponseMeta {
   page?: number;
   pageSize?: number;
   hasMore?: boolean;
+  // DFE-APILOOKUP-001: non-fatal degradation signal (e.g. 'timeout', 'upstream_error').
+  warning?: string;
 }
 
 // ── Lookup search result ──────────────────────────────────────
@@ -719,4 +833,9 @@ export interface RuleEvaluationResult {
   fieldReadonly: Record<string, boolean>;
   fieldValues: Record<string, unknown>; // fields that had values set/cleared/calculated
   filteredOptions: Record<string, OptionValue[]>;
+  // DFE-CBTN-001: per-button conditional state, keyed by button id. A button id
+  // is present only when that button declares the corresponding condition set;
+  // absent ⇒ the button's static isVisible / isActive flag applies (legacy).
+  buttonVisibility: Record<string, boolean>;
+  buttonEnabledState: Record<string, boolean>;
 }

@@ -13,6 +13,7 @@ import type {
   ScopedButtonActionType,
   ButtonPlacementScope,
   NavigationTargetType,
+  ButtonConditionSet,
 } from '@qdb/shared';
 import { logger } from '../utils/logger.js';
 
@@ -34,6 +35,8 @@ export interface RawScopedButton {
   qdb_confirm_message?: string | null;
   qdb_action_type?: string;
   qdb_action_config_json?: string | null;
+  qdb_visible_conditions_json?: string | null;
+  qdb_enabled_conditions_json?: string | null;
   statecode?: number;
 }
 
@@ -77,6 +80,16 @@ export class ButtonAssembler {
       return null;
     }
 
+    const visibleWhen = ButtonAssembler.parseConditionSet(
+      raw.qdb_visible_conditions_json ?? undefined,
+      raw.qdb_form_scoped_buttonid,
+      'qdb_visible_conditions_json',
+    );
+    const enabledWhen = ButtonAssembler.parseConditionSet(
+      raw.qdb_enabled_conditions_json ?? undefined,
+      raw.qdb_form_scoped_buttonid,
+      'qdb_enabled_conditions_json',
+    );
     return {
       id: raw.qdb_form_scoped_buttonid,
       placementScope: scope,
@@ -89,6 +102,8 @@ export class ButtonAssembler {
       confirmationMessage: raw.qdb_confirm_message ?? undefined,
       action,
       isActive: true,
+      ...(visibleWhen !== undefined && { visibleWhen }),
+      ...(enabledWhen !== undefined && { enabledWhen }),
     };
   }
 
@@ -158,5 +173,44 @@ export class ButtonAssembler {
       default:
         return true;
     }
+  }
+
+  // Parses and validates a ButtonConditionSet from a Dataverse Memo column JSON.
+  // Returns undefined for empty/absent columns, or when the JSON is invalid/wrong-shaped,
+  // so the renderer falls back to the static isVisible/isActive flag (defensive drop).
+  private static parseConditionSet(
+    json: string | undefined,
+    buttonId: string,
+    column: string,
+  ): ButtonConditionSet | undefined {
+    if (!json) return undefined;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      logger.warn({ buttonId, column }, 'Scoped button condition set has invalid JSON — ignoring');
+      return undefined;
+    }
+    if (!ButtonAssembler.isValidConditionSet(parsed)) {
+      logger.warn({ buttonId, column }, 'Scoped button condition set has wrong shape — ignoring');
+      return undefined;
+    }
+    return parsed;
+  }
+
+  // Type guard: validates that value conforms to ButtonConditionSet —
+  // { logic: 'AND'|'OR', conditions: Array<{ fieldId: string, operator: string }> }.
+  private static isValidConditionSet(value: unknown): value is ButtonConditionSet {
+    if (typeof value !== 'object' || value === null) return false;
+    const candidate = value as Record<string, unknown>;
+    if (candidate['logic'] !== 'AND' && candidate['logic'] !== 'OR') return false;
+    if (!Array.isArray(candidate['conditions'])) return false;
+    return (candidate['conditions'] as unknown[]).every(
+      (item) =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Record<string, unknown>)['fieldId'] === 'string' &&
+        typeof (item as Record<string, unknown>)['operator'] === 'string',
+    );
   }
 }

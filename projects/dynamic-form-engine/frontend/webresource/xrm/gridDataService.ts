@@ -11,7 +11,10 @@ interface GridPageRequest {
   page: number;
   pageSize: number;
   signal?: AbortSignal;
-  dependsOnValue?: string;
+  // NOTE: multi-field depends-on filtering is not yet applied in the in-CRM (OData) grid
+  // path — it needs an OData filter translator (contains() vs like, unquoted lookup GUIDs).
+  // The portal (FetchXML) path supports it; see backend gridFilterExpression.ts.
+  dependsOnValues?: Record<string, string>;
   pagingCookie?: string;
   searchText?: string;
   sortBy?: string;

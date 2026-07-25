@@ -42,6 +42,7 @@ import { AuditLogService } from '@/services/AuditLogService';
 import { DesignService } from '@/services/DesignService';
 import { useDesignerStore } from '@/state/designerStore';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
 import type { DesignerValidationRule } from '@/state/models/DesignerRuleModel';
 import type { DesignPayload } from '@qdb/shared';
@@ -197,11 +198,16 @@ export function FormListScreen(): React.ReactElement {
       const validationRuleService = new ValidationRuleService(webApi);
       const businessRuleService = new BusinessRuleService(webApi);
 
-      const [form, tabs, businessRules] = await Promise.all([
-        formService.getForm(formId),
+      // Use getFormWithEtag so the returned @odata.etag is stored in concurrencyStore
+      // immediately — FormSaveService.save() requires it for the conditional PATCH.
+      const [{ model: form, etag }, tabs, businessRules] = await Promise.all([
+        formService.getFormWithEtag(formId),
         tabService.listTabsForForm(formId),
         businessRuleService.listRulesForForm(formId),
       ]);
+      if (etag) {
+        useConcurrencyStore.getState().setRecordEtag(formId, etag);
+      }
 
       const sectionsArrays = await Promise.all(tabs.map(tab => sectionService.listSectionsForTab(tab.id)));
       const sections = sectionsArrays.flat();

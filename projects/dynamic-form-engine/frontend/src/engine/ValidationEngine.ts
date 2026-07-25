@@ -1,9 +1,11 @@
-﻿import { z, ZodTypeAny } from 'zod';
+import { z, ZodTypeAny } from 'zod';
 import type {
   FieldDefinition,
   ValidationRule,
   FormDefinition,
   FormFieldValues,
+  StructuredCondition,
+  CrossFieldComparisonOperator,
 } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
@@ -12,7 +14,7 @@ type ZodShape = Record<string, ZodTypeAny>;
 export class ValidationEngine {
   /**
    * Generates a Zod schema from FieldDefinition validation rules.
-   * Only includes fields that are currently visible â€” hidden fields are excluded
+   * Only includes fields that are currently visible — hidden fields are excluded
    * so they cannot fail validation and block submission.
    */
   buildZodSchema(
@@ -61,7 +63,7 @@ export class ValidationEngine {
 
   /**
    * Validates all visible fields in a form and returns a map of
-   * fieldId â†’ error messages for fields that failed validation.
+   * fieldId → error messages for fields that failed validation.
    */
   validateForm(
     formDefinition: FormDefinition,
@@ -282,6 +284,10 @@ export class ValidationEngine {
       case 'customExpression':
         return this.validateCustomExpression(value, rule, allValues);
 
+      // DFE-ENH-001 FR-006
+      case 'conditionalRequired':
+        return this.validateConditionalRequired(value, rule, allValues);
+
       default:
         return null;
     }
@@ -382,16 +388,34 @@ export class ValidationEngine {
     return new Date(String(value)) > compareDate ? null : rule.errorMessage;
   }
 
+  /** DFE-ENH-001 FR-007: extended cross-field comparison using operator + targetFieldRef. */
   private validateCrossField(
     value: unknown,
     rule: ValidationRule,
     allValues: FormFieldValues,
   ): string | null {
-    if (!rule.compareToFieldId) return null;
+    const targetRef = rule.crossFieldTargetRef ?? rule.compareToFieldId;
+    if (!targetRef) return null;
 
-    const compareValue = allValues[rule.compareToFieldId];
+    const targetValue = allValues[targetRef];
+    const operator = rule.crossFieldOperator ?? '==';
 
-    return value === compareValue ? null : rule.errorMessage;
+    return applyCrossFieldOperator(value, targetValue, operator) ? null : rule.errorMessage;
+  }
+
+  /** DFE-ENH-001 FR-006: evaluate all structured conditions; require the field if all are true. */
+  private validateConditionalRequired(
+    value: unknown,
+    rule: ValidationRule,
+    allValues: FormFieldValues,
+  ): string | null {
+    const conditions = rule.conditions;
+    if (!conditions || conditions.length === 0) return null;
+
+    const allConditionsMet = conditions.every(c => evaluateStructuredCondition(c, allValues));
+    if (!allConditionsMet) return null;
+
+    return this.validateRequired(value, rule.errorMessage);
   }
 
   private validateCustomExpression(
@@ -424,10 +448,114 @@ export class ValidationEngine {
   }
 
   private collectAllFields(formDefinition: FormDefinition): FieldDefinition[] {
-    return formDefinition.tabs.flatMap((tab) =>
-      tab.sections.flatMap((section) => section.fields),
-    );
+    // DFE-TABZONE-001: validate header/footer zone fields, not only section fields.
+    return formDefinition.tabs.flatMap((tab) => [
+      ...(tab.headerFields ?? []),
+      ...tab.sections.flatMap((section) => section.fields),
+      ...(tab.footerFields ?? []),
+    ]);
   }
 }
 
 export const validationEngine = new ValidationEngine();
+
+// ── Pure comparison helpers (exported for testing) ─────────────────────────────
+
+/**
+ * Returns true when the cross-field comparison holds (no error should be raised).
+ * The operator semantics match the designer's intent: the rule fires when the
+ * comparison FAILS, so the caller inverts the result to determine whether to show an error.
+ *
+ * The public param is typed as CrossFieldComparisonOperator for call-site safety.
+ * The private dispatch helpers accept string so their default branches remain reachable
+ * at runtime for any future extension without a TypeScript exhaustiveness error here.
+ */
+export function applyCrossFieldOperator(
+  sourceValue: unknown,
+  targetValue: unknown,
+  operator: CrossFieldComparisonOperator,
+): boolean {
+  if (sourceValue === null || sourceValue === undefined) return true; // nothing to compare
+  if (targetValue === null || targetValue === undefined) return true;
+
+  const bothDates = looksLikeDate(String(sourceValue)) && looksLikeDate(String(targetValue));
+  if (bothDates) {
+    return applyDateOperator(new Date(String(sourceValue)), new Date(String(targetValue)), operator);
+  }
+
+  const sourceNum = Number(sourceValue);
+  const targetNum = Number(targetValue);
+  if (!isNaN(sourceNum) && !isNaN(targetNum)) {
+    return applyNumericOperator(sourceNum, targetNum, operator);
+  }
+
+  // String: restrict to == and != only (lexicographic comparison on arbitrary strings is misleading)
+  return applyStringOperator(String(sourceValue), String(targetValue), operator);
+}
+
+function applyDateOperator(source: Date, target: Date, operator: string): boolean {
+  const s = source.getTime();
+  const t = target.getTime();
+  switch (operator) {
+    case '==': return s === t;
+    case '!=': return s !== t;
+    case '<':  return s <  t;
+    case '<=': return s <= t;
+    case '>':  return s >  t;
+    case '>=': return s >= t;
+    default:   return true;
+  }
+}
+
+function applyNumericOperator(source: number, target: number, operator: string): boolean {
+  switch (operator) {
+    case '==': return source === target;
+    case '!=': return source !== target;
+    case '<':  return source <  target;
+    case '<=': return source <= target;
+    case '>':  return source >  target;
+    case '>=': return source >= target;
+    default:   return true;
+  }
+}
+
+function applyStringOperator(source: string, target: string, operator: string): boolean {
+  switch (operator) {
+    case '==': return source === target;
+    case '!=': return source !== target;
+    default:   return true; // non-equality string operators not supported; treat as passing
+  }
+}
+
+function looksLikeDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}/.test(value);
+}
+
+/** Returns true when a single structured condition is satisfied by the current form values. */
+export function evaluateStructuredCondition(
+  condition: StructuredCondition,
+  allValues: FormFieldValues,
+): boolean {
+  const fieldValue = allValues[condition.fieldRef];
+
+  switch (condition.operator) {
+    case 'is_empty':
+      return fieldValue === null || fieldValue === undefined || fieldValue === '';
+    case 'is_not_empty':
+      return fieldValue !== null && fieldValue !== undefined && fieldValue !== '';
+    case 'equals':
+      return String(fieldValue ?? '') === String(condition.value ?? '');
+    case 'not_equals':
+      return String(fieldValue ?? '') !== String(condition.value ?? '');
+    case 'greater_than':
+      return Number(fieldValue) > Number(condition.value);
+    case 'less_than':
+      return Number(fieldValue) < Number(condition.value);
+    case 'greater_than_or_equal':
+      return Number(fieldValue) >= Number(condition.value);
+    case 'less_than_or_equal':
+      return Number(fieldValue) <= Number(condition.value);
+    default:
+      return false;
+  }
+}

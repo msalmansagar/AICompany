@@ -5,7 +5,9 @@ import type {
   WebApiRetrieveMultipleResult,
   ActionParameters,
   ActionResult,
+  WebApiUpdateOptions,
 } from './IWebApiAdapter';
+import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError';
 
 const PROXY_BASE = `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/designer/records`;
 
@@ -79,6 +81,43 @@ export class RestWebApiAdapter implements IWebApiAdapter {
       method: 'POST',
       body: JSON.stringify(parameters ?? {}),
     });
+  }
+
+  async updateRecordConditional(
+    entityLogicalName: string,
+    id: string,
+    data: WebApiRecord,
+    options: WebApiUpdateOptions,
+  ): Promise<void> {
+    const path = `/${entityLogicalName}/${id}`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'If-Match': options.ifMatch,
+    };
+    if (this.authToken) {
+      headers['Authorization'] = `Bearer ${this.authToken}`;
+    }
+
+    const response = await fetch(`${PROXY_BASE}${path}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(data),
+    });
+
+    if (response.status === 412) {
+      throw new ConcurrencyConflictError(entityLogicalName, id, options.ifMatch);
+    }
+
+    if (response.status === 204) return;
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new RestWebApiAdapterError(
+        `Designer proxy PATCH ${path} failed: ${response.status} ${body}`,
+        response.status,
+        'PATCH',
+      );
+    }
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

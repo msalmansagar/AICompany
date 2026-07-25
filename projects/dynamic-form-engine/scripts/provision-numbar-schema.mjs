@@ -48,6 +48,18 @@ async function main(){
     console.log('  ✓ created');
   }
 
+  console.log('\n[3] qdb_bar_value_field_schema (String)');
+  if(await attrExists(t,'qdb_bar_value_field_schema')) console.log('  ↷ exists');
+  else{
+    await post(t,`EntityDefinitions(LogicalName='qdb_form_field')/Attributes`,{
+      '@odata.type':'Microsoft.Dynamics.CRM.StringAttributeMetadata',
+      SchemaName:'qdb_bar_value_field_schema',LogicalName:'qdb_bar_value_field_schema',
+      RequiredLevel:{Value:'None'},DisplayName:lbl('Bar Value Field Schema'),
+      MaxLength:200,FormatName:{Value:'Text'},
+    });
+    console.log('  ✓ created');
+  }
+
   console.log('\n[Publish]');
   await post(t,'PublishXml',{ParameterXml:'<importexportxml><entities><entity>qdb_form_field</entity></entities></importexportxml>'});
   console.log('  ✓ published\n✓ DFE-NUMBAR schema done.\n');

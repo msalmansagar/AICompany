@@ -17,6 +17,9 @@ export const FORM_DEFINITION_ATTRS = {
   SHOW_PROGRESS_BAR: 'qdb_show_progress_bar',        // DFE-FBE-002
   POWER_AUTOMATE_FLOW_ID: 'qdb_power_automate_flow_id',
   CONFIRMATION_MESSAGE: 'qdb_confirmation_message',
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate (label present ⇒ gate active).
+  SUBMIT_CONFIRMATION_LABEL: 'qdb_submit_confirmation_label',
+  SUBMIT_CONFIRMATION_MESSAGE: 'qdb_submit_confirmation_message',
   CONFIRMATION_RECORD_REF_ATTRIBUTE: 'qdb_confirmation_record_ref_attribute',
   ACCESS_GROUP_ID: 'qdb_access_group_id',
   CREATED_BY: 'createdby',
@@ -70,6 +73,16 @@ export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated'
   100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
 };
 
+// DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
+export const NUMBER_DISPLAY_STYLE_TO_PICKLIST: Record<string, number> = {
+  textbox: 100000001,
+  bar:     100000002,
+};
+export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'> = {
+  100000001: 'textbox',
+  100000002: 'bar',
+};
+
 export const FORM_SECTION_ATTRS = {
   ID: 'qdb_form_sectionid',
   TAB_ID: 'qdb_form_tab_id',               // use for create/update
@@ -110,9 +123,17 @@ export const FORM_FIELD_ATTRS = {
   DECIMAL_PLACES: 'qdb_decimal_places',
   NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
   BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
+  BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
+  MAX_FILES: 'qdb_max_files',
+  GRID_PAGE_SIZE: 'qdb_grid_page_size',
+  GRID_PAGING_STYLE: 'qdb_grid_paging_style',
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
+  // DFE-TABZONE-001 — tab header/footer placement
+  PLACEMENT: 'qdb_placement',                      // Picklist — see PLACEMENT_TO_PICKLIST
+  TAB_ID: 'qdb_form_tab_id',                        // use for create/update (header/footer)
+  TAB_ID_VALUE: '_qdb_form_tab_id_value',           // use for $select and read
   PARENT_FIELD_ID: 'qdb_parent_field_id',
   PARENT_FIELD_ID_VALUE: '_qdb_parent_field_id_value',
   // Sprint 3 — custom field type
@@ -129,6 +150,8 @@ export const FORM_FIELD_ATTRS = {
   INFO_CARD_DOWNLOAD_URL: 'qdb_info_card_download_url',
   INFO_CARD_DOWNLOAD_LABEL: 'qdb_info_card_download_label',
   INFO_CARD_DOWNLOAD_ICON: 'qdb_info_card_download_icon',
+  INFO_CARD_LIST_TYPE: 'qdb_info_card_list_type',
+  INFO_CARD_LIST_MARKER: 'qdb_info_card_list_marker',
   // File field — template download before upload
   FILE_DOWNLOAD_LABEL: 'qdb_file_download_label',
   FILE_DOWNLOAD_ICON: 'qdb_file_download_icon',
@@ -148,7 +171,28 @@ export const FORM_FIELD_ATTRS = {
   GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
   GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
   GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
+  // DFE-GRIDSRC-001: grid data source + display config
+  GRID_DATA_SOURCE: 'qdb_grid_data_source',
+  GRID_JSON_DATA: 'qdb_grid_json_data',
+  GRID_DISPLAY_MODE: 'qdb_grid_display_mode',
+  GRID_VIEW_MODE: 'qdb_grid_view_mode',
+  GRID_CARD_LAYOUT: 'qdb_grid_card_layout',
+  GRID_SELECTABLE: 'qdb_grid_selectable',
+  GRID_CARD_ICON: 'qdb_grid_card_icon',
 } as const;
+
+// DFE-TABZONE-001 — qdb_placement optionset codes.
+export const PLACEMENT_TO_PICKLIST: Record<string, number> = {
+  header: 100000000,
+  footer: 100000001,
+  body: 100000002,
+};
+
+export const PICKLIST_TO_PLACEMENT: Record<number, 'header' | 'footer' | 'body'> = {
+  100000000: 'header',
+  100000001: 'footer',
+  100000002: 'body',
+};
 
 // Picklist codes for qdb_field_type
 export const FIELD_TYPE_TO_PICKLIST: Record<string, number> = {
@@ -197,15 +241,6 @@ export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
   radio:  100000001,
 };
 
-// DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
-export const NUMBER_DISPLAY_STYLE_TO_PICKLIST: Record<string, number> = {
-  textbox: 100000001,
-  bar:     100000002,
-};
-export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'> = {
-  100000001: 'textbox',
-  100000002: 'bar',
-};
 export const PICKLIST_TO_BOOL_RENDER_STYLE: Record<number, 'toggle' | 'radio'> = {
   100000000: 'toggle',
   100000001: 'radio',
@@ -244,6 +279,9 @@ export const FORM_VALIDATION_RULE_ATTRS = {
   CUSTOM_EXPRESSION: 'qdb_custom_expression',
   RULE_TEMPLATE_ID: 'qdb_rule_template_id',
   RULE_TEMPLATE_ID_VALUE: '_qdb_rule_template_id_value',
+  // DFE-ENH-001 Phase-4-C — structured JSON payload for conditional_required and cross_field rules.
+  // New multi-line text column added to qdb_form_validation_rule in the same phase.
+  RULE_JSON: 'qdb_rule_json',
 } as const;
 
 export const FORM_BUSINESS_RULE_ATTRS = {
@@ -279,6 +317,14 @@ export const FORM_LOOKUP_CONFIG_ATTRS = {
   FILTER_QUERY: 'qdb_filter_expression',
   SEARCH_MIN_CHARS: 'qdb_search_min_chars',
   MAX_RESULTS: 'qdb_max_results',
+  // DFE-APILOOKUP-001 — external-API source.
+  SOURCE: 'qdb_lookup_source',
+  API_ENDPOINT_KEY: 'qdb_lookup_api_endpoint_key',
+  API_VALUE_PATH: 'qdb_lookup_api_value_path',
+  API_LABEL_PATH: 'qdb_lookup_api_label_path',
+  API_SEARCH_PARAM: 'qdb_lookup_api_search_param',
+  API_SEARCH_MODE: 'qdb_lookup_api_search_mode',
+  DISPLAY_COLUMNS_JSON: 'qdb_display_columns_json',  // DFE-LKPCOL-001
 } as const;
 
 export const FORM_SUBMISSION_MAPPING_ATTRS = {

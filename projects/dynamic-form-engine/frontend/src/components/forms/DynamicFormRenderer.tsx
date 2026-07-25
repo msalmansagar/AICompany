@@ -13,6 +13,14 @@ import {
   AccordionPanel,
   Badge,
   Button,
+  Checkbox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  DialogTrigger,
   MessageBar,
   MessageBarBody,
   SkeletonItem,
@@ -38,6 +46,7 @@ import { ThemeProvider } from '../../theme/ThemeProvider';
 import { sanitiseCustomCssForRuntime } from '../../theme/customCssInjector';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
+import { getAllTabFields } from './tabFields';
 import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
@@ -472,8 +481,7 @@ function FormRendererInner({
       }}
     >
       {visibleTabs.map((tab) => {
-        const tabErrorCount = tab.sections
-          .flatMap(s => s.fields)
+        const tabErrorCount = getAllTabFields(tab)
           .reduce((n, f) => n + (validationErrors[f.id]?.length ?? 0), 0);
         const isTabOpen = activeTab?.id === tab.id;
 
@@ -643,11 +651,28 @@ const useSummaryBarStyles = makeStyles({
 
 function SummaryActionBar({ sticky, onBack }: SummaryActionBarProps) {
   const styles = useSummaryBarStyles();
-  const { submitForm, isSubmitting, validationErrors } = useFormContext();
+  const {
+    submitForm,
+    isSubmitting,
+    validationErrors,
+    formDefinition,
+    submitAcknowledged,
+    setSubmitAcknowledged,
+  } = useFormContext();
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const errorCount = Object.values(validationErrors).reduce((n, errs) => n + errs.length, 0);
 
-  return (
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate on the manual summary's submit.
+  const confirmation = formDefinition?.submitConfirmation;
+  const submitBlocked = !!confirmation && !submitAcknowledged;
+
+  function handleAcknowledgementChange(checked: boolean) {
+    setSubmitAcknowledged(checked);
+    if (checked) setConfirmDialogOpen(true);
+  }
+
+  const bar = (
     <div
       className={mergeClasses(styles.bar, sticky && styles.sticky)}
       role="toolbar"
@@ -665,12 +690,43 @@ function SummaryActionBar({ sticky, onBack }: SummaryActionBarProps) {
       <Button
         appearance="primary"
         icon={isSubmitting ? <Spinner size="tiny" /> : <SendRegular />}
-        disabled={isSubmitting || errorCount > 0}
+        disabled={isSubmitting || errorCount > 0 || submitBlocked}
         onClick={() => { void submitForm(); }}
         aria-busy={isSubmitting}
       >
         {isSubmitting ? 'Submitting…' : 'Submit'}
       </Button>
+    </div>
+  );
+
+  if (!confirmation) return bar;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Checkbox
+          checked={submitAcknowledged}
+          onChange={(_, data) => handleAcknowledgementChange(data.checked === true)}
+          label={confirmation.checkboxLabel}
+          disabled={isSubmitting}
+        />
+      </div>
+      <Dialog open={confirmDialogOpen} onOpenChange={(_, data) => setConfirmDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Please confirm</DialogTitle>
+            <DialogContent>
+              {confirmation.dialogMessage ?? 'Please confirm you want to submit this form.'}
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="primary">OK</Button>
+              </DialogTrigger>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+      {bar}
     </div>
   );
 }

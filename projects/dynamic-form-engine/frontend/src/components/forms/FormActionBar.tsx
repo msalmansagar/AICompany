@@ -2,6 +2,7 @@
 import { logger } from '../../utils/logger';
 import {
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogBody,
@@ -101,10 +102,13 @@ export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = 
     saveDraft,
     submitForm,
     resetForm,
+    submitAcknowledged,
+    setSubmitAcknowledged,
   } = useFormContext();
   const design = useDesignContext();
 
   const [saveDraftState, setSaveDraftState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
   const alignment = design.buttonDesigns.Submit?.alignment ?? 'Right';
   const alignClass =
@@ -140,7 +144,17 @@ export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = 
 
   if (isSubmitted) return null;
 
-  return (
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate. In review mode the submit button
+  // only navigates to the summary, so the gate applies to the real submit only.
+  const confirmation = !reviewMode ? formDefinition?.submitConfirmation : undefined;
+  const submitBlocked = !!confirmation && !submitAcknowledged;
+
+  function handleAcknowledgementChange(checked: boolean) {
+    setSubmitAcknowledged(checked);
+    if (checked) setConfirmDialogOpen(true);
+  }
+
+  const bar = (
     <div
       className={mergeClasses(styles.bar, alignClass, sticky && styles.sticky)}
       role="toolbar"
@@ -155,12 +169,47 @@ export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = 
           validationErrors={validationErrors}
           saveDraftState={saveDraftState}
           reviewMode={reviewMode}
+          submitBlocked={submitBlocked}
           onSubmit={reviewMode && onReview ? onReview : () => { void submitForm(); }}
           onSaveDraft={() => { void handleSaveDraft(); }}
           onCancel={() => { window.history.back(); }}
           onReset={resetForm}
         />
       ))}
+    </div>
+  );
+
+  if (!confirmation) return bar;
+
+  const gateAlign =
+    alignment === 'Left' ? 'flex-start' : alignment === 'Center' ? 'center' : 'flex-end';
+
+  return (
+    <div
+      style={{ display: 'flex', flexDirection: 'column', gap: tokens.spacingVerticalS, alignItems: gateAlign }}
+    >
+      <Checkbox
+        checked={submitAcknowledged}
+        onChange={(_, data) => handleAcknowledgementChange(data.checked === true)}
+        label={confirmation.checkboxLabel}
+        disabled={isSubmitting}
+      />
+      <Dialog open={confirmDialogOpen} onOpenChange={(_, data) => setConfirmDialogOpen(data.open)}>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Please confirm</DialogTitle>
+            <DialogContent>
+              {confirmation.dialogMessage ?? 'Please confirm you want to submit this form.'}
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="primary">OK</Button>
+              </DialogTrigger>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+      {bar}
     </div>
   );
 }
@@ -172,6 +221,7 @@ interface FormButtonItemProps {
   validationErrors: Record<string, string[]>;
   saveDraftState: 'idle' | 'saving' | 'saved' | 'error';
   reviewMode: boolean;
+  submitBlocked?: boolean;
   onSubmit: () => void;
   onSaveDraft: () => void;
   onCancel: () => void;
@@ -185,6 +235,7 @@ function FormButtonItem({
   validationErrors,
   saveDraftState,
   reviewMode,
+  submitBlocked = false,
   onSubmit,
   onSaveDraft,
   onCancel,
@@ -209,7 +260,7 @@ function FormButtonItem({
           appearance={button.isPrimary ? 'primary' : 'outline'}
           size={size}
           icon={icon}
-          disabled={isSubmitting}
+          disabled={isSubmitting || submitBlocked}
           onClick={onSubmit}
           aria-busy={isSubmitting}
           aria-label={isSubmitting ? 'Submitting…' : label}

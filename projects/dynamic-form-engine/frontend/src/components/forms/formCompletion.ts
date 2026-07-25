@@ -1,5 +1,6 @@
 // DFE-FBE-002 — form completion %: share of required, visible fields that have a value.
 import type { FormDefinition, FormFieldValues } from '@qdb/shared';
+import { getTabZoneFields } from './tabFields';
 
 interface RuleStateMaps {
   tabVisibility: Record<string, boolean>;
@@ -43,6 +44,14 @@ export function computeFormCompletion(
         total += 1;
         if (isFilled(fieldValues[field.schemaName])) filled += 1;
       }
+    }
+    // DFE-TABZONE-001: count header/footer zone fields (gated by tab visibility only).
+    for (const field of getTabZoneFields(tab)) {
+      const visible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
+      const required = ruleState.fieldRequired[field.id] ?? field.isRequired;
+      if (!visible || !required) continue;
+      total += 1;
+      if (isFilled(fieldValues[field.schemaName])) filled += 1;
     }
   }
   const percent = total === 0 ? 100 : Math.round((filled / total) * 100);

@@ -2,9 +2,19 @@ import type { IWebApiAdapter } from './IWebApiAdapter';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { FORM_VALIDATION_RULE_ATTRS } from '@/constants/attributeNames';
-import type { DesignerValidationRule, ValidationRuleType } from '@/state/models/DesignerRuleModel';
+import type {
+  DesignerValidationRule,
+  ValidationRuleType,
+  StructuredCondition,
+  CrossFieldComparisonOperator,
+} from '@/state/models/DesignerRuleModel';
 import { withRetry } from './crmRetry';
 import { RULE_TYPE_TO_PICKLIST, PICKLIST_TO_RULE_TYPE } from '@/constants/attributeNames';
+import {
+  encodeConditionalRequired,
+  encodeCrossField,
+  decodeRuleJson,
+} from './ruleJsonCodec';
 import { toDataversePriority, fromDataversePriority } from './priorityCodec';
 
 export interface CreateValidationRuleDto {
@@ -15,6 +25,11 @@ export interface CreateValidationRuleDto {
   sortOrder: number;
   customExpression?: string | null;
   ruleTemplateId?: string | null;
+  // DFE-ENH-001 FR-006
+  conditions?: StructuredCondition[];
+  // DFE-ENH-001 FR-007
+  crossFieldOperator?: CrossFieldComparisonOperator | null;
+  crossFieldTargetRef?: string | null;
 }
 
 export interface UpdateValidationRuleDto {
@@ -24,6 +39,11 @@ export interface UpdateValidationRuleDto {
   sortOrder?: number;
   customExpression?: string | null;
   ruleTemplateId?: string | null;
+  // DFE-ENH-001 FR-006
+  conditions?: StructuredCondition[];
+  // DFE-ENH-001 FR-007
+  crossFieldOperator?: CrossFieldComparisonOperator | null;
+  crossFieldTargetRef?: string | null;
 }
 
 export class ValidationRuleService {
@@ -37,6 +57,7 @@ export class ValidationRuleService {
       [FORM_VALIDATION_RULE_ATTRS.ERROR_MESSAGE]: dto.errorMessage,
       [FORM_VALIDATION_RULE_ATTRS.SORT_ORDER]: toDataversePriority(dto.sortOrder),
       ...buildRuleValuePayload(dto.ruleType, dto.ruleValue),
+      ...buildRuleJsonPayload(dto),
     };
     if (dto.customExpression != null) payload[FORM_VALIDATION_RULE_ATTRS.CUSTOM_EXPRESSION] = dto.customExpression;
     if (dto.ruleTemplateId != null) payload[`${FORM_VALIDATION_RULE_ATTRS.RULE_TEMPLATE_ID}@odata.bind`] = `/qdb_rule_templates(${dto.ruleTemplateId})`;
@@ -63,6 +84,16 @@ export class ValidationRuleService {
       } else {
         data[`${FORM_VALIDATION_RULE_ATTRS.RULE_TEMPLATE_ID}@odata.bind`] = null;
       }
+    }
+    // Rebuild ruleJson whenever structured fields are provided in the update
+    const hasStructuredFields =
+      dto.ruleType !== undefined ||
+      dto.conditions !== undefined ||
+      dto.crossFieldOperator !== undefined ||
+      dto.crossFieldTargetRef !== undefined;
+    if (hasStructuredFields) {
+      // UpdateValidationRuleDto structurally satisfies RuleJsonSource — no cast needed.
+      Object.assign(data, buildRuleJsonPayload(dto));
     }
 
     if (Object.keys(data).length === 0) return;
@@ -95,6 +126,7 @@ export class ValidationRuleService {
       FORM_VALIDATION_RULE_ATTRS.REGEX_PATTERN,
       FORM_VALIDATION_RULE_ATTRS.CUSTOM_EXPRESSION,
       FORM_VALIDATION_RULE_ATTRS.RULE_TEMPLATE_ID_VALUE,
+      FORM_VALIDATION_RULE_ATTRS.RULE_JSON,
     ].join(',');
 
     const filter = `${FORM_VALIDATION_RULE_ATTRS.FIELD_ID_VALUE} eq ${fieldId}`;
@@ -112,7 +144,6 @@ export class ValidationRuleService {
     return result.entities.map(record => this.mapRecordToModel(record));
   }
 
-  // Sync rules: delete removed, create new (tmp_ IDs), update existing (real IDs).
   async syncRules(fieldId: string, currentRules: DesignerValidationRule[]): Promise<void> {
     if (currentRules.length === 0) {
       const existing = await this.listRulesForField(fieldId);
@@ -129,9 +160,9 @@ export class ValidationRuleService {
 
     for (const rule of currentRules) {
       if (rule.id.startsWith('tmp_')) {
-        await this.createRule({ fieldId, ruleType: rule.ruleType, ruleValue: rule.ruleValue, errorMessage: rule.errorMessage, sortOrder: rule.sortOrder, customExpression: rule.customExpression, ruleTemplateId: rule.ruleTemplateId });
+        await this.createRule(buildCreateDtoFromModel(fieldId, rule));
       } else {
-        await this.updateRule(rule.id, { ruleType: rule.ruleType, ruleValue: rule.ruleValue, errorMessage: rule.errorMessage, sortOrder: rule.sortOrder, customExpression: rule.customExpression, ruleTemplateId: rule.ruleTemplateId });
+        await this.updateRule(rule.id, buildUpdateDtoFromModel(rule));
       }
     }
   }
@@ -139,6 +170,11 @@ export class ValidationRuleService {
   private mapRecordToModel(record: Record<string, unknown>): DesignerValidationRule {
     const ruleTypeCode = Number(record[FORM_VALIDATION_RULE_ATTRS.RULE_TYPE] ?? 0);
     const ruleType = (PICKLIST_TO_RULE_TYPE[ruleTypeCode] ?? 'required') as ValidationRuleType;
+    const ruleJsonRaw = record[FORM_VALIDATION_RULE_ATTRS.RULE_JSON] != null
+      ? String(record[FORM_VALIDATION_RULE_ATTRS.RULE_JSON])
+      : null;
+    const decoded = decodeRuleJson(ruleJsonRaw);
+
     return {
       id: String(record[FORM_VALIDATION_RULE_ATTRS.ID] ?? ''),
       fieldId: String(record[FORM_VALIDATION_RULE_ATTRS.FIELD_ID_VALUE] ?? ''),
@@ -152,11 +188,53 @@ export class ValidationRuleService {
       ruleTemplateId: record[FORM_VALIDATION_RULE_ATTRS.RULE_TEMPLATE_ID_VALUE] != null
         ? String(record[FORM_VALIDATION_RULE_ATTRS.RULE_TEMPLATE_ID_VALUE])
         : null,
+      conditions: decoded?.kind === 'conditional_required' ? decoded.conditions : [],
+      crossFieldOperator: decoded?.kind === 'cross_field' ? decoded.operator : null,
+      crossFieldTargetRef: decoded?.kind === 'cross_field' ? decoded.targetFieldRef : null,
     };
   }
 }
 
-function buildRuleValuePayload(ruleType: ValidationRuleType, ruleValue: string | null): Record<string, unknown> {
+// ── DTO factories ──────────────────────────────────────────────────────────────
+
+function buildCreateDtoFromModel(
+  fieldId: string,
+  rule: DesignerValidationRule,
+): CreateValidationRuleDto {
+  return {
+    fieldId,
+    ruleType: rule.ruleType,
+    ruleValue: rule.ruleValue,
+    errorMessage: rule.errorMessage,
+    sortOrder: rule.sortOrder,
+    customExpression: rule.customExpression,
+    ruleTemplateId: rule.ruleTemplateId,
+    conditions: rule.conditions,
+    crossFieldOperator: rule.crossFieldOperator,
+    crossFieldTargetRef: rule.crossFieldTargetRef,
+  };
+}
+
+function buildUpdateDtoFromModel(rule: DesignerValidationRule): UpdateValidationRuleDto {
+  return {
+    ruleType: rule.ruleType,
+    ruleValue: rule.ruleValue,
+    errorMessage: rule.errorMessage,
+    sortOrder: rule.sortOrder,
+    customExpression: rule.customExpression,
+    ruleTemplateId: rule.ruleTemplateId,
+    conditions: rule.conditions,
+    crossFieldOperator: rule.crossFieldOperator,
+    crossFieldTargetRef: rule.crossFieldTargetRef,
+  };
+}
+
+// ── Column-payload builders ────────────────────────────────────────────────────
+
+function buildRuleValuePayload(
+  ruleType: ValidationRuleType,
+  ruleValue: string | null,
+): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   if (ruleValue == null) return payload;
   switch (ruleType) {
@@ -165,17 +243,49 @@ function buildRuleValuePayload(ruleType: ValidationRuleType, ruleValue: string |
     case 'min_value':  payload[FORM_VALIDATION_RULE_ATTRS.MIN_VALUE]  = Number(ruleValue); break;
     case 'max_value':  payload[FORM_VALIDATION_RULE_ATTRS.MAX_VALUE]  = Number(ruleValue); break;
     case 'regex':      payload[FORM_VALIDATION_RULE_ATTRS.REGEX_PATTERN] = ruleValue; break;
-    // custom_expression is handled separately via the dto.customExpression field
   }
   return payload;
 }
 
-function extractRuleValue(record: Record<string, unknown>, ruleType: ValidationRuleType): string | null {
+interface RuleJsonSource {
+  ruleType?: ValidationRuleType;
+  conditions?: StructuredCondition[];
+  crossFieldOperator?: CrossFieldComparisonOperator | null;
+  crossFieldTargetRef?: string | null;
+}
+
+function buildRuleJsonPayload(source: RuleJsonSource): Record<string, unknown> {
+  if (
+    source.ruleType === 'conditional_required' &&
+    source.conditions &&
+    source.conditions.length > 0
+  ) {
+    return { [FORM_VALIDATION_RULE_ATTRS.RULE_JSON]: encodeConditionalRequired(source.conditions) };
+  }
+  if (
+    source.ruleType === 'cross_field' &&
+    source.crossFieldOperator &&
+    source.crossFieldTargetRef
+  ) {
+    return {
+      [FORM_VALIDATION_RULE_ATTRS.RULE_JSON]: encodeCrossField(
+        source.crossFieldOperator,
+        source.crossFieldTargetRef,
+      ),
+    };
+  }
+  return { [FORM_VALIDATION_RULE_ATTRS.RULE_JSON]: null };
+}
+
+function extractRuleValue(
+  record: Record<string, unknown>,
+  ruleType: ValidationRuleType,
+): string | null {
   switch (ruleType) {
     case 'min_length': return record[FORM_VALIDATION_RULE_ATTRS.MIN_LENGTH] != null ? String(record[FORM_VALIDATION_RULE_ATTRS.MIN_LENGTH]) : null;
     case 'max_length': return record[FORM_VALIDATION_RULE_ATTRS.MAX_LENGTH] != null ? String(record[FORM_VALIDATION_RULE_ATTRS.MAX_LENGTH]) : null;
     case 'min_value':  return record[FORM_VALIDATION_RULE_ATTRS.MIN_VALUE]  != null ? String(record[FORM_VALIDATION_RULE_ATTRS.MIN_VALUE])  : null;
-    case 'max_value':  return record[FORM_VALIDATION_RULE_ATTRS.MAX_VALUE]  != null ? String(record[FORM_VALIDATION_RULE_ATTRS.MAX_VALUE]  ) : null;
+    case 'max_value':  return record[FORM_VALIDATION_RULE_ATTRS.MAX_VALUE]  != null ? String(record[FORM_VALIDATION_RULE_ATTRS.MAX_VALUE])  : null;
     case 'regex':      return record[FORM_VALIDATION_RULE_ATTRS.REGEX_PATTERN] != null ? String(record[FORM_VALIDATION_RULE_ATTRS.REGEX_PATTERN]) : null;
     default:           return null;
   }

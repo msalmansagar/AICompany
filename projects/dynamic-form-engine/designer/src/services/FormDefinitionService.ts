@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { MissingEtagError } from './concurrency/MissingEtagError';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import {
   FORM_DEFINITION_ATTRS,
@@ -34,6 +35,8 @@ export interface UpdateFormDto {
   showProgressBar?: boolean;
   powerAutomateFlowId?: string | null;
   confirmationMessage?: string | null;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
   confirmationRecordRefAttribute?: string | null;
   accessGroupId?: string | null;
 }
@@ -85,7 +88,7 @@ export class FormDefinitionService {
     return result.id;
   }
 
-  async updateForm(id: string, dto: UpdateFormDto): Promise<void> {
+  async updateForm(id: string, dto: UpdateFormDto, etag?: string): Promise<void> {
     const data: Record<string, unknown> = {};
     if (dto.name !== undefined) data[FORM_DEFINITION_ATTRS.NAME] = dto.name;
     if (dto.code !== undefined) data[FORM_DEFINITION_ATTRS.CODE] = dto.code;
@@ -109,6 +112,12 @@ export class FormDefinitionService {
     if (dto.confirmationMessage !== undefined) {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE] = dto.confirmationMessage;
     }
+    if (dto.submitConfirmationLabel !== undefined) {
+      data[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL] = dto.submitConfirmationLabel;
+    }
+    if (dto.submitConfirmationMessage !== undefined) {
+      data[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE] = dto.submitConfirmationMessage;
+    }
     if (dto.confirmationRecordRefAttribute !== undefined) {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE] = dto.confirmationRecordRefAttribute;
     }
@@ -116,9 +125,16 @@ export class FormDefinitionService {
     // entityLogicalName intentionally not written — qdb_entity_logical_name not deployed on qdb_form_definition
     if (Object.keys(data).length === 0) return;
 
+    if (!etag) {
+      // Unconditional PATCH is forbidden by the concurrency architecture.
+      // Load the record via getFormWithEtag() before calling updateForm.
+      throw new MissingEtagError(ENTITY_NAMES.FORM_DEFINITION, id);
+    }
+
+    // ConcurrencyConflictError propagates to the caller — do not catch here.
     await withRetry(
-      () => this.webApi.updateRecord(ENTITY_NAMES.FORM_DEFINITION, id, data),
-      'updateForm'
+      () => this.webApi.updateRecordConditional(ENTITY_NAMES.FORM_DEFINITION, id, data, { ifMatch: etag }),
+      'updateFormConditional',
     );
   }
 
@@ -152,6 +168,41 @@ export class FormDefinitionService {
     );
 
     return this.mapRecordToModel(record);
+  }
+
+  /** Returns the form model together with its current @odata.etag for optimistic concurrency. */
+  async getFormWithEtag(id: string): Promise<{ model: DesignerFormModel; etag: string | null }> {
+    const select = [
+      FORM_DEFINITION_ATTRS.ID,
+      FORM_DEFINITION_ATTRS.NAME,
+      FORM_DEFINITION_ATTRS.CODE,
+      FORM_DEFINITION_ATTRS.DESCRIPTION,
+      FORM_DEFINITION_ATTRS.STATUS,
+      FORM_DEFINITION_ATTRS.CURRENT_VERSION,
+      FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
+      FORM_DEFINITION_ATTRS.DRAFT_EXPIRY_DAYS,
+      FORM_DEFINITION_ATTRS.SHOW_SUMMARY_STEP,
+      FORM_DEFINITION_ATTRS.SUMMARY_MODE,
+      FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR,
+      FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID,
+      FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE,
+      FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE,
+      FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID,
+      FORM_DEFINITION_ATTRS.CREATED_BY,
+      FORM_DEFINITION_ATTRS.CREATED_ON,
+      FORM_DEFINITION_ATTRS.MODIFIED_BY,
+      FORM_DEFINITION_ATTRS.MODIFIED_ON,
+    ].join(',');
+
+    const record = await withRetry(
+      () => this.webApi.retrieveRecord(ENTITY_NAMES.FORM_DEFINITION, id, `?$select=${select}`),
+      'getFormWithEtag',
+    );
+
+    const rawEtag = record['@odata.etag'];
+    const etag = typeof rawEtag === 'string' ? rawEtag : null;
+
+    return { model: this.mapRecordToModel(record), etag };
   }
 
   async listForms(filter?: FormListFilter): Promise<FormSummary[]> {
@@ -233,6 +284,12 @@ export class FormDefinitionService {
         : null,
       confirmationMessage: record[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE]
         ? String(record[FORM_DEFINITION_ATTRS.CONFIRMATION_MESSAGE])
+        : null,
+      submitConfirmationLabel: record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL]
+        ? String(record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_LABEL])
+        : null,
+      submitConfirmationMessage: record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE]
+        ? String(record[FORM_DEFINITION_ATTRS.SUBMIT_CONFIRMATION_MESSAGE])
         : null,
       confirmationRecordRefAttribute: record[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE]
         ? String(record[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE])

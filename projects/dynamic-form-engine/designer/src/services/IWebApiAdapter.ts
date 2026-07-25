@@ -21,6 +21,12 @@ export interface ActionResult {
   [key: string]: unknown;
 }
 
+/** Options for a conditional PATCH/DELETE that enforces optimistic concurrency. */
+export interface WebApiUpdateOptions {
+  /** Value of the @odata.etag from the last successful retrieveRecord. */
+  ifMatch: string;
+}
+
 export interface IWebApiAdapter {
   createRecord(entityLogicalName: string, data: WebApiRecord): Promise<WebApiCreateResult>;
   updateRecord(entityLogicalName: string, id: string, data: WebApiRecord): Promise<void>;
@@ -28,4 +34,17 @@ export interface IWebApiAdapter {
   retrieveRecord(entityLogicalName: string, id: string, options?: string): Promise<WebApiRecord>;
   retrieveMultipleRecords(entityLogicalName: string, options?: string): Promise<WebApiRetrieveMultipleResult>;
   executeAction(actionName: string, parameters: ActionParameters): Promise<ActionResult>;
+
+  /**
+   * PATCH with If-Match header.
+   * Throws ConcurrencyConflictError when Dataverse returns HTTP 412.
+   * The caller is responsible for updating its cached etag after success
+   * by re-fetching the record (Dataverse does not return a fresh etag on PATCH).
+   */
+  updateRecordConditional(
+    entityLogicalName: string,
+    id: string,
+    data: WebApiRecord,
+    options: WebApiUpdateOptions,
+  ): Promise<void>;
 }

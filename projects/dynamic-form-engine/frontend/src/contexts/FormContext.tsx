@@ -13,13 +13,17 @@ import type {
   FormFieldValues,
   RuleEvaluationResult,
   DraftSubmission,
+  ScopedButton,
 } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
+import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
   formCode: string;
+  // DFE-LKPCOL-001: active form language (BCP-47), so controls can request language-aware data.
+  lang?: string;
   formDefinition: FormDefinition | null;
   isLoading: boolean;
   error: string | null;
@@ -33,6 +37,9 @@ export interface FormContextValue {
   setActiveTabIndex: (index: number) => void;
   submissionReference: string | null;
   isSubmitted: boolean;
+  // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
+  submitAcknowledged: boolean;
+  setSubmitAcknowledged: (acknowledged: boolean) => void;
   updateFieldValue: (fieldId: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: (submitButtonId?: string) => Promise<void>;
@@ -47,6 +54,8 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldReadonly: {},
   fieldValues: {},
   filteredOptions: {},
+  buttonVisibility: {},
+  buttonEnabledState: {},
 };
 
 const FormContext = createContext<FormContextValue | null>(null);
@@ -77,6 +86,9 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [submissionReference, setSubmissionReference] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  // DFE-SUBMITCONFIRM-001: acknowledgement gate state (only meaningful when the form
+  // has submitConfirmation configured).
+  const [submitAcknowledged, setSubmitAcknowledged] = useState(false);
 
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,8 +172,19 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
 
     ruleDebounceTimer.current = setTimeout(() => {
       const allRules = collectAllRules(formDefinition);
+      const allButtons = collectAllButtons(formDefinition);
 
-      void ruleEngine.evaluate(allRules, fieldValues).then((result) => {
+      void Promise.all([
+        ruleEngine.evaluate(allRules, fieldValues),
+        ruleEngine.evaluateButtons(allButtons, fieldValues),
+      ]).then(([fieldResult, buttonResult]) => {
+        // DFE-CBTN-001: fold per-button conditional state into the rule state so
+        // ScopedButtonBar reads visibility/enablement from a single source.
+        const result: RuleEvaluationResult = {
+          ...fieldResult,
+          buttonVisibility: buttonResult.buttonVisibility,
+          buttonEnabledState: buttonResult.buttonEnabledState,
+        };
         setRuleState(result);
 
         // Apply setValue/clearValue/calculateValue from rules
@@ -291,6 +314,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const contextValue = useMemo<FormContextValue>(
     () => ({
       formCode,
+      lang,
       formDefinition,
       isLoading,
       error,
@@ -304,15 +328,17 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       setActiveTabIndex,
       submissionReference,
       isSubmitted,
+      submitAcknowledged,
+      setSubmitAcknowledged,
       updateFieldValue,
       saveDraft,
       submitForm,
       resetForm,
     }),
     [
-      formCode, formDefinition, isLoading, error, fieldValues, ruleState,
+      formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
       validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
-      submissionReference, isSubmitted, updateFieldValue, saveDraft, submitForm, resetForm,
+      submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
   );
 
@@ -338,23 +364,30 @@ export function useFormContext(): FormContextValue {
 function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
   const values: FormFieldValues = {};
 
-  for (const tab of formDefinition.tabs) {
-    for (const section of tab.sections) {
-      for (const field of section.fields) {
-        values[field.schemaName] = field.defaultValue ?? null;
-      }
-    }
+  // DFE-TABZONE-001: include header/footer zone fields, not only section fields.
+  for (const field of getAllFormFields(formDefinition)) {
+    values[field.schemaName] = field.defaultValue ?? null;
   }
 
   return values;
 }
 
 function collectAllRules(formDefinition: FormDefinition) {
-  return formDefinition.tabs.flatMap((tab) =>
-    tab.sections.flatMap((section) =>
-      section.fields.flatMap((field) => field.businessRules),
-    ),
-  );
+  // DFE-TABZONE-001: header/footer fields can trigger business rules too.
+  return getAllFormFields(formDefinition).flatMap((field) => field.businessRules);
+}
+
+// DFE-CBTN-001: every scoped button in the form (tab- and section-placed), so
+// their conditional visibility/enablement can be evaluated each rule cycle.
+function collectAllButtons(formDefinition: FormDefinition): ScopedButton[] {
+  const buttons: ScopedButton[] = [];
+  for (const tab of formDefinition.tabs) {
+    if (tab.buttons) buttons.push(...tab.buttons);
+    for (const section of tab.sections) {
+      if (section.buttons) buttons.push(...section.buttons);
+    }
+  }
+  return buttons;
 }
 
 function computeVisibleFieldIds(
@@ -378,6 +411,15 @@ function computeVisibleFieldIds(
         }
       }
     }
+
+    // DFE-TABZONE-001: header/footer fields are gated by tab visibility only
+    // (they belong to no section).
+    for (const field of getTabZoneFields(tab)) {
+      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
+      if (fieldVisible && !field.isHidden) {
+        visible.add(field.id);
+      }
+    }
   }
 
   return visible;
@@ -391,10 +433,9 @@ function findFirstErrorTabIndex(
 
   for (let i = 0; i < sortedTabs.length; i++) {
     const tab = sortedTabs[i];
-    for (const section of tab.sections) {
-      for (const field of section.fields) {
-        if (errors[field.id]) return i;
-      }
+    // DFE-TABZONE-001: an error on a header/footer field must also focus its tab.
+    for (const field of getAllTabFields(tab)) {
+      if (errors[field.id]) return i;
     }
   }
 
@@ -408,12 +449,10 @@ function stripHiddenFieldValues(
 ): FormFieldValues {
   const schemaNameToId: Record<string, string> = {};
 
-  for (const tab of formDefinition.tabs) {
-    for (const section of tab.sections) {
-      for (const field of section.fields) {
-        schemaNameToId[field.schemaName] = field.id;
-      }
-    }
+  // DFE-TABZONE-001: include header/footer fields so their values are not
+  // incorrectly stripped on submit.
+  for (const field of getAllFormFields(formDefinition)) {
+    schemaNameToId[field.schemaName] = field.id;
   }
 
   const stripped: FormFieldValues = {};

@@ -72,7 +72,7 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
   const isSelected = selectedId === field.id;
 
   const handleSelect = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation();
       selectItem(field.id, 'field');
     },
@@ -87,6 +87,16 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
     [field.id, deleteField]
   );
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        handleSelect(e);
+      }
+      // Alt+Arrow reordering is handled globally by useIndexBasedKeyboard.
+    },
+    [handleSelect]
+  );
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -99,12 +109,16 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
       className={`${styles.fieldSlot} ${isSelected ? styles.fieldSlotSelected : ''} ${isDragging ? styles.fieldSlotDragging : ''}`}
       {...attributes}
       {...listeners}
+      // IndexBasedKeyboardSensor reads these to identify the sortable item on Alt+Arrow.
+      data-sortable-id={field.id}
+      data-sortable-container={field.sectionId}
+      data-sortable-type="field"
       onClick={handleSelect}
       role="button"
       tabIndex={0}
-      aria-label={`Field: ${field.label || field.code}`}
+      aria-label={`Field: ${field.label || field.code}. Alt+ArrowUp/Down to reorder.`}
       aria-pressed={isSelected}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelect(e as unknown as React.MouseEvent); }}
+      onKeyDown={handleKeyDown}
     >
       <div className={styles.fieldContent}>
         <Text weight="semibold" size={200} className={styles.fieldLabel}>

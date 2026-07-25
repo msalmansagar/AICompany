@@ -10,6 +10,7 @@ import {
 } from '@fluentui/react-components';
 import { CheckmarkCircle20Filled } from '@fluentui/react-icons';
 import type { TabDefinition } from '@qdb/shared';
+import { getAllTabFields, getTabZoneFields } from './tabFields';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
 
@@ -185,15 +186,29 @@ export function useTabStatus() {
       }
     }
 
+    // DFE-TABZONE-001: header/footer required fields also gate tab completion.
+    for (const field of getTabZoneFields(tab)) {
+      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
+      if (!fieldVisible || field.isHidden) continue;
+
+      const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
+      if (!isRequired) continue;
+
+      const value = fieldValues[field.schemaName];
+      const isEmpty = value === null || value === undefined || value === '';
+      const hasError = !!validationErrors[field.id]?.length;
+
+      if (isEmpty || hasError) return false;
+    }
+
     return true;
   }
 
   function getTabErrorCount(tab: TabDefinition): number {
     let count = 0;
-    for (const section of tab.sections) {
-      for (const field of section.fields) {
-        if (validationErrors[field.id]?.length) count++;
-      }
+    // DFE-TABZONE-001: include header/footer field errors in the tab error count.
+    for (const field of getAllTabFields(tab)) {
+      if (validationErrors[field.id]?.length) count++;
     }
     return count;
   }

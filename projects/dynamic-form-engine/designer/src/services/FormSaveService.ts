@@ -1,6 +1,7 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import type { DesignerState } from '@/state/designerStore';
+import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError';
 import { FormDefinitionService } from './FormDefinitionService';
 import { TabService } from './TabService';
 import { SectionService } from './SectionService';
@@ -21,6 +22,18 @@ function resolveRealId(id: string, resolvedIds: Record<string, string>): string 
   return resolvedIds[id] ?? id;
 }
 
+// DFE-TABZONE-001: a header/footer field targets the tab that owns its section
+// (temp ids resolved to real). Body fields have no zone tab.
+function resolveZoneTabId(
+  field: { placement?: 'header' | 'footer' | 'body'; tabId?: string | null; sectionId: string },
+  sections: Record<string, { tabId: string }>,
+  resolvedIds: Record<string, string>,
+): string | null {
+  if (!field.placement || field.placement === 'body') return null;
+  const rawTabId = field.tabId ?? sections[field.sectionId]?.tabId;
+  return rawTabId ? resolveRealId(rawTabId, resolvedIds) : null;
+}
+
 /** True when the (resolved) id refers to a persisted, non-deleted record. */
 function isPersistableId(id: string, resolvedIds: Record<string, string>, deleted: Set<string>): boolean {
   return !deleted.has(id) && !resolveRealId(id, resolvedIds).startsWith('tmp_');
@@ -34,8 +47,10 @@ export class PartialSaveError extends Error {
   constructor(
     public readonly resolvedIds: Record<string, string>,
     public readonly resolvedThemeId: string | null,
-    cause: unknown,
+    public readonly cause: unknown,
   ) {
+    // { cause } ErrorOptions requires ES2022 lib — tsconfig targets ES2020 so we
+    // store cause as an own property and pass only the message to the base class.
     super(cause instanceof Error ? cause.message : 'Save failed');
   }
 }
@@ -60,7 +75,16 @@ type SaveableState = Pick<
   | 'validationRules'
   | 'businessRules'
   | 'designPayload'
->;
+> & {
+  /**
+   * Current @odata.etag for the qdb_form_definition record, held in
+   * concurrencyStore.recordEtags[form.id] and captured at save-start time.
+   * Required for the conditional PATCH (If-Match) — FormDefinitionService.updateForm
+   * throws MissingEtagError when this is absent.
+   * Populated after the first getFormWithEtag() call during form load.
+   */
+  formEtag: string;
+};
 
 export interface FormSaveResult {
   resolvedIds: Record<string, string>;
@@ -96,7 +120,7 @@ export class FormSaveService {
   }
 
   async save(state: SaveableState): Promise<FormSaveResult> {
-    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload } = state;
+    const { form, tabs, sections, fields, tabOrder, sectionOrder, fieldOrder, newIds, dirtyIds, deletedIds, deletedEntityTypes, validationRules, businessRules, designPayload, formEtag } = state;
     if (!form) throw new Error('No form loaded');
 
     const resolvedIds: Record<string, string> = {};
@@ -163,9 +187,13 @@ export class FormSaveService {
           defaultValue: field.defaultValue,
           sortOrder: field.sortOrder,
           columnSpan: field.columnSpan,
+          // DFE-TABZONE-001: header/footer placement + the tab whose zone it renders in.
+          placement: field.placement ?? 'body',
+          tabId: resolveZoneTabId(field, sections, resolvedIds),
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          maxFiles: field.maxFiles,
           boolRenderStyle: field.boolRenderStyle,
           trueLabel: field.trueLabel,
           falseLabel: field.falseLabel,
@@ -185,6 +213,15 @@ export class FormSaveService {
           gridFilterExpression: field.gridFilterExpression,
           gridDependsOnFieldId: field.gridDependsOnFieldId,
           gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
+          gridDataSource: field.gridDataSource,
+          gridJsonData: field.gridJsonData,
+          gridDisplayMode: field.gridDisplayMode,
+          gridViewMode: field.gridViewMode,
+          gridCardLayout: field.gridCardLayout,
+          gridSelectable: field.gridSelectable,
+          gridCardIcon: field.gridCardIcon,
+          gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -270,9 +307,13 @@ export class FormSaveService {
           defaultValue: field.defaultValue,
           sortOrder: field.sortOrder,
           columnSpan: field.columnSpan,
+          // DFE-TABZONE-001: header/footer placement + the tab whose zone it renders in.
+          placement: field.placement ?? 'body',
+          tabId: resolveZoneTabId(field, sections, resolvedIds),
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          maxFiles: field.maxFiles,
           boolRenderStyle: field.boolRenderStyle,
           trueLabel: field.trueLabel,
           falseLabel: field.falseLabel,
@@ -292,6 +333,15 @@ export class FormSaveService {
           gridFilterExpression: field.gridFilterExpression,
           gridDependsOnFieldId: field.gridDependsOnFieldId,
           gridDependsOnFilterTemplate: field.gridDependsOnFilterTemplate,
+          gridDataSource: field.gridDataSource,
+          gridJsonData: field.gridJsonData,
+          gridDisplayMode: field.gridDisplayMode,
+          gridViewMode: field.gridViewMode,
+          gridCardLayout: field.gridCardLayout,
+          gridSelectable: field.gridSelectable,
+          gridCardIcon: field.gridCardIcon,
+          gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields
@@ -346,7 +396,8 @@ export class FormSaveService {
         await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
       }
 
-      // Step 7: Update form definition header
+      // Step 7: Update form definition header with conditional PATCH (If-Match: formEtag).
+      // ConcurrencyConflictError propagates out of save() when Dataverse returns 412.
       await this.formService.updateForm(form.id, {
         name: form.name,
         code: form.code,
@@ -360,7 +411,7 @@ export class FormSaveService {
         confirmationMessage: form.confirmationMessage,
         confirmationRecordRefAttribute: form.confirmationRecordRefAttribute,
         accessGroupId: form.accessGroupId,
-      });
+      }, formEtag);
 
       // Step 8: Save theme and form design
       if (form.id && !form.id.startsWith('tmp_') && designPayload) {
@@ -417,7 +468,11 @@ export class FormSaveService {
 
       return { resolvedIds, resolvedThemeId };
     } catch (error) {
-      // Propagate partial progress so the caller can prevent duplicate creates on retry.
+      // 412 conflicts must propagate unwrapped so DesignerScreen's onError can
+      // instanceof-check ConcurrencyConflictError and open the conflict dialog.
+      // Wrapping it in PartialSaveError would make that check always false (B-1).
+      if (error instanceof ConcurrencyConflictError) throw error;
+      // All other errors carry partial-progress context for duplicate-create prevention.
       throw new PartialSaveError(resolvedIds, resolvedThemeId, error);
     }
   }

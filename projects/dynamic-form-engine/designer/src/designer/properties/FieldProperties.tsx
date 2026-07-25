@@ -6,8 +6,10 @@ import {
   AccordionPanel,
   Button,
   Divider,
+  Dropdown,
   Field,
   Input,
+  Option,
   Switch,
   Text,
   makeStyles,
@@ -179,6 +181,13 @@ interface FieldPropertiesProps {
   fieldId: string;
 }
 
+// DFE-TABZONE-001 — placement dropdown labels.
+const PLACEMENT_LABELS: Record<string, string> = {
+  body: 'Section body (default)',
+  header: 'Tab header',
+  footer: 'Tab footer',
+};
+
 export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactElement {
   const styles = useStyles();
   const field = useDesignerStore(s => s.fields[fieldId] ?? null);
@@ -200,6 +209,10 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
 
   const handleColumnSpanChange = (span: 1 | 2 | 3): void => {
     updateField(fieldId, { columnSpan: span });
+  };
+
+  const handlePlacementChange = (placement: 'header' | 'footer' | 'body'): void => {
+    updateField(fieldId, { placement });
   };
 
   if (!field) {
@@ -233,6 +246,28 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
             placeholder="lowercase_with_underscores"
             style={{ fontFamily: 'monospace' }}
           />
+        </Field>
+      </div>
+
+      <Divider />
+
+      <SectionHeading label="Placement" />
+      <div className={styles.fieldGroup}>
+        <Field
+          label="Render location"
+          hint="Header/Footer place this field directly in the tab's zone instead of the section body."
+        >
+          <Dropdown
+            value={PLACEMENT_LABELS[field.placement ?? 'body']}
+            selectedOptions={[field.placement ?? 'body']}
+            onOptionSelect={(_, data) =>
+              handlePlacementChange((data.optionValue as 'header' | 'footer' | 'body') ?? 'body')
+            }
+          >
+            <Option value="body">Section body (default)</Option>
+            <Option value="header">Tab header</Option>
+            <Option value="footer">Tab footer</Option>
+          </Dropdown>
         </Field>
       </div>
 

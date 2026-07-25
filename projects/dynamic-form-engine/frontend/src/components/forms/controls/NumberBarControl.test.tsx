@@ -115,4 +115,32 @@ describe('NumberBarControl', () => {
     expect(bar).toHaveAttribute('aria-valuenow', '25');
     expect(bar).toHaveTextContent('2.5');
   });
+
+  // DFE-NUMBAR — value read live from a referenced field.
+
+  it('readsValueFromReferencedField_whenBarValueFieldSet', () => {
+    // Own value (utilized) is 5, but the bar reads 'spent' (60) ÷ limit (100).
+    renderBar(
+      makeBarField({ barValueFieldSchemaName: 'spent' }),
+      { utilized: 5, spent: 60, limit: 100 },
+    );
+
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '60');
+  });
+
+  it('fallsBackToOwnValue_whenBarValueFieldAbsent', () => {
+    renderBar(makeBarField({ barValueFieldSchemaName: undefined }), { utilized: 40, limit: 100 });
+
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '40');
+  });
+
+  it('readsBothValueAndMaxFromReferencedFields', () => {
+    renderBar(
+      makeBarField({ barValueFieldSchemaName: 'spent', barMaxFieldSchemaName: 'budget' }),
+      { utilized: 0, spent: 30, budget: 60 },
+    );
+
+    // 30 / 60 = 50%
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+  });
 });

@@ -26,6 +26,7 @@ import type {
   DesignerSectionModel,
 } from '@/state/models/DesignerFormModel';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
+import { slugifyFormCode, sanitizeFormCode } from '@/utils/formCodeUtils';
 
 const TOTAL_STEPS = 5;
 
@@ -203,16 +204,29 @@ function WizardStepIndicator({ currentStep }: { currentStep: number }): React.Re
 // Step 1 — Form Basics
 // ---------------------------------------------------------------------------
 
-function StepFormBasics({ state, onChange }: { state: WizardState; onChange: (p: Partial<WizardState>) => void }): React.ReactElement {
+interface StepFormBasicsProps {
+  state: WizardState;
+  onChange: (patch: Partial<WizardState>) => void;
+  /** True once the user has manually edited the Code field. When true, Name changes must not overwrite Code. */
+  isCodeLocked: boolean;
+  /** Called the first time the user edits the Code field directly. Sets isCodeLocked permanently. */
+  onCodeManuallyEdited: () => void;
+}
+
+function StepFormBasics({ state, onChange, isCodeLocked, onCodeManuallyEdited }: StepFormBasicsProps): React.ReactElement {
   const styles = useStyles();
 
   function handleNameChange(_: React.ChangeEvent<HTMLInputElement>, data: { value: string }): void {
-    const autoCode = data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_');
-    onChange({ name: data.value, code: state.code || autoCode });
+    if (isCodeLocked) {
+      onChange({ name: data.value });
+    } else {
+      onChange({ name: data.value, code: slugifyFormCode(data.value) });
+    }
   }
 
   function handleCodeChange(_: React.ChangeEvent<HTMLInputElement>, data: { value: string }): void {
-    onChange({ code: data.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') });
+    onCodeManuallyEdited();
+    onChange({ code: sanitizeFormCode(data.value) });
   }
 
   return (
@@ -220,8 +234,8 @@ function StepFormBasics({ state, onChange }: { state: WizardState; onChange: (p:
       <Field label="Form Name" required>
         <Input value={state.name} onChange={handleNameChange} placeholder="e.g. Loan Application Form" autoFocus />
       </Field>
-      <Field label="Form Code" required hint="Lowercase letters, numbers, and underscores only.">
-        <Input value={state.code} onChange={handleCodeChange} placeholder="e.g. loan_application" style={{ fontFamily: 'monospace' }} />
+      <Field label="Form Code" required hint="Lowercase letters, numbers, and hyphens only.">
+        <Input value={state.code} onChange={handleCodeChange} placeholder="e.g. loan-application" style={{ fontFamily: 'monospace' }} />
       </Field>
       <Field label="Description">
         <Textarea
@@ -384,6 +398,9 @@ export function NewFormWizardScreen(): React.ReactElement {
   const [wizardState, setWizardState] = useState<WizardState>(INITIAL_STATE);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  // FR-012(a): tracks whether the user has manually edited the Code field.
+  // Once true, Name changes no longer auto-derive Code — the user owns it.
+  const [isFormCodeManuallyEdited, setIsFormCodeManuallyEdited] = useState(false);
 
   const [themes, setThemes] = useState<ThemeOption[]>([]);
   const [isLoadingThemes, setIsLoadingThemes] = useState(false);
@@ -545,7 +562,14 @@ export function NewFormWizardScreen(): React.ReactElement {
 
   function renderStepContent(): React.ReactElement {
     switch (currentStep) {
-      case 1: return <StepFormBasics state={wizardState} onChange={handleChange} />;
+      case 1: return (
+        <StepFormBasics
+          state={wizardState}
+          onChange={handleChange}
+          isCodeLocked={isFormCodeManuallyEdited}
+          onCodeManuallyEdited={() => setIsFormCodeManuallyEdited(true)}
+        />
+      );
       case 2: return <StepInitialStructure state={wizardState} onChange={handleChange} />;
       case 3: return <StepTargetEntity state={wizardState} onChange={handleChange} />;
       case 4: return (

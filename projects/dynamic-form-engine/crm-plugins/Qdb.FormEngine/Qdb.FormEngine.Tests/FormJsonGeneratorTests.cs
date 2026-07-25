@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xrm.Sdk;
+using Newtonsoft.Json.Linq;
 using Moq;
 using Qdb.FormEngine.Core.Abstractions;
 using Qdb.FormEngine.Core.Generation;
@@ -150,6 +151,56 @@ namespace Qdb.FormEngine.Tests
         }
 
         [Fact]
+        public void Generate_WithButtonConditions_EmbedsVisibleAndEnabledWhen()
+        {
+            // Arrange — DFE-CBTN-001: per-button visible/enabled condition sets.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var button = MakeScopedButton(formId, tabId, null, "tab", "Approve", "saveDraft", "{}");
+            button["qdb_visible_conditions_json"] =
+                "{\"conditions\":[{\"fieldId\":\"qdb_status\",\"operator\":\"equals\",\"value\":\"submitted\"}],\"logic\":\"AND\"}";
+            button["qdb_enabled_conditions_json"] =
+                "{\"conditions\":[{\"fieldId\":\"qdb_amount\",\"operator\":\"isNotEmpty\"}],\"logic\":\"OR\"}";
+            rawData.ScopedButtons = new List<Entity> { button };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert — both condition sets emitted verbatim in runtime shape
+            var btn = result.Tabs[0].Buttons[0];
+            var vis = Assert.IsType<JObject>(btn.VisibleWhen);
+            Assert.Equal("AND", vis["logic"].ToString());
+            Assert.Equal("qdb_status", vis["conditions"][0]["fieldId"].ToString());
+            Assert.Equal("equals", vis["conditions"][0]["operator"].ToString());
+            var en = Assert.IsType<JObject>(btn.EnabledWhen);
+            Assert.Equal("OR", en["logic"].ToString());
+            Assert.Equal("qdb_amount", en["conditions"][0]["fieldId"].ToString());
+        }
+
+        [Fact]
+        public void Generate_WithInvalidOrEmptyButtonConditions_OmitsThem()
+        {
+            // Arrange — invalid JSON and empty must both drop to null (button falls back to
+            // its static isVisible/isActive — legacy behavior preserved).
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var tabId = rawData.Tabs[0].Id;
+            var button = MakeScopedButton(formId, tabId, null, "tab", "Plain", "saveDraft", "{}");
+            button["qdb_visible_conditions_json"] = "{not valid json";
+            button["qdb_enabled_conditions_json"] = "";
+            rawData.ScopedButtons = new List<Entity> { button };
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var btn = result.Tabs[0].Buttons[0];
+            Assert.Null(btn.VisibleWhen);
+            Assert.Null(btn.EnabledWhen);
+        }
+
+        [Fact]
         public void Generate_WithNoDesign_OmitsDesignProperty()
         {
             // Arrange — design-less forms must stay byte-identical (Design omitted)
@@ -295,6 +346,40 @@ namespace Qdb.FormEngine.Tests
 
             Assert.Null(result.SummaryMode);
             Assert.Null(result.ShowProgressBar);
+        }
+
+        [Fact]
+        public void Generate_WithDesignerFormatRule_ParsesActionTargetAndConditions()
+        {
+            // DFE-BRJSON-FIX — the designer stores the whole rule (schema codes + nested actions)
+            // in qdb_conditions_json. The in-CRM generator must parse it, not just structured columns.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var targetFieldId = rawData.Fields[0].Id; // schema "qdb_hidden_field"
+
+            var rule = new Entity("qdb_form_business_rule", Guid.NewGuid());
+            rule["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            rule["qdb_name"] = "Designer hide rule";
+            rule["qdb_conditions_json"] =
+                "{\"version\":\"1.0\",\"trigger_field_code\":\"qdb_status\",\"trigger_event\":\"on_change\"," +
+                "\"condition_group\":{\"logical_operator\":\"AND\",\"conditions\":[" +
+                "{\"field_code\":\"qdb_status\",\"operator\":\"equals\",\"value\":\"closed\"}]}," +
+                "\"actions\":[{\"action_type\":\"hide_field\",\"target_field_code\":\"qdb_hidden_field\"}]}";
+            rule["qdb_priority"] = 1;
+            rule["qdb_is_active"] = true;
+            rawData.BusinessRules = new List<Entity> { rule };
+
+            var result = _generator.Generate(rawData, "en");
+
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.Single(field.BusinessRules);
+            var br = field.BusinessRules[0];
+            Assert.Equal("hideField", br.Action);                    // action_type mapped
+            Assert.Equal(targetFieldId, br.TargetFieldId.Value);     // target_field_code resolved to GUID
+            Assert.Equal("AND", br.ConditionsLogic);
+            Assert.Single(br.Conditions);
+            Assert.Equal("qdb_status", br.Conditions[0].FieldId);    // schema code, not a GUID
+            Assert.Equal("equals", br.Conditions[0].Operator);
         }
 
         private static FormRawData BuildMinimalFormRawData(Guid formId)

@@ -6,6 +6,7 @@ import type {
   OptionValue,
   ValidationRule,
   FormButton,
+  ScopedButton,
   GridColumnConfig,
   InfoCardScreen,
   InfoCardSection,
@@ -67,6 +68,7 @@ function resolveTab(tab: TabDefinition, map: TranslationMap): TabDefinition {
   return {
     ...tab,
     label: resolveRequired('qdb_form_tab', tab.id, 'qdb_label', tab.label, map),
+    buttons: tab.buttons?.map((b) => resolveScopedButton(b, map)),
     sections: tab.sections.map((s) => resolveSection(s, map)),
   };
 }
@@ -77,7 +79,16 @@ function resolveSection(section: SectionDefinition, map: TranslationMap): Sectio
     ...section,
     label: resolveRequired(e, section.id, 'qdb_label', section.label, map),
     description: resolveString(e, section.id, 'qdb_description', section.description, map),
+    buttons: section.buttons?.map((b) => resolveScopedButton(b, map)),
     fields: section.fields.map((f) => resolveField(f, map)),
+  };
+}
+
+// DFE-CBTN-001 scoped (tab/section) buttons were never translated. Resolve their label.
+function resolveScopedButton(btn: ScopedButton, map: TranslationMap): ScopedButton {
+  return {
+    ...btn,
+    label: resolveRequired('qdb_form_scoped_button', btn.id, 'qdb_label', btn.label, map),
   };
 }
 

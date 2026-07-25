@@ -1,7 +1,8 @@
-import React, { useCallback } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import React, { useCallback, useRef } from 'react';
+import { useDroppable, useDndContext } from '@dnd-kit/core';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   makeStyles,
   tokens,
@@ -13,6 +14,11 @@ import { Delete24Regular, Edit24Regular } from '@fluentui/react-icons';
 import { FieldSlot } from './FieldSlot';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
+import {
+  shouldVirtualizeFieldList,
+  ESTIMATED_FIELD_SLOT_HEIGHT_PX,
+  VIRTUALIZED_SECTION_MAX_HEIGHT_PX,
+} from '@/designer/dnd/dndConstants';
 
 const useStyles = makeStyles({
   sectionWrapper: {
@@ -81,6 +87,21 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
     data: { type: 'section', sectionId: section.id },
   });
 
+  // Disable virtualisation while a pointer drag is active so all FieldSlot DOM nodes
+  // exist — dnd-kit's collision detection needs them during the drag gesture.
+  const { active } = useDndContext();
+  const isDragActive = active !== null;
+  const isVirtualized = shouldVirtualizeFieldList(fields.length) && !isDragActive;
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const virtualizer = useVirtualizer({
+    count: isVirtualized ? fields.length : 0,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ESTIMATED_FIELD_SLOT_HEIGHT_PX,
+    overscan: 5,
+  });
+
   const gridClassName =
     section.columnCount === 3
       ? styles.fieldGrid3
@@ -96,21 +117,47 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
     [section.id, selectItem]
   );
 
-  const style = {
+  const handleDeleteSection = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      deleteSection(section.id);
+    },
+    [section.id, deleteSection]
+  );
+
+  // Combine the droppable ref and the virtualiser scroll container ref.
+  const assignBodyRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      setDropRef(el);
+      scrollContainerRef.current = el;
+    },
+    [setDropRef]
+  );
+
+  const sortableStyle = {
     transform: CSS.Transform.toString(transform),
     transition,
   };
 
+  const sectionBodyStyle: React.CSSProperties | undefined = isVirtualized
+    ? { maxHeight: VIRTUALIZED_SECTION_MAX_HEIGHT_PX, overflowY: 'auto' }
+    : undefined;
+
   return (
     <div
       ref={setSortableRef}
-      style={style}
+      style={sortableStyle}
       className={`${styles.sectionWrapper} ${isDragging ? styles.sectionDragging : ''}`}
       aria-label={`Section: ${section.label}`}
     >
       <div
         className={styles.sectionHeader}
         onClick={handleSelectSection}
+        // IndexBasedKeyboardSensor reads these to identify the section on Alt+Arrow.
+        data-sortable-id={section.id}
+        data-sortable-container={section.tabId}
+        data-sortable-type="section"
+        aria-label={`Section: ${section.label || 'Unnamed Section'}. Alt+ArrowUp/Down to reorder.`}
         {...attributes}
         {...listeners}
       >
@@ -135,7 +182,7 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
               appearance="subtle"
               size="small"
               icon={<Delete24Regular />}
-              onClick={(e) => { e.stopPropagation(); deleteSection(section.id); }}
+              onClick={handleDeleteSection}
               aria-label="Delete Section"
             />
           </Tooltip>
@@ -143,14 +190,41 @@ export function SectionContainer({ section, fields }: SectionContainerProps): Re
       </div>
 
       <div
-        ref={setDropRef}
+        ref={assignBodyRef}
         className={`${styles.sectionBody} ${isOver ? styles.dropActive : ''}`}
+        style={sectionBodyStyle}
       >
-        {fields.length === 0 ? (
-          <div className={styles.emptyDropZone}>
-            Drop fields here
+        {fields.length === 0 && (
+          <div className={styles.emptyDropZone}>Drop fields here</div>
+        )}
+
+        {fields.length > 0 && isVirtualized && (
+          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(virtualItem => {
+              const field = fields[virtualItem.index];
+              if (!field) return null;
+              return (
+                <div
+                  key={field.id}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualItem.start}px)`,
+                    paddingBottom: '8px',
+                  }}
+                >
+                  <FieldSlot field={field} />
+                </div>
+              );
+            })}
           </div>
-        ) : (
+        )}
+
+        {fields.length > 0 && !isVirtualized && (
           <div className={gridClassName}>
             {fields.map(field => (
               <FieldSlot key={field.id} field={field} />
