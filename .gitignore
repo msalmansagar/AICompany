@@ -37,3 +37,7 @@ obj/
 # ---- OS / editor cruft ----
 .DS_Store
 Thumbs.db
+
+# Session logs — appended by .claude/hooks (session-end.js), not source.
+**/.claude/sessions/log.md
+.claude/sessions/log.md
