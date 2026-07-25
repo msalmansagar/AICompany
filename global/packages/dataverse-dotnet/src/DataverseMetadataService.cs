@@ -72,7 +72,9 @@ public sealed class DataverseMetadataService : IDataverseMetadata
                 a.DisplayName?.UserLocalizedLabel?.Label ?? a.LogicalName,
                 a.AttributeType ?? "Unknown",
                 a.RequiredLevel?.Value == "ApplicationRequired",
-                a.IsCustomAttribute ?? false))
+                a.IsCustomAttribute ?? false,
+                // Web API $expand=Attributes does not include option-sets — use GetOptionsAsync.
+                Array.Empty<OptionMetadata>()))
             .ToList();
     }
 
