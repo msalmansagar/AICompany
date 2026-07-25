@@ -18,7 +18,8 @@ global/
 ├── packages/
 │   ├── dataverse-metadata/   entity schema + field metadata extraction (TS)
 │   ├── dataverse-lookup/     lookup + option-set resolution (TS)
-│   ├── dataverse-dotnet/     Mss.Dataverse — metadata for the .NET runtime (C#)
+│   ├── dataverse-dotnet/     Mss.Dataverse — metadata via Web API for .NET middle-tier (C#, net8)
+│   ├── dataverse-dotnet-sdk/ Mss.Dataverse.Sdk — metadata via Org Service SDK for plugins (C#, net471)
 │   └── ui-theme/             look-and-feel tokens (the shared visual baseline)
 ├── templates/
 │   └── project-base/         the scaffold a new project is generated from
