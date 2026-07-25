@@ -144,6 +144,9 @@ export interface FieldDefinition {
   allowCamera?: boolean;
   decimalPlaces?: number;
   currencySymbol?: string;
+  // DFE-NUMBAR: number/decimal/currency display style (bar = read-only utilization gauge).
+  numberDisplayStyle?: 'textbox' | 'bar';
+  barMaxFieldSchemaName?: string;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
   multiselectRenderStyle?: MultiselectRenderStyle;

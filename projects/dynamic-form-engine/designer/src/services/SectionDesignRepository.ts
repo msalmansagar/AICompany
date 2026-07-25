@@ -53,7 +53,7 @@ export class SectionDesignRepository {
       return existingId;
     }
 
-    payload[SECTION_DESIGN_ATTRS.SECTION_ID] = dto.sectionId;
+    payload[`${SECTION_DESIGN_ATTRS.SECTION_ID}@odata.bind`] = `/qdb_form_sections(${dto.sectionId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.SECTION_DESIGN, payload),
       'createSectionDesign'
@@ -102,7 +102,7 @@ export class SectionDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.SECTION_DESIGN,
-        `?$select=${SECTION_DESIGN_ATTRS.ID}&$filter=${SECTION_DESIGN_ATTRS.SECTION_ID} eq ${sectionId}&$top=1`
+        `?$select=${SECTION_DESIGN_ATTRS.ID}&$filter=${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} eq ${sectionId}&$top=1`
       ),
       'findSectionDesign'
     );
