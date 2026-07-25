@@ -13,6 +13,7 @@ import type {
   FormFieldValues,
   RuleEvaluationResult,
   DraftSubmission,
+  ScopedButton,
 } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
@@ -21,6 +22,8 @@ import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../componen
 
 export interface FormContextValue {
   formCode: string;
+  // DFE-LKPCOL-001: active form language (BCP-47), so controls can request language-aware data.
+  lang?: string;
   formDefinition: FormDefinition | null;
   isLoading: boolean;
   error: string | null;
@@ -51,6 +54,8 @@ const EMPTY_RULE_STATE: RuleEvaluationResult = {
   fieldReadonly: {},
   fieldValues: {},
   filteredOptions: {},
+  buttonVisibility: {},
+  buttonEnabledState: {},
 };
 
 const FormContext = createContext<FormContextValue | null>(null);
@@ -167,8 +172,19 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
 
     ruleDebounceTimer.current = setTimeout(() => {
       const allRules = collectAllRules(formDefinition);
+      const allButtons = collectAllButtons(formDefinition);
 
-      void ruleEngine.evaluate(allRules, fieldValues).then((result) => {
+      void Promise.all([
+        ruleEngine.evaluate(allRules, fieldValues),
+        ruleEngine.evaluateButtons(allButtons, fieldValues),
+      ]).then(([fieldResult, buttonResult]) => {
+        // DFE-CBTN-001: fold per-button conditional state into the rule state so
+        // ScopedButtonBar reads visibility/enablement from a single source.
+        const result: RuleEvaluationResult = {
+          ...fieldResult,
+          buttonVisibility: buttonResult.buttonVisibility,
+          buttonEnabledState: buttonResult.buttonEnabledState,
+        };
         setRuleState(result);
 
         // Apply setValue/clearValue/calculateValue from rules
@@ -298,6 +314,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const contextValue = useMemo<FormContextValue>(
     () => ({
       formCode,
+      lang,
       formDefinition,
       isLoading,
       error,
@@ -319,7 +336,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       resetForm,
     }),
     [
-      formCode, formDefinition, isLoading, error, fieldValues, ruleState,
+      formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
       validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
       submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
@@ -358,6 +375,19 @@ function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
 function collectAllRules(formDefinition: FormDefinition) {
   // DFE-TABZONE-001: header/footer fields can trigger business rules too.
   return getAllFormFields(formDefinition).flatMap((field) => field.businessRules);
+}
+
+// DFE-CBTN-001: every scoped button in the form (tab- and section-placed), so
+// their conditional visibility/enablement can be evaluated each rule cycle.
+function collectAllButtons(formDefinition: FormDefinition): ScopedButton[] {
+  const buttons: ScopedButton[] = [];
+  for (const tab of formDefinition.tabs) {
+    if (tab.buttons) buttons.push(...tab.buttons);
+    for (const section of tab.sections) {
+      if (section.buttons) buttons.push(...section.buttons);
+    }
+  }
+  return buttons;
 }
 
 function computeVisibleFieldIds(

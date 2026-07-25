@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import { CrmBaseService } from './CrmBaseService.js';
+import { buildDependsOnFilter } from './gridFilterExpression.js';
 import { logger } from '../utils/logger.js';
 import { CrmApiError, NotFoundError, ValidationError } from '../utils/errors.js';
 import type { CrmAuthService } from './CrmAuthService.js';
@@ -40,7 +41,6 @@ export interface GridRecordPage {
   page: number;
   pageSize: number;
   hasNextPage: boolean;
-  nextPageCookie?: string;
   isCapped: boolean;
   totalCount?: number;
   totalPages?: number;
@@ -82,10 +82,9 @@ interface BuildFetchXmlParams {
   baseXml: string;
   page: number;
   pageSize: number;
-  pagingCookie: string | undefined;
   filterExpression: string | undefined;
   dependsOnFilterTemplate: string | undefined;
-  dependsOnValue: string | undefined;
+  dependsOnValues: Record<string, string> | undefined;
   searchText: string | undefined;
   searchAttributes: string[];
   sortBy: string | undefined;
@@ -118,8 +117,12 @@ export class CrmGridDataService extends CrmBaseService {
     page: number,
     pageSize: number,
     correlationId: string,
-    dependsOnValue?: string,
-    pagingCookie?: string,
+    // Map of {placeholder name → value} resolving the depends-on filter template.
+    // Single-field forms send { dependsOnValue }; multi-field forms send one entry per field schema.
+    dependsOnValues?: Record<string, string>,
+    // Retained for positional-signature stability. Cursor cookies are no longer used —
+    // the grid pages by page-number (see buildFetchXml). Callers may still pass a value; it is ignored.
+    _pagingCookie?: string,
     searchText?: string,
     sortBy?: string,
     sortDirection?: 'asc' | 'desc',
@@ -143,10 +146,9 @@ export class CrmGridDataService extends CrmBaseService {
       baseXml: baseFetchXml,
       page,
       pageSize,
-      pagingCookie,
       filterExpression: fieldConfig.filterExpression,
       dependsOnFilterTemplate: fieldConfig.dependsOnFilterTemplate,
-      dependsOnValue,
+      dependsOnValues,
       searchText,
       searchAttributes,
       sortBy: validatedSortBy,
@@ -163,16 +165,12 @@ export class CrmGridDataService extends CrmBaseService {
 
     const rawRecords = response.value;
     const hasMore = response['@Microsoft.Dynamics.CRM.morerecords'] ?? false;
-    const rawCookie = response['@Microsoft.Dynamics.CRM.fetchxmlpagingcookie'];
     const rawTotal = response['@Microsoft.Dynamics.CRM.totalrecordcount'];
     const totalCountExceeded = response['@Microsoft.Dynamics.CRM.totalrecordcountlimitexceeded'] ?? false;
 
     const recordsReturnedSoFar = recordsSeenSoFar + rawRecords.length;
     const isCapped = recordsReturnedSoFar >= fieldConfig.maxRows && hasMore;
     const hasNextPage = hasMore && !isCapped;
-    const nextPageCookie = hasNextPage && rawCookie
-      ? Buffer.from(rawCookie).toString('base64')
-      : undefined;
 
     const totalCount = !totalCountExceeded && rawTotal !== undefined && rawTotal >= 0
       ? Math.min(rawTotal, fieldConfig.maxRows)
@@ -208,7 +206,7 @@ export class CrmGridDataService extends CrmBaseService {
       'selection_grid_load',
     );
 
-    return { records, page, pageSize, hasNextPage, nextPageCookie, isCapped, totalCount, totalPages };
+    return { records, page, pageSize, hasNextPage, isCapped, totalCount, totalPages };
   }
 
   async resolveFieldConfig(
@@ -322,8 +320,8 @@ export class CrmGridDataService extends CrmBaseService {
 
 function buildFetchXml(params: BuildFetchXmlParams): string {
   const {
-    baseXml, page, pageSize, pagingCookie,
-    filterExpression, dependsOnFilterTemplate, dependsOnValue,
+    baseXml, page, pageSize,
+    filterExpression, dependsOnFilterTemplate, dependsOnValues,
     searchText, searchAttributes, sortBy, sortDirection,
     columnFilters, columnConfigs,
   } = params;
@@ -339,6 +337,11 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
   }
 
   // Step 1: Strip existing page/count/top/paging-cookie/order attrs; inject fresh ones.
+  // We deliberately do NOT emit a paging-cookie: page-number paging (page + count) is
+  // correct and stable for the row-capped result sets this grid serves, and avoids the
+  // fragile Web API cursor-cookie round-trip that fails with 0x80041129
+  // ("Paging Cookie And Query Do Not Match") when the query's order and the cookie's
+  // encoded order columns diverge.
   xml = xml.replace(
     /<fetch([^>]*)>/,
     (_match, existingAttrs: string) => {
@@ -348,22 +351,16 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
         .replace(/\s+top="[^"]*"/g, '')
         .replace(/\s+paging-cookie="[^"]*"/g, '')
         .replace(/\s+returntotalrecordcount="[^"]*"/g, '');
-
-      let newAttrs = `${cleaned} page="${page}" count="${pageSize}" returntotalrecordcount="true"`;
-      if (pagingCookie) {
-        const rawCookie = Buffer.from(pagingCookie, 'base64').toString('utf8');
-        newAttrs += ` paging-cookie="${escapeXmlAttribute(rawCookie)}"`;
-      }
-      return `<fetch${newAttrs}>`;
+      return `<fetch${cleaned} page="${page}" count="${pageSize}" returntotalrecordcount="true">`;
     },
   );
 
-  // Step 2: Strip existing <order> elements — user sort overrides view default.
-  xml = xml.replace(/<order\b[^>]*\/>/g, '');
-  xml = xml.replace(/<order\b[^>]*>[\s\S]*?<\/order>/g, '');
-
-  // Step 3: Inject user sort before </entity> when active.
+  // Step 2/3: Ordering. A user sort overrides the view default; otherwise the view's own
+  // <order> is preserved so paging stays deterministic. Only strip the view order when the
+  // user has chosen a sort — removing it unconditionally left unsorted grids with no order.
   if (sortBy) {
+    xml = xml.replace(/<order\b[^>]*\/>/g, '');
+    xml = xml.replace(/<order\b[^>]*>[\s\S]*?<\/order>/g, '');
     const descending = sortDirection === 'desc' ? 'true' : 'false';
     xml = xml.replace('</entity>', `<order attribute="${sortBy}" descending="${descending}"/></entity>`);
   }
@@ -376,13 +373,12 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     if (cond) conditions.push(cond);
   }
 
-  if (dependsOnFilterTemplate && dependsOnValue !== undefined && dependsOnValue !== '') {
-    const resolved = dependsOnFilterTemplate.replace(
-      '{dependsOnValue}',
-      sanitizeFilterValue(dependsOnValue),
-    );
-    const cond = parseFilterCondition(resolved);
-    if (cond) conditions.push(cond);
+  // Depends-on filter: a maker-authored boolean template (and/or/grouping) whose
+  // {placeholder} tokens resolve from the form-field values. Compiles to a FetchXML
+  // subtree; empty/missing field values prune their conditions (partial filtering).
+  if (dependsOnFilterTemplate) {
+    const dependsOnFilter = buildDependsOnFilter(dependsOnFilterTemplate, dependsOnValues ?? {});
+    if (dependsOnFilter) conditions.push(dependsOnFilter);
   }
 
   if (searchText && searchText.trim() && searchAttributes.length > 0) {
@@ -532,10 +528,6 @@ function escapeXmlAttribute(value: string): string {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-}
-
-function sanitizeFilterValue(value: string): string {
-  return value.slice(0, 200).replace(/'/g, "''");
 }
 
 const ODATA_ANNOTATION_SUFFIX = '@OData.Community.Display.V1.FormattedValue';

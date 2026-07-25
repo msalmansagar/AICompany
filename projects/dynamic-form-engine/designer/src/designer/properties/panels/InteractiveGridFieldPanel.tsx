@@ -5,6 +5,7 @@ import {
   Divider,
   Field,
   Input,
+  Select,
   Switch,
   Text,
   Textarea,
@@ -47,6 +48,8 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
   const dataSource = field.gridDataSource ?? 'entity';
   const displayMode = field.gridDisplayMode ?? 'columns';
   const cardLayout = field.gridCardLayout ?? 'grid';
+  const pagingStyle = field.gridPagingStyle ?? 'prevnext';
+  const gridViewMode = field.gridViewMode ?? 'both';
   const selectable = field.gridSelectable !== false;
 
   const handleModeChange = useCallback(
@@ -168,6 +171,19 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
             </div>
           </Field>
 
+          <Field label="View Mode" hint="Which views the user gets: Both (with a toggle), List only, or Cards only.">
+            <Select
+              value={gridViewMode}
+              onChange={(_, d) =>
+                updateField(field.id, { gridViewMode: d.value as 'both' | 'table' | 'card' })
+              }
+            >
+              <option value="both">Both (toggle)</option>
+              <option value="table">List only</option>
+              <option value="card">Cards only</option>
+            </Select>
+          </Field>
+
           {displayMode === 'infocard' && (
             <>
               <Field label="Card Layout" hint="Grid = multi-column cards; Row = full-width horizontal list rows.">
@@ -262,7 +278,7 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
                 />
               </Field>
 
-              <Field label="Max Rows" hint="Row cap enforced server-side">
+              <Field label="Max Rows" hint="Total row cap across all pages, enforced server-side">
                 <Input
                   type="number"
                   value={field.maxRows != null ? String(field.maxRows) : ''}
@@ -273,16 +289,39 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
                 />
               </Field>
 
+              <Field label="Rows per Page" hint="Records shown per page before Next/Previous (default 50)">
+                <Input
+                  type="number"
+                  value={field.gridPageSize != null ? String(field.gridPageSize) : ''}
+                  placeholder="50"
+                  onChange={(_, d) =>
+                    updateField(field.id, { gridPageSize: d.value ? parseInt(d.value, 10) : null })
+                  }
+                />
+              </Field>
+
+              <Field label="Paging Style" hint="Previous/Next buttons, or numbered page buttons">
+                <Select
+                  value={pagingStyle}
+                  onChange={(_, d) =>
+                    updateField(field.id, { gridPagingStyle: d.value as 'prevnext' | 'numbered' })
+                  }
+                >
+                  <option value="prevnext">Prev / Next</option>
+                  <option value="numbered">Numbered</option>
+                </Select>
+              </Field>
+
               <Divider />
               <Text className={styles.sectionLabel}>Dynamic Filtering (optional)</Text>
 
               <Field
-                label="Depends On Field"
-                hint="Field code of the controlling field"
+                label="Depends On Field(s)"
+                hint="One or more controlling form-field schema names, comma-separated. Each supplies a {schemaName} value to the template below."
               >
                 <Input
                   value={field.gridDependsOnFieldId ?? ''}
-                  placeholder="e.g. cs_filter_status"
+                  placeholder="e.g. cs_service, cs_region, statuscode"
                   onChange={(_, d) => updateField(field.id, { gridDependsOnFieldId: d.value || null })}
                   style={{ fontFamily: 'monospace' }}
                 />
@@ -290,11 +329,11 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
 
               <Field
                 label="Filter Template"
-                hint="FetchXML template — use {value} for the controlling field value"
+                hint="Boolean filter over the grid entity: conditions joined by and/or with parentheses; values via {fieldSchemaName}. Quote text/GUID values, leave numbers unquoted. Empty fields drop their condition."
               >
                 <Input
                   value={field.gridDependsOnFilterTemplate ?? ''}
-                  placeholder="e.g. <condition attribute='statuscode' value='{value}' />"
+                  placeholder="e.g. cs_service eq '{cs_service}' and ( cs_region eq '{cs_region}' or statuscode eq {statuscode} )"
                   onChange={(_, d) => updateField(field.id, { gridDependsOnFilterTemplate: d.value || null })}
                   style={{ fontFamily: 'monospace', fontSize: '12px' }}
                 />

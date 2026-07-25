@@ -1,3 +1,3 @@
-export * from './form.types';
-export * from './design.types';
-export * from './i18n.types';
+export * from './form.types.js';
+export * from './design.types.js';
+export * from './i18n.types.js';

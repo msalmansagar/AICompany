@@ -1,88 +1,82 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
-using Microsoft.Xrm.Sdk.Messages;
 using Microsoft.Xrm.Sdk.Metadata;
+using Mss.Dataverse;
 using EDP.RuleRuntime.Metadata;
 
 namespace EDP.RuleRuntime.Crm.Metadata
 {
     /// <summary>
-    /// Live IMetadataResolver over the Organization Service. Retrieves entity metadata
-    /// once per entity (attributes included) and caches it for the lifetime of the
-    /// resolver — the plugin/adapter creates one resolver per invocation, so the cache
-    /// is request-scoped (sandbox-safe, no shared mutable static state).
+    /// Live <see cref="IMetadataResolver"/> over the Organization Service. A thin
+    /// adapter over the shared <c>Mss.Dataverse.OrgServiceMetadataService</c>
+    /// (vendored under ../Global, see GLOBAL-VERSION) — the RetrieveEntityRequest,
+    /// attribute reads, and option-set extraction now live in the canonical.
+    ///
+    /// The resolver is created once per plugin invocation, so its field cache is
+    /// request-scoped (sandbox-safe): each entity's fields (with option-sets) are
+    /// fetched once and every query is served from that cache.
     /// </summary>
     public sealed class OrgServiceMetadataResolver : IMetadataResolver
     {
-        private readonly IOrganizationService _service;
-        private readonly Dictionary<string, EntityMetadata?> _cache =
-            new Dictionary<string, EntityMetadata?>(StringComparer.OrdinalIgnoreCase);
+        private readonly OrgServiceMetadataService _metadata;
+        private readonly Dictionary<string, IReadOnlyList<FieldMetadata>?> _cache =
+            new Dictionary<string, IReadOnlyList<FieldMetadata>?>(StringComparer.OrdinalIgnoreCase);
 
         public OrgServiceMetadataResolver(IOrganizationService service)
-            => _service = service ?? throw new ArgumentNullException(nameof(service));
+        {
+            if (service == null) throw new ArgumentNullException(nameof(service));
+            _metadata = new OrgServiceMetadataService(service);
+        }
 
         public bool EntityExists(string entityLogicalName) => Load(entityLogicalName) != null;
 
         public bool TryGetAttribute(string entityLogicalName, string attributeLogicalName, out AttributeInfo attribute)
         {
             attribute = null!;
-            var entity = Load(entityLogicalName);
-            if (entity?.Attributes == null) return false;
+            var field = Find(entityLogicalName, attributeLogicalName);
+            if (field == null) return false;
 
-            foreach (var attr in entity.Attributes)
-            {
-                if (!string.Equals(attr.LogicalName, attributeLogicalName, StringComparison.OrdinalIgnoreCase)) continue;
-                if (attr.AttributeType == null) return false;
-                attribute = new AttributeInfo(attr.LogicalName, FieldTypeMapper.Map(attr.AttributeType.Value),
-                    attr.DisplayName?.UserLocalizedLabel?.Label);
-                return true;
-            }
-            return false;
+            // The canonical carries the attribute type as its AttributeTypeCode name;
+            // parse it back so the existing FieldTypeMapper is reused unchanged. An
+            // unmappable/unknown type (e.g. "Unknown") yields false, as before.
+            if (!Enum.TryParse<AttributeTypeCode>(field.AttributeType, out var code)) return false;
+            attribute = new AttributeInfo(field.LogicalName, FieldTypeMapper.Map(code), field.DisplayName);
+            return true;
         }
 
         public IReadOnlyCollection<int> GetOptionValues(string entityLogicalName, string attributeLogicalName)
         {
-            var entity = Load(entityLogicalName);
-            if (entity?.Attributes == null) return Array.Empty<int>();
-
-            foreach (var attr in entity.Attributes)
-            {
-                if (!string.Equals(attr.LogicalName, attributeLogicalName, StringComparison.OrdinalIgnoreCase)) continue;
-                if (attr is EnumAttributeMetadata en && en.OptionSet?.Options != null)
-                {
-                    var values = new List<int>();
-                    foreach (var opt in en.OptionSet.Options)
-                        if (opt.Value.HasValue) values.Add(opt.Value.Value);
-                    return values;
-                }
-            }
-            return Array.Empty<int>();
+            var field = Find(entityLogicalName, attributeLogicalName);
+            if (field == null || field.Options.Count == 0) return Array.Empty<int>();
+            return field.Options.Select(o => o.Value).ToList();
         }
 
-        private EntityMetadata? Load(string entityLogicalName)
+        private FieldMetadata? Find(string entityLogicalName, string attributeLogicalName)
+        {
+            var fields = Load(entityLogicalName);
+            return fields?.FirstOrDefault(f =>
+                string.Equals(f.LogicalName, attributeLogicalName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private IReadOnlyList<FieldMetadata>? Load(string entityLogicalName)
         {
             if (_cache.TryGetValue(entityLogicalName, out var cached)) return cached;
 
-            EntityMetadata? metadata = null;
+            IReadOnlyList<FieldMetadata>? fields;
             try
             {
-                var response = (RetrieveEntityResponse)_service.Execute(new RetrieveEntityRequest
-                {
-                    LogicalName = entityLogicalName,
-                    EntityFilters = EntityFilters.Attributes,
-                    RetrieveAsIfPublished = false
-                });
-                metadata = response.EntityMetadata;
+                fields = _metadata.GetFieldsAsync(entityLogicalName, default).GetAwaiter().GetResult();
             }
             catch (Exception)
             {
                 // Unknown entity or metadata error -> treat as "not found"; validation surfaces it.
-                metadata = null;
+                fields = null;
             }
 
-            _cache[entityLogicalName] = metadata;
-            return metadata;
+            _cache[entityLogicalName] = fields;
+            return fields;
         }
     }
 }

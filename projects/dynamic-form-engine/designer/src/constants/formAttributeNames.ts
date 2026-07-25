@@ -73,6 +73,16 @@ export const PICKLIST_TO_SUMMARY_MODE: Record<number, 'None' | 'SystemGenerated'
   100000001: 'None', 100000002: 'SystemGenerated', 100000003: 'Manual',
 };
 
+// DFE-NUMBAR — number/decimal/currency display style — qdb_number_display_style picklist
+export const NUMBER_DISPLAY_STYLE_TO_PICKLIST: Record<string, number> = {
+  textbox: 100000001,
+  bar:     100000002,
+};
+export const PICKLIST_TO_NUMBER_DISPLAY_STYLE: Record<number, 'textbox' | 'bar'> = {
+  100000001: 'textbox',
+  100000002: 'bar',
+};
+
 export const FORM_SECTION_ATTRS = {
   ID: 'qdb_form_sectionid',
   TAB_ID: 'qdb_form_tab_id',               // use for create/update
@@ -112,6 +122,12 @@ export const FORM_FIELD_ATTRS = {
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
   MAX_ROWS: 'qdb_max_rows',
+  MAX_FILES: 'qdb_max_files',
+  GRID_PAGE_SIZE: 'qdb_grid_page_size',
+  GRID_PAGING_STYLE: 'qdb_grid_paging_style',
+  NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
+  BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
+  BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
   // DFE-TABZONE-001 — tab header/footer placement
@@ -134,6 +150,8 @@ export const FORM_FIELD_ATTRS = {
   INFO_CARD_DOWNLOAD_URL: 'qdb_info_card_download_url',
   INFO_CARD_DOWNLOAD_LABEL: 'qdb_info_card_download_label',
   INFO_CARD_DOWNLOAD_ICON: 'qdb_info_card_download_icon',
+  INFO_CARD_LIST_TYPE: 'qdb_info_card_list_type',
+  INFO_CARD_LIST_MARKER: 'qdb_info_card_list_marker',
   // File field — template download before upload
   FILE_DOWNLOAD_LABEL: 'qdb_file_download_label',
   FILE_DOWNLOAD_ICON: 'qdb_file_download_icon',
@@ -157,6 +175,7 @@ export const FORM_FIELD_ATTRS = {
   GRID_DATA_SOURCE: 'qdb_grid_data_source',
   GRID_JSON_DATA: 'qdb_grid_json_data',
   GRID_DISPLAY_MODE: 'qdb_grid_display_mode',
+  GRID_VIEW_MODE: 'qdb_grid_view_mode',
   GRID_CARD_LAYOUT: 'qdb_grid_card_layout',
   GRID_SELECTABLE: 'qdb_grid_selectable',
   GRID_CARD_ICON: 'qdb_grid_card_icon',
@@ -297,6 +316,14 @@ export const FORM_LOOKUP_CONFIG_ATTRS = {
   FILTER_QUERY: 'qdb_filter_expression',
   SEARCH_MIN_CHARS: 'qdb_search_min_chars',
   MAX_RESULTS: 'qdb_max_results',
+  // DFE-APILOOKUP-001 — external-API source.
+  SOURCE: 'qdb_lookup_source',
+  API_ENDPOINT_KEY: 'qdb_lookup_api_endpoint_key',
+  API_VALUE_PATH: 'qdb_lookup_api_value_path',
+  API_LABEL_PATH: 'qdb_lookup_api_label_path',
+  API_SEARCH_PARAM: 'qdb_lookup_api_search_param',
+  API_SEARCH_MODE: 'qdb_lookup_api_search_mode',
+  DISPLAY_COLUMNS_JSON: 'qdb_display_columns_json',  // DFE-LKPCOL-001
 } as const;
 
 export const FORM_SUBMISSION_MAPPING_ATTRS = {

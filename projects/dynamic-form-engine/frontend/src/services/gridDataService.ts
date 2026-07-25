@@ -6,7 +6,7 @@ export interface GridPageRequest {
   page: number;
   pageSize: number;
   signal?: AbortSignal;
-  dependsOnValue?: string;
+  dependsOnValues?: Record<string, string>;
   pagingCookie?: string;
   searchText?: string;
   sortBy?: string;
@@ -19,7 +19,7 @@ export async function fetchGridPage({
   page,
   pageSize,
   signal,
-  dependsOnValue,
+  dependsOnValues,
   pagingCookie,
   searchText,
   sortBy,
@@ -31,8 +31,15 @@ export async function fetchGridPage({
     pageSize: String(pageSize),
   });
 
-  if (dependsOnValue !== undefined && dependsOnValue !== '') {
-    params.set('dependsOnValue', dependsOnValue);
+  if (dependsOnValues) {
+    // Only send fields the user has actually filled in; the backend prunes the rest.
+    const activeValues: Record<string, string> = {};
+    for (const [schema, value] of Object.entries(dependsOnValues)) {
+      if (value !== '') activeValues[schema] = value;
+    }
+    if (Object.keys(activeValues).length > 0) {
+      params.set('dependsOnValues', JSON.stringify(activeValues));
+    }
   }
   if (pagingCookie) {
     params.set('pagingCookie', pagingCookie);

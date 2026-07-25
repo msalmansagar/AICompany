@@ -37,6 +37,8 @@ export type GridMode = 'selection' | 'entry';
 export type GridDataSource = 'entity' | 'json';
 export type GridDisplayMode = 'columns' | 'infocard';
 export type GridCardLayout = 'grid' | 'row';
+export type GridPagingStyle = 'prevnext' | 'numbered';
+export type GridViewMode = 'both' | 'table' | 'card';
 export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-list';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
@@ -55,6 +57,7 @@ export interface GridColumnConfig {
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
+  lookupValueAttribute?: string;
   options?: GridColumnOptionValue[];
 }
 
@@ -65,12 +68,15 @@ export interface GridFieldConfig {
   dataSource?: GridDataSource;     // default 'entity'. 'json' = static jsonData.
   jsonData?: string;               // static JSON array when dataSource === 'json'
   displayMode?: GridDisplayMode;   // default 'columns'. 'infocard' = rich card per row.
+  viewMode?: GridViewMode;         // which views are offered: 'both' (toggle), 'table' only, or 'card' only
   cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
   // Backend pre-filters to visible columns only; absent if no column configs are defined.
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
+  pageSize?: number;               // records per page for entity selection grids (runtime default 50)
+  pagingStyle?: GridPagingStyle;   // pager UI: 'prevnext' (default) or 'numbered' page buttons
   savedViewId?: string;
   entityName?: string;
   minRows?: number;
@@ -163,6 +169,10 @@ export interface FieldDefinition {
   allowCamera?: boolean;
   decimalPlaces?: number;
   currencySymbol?: string;
+  // DFE-NUMBAR: number/decimal/currency display style (bar = read-only utilization gauge).
+  numberDisplayStyle?: 'textbox' | 'bar';
+  barMaxFieldSchemaName?: string;
+  barValueFieldSchemaName?: string;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
   multiselectRenderStyle?: MultiselectRenderStyle;
@@ -174,6 +184,9 @@ export interface FieldDefinition {
   infoCardTitle?: string;
   infoCardBody?: string;
   infoCardIcon?: string;
+  // DFE-INFOLIST-001: render the body (newline-split) as a list.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman';
+  infoCardListMarker?: 'circle' | 'plain' | 'none';
   infoCardDownloadUrl?: string;
   infoCardDownloadLabel?: string;
   infoCardDownloadIcon?: string;
@@ -324,6 +337,38 @@ export type ScopedButtonAction =
   | SaveDraftActionConfig
   | CallApiActionConfig;
 
+// DFE-CBTN-001: condition types for conditional button visibility / enablement.
+// Mobile carries the types (parity with form.types.ts) but v1 defers runtime
+// evaluation — see brd-cbtn-approval.md OQ-006.
+export type LogicalOperator = 'AND' | 'OR';
+
+export type ConditionOperator =
+  | 'equals'
+  | 'notEquals'
+  | 'isEmpty'
+  | 'isNotEmpty'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'greaterThanOrEqual'
+  | 'lessThanOrEqual'
+  | 'contains'
+  | 'inList'
+  | 'notInList';
+
+export interface RuleCondition {
+  fieldId: string;
+  operator: ConditionOperator;
+  value?: string | number | boolean | string[];
+  logicalOperator?: LogicalOperator; // connector to the NEXT condition in the list
+}
+
+// DFE-CBTN-001: a set of conditions combined by `logic`, evaluated against live
+// field values to drive a scoped button's visibility or enablement.
+export interface ButtonConditionSet {
+  conditions: RuleCondition[];
+  logic: LogicalOperator;
+}
+
 export interface ScopedButton {
   id: string;
   placementScope: ButtonPlacementScope;
@@ -336,6 +381,11 @@ export interface ScopedButton {
   confirmationMessage?: string;
   action: ScopedButtonAction;  // discriminated by action.type
   isActive: boolean;
+  // DFE-CBTN-001: optional conditional visibility / enablement. When present the
+  // set is evaluated live against field values and overrides the static
+  // isVisible / isActive flag; when absent, the static flag applies (legacy).
+  visibleWhen?: ButtonConditionSet;
+  enabledWhen?: ButtonConditionSet;
 }
 
 /** Resolved extra-parameter envelope produced server-side at submit time. */

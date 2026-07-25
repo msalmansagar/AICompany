@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Org Service SDK metadata canonical for the PLUGIN runtime — MSS Technologies
+    global library. Targets .NET Framework 4.7.1 (the Dataverse plugin sandbox
+    ceiling) and references the Xrm SDK. Shares the ONE contract source with the
+    Web API canonical (linked, not duplicated). Consumers vendor these .cs files
+    into their net471 plugin project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net471</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Mss.Dataverse</RootNamespace>
+    <AssemblyName>Mss.Dataverse.Sdk</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The 4.7.1 targeting pack, so net471 builds without a system-installed pack. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net471" Version="1.0.3" PrivateAssets="all" />
+    <!-- Xrm SDK (IOrganizationService, RetrieveEntityRequest, metadata types). -->
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.51" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The single shared contract, linked from the Web API canonical. -->
+    <Compile Include="../dataverse-dotnet/src/IDataverseMetadata.cs" Link="IDataverseMetadata.cs" />
+  </ItemGroup>
+
+</Project>

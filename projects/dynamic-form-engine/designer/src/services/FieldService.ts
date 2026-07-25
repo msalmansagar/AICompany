@@ -16,9 +16,19 @@ import {
   PICKLIST_TO_GRID_MODE,
   GRID_SELECTION_MODE_TO_PICKLIST,
   PICKLIST_TO_GRID_SELECTION_MODE,
+  NUMBER_DISPLAY_STYLE_TO_PICKLIST,
+  PICKLIST_TO_NUMBER_DISPLAY_STYLE,
 } from '@/constants/attributeNames';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
+
+// DFE-INFOLIST-001: validate the info-card list style strings read from Dataverse.
+function mapInfoCardListType(v: unknown): DesignerFieldModel['infoCardListType'] {
+  return v === 'bullet' || v === 'numbered-arabic' || v === 'numbered-roman' ? v : null;
+}
+function mapInfoCardListMarker(v: unknown): DesignerFieldModel['infoCardListMarker'] {
+  return v === 'circle' || v === 'plain' || v === 'none' ? v : null;
+}
 
 export interface CreateFieldDto {
   sectionId: string;
@@ -38,7 +48,11 @@ export interface CreateFieldDto {
   tabId?: string | null;
   currencyCode?: string | null;
   decimalPlaces?: number | null;
+  numberDisplayStyle?: 'textbox' | 'bar' | null;
+  barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
+  maxFiles?: number | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -49,6 +63,8 @@ export interface CreateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardDownloadUrl?: string | null;
   infoCardDownloadLabel?: string | null;
   infoCardDownloadIcon?: string | null;
@@ -75,9 +91,12 @@ export interface CreateFieldDto {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridViewMode?: 'both' | 'table' | 'card' | null;
   gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
+  gridPageSize?: number | null;
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;
 }
 
 export interface UpdateFieldDto {
@@ -96,7 +115,11 @@ export interface UpdateFieldDto {
   tabId?: string | null;
   currencyCode?: string | null;
   decimalPlaces?: number | null;
+  numberDisplayStyle?: 'textbox' | 'bar' | null;
+  barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
+  maxFiles?: number | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -107,6 +130,8 @@ export interface UpdateFieldDto {
   infoCardTitle?: string | null;
   infoCardBody?: string | null;
   infoCardIcon?: string | null;
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardDownloadUrl?: string | null;
   infoCardDownloadLabel?: string | null;
   infoCardDownloadIcon?: string | null;
@@ -133,9 +158,12 @@ export interface UpdateFieldDto {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridViewMode?: 'both' | 'table' | 'card' | null;
   gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
+  gridPageSize?: number | null;
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;
 }
 
 export class FieldService {
@@ -164,7 +192,11 @@ export class FieldService {
     if (dto.defaultValue != null) payload[FORM_FIELD_ATTRS.DEFAULT_VALUE] = dto.defaultValue;
     if (dto.currencyCode != null) payload[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces != null) payload[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
+    if (dto.numberDisplayStyle != null) payload[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle];
+    if (dto.barMaxFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
+    if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.maxFiles != null) payload[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
     if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
     if (dto.boolRenderStyle != null) payload[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle];
     if (dto.trueLabel != null) payload[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel;
@@ -173,6 +205,8 @@ export class FieldService {
     if (dto.infoCardTitle != null) payload[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle;
     if (dto.infoCardBody != null) payload[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody;
     if (dto.infoCardIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon;
+    if (dto.infoCardListType != null) payload[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE] = dto.infoCardListType;
+    if (dto.infoCardListMarker != null) payload[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER] = dto.infoCardListMarker;
     if (dto.infoCardDownloadUrl != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl;
     if (dto.infoCardDownloadLabel != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel;
     if (dto.infoCardDownloadIcon != null) payload[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon;
@@ -195,9 +229,12 @@ export class FieldService {
     if (dto.gridDataSource != null) payload[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource;
     if (dto.gridJsonData != null) payload[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData;
     if (dto.gridDisplayMode != null) payload[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode;
+    if (dto.gridViewMode != null) payload[FORM_FIELD_ATTRS.GRID_VIEW_MODE] = dto.gridViewMode;
     if (dto.gridCardLayout != null) payload[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] = dto.gridCardLayout;
     if (dto.gridSelectable != null) payload[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable;
     if (dto.gridCardIcon != null) payload[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon;
+    if (dto.gridPageSize != null) payload[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize;
+    if (dto.gridPagingStyle != null) payload[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle;
 
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_FIELD, payload),
@@ -224,7 +261,11 @@ export class FieldService {
     if (dto.tabId) data[`${FORM_FIELD_ATTRS.TAB_ID}@odata.bind`] = `/qdb_form_tabs(${dto.tabId})`;
     if (dto.currencyCode !== undefined) data[FORM_FIELD_ATTRS.CURRENCY_CODE] = dto.currencyCode;
     if (dto.decimalPlaces !== undefined) data[FORM_FIELD_ATTRS.DECIMAL_PLACES] = dto.decimalPlaces;
+    if (dto.numberDisplayStyle !== undefined) data[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] = dto.numberDisplayStyle != null ? NUMBER_DISPLAY_STYLE_TO_PICKLIST[dto.numberDisplayStyle] : null;
+    if (dto.barMaxFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] = dto.barMaxFieldSchemaName;
+    if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
+    if (dto.maxFiles !== undefined) data[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
     if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
     if (dto.boolRenderStyle !== undefined) data[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = dto.boolRenderStyle != null ? BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle] : null;
     if (dto.trueLabel !== undefined) data[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel ?? null;
@@ -233,6 +274,8 @@ export class FieldService {
     if (dto.infoCardTitle !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_TITLE] = dto.infoCardTitle ?? null;
     if (dto.infoCardBody !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_BODY] = dto.infoCardBody ?? null;
     if (dto.infoCardIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_ICON] = dto.infoCardIcon ?? null;
+    if (dto.infoCardListType !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE] = dto.infoCardListType ?? null;
+    if (dto.infoCardListMarker !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER] = dto.infoCardListMarker ?? null;
     if (dto.infoCardDownloadUrl !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] = dto.infoCardDownloadUrl ?? null;
     if (dto.infoCardDownloadLabel !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] = dto.infoCardDownloadLabel ?? null;
     if (dto.infoCardDownloadIcon !== undefined) data[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] = dto.infoCardDownloadIcon ?? null;
@@ -255,9 +298,12 @@ export class FieldService {
     if (dto.gridDataSource !== undefined) data[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] = dto.gridDataSource ?? null;
     if (dto.gridJsonData !== undefined) data[FORM_FIELD_ATTRS.GRID_JSON_DATA] = dto.gridJsonData ?? null;
     if (dto.gridDisplayMode !== undefined) data[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] = dto.gridDisplayMode ?? null;
+    if (dto.gridViewMode !== undefined) data[FORM_FIELD_ATTRS.GRID_VIEW_MODE] = dto.gridViewMode ?? null;
     if (dto.gridCardLayout !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] = dto.gridCardLayout ?? null;
     if (dto.gridSelectable !== undefined) data[FORM_FIELD_ATTRS.GRID_SELECTABLE] = dto.gridSelectable ?? null;
     if (dto.gridCardIcon !== undefined) data[FORM_FIELD_ATTRS.GRID_CARD_ICON] = dto.gridCardIcon ?? null;
+    if (dto.gridPageSize !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] = dto.gridPageSize ?? null;
+    if (dto.gridPagingStyle !== undefined) data[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] = dto.gridPagingStyle ?? null;
 
     if (Object.keys(data).length === 0) return;
 
@@ -292,7 +338,11 @@ export class FieldService {
       FORM_FIELD_ATTRS.COLUMN_SPAN,
       FORM_FIELD_ATTRS.CURRENCY_CODE,
       FORM_FIELD_ATTRS.DECIMAL_PLACES,
+      FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE,
+      FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA,
+      FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA,
       FORM_FIELD_ATTRS.MAX_ROWS,
+      FORM_FIELD_ATTRS.MAX_FILES,
       FORM_FIELD_ATTRS.COMPONENT_KEY,
     ];
 
@@ -310,6 +360,8 @@ export class FieldService {
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL,
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL,
       FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON,
+      FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE,
+      FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER,
       FORM_FIELD_ATTRS.FILE_DOWNLOAD_LABEL,
       FORM_FIELD_ATTRS.FILE_DOWNLOAD_ICON,
       FORM_FIELD_ATTRS.UPLOAD_DOCUMENT_SETTING,
@@ -329,9 +381,12 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_DATA_SOURCE,
       FORM_FIELD_ATTRS.GRID_JSON_DATA,
       FORM_FIELD_ATTRS.GRID_DISPLAY_MODE,
+      FORM_FIELD_ATTRS.GRID_VIEW_MODE,
       FORM_FIELD_ATTRS.GRID_CARD_LAYOUT,
       FORM_FIELD_ATTRS.GRID_SELECTABLE,
       FORM_FIELD_ATTRS.GRID_CARD_ICON,
+      FORM_FIELD_ATTRS.GRID_PAGE_SIZE,
+      FORM_FIELD_ATTRS.GRID_PAGING_STYLE,
     ];
 
     const filter = `${FORM_FIELD_ATTRS.SECTION_ID_VALUE} eq ${sectionId}`;
@@ -392,8 +447,16 @@ export class FieldService {
       decimalPlaces: record[FORM_FIELD_ATTRS.DECIMAL_PLACES] != null
         ? Number(record[FORM_FIELD_ATTRS.DECIMAL_PLACES])
         : null,
+      numberDisplayStyle: record[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE] != null
+        ? (PICKLIST_TO_NUMBER_DISPLAY_STYLE[Number(record[FORM_FIELD_ATTRS.NUMBER_DISPLAY_STYLE])] ?? null)
+        : null,
+      barMaxFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_MAX_FIELD_SCHEMA] as string) ?? null,
+      barValueFieldSchemaName: (record[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] as string) ?? null,
       maxRows: record[FORM_FIELD_ATTRS.MAX_ROWS] != null
         ? Number(record[FORM_FIELD_ATTRS.MAX_ROWS])
+        : null,
+      maxFiles: record[FORM_FIELD_ATTRS.MAX_FILES] != null
+        ? Number(record[FORM_FIELD_ATTRS.MAX_FILES])
         : null,
       sortOrder: Number(record[FORM_FIELD_ATTRS.SORT_ORDER] ?? 0),
       columnSpan,
@@ -413,6 +476,8 @@ export class FieldService {
       infoCardTitle: record[FORM_FIELD_ATTRS.INFO_CARD_TITLE] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_TITLE]) : null,
       infoCardBody: record[FORM_FIELD_ATTRS.INFO_CARD_BODY] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_BODY]) : null,
       infoCardIcon: record[FORM_FIELD_ATTRS.INFO_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_ICON]) : null,
+      infoCardListType: mapInfoCardListType(record[FORM_FIELD_ATTRS.INFO_CARD_LIST_TYPE]),
+      infoCardListMarker: mapInfoCardListMarker(record[FORM_FIELD_ATTRS.INFO_CARD_LIST_MARKER]),
       infoCardDownloadUrl: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_URL]) : null,
       infoCardDownloadLabel: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_LABEL]) : null,
       infoCardDownloadIcon: record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON] != null ? String(record[FORM_FIELD_ATTRS.INFO_CARD_DOWNLOAD_ICON]) : null,
@@ -439,9 +504,12 @@ export class FieldService {
       gridDataSource: (record[FORM_FIELD_ATTRS.GRID_DATA_SOURCE] as 'entity' | 'json' | undefined) ?? null,
       gridJsonData: record[FORM_FIELD_ATTRS.GRID_JSON_DATA] != null ? String(record[FORM_FIELD_ATTRS.GRID_JSON_DATA]) : null,
       gridDisplayMode: (record[FORM_FIELD_ATTRS.GRID_DISPLAY_MODE] as 'columns' | 'infocard' | undefined) ?? null,
+      gridViewMode: (record[FORM_FIELD_ATTRS.GRID_VIEW_MODE] as 'both' | 'table' | 'card' | undefined) ?? null,
       gridCardLayout: (record[FORM_FIELD_ATTRS.GRID_CARD_LAYOUT] as 'grid' | 'row' | undefined) ?? null,
       gridSelectable: record[FORM_FIELD_ATTRS.GRID_SELECTABLE] != null ? Boolean(record[FORM_FIELD_ATTRS.GRID_SELECTABLE]) : null,
       gridCardIcon: record[FORM_FIELD_ATTRS.GRID_CARD_ICON] != null ? String(record[FORM_FIELD_ATTRS.GRID_CARD_ICON]) : null,
+      gridPageSize: record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE] != null ? Number(record[FORM_FIELD_ATTRS.GRID_PAGE_SIZE]) : null,
+      gridPagingStyle: (record[FORM_FIELD_ATTRS.GRID_PAGING_STYLE] as 'prevnext' | 'numbered' | undefined) ?? null,
       gridColumns: [],
     };
   }

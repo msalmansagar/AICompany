@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { CrmMetadataService } from '../services/CrmMetadataService.js';
 import type { CrmDesignService } from '../services/CrmDesignService.js';
+import type { ApiLookupService } from '../services/ApiLookupService.js';
 import { ForbiddenError } from '../utils/errors.js';
 import { config } from '../config/env.js';
 import type { ApiResponse } from '@qdb/shared';
@@ -17,8 +18,19 @@ interface CacheInvalidationResult {
 export function createAdminRouter(
   metadataService: CrmMetadataService,
   designService: CrmDesignService,
+  apiLookupService: ApiLookupService | null,
 ): Router {
   const router = Router();
+
+  // GET /api/admin/endpoint-registry/keys — the only registry data ever exposed:
+  // the list of active endpoint keys, so the designer can offer an approved-key
+  // dropdown. Returns [] when the feature is inactive (never the URLs or credentials).
+  router.get('/endpoint-registry/keys', async (req: Request, res: Response) => {
+    assertCrmAdminRole(req);
+    const keys = apiLookupService ? await apiLookupService.activeKeys() : [];
+    const response: ApiResponse<string[]> = { success: true, data: keys };
+    res.json(response);
+  });
 
   // POST /api/admin/cache/invalidate/:formCode
   // Invalidates both metadata and design cache for a specific form.

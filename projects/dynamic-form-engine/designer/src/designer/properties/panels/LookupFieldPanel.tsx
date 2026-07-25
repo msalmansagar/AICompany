@@ -38,6 +38,9 @@ function buildLookupPatch(
   patch: Partial<DesignerLookupConfig>
 ): DesignerLookupConfig {
   return {
+    // Spread existing first so the API-source fields (DFE-APILOOKUP-001) survive a
+    // quick-panel edit to the entity fields.
+    ...existing,
     targetEntity: existing?.targetEntity ?? '',
     displayField: existing?.displayField ?? '',
     valueField: existing?.valueField ?? '',

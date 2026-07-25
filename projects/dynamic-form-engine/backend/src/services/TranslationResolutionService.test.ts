@@ -66,6 +66,33 @@ describe('TranslationResolutionService', () => {
     expect(result.tabs[0]?.label).toBe('المعلومات الشخصية');
   });
 
+  it('resolveTranslations_scopedButtons_appliesTabAndSectionButtonLabelTranslation', () => {
+    // DFE-CBTN-001 scoped buttons were previously left untranslated.
+    const scoped = (id: string, label: string) => ({
+      id, label, placementScope: 'tab', displayOrder: 1, isVisible: true, isPrimary: false,
+      confirmRequired: false, action: { type: 'saveDraft' },
+    });
+    const form = makeMinimalForm({
+      tabs: [{
+        id: 'tab-001', formDefinitionId: 'form-001', label: 'Tab', displayOrder: 1, isVisible: true,
+        requiresPreviousTabComplete: false,
+        buttons: [scoped('btn-tab', 'Verify')] as never,
+        sections: [{
+          id: 'sec-001', tabId: 'tab-001', label: 'Sec', description: null, columnCount: 1,
+          isCollapsible: false, isExpandedByDefault: true, isVisible: true, displayOrder: 1,
+          fields: [], buttons: [scoped('btn-sec', 'Save')] as never,
+        }],
+      }] as never,
+    });
+    const map: TranslationMap = new Map([
+      ['qdb_form_scoped_button:btn-tab:qdb_label', 'تحقّق'],
+      ['qdb_form_scoped_button:btn-sec:qdb_label', 'حفظ'],
+    ]);
+    const result = service.resolveTranslations(form, map);
+    expect(result.tabs[0]?.buttons?.[0]?.label).toBe('تحقّق');
+    expect(result.tabs[0]?.sections[0]?.buttons?.[0]?.label).toBe('حفظ');
+  });
+
   it('resolveTranslations_sections_appliesLabelAndDescriptionTranslation', () => {
     const form = makeMinimalForm({
       tabs: [{

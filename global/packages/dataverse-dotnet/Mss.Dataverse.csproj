@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Canonical Dataverse library for the .NET runtime — MSS Technologies global
+    library. The C# sibling of the @mss/* TypeScript packages. Consumers vendor
+    the src/ files (mirroring the TS vendoring model) or add a ProjectReference.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Mss.Dataverse</RootNamespace>
+    <AssemblyName>Mss.Dataverse</AssemblyName>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- IHttpClientFactory; consumers (e.g. report-engine) already reference this. -->
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+  </ItemGroup>
+
+</Project>

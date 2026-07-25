@@ -6,6 +6,8 @@ import type {
   RuleCondition,
   BusinessRuleAction,
   OptionValue,
+  ScopedButton,
+  ButtonConditionSet,
 } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
@@ -32,6 +34,15 @@ interface RuleEvent {
   };
 }
 
+// DFE-CBTN-001: event shape emitted by evaluateButtons().
+interface ButtonRuleEvent {
+  type: string;
+  params?: {
+    buttonId?: string;
+    axis?: 'visible' | 'enabled';
+  };
+}
+
 function buildExpressionContext(values: FormFieldValues): ExpressionContext {
   const ctx: ExpressionContext = {};
   for (const [key, val] of Object.entries(values)) {
@@ -53,6 +64,8 @@ function buildEmptyResult(): RuleEvaluationResult {
     fieldReadonly: {},
     fieldValues: {},
     filteredOptions: {},
+    buttonVisibility: {},
+    buttonEnabledState: {},
   };
 }
 
@@ -88,6 +101,78 @@ export class RuleEngine {
     const { events } = await engine.run(facts);
 
     return this.mapEventsToResult(events as RuleEvent[], fieldValues);
+  }
+
+  /**
+   * DFE-CBTN-001: evaluates each scoped button's `visibleWhen` / `enabledWhen`
+   * condition sets against the current field values. A button id appears in a
+   * map only when it declares the corresponding set; callers fall back to the
+   * button's static `isVisible` / `isActive` flag when it is absent. Reuses the
+   * same operator machinery (`convertCondition` / `buildFacts`) as `evaluate`.
+   */
+  async evaluateButtons(
+    buttons: ScopedButton[],
+    fieldValues: FormFieldValues,
+  ): Promise<{
+    buttonVisibility: Record<string, boolean>;
+    buttonEnabledState: Record<string, boolean>;
+  }> {
+    const buttonVisibility: Record<string, boolean> = {};
+    const buttonEnabledState: Record<string, boolean> = {};
+
+    const engine = new Engine();
+    let ruleCount = 0;
+
+    for (const button of buttons) {
+      if (this.hasConditions(button.visibleWhen)) {
+        buttonVisibility[button.id] = false;
+        engine.addRule({
+          conditions: this.buildConditionSet(button.visibleWhen!),
+          event: { type: `vis:${button.id}`, params: { buttonId: button.id, axis: 'visible' } },
+        });
+        ruleCount += 1;
+      }
+      if (this.hasConditions(button.enabledWhen)) {
+        buttonEnabledState[button.id] = false;
+        engine.addRule({
+          conditions: this.buildConditionSet(button.enabledWhen!),
+          event: { type: `en:${button.id}`, params: { buttonId: button.id, axis: 'enabled' } },
+        });
+        ruleCount += 1;
+      }
+    }
+
+    if (ruleCount === 0) {
+      return { buttonVisibility, buttonEnabledState };
+    }
+
+    const facts = this.buildFacts(fieldValues);
+    const { events } = await engine.run(facts);
+
+    for (const event of events as ButtonRuleEvent[]) {
+      const buttonId = event.params?.buttonId;
+      if (!buttonId) continue;
+      if (event.params?.axis === 'visible') buttonVisibility[buttonId] = true;
+      else if (event.params?.axis === 'enabled') buttonEnabledState[buttonId] = true;
+    }
+
+    return { buttonVisibility, buttonEnabledState };
+  }
+
+  private hasConditions(set?: ButtonConditionSet): boolean {
+    return !!set && Array.isArray(set.conditions) && set.conditions.length > 0;
+  }
+
+  private buildConditionSet(
+    set: ButtonConditionSet,
+  ): { all: ConditionProperties[] } | { any: ConditionProperties[] } {
+    const mapped = set.conditions.map((condition) => this.convertCondition(condition));
+
+    if (set.logic === 'AND') {
+      return { all: mapped };
+    }
+
+    return { any: mapped };
   }
 
   private buildConditions(

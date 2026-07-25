@@ -108,6 +108,17 @@ const useStyles = makeStyles({
     display: 'flex',
     gap: tokens.spacingHorizontalXS,
   },
+  // Numbered pager: page-number buttons flanked by prev/next arrows.
+  numberedPager: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalXXS,
+    flexWrap: 'wrap',
+  },
+  pageEllipsis: {
+    padding: `0 ${tokens.spacingHorizontalXXS}`,
+    color: tokens.colorNeutralForeground3,
+  },
   skeletonRows: {
     display: 'flex',
     flexDirection: 'column',
@@ -284,6 +295,16 @@ export function resolveRecordDisplayValue(
   values: Record<string, unknown>,
   attribute: string,
 ): string {
+  // FetchXml-sourced grids (saved-view queries) return the formatted display value
+  // under `attr@FormattedValue` — for both lookups AND option-sets. Check this before
+  // the raw attribute so lookup/optionset columns show the name/label, not the GUID/code.
+  const fetchXmlFormatted =
+    values?.[`${attribute}@OData.Community.Display.V1.FormattedValue`];
+  if (fetchXmlFormatted !== null && fetchXmlFormatted !== undefined) {
+    return String(fetchXmlFormatted);
+  }
+
+  // OData Web API convention for a lookup's formatted value.
   const formattedLookup =
     values?.[`_${attribute}_value@OData.Community.Display.V1.FormattedValue`];
   if (formattedLookup !== null && formattedLookup !== undefined) {
@@ -318,6 +339,25 @@ function parseJsonGridRecords(jsonData: string | undefined): GridRecord[] {
   return parsed
     .filter((row): row is Record<string, unknown> => typeof row === 'object' && row !== null && !Array.isArray(row))
     .map((row, index) => ({ id: row.id != null ? String(row.id) : `json-${index}`, values: row }));
+}
+
+// Builds the windowed page list for the numbered pager: always the first and last
+// page, the current page with one neighbour on each side, and 'ellipsis' markers for
+// the gaps. e.g. current 5 of 10 → [1, 'ellipsis', 4, 5, 6, 'ellipsis', 10].
+export function buildPageList(current: number, total: number): Array<number | 'ellipsis'> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages = new Set<number>([1, total, current, current - 1, current + 1]);
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b);
+  const result: Array<number | 'ellipsis'> = [];
+  let previous = 0;
+  for (const page of sorted) {
+    if (page - previous > 1) result.push('ellipsis');
+    result.push(page);
+    previous = page;
+  }
+  return result;
 }
 
 // ── Per-column filter cell ────────────────────────────────────────────────────
@@ -409,16 +449,38 @@ export function SelectionGridField({
   // interactivity. Read-only display grids show no selection controls or value.
   const isJsonSource = gridConfig?.dataSource === 'json';
   const isSelectable = gridConfig?.selectable !== false;
-  const defaultViewMode: ViewMode = gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
+  // viewOption controls which views are offered: 'both' shows the Table/Cards toggle,
+  // 'table'/'card' lock to a single view and hide the toggle.
+  const viewOption = gridConfig?.viewMode ?? 'both';
+  const showViewToggle = viewOption === 'both';
+  const defaultViewMode: ViewMode = viewOption === 'card'
+    ? 'card'
+    : viewOption === 'table'
+      ? 'table'
+      : gridConfig?.displayMode === 'infocard' ? 'card' : 'table';
   // DFE-GRIDSRC-001: 'row' arranges info cards as full-width horizontal list rows.
   const isRowLayout = gridConfig?.cardLayout === 'row';
+  // Pager UI: 'numbered' page buttons vs default Previous/Next.
+  const pagingStyle = gridConfig?.pagingStyle ?? 'prevnext';
 
-  // Resolve the current value of the depends-on field (if configured) for dynamic filtering.
-  const dependsOnFieldId = gridConfig?.dependsOnFieldId;
-  const dependsOnRaw = dependsOnFieldId ? fieldValues[dependsOnFieldId] : undefined;
-  const dependsOnValue = dependsOnRaw !== undefined && dependsOnRaw !== null
-    ? String(dependsOnRaw)
-    : undefined;
+  // Depends-on filtering: dependsOnFieldId is a comma-separated list of form-field
+  // schema names. Each supplies a {schemaName} placeholder value to the filter template;
+  // 'dependsOnValue' aliases the first field for single-field (legacy) templates.
+  const dependsOnSchemas = useMemo(
+    () => (gridConfig?.dependsOnFieldId ?? '').split(',').map((schema) => schema.trim()).filter(Boolean),
+    [gridConfig?.dependsOnFieldId],
+  );
+  const dependsOnValues = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const schema of dependsOnSchemas) {
+      const raw = fieldValues[schema];
+      map[schema] = raw !== undefined && raw !== null ? String(raw) : '';
+    }
+    if (dependsOnSchemas.length > 0) {
+      map.dependsOnValue = map[dependsOnSchemas[0]] ?? '';
+    }
+    return map;
+  }, [dependsOnSchemas, fieldValues]);
 
 
   const [viewMode, setViewMode] = useState<ViewMode>(defaultViewMode);
@@ -475,8 +537,8 @@ export function SelectionGridField({
 
   const gridData = useSelectionGridData(
     field.id,
-    50,
-    dependsOnValue,
+    gridConfig?.pageSize ?? 50,
+    dependsOnValues,
     undefined,
     sortState.column ?? undefined,
     sortState.column ? sortState.direction : undefined,
@@ -723,42 +785,49 @@ export function SelectionGridField({
         </Text>
       )}
 
-      {/* Toolbar: active filter count + view toggle */}
-      <div className={styles.toolbarRow}>
-        {activeFilterCount > 0 && (
-          <div className={styles.activeFilterBadge}>
-            <FilterRegular />
-            <Text size={200}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
-            <Button
-              appearance="transparent"
-              size="small"
-              icon={<DismissRegular />}
-              onClick={clearAllFilters}
-              aria-label="Clear all filters"
-            />
-          </div>
-        )}
-        <ToggleButton
-          icon={<TableRegular />}
-          checked={viewMode === 'table'}
-          onClick={() => setViewMode('table')}
-          size="small"
-          aria-label="Table view"
-          appearance={viewMode === 'table' ? 'primary' : 'subtle'}
-        >
-          Table
-        </ToggleButton>
-        <ToggleButton
-          icon={<GridRegular />}
-          checked={viewMode === 'card'}
-          onClick={() => setViewMode('card')}
-          size="small"
-          aria-label="Card view"
-          appearance={viewMode === 'card' ? 'primary' : 'subtle'}
-        >
-          Cards
-        </ToggleButton>
-      </div>
+      {/* Toolbar: active filter count + view toggle. Rendered only when there's
+          something to show — the toggle (view mode 'both') or an active filter. */}
+      {(showViewToggle || activeFilterCount > 0) && (
+        <div className={styles.toolbarRow}>
+          {activeFilterCount > 0 && (
+            <div className={styles.activeFilterBadge}>
+              <FilterRegular />
+              <Text size={200}>{activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</Text>
+              <Button
+                appearance="transparent"
+                size="small"
+                icon={<DismissRegular />}
+                onClick={clearAllFilters}
+                aria-label="Clear all filters"
+              />
+            </div>
+          )}
+          {showViewToggle && (
+            <>
+              <ToggleButton
+                icon={<TableRegular />}
+                checked={viewMode === 'table'}
+                onClick={() => setViewMode('table')}
+                size="small"
+                aria-label="Table view"
+                appearance={viewMode === 'table' ? 'primary' : 'subtle'}
+              >
+                Table
+              </ToggleButton>
+              <ToggleButton
+                icon={<GridRegular />}
+                checked={viewMode === 'card'}
+                onClick={() => setViewMode('card')}
+                size="small"
+                aria-label="Card view"
+                appearance={viewMode === 'card' ? 'primary' : 'subtle'}
+              >
+                Cards
+              </ToggleButton>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Card view */}
       {viewMode === 'card' && (
@@ -947,27 +1016,64 @@ export function SelectionGridField({
             {gridData.totalCount ? ` · ${gridData.totalCount} records` : ''}
             {gridData.isCapped && ' · row limit applied'}
           </Text>
-          <div className={styles.paginationButtons}>
-            <Button
-              appearance="secondary"
-              icon={<ChevronLeftRegular />}
-              disabled={gridData.page <= 1}
-              onClick={() => gridData.loadPage(gridData.page - 1)}
-              aria-label="Previous page"
-            >
-              Previous
-            </Button>
-            <Button
-              appearance="secondary"
-              iconPosition="after"
-              icon={<ChevronRightRegular />}
-              disabled={!gridData.hasNextPage}
-              onClick={() => gridData.loadPage(gridData.page + 1)}
-              aria-label="Next page"
-            >
-              Next
-            </Button>
-          </div>
+          {pagingStyle === 'numbered' && gridData.totalPages ? (
+            <div className={styles.numberedPager} role="navigation" aria-label="Grid pagination">
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<ChevronLeftRegular />}
+                disabled={gridData.page <= 1}
+                onClick={() => gridData.loadPage(gridData.page - 1)}
+                aria-label="Previous page"
+              />
+              {buildPageList(gridData.page, gridData.totalPages).map((entry, index) =>
+                entry === 'ellipsis' ? (
+                  <span key={`ellipsis-${index}`} className={styles.pageEllipsis} aria-hidden="true">…</span>
+                ) : (
+                  <Button
+                    key={entry}
+                    appearance={entry === gridData.page ? 'primary' : 'subtle'}
+                    size="small"
+                    onClick={() => gridData.loadPage(entry)}
+                    aria-label={`Page ${entry}`}
+                    aria-current={entry === gridData.page ? 'page' : undefined}
+                  >
+                    {entry}
+                  </Button>
+                ),
+              )}
+              <Button
+                appearance="subtle"
+                size="small"
+                icon={<ChevronRightRegular />}
+                disabled={!gridData.hasNextPage}
+                onClick={() => gridData.loadPage(gridData.page + 1)}
+                aria-label="Next page"
+              />
+            </div>
+          ) : (
+            <div className={styles.paginationButtons}>
+              <Button
+                appearance="secondary"
+                icon={<ChevronLeftRegular />}
+                disabled={gridData.page <= 1}
+                onClick={() => gridData.loadPage(gridData.page - 1)}
+                aria-label="Previous page"
+              >
+                Previous
+              </Button>
+              <Button
+                appearance="secondary"
+                iconPosition="after"
+                icon={<ChevronRightRegular />}
+                disabled={!gridData.hasNextPage}
+                onClick={() => gridData.loadPage(gridData.page + 1)}
+                aria-label="Next page"
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

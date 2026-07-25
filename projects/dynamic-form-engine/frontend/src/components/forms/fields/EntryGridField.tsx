@@ -30,8 +30,9 @@ import {
   ArrowUploadRegular,
   DismissRegular,
 } from '@fluentui/react-icons';
-import type { GridColumnConfig, GridColumnOptionValue } from '@qdb/shared';
+import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb/shared';
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
+import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
 import type { ControlProps } from '../FieldRenderer';
 
@@ -353,6 +354,20 @@ function EntryGridCell({
         </Select>
       );
 
+    case 'lookup':
+      return (
+        <GridLookupCell
+          value={value}
+          isReadonly={isReadonly}
+          entityName={col.lookupTargetEntity ?? ''}
+          displayAttribute={col.lookupDisplayAttribute ?? 'name'}
+          valueAttribute={col.lookupValueAttribute}
+          cellId={cellId}
+          headerId={headerId}
+          onChange={handleChange}
+        />
+      );
+
     default:
       // text and any unknown types
       return (
@@ -368,6 +383,157 @@ function EntryGridCell({
         />
       );
   }
+}
+
+// ─── Lookup cell (DFE) — editable entity-sourced lookup inside an entry grid ──
+// Reuses the standalone lookup's search hook + endpoint. The cell value is a
+// { id, displayName } object (JSON-serialised with the row on submit).
+interface GridLookupValue {
+  id: string;
+  displayName: string;
+}
+
+interface GridLookupCellProps {
+  value: unknown;
+  isReadonly: boolean;
+  entityName: string;
+  displayAttribute: string;
+  // Target-entity attribute stored as the record ID; undefined ⇒ primary key.
+  valueAttribute?: string;
+  cellId: string;
+  headerId: string;
+  onChange: (value: unknown) => void;
+}
+
+function isGridLookupValue(value: unknown): value is GridLookupValue {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as GridLookupValue).id === 'string'
+  );
+}
+
+function GridLookupCell({
+  value,
+  isReadonly,
+  entityName,
+  displayAttribute,
+  valueAttribute,
+  cellId,
+  headerId,
+  onChange,
+}: GridLookupCellProps) {
+  const [inputText, setInputText] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const { results, isSearching, search, loadInitial, clearResults } = useLookupSearch({
+    entityName,
+    displayAttribute: displayAttribute || 'name',
+    valueAttribute,
+    maxResults: 10,
+  });
+
+  const selected = isGridLookupValue(value) ? value : null;
+  const displayValue = inputText || selected?.displayName || '';
+  const minChars = 2;
+
+  function openList(): void {
+    if (isReadonly) return;
+    setIsOpen(true);
+    if (!inputText) loadInitial();
+  }
+
+  function handleInput(query: string): void {
+    setInputText(query);
+    setIsOpen(true);
+    if (query.length >= minChars) search(query);
+    else if (!query) loadInitial();
+  }
+
+  function handlePick(result: LookupResult): void {
+    onChange({ id: result.id, displayName: result.displayName } satisfies GridLookupValue);
+    setInputText('');
+    clearResults();
+    setIsOpen(false);
+  }
+
+  function handleClear(e: React.MouseEvent): void {
+    e.stopPropagation();
+    onChange(undefined);
+    setInputText('');
+  }
+
+  return (
+    <div
+      style={{ position: 'relative', width: '100%' }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOpen(false);
+      }}
+    >
+      <Input
+        id={cellId}
+        value={displayValue}
+        onChange={(e) => handleInput(e.target.value)}
+        input={{ onFocus: openList }}
+        disabled={isReadonly}
+        placeholder="Search…"
+        aria-labelledby={headerId}
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        style={{ width: '100%' }}
+        contentAfter={
+          selected ? (
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleClear}
+              aria-label="Clear selection"
+              tabIndex={-1}
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: tokens.colorNeutralForeground3 }}
+            >
+              ✕
+            </button>
+          ) : undefined
+        }
+      />
+      {isOpen && !isReadonly && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute', zIndex: 9999, top: '100%', left: 0, right: 0,
+            backgroundColor: tokens.colorNeutralBackground1,
+            border: `1px solid ${tokens.colorNeutralStroke1}`,
+            borderRadius: tokens.borderRadiusMedium, boxShadow: tokens.shadow16,
+            maxHeight: '220px', overflowY: 'auto', marginTop: '2px',
+          }}
+        >
+          {isSearching && (
+            <div style={{ padding: '8px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Spinner size="tiny" /> Searching…
+            </div>
+          )}
+          {!isSearching && results.length === 0 && (
+            <div style={{ padding: '8px 12px', fontSize: '12px', color: tokens.colorNeutralForeground3 }}>No results</div>
+          )}
+          {!isSearching &&
+            results.map((result) => (
+              <button
+                key={result.id}
+                role="option"
+                aria-selected={result.id === selected?.id}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handlePick(result)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left', padding: '6px 12px',
+                  border: 'none', cursor: 'pointer', fontSize: '13px',
+                  backgroundColor: result.id === selected?.id ? tokens.colorBrandBackground2 : 'transparent',
+                }}
+              >
+                {result.displayName}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── File / document cell ────────────────────────────────────────────────────

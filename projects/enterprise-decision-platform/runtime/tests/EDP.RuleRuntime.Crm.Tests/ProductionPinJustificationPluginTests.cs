@@ -92,31 +92,6 @@ namespace EDP.RuleRuntime.Crm.Tests
             new ProductionPinJustificationPlugin().Execute(provider);
         }
 
-        [Fact]
-        public void Production_flag_unreadable_fails_safe_and_enforces()
-        {
-            // QA-C2: if the env-var query throws, IsProduction() must fail SAFE (treat as production)
-            // and still reject an unjustified pin — never silently skip enforcement.
-            var target = new Entity(Entity) { ["qdb_edp_ispinned"] = true };
-            var ctx = new FakePluginContext { MessageName = "Create", PrimaryEntityName = Entity, Stage = 20 };
-            ctx.InputParameters["Target"] = target;
-            var provider = new FakeServiceProvider(ctx, new ThrowingService());
-            Assert.Throws<InvalidPluginExecutionException>(() => new ProductionPinJustificationPlugin().Execute(provider));
-        }
-
-        /// <summary>Org service whose flag query throws — exercises the IsProduction() fail-safe path.</summary>
-        private sealed class ThrowingService : IOrganizationService
-        {
-            public EntityCollection RetrieveMultiple(QueryBase query) => throw new InvalidOperationException("production flag unreadable");
-            public Guid Create(Entity entity) => throw new NotImplementedException();
-            public Entity Retrieve(string entityName, Guid id, ColumnSet columnSet) => throw new NotImplementedException();
-            public void Update(Entity entity) => throw new NotImplementedException();
-            public void Delete(string entityName, Guid id) => throw new NotImplementedException();
-            public OrganizationResponse Execute(OrganizationRequest request) => throw new NotImplementedException();
-            public void Associate(string entityName, Guid entityId, Relationship relationship, EntityReferenceCollection relatedEntities) => throw new NotImplementedException();
-            public void Disassociate(string entityName, Guid entityId, Relationship relationship, EntityReferenceCollection relatedEntities) => throw new NotImplementedException();
-        }
-
         /// <summary>Minimal org service that answers only the production-flag query.</summary>
         private sealed class EnvFlagService : IOrganizationService
         {

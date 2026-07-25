@@ -117,6 +117,19 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
       </div>
 
       <Field
+        label="Maximum Documents"
+        hint="How many documents the user may upload in this field. Set above 1 to allow multiple; leave blank for a single file."
+      >
+        <Input
+          type="number"
+          min={1}
+          value={field.maxFiles != null ? String(field.maxFiles) : ''}
+          placeholder="1"
+          onChange={(_, d) => updateField(field.id, { maxFiles: d.value ? parseInt(d.value, 10) : null })}
+        />
+      </Field>
+
+      <Field
         label="Download Label"
         hint='Label on the template-download button shown before upload. Hidden when Download Icon is set.'
       >

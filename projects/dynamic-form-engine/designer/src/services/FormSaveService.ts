@@ -193,6 +193,7 @@ export class FormSaveService {
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          maxFiles: field.maxFiles,
           boolRenderStyle: field.boolRenderStyle,
           trueLabel: field.trueLabel,
           falseLabel: field.falseLabel,
@@ -215,9 +216,12 @@ export class FormSaveService {
           gridDataSource: field.gridDataSource,
           gridJsonData: field.gridJsonData,
           gridDisplayMode: field.gridDisplayMode,
+          gridViewMode: field.gridViewMode,
           gridCardLayout: field.gridCardLayout,
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
+          gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
         resolvedIds[tempFieldId] = realId;
 
@@ -309,6 +313,7 @@ export class FormSaveService {
           currencyCode: field.currencyCode,
           decimalPlaces: field.decimalPlaces,
           maxRows: field.maxRows,
+          maxFiles: field.maxFiles,
           boolRenderStyle: field.boolRenderStyle,
           trueLabel: field.trueLabel,
           falseLabel: field.falseLabel,
@@ -331,9 +336,12 @@ export class FormSaveService {
           gridDataSource: field.gridDataSource,
           gridJsonData: field.gridJsonData,
           gridDisplayMode: field.gridDisplayMode,
+          gridViewMode: field.gridViewMode,
           gridCardLayout: field.gridCardLayout,
           gridSelectable: field.gridSelectable,
           gridCardIcon: field.gridCardIcon,
+          gridPageSize: field.gridPageSize,
+          gridPagingStyle: field.gridPagingStyle,
         });
 
         // Step 4b: Sync options for dirty dropdown/multi_select/radio fields

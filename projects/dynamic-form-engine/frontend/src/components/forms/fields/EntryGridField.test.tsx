@@ -20,6 +20,17 @@ vi.mock('../../../contexts/FormContext', () => ({
   }),
 }));
 
+// DFE — the entry-grid lookup cell reuses the standalone lookup's search hook.
+vi.mock('../../../hooks/useLookupSearch', () => ({
+  useLookupSearch: () => ({
+    results: [{ id: 'a1', displayName: 'Qatar National Bank' }],
+    isSearching: false,
+    search: vi.fn(),
+    loadInitial: vi.fn(),
+    clearResults: vi.fn(),
+  }),
+}));
+
 function makeEntryGridField(
   gridConfigOverrides: Partial<GridFieldConfig> = {},
 ): FieldDefinition {
@@ -88,6 +99,30 @@ describe('EntryGridField', () => {
     // Assert — empty state message and the "Add row" button are both present.
     expect(screen.getByText(/no entries yet/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /add new row/i })).toBeTruthy();
+  });
+
+  it('EntryGridField_rendersEditableLookupCell_forLookupColumn', () => {
+    // Arrange — one row + a lookup column (entity-sourced).
+    mockFieldValues = { entryGrid: [{}] };
+    const field = makeEntryGridField({
+      columnConfigs: [
+        {
+          columnId: 'col-company',
+          displayOrder: 1,
+          columnLabel: 'Company',
+          targetAttribute: 'qdb_company',
+          columnFieldType: 'lookup',
+          lookupTargetEntity: 'account',
+          lookupDisplayAttribute: 'name',
+        },
+      ],
+    } as Partial<GridFieldConfig>);
+
+    // Act
+    renderEntryGrid(field);
+
+    // Assert — the lookup cell renders a searchable input (not a plain text box).
+    expect(screen.getByPlaceholderText(/search/i)).toBeTruthy();
   });
 
   it('EntryGridField_clickingAddRow_appendsNewRow', () => {

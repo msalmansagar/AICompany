@@ -82,6 +82,21 @@ export interface DesignerLookupConfig {
   filterQuery: string | null;
   searchMinChars: number;
   maxResults: number;
+  // DFE-APILOOKUP-001 — optional so existing entity-lookup config stays unchanged.
+  source?: 'entity' | 'api';
+  apiEndpointKey?: string | null;
+  apiValuePath?: string | null;
+  apiLabelPath?: string | null;
+  apiSearchParamName?: string | null;
+  apiSearchMode?: 'typeahead' | 'fetchAll' | null;
+  // DFE-LKPCOL-001 — multi-column + per-language display.
+  displayColumns?: DesignerLookupDisplayColumn[] | null;
+}
+
+export interface DesignerLookupDisplayColumn {
+  attribute: string;
+  arabicAttribute?: string | null;
+  header?: string | null;
 }
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
@@ -98,6 +113,7 @@ export interface DesignerGridColumnConfig {
   filterType: GridColumnFilterType;
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
+  lookupValueAttribute: string | null;
 }
 
 export interface DesignerFieldModel {
@@ -119,7 +135,12 @@ export interface DesignerFieldModel {
   defaultValue: string | null;
   currencyCode: string | null;
   decimalPlaces: number | null;
+  // DFE-NUMBAR: number/decimal/currency display style + the fields providing the bar's value/max.
+  numberDisplayStyle?: 'textbox' | 'bar' | null;
+  barMaxFieldSchemaName?: string | null;
+  barValueFieldSchemaName?: string | null;
   maxRows: number | null;
+  maxFiles?: number | null;        // file fields: max documents a user may upload (default 1)
   sortOrder: number;
   columnSpan: 1 | 2 | 3;
   /** Present for dropdown, multi_select, radio field types */
@@ -134,6 +155,9 @@ export interface DesignerFieldModel {
   falseLabel: string | null;
   // Sprint 4 — info-card inline field config
   infoCardStyle: 'info' | 'warning' | 'success' | 'error' | null;
+  // DFE-INFOLIST-001 — optional so existing field factories/fixtures don't break.
+  infoCardListType?: 'bullet' | 'numbered-arabic' | 'numbered-roman' | null;
+  infoCardListMarker?: 'circle' | 'plain' | 'none' | null;
   infoCardTitle: string | null;
   infoCardBody: string | null;
   infoCardIcon: string | null;
@@ -164,8 +188,11 @@ export interface DesignerFieldModel {
   gridDataSource?: 'entity' | 'json' | null;
   gridJsonData?: string | null;
   gridDisplayMode?: 'columns' | 'infocard' | null;
+  gridViewMode?: 'both' | 'table' | 'card' | null;   // which grid views are offered (default both)
   gridCardLayout?: 'grid' | 'row' | null;
   gridSelectable?: boolean | null;
   gridCardIcon?: string | null;
+  gridPageSize?: number | null;    // records per page for entity selection grids (runtime default 50)
+  gridPagingStyle?: 'prevnext' | 'numbered' | null;  // pager UI (default prevnext)
   gridColumns: DesignerGridColumnConfig[];
 }

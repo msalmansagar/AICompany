@@ -28,7 +28,7 @@ export interface SelectionGridDataState {
 export function useSelectionGridData(
   fieldId: string,
   defaultPageSize = 50,
-  dependsOnValue?: string,
+  dependsOnValues?: Record<string, string>,
   searchText?: string,
   sortBy?: string,
   sortDirection?: 'asc' | 'desc',
@@ -69,7 +69,7 @@ export function useSelectionGridData(
           page: requestedPage,
           pageSize,
           signal: controller.signal,
-          dependsOnValue,
+          dependsOnValues,
           pagingCookie,
           searchText,
           sortBy,
@@ -104,7 +104,7 @@ export function useSelectionGridData(
         );
       }
     },
-    [fieldId, pageSize, dependsOnValue, searchText, sortBy, sortDirection, columnFilters],
+    [fieldId, pageSize, dependsOnValues, searchText, sortBy, sortDirection, columnFilters],
   );
 
   const loadPageRef = useRef(loadPage);
@@ -123,7 +123,8 @@ export function useSelectionGridData(
   // When any filter param changes: clear the cookie cache, reset loaded flag, and
   // re-fetch page 1. Uses a combined key so a single effect handles all filter types.
   const columnFiltersKey = columnFilters ? JSON.stringify(columnFilters) : '';
-  const filterKey = [dependsOnValue ?? '', searchText ?? '', sortBy ?? '', sortDirection ?? '', columnFiltersKey].join('\0');
+  const dependsOnKey = dependsOnValues ? JSON.stringify(dependsOnValues) : '';
+  const filterKey = [dependsOnKey, searchText ?? '', sortBy ?? '', sortDirection ?? '', columnFiltersKey].join('\0');
   const prevFilterKeyRef = useRef(filterKey);
 
   useEffect(() => {

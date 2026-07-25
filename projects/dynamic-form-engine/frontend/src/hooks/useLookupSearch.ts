@@ -1,8 +1,19 @@
 ﻿import { useCallback, useRef, useState } from 'react';
-import type { LookupResult } from '@qdb/shared';
+import type { LookupResult, LookupDisplayColumn } from '@qdb/shared';
 import { lookupApi } from '../api/lookupApi';
 
 const DEFAULT_DEBOUNCE_MS = 300;
+
+// DFE-APILOOKUP-001 — when present, the lookup resolves options from an external API
+// (via the backend proxy) instead of a CRM entity.
+export interface ApiLookupSource {
+  endpointKey: string;
+  valuePath: string;
+  labelPath: string;
+  searchParamName?: string;
+  searchMode?: 'typeahead' | 'fetchAll';
+  formCode?: string;
+}
 
 export interface UseLookupSearchOptions {
   entityName: string;
@@ -11,6 +22,10 @@ export interface UseLookupSearchOptions {
   maxResults?: number;
   filterExpression?: string;
   debounceMs?: number;
+  apiSource?: ApiLookupSource;
+  // DFE-LKPCOL-001 — multi-column + language-aware display (entity lookups only).
+  displayColumns?: LookupDisplayColumn[];
+  lang?: string;
 }
 
 export interface UseLookupSearchResult {
@@ -29,6 +44,9 @@ export function useLookupSearch({
   maxResults = 10,
   filterExpression,
   debounceMs = DEFAULT_DEBOUNCE_MS,
+  apiSource,
+  displayColumns,
+  lang,
 }: UseLookupSearchOptions): UseLookupSearchResult {
   const [results, setResults] = useState<LookupResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -46,24 +64,42 @@ export function useLookupSearch({
       setSearchError(null);
 
       try {
-        const response = await lookupApi.search(entityName, {
-          search: query,
-          displayAttribute,
-          valueAttribute,
-          max: maxResults,
-          filter: filterExpression,
-        }, abortController.current.signal);
-        const data = (response as unknown as { data: LookupResult[] }).data;
-        setResults(data ?? []);
+        const response = apiSource
+          ? await lookupApi.searchApi({
+              endpointKey: apiSource.endpointKey,
+              search: query,
+              valuePath: apiSource.valuePath,
+              labelPath: apiSource.labelPath,
+              searchParam: apiSource.searchParamName,
+              searchMode: apiSource.searchMode,
+              formCode: apiSource.formCode,
+              max: maxResults,
+            }, abortController.current.signal)
+          : await lookupApi.search(entityName, {
+              search: query,
+              displayAttribute,
+              valueAttribute,
+              max: maxResults,
+              filter: filterExpression,
+              columns: displayColumns && displayColumns.length > 0 ? JSON.stringify(displayColumns) : undefined,
+              lang,
+            }, abortController.current.signal);
+        const envelope = response as unknown as { data: LookupResult[]; meta?: { warning?: string } };
+        // FR-026: a proxy degradation (timeout/upstream error) returns empty data +
+        // a warning. Surface a generic inline message — never the upstream detail.
+        if (apiSource && envelope.meta?.warning && (envelope.data?.length ?? 0) === 0) {
+          setSearchError('Unable to load options');
+        }
+        setResults(envelope.data ?? []);
       } catch (error) {
         if ((error as { name?: string }).name === 'CanceledError') return;
-        setSearchError(error instanceof Error ? error.message : 'Search failed');
+        setSearchError(apiSource ? 'Unable to load options' : (error instanceof Error ? error.message : 'Search failed'));
         setResults([]);
       } finally {
         setIsSearching(false);
       }
     },
-    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression],
+    [entityName, displayAttribute, valueAttribute, maxResults, filterExpression, apiSource, displayColumns, lang],
   );
 
   const search = useCallback(

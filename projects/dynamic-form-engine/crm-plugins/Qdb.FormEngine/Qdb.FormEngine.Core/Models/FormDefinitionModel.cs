@@ -104,6 +104,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("fileUploadConfig")] public FileUploadConfig FileUploadConfig { get; set; }
         [JsonProperty("currencyCode")] public string CurrencyCode { get; set; }
         [JsonProperty("decimalPlaces")] public int? DecimalPlaces { get; set; }
+        [JsonProperty("numberDisplayStyle", NullValueHandling = NullValueHandling.Ignore)] public string NumberDisplayStyle { get; set; }
+        [JsonProperty("barMaxFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarMaxFieldSchemaName { get; set; }
+        [JsonProperty("barValueFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarValueFieldSchemaName { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }
         // DFE-FBE-001: Label field — static content + optional data-bound source field.
@@ -120,6 +123,8 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("infoCardTitle")] public string InfoCardTitle { get; set; }
         [JsonProperty("infoCardBody")] public string InfoCardBody { get; set; }
         [JsonProperty("infoCardIcon")] public string InfoCardIcon { get; set; }
+        [JsonProperty("infoCardListType", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardListType { get; set; }
+        [JsonProperty("infoCardListMarker", NullValueHandling = NullValueHandling.Ignore)] public string InfoCardListMarker { get; set; }
         [JsonProperty("infoCardDownloadUrl")] public string InfoCardDownloadUrl { get; set; }
         [JsonProperty("infoCardDownloadLabel")] public string InfoCardDownloadLabel { get; set; }
         [JsonProperty("infoCardDownloadIcon")] public string InfoCardDownloadIcon { get; set; }
@@ -159,6 +164,22 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("maxResults")] public int MaxResults { get; set; }
         [JsonProperty("dependsOnFieldId")] public Guid? DependsOnFieldId { get; set; }
         [JsonProperty("dependsOnFilterTemplate")] public string DependsOnFilterTemplate { get; set; }
+        // DFE-APILOOKUP-001 — NullValueHandling.Ignore keeps entity-sourced lookups byte-identical.
+        [JsonProperty("source", NullValueHandling = NullValueHandling.Ignore)] public string Source { get; set; }
+        [JsonProperty("apiEndpointKey", NullValueHandling = NullValueHandling.Ignore)] public string ApiEndpointKey { get; set; }
+        [JsonProperty("apiValuePath", NullValueHandling = NullValueHandling.Ignore)] public string ApiValuePath { get; set; }
+        [JsonProperty("apiLabelPath", NullValueHandling = NullValueHandling.Ignore)] public string ApiLabelPath { get; set; }
+        [JsonProperty("apiSearchParamName", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchParamName { get; set; }
+        [JsonProperty("apiSearchMode", NullValueHandling = NullValueHandling.Ignore)] public string ApiSearchMode { get; set; }
+        // DFE-LKPCOL-001 — multi-column + per-language display.
+        [JsonProperty("displayColumns", NullValueHandling = NullValueHandling.Ignore)] public List<LookupDisplayColumn> DisplayColumns { get; set; }
+    }
+
+    public sealed class LookupDisplayColumn
+    {
+        [JsonProperty("attribute")] public string Attribute { get; set; }
+        [JsonProperty("arabicAttribute", NullValueHandling = NullValueHandling.Ignore)] public string ArabicAttribute { get; set; }
+        [JsonProperty("header", NullValueHandling = NullValueHandling.Ignore)] public string Header { get; set; }
     }
 
     /// <summary>Validation rule applied to a field before form submission.</summary>
@@ -201,7 +222,9 @@ namespace Qdb.FormEngine.Core.Models
     /// <summary>A single condition within a business rule's condition set.</summary>
     public sealed class RuleCondition
     {
-        [JsonProperty("fieldId")] public Guid FieldId { get; set; }
+        // Schema name (matches the runtime, which keys form data by schema name). Legacy rows
+        // store a GUID here that is resolved to the schema name during assembly.
+        [JsonProperty("fieldId")] public string FieldId { get; set; }
         [JsonProperty("operator")] public string Operator { get; set; }
         [JsonProperty("value")] public object Value { get; set; }
         [JsonProperty("logicalOperator")] public string LogicalOperator { get; set; }
@@ -267,6 +290,11 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("confirmationMessage", NullValueHandling = NullValueHandling.Ignore)] public string ConfirmationMessage { get; set; }
         [JsonProperty("action")] public object Action { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
+        // DFE-CBTN-001: optional per-button conditional visibility / enablement. Emitted
+        // verbatim as { conditions: [...], logic: "AND"|"OR" }; omitted when null so the
+        // button falls back to its static isVisible / isActive flag (legacy behavior).
+        [JsonProperty("visibleWhen", NullValueHandling = NullValueHandling.Ignore)] public object VisibleWhen { get; set; }
+        [JsonProperty("enabledWhen", NullValueHandling = NullValueHandling.Ignore)] public object EnabledWhen { get; set; }
     }
 
     /// <summary>Grid field configuration for interactive-grid and repeatingGrid field types.</summary>
@@ -282,8 +310,20 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("mode")] public string Mode { get; set; }
         [JsonProperty("entityName")] public string EntityName { get; set; }
         [JsonProperty("filterExpression")] public string FilterExpression { get; set; }
-        [JsonProperty("dependsOnFieldId")] public Guid? DependsOnFieldId { get; set; }
-        [JsonProperty("dependsOnFilterTemplate")] public string DependsOnFilterTemplate { get; set; }
+        // Comma-separated form-field schema names driving the depends-on filter template.
+        [JsonProperty("dependsOnFieldId", NullValueHandling = NullValueHandling.Ignore)] public string DependsOnFieldId { get; set; }
+        [JsonProperty("dependsOnFilterTemplate", NullValueHandling = NullValueHandling.Ignore)] public string DependsOnFilterTemplate { get; set; }
+        // DFE-GRIDSRC-001: data source + display configuration.
+        [JsonProperty("dataSource", NullValueHandling = NullValueHandling.Ignore)] public string DataSource { get; set; }
+        [JsonProperty("jsonData", NullValueHandling = NullValueHandling.Ignore)] public string JsonData { get; set; }
+        [JsonProperty("displayMode", NullValueHandling = NullValueHandling.Ignore)] public string DisplayMode { get; set; }
+        [JsonProperty("cardLayout", NullValueHandling = NullValueHandling.Ignore)] public string CardLayout { get; set; }
+        [JsonProperty("selectable", NullValueHandling = NullValueHandling.Ignore)] public bool? Selectable { get; set; }
+        [JsonProperty("cardIconName", NullValueHandling = NullValueHandling.Ignore)] public string CardIconName { get; set; }
+        // Paging + view configuration.
+        [JsonProperty("pageSize", NullValueHandling = NullValueHandling.Ignore)] public int? PageSize { get; set; }
+        [JsonProperty("pagingStyle", NullValueHandling = NullValueHandling.Ignore)] public string PagingStyle { get; set; }
+        [JsonProperty("viewMode", NullValueHandling = NullValueHandling.Ignore)] public string ViewMode { get; set; }
     }
 
     /// <summary>Column configuration within a grid field.</summary>
@@ -297,6 +337,7 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("filterType")] public string FilterType { get; set; }
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
+        [JsonProperty("lookupValueAttribute")] public string LookupValueAttribute { get; set; }
         [JsonProperty("options")] public List<GridColumnOptionValue> Options { get; set; }
     }
 

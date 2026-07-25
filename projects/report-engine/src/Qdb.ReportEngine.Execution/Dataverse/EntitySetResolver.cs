@@ -1,7 +1,5 @@
-using System.Collections.Concurrent;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using Microsoft.Extensions.Options;
+using Mss.Dataverse;
 using Qdb.ReportEngine.Core.Abstractions;
 using Qdb.ReportEngine.Core.Configuration;
 using Qdb.ReportEngine.Core.Models;
@@ -9,60 +7,41 @@ using Qdb.ReportEngine.Core.Models;
 namespace Qdb.ReportEngine.Execution.Dataverse;
 
 /// <summary>
-/// Resolves entity logical names to Web API entity-set names via <c>EntityDefinitions</c> metadata,
-/// caching results (entity-set names are static). Metadata is not user-scoped, so it reads with an
-/// app token. Held as a singleton so the cache is shared process-wide.
+/// Resolves entity logical names to Web API entity-set names. A thin adapter
+/// over the shared <c>Mss.Dataverse</c> library (vendored under ../Global, see
+/// GLOBAL-VERSION) — the entity-set resolution, direct EntityDefinitions lookup,
+/// and process-wide caching now live in the canonical package.
+///
+/// Metadata is not user-scoped, so it reads with an app token via a fixed
+/// metadata context. Held as a singleton so the canonical's cache is shared.
 /// </summary>
-public sealed class EntitySetResolver(
-    IHttpClientFactory httpClientFactory,
-    IDataverseTokenProvider tokenProvider,
-    IOptions<DataverseOptions> options) : IEntitySetResolver
+public sealed class EntitySetResolver : IEntitySetResolver
 {
-    private static readonly ReportExecutionContext MetadataContext = new() { UserId = Guid.Empty, RoleSetHash = "metadata" };
-    private readonly ConcurrentDictionary<string, string> _cache = new(StringComparer.Ordinal);
-    private readonly DataverseOptions _options = options.Value;
+    private readonly IDataverseMetadata _metadata;
+
+    public EntitySetResolver(
+        IHttpClientFactory httpClientFactory,
+        IDataverseTokenProvider tokenProvider,
+        IOptions<DataverseOptions> options)
+    {
+        _metadata = new DataverseMetadataService(
+            httpClientFactory,
+            new MetadataTokenSource(tokenProvider),
+            options.Value.Url,
+            options.Value.ApiVersion);
+    }
 
     /// <inheritdoc />
-    public async Task<string> ResolveAsync(string entityLogicalName, CancellationToken cancellationToken)
+    public Task<string> ResolveAsync(string entityLogicalName, CancellationToken cancellationToken)
+        => _metadata.ResolveEntitySetNameAsync(entityLogicalName, cancellationToken);
+
+    /// <summary>Bridges the report-engine token provider to the canonical token source.</summary>
+    private sealed class MetadataTokenSource(IDataverseTokenProvider provider) : IDataverseTokenSource
     {
-        ArgumentException.ThrowIfNullOrEmpty(entityLogicalName);
-        if (_cache.TryGetValue(entityLogicalName, out var cached))
-        {
-            return cached;
-        }
+        private static readonly ReportExecutionContext MetadataContext =
+            new() { UserId = Guid.Empty, RoleSetHash = "metadata" };
 
-        var entitySet = await FetchEntitySetNameAsync(entityLogicalName, cancellationToken).ConfigureAwait(false);
-        _cache[entityLogicalName] = entitySet;
-        return entitySet;
+        public Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+            => provider.GetAccessTokenAsync(MetadataContext, cancellationToken);
     }
-
-    private async Task<string> FetchEntitySetNameAsync(string entityLogicalName, CancellationToken cancellationToken)
-    {
-        using var client = await CreateClientAsync(cancellationToken).ConfigureAwait(false);
-        var path = $"api/data/{_options.ApiVersion}/EntityDefinitions(LogicalName='{entityLogicalName}')?$select=EntitySetName";
-
-        using var response = await client.GetAsync(path, cancellationToken).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-
-        var definition = await response.Content
-            .ReadFromJsonAsync<EntityDefinitionResponse>(cancellationToken)
-            .ConfigureAwait(false);
-        if (definition?.EntitySetName is null)
-        {
-            throw new InvalidOperationException($"EntitySetName not found for entity '{entityLogicalName}'.");
-        }
-
-        return definition.EntitySetName;
-    }
-
-    private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken)
-    {
-        var token = await tokenProvider.GetAccessTokenAsync(MetadataContext, cancellationToken).ConfigureAwait(false);
-        var client = httpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(_options.Url.TrimEnd('/') + "/");
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return client;
-    }
-
-    private sealed record EntityDefinitionResponse(string? EntitySetName);
 }
