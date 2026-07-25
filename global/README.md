@@ -16,28 +16,31 @@ the one here.
 ```
 global/
 ├── packages/
-│   ├── dataverse-metadata/   entity schema + field metadata extraction
-│   ├── dataverse-lookup/     lookup + option-set resolution
+│   ├── dataverse-metadata/   entity schema + field metadata extraction (TS)
+│   ├── dataverse-lookup/     lookup + option-set resolution (TS)
+│   ├── dataverse-dotnet/     Mss.Dataverse — metadata for the .NET runtime (C#)
 │   └── ui-theme/             look-and-feel tokens (the shared visual baseline)
 ├── templates/
 │   └── project-base/         the scaffold a new project is generated from
 └── README.md                 this file
 ```
 
-## The two-runtime rule (non-negotiable)
+## The three-runtime rule (non-negotiable)
 
-Dataverse is reached from two runtimes that **cannot share one client**, because
-a browser cannot hold a client secret:
+Dataverse is reached from three runtimes. A browser cannot hold a client secret,
+and .NET is a different language — none can share one client:
 
 | Runtime | Auth | Used by |
 |---|---|---|
-| **Node / server** | client-credentials → bearer token | backend APIs, provisioning scripts |
-| **Browser / web resource** | `Xrm.WebApi` session, or a dev proxy | designers, in-CRM runtimes, portals |
+| **Node / server** (TS) | client-credentials → bearer token | backend APIs, provisioning scripts |
+| **Browser / web resource** (TS) | `Xrm.WebApi` session, or a dev proxy | designers, in-CRM runtimes, portals |
+| **.NET / C#** | client-credentials (middle-tier) or Org Service SDK (plugins) | report-engine middle-tier, CRM plugins |
 
-Every shared package therefore ships a **contract** (a runtime-agnostic
-interface) plus **two implementations** — `node/` and `browser/`. A project
-depends on the contract and picks the implementation for its runtime. See
-`packages/dataverse-metadata/` for the canonical shape.
+Each shared concern ships a runtime-agnostic **contract** plus an implementation
+per runtime it serves. The TS packages carry `node/` (and, in time, `browser/`);
+the .NET runtime has its own canonical, `packages/dataverse-dotnet`
+(`Mss.Dataverse`), a C# sibling of `dataverse-metadata`. A project depends on
+the contract and picks the implementation for its runtime.
 
 ## How a project inherits (no monorepo)
 
