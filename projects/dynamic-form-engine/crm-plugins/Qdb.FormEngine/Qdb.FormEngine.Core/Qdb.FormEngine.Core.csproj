@@ -58,6 +58,8 @@
     <Compile Include="Generation\FormJsonGenerator.cs" />
     <Compile Include="Generation\ITranslationResolver.cs" />
     <Compile Include="Generation\TranslationResolver.cs" />
+    <Compile Include="Generation\IFieldReferenceCollector.cs" />
+    <Compile Include="Generation\FieldReferenceCollector.cs" />
     <Compile Include="Generation\ISecurityStripper.cs" />
     <Compile Include="Generation\SecurityStripper.cs" />
     <Compile Include="Hashing\HashService.cs" />

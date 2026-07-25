@@ -12,8 +12,10 @@ namespace Qdb.FormEngine.Core.Generation
         /// <summary>
         /// Strips hidden fields from all sections in the form model.
         /// Fields where <see cref="FieldDefinition.IsHidden"/> is true are removed
-        /// from the returned copy. Role-based filtering is NOT performed here;
-        /// that is deferred to the portal's own authorisation layer.
+        /// from the returned copy, unless another field reads their value at runtime
+        /// (utilization bar source, data-bound label source, grid depends-on filter) —
+        /// those are kept so the reading field still resolves. Role-based filtering is
+        /// NOT performed here; that is deferred to the portal's own authorisation layer.
         /// </summary>
         /// <param name="model">The fully generated form definition model to strip.</param>
         /// <returns>

@@ -16,7 +16,7 @@ namespace Qdb.FormEngine.Tests
         /// <summary>Initialises the system under test.</summary>
         public SecurityStripperTests()
         {
-            _stripper = new SecurityStripper();
+            _stripper = new SecurityStripper(new FieldReferenceCollector());
         }
 
         [Fact]
@@ -151,6 +151,88 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal("Person", result.Tabs[0].Sections[0].IconName);
         }
 
+        [Fact]
+        public void Strip_HiddenFieldReadByBarMax_RetainsField()
+        {
+            // Arrange — DFE-NUMBAR: the bar divides by a hidden field's value
+            var hiddenMax = BuildField(Guid.NewGuid(), isHidden: true, schemaName: "qdb_vd_limit");
+            var bar = BuildField(Guid.NewGuid(), isHidden: false, schemaName: "qdb_vd_util");
+            bar.NumberDisplayStyle = "bar";
+            bar.BarMaxFieldSchemaName = "qdb_vd_limit";
+            var model = BuildModelWithFields(hiddenMax, bar);
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Contains(result.Tabs[0].Sections[0].Fields, field => field.SchemaName == "qdb_vd_limit");
+        }
+
+        [Fact]
+        public void Strip_HiddenFieldReadByBarValue_RetainsFieldAsInvisible()
+        {
+            // Arrange
+            var hiddenValue = BuildField(Guid.NewGuid(), isHidden: true, schemaName: "qdb_vd_drawn");
+            var bar = BuildField(Guid.NewGuid(), isHidden: false, schemaName: "qdb_vd_util");
+            bar.BarValueFieldSchemaName = "qdb_vd_drawn";
+            var model = BuildModelWithFields(hiddenValue, bar);
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert — retained for its value, but still never rendered
+            var retained = Assert.Single(result.Tabs[0].Sections[0].Fields, field => field.SchemaName == "qdb_vd_drawn");
+            Assert.False(retained.IsVisible);
+        }
+
+        [Fact]
+        public void Strip_HiddenFieldReadByDataBoundLabel_RetainsField()
+        {
+            // Arrange — DFE-FBE-001
+            var hiddenSource = BuildField(Guid.NewGuid(), isHidden: true, schemaName: "qdb_applicant_name");
+            var label = BuildField(Guid.NewGuid(), isHidden: false, schemaName: "qdb_summary_label");
+            label.SourceFieldSchemaName = "qdb_applicant_name";
+            var model = BuildModelWithFields(hiddenSource, label);
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Contains(result.Tabs[0].Sections[0].Fields, field => field.SchemaName == "qdb_applicant_name");
+        }
+
+        [Fact]
+        public void Strip_HiddenFieldNamedInGridDependsOnList_RetainsField()
+        {
+            // Arrange — DFE-GRIDSRC-001: comma-separated depends-on schema names
+            var hiddenFilter = BuildField(Guid.NewGuid(), isHidden: true, schemaName: "demo_company_picker");
+            var grid = BuildField(Guid.NewGuid(), isHidden: false, schemaName: "demo_type_results");
+            grid.GridConfig = new GridFieldConfig { DependsOnFieldId = "demo_service_type, demo_company_picker" };
+            var model = BuildModelWithFields(hiddenFilter, grid);
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.Contains(result.Tabs[0].Sections[0].Fields, field => field.SchemaName == "demo_company_picker");
+        }
+
+        [Fact]
+        public void Strip_HiddenFieldNobodyReads_StillRemovesField()
+        {
+            // Arrange — retention is by reference only; unreferenced hidden fields still go
+            var hiddenUnused = BuildField(Guid.NewGuid(), isHidden: true, schemaName: "qdb_internal_note");
+            var bar = BuildField(Guid.NewGuid(), isHidden: false, schemaName: "qdb_vd_util");
+            bar.BarMaxFieldSchemaName = "qdb_vd_limit";
+            var model = BuildModelWithFields(hiddenUnused, bar);
+
+            // Act
+            var result = _stripper.Strip(model);
+
+            // Assert
+            Assert.DoesNotContain(result.Tabs[0].Sections[0].Fields, field => field.SchemaName == "qdb_internal_note");
+        }
+
         private static FormDefinitionModel BuildModelWithFields(params FieldDefinition[] fields)
         {
             var sectionId = Guid.NewGuid();
@@ -192,14 +274,14 @@ namespace Qdb.FormEngine.Tests
             };
         }
 
-        private static FieldDefinition BuildField(Guid id, bool isHidden)
+        private static FieldDefinition BuildField(Guid id, bool isHidden, string schemaName = "qdb_test_field")
         {
             return new FieldDefinition
             {
                 Id = id,
                 SectionId = Guid.NewGuid(),
                 FieldType = "text",
-                SchemaName = "qdb_test_field",
+                SchemaName = schemaName,
                 Label = "Test Field",
                 DisplayOrder = 1,
                 ColumnSpan = 1,
