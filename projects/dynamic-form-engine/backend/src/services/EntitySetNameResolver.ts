@@ -1,7 +1,7 @@
 // The Web API addresses records by entity-set name, which is NOT the logical name plus "s".
 // Dataverse pluralises (qdb_activity -> qdb_activities, qdb_agreementdetails ->
-// qdb_agreementdetailses) and appends set/collection for some system tables; in this org
-// 743 entities break the naive rule, 290 of them custom. opportunity -> opportunities is
+// qdb_agreementdetailses) and appends set/collection for some tables; in this org 743 of
+// 3069 entities break the naive rule, 638 of them custom. opportunity -> opportunities is
 // already an active submission target, so guessing produces /opportunitys and a 404.
 //
 // The name comes from metadata and changes only when a table is created, so it is cached
