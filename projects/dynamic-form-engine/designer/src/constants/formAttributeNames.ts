@@ -167,7 +167,11 @@ export const FORM_FIELD_ATTRS = {
   GRID_ENTITY_NAME: 'qdb_grid_entity_name',
   GRID_SELECTION_MODE: 'qdb_selection_mode',
   GRID_MIN_ROWS: 'qdb_grid_min_rows',
-  GRID_SAVED_VIEW_ID: 'qdb_saved_view_id',
+  // Lives in the form's "Grid Config" section, alongside the other grid settings.
+  // qdb_saved_view_id is the legacy twin under "Lookup Config"; readers still fall back
+  // to it so records saved before the move keep working.
+  GRID_SAVED_VIEW_ID: 'qdb_grid_saved_view_id',
+  GRID_SAVED_VIEW_ID_LEGACY: 'qdb_saved_view_id',
   GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
   GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
   GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',

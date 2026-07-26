@@ -86,24 +86,56 @@ namespace Qdb.FormEngine.Tests
         }
 
         [Fact]
-        public void Generate_GridField_PublishesTheSavedViewIdTheDesignerWrote()
+        public void Generate_GridField_PublishesTheSavedViewIdFromGridConfig()
         {
-            // Arrange — the designer and the portal both use qdb_saved_view_id. Reading the
-            // unused qdb_grid_saved_view_id column published a null view, which left the
-            // in-CRM grid querying the entity instead of the configured view.
-            var formId = Guid.NewGuid();
+            // Arrange — the saved view lives in the form's Grid Config section
             var savedViewId = Guid.NewGuid().ToString();
-            var rawData = BuildFormRawDataWithHiddenField(formId);
-            var gridField = rawData.Fields[0];
-            gridField["qdb_grid_mode"] = new OptionSetValue(100000000);
-            gridField["qdb_grid_entity_name"] = "contact";
-            gridField["qdb_saved_view_id"] = savedViewId;
+            var rawData = BuildGridFormRawData(gridConfigView: savedViewId, legacyView: null);
 
             // Act
             var result = _generator.Generate(rawData, "en");
 
             // Assert
             Assert.Equal(savedViewId, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        [Fact]
+        public void Generate_GridFieldWithOnlyLegacyView_FallsBackToIt()
+        {
+            // Arrange — fields configured before the setting moved out of Lookup Config
+            var legacyViewId = Guid.NewGuid().ToString();
+            var rawData = BuildGridFormRawData(gridConfigView: null, legacyView: legacyViewId);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(legacyViewId, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        [Fact]
+        public void Generate_GridFieldWithBothViews_PrefersGridConfig()
+        {
+            // Arrange — a migrated field carries both; Grid Config is the field of record
+            var gridConfigView = Guid.NewGuid().ToString();
+            var rawData = BuildGridFormRawData(gridConfigView, legacyView: Guid.NewGuid().ToString());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(gridConfigView, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        private FormRawData BuildGridFormRawData(string gridConfigView, string legacyView)
+        {
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+            var gridField = rawData.Fields[0];
+            gridField["qdb_grid_mode"] = new OptionSetValue(100000000);
+            gridField["qdb_grid_entity_name"] = "contact";
+            if (gridConfigView != null) gridField["qdb_grid_saved_view_id"] = gridConfigView;
+            if (legacyView != null) gridField["qdb_saved_view_id"] = legacyView;
+            return rawData;
         }
 
         [Fact]

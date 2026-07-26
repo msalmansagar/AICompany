@@ -472,7 +472,8 @@ export class CrmMetadataService extends CrmBaseService {
         maxRows: field.qdb_max_rows ?? 200,
         pageSize: field.qdb_grid_page_size ?? undefined,
         pagingStyle: field.qdb_grid_paging_style === 'numbered' ? ('numbered' as const) : undefined,
-        savedViewId: field.qdb_saved_view_id ?? undefined,
+        // Grid Config column first, legacy Lookup Config column as fallback.
+        savedViewId: field.qdb_grid_saved_view_id ?? field.qdb_saved_view_id ?? undefined,
         // Alias names (used by new mapper references)
         mode: this.mapGridMode(field.qdb_grid_mode),
         entityName: field.qdb_grid_entity_name ?? undefined,
@@ -1321,7 +1322,9 @@ interface RawField {
   // Prefix / suffix decorators
   qdb_prefix?: string;
   qdb_suffix?: string;
-  // DFE-ADD-002 interactive-grid field
+  // DFE-ADD-002 interactive-grid field. The saved view lives in the form's Grid Config
+  // section (qdb_grid_saved_view_id); qdb_saved_view_id is the legacy Lookup Config twin.
+  qdb_grid_saved_view_id?: string;
   qdb_saved_view_id?: string;
   qdb_grid_entity_name?: string;
   qdb_selection_mode?: number;

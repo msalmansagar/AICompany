@@ -30,6 +30,16 @@ function mapInfoCardListMarker(v: unknown): DesignerFieldModel['infoCardListMark
   return v === 'circle' || v === 'plain' || v === 'none' ? v : null;
 }
 
+// The saved view moved from the form's Lookup Config section to Grid Config, where the
+// rest of the grid settings live. New saves go to the Grid Config column; the legacy one
+// is still read so fields configured before the move keep their view.
+function resolveSavedViewId(record: Record<string, unknown>): string | null {
+  const current = record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID];
+  if (current != null) return String(current);
+  const legacy = record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID_LEGACY];
+  return legacy != null ? String(legacy) : null;
+}
+
 export interface CreateFieldDto {
   sectionId: string;
   label: string;
@@ -375,6 +385,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_SELECTION_MODE,
       FORM_FIELD_ATTRS.GRID_MIN_ROWS,
       FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID,
+      FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID_LEGACY,
       FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE,
@@ -497,7 +508,9 @@ export class FieldService {
         ? (PICKLIST_TO_GRID_SELECTION_MODE[Number(record[FORM_FIELD_ATTRS.GRID_SELECTION_MODE])] ?? null)
         : null,
       gridMinRows: record[FORM_FIELD_ATTRS.GRID_MIN_ROWS] != null ? Number(record[FORM_FIELD_ATTRS.GRID_MIN_ROWS]) : null,
-      gridSavedViewId: record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID] != null ? String(record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID]) : null,
+      // Grid Config first, then the legacy Lookup Config twin, so a field saved before the
+      // move still shows its view when the form is reopened.
+      gridSavedViewId: resolveSavedViewId(record),
       gridFilterExpression: record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] != null ? String(record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION]) : null,
       gridDependsOnFieldId: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD]) : null,
       gridDependsOnFilterTemplate: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE]) : null,

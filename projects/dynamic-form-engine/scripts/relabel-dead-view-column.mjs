@@ -1,14 +1,15 @@
 /**
- * qdb_form_field carries two columns labelled "Grid Saved View ID", both on the
- * Information form: qdb_saved_view_id (written by the designer, read by the portal and —
- * since the FieldBuilder fix — by the publish generator) and qdb_grid_saved_view_id,
- * which is populated on zero records and read by nothing. A maker cannot tell them apart.
+ * The saved view is configured in the form's "Grid Config" section
+ * (qdb_grid_saved_view_id), beside the other grid settings. qdb_saved_view_id is the
+ * legacy twin filed under "Lookup Config"; readers still fall back to it, but makers
+ * should not fill it in.
  *
- * This relabels the dead one so the live field is unambiguous. The column itself is left
- * in place; renaming a label changes no data and is reversible.
+ * Both columns shipped with the identical label "Grid Saved View ID", which is how a
+ * blank field and a populated one ended up looking the same. This labels each for what
+ * it is. Data is untouched.
  *
  * Run:  node --env-file=scripts/.env scripts/relabel-dead-view-column.mjs
- * Safe: idempotent — re-running just rewrites the same label.
+ * Safe: idempotent — re-running just rewrites the same labels.
  */
 
 const TENANT_ID     = 'd79e793c-f6de-4204-8508-7980a63df957';
@@ -18,9 +19,9 @@ const DV            = 'https://org5869857f.crm4.dynamics.com';
 const BASE          = `${DV}/api/data/v9.2`;
 
 const ENTITY       = 'qdb_form_field';
-const DEAD_COLUMN  = 'qdb_grid_saved_view_id';
-const LIVE_COLUMN  = 'qdb_saved_view_id';
-const DEAD_LABEL   = 'Grid Saved View ID (unused — do not fill)';
+const DEAD_COLUMN  = 'qdb_saved_view_id';
+const LIVE_COLUMN  = 'qdb_grid_saved_view_id';
+const DEAD_LABEL   = 'Grid Saved View ID (legacy — use Grid Config)';
 const LIVE_LABEL   = 'Grid Saved View ID';
 const LCID         = 1033;
 
@@ -41,17 +42,6 @@ const H = {
   Accept: 'application/json',
   'Content-Type': 'application/json',
 };
-
-// Refuse to relabel a column that turns out to hold data — the "dead" one must be empty.
-const populated = await fetch(
-  `${BASE}/qdb_form_fields?$filter=${DEAD_COLUMN} ne null&$select=${DEAD_COLUMN}&$top=1`,
-  { headers: H },
-).then((r) => r.json());
-
-if (populated.value?.length) {
-  console.error(`${DEAD_COLUMN} has data — not relabelling. Investigate before changing anything.`);
-  process.exit(1);
-}
 
 async function setLabel(column, label) {
   const url = `${BASE}/EntityDefinitions(LogicalName='${ENTITY}')/Attributes(LogicalName='${column}')`;
@@ -77,7 +67,9 @@ async function setLabel(column, label) {
   return response.ok;
 }
 
-const renamed = await setLabel(DEAD_COLUMN, DEAD_LABEL);
+// Both labels are written, not just the legacy one: the columns have swapped roles once
+// already, so leaving either label unmanaged is how they drifted back to being identical.
+const renamed = await setLabel(LIVE_COLUMN, LIVE_LABEL) && await setLabel(DEAD_COLUMN, DEAD_LABEL);
 if (!renamed) process.exit(1);
 
 // Publish so the new label shows on the form.

@@ -57,6 +57,9 @@ interface FetchXmlCollection<T> {
 interface RawGridField {
   qdb_form_fieldid: string;
   qdb_grid_entity_name?: string;
+  // The saved view lives in the form's Grid Config section; qdb_saved_view_id is the
+  // legacy Lookup Config twin, still read so pre-migration fields keep working.
+  qdb_grid_saved_view_id?: string;
   qdb_saved_view_id?: string;
   qdb_selection_mode?: number;
   qdb_grid_max_rows?: number;
@@ -220,7 +223,7 @@ export class CrmGridDataService extends CrmBaseService {
     const [fieldResponse, columnsResponse] = await Promise.all([
       this.crmFetch<{ value: RawGridField[] }>(
         `/qdb_form_fields?$filter=qdb_form_fieldid eq '${fieldId}'&$top=1` +
-        `&$select=qdb_form_fieldid,qdb_grid_entity_name,qdb_saved_view_id,qdb_selection_mode,qdb_grid_max_rows` +
+        `&$select=qdb_form_fieldid,qdb_grid_entity_name,qdb_grid_saved_view_id,qdb_saved_view_id,qdb_selection_mode,qdb_grid_max_rows` +
         `,qdb_grid_filter_expression,qdb_grid_depends_on_filter_template`,
       ),
       this.crmFetch<{ value: RawGridColumnConfig[] }>(
@@ -238,7 +241,7 @@ export class CrmGridDataService extends CrmBaseService {
     const fieldConfig: GridFieldConfig = {
       fieldId: rawField.qdb_form_fieldid,
       targetEntity: rawField.qdb_grid_entity_name!,
-      savedViewId: rawField.qdb_saved_view_id!,
+      savedViewId: resolveSavedViewId(rawField)!,
       selectionMode: rawField.qdb_selection_mode === 100000001 ? 'multi' : 'single',
       maxRows: rawField.qdb_grid_max_rows ?? 200,
       filterExpression: rawField.qdb_grid_filter_expression ?? undefined,
@@ -513,11 +516,15 @@ function validateColumnFilters(
   return Object.keys(validated).length > 0 ? validated : undefined;
 }
 
+function resolveSavedViewId(field: RawGridField): string | undefined {
+  return field.qdb_grid_saved_view_id ?? field.qdb_saved_view_id ?? undefined;
+}
+
 function assertGridFieldHasView(field: RawGridField, fieldId: string): void {
   if (!field.qdb_grid_entity_name) {
     throw new ValidationError(`Grid field '${fieldId}' has no target entity configured.`);
   }
-  if (!field.qdb_saved_view_id) {
+  if (!resolveSavedViewId(field)) {
     throw new ValidationError(`Grid field '${fieldId}' has no saved view configured.`);
   }
 }

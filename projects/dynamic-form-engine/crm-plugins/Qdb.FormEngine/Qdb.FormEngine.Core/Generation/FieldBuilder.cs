@@ -227,10 +227,11 @@ namespace Qdb.FormEngine.Core.Generation
                 Mode = gridMode,
                 TargetEntity = entityName ?? string.Empty,
                 EntityName = entityName,
-                // qdb_saved_view_id is the column the designer writes and the portal reads.
-                // A qdb_grid_saved_view_id column also exists but is null on every record —
-                // reading it published a null view id, so the in-CRM grid ignored the view.
-                SavedViewId = field.GetAttributeValue<string>("qdb_saved_view_id"),
+                // The saved view lives in the form's "Grid Config" section
+                // (qdb_grid_saved_view_id), beside the other grid settings.
+                // qdb_saved_view_id is the legacy twin under "Lookup Config", still read so
+                // fields configured before the move keep publishing their view.
+                SavedViewId = ResolveSavedViewId(field),
                 SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_selection_mode")),
                 MinRows = field.Contains("qdb_grid_min_rows") ? field.GetAttributeValue<int>("qdb_grid_min_rows") : 0,
                 MaxRows = field.Contains("qdb_max_rows") ? field.GetAttributeValue<int>("qdb_max_rows") : 200,
@@ -254,6 +255,18 @@ namespace Qdb.FormEngine.Core.Generation
         private static string NormalizeViewMode(string raw)
         {
             return raw == "table" || raw == "card" ? raw : null;
+        }
+
+        /// <summary>
+        /// Reads the saved view from the Grid Config column, falling back to the legacy
+        /// Lookup Config column for fields configured before the setting moved.
+        /// </summary>
+        private static string ResolveSavedViewId(Entity field)
+        {
+            var gridConfigView = field.GetAttributeValue<string>("qdb_grid_saved_view_id");
+            return string.IsNullOrWhiteSpace(gridConfigView)
+                ? field.GetAttributeValue<string>("qdb_saved_view_id")
+                : gridConfigView;
         }
 
         private List<GridColumnConfig> BuildGridColumns(Guid fieldId)
