@@ -4,6 +4,7 @@ import { SectionRenderer } from './SectionRenderer';
 import { SaveDraftButton } from './SaveDraftButton';
 import { SubmitButton } from './SubmitButton';
 import { ScopedButtonBar } from './ScopedButtonBar';
+import { TabConfirmationGate } from './TabConfirmationGate';
 import { FieldRenderer } from './FieldRenderer';
 import { useFormContext } from '../../contexts/FormContext';
 
@@ -152,6 +153,15 @@ export function TabRenderer({
         ariaLabel={`${tab.label} footer`}
         isTabActive={isTabActive}
       />
+
+      {/*
+        DFE-SUBMITCONFIRM-002: the tab's acknowledgement sits below its content and above
+        the actions, so the user reads the tab before confirming and cannot miss the gate
+        that is disabling Next.
+      */}
+      {tab.submitConfirmation && (
+        <TabConfirmationGate tabId={tab.id} confirmation={tab.submitConfirmation} />
+      )}
 
       {/* DFE-BTN-001: tab-scoped buttons render below this tab's sections. */}
       <ScopedButtonBar buttons={tab.buttons} />

@@ -116,6 +116,46 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
         />
       </Field>
 
+      {/* DFE-SUBMITCONFIRM-002: acknowledgement gate scoped to this tab. */}
+      <Divider />
+      <Text size={100} weight="semibold" className={styles.sectionHeading}>Submit Confirmation</Text>
+
+      <Field
+        hint="Shows a confirmation checkbox at the end of this tab. The user cannot move forward past this tab, and cannot submit the form, until it is ticked."
+      >
+        <Switch
+          label="Require confirmation on this tab"
+          checked={tab.requireSubmitConfirmation === true}
+          onChange={(_, data) => updateTab(tabId, { requireSubmitConfirmation: data.checked })}
+        />
+      </Field>
+
+      {tab.requireSubmitConfirmation && (
+        <>
+          <Field
+            label="Submit Confirmation Label"
+            hint="Text shown beside the checkbox. Leave blank for a default acknowledgement."
+          >
+            <Input
+              value={tab.submitConfirmationLabel ?? ''}
+              onChange={(_, data) => updateTab(tabId, { submitConfirmationLabel: data.value || null })}
+              placeholder="I confirm the information on this tab is correct."
+            />
+          </Field>
+
+          <Field
+            label="Submit Confirmation Message"
+            hint="Optional. Shown in a dialog when the user ticks the checkbox."
+          >
+            <Textarea
+              value={tab.submitConfirmationMessage ?? ''}
+              onChange={(_, data) => updateTab(tabId, { submitConfirmationMessage: data.value || null })}
+              rows={3}
+            />
+          </Field>
+        </>
+      )}
+
       {sectionIds.length > 0 && (
         <>
           <Divider />

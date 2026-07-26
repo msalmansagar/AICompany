@@ -17,6 +17,7 @@ import {
 import { SendRegular } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
+import { evaluateTabConfirmation } from './tabConfirmation';
 import type { ButtonStyleType } from '@qdb/shared';
 
 const BUTTON_APPEARANCE_MAP: Record<ButtonStyleType, 'primary' | 'outline' | 'transparent'> = {
@@ -49,6 +50,11 @@ const useStyles = makeStyles({
     top: '-8px',
     right: '-8px',
   },
+  pendingTabs: {
+    marginTop: tokens.spacingVerticalXS,
+    fontSize: tokens.fontSizeBase200,
+    color: tokens.colorPaletteRedForeground1,
+  },
 });
 
 export function SubmitButton() {
@@ -61,6 +67,8 @@ export function SubmitButton() {
     formDefinition,
     submitAcknowledged,
     setSubmitAcknowledged,
+    tabAcknowledgements,
+    ruleState,
   } = useFormContext();
   const design = useDesignContext();
   const buttonAppearance = BUTTON_APPEARANCE_MAP[design.formDesign.buttonStyle ?? 'Primary'];
@@ -74,7 +82,17 @@ export function SubmitButton() {
   // DFE-SUBMITCONFIRM-001: when configured, Submit stays disabled until the user
   // ticks the acknowledgement checkbox (which also opens a confirmation dialog).
   const confirmation = formDefinition?.submitConfirmation;
-  const isDisabled = isSubmitting || isSubmitted || (!!confirmation && !submitAcknowledged);
+
+  // DFE-SUBMITCONFIRM-002: and until every tab that requires one has been acknowledged —
+  // re-checked here because a jump-to-tab button can reach Submit past an unseen gate.
+  const visibleTabs = (formDefinition?.tabs ?? [])
+    .filter((tab) => ruleState.tabVisibility[tab.id] ?? tab.isVisible);
+  const { unacknowledgedTabs } = evaluateTabConfirmation(visibleTabs, tabAcknowledgements);
+
+  const isDisabled = isSubmitting
+    || isSubmitted
+    || (!!confirmation && !submitAcknowledged)
+    || unacknowledgedTabs.length > 0;
 
   async function handleSubmit() {
     await submitForm();
@@ -115,6 +133,13 @@ export function SubmitButton() {
         >
           {errorCount}
         </Badge>
+      )}
+
+      {/* Without this, an unseen tab gate disables Submit and gives no reason why. */}
+      {unacknowledgedTabs.length > 0 && !isSubmitting && (
+        <div className={styles.pendingTabs} role="status">
+          {`Confirm before submitting: ${unacknowledgedTabs.map((tab) => tab.label).join(', ')}`}
+        </div>
       )}
     </div>
   );

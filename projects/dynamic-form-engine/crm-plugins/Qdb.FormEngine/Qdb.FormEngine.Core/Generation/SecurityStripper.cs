@@ -57,6 +57,7 @@ namespace Qdb.FormEngine.Core.Generation
                 InfocardSkipLabel = model.InfocardSkipLabel,
                 ShowSummaryStep = model.ShowSummaryStep,
                 SummaryMode = model.SummaryMode,
+                SubmitConfirmation = model.SubmitConfirmation,
                 ShowProgressBar = model.ShowProgressBar,
                 InfoCards = model.InfoCards,
                 SubmissionMappings = model.SubmissionMappings,
@@ -84,6 +85,7 @@ namespace Qdb.FormEngine.Core.Generation
                 RequiresPreviousTabComplete = tab.RequiresPreviousTabComplete,
                 HideTabBar = tab.HideTabBar,
                 Buttons = tab.Buttons,
+                SubmitConfirmation = tab.SubmitConfirmation,
                 Sections = StripSections(tab.Sections, referencedSchemaNames)
             }).ToList();
         }

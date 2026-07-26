@@ -237,6 +237,10 @@ export interface TabDefinition {
   // (additive; default [] for existing forms). Body fields stay in section.fields.
   headerFields?: FieldDefinition[];
   footerFields?: FieldDefinition[];
+  // DFE-SUBMITCONFIRM-002: acknowledgement required on this tab. Present only when the
+  // maker enabled it; the user cannot move forward past the tab, and cannot submit the
+  // form, until it is ticked.
+  submitConfirmation?: SubmitConfirmationConfig;
 }
 
 export type ButtonAction = 'submit' | 'saveDraft' | 'cancel' | 'reset';

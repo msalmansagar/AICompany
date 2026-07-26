@@ -29,6 +29,10 @@ namespace Qdb.FormEngine.Core.Models
         // DFE-FBE-001: None/SystemGenerated/Manual. Omitted when unset (legacy forms derive from
         // showSummaryStep at runtime) so unaffected forms stay byte-identical.
         [JsonProperty("summaryMode", NullValueHandling = NullValueHandling.Ignore)] public string SummaryMode { get; set; }
+        // DFE-SUBMITCONFIRM-001: form-level acknowledgement. Previously read only by the
+        // portal's live-metadata path, so a form configured with one behaved differently
+        // in CRM; publishing it here makes both runtimes agree.
+        [JsonProperty("submitConfirmation", NullValueHandling = NullValueHandling.Ignore)] public SubmitConfirmationConfig SubmitConfirmation { get; set; }
         // DFE-FBE-002: form-completion progress bar. Omitted unless true → unaffected forms byte-identical.
         [JsonProperty("showProgressBar", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowProgressBar { get; set; }
         [JsonProperty("infoCards")] public List<InfoCardScreen> InfoCards { get; set; }
@@ -59,6 +63,16 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("sections")] public List<SectionDefinition> Sections { get; set; }
         // DFE-BTN-001: tab-scoped buttons. Omitted when empty so button-less forms are byte-identical.
         [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
+        // DFE-SUBMITCONFIRM-002: acknowledgement required on this tab. Omitted when the maker
+        // has not enabled it, so unaffected forms stay byte-identical.
+        [JsonProperty("submitConfirmation", NullValueHandling = NullValueHandling.Ignore)] public SubmitConfirmationConfig SubmitConfirmation { get; set; }
+    }
+
+    /// <summary>An acknowledgement the user must tick before the form can be submitted.</summary>
+    public sealed class SubmitConfirmationConfig
+    {
+        [JsonProperty("checkboxLabel")] public string CheckboxLabel { get; set; }
+        [JsonProperty("dialogMessage", NullValueHandling = NullValueHandling.Ignore)] public string DialogMessage { get; set; }
     }
 
     /// <summary>A section within a tab that groups fields.</summary>

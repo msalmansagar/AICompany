@@ -141,6 +141,9 @@ export class FormSaveService {
         isVisible: tab.isVisible,
         requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
         hideTabBar: tab.hideTabBar,
+        requireSubmitConfirmation: tab.requireSubmitConfirmation,
+        submitConfirmationLabel: tab.submitConfirmationLabel,
+        submitConfirmationMessage: tab.submitConfirmationMessage,
       });
       resolvedIds[tempTabId] = realId;
     }
@@ -282,6 +285,9 @@ export class FormSaveService {
           isVisible: tab.isVisible,
           requiresPreviousTabComplete: tab.requiresPreviousTabComplete,
           hideTabBar: tab.hideTabBar,
+          requireSubmitConfirmation: tab.requireSubmitConfirmation,
+          submitConfirmationLabel: tab.submitConfirmationLabel,
+          submitConfirmationMessage: tab.submitConfirmationMessage,
         });
       } else if (sections[id]) {
         const section = sections[id];

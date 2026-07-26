@@ -14,6 +14,10 @@ export interface CreateTabDto {
   hideTabBar?: boolean;
   description?: string | null;
   isSummaryTab?: boolean;
+  // DFE-SUBMITCONFIRM-002
+  requireSubmitConfirmation?: boolean;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
 }
 
 export interface UpdateTabDto {
@@ -25,6 +29,10 @@ export interface UpdateTabDto {
   hideTabBar?: boolean;
   description?: string | null;
   isSummaryTab?: boolean;
+  // DFE-SUBMITCONFIRM-002
+  requireSubmitConfirmation?: boolean;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
 }
 
 export class TabService {
@@ -41,6 +49,7 @@ export class TabService {
           [FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]: dto.requiresPreviousTabComplete ?? false,
           [FORM_TAB_ATTRS.HIDE_TAB_BAR]: dto.hideTabBar ?? false,
           [FORM_TAB_ATTRS.IS_SUMMARY_TAB]: dto.isSummaryTab ?? false,
+          [FORM_TAB_ATTRS.REQUIRE_SUBMIT_CONFIRMATION]: dto.requireSubmitConfirmation ?? false,
           ...(dto.iconName != null ? { [FORM_TAB_ATTRS.ICON_NAME]: dto.iconName } : {}),
           ...(dto.description != null ? { [FORM_TAB_ATTRS.DESCRIPTION]: dto.description } : {}),
         }),
@@ -61,6 +70,15 @@ export class TabService {
     if (dto.hideTabBar !== undefined) data[FORM_TAB_ATTRS.HIDE_TAB_BAR] = dto.hideTabBar;
     if (dto.description !== undefined) data[FORM_TAB_ATTRS.DESCRIPTION] = dto.description;
     if (dto.isSummaryTab !== undefined) data[FORM_TAB_ATTRS.IS_SUMMARY_TAB] = dto.isSummaryTab;
+    if (dto.requireSubmitConfirmation !== undefined) {
+      data[FORM_TAB_ATTRS.REQUIRE_SUBMIT_CONFIRMATION] = dto.requireSubmitConfirmation;
+    }
+    if (dto.submitConfirmationLabel !== undefined) {
+      data[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_LABEL] = dto.submitConfirmationLabel;
+    }
+    if (dto.submitConfirmationMessage !== undefined) {
+      data[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_MESSAGE] = dto.submitConfirmationMessage;
+    }
 
     if (Object.keys(data).length === 0) return;
 
@@ -118,6 +136,11 @@ export class TabService {
       hideTabBar: Boolean(record[FORM_TAB_ATTRS.HIDE_TAB_BAR]),
       description: record[FORM_TAB_ATTRS.DESCRIPTION] ? String(record[FORM_TAB_ATTRS.DESCRIPTION]) : null,
       isSummaryTab: Boolean(record[FORM_TAB_ATTRS.IS_SUMMARY_TAB]),
+      requireSubmitConfirmation: Boolean(record[FORM_TAB_ATTRS.REQUIRE_SUBMIT_CONFIRMATION]),
+      submitConfirmationLabel: record[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_LABEL]
+        ? String(record[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_LABEL]) : null,
+      submitConfirmationMessage: record[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_MESSAGE]
+        ? String(record[FORM_TAB_ATTRS.SUBMIT_CONFIRMATION_MESSAGE]) : null,
     };
   }
 }

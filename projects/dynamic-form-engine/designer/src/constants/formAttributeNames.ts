@@ -63,6 +63,10 @@ export const FORM_TAB_ATTRS = {
   IS_VISIBLE: 'qdb_is_visible',
   REQUIRES_PREVIOUS_TAB_COMPLETE: 'qdb_requires_previous_tab_complete',
   HIDE_TAB_BAR: 'qdb_hide_tab_bar',
+  // DFE-SUBMITCONFIRM-002 — acknowledgement gate scoped to this tab.
+  REQUIRE_SUBMIT_CONFIRMATION: 'qdb_require_submit_confirmation',
+  SUBMIT_CONFIRMATION_LABEL: 'qdb_submit_confirmation_label',
+  SUBMIT_CONFIRMATION_MESSAGE: 'qdb_submit_confirmation_message',
 } as const;
 
 // DFE-FBE-001 — qdb_summary_mode picklist codec.

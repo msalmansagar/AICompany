@@ -44,6 +44,11 @@ export interface DesignerTabModel {
   // DFE-FBE-001: tab description + manual-summary designation.
   description?: string | null;
   isSummaryTab?: boolean;
+  // DFE-SUBMITCONFIRM-002: acknowledgement gate on this tab. The boolean is the switch;
+  // a blank label falls back to a default at publish time.
+  requireSubmitConfirmation?: boolean;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
   sortOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;

@@ -45,6 +45,9 @@ const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 const PLACEMENT_HEADER = 100000000;
 const PLACEMENT_FOOTER = 100000001;
 
+/** Used when a tab requires acknowledgement but the maker left the label blank. */
+const DEFAULT_TAB_CONFIRMATION_LABEL = 'I confirm the information on this tab is correct.';
+
 // Maps the qdb_placement optionset code to a FieldPlacement. Unknown/absent codes
 // safely fall back to 'body' (legacy) so malformed config never breaks a form.
 export function placementFromCode(code?: number | null): FieldPlacement {
@@ -310,6 +313,19 @@ export class CrmMetadataService extends CrmBaseService {
         // DFE-TABZONE-001: header/footer zone fields (omitted when none).
         ...(headerFields.length > 0 ? { headerFields } : {}),
         ...(footerFields.length > 0 ? { footerFields } : {}),
+        // DFE-SUBMITCONFIRM-002: the boolean is what enables the gate — unlike the
+        // form-level one, where a non-empty label is the switch — so a maker can turn the
+        // tab gate on and accept the default wording.
+        ...(tab.qdb_require_submit_confirmation
+          ? {
+            submitConfirmation: {
+              checkboxLabel: tab.qdb_submit_confirmation_label || DEFAULT_TAB_CONFIRMATION_LABEL,
+              ...(tab.qdb_submit_confirmation_message
+                ? { dialogMessage: tab.qdb_submit_confirmation_message }
+                : {}),
+            },
+          }
+          : {}),
       };
     });
   }
@@ -1262,6 +1278,10 @@ interface RawTab {
   // DFE-FBE-001
   qdb_description?: string;
   qdb_is_summary_tab?: boolean;
+  // DFE-SUBMITCONFIRM-002
+  qdb_require_submit_confirmation?: boolean;
+  qdb_submit_confirmation_label?: string;
+  qdb_submit_confirmation_message?: string;
 }
 
 interface RawSection {

@@ -25,6 +25,7 @@ import {
 } from '@fluentui/react-icons';
 import { useFormContext } from '../../contexts/FormContext';
 import { useDesignContext } from '../../contexts/DesignContext';
+import { evaluateTabConfirmation } from './tabConfirmation';
 import type { FormButton, ButtonAction } from '@qdb/shared';
 
 interface FormActionBarProps {
@@ -104,6 +105,8 @@ export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = 
     resetForm,
     submitAcknowledged,
     setSubmitAcknowledged,
+    tabAcknowledgements,
+    ruleState,
   } = useFormContext();
   const design = useDesignContext();
 
@@ -147,7 +150,15 @@ export function FormActionBar({ sticky = false, showSubmit = true, reviewMode = 
   // DFE-SUBMITCONFIRM-001: acknowledgement gate. In review mode the submit button
   // only navigates to the summary, so the gate applies to the real submit only.
   const confirmation = !reviewMode ? formDefinition?.submitConfirmation : undefined;
-  const submitBlocked = !!confirmation && !submitAcknowledged;
+
+  // DFE-SUBMITCONFIRM-002: a tab gate blocks the real submit too, and — unlike the
+  // form-level gate — it can be unsatisfied on a tab the user never opened.
+  const visibleTabs = (formDefinition?.tabs ?? [])
+    .filter((tab) => ruleState.tabVisibility[tab.id] ?? tab.isVisible);
+  const { unacknowledgedTabs } = evaluateTabConfirmation(visibleTabs, tabAcknowledgements);
+  const tabGateBlocked = !reviewMode && unacknowledgedTabs.length > 0;
+
+  const submitBlocked = (!!confirmation && !submitAcknowledged) || tabGateBlocked;
 
   function handleAcknowledgementChange(checked: boolean) {
     setSubmitAcknowledged(checked);

@@ -17,6 +17,9 @@ namespace Qdb.FormEngine.Core.Generation
     /// </summary>
     public sealed class FormJsonGenerator : IFormJsonGenerator
     {
+        /// <summary>Used when a tab requires acknowledgement but the maker left the label blank.</summary>
+        private const string DefaultTabConfirmationLabel = "I confirm the information on this tab is correct.";
+
         private readonly ITranslationResolver _translationResolver;
         private readonly ITracingService _tracingService;
 
@@ -70,6 +73,7 @@ namespace Qdb.FormEngine.Core.Generation
                 InfocardSkipLabel = Resolve(rawData, "qdb_form_definition", formId, "qdb_infocard_skip_label", form.GetAttributeValue<string>("qdb_infocard_skip_label")),
                 ShowSummaryStep = form.GetAttributeValue<bool>("qdb_show_summary_step"),
                 SummaryMode = PicklistMapper.ToSummaryMode(EntityHelper.GetOptionSetValue(form, "qdb_summary_mode")),
+                SubmitConfirmation = BuildFormSubmitConfirmation(rawData, form, formId),
                 ShowProgressBar = form.GetAttributeValue<bool>("qdb_show_progress_bar") ? (bool?)true : null,
                 CreatedAt = form.Contains("createdon") ? (DateTime?)form.GetAttributeValue<DateTime>("createdon") : null,
                 ModifiedAt = form.Contains("modifiedon") ? (DateTime?)form.GetAttributeValue<DateTime>("modifiedon") : null,
@@ -112,7 +116,46 @@ namespace Qdb.FormEngine.Core.Generation
                 RequiresPreviousTabComplete = tab.GetAttributeValue<bool>("qdb_requires_previous_tab_complete"),
                 HideTabBar = tab.GetAttributeValue<bool>("qdb_hide_tab_bar"),
                 Sections = BuildSections(rawData, tabId, fieldBuilder),
-                Buttons = BuildScopedButtons(rawData, "tab", tabId)
+                Buttons = BuildScopedButtons(rawData, "tab", tabId),
+                SubmitConfirmation = BuildTabSubmitConfirmation(rawData, tab, tabId)
+            };
+        }
+
+        /// <summary>
+        /// The tab's acknowledgement gate, or null when the maker has not enabled it.
+        /// The boolean is the switch here, unlike the form-level one where a non-empty label
+        /// enables it — so a tab can use the default wording.
+        /// </summary>
+        private SubmitConfirmationConfig BuildTabSubmitConfirmation(FormRawData rawData, Entity tab, Guid tabId)
+        {
+            if (!tab.GetAttributeValue<bool>("qdb_require_submit_confirmation")) return null;
+
+            var label = Resolve(rawData, "qdb_form_tab", tabId, "qdb_submit_confirmation_label",
+                tab.GetAttributeValue<string>("qdb_submit_confirmation_label"));
+            var message = Resolve(rawData, "qdb_form_tab", tabId, "qdb_submit_confirmation_message",
+                tab.GetAttributeValue<string>("qdb_submit_confirmation_message"));
+
+            return new SubmitConfirmationConfig
+            {
+                CheckboxLabel = string.IsNullOrWhiteSpace(label) ? DefaultTabConfirmationLabel : label,
+                DialogMessage = string.IsNullOrWhiteSpace(message) ? null : message
+            };
+        }
+
+        /// <summary>The form-level acknowledgement, enabled by a non-empty label.</summary>
+        private SubmitConfirmationConfig BuildFormSubmitConfirmation(FormRawData rawData, Entity form, Guid formId)
+        {
+            var label = Resolve(rawData, "qdb_form_definition", formId, "qdb_submit_confirmation_label",
+                form.GetAttributeValue<string>("qdb_submit_confirmation_label"));
+            if (string.IsNullOrWhiteSpace(label)) return null;
+
+            var message = Resolve(rawData, "qdb_form_definition", formId, "qdb_submit_confirmation_message",
+                form.GetAttributeValue<string>("qdb_submit_confirmation_message"));
+
+            return new SubmitConfirmationConfig
+            {
+                CheckboxLabel = label,
+                DialogMessage = string.IsNullOrWhiteSpace(message) ? null : message
             };
         }
 

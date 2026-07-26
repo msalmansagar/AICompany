@@ -40,6 +40,9 @@ export interface FormContextValue {
   // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
   submitAcknowledged: boolean;
   setSubmitAcknowledged: (acknowledged: boolean) => void;
+  // DFE-SUBMITCONFIRM-002: acknowledgement per tab, for tabs that require one.
+  tabAcknowledgements: Record<string, boolean>;
+  setTabAcknowledged: (tabId: string, acknowledged: boolean) => void;
   updateFieldValue: (fieldId: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: (submitButtonId?: string) => Promise<void>;
@@ -89,6 +92,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // DFE-SUBMITCONFIRM-001: acknowledgement gate state (only meaningful when the form
   // has submitConfirmation configured).
   const [submitAcknowledged, setSubmitAcknowledged] = useState(false);
+  // DFE-SUBMITCONFIRM-002: per-tab acknowledgements, keyed by tab id.
+  const [tabAcknowledgements, setTabAcknowledgements] = useState<Record<string, boolean>>({});
+
+  const setTabAcknowledged = useCallback((tabId: string, acknowledged: boolean) => {
+    setTabAcknowledgements((current) => ({ ...current, [tabId]: acknowledged }));
+  }, []);
 
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -330,6 +339,8 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       isSubmitted,
       submitAcknowledged,
       setSubmitAcknowledged,
+      tabAcknowledgements,
+      setTabAcknowledged,
       updateFieldValue,
       saveDraft,
       submitForm,
@@ -338,7 +349,8 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     [
       formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
       validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
-      submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
+      submissionReference, isSubmitted, submitAcknowledged, tabAcknowledgements,
+      setTabAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
   );
 

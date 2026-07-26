@@ -47,6 +47,7 @@ import { sanitiseCustomCssForRuntime } from '../../theme/customCssInjector';
 import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
 import { getAllTabFields } from './tabFields';
+import { evaluateTabConfirmation } from './tabConfirmation';
 import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
@@ -243,6 +244,7 @@ function FormRendererInner({
     submissionReference,
     draftId,
     validationErrors,
+    tabAcknowledgements,
   } = useFormContext();
 
   // ADD-001-C2: detect draft resume — draftId present means skip info cards.
@@ -391,6 +393,9 @@ function FormRendererInner({
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   const activeTab = visibleTabs[activeTabIndex] ?? visibleTabs[0];
+  // DFE-SUBMITCONFIRM-002: gates derived from the tabs that require an acknowledgement.
+  const { canLeaveTab, isSubmitBlocked: isSubmitBlockedByTabGate } =
+    evaluateTabConfirmation(visibleTabs, tabAcknowledgements);
   const isStickyBar = design.formDesign.stickyActionBar;
   const hasDarkOption = true;
 
@@ -583,6 +588,9 @@ function FormRendererInner({
             activeTabIndex={activeTabIndex}
             isOnFinalTab={isOnFinalTab}
             showSummaryStep={showSummaryStep}
+            currentTab={activeTab}
+            canLeaveCurrentTab={canLeaveTab(activeTab)}
+            isSubmitBlockedByTabGate={isSubmitBlockedByTabGate}
             onBack={() => setActiveTabIndex(Math.max(0, activeTabIndex - 1))}
             onNext={() => setActiveTabIndex(Math.min(visibleTabs.length - 1, activeTabIndex + 1))}
             onReview={() => dispatchPhase({ type: 'ENTER_SUMMARY' })}
@@ -658,6 +666,8 @@ function SummaryActionBar({ sticky, onBack }: SummaryActionBarProps) {
     formDefinition,
     submitAcknowledged,
     setSubmitAcknowledged,
+    tabAcknowledgements,
+    ruleState,
   } = useFormContext();
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
 
@@ -665,7 +675,13 @@ function SummaryActionBar({ sticky, onBack }: SummaryActionBarProps) {
 
   // DFE-SUBMITCONFIRM-001: acknowledgement gate on the manual summary's submit.
   const confirmation = formDefinition?.submitConfirmation;
-  const submitBlocked = !!confirmation && !submitAcknowledged;
+  // DFE-SUBMITCONFIRM-002: the summary is reached past every tab, so any tab gate the user
+  // never satisfied — a tab a jump-to-tab button skipped — still blocks here.
+  const visibleTabs = (formDefinition?.tabs ?? [])
+    .filter((tab) => ruleState.tabVisibility[tab.id] ?? tab.isVisible);
+  const { unacknowledgedTabs } = evaluateTabConfirmation(visibleTabs, tabAcknowledgements);
+
+  const submitBlocked = (!!confirmation && !submitAcknowledged) || unacknowledgedTabs.length > 0;
 
   function handleAcknowledgementChange(checked: boolean) {
     setSubmitAcknowledged(checked);
@@ -686,6 +702,16 @@ function SummaryActionBar({ sticky, onBack }: SummaryActionBarProps) {
       >
         Edit Responses
       </Button>
+
+      {/*
+        A gate the user never saw would otherwise disable Submit with no explanation, so
+        name the tabs that still need acknowledging.
+      */}
+      {unacknowledgedTabs.length > 0 && (
+        <Text size={200} role="status" style={{ color: tokens.colorPaletteRedForeground1 }}>
+          {`Confirm before submitting: ${unacknowledgedTabs.map((tab) => tab.label).join(', ')}`}
+        </Text>
+      )}
 
       <Button
         appearance="primary"
@@ -738,6 +764,10 @@ interface StepperActionBarProps {
   activeTabIndex: number;
   isOnFinalTab: boolean;
   showSummaryStep: boolean;
+  // DFE-SUBMITCONFIRM-002: the tab in view, and the two gates derived from tab acknowledgements.
+  currentTab: TabDefinition | undefined;
+  canLeaveCurrentTab: boolean;
+  isSubmitBlockedByTabGate: boolean;
   onBack: () => void;
   onNext: () => void;
   onReview: () => void;
@@ -777,6 +807,9 @@ function StepperActionBar({
   activeTabIndex,
   isOnFinalTab,
   showSummaryStep,
+  currentTab,
+  canLeaveCurrentTab,
+  isSubmitBlockedByTabGate,
   onBack,
   onNext,
   onReview,
@@ -847,10 +880,24 @@ function StepperActionBar({
           {isSaving ? 'Saving…' : isSaved ? 'Saved' : 'Save Draft'}
         </Button>
 
+        {/*
+          DFE-SUBMITCONFIRM-002: moving forward needs this tab's acknowledgement; submitting
+          needs every gated tab's, including ones a jump-to-tab button skipped.
+        */}
         <Button
           appearance="primary"
           icon={primaryIcon}
-          disabled={isSubmitting || (isOnFinalTab && !showSummaryStep && errorCount > 0)}
+          disabled={
+            isSubmitting
+            || (isOnFinalTab && !showSummaryStep && errorCount > 0)
+            || (!isOnFinalTab && !canLeaveCurrentTab)
+            || (isOnFinalTab && isSubmitBlockedByTabGate)
+          }
+          title={
+            !isOnFinalTab && !canLeaveCurrentTab
+              ? currentTab?.submitConfirmation?.checkboxLabel
+              : undefined
+          }
           onClick={handlePrimary}
           aria-busy={isOnFinalTab && isSubmitting}
           iconPosition={isOnFinalTab ? 'before' : 'after'}
