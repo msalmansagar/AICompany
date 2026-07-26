@@ -1,4 +1,3 @@
-﻿import { z } from 'zod';
 import type { FormDefinition, FormFieldValues, SubmissionMapping, FieldDefinition } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { CrmApiError, ValidationError } from '../utils/errors.js';
@@ -6,15 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
-import { indexFieldsById, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
-
-const LOOKUP_ID_SCHEMA = z.string().uuid();
-
-/** True when the array holds lookup refs ({ id, displayName }) — multi-select lookup value. */
-function isLookupRefArray(value: unknown[]): value is Array<{ id: string }> {
-  const first = value[0];
-  return typeof first === 'object' && first !== null && 'id' in first;
-}
+import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 
 interface UploadAttributeConfig {
   attributeName: string;
@@ -251,13 +242,13 @@ export class CrmSubmissionService extends CrmBaseService {
     ) {
       return (value as Array<{ fileId: string }>).map((ref) => ref.fileId);
     }
-    // DFE-FBE-002: multi-select lookup → semicolon-delimited list of record GUIDs
-    // written to the mapped (text) attribute. Each id is validated as a UUID (fail-fast
-    // at the boundary — never write an unvalidated string to Dataverse). Empty selection
-    // is dropped in buildPayload.
-    if (Array.isArray(value) && value.length > 0 && isLookupRefArray(value)) {
-      return value.map((ref) => LOOKUP_ID_SCHEMA.parse(ref.id)).join(';');
-    }
+    // DFE-FBE-002: multi-select lookup → delimited list of record ids written to the mapped
+    // (text) attribute. Shared with the batch and in-CRM engines so all three agree; ids are
+    // validated there (fail-fast — never write an unvalidated string to Dataverse). An empty
+    // selection returns null here and is dropped in buildPayload.
+    const joinedIds = joinLookupRecordIds(value);
+    if (joinedIds !== null) return joinedIds;
+
     return value;
   }
 

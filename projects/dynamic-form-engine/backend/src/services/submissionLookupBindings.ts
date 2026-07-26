@@ -5,9 +5,37 @@
 // before, which keeps every non-lookup mapping on its existing path.
 import type { FieldDefinition, FormDefinition, SubmissionMapping } from '@qdb/shared';
 import type { LookupBinding, LookupBindingResolver } from './LookupBindingResolver.js';
+import { ValidationError } from '../utils/errors.js';
 
 /** Bindings keyed by the mapping's target attribute. */
 export type LookupBindingMap = Map<string, LookupBinding>;
+
+/** Separator for a multi-lookup written into a single text column (DFE-FBE-002). */
+const MULTI_LOOKUP_SEPARATOR = ';';
+
+const UUID_PATTERN = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
+
+/**
+ * The record ids a multi-lookup field holds, as the delimited string the mapped text
+ * column stores, or null when the value is not a multi-lookup selection.
+ *
+ * Ids are validated at this boundary and an invalid one throws rather than being dropped:
+ * a crafted id must never reach Dataverse inside a delimited string.
+ */
+export function joinLookupRecordIds(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  const ids = value.map(readLookupRecordId);
+  if (ids.some((id) => id === null)) return null; // not a lookup selection — leave it alone
+
+  for (const id of ids) {
+    if (!UUID_PATTERN.test(id!)) {
+      throw new ValidationError(`Multi-lookup value '${id}' is not a valid record id.`);
+    }
+  }
+
+  return ids.join(MULTI_LOOKUP_SEPARATOR);
+}
 
 /**
  * The record id a lookup field holds. The renderer stores a selection as

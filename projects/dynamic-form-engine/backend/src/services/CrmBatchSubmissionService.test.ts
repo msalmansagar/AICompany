@@ -180,6 +180,38 @@ describe('CrmBatchSubmissionService', () => {
       expect(body).not.toContain(`"qdb_customerid":"${customerId}"`);
     });
 
+    it('submitFormWithBatch_withMultiLookupSelection_writesDelimitedRecordIds', async () => {
+      // The batch path previously wrote the raw array of { id, displayName } onto the
+      // column, which Dataverse rejects. It now matches CrmSubmissionService.
+      const first = '11111111-1111-1111-1111-111111111111';
+      const second = '22222222-2222-2222-2222-222222222222';
+
+      mockFetch.mockResolvedValueOnce(mockBatchPost(buildSuccessBatchResponse()));
+
+      const form = makeFormDefinition({
+        submissionMappings: [{
+          id: 'sm-multi',
+          fieldId: 'fld-name',
+          targetEntityLogicalName: 'contact',
+          targetAttributeLogicalName: 'qdb_related_accounts',
+          isMappedToChildEntity: false,
+          isActive: true,
+        }],
+      });
+
+      await service.submitFormWithBatch(
+        form,
+        { qdb_full_name: [{ id: first, displayName: 'One' }, { id: second, displayName: 'Two' }] },
+        'user-001', 'Ali Hassan', { correlationId: 'corr-multi' },
+      );
+
+      const batchCall = (mockFetch.mock.calls as [string, RequestInit][])
+        .find((call) => String(call[0]).endsWith('/$batch'));
+      const body = String(batchCall?.[1]?.body);
+
+      expect(body).toContain(`"qdb_related_accounts":"${first};${second}"`);
+    });
+
     it('submitFormWithBatch_whenNoParentMapping_throwsBeforeBatch', async () => {
       // Arrange
       const form = makeFormDefinition({ submissionMappings: [] });

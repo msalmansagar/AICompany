@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { FieldDefinition, FormDefinition, SubmissionMapping } from '@qdb/shared';
-import { indexFieldsById, readLookupRecordId, resolveLookupBindings } from './submissionLookupBindings.js';
+import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings } from './submissionLookupBindings.js';
 import type { LookupBindingResolver } from './LookupBindingResolver.js';
 
 function makeField(overrides: Partial<FieldDefinition>): FieldDefinition {
@@ -72,6 +72,37 @@ describe('readLookupRecordId', () => {
     expect(readLookupRecordId(null)).toBeNull();
     expect(readLookupRecordId({ displayName: 'no id here' })).toBeNull();
     expect(readLookupRecordId(42)).toBeNull();
+  });
+});
+
+describe('joinLookupRecordIds', () => {
+  const FIRST = '11111111-1111-1111-1111-111111111111';
+  const SECOND = '22222222-2222-2222-2222-222222222222';
+
+  it('joinsASelection_intoDelimitedRecordIds', () => {
+    // What the multi-lookup control stores: an array of { id, displayName }.
+    const value = [{ id: FIRST, displayName: 'One' }, { id: SECOND, displayName: 'Two' }];
+
+    expect(joinLookupRecordIds(value)).toBe(`${FIRST};${SECOND}`);
+  });
+
+  it('acceptsBareGuids', () => {
+    expect(joinLookupRecordIds([FIRST, SECOND])).toBe(`${FIRST};${SECOND}`);
+  });
+
+  it('throwsOnANonUuidId_ratherThanWritingIt', () => {
+    // A crafted id must never reach Dataverse inside the delimited string.
+    expect(() => joinLookupRecordIds([{ id: 'g1;injected', displayName: 'x' }])).toThrow();
+  });
+
+  it('returnsNull_forAnEmptySelection', () => {
+    expect(joinLookupRecordIds([])).toBeNull();
+  });
+
+  it('returnsNull_forArraysThatAreNotLookupSelections', () => {
+    // File references and plain values keep their own handling.
+    expect(joinLookupRecordIds([{ fileId: 'f1', fileName: 'a.pdf' }])).toBeNull();
+    expect(joinLookupRecordIds('not-an-array')).toBeNull();
   });
 });
 

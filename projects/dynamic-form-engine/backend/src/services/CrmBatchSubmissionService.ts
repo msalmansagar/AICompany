@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
-import { indexFieldsById, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
+import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 import {
   BatchChangesetBuilder,
   parseBatchResponse,
@@ -297,6 +297,16 @@ function buildPayload(
       payload[key] = reference;
       continue;
     }
+
+    // A multi-lookup selection is a list of references, which no single attribute can hold
+    // as-is; it is stored as delimited record ids in the mapped text column (DFE-FBE-002),
+    // matching CrmSubmissionService. An empty selection writes nothing.
+    const joinedIds = joinLookupRecordIds(value);
+    if (joinedIds !== null) {
+      payload[mapping.targetAttributeLogicalName] = joinedIds;
+      continue;
+    }
+    if (Array.isArray(value) && value.length === 0) continue;
 
     payload[mapping.targetAttributeLogicalName] = value;
   }

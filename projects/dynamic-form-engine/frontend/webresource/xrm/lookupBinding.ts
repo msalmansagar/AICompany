@@ -115,6 +115,34 @@ export function readLookupRecordId(value: unknown): string | null {
   return null;
 }
 
+/** Separator for a multi-lookup written into a single text column (DFE-FBE-002). */
+const MULTI_LOOKUP_SEPARATOR = ';';
+
+const UUID_PATTERN = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
+
+/**
+ * The record ids a multi-lookup field holds, as the delimited string the mapped text column
+ * stores, or null when the value is not a multi-lookup selection.
+ *
+ * Ids are validated here and an invalid one throws rather than being dropped: a crafted id
+ * must never reach Dataverse inside a delimited string. Mirrors the backend helper so both
+ * runtimes store the same thing.
+ */
+export function joinLookupRecordIds(value: unknown): string | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  const ids = value.map(readLookupRecordId);
+  if (ids.some((id) => id === null)) return null; // not a lookup selection — leave it alone
+
+  for (const id of ids) {
+    if (!UUID_PATTERN.test(id!)) {
+      throw new Error(`Multi-lookup value '${id}' is not a valid record id.`);
+    }
+  }
+
+  return ids.map((id) => id!.replace(/[{}]/g, '')).join(MULTI_LOOKUP_SEPARATOR);
+}
+
 /** Formats a resolved binding as the payload key/value pair Dataverse expects. */
 export function toBindingEntry(binding: LookupBinding, recordId: string): [string, string] {
   const guid = recordId.replace(/[{}]/g, '').toLowerCase();

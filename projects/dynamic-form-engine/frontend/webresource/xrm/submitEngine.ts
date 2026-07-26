@@ -3,7 +3,7 @@
 // creates the parent record, then child records linked by relationship, with rollback on error.
 import type { FormDefinition, FormFieldValues, SubmissionMapping } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
-import { readLookupRecordId, resolveLookupBinding, toBindingEntry, type LookupBinding } from './lookupBinding';
+import { joinLookupRecordIds, readLookupRecordId, resolveLookupBinding, toBindingEntry, type LookupBinding } from './lookupBinding';
 
 interface FieldInfo {
   schemaName: string;
@@ -100,6 +100,16 @@ function buildPayload(
       payload[key] = reference;
       continue;
     }
+
+    // A multi-lookup selection is a list of references, which no single attribute can hold
+    // as-is; it is stored as delimited record ids in the mapped text column (DFE-FBE-002),
+    // matching the portal. An empty selection writes nothing.
+    const joinedIds = joinLookupRecordIds(raw);
+    if (joinedIds !== null) {
+      payload[mapping.targetAttributeLogicalName] = joinedIds;
+      continue;
+    }
+    if (Array.isArray(raw) && raw.length === 0) continue;
 
     payload[mapping.targetAttributeLogicalName] = applyTransform(normalizeFileRefs(raw), mapping.transformExpression);
   }
