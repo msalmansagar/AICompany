@@ -33,6 +33,8 @@
   <!-- System.Net.Http ships with the framework but is not auto-referenced by the SDK for net462. -->
   <ItemGroup>
     <Reference Include="System.Net.Http" />
+    <!-- OrganizationServiceFault arrives wrapped in a WCF FaultException. -->
+    <Reference Include="System.ServiceModel" />
   </ItemGroup>
 
   <!--

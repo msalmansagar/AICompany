@@ -64,9 +64,11 @@ namespace Qdb.ReportEngine.CrmPlugin
             }
             catch (Exception error)
             {
-                entry.ErrorCode = error is InvalidPluginExecutionException ? "report_failed" : "unexpected_error";
-                tracing.Trace("qdb_RunReport failed: {0}", error);
-                WriteFailure(context, entry.ErrorCode, error.Message);
+                var failure = ReportFailure.Classify(error);
+                entry.ErrorCode = failure.Code;
+                // The full exception goes to the trace log for support; the caller gets the safe text.
+                tracing.Trace("qdb_RunReport failed ({0}): {1}", failure.Code, error);
+                WriteFailure(context, failure.Code, failure.Message);
             }
             finally
             {
