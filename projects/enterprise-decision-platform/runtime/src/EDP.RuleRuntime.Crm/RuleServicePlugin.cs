@@ -144,8 +144,8 @@ namespace EDP.RuleRuntime.Crm
             var ruleVersionId = ParamGuid(context, "RuleVersionId");
             var decision = new RuleDecisionService(service, new OrgServiceMetadataResolver(service), new DataverseTraceSink(service));
             var inputs = RuleDecisionService.ParseInputsJson(ParamString(context, "InputsJson"));
-            var result = decision.EvaluateInputs(pcrmJson, inputs, ruleVersionId, context.InitiatingUserId, DateTime.UtcNow);
-            return SerializeResult(result, executionSource: "decision-table");
+            var outcome = decision.EvaluateInputs(pcrmJson, inputs, ruleVersionId, context.InitiatingUserId, DateTime.UtcNow);
+            return SerializeResult(outcome.Result, executionSource: "decision-table");
         }
 
         /// <summary>
@@ -199,7 +199,7 @@ namespace EDP.RuleRuntime.Crm
                     continue;
                 }
                 var pcrm = decision.ResolvePcrm(m.VersionId.Value);
-                var r = decision.EvaluateInputs(pcrm, inputs, m.VersionId, context.InitiatingUserId, DateTime.UtcNow);
+                var r = decision.EvaluateInputs(pcrm, inputs, m.VersionId, context.InitiatingUserId, DateTime.UtcNow).Result;
                 results.Add(new { key = m.Key, ruleVersionId = m.VersionId, success = r.Success, matched = r.Matched, outputs = r.Outputs });
                 if (r.Matched)
                 {

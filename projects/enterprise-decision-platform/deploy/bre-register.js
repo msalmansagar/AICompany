@@ -87,6 +87,7 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     { uniquename: 'TraceJson', displayname: 'Trace JSON', type: 10 },
     { uniquename: 'DiagnosticsJson', displayname: 'Diagnostics JSON', type: 10 },
     { uniquename: 'ElapsedMs', displayname: 'Elapsed Ms', type: 7 },
+    { uniquename: 'ExecutionId', displayname: 'Execution Log Id', type: 10 },
   ];
   for (const p of resProps) {
     const ex = await first(t, 'customapiresponseproperties', `uniquename eq '${p.uniquename}' and _customapiid_value eq ${capi.customapiid}`, 'customapiresponsepropertyid');

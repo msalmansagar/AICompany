@@ -92,7 +92,15 @@ Implemented: **evaluate, test, validate, evaluate-rule-set** (all live-smoke-ver
 org) plus the reads **schema, history, explain** and a served **OpenAPI 3.1 spec + Swagger UI**.
 Not yet: rate limiting, and containerisation.
 
-**Field-mapping status:** evaluate / test / validate were confirmed against the live org. The
-**reads** (`GetInputSchema` / `GetOutputSchema` / `GetRuleHistory` / `ExplainDecision`) pass the
-Custom API's `ResultJson` straight through and have **not** yet been live-smoke-checked — verify
-their payload shapes against the org before production use.
+**Field-mapping status:** every operation has now been live-smoke-verified against
+`org5869857f` — evaluate / test / validate (2026-07-22) and the three reads **schema, history,
+explain** (2026-07-26). The reads pass the Custom API's `ResultJson` straight through and the
+live payloads matched.
+
+**Known gap — `executionId` is null until assembly 1.0.24 ships.** `/v1/decisions/explain` is
+addressed by an execution-log id, and `evaluate` is what hands that id back. The plugin change
+that returns it (`ExecutionId` on `qdb_edp_EvaluateDecision`) is merged but **not deployed** —
+it rides the W0-1 strong-name-key cutover along with the pin guard, because the assembly cannot
+be re-signed until the new key is vaulted (see `../wave-0-snk-rotation-scope.md`). Until then a
+caller must source the log id another way (e.g. an ops view over `qdb_edp_ruleexecutionlog`).
+`deploy/verify-execution-id.js` proves the chain end-to-end and is expected to fail until cutover.

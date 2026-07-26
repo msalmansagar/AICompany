@@ -14,7 +14,7 @@ namespace EDP.RuleRuntime.Crm.Tests
     /// </summary>
     public class ChildAggregationTests
     {
-        private sealed class NoTrace : ITraceSink { public void WriteTrace(TraceRecord trace) { } }
+        private sealed class NoTrace : ITraceSink { public Guid? WriteTrace(TraceRecord trace) => null; }
 
         // A rule that emits "HIT" only when the aggregated collateral input equals `expected`.
         private static string AggPcrm(string function, string? binding, decimal expected, (string field, string op, object value)? filter = null)
@@ -53,7 +53,7 @@ namespace EDP.RuleRuntime.Crm.Tests
             fake.QueryResults["qdb_collateral"] = children;
             var loan = new Entity("qdb_loanapplication", Guid.NewGuid());
             var svc = new RuleDecisionService(fake, new InMemoryMetadataResolver(), new NoTrace());
-            var result = svc.Evaluate(pcrm, loan, null, Guid.Empty, DateTime.UtcNow);
+            var result = svc.Evaluate(pcrm, loan, null, Guid.Empty, DateTime.UtcNow).Result;
             Assert.True(result.Success);
             return result.Outputs["r"]?.ToString() ?? "";
         }

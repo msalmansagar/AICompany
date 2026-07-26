@@ -16,7 +16,7 @@ namespace EDP.RuleRuntime.Crm.Tests
         private const int Draft = 100000000;
         private const int Published = 100000003;
 
-        private sealed class NoTrace : ITraceSink { public void WriteTrace(TraceRecord trace) { } }
+        private sealed class NoTrace : ITraceSink { public Guid? WriteTrace(TraceRecord trace) => null; }
         private static RuleDecisionService Svc(IOrganizationService s) => new RuleDecisionService(s, new InMemoryMetadataResolver(), new NoTrace());
 
         private static FakeOrganizationService WithVersion(Guid id, int state)
