@@ -308,9 +308,24 @@ Two things bite here:
    Find the valid values with the `RelationshipDefinitions` query in §2 and read
    `ReferencingEntityNavigationPropertyName`.
 
-> **Known bad data:** the `loan-application` form's opportunity mappings currently hold
-> `opportunity_customer_accounts` while their parent is a contact. Pre-existing, not yet
-> corrected.
+> **This happened here.** The `loan-application` form's two opportunity mappings held
+> `opportunity_customer_accounts` while their parent is a contact — so every submission of
+> that form failed. Corrected to `customerid_contact` on 2026-07-26. All active child
+> mappings in org5869857f now hold valid navigation properties.
+
+**Validating the configured value.** A relationship name is only correct if it appears as a
+`ReferencingEntityNavigationPropertyName` on the child entity:
+
+```
+GET /RelationshipDefinitions/Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata
+      ?$select=ReferencingEntityNavigationPropertyName,ReferencedEntity,ReferencingAttribute
+      &$filter=ReferencingEntity eq '<childEntity>' and ReferencedEntity eq '<parentEntity>'
+```
+
+Note there is usually **more than one** way to relate the same pair — `opportunity` →
+`contact` offers both `customerid_contact` (attr `customerid`) and `parentcontactid`. Pick
+the one whose `ReferencingAttribute` is the column you actually mean; they are different
+relationships with different semantics, and both will happily accept a bind.
 
 ---
 
@@ -429,8 +444,11 @@ the top of `CrmSubmissionService.test.ts`.
 - **Update/PATCH path** — neither runtime has one. Nothing currently identifies *which*
   record to update. Design in ADR-SUBMIT-001 (Draft); concurrency (`If-Match`) and a
   security review are open before it can ship.
-- **`loan-application` child relationship** holds a relationship SchemaName instead of a
-  navigation property (§9).
+- **No authoring-time validation.** `qdb_child_entity_relationship_name`,
+  `qdb_target_navigation_property` and `qdb_target_entity_set_name` are free-text columns
+  that nothing checks until a submission fails at runtime. The `loan-application` breakage
+  (§9) sat there undetected for exactly that reason. A publish-time check against metadata
+  would catch the whole class.
 
 ---
 
