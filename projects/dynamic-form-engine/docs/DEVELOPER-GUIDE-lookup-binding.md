@@ -452,5 +452,53 @@ the top of `CrmSubmissionService.test.ts`.
 
 ---
 
+## 14. Worked example — a custom entity, both ways
+
+Seeded by `scripts/seed-custom-entity-lookup-demo.mjs`, form **`custom-entity-lookup-demo`**.
+Everything in it is custom, because that is where guessing fails.
+
+| | |
+|---|---|
+| Child (written to) | `qdb_nfgapplication` |
+| Target (pointed at) | `qdb_applicationstatus` |
+| Target entity set | **`qdb_applicationstatuses`** — `qdb_applicationstatuss` returns **404** |
+| Column → nav property | `qdb_externalstatus` → **`qdb_ExternalStatus`** (differs by casing) |
+| | `qdb_internalstatus` → **`qdb_InternalStatus`** |
+
+Neither name is derivable from the column. That is the whole point.
+
+The form maps **both** lookups to the same target table, configured differently on purpose:
+
+| Field | `qdb_target_navigation_property` | `qdb_target_entity_set_name` | Binding comes from |
+|---|---|---|---|
+| External Status | `qdb_ExternalStatus` | `qdb_applicationstatuses` | the mapping (**pinned**) |
+| Internal Status | *(blank)* | *(blank)* | **metadata** |
+
+Both emit the same shape:
+
+```jsonc
+POST /qdb_nfgapplications
+{
+  "qdb_name": "…",
+  "qdb_ExternalStatus@odata.bind": "/qdb_applicationstatuses(e22dfd24-…)",
+  "qdb_InternalStatus@odata.bind": "/qdb_applicationstatuses(857a0126-…)"
+}
+```
+
+Verified live — record `qdb_nfgapplication(bec9e33f-2789-f111-ab0f-70a8a55bc6a5)`, both
+columns resolving back to `qdb_applicationstatus`.
+
+**The takeaway for the team: leave both override columns blank.** Metadata resolution is
+the normal path and it handles custom tables correctly on its own. Fill them in only where
+the service principal cannot read metadata, or where a value must be pinned for review —
+and note that a pinned value goes stale if the schema is renamed, whereas a resolved one
+does not.
+
+Scale of the problem in org5869857f: **5,144 custom-to-custom lookups where both the
+navigation property and the entity set are non-obvious**, and 290 `qdb_` tables whose
+entity set is not `logicalName + "s"`.
+
+---
+
 Related: `adrs/ADR-SUBMIT-001-update-support.md`, `docs/DEVELOPER-GUIDE-fbe.md`
 (multi-lookup authoring), `docs/developer-feature-reference.md`.
