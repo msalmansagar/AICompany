@@ -86,6 +86,27 @@ namespace Qdb.FormEngine.Tests
         }
 
         [Fact]
+        public void Generate_GridField_PublishesTheSavedViewIdTheDesignerWrote()
+        {
+            // Arrange — the designer and the portal both use qdb_saved_view_id. Reading the
+            // unused qdb_grid_saved_view_id column published a null view, which left the
+            // in-CRM grid querying the entity instead of the configured view.
+            var formId = Guid.NewGuid();
+            var savedViewId = Guid.NewGuid().ToString();
+            var rawData = BuildFormRawDataWithHiddenField(formId);
+            var gridField = rawData.Fields[0];
+            gridField["qdb_grid_mode"] = new OptionSetValue(100000000);
+            gridField["qdb_grid_entity_name"] = "contact";
+            gridField["qdb_saved_view_id"] = savedViewId;
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Equal(savedViewId, result.Tabs[0].Sections[0].Fields[0].GridConfig.SavedViewId);
+        }
+
+        [Fact]
         public void Generate_WithScopedButtons_EmbedsThemOnTabAndSection()
         {
             // Arrange

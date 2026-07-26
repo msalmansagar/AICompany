@@ -227,7 +227,10 @@ namespace Qdb.FormEngine.Core.Generation
                 Mode = gridMode,
                 TargetEntity = entityName ?? string.Empty,
                 EntityName = entityName,
-                SavedViewId = field.GetAttributeValue<string>("qdb_grid_saved_view_id"),
+                // qdb_saved_view_id is the column the designer writes and the portal reads.
+                // A qdb_grid_saved_view_id column also exists but is null on every record —
+                // reading it published a null view id, so the in-CRM grid ignored the view.
+                SavedViewId = field.GetAttributeValue<string>("qdb_saved_view_id"),
                 SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_selection_mode")),
                 MinRows = field.Contains("qdb_grid_min_rows") ? field.GetAttributeValue<int>("qdb_grid_min_rows") : 0,
                 MaxRows = field.Contains("qdb_max_rows") ? field.GetAttributeValue<int>("qdb_max_rows") : 200,

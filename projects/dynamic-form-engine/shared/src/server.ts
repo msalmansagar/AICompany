@@ -22,3 +22,5 @@ export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
 // portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.
 export { buildFetchXmlFilter } from './gridFilter/fetchXmlFilter.js';
 export { buildODataFilter } from './gridFilter/odataFilter.js';
+export { buildViewFetchXml } from './gridFilter/viewFetchXml.js';
+export type { ViewFetchXmlRequest } from './gridFilter/viewFetchXml.js';
