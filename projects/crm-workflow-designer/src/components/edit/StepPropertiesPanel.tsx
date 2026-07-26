@@ -5,6 +5,7 @@ import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/ty
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { confirm } from '@/components/ui/ConfirmDialog';
 import { SlaEscalationSection } from './SlaEscalationSection';
+import { ControlFlowSection } from './ControlFlowSection';
 
 interface StepPropertiesPanelProps {
   stepId: string | null;
@@ -310,6 +311,14 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
             + Add Decision
           </button>
         )}
+
+        <div style={dividerStyle} />
+
+        <ControlFlowSection
+          value={step}
+          onChange={(patch) => setStep({ ...step, ...patch })}
+          outcomeCount={stepOutcomes.length}
+        />
 
         <div style={dividerStyle} />
 

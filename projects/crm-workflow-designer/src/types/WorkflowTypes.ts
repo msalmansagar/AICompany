@@ -44,7 +44,28 @@ export interface SlaFields {
   escalationRoleName: string | null;
 }
 
-export interface WorkflowStep extends SlaFields {
+// --- Control flow: parallel (AND) gateway (DP-1) ---
+
+/** How a step's outcomes relate to each other when the step completes. */
+export type SplitType = 'Exclusive' | 'Parallel';
+
+/** Whether a step waits for its inbound branches before it starts. */
+export type JoinType = 'None' | 'AndJoin';
+
+/**
+ * Explicit control-flow semantics for a process step. Before DP-1 the model
+ * carried no gateway concept at all and exclusive choice was implied by
+ * convention, so `Exclusive`/`None` are both the defaults and the meaning every
+ * pre-DP-1 step keeps. Design-time configuration only — concurrency is enforced
+ * by the future CWFD-005 runtime, and a process using it cannot be published
+ * until then.
+ */
+export interface ControlFlowFields {
+  splitType: SplitType;
+  joinType: JoinType;
+}
+
+export interface WorkflowStep extends SlaFields, ControlFlowFields {
   crmId: string;
   name: string;
   schemaName: string;
@@ -169,6 +190,23 @@ export const ESCALATION_TARGET_TYPE_CODES: Record<EscalationTargetType, number> 
   Role: 100000003,
 };
 
+// --- Control-flow option-set codes (DP-1) ---
+// Global Dataverse option sets: qdb_SplitType, qdb_JoinType.
+// Code 100000002 is deliberately unallocated in both sets — reserved for the
+// inclusive (OR) split and the quorum join, which DP-1 does not build. See
+// ADR-1-001: leaving the number free keeps that extension additive, while not
+// creating the value keeps a maker from selecting a semantic nothing implements.
+
+export const SPLIT_TYPE_CODES: Record<SplitType, number> = {
+  Exclusive: 100000000,
+  Parallel: 100000001,
+};
+
+export const JOIN_TYPE_CODES: Record<JoinType, number> = {
+  None: 100000000,
+  AndJoin: 100000001,
+};
+
 /** Inverts a code map. Safe only for maps with unique integer codes. */
 function invertCodeMap<T extends string>(map: Record<T, number>): Record<number, T> {
   return Object.fromEntries(
@@ -180,3 +218,6 @@ export const SLA_DURATION_UNIT_FROM_CODE = invertCodeMap(SLA_DURATION_UNIT_CODES
 export const SLA_BASIS_FROM_CODE = invertCodeMap(SLA_BASIS_CODES);
 export const ESCALATION_ACTION_FROM_CODE = invertCodeMap(ESCALATION_ACTION_CODES);
 export const ESCALATION_TARGET_TYPE_FROM_CODE = invertCodeMap(ESCALATION_TARGET_TYPE_CODES);
+
+export const SPLIT_TYPE_FROM_CODE = invertCodeMap(SPLIT_TYPE_CODES);
+export const JOIN_TYPE_FROM_CODE = invertCodeMap(JOIN_TYPE_CODES);

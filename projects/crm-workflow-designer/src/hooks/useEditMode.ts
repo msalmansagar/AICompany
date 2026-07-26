@@ -4,6 +4,11 @@ import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { emptySlaFields, slaSummaryText } from '@/services/slaStepFields';
+import {
+  emptyControlFlowFields,
+  controlFlowSummaryText,
+  controlFlowDescription,
+} from '@/services/controlFlowFields';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import { computeEditLayout } from '@/services/EditGraphLayout';
@@ -104,6 +109,8 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         isSelected: selectedId === `step_${stepId}`,
         hasError: errorStepIds.has(step.crmId),
         slaSummary: slaSummaryText(step),
+        controlFlowSummary: controlFlowSummaryText(step),
+        controlFlowDescription: controlFlowDescription(step),
       };
 
       return {
@@ -139,7 +146,8 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         ? (routeOrder[outcome.crmId] ?? []).length
         : 0;
 
-      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge, routeCount));
+      const edge = buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge, routeCount);
+      result.push(sourceStep?.splitType === 'Parallel' ? asParallelBranchEdge(edge) : edge);
     }
 
     return result;
@@ -284,6 +292,7 @@ function resolveConnectSourceStepId(selectedId: string | null, stepOrder: string
 function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
     ...emptySlaFields(),
+    ...emptyControlFlowFields(),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',
     sequenceNo,
@@ -317,6 +326,24 @@ function buildStartEdge(entryStepId: string): Edge {
     type: 'smoothstep',
     style: { stroke: '#64748b' },
     markerEnd: { type: 'arrowclosed' as const, color: '#64748b' },
+  };
+}
+
+const PARALLEL_BRANCH_STROKE = '#7c3aed';
+
+/**
+ * Marks an edge as one branch of a concurrent split. The "AND" label, not the
+ * colour, is what carries the meaning — the notation has to survive greyscale
+ * printing and colour blindness (NFR-009).
+ */
+function asParallelBranchEdge(edge: Edge): Edge {
+  return {
+    ...edge,
+    label: 'AND',
+    labelStyle: { fill: PARALLEL_BRANCH_STROKE, fontSize: 10, fontWeight: 700 },
+    labelBgStyle: { fill: '#f5f3ff' },
+    style: { ...edge.style, stroke: PARALLEL_BRANCH_STROKE, strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as const, color: PARALLEL_BRANCH_STROKE },
   };
 }
 

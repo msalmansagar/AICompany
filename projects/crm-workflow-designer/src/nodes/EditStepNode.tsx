@@ -10,6 +10,10 @@ export interface EditStepData extends Record<string, unknown> {
   isSelected: boolean;
   hasError: boolean;
   slaSummary: string | null;
+  /** "ALL" / "WAIT ALL" when the step declares concurrent control flow (DP-1), else null. */
+  controlFlowSummary: string | null;
+  /** The same semantics spelled out, for the badge tooltip. */
+  controlFlowDescription: string | null;
 }
 
 const ASSIGN_TO_LABELS: Record<EditStepData['assignTo'], string> = {
@@ -35,6 +39,11 @@ export function EditStepNode({ data }: NodeProps) {
       <div style={headerStyle}>
         <span style={seqBadgeStyle}>{stepData.sequenceNo}</span>
         <span style={stepNameStyle}>{stepData.name || 'Unnamed Step'}</span>
+        {stepData.controlFlowSummary && (
+          <span style={controlFlowBadgeStyle} title={stepData.controlFlowDescription ?? undefined}>
+            ⧉ {stepData.controlFlowSummary}
+          </span>
+        )}
       </div>
 
       <div style={bodyStyle}>
@@ -148,6 +157,20 @@ const assigneeNameStyle: React.CSSProperties = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   flex: 1,
+};
+
+const controlFlowBadgeStyle: React.CSSProperties = {
+  display: 'inline-block',
+  padding: '2px 6px',
+  borderRadius: 4,
+  background: '#4c1d95',
+  border: '1px solid #7c3aed',
+  color: '#ddd6fe',
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
 };
 
 const slaBadgeStyle: React.CSSProperties = {
