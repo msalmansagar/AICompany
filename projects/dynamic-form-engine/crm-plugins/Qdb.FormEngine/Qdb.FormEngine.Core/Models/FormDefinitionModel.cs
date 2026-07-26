@@ -276,6 +276,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isMappedToChildEntity")] public bool IsMappedToChildEntity { get; set; }
         [JsonProperty("childEntityRelationshipName")] public string ChildEntityRelationshipName { get; set; }
         [JsonProperty("transformExpression")] public string TransformExpression { get; set; }
+        // DFE-GRIDCHILD-001: set = the source field is an entry grid and this mapping reads
+        // the named column, one child record per row. Omitted when blank.
+        [JsonProperty("gridColumnAttribute", NullValueHandling = NullValueHandling.Ignore)] public string GridColumnAttribute { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
     }
 

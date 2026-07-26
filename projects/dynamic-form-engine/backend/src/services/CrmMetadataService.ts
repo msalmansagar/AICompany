@@ -983,6 +983,8 @@ export class CrmMetadataService extends CrmBaseService {
       isMappedToChildEntity: m.qdb_is_child_entity ?? false,
       childEntityRelationshipName: m.qdb_child_entity_relationship_name,
       transformExpression: m.qdb_transform_expression,
+      // DFE-GRIDCHILD-001: set = this mapping reads a grid column, one child record per row.
+      gridColumnAttribute: m.qdb_grid_column_attribute || undefined,
       isActive: true,
     }));
   }
@@ -1447,6 +1449,7 @@ interface RawSubmissionMapping {
   qdb_is_child_entity?: boolean;
   qdb_child_entity_relationship_name?: string;
   qdb_transform_expression?: string;
+  qdb_grid_column_attribute?: string;
 }
 
 interface RawVersion {

@@ -143,6 +143,93 @@ function groupChildMappings(mappings: SubmissionMapping[]): Map<string, Submissi
   return groups;
 }
 
+/** Upper bound on child records one grid may create — see CrmSubmissionService. */
+const MAX_GRID_CHILD_ROWS = 250;
+
+/**
+ * One child record per entry-grid row. Grouping keeps the grid field as well as the target,
+ * since two grids on one form may write to the same child table.
+ */
+async function createGridChildRecords(
+  mappings: SubmissionMapping[],
+  values: FormFieldValues,
+  fields: Map<string, FieldInfo>,
+  parentReference: string,
+): Promise<Array<{ entity: string; id: string }>> {
+  const created: Array<{ entity: string; id: string }> = [];
+  if (mappings.length === 0) return created;
+
+  const groups = new Map<string, SubmissionMapping[]>();
+  for (const mapping of mappings) {
+    const key = `${mapping.fieldId}:${mapping.targetEntityLogicalName}:${mapping.childEntityRelationshipName ?? ''}`;
+    groups.set(key, [...(groups.get(key) ?? []), mapping]);
+  }
+
+  for (const [key, groupMappings] of groups) {
+    const [gridFieldId, childEntity, relationship] = key.split(':');
+
+    const rows = values[fields.get(gridFieldId)?.schemaName ?? ''];
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    if (rows.length > MAX_GRID_CHILD_ROWS) {
+      throw new Error(`This grid has ${rows.length} rows, exceeding the limit of ${MAX_GRID_CHILD_ROWS}.`);
+    }
+
+    for (const row of rows) {
+      const payload = buildGridRowPayload(groupMappings, row);
+      // A row mapping to nothing would create a blank child record.
+      if (Object.keys(payload).length === 0) continue;
+
+      if (relationship) payload[`${relationship}@odata.bind`] = parentReference;
+      const child = await webApi().createRecord(childEntity, payload);
+      created.push({ entity: childEntity, id: child.id });
+    }
+  }
+
+  return created;
+}
+
+/** The payload for one grid row: each mapping reads its own column out of the row. */
+function buildGridRowPayload(
+  mappings: SubmissionMapping[],
+  row: unknown,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (typeof row !== 'object' || row === null) return payload;
+
+  const cells = row as Record<string, unknown>;
+
+  for (const mapping of mappings) {
+    const value = cells[mapping.gridColumnAttribute!];
+    if (value === undefined || value === null || value === '') continue;
+
+    // A grid column is not a form field, so the metadata pass never saw it — a lookup
+    // column binds only from the mapping's own override columns.
+    const pinnedProperty = mapping.targetNavigationProperty?.trim();
+    const pinnedSet = mapping.targetEntitySetName?.trim();
+    const recordId = readLookupRecordId(value);
+
+    if (pinnedProperty && pinnedSet && recordId) {
+      const [bindKey, reference] = toBindingEntry(
+        { navigationProperty: pinnedProperty, entitySetName: pinnedSet }, recordId,
+      );
+      payload[bindKey] = reference;
+      continue;
+    }
+
+    if (typeof value === 'object' && !Array.isArray(value) && 'id' in (value as object)) {
+      throw new Error(
+        `Grid column '${mapping.gridColumnAttribute}' writes to lookup `
+        + `'${mapping.targetAttributeLogicalName}' but no binding is configured. Set `
+        + 'Target Navigation Property and Target Entity Set Name on the mapping.',
+      );
+    }
+
+    payload[mapping.targetAttributeLogicalName] = value;
+  }
+
+  return payload;
+}
+
 async function resolveReferenceNumber(
   refAttribute: string | undefined,
   entityName: string,
@@ -176,18 +263,29 @@ export async function submitForm(form: FormDefinition, values: FormFieldValues):
     const parent = await webApi().createRecord(parentEntity, parentPayload);
     created.push({ entity: parentEntity, id: parent.id });
 
-    const childGroups = groupChildMappings(active.filter((m) => m.isMappedToChildEntity));
+    // The set name comes from metadata, never from appending "s" — it is wrong for
+    // opportunity -> opportunities and for 290 custom tables in this org.
+    const parentSet = await resolveEntitySetName(parentEntity) ?? `${parentEntity}s`;
+    const parentReference = `/${parentSet}(${parent.id})`;
+
+    const childMappings = active.filter((m) => m.isMappedToChildEntity);
+
+    // A mapping naming a grid column writes one child PER ROW; the rest keep the original
+    // one-child-per-group behaviour. Mirrors CrmSubmissionService.
+    const childGroups = groupChildMappings(childMappings.filter((m) => !m.gridColumnAttribute));
     for (const [key, mappings] of childGroups) {
       const [childEntity, relationship] = key.split(':');
       const childPayload = buildPayload(mappings, values, fields, bindings);
-      if (relationship) {
-        // The set name comes from metadata, never from appending "s" — it is wrong for
-        // opportunity -> opportunities and for 290 custom tables in this org.
-        const parentSet = await resolveEntitySetName(parentEntity) ?? `${parentEntity}s`;
-        childPayload[`${relationship}@odata.bind`] = `/${parentSet}(${parent.id})`;
-      }
+      if (relationship) childPayload[`${relationship}@odata.bind`] = parentReference;
+
       const child = await webApi().createRecord(childEntity, childPayload);
       created.push({ entity: childEntity, id: child.id });
+    }
+
+    for (const record of await createGridChildRecords(
+      childMappings.filter((m) => m.gridColumnAttribute), values, fields, parentReference,
+    )) {
+      created.push(record);
     }
 
     return await resolveReferenceNumber(form.confirmationRecordRefAttribute, parentEntity, parent.id);

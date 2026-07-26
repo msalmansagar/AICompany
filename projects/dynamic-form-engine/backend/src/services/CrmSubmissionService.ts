@@ -6,7 +6,20 @@ import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
 import { EntitySetNameResolver } from './EntitySetNameResolver.js';
-import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
+import { indexFieldsById, isLookupSelection, joinLookupRecordIds, readLookupRecordId, readMappingBindingOverride, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
+
+/** A record created during a submission, kept so a failure can roll the whole set back. */
+interface CreatedRecord {
+  entity: string;
+  id: string;
+}
+
+/**
+ * Upper bound on child records one grid may create. A submission is sequential, so a
+ * runaway row count would hold the request open for minutes; failing fast is kinder than
+ * a half-written parent.
+ */
+const MAX_GRID_CHILD_ROWS = 250;
 
 interface UploadAttributeConfig {
   attributeName: string;
@@ -79,25 +92,37 @@ export class CrmSubmissionService extends CrmBaseService {
         formDefinition, fieldValues, parentRecordId, parentEntityName, createdRecords,
       );
 
-      // Create child records grouped by entity + relationship
       const childMappings = formDefinition.submissionMappings.filter(
         (m) => m.isActive && m.isMappedToChildEntity,
       );
 
-      const childGroups = this.groupChildMappings(childMappings);
+      // Link to parent via relationship — the set name comes from metadata, never from
+      // appending "s" (opportunity -> opportunities, and 290 custom tables in this org).
+      const parentReference =
+        `/${await this.entitySetNames.resolve(parentEntityName)}(${parentRecordId})`;
 
-      for (const [groupKey, mappings] of childGroups) {
+      // A mapping naming a grid column writes one child PER ROW; everything else keeps the
+      // original behaviour of one child per (entity + relationship) group.
+      const gridMappings = childMappings.filter((m) => m.gridColumnAttribute);
+      const scalarMappings = childMappings.filter((m) => !m.gridColumnAttribute);
+
+      for (const [groupKey, mappings] of this.groupChildMappings(scalarMappings)) {
         const [childEntity, relationship] = groupKey.split(':');
         const childPayload = this.buildPayload(mappings, fieldValues, fieldIdToSchemaName, lookupBindings);
-
-        // Link to parent via relationship — the set name comes from metadata, never from
-        // appending "s" (opportunity -> opportunities, and 290 custom tables in this org).
-        childPayload[`${relationship}@odata.bind`] =
-          `/${await this.entitySetNames.resolve(parentEntityName)}(${parentRecordId})`;
+        childPayload[`${relationship}@odata.bind`] = parentReference;
 
         const childId = await this.createRecord(childEntity, childPayload);
         createdRecords.push({ entity: childEntity, id: childId });
       }
+
+      const gridChildren = await this.createGridChildRecords({
+        mappings: gridMappings,
+        fieldValues,
+        fieldIdToSchemaName,
+        lookupBindings,
+        parentReference,
+      });
+      createdRecords.push(...gridChildren);
 
       // Mark parent record as complete. Non-fatal â€” only works if the target entity
       // has the qdb_submission_status attribute (true for all qdb_* entities).
@@ -266,6 +291,118 @@ export class CrmSubmissionService extends CrmBaseService {
       case 'toJson': return typeof value === 'string' ? value : JSON.stringify(value);
       default: return value;
     }
+  }
+
+  /**
+   * Creates one child record per entry-grid row.
+   *
+   * A grid holds an array of rows; each mapping in a group names the grid column that feeds
+   * one attribute on the child. Records are created in row order and appended to the
+   * caller's rollback list, so a failure part-way through unwinds the whole submission.
+   */
+  private async createGridChildRecords(context: {
+    mappings: SubmissionMapping[];
+    fieldValues: FormFieldValues;
+    fieldIdToSchemaName: Map<string, string>;
+    lookupBindings: LookupBindingMap;
+    parentReference: string;
+  }): Promise<CreatedRecord[]> {
+    const created: CreatedRecord[] = [];
+    if (context.mappings.length === 0) return created;
+
+    for (const [groupKey, mappings] of this.groupGridChildMappings(context.mappings)) {
+      const [gridFieldId, childEntity, relationship] = groupKey.split(':');
+
+      const gridSchemaName = context.fieldIdToSchemaName.get(gridFieldId);
+      const rows = gridSchemaName ? context.fieldValues[gridSchemaName] : undefined;
+      if (!Array.isArray(rows) || rows.length === 0) continue;
+
+      if (rows.length > MAX_GRID_CHILD_ROWS) {
+        throw new ValidationError(
+          `Grid '${gridSchemaName}' has ${rows.length} rows, exceeding the limit of ${MAX_GRID_CHILD_ROWS}.`,
+        );
+      }
+
+      for (const row of rows) {
+        const payload = this.buildGridRowPayload(mappings, row, context.lookupBindings);
+        // A row that maps to nothing would create an empty child record — skip it rather
+        // than litter the child table with blanks.
+        if (Object.keys(payload).length === 0) continue;
+
+        payload[`${relationship}@odata.bind`] = context.parentReference;
+        const childId = await this.createRecord(childEntity, payload);
+        created.push({ entity: childEntity, id: childId });
+      }
+
+      logger.info(
+        { gridSchemaName, childEntity, rowCount: rows.length },
+        'Grid rows written as child records',
+      );
+    }
+
+    return created;
+  }
+
+  /** One child record per row, so grouping keeps the grid field as well as the target. */
+  private groupGridChildMappings(
+    mappings: SubmissionMapping[],
+  ): Map<string, SubmissionMapping[]> {
+    const groups = new Map<string, SubmissionMapping[]>();
+
+    for (const mapping of mappings) {
+      const key = `${mapping.fieldId}:${mapping.targetEntityLogicalName}:${mapping.childEntityRelationshipName ?? ''}`;
+      const existing = groups.get(key) ?? [];
+      existing.push(mapping);
+      groups.set(key, existing);
+    }
+
+    return groups;
+  }
+
+  /** The payload for one grid row: each mapping reads its own column out of the row. */
+  private buildGridRowPayload(
+    mappings: SubmissionMapping[],
+    row: unknown,
+    lookupBindings: LookupBindingMap,
+  ): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+    if (typeof row !== 'object' || row === null) return payload;
+
+    const cells = row as Record<string, unknown>;
+
+    for (const mapping of mappings) {
+      const value = cells[mapping.gridColumnAttribute!];
+      if (value === undefined || value === null || value === '') continue;
+
+      const transformed = mapping.transformExpression
+        ? this.applyTransform(value, mapping.transformExpression)
+        : value;
+
+      // A grid column pointing at another table still has to be written as a binding. The
+      // grid column is not a form field, so resolveLookupBindings never saw it — the
+      // binding comes from the mapping's own override columns.
+      const binding = lookupBindings.get(mapping.targetAttributeLogicalName)
+        ?? readMappingBindingOverride(mapping);
+      const recordId = binding ? readLookupRecordId(value) : null;
+
+      if (binding && recordId) {
+        const [key, reference] = toBindingEntry(binding, recordId);
+        payload[key] = reference;
+        continue;
+      }
+
+      if (isLookupSelection(value)) {
+        throw new ValidationError(
+          `Grid column '${mapping.gridColumnAttribute}' writes to lookup `
+          + `'${mapping.targetAttributeLogicalName}' but no binding is configured. Set `
+          + 'Target Navigation Property and Target Entity Set Name on the mapping.',
+        );
+      }
+
+      payload[mapping.targetAttributeLogicalName] = transformed;
+    }
+
+    return payload;
   }
 
   private groupChildMappings(

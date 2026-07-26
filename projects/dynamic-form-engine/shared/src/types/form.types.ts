@@ -400,6 +400,10 @@ export interface SubmissionMapping {
   isMappedToChildEntity: boolean;
   childEntityRelationshipName?: string; // relationship used to link child to parent
   transformExpression?: string;         // optional value transform before write
+  // DFE-GRIDCHILD-001: the entry-grid column whose value feeds this target attribute.
+  // Set on a child mapping, the source field is the grid and the engine writes ONE CHILD
+  // RECORD PER ROW. Blank keeps the existing behaviour: one child per mapping group.
+  gridColumnAttribute?: string;
   isActive: boolean;
 }
 

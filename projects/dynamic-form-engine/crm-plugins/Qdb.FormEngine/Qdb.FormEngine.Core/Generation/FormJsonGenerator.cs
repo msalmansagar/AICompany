@@ -293,6 +293,7 @@ namespace Qdb.FormEngine.Core.Generation
                     IsMappedToChildEntity = m.GetAttributeValue<bool>("qdb_is_child_entity"),
                     ChildEntityRelationshipName = m.GetAttributeValue<string>("qdb_child_entity_relationship_name"),
                     TransformExpression = m.GetAttributeValue<string>("qdb_transform_expression"),
+                    GridColumnAttribute = m.GetAttributeValue<string>("qdb_grid_column_attribute"),
                     IsActive = m.GetAttributeValue<bool>("qdb_is_active")
                 })
                 .ToList();

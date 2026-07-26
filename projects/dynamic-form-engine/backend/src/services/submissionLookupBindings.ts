@@ -66,9 +66,22 @@ export function indexFieldsById(formDefinition: FormDefinition): Map<string, Fie
 }
 
 /**
+ * Whether a value is a lookup selection rather than a plain cell value. Used to fail loudly
+ * on a grid column that points at another table with no binding configured — writing the
+ * object would reach Dataverse as `[object Object]` or a 400.
+ */
+export function isLookupSelection(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'id' in value;
+}
+
+/**
  * A binding taken wholly from the mapping's overrides, or null when either half is blank —
  * in which case metadata is consulted and any single override is layered on top.
  */
+export function readMappingBindingOverride(mapping: SubmissionMapping): LookupBinding | null {
+  return readBindingOverride(mapping);
+}
+
 function readBindingOverride(mapping: SubmissionMapping): LookupBinding | null {
   const navigationProperty = mapping.targetNavigationProperty?.trim();
   const entitySetName = mapping.targetEntitySetName?.trim();
