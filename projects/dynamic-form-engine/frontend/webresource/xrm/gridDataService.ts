@@ -9,7 +9,7 @@ import {
 } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
 import { getLoadedForm } from './formApi';
-import { fetchViewPage, resolveViewFetchXml } from './viewQuery';
+import { fetchViewPage, resolveLookupNavigationProperty, resolveViewFetchXml } from './viewQuery';
 
 const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 
@@ -26,7 +26,13 @@ interface GridPageRequest {
   columnFilters?: Record<string, string>;
 }
 
-interface GridColumn { targetAttribute: string; columnFieldType: string; }
+interface GridColumn {
+  targetAttribute: string;
+  columnFieldType: string;
+  filterType?: 'text' | 'optionset' | 'lookup' | 'none';
+  lookupTargetEntity?: string;
+  lookupDisplayAttribute?: string;
+}
 interface GridConfig {
   targetEntity: string;
   entityName?: string;
@@ -91,9 +97,49 @@ function buildFilter(grid: GridConfig, request: GridPageRequest): string[] {
     }
   }
 
-  for (const [attribute, value] of Object.entries(request.columnFilters ?? {})) {
-    if (value && value.trim()) clauses.push(`contains(${attribute},'${escapeOData(value.trim())}')`);
+  return clauses;
+}
+
+// OData has no join, so a lookup column filters through its navigation property; an option
+// set compares its numeric value. Resolving the navigation property needs metadata, which
+// is why this is async.
+async function buildColumnFilterClausesOData(
+  entity: string,
+  columns: GridColumn[],
+  columnFilters: Record<string, string> | undefined,
+): Promise<string[]> {
+  const clauses: string[] = [];
+
+  for (const [attribute, value] of Object.entries(columnFilters ?? {})) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+
+    const column = columns.find((candidate) => candidate.targetAttribute === attribute);
+    const filterType = column?.filterType ?? 'text';
+
+    if (filterType === 'optionset') {
+      const optionValue = parseInt(trimmed, 10);
+      if (!isNaN(optionValue)) clauses.push(`${attribute} eq ${optionValue}`);
+      continue;
+    }
+
+    if (filterType === 'lookup') {
+      if (!column?.lookupTargetEntity || !column.lookupDisplayAttribute) continue;
+      const navigationProperty = await resolveLookupNavigationProperty(
+        entity, attribute, column.lookupTargetEntity,
+      );
+      if (!navigationProperty) {
+        // eslint-disable-next-line no-console
+        console.warn(`[DFE-grid] no navigation property for lookup ${attribute} — filter skipped`);
+        continue;
+      }
+      clauses.push(`contains(${navigationProperty}/${column.lookupDisplayAttribute},'${escapeOData(trimmed)}')`);
+      continue;
+    }
+
+    clauses.push(`contains(${attribute},'${escapeOData(trimmed)}')`);
   }
+
   return clauses;
 }
 
@@ -105,8 +151,58 @@ function escapeXmlAttribute(value: string): string {
     .replace(/>/g, '&gt;');
 }
 
+interface FetchXmlClauses {
+  filterXml: string;
+  linkEntityXml: string;
+}
+
+// Per-column filters follow the column's own filter type: free text is a like, an option
+// set compares the numeric value, and a lookup joins to the related entity — a lookup
+// attribute itself only compares by GUID, so filtering it by display text needs the join.
+function buildColumnFilterClauses(
+  columns: GridColumn[],
+  columnFilters: Record<string, string> | undefined,
+): FetchXmlClauses {
+  const conditions: string[] = [];
+  const linkEntities: string[] = [];
+
+  for (const [attribute, value] of Object.entries(columnFilters ?? {})) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+
+    const column = columns.find((candidate) => candidate.targetAttribute === attribute);
+    const filterType = column?.filterType ?? 'text';
+
+    if (filterType === 'optionset') {
+      const optionValue = parseInt(trimmed, 10);
+      if (!isNaN(optionValue)) {
+        conditions.push(`<condition attribute="${attribute}" operator="eq" value="${optionValue}"/>`);
+      }
+      continue;
+    }
+
+    if (filterType === 'lookup') {
+      if (!column?.lookupTargetEntity || !column.lookupDisplayAttribute) continue;
+      const term = escapeXmlAttribute(`%${trimmed}%`);
+      // Alias kept short — FetchXML rejects long aliases.
+      const alias = `lnk_${attribute.replace(/\W/g, '_').slice(0, 15)}`;
+      linkEntities.push(
+        `<link-entity name="${column.lookupTargetEntity}" from="${column.lookupTargetEntity}id" ` +
+        `to="${attribute}" alias="${alias}" link-type="inner">` +
+        `<filter><condition attribute="${column.lookupDisplayAttribute}" operator="like" value="${term}"/></filter>` +
+        `</link-entity>`,
+      );
+      continue;
+    }
+
+    conditions.push(`<condition attribute="${attribute}" operator="like" value="${escapeXmlAttribute(`%${trimmed}%`)}"/>`);
+  }
+
+  return { filterXml: conditions.join(''), linkEntityXml: linkEntities.join('') };
+}
+
 // The same conditions as buildFilter, in the FetchXML dialect the saved-view path needs.
-function buildFetchXmlConditions(grid: GridConfig, request: GridPageRequest): string {
+function buildFetchXmlConditions(grid: GridConfig, request: GridPageRequest): FetchXmlClauses {
   const parts: string[] = [];
 
   for (const template of [grid.filterExpression, grid.dependsOnFilterTemplate]) {
@@ -135,13 +231,13 @@ function buildFetchXmlConditions(grid: GridConfig, request: GridPageRequest): st
     }
   }
 
-  for (const [attribute, value] of Object.entries(request.columnFilters ?? {})) {
-    if (!value || !value.trim()) continue;
-    const term = escapeXmlAttribute(`%${value.trim()}%`);
-    parts.push(`<condition attribute="${attribute}" operator="like" value="${term}"/>`);
-  }
+  const columnClauses = buildColumnFilterClauses(columns, request.columnFilters);
+  if (columnClauses.filterXml) parts.push(columnClauses.filterXml);
 
-  return parts.length > 0 ? `<filter type="and">${parts.join('')}</filter>` : '';
+  return {
+    filterXml: parts.length > 0 ? `<filter type="and">${parts.join('')}</filter>` : '',
+    linkEntityXml: columnClauses.linkEntityXml,
+  };
 }
 
 function mapRows(
@@ -185,12 +281,14 @@ async function fetchPageFromView(
   const columns = grid.columnConfigs ?? [];
   const idAttribute = `${entity}id`;
 
+  const clauses = buildFetchXmlConditions(grid, request);
   const fetchXml = buildViewFetchXml({
     baseXml,
     page: request.page,
     pageSize: request.pageSize,
     columnAttributes: columns.map((column) => column.targetAttribute).filter(Boolean),
-    filterXml: buildFetchXmlConditions(grid, request),
+    filterXml: clauses.filterXml,
+    linkEntityXml: clauses.linkEntityXml,
     sortBy: request.sortBy,
     sortDirection: request.sortDirection,
   });
@@ -227,7 +325,10 @@ export async function fetchGridPage(request: GridPageRequest): Promise<GridRecor
   const idAttribute = `${entity}id`;
 
   let options = `?$select=${selectAttributes.join(',') || idAttribute}`;
-  const filters = buildFilter(grid, request);
+  const filters = [
+    ...buildFilter(grid, request),
+    ...await buildColumnFilterClausesOData(entity, columns, request.columnFilters),
+  ];
   if (filters.length > 0) options += `&$filter=${encodeURIComponent(filters.join(' and '))}`;
   if (request.sortBy) {
     options += `&$orderby=${toQueryAttribute(request.sortBy, columns)} ${request.sortDirection ?? 'asc'}`;

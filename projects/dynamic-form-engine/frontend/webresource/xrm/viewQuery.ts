@@ -62,6 +62,50 @@ async function resolveEntitySetName(entityLogicalName: string): Promise<string> 
   return entitySetName;
 }
 
+const navigationPropertyByKey = new Map<string, string | null>();
+
+/**
+ * Resolves the single-valued navigation property behind a lookup attribute, so an OData
+ * filter can reach the related record's own columns (contains(navProp/name,'…')).
+ * It is not always the attribute name: a polymorphic lookup has one property per target
+ * (parentcustomerid_account, parentcustomerid_contact). Returns null when unresolvable.
+ */
+export async function resolveLookupNavigationProperty(
+  entityLogicalName: string,
+  attribute: string,
+  targetEntity: string,
+): Promise<string | null> {
+  const key = `${entityLogicalName}.${attribute}.${targetEntity}`;
+  const cached = navigationPropertyByKey.get(key);
+  if (cached !== undefined) return cached;
+
+  const url = `${webApiBaseUrl()}/EntityDefinitions(LogicalName='${entityLogicalName}')/ManyToOneRelationships`
+    + `?$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName`
+    + `&$filter=ReferencingAttribute eq '${attribute}'`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0' },
+      credentials: 'same-origin',
+    });
+    if (!response.ok) throw new Error(String(response.status));
+
+    const payload = await response.json() as {
+      value?: Array<{ ReferencedEntity?: string; ReferencingEntityNavigationPropertyName?: string }>;
+    };
+    const relationships = payload.value ?? [];
+    const match = relationships.find((relationship) => relationship.ReferencedEntity === targetEntity)
+      ?? (relationships.length === 1 ? relationships[0] : undefined);
+    const navigationProperty = match?.ReferencingEntityNavigationPropertyName ?? null;
+
+    navigationPropertyByKey.set(key, navigationProperty);
+    return navigationProperty;
+  } catch {
+    navigationPropertyByKey.set(key, null);
+    return null;
+  }
+}
+
 /** Executes one FetchXML page and reports whether more pages follow. */
 export async function fetchViewPage(
   entityLogicalName: string,

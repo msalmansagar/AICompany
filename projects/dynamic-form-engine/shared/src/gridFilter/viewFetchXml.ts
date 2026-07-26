@@ -15,6 +15,12 @@ export interface ViewFetchXmlRequest {
   columnAttributes?: string[];
   /** A FetchXML <filter>/<condition> subtree to AND onto the view's own filter. */
   filterXml?: string;
+  /**
+   * <link-entity> joins to append to the entity. Filtering a lookup column by its display
+   * text is a join onto the related entity, not a condition — a lookup attribute only
+   * compares by GUID.
+   */
+  linkEntityXml?: string;
   /** Sort override; when absent the view's own <order> is preserved. */
   sortBy?: string;
   sortDirection?: 'asc' | 'desc';
@@ -26,7 +32,8 @@ export function buildViewFetchXml(request: ViewFetchXmlRequest): string {
   xml = ensureAttributes(xml, request.columnAttributes ?? []);
   xml = applyPaging(xml, request.page, request.pageSize);
   xml = applySort(xml, request.sortBy, request.sortDirection);
-  return applyFilter(xml, request.filterXml);
+  xml = applyFilter(xml, request.filterXml);
+  return applyLinkEntities(xml, request.linkEntityXml);
 }
 
 // The view may not select every column the grid displays, and FetchXML returns only
@@ -68,4 +75,9 @@ function applyFilter(xml: string, filterXml?: string): string {
   if (!filterXml) return xml;
   const wrapped = filterXml.startsWith('<filter') ? filterXml : `<filter type="and">${filterXml}</filter>`;
   return xml.replace('</entity>', `${wrapped}</entity>`);
+}
+
+function applyLinkEntities(xml: string, linkEntityXml?: string): string {
+  if (!linkEntityXml) return xml;
+  return xml.replace('</entity>', `${linkEntityXml}</entity>`);
 }

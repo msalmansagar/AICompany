@@ -283,18 +283,23 @@ const grid = await mkField(secSearch.qdb_form_sectionid, {
   qdb_grid_depends_on_filter_template:
     "fullname like '%{demo3_name}%' and gendercode eq {demo3_service_type} and _parentcustomerid_value eq '{demo3_company}'",
 });
+// Each column also carries a per-column filter box, one of each kind: free text, a lookup
+// (filtered through a join on the related account's name) and an option set.
 await mkGridColumn(grid.qdb_form_fieldid, {
   qdb_column_label: 'Full Name', qdb_column_attribute: 'fullname', qdb_column_field_type: 'text', qdb_display_order: 1,
+  qdb_column_options_json: JSON.stringify({ v: 2, filterType: 'text' }),
 });
 await mkGridColumn(grid.qdb_form_fieldid, {
   qdb_column_label: 'Company', qdb_column_attribute: 'parentcustomerid', qdb_column_field_type: 'lookup', qdb_display_order: 2,
-  qdb_column_options_json: JSON.stringify({ v: 2, filterType: 'none' }),
+  qdb_column_options_json: JSON.stringify({
+    v: 2, filterType: 'lookup', lookupTargetEntity: 'account', lookupDisplayAttribute: 'name',
+  }),
 });
 await mkGridColumn(grid.qdb_form_fieldid, {
   qdb_column_label: 'Service Type', qdb_column_attribute: 'gendercode', qdb_column_field_type: 'dropdown', qdb_display_order: 3,
   qdb_column_options_json: JSON.stringify({
-    v: 2, filterType: 'none',
-    options: [{ value: '1', label: 'Consulting' }, { value: '2', label: 'Technology' }],
+    v: 2, filterType: 'optionset',
+    options: [{ value: '1', label: 'Consulting (Male)' }, { value: '2', label: 'Technology (Female)' }],
   }),
 });
 console.log('tab 3: text + 2 dropdowns + grid (3-field AND template)');

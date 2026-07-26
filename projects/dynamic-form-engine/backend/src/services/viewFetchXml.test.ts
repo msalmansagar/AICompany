@@ -111,6 +111,39 @@ describe('buildViewFetchXml', () => {
     });
   });
 
+  describe('link entities', () => {
+    it('appendsALookupJoinInsideTheEntity', () => {
+      const link =
+        '<link-entity name="account" from="accountid" to="parentcustomerid" alias="lnk_a" link-type="inner">' +
+        '<filter><condition attribute="name" operator="like" value="%QNB%"/></filter></link-entity>';
+
+      const result = buildViewFetchXml({ baseXml: VIEW_XML, page: 1, pageSize: 10, linkEntityXml: link });
+
+      expect(result).toContain(link);
+      expect(result.indexOf(link)).toBeLessThan(result.indexOf('</entity>'));
+    });
+
+    it('keepsTheJoinOutsideTheFilterElement', () => {
+      const result = buildViewFetchXml({
+        baseXml: VIEW_XML,
+        page: 1,
+        pageSize: 10,
+        filterXml: '<filter type="and"><condition attribute="gendercode" operator="eq" value="1"/></filter>',
+        linkEntityXml: '<link-entity name="account" from="accountid" to="parentcustomerid" alias="lnk_a" link-type="inner"/>',
+      });
+
+      // A <link-entity> nested inside <filter> is invalid FetchXML.
+      expect(result).not.toMatch(/<filter[^>]*>[^<]*<link-entity/);
+      expect(result).toContain('</filter><link-entity');
+    });
+
+    it('leavesTheXmlAlone_whenNoJoinRequested', () => {
+      const result = buildViewFetchXml({ baseXml: VIEW_XML, page: 1, pageSize: 10 });
+
+      expect(result).not.toContain('link-entity');
+    });
+  });
+
   it('doesNotMutateTheSourceXml', () => {
     const original = VIEW_XML;
 
