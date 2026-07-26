@@ -55,25 +55,35 @@ namespace Qdb.ReportEngine.CrmPlugin
             var entry = NewLogEntry(request.ReportId, context.InitiatingUserId);
             var clock = Stopwatch.StartNew();
 
+            ReportResult result = null;
+            ReportFailureInfo failure = null;
+
             try
             {
-                var result = ExecuteReport(asUser, request, entry);
+                result = ExecuteReport(asUser, request, entry);
                 entry.RowCount = result.RowCount;
                 entry.Succeeded = true;
-                WriteSuccess(context, result);
             }
             catch (Exception error)
             {
-                var failure = ReportFailure.Classify(error);
+                failure = ReportFailure.Classify(error);
                 entry.ErrorCode = failure.Code;
                 // The full exception goes to the trace log for support; the caller gets the safe text.
                 tracing.Trace("qdb_RunReport failed ({0}): {1}", failure.Code, error);
-                WriteFailure(context, failure.Code, failure.Message);
             }
-            finally
+
+            // The audit record is written BEFORE the caller is given anything, and a failure to write
+            // it throws — so there is no path that returns report data without a recorded execution.
+            entry.DurationMs = (int)clock.ElapsedMilliseconds;
+            log.Write(entry);
+
+            if (failure == null)
             {
-                entry.DurationMs = (int)clock.ElapsedMilliseconds;
-                log.Write(entry);
+                WriteSuccess(context, result);
+            }
+            else
+            {
+                WriteFailure(context, failure.Code, failure.Message);
             }
         }
 

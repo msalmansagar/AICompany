@@ -28,8 +28,11 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
         }
 
         /// <summary>
-        /// Records one execution. Never throws: a report that ran must not fail because its audit
-        /// record could not be written, but the failure is traced so it is not silent.
+        /// Records one execution, and fails the run if it cannot.
+        ///
+        /// Swallowing the failure would quietly reduce B4 to best effort — the very thing routing
+        /// retrieval through the plugin exists to prevent. If the trail cannot be written, the safe
+        /// outcome for a regulated report is no data, not unrecorded data.
         /// </summary>
         public void Write(ExecutionLogEntry entry)
         {
@@ -40,6 +43,9 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             catch (Exception error)
             {
                 _tracing.Trace("qdb_reportexecutionlog write failed: {0}", error);
+                throw new InvalidPluginExecutionException(
+                    "The report ran but its execution could not be recorded in the audit log, so the "
+                    + "result was withheld. Report this to an administrator: " + error.Message, error);
             }
         }
 
@@ -51,7 +57,9 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             record["qdb_name"] = name.Length > NameMaxLength ? name.Substring(0, NameMaxLength) : name;
             record["qdb_correlationid"] = entry.CorrelationId;
             record["qdb_requestid"] = entry.CorrelationId;
-            record["qdb_startedon"] = entry.StartedOn.ToString("o", CultureInfo.InvariantCulture);
+            // A DateTime, not an ISO string. The retired middle tier wrote this over the Web API,
+            // where a string is correct; the SDK rejects it with "Incorrect attribute value type".
+            record["qdb_startedon"] = entry.StartedOn;
             record["qdb_durationms"] = entry.DurationMs;
             record["qdb_rowcount"] = entry.RowCount;
             record["qdb_resultsummary"] =
