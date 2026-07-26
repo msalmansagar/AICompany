@@ -1,7 +1,9 @@
 import { LRUCache } from 'lru-cache';
 import { CrmBaseService } from './CrmBaseService.js';
 import { EntitySetNameResolver } from './EntitySetNameResolver.js';
-import { buildDependsOnFilter } from './gridFilterExpression.js';
+import { buildDependsOnFilter, buildDependsOnFilterParts } from './gridFilterExpression.js';
+import { LookupTargetResolver } from './LookupTargetResolver.js';
+import { collectLookupPathAttributes, type LookupJoinTarget } from '@qdb/shared';
 import { logger } from '../utils/logger.js';
 import { CrmApiError, NotFoundError, ValidationError } from '../utils/errors.js';
 import type { CrmAuthService } from './CrmAuthService.js';
@@ -95,6 +97,11 @@ interface BuildFetchXmlParams {
   sortDirection: 'asc' | 'desc' | undefined;
   columnFilters: Record<string, string> | undefined;
   columnConfigs: GridColumnConfig[];
+  /**
+   * Related table per lookup attribute the depends-on template searches by text
+   * (`company/name like …`). Resolved by the caller because it needs metadata.
+   */
+  lookupJoinTargets: Record<string, LookupJoinTarget>;
 }
 
 // View querytype: 0 = System View. CEO condition BC-011: only System Views permitted.
@@ -107,12 +114,15 @@ export class CrmGridDataService extends CrmBaseService {
 
   private readonly entitySetNames: EntitySetNameResolver;
 
+  private readonly lookupTargets: LookupTargetResolver;
+
   constructor(
     authService: CrmAuthService,
     private readonly metadataCache: LRUCache<string, object>,
   ) {
     super(authService);
     this.entitySetNames = new EntitySetNameResolver((path) => this.crmFetch(path));
+    this.lookupTargets = new LookupTargetResolver((path) => this.crmFetch(path));
     this.viewCache = new LRUCache<string, string>({
       max: 200,
       ttl: 24 * 60 * 60 * 1000,
@@ -149,6 +159,8 @@ export class CrmGridDataService extends CrmBaseService {
 
     const baseFetchXml = await this.resolveViewFetchXml(fieldConfig.savedViewId, correlationId);
 
+    const lookupJoinTargets = await this.resolveLookupJoinTargets(fieldConfig);
+
     const fetchXml = buildFetchXml({
       baseXml: baseFetchXml,
       page,
@@ -162,6 +174,7 @@ export class CrmGridDataService extends CrmBaseService {
       sortDirection,
       columnFilters: validatedColumnFilters,
       columnConfigs: fieldConfig.columnConfigs,
+      lookupJoinTargets,
     });
 
     const entitySet = await this.entitySetNames.resolve(fieldConfig.targetEntity);
@@ -308,6 +321,25 @@ export class CrmGridDataService extends CrmBaseService {
     return rawView.fetchxml;
   }
 
+  /**
+   * Join targets for every lookup the depends-on template searches by display text.
+   * A column already configured as a lookup filter carries its target, so only lookups
+   * that are not displayed columns cost a metadata call.
+   */
+  private async resolveLookupJoinTargets(
+    config: GridFieldConfig,
+  ): Promise<Record<string, LookupJoinTarget>> {
+    const attributes = collectLookupPathAttributes(config.dependsOnFilterTemplate ?? '');
+    if (attributes.length === 0) return {};
+
+    const knownTargets: Record<string, string | undefined> = {};
+    for (const column of config.columnConfigs) {
+      if (column.lookupTargetEntity) knownTargets[column.targetAttribute] = column.lookupTargetEntity;
+    }
+
+    return this.lookupTargets.resolveAll(config.targetEntity, attributes, knownTargets);
+  }
+
   // Validates that sortBy is a real column attribute in this field's config.
   // Rejects unknown attributes to prevent FetchXML injection.
   private validateSortAttribute(
@@ -331,7 +363,7 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     baseXml, page, pageSize,
     filterExpression, dependsOnFilterTemplate, dependsOnValues,
     searchText, searchAttributes, sortBy, sortDirection,
-    columnFilters, columnConfigs,
+    columnFilters, columnConfigs, lookupJoinTargets,
   } = params;
 
   // Step 0: Ensure every configured column attribute is present in the FetchXML select list.
@@ -384,9 +416,15 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
   // Depends-on filter: a maker-authored boolean template (and/or/grouping) whose
   // {placeholder} tokens resolve from the form-field values. Compiles to a FetchXML
   // subtree; empty/missing field values prune their conditions (partial filtering).
+  // A template may also search a lookup by display text (`company/name like '%{x}%'`),
+  // which needs a join alongside the condition.
+  const dependsOnLinkEntities: string[] = [];
   if (dependsOnFilterTemplate) {
-    const dependsOnFilter = buildDependsOnFilter(dependsOnFilterTemplate, dependsOnValues ?? {});
-    if (dependsOnFilter) conditions.push(dependsOnFilter);
+    const parts = buildDependsOnFilterParts(
+      dependsOnFilterTemplate, dependsOnValues ?? {}, lookupJoinTargets,
+    );
+    if (parts.filterXml) conditions.push(parts.filterXml);
+    if (parts.linkEntityXml) dependsOnLinkEntities.push(parts.linkEntityXml);
   }
 
   if (searchText && searchText.trim() && searchAttributes.length > 0) {
@@ -448,9 +486,12 @@ function buildFetchXml(params: BuildFetchXmlParams): string {
     }
   }
 
-  // Step 5d: Inject link-entity joins before </entity>.
-  if (linkEntityClauses.length > 0) {
-    xml = xml.replace('</entity>', `${linkEntityClauses.join('')}</entity>`);
+  // Step 5d: Inject link-entity joins before </entity>. A join can never sit inside a
+  // <filter> — the per-column ones carry their own filter, the depends-on ones are plain
+  // outer joins whose conditions stay in the filter tree above (preserving and/or).
+  const allLinkEntities = [...linkEntityClauses, ...dependsOnLinkEntities];
+  if (allLinkEntities.length > 0) {
+    xml = xml.replace('</entity>', `${allLinkEntities.join('')}</entity>`);
   }
 
   return xml;

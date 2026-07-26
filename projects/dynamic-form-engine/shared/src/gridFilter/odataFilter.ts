@@ -23,40 +23,66 @@ const GUID_PATTERN = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
  * Compiles the template into an OData $filter expression, or '' when the expression is
  * empty after pruning. Throws only on a malformed template — callers decide how to log.
  */
-export function buildODataFilter(template: string, values: Record<string, string>): string {
+export function buildODataFilter(
+  template: string,
+  values: Record<string, string>,
+  navigationProperties: Record<string, string> = {},
+): string {
   if (!template || !template.trim()) return '';
-  return emit(parseFilterTemplate(template), values);
+  return emit(parseFilterTemplate(template), { values, navigationProperties });
 }
 
-function emit(node: FilterNode, values: Record<string, string>): string {
-  return node.type === 'cond' ? emitCondition(node, values) : emitLogical(node, values);
+interface EmitContext {
+  values: Record<string, string>;
+  /**
+   * Lookup attribute → single-valued navigation property, for templates that reach through
+   * a lookup. `company/name` becomes `qdb_CompanyId/name` — the attribute name itself is
+   * not traversable, and for a polymorphic lookup it depends on the target table.
+   */
+  navigationProperties: Record<string, string>;
 }
 
-function emitLogical(node: LogicalNode, values: Record<string, string>): string {
-  const parts = node.children.map((child) => emit(child, values)).filter((part) => part !== '');
+function emit(node: FilterNode, context: EmitContext): string {
+  return node.type === 'cond' ? emitCondition(node, context) : emitLogical(node, context);
+}
+
+function emitLogical(node: LogicalNode, context: EmitContext): string {
+  const parts = node.children.map((child) => emit(child, context)).filter((part) => part !== '');
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0];
   return `(${parts.join(` ${node.operator} `)})`;
 }
 
-function emitCondition(node: ConditionNode, values: Record<string, string>): string {
-  const { attribute, operator } = node;
+function emitCondition(node: ConditionNode, context: EmitContext): string {
+  const { operator } = node;
+
+  const path = resolvePath(node, context);
+  if (path === null) return ''; // lookup path with no navigation property — drop it
 
   if (node.value.kind === 'null') {
-    return `${attribute} ${operator === 'ne' ? 'ne' : 'eq'} null`;
+    return `${path} ${operator === 'ne' ? 'ne' : 'eq'} null`;
   }
 
   if (operator === 'like' || operator === 'not-like') {
-    return emitTextMatch(node, values);
+    return emitTextMatch(node, path, context.values);
   }
 
-  const resolved = resolveValue(node.value, values);
-  return resolved === null ? '' : `${attribute} ${operator} ${resolved}`;
+  const resolved = resolveValue(node.value, context.values);
+  return resolved === null ? '' : `${path} ${operator} ${resolved}`;
+}
+
+/** The addressable path for a condition: the attribute, or `<navProp>/<relatedColumn>`. */
+function resolvePath(node: ConditionNode, context: EmitContext): string | null {
+  if (!node.relatedAttribute) return node.attribute;
+
+  const navigationProperty = context.navigationProperties[node.attribute];
+  if (!navigationProperty) return null;
+  return `${navigationProperty}/${node.relatedAttribute}`;
 }
 
 // `like` carries its wildcards inside the string literal, so the pattern decides which
 // OData string function to use. A pattern with no wildcard is an exact match.
-function emitTextMatch(node: ConditionNode, values: Record<string, string>): string {
+function emitTextMatch(node: ConditionNode, path: string, values: Record<string, string>): string {
   const pattern = resolvePattern(node.value, values);
   if (pattern === null) return '';
 
@@ -65,10 +91,10 @@ function emitTextMatch(node: ConditionNode, values: Record<string, string>): str
   const term = quote(pattern.replace(/^%/, '').replace(/%$/, ''));
 
   let expression: string;
-  if (startsWithWildcard && endsWithWildcard) expression = `contains(${node.attribute},${term})`;
-  else if (endsWithWildcard) expression = `startswith(${node.attribute},${term})`;
-  else if (startsWithWildcard) expression = `endswith(${node.attribute},${term})`;
-  else expression = `${node.attribute} eq ${term}`;
+  if (startsWithWildcard && endsWithWildcard) expression = `contains(${path},${term})`;
+  else if (endsWithWildcard) expression = `startswith(${path},${term})`;
+  else if (startsWithWildcard) expression = `endswith(${path},${term})`;
+  else expression = `${path} eq ${term}`;
 
   return node.operator === 'not-like' ? `not ${expression}` : expression;
 }

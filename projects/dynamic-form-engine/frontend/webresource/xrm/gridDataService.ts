@@ -1,16 +1,17 @@
 // Xrm-backed replacement for src/services/gridDataService.ts. Queries a grid field's target
 // entity directly via the CRM Web API instead of the portal's /grids backend endpoint.
 import {
-  buildFetchXmlFilter,
+  buildFetchXmlFilterParts,
   buildODataFilter,
   buildViewFetchXml,
+  collectLookupPathAttributes,
   type GridRecord,
   type GridRecordPage,
 } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
 import { getLoadedForm } from './formApi';
 import { fetchViewPage, resolveViewFetchXml } from './viewQuery';
-import { resolveLookupNavigationProperty } from './lookupBinding';
+import { resolveLookupNavigationProperty, resolveLookupTargetEntity } from './lookupBinding';
 
 const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 
@@ -67,13 +68,51 @@ function toQueryAttribute(attribute: string, columns: GridColumn[]): string {
   return column?.columnFieldType === 'lookup' ? `_${attribute}_value` : attribute;
 }
 
+/**
+ * The related table for each lookup the template searches by display text
+ * (`company/name like '%{x}%'`). A column already configured as a lookup filter carries
+ * its target; anything else costs one cached metadata call.
+ */
+async function resolveLookupTargets(
+  entity: string,
+  grid: GridConfig,
+): Promise<Record<string, string>> {
+  const attributes = collectLookupPathAttributes(grid.dependsOnFilterTemplate ?? '');
+  if (attributes.length === 0) return {};
+
+  const columns = grid.columnConfigs ?? [];
+  const targets: Record<string, string> = {};
+
+  for (const attribute of attributes) {
+    const column = columns.find((candidate) => candidate.targetAttribute === attribute);
+    const target = column?.lookupTargetEntity
+      ?? await resolveLookupTargetEntity(entity, attribute);
+    if (target) targets[attribute] = target;
+  }
+
+  return targets;
+}
+
 // Compiles the maker's depends-on template against the current outside-field values.
 // A malformed template must not take the grid down — it degrades to an unfiltered query,
 // matching the portal path's policy.
-function buildDependsOnClause(grid: GridConfig, request: GridPageRequest): string {
+async function buildDependsOnClause(
+  entity: string,
+  grid: GridConfig,
+  request: GridPageRequest,
+): Promise<string> {
   if (!grid.dependsOnFilterTemplate) return '';
   try {
-    return buildODataFilter(grid.dependsOnFilterTemplate, request.dependsOnValues ?? {});
+    // OData reaches a related column through the navigation property, so a lookup path
+    // needs one resolved per lookup before the (synchronous) emitter runs.
+    const targets = await resolveLookupTargets(entity, grid);
+    const navigationProperties: Record<string, string> = {};
+    for (const [attribute, targetEntity] of Object.entries(targets)) {
+      const navigationProperty = await resolveLookupNavigationProperty(entity, attribute, targetEntity);
+      if (navigationProperty) navigationProperties[attribute] = navigationProperty;
+    }
+
+    return buildODataFilter(grid.dependsOnFilterTemplate, request.dependsOnValues ?? {}, navigationProperties);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('[DFE-grid] depends-on template could not be parsed — skipped', error);
@@ -81,11 +120,15 @@ function buildDependsOnClause(grid: GridConfig, request: GridPageRequest): strin
   }
 }
 
-function buildFilter(grid: GridConfig, request: GridPageRequest): string[] {
+async function buildFilter(
+  entity: string,
+  grid: GridConfig,
+  request: GridPageRequest,
+): Promise<string[]> {
   const clauses: string[] = [];
   if (grid.filterExpression) clauses.push(grid.filterExpression);
 
-  const dependsOnClause = buildDependsOnClause(grid, request);
+  const dependsOnClause = await buildDependsOnClause(entity, grid, request);
   if (dependsOnClause) clauses.push(dependsOnClause);
 
   const columns = grid.columnConfigs ?? [];
@@ -203,14 +246,29 @@ function buildColumnFilterClauses(
 }
 
 // The same conditions as buildFilter, in the FetchXML dialect the saved-view path needs.
-function buildFetchXmlConditions(grid: GridConfig, request: GridPageRequest): FetchXmlClauses {
+async function buildFetchXmlConditions(
+  entity: string,
+  grid: GridConfig,
+  request: GridPageRequest,
+): Promise<FetchXmlClauses> {
   const parts: string[] = [];
+  const templateJoins: string[] = [];
+
+  const joinTargets: Record<string, { entityLogicalName: string }> = {};
+  for (const [attribute, target] of Object.entries(await resolveLookupTargets(entity, grid))) {
+    joinTargets[attribute] = { entityLogicalName: target };
+  }
 
   for (const template of [grid.filterExpression, grid.dependsOnFilterTemplate]) {
     if (!template) continue;
     try {
-      const compiled = buildFetchXmlFilter(template, request.dependsOnValues ?? {});
-      if (compiled) parts.push(compiled);
+      const compiled = buildFetchXmlFilterParts(template, request.dependsOnValues ?? {}, joinTargets);
+      if (compiled.filterXml) parts.push(compiled.filterXml);
+      if (compiled.linkEntityXml) templateJoins.push(compiled.linkEntityXml);
+      if (compiled.unresolvedPaths.length > 0) {
+        // eslint-disable-next-line no-console
+        console.warn('[DFE-grid] lookup search dropped — target table unresolved', compiled.unresolvedPaths);
+      }
     } catch (error) {
       // eslint-disable-next-line no-console
       console.warn('[DFE-grid] filter template could not be parsed — skipped', error);
@@ -237,7 +295,7 @@ function buildFetchXmlConditions(grid: GridConfig, request: GridPageRequest): Fe
 
   return {
     filterXml: parts.length > 0 ? `<filter type="and">${parts.join('')}</filter>` : '',
-    linkEntityXml: columnClauses.linkEntityXml,
+    linkEntityXml: columnClauses.linkEntityXml + templateJoins.join(''),
   };
 }
 
@@ -282,7 +340,7 @@ async function fetchPageFromView(
   const columns = grid.columnConfigs ?? [];
   const idAttribute = `${entity}id`;
 
-  const clauses = buildFetchXmlConditions(grid, request);
+  const clauses = await buildFetchXmlConditions(entity, grid, request);
   const fetchXml = buildViewFetchXml({
     baseXml,
     page: request.page,
@@ -327,7 +385,7 @@ export async function fetchGridPage(request: GridPageRequest): Promise<GridRecor
 
   let options = `?$select=${selectAttributes.join(',') || idAttribute}`;
   const filters = [
-    ...buildFilter(grid, request),
+    ...await buildFilter(entity, grid, request),
     ...await buildColumnFilterClausesOData(entity, columns, request.columnFilters),
   ];
   if (filters.length > 0) options += `&$filter=${encodeURIComponent(filters.join(' and '))}`;

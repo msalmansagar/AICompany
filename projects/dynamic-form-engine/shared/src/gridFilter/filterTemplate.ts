@@ -24,6 +24,13 @@ export type ValueSpec =
 export interface ConditionNode {
   type: 'cond';
   attribute: string;
+  /**
+   * Set when the template addresses a column on the RELATED table through a lookup, e.g.
+   * `company/name like '%{search}%'`. A lookup attribute itself only ever compares by
+   * GUID, so matching it by display text means reaching through to the related record —
+   * a join in FetchXML, a navigation path in OData.
+   */
+  relatedAttribute?: string;
   operator: string;
   value: ValueSpec;
 }
@@ -37,7 +44,8 @@ export interface LogicalNode {
 export type FilterNode = ConditionNode | LogicalNode;
 
 type TokenType =
-  | 'lparen' | 'rparen' | 'bool' | 'op' | 'ident' | 'string' | 'number' | 'placeholder' | 'null';
+  | 'lparen' | 'rparen' | 'bool' | 'op' | 'ident' | 'string' | 'number' | 'placeholder' | 'null'
+  | 'slash';
 
 interface Token {
   type: TokenType;
@@ -55,6 +63,33 @@ export const NUMERIC_PATTERN = /^-?\d+(?:\.\d+)?$/;
 /** Parses the template into an AST. Throws when the template is malformed. */
 export function parseFilterTemplate(template: string): FilterNode {
   return parse(tokenize(template));
+}
+
+/**
+ * The lookup attributes a template reaches through (`company/name` → `company`).
+ *
+ * Emitting one of these needs metadata the emitters cannot fetch — the related table for
+ * a join, or the navigation property for an OData path — so callers resolve it up front
+ * and hand the result to the emitter, which stays synchronous.
+ * Returns an empty array for a template that is malformed or uses no paths.
+ */
+export function collectLookupPathAttributes(template: string): string[] {
+  if (!template || !template.trim()) return [];
+
+  let ast: FilterNode;
+  try {
+    ast = parseFilterTemplate(template);
+  } catch {
+    return []; // the emitter reports the parse failure; nothing to pre-resolve
+  }
+
+  const attributes = new Set<string>();
+  const walk = (node: FilterNode): void => {
+    if (node.type === 'logical') { node.children.forEach(walk); return; }
+    if (node.relatedAttribute) attributes.add(node.attribute);
+  };
+  walk(ast);
+  return [...attributes];
 }
 
 /**
@@ -83,6 +118,7 @@ function tokenize(input: string): Token[] {
     if (/\s/.test(char)) { index++; continue; }
     if (char === '(') { tokens.push({ type: 'lparen' }); index++; continue; }
     if (char === ')') { tokens.push({ type: 'rparen' }); index++; continue; }
+    if (char === '/') { tokens.push({ type: 'slash' }); index++; continue; }
     if (char === "'") { index = readQuotedString(input, index, tokens); continue; }
     if (char === '{') { index = readPlaceholder(input, index, tokens); continue; }
     if (/^not-like/i.test(input.slice(index))) { tokens.push({ type: 'op', value: 'not-like' }); index += 8; continue; }
@@ -167,8 +203,16 @@ function parse(tokens: Token[]): FilterNode {
 
   function parseCondition(): ConditionNode {
     const attribute = expect('ident').value!;
+
+    // `lookupAttribute/relatedColumn` reaches through the lookup to the related record.
+    let relatedAttribute: string | undefined;
+    if (peek()?.type === 'slash') {
+      consume();
+      relatedAttribute = expect('ident').value!;
+    }
+
     const operator = expect('op').value!;
-    return { type: 'cond', attribute, operator, value: parseValue(consume()) };
+    return { type: 'cond', attribute, relatedAttribute, operator, value: parseValue(consume()) };
   }
 
   const ast = parseOr();

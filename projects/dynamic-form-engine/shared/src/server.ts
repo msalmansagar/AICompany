@@ -20,7 +20,9 @@ export * from './validation/design.schema.js';
 export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
 // Grid depends-on filter template: one parser, one emitter per query dialect, so the
 // portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.
-export { buildFetchXmlFilter } from './gridFilter/fetchXmlFilter.js';
+export { buildFetchXmlFilter, buildFetchXmlFilterParts } from './gridFilter/fetchXmlFilter.js';
+export type { FetchXmlFilterParts, LookupJoinTarget } from './gridFilter/fetchXmlFilter.js';
 export { buildODataFilter } from './gridFilter/odataFilter.js';
+export { collectLookupPathAttributes } from './gridFilter/filterTemplate.js';
 export { buildViewFetchXml } from './gridFilter/viewFetchXml.js';
 export type { ViewFetchXmlRequest } from './gridFilter/viewFetchXml.js';

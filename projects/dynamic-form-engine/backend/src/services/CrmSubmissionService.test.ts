@@ -21,7 +21,7 @@ function metadataResponse(url: string) {
     json: () => Promise.resolve({ EntitySetName: `${logicalName}s` }),
   });
 }
-global.fetch = ((url, options) =>
+global.fetch = ((url: unknown, options: unknown) =>
   String(url).includes('EntityDefinitions') ? metadataResponse(String(url)) : mockFetch(url, options)) as never;
 
 // ── Helpers ───────────────────────────────────────────────────

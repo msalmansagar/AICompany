@@ -48,6 +48,40 @@ export async function resolveEntitySetName(entityLogicalName: string): Promise<s
   }
 }
 
+const lookupTargets = new Map<string, string | null>();
+
+/**
+ * The table a lookup attribute points at, for callers that know the column but not its
+ * target — searching a lookup by display text needs it, and the grid column config only
+ * carries it for columns the maker configured as lookup filters.
+ *
+ * A polymorphic lookup lists several targets; the first is used, since a single query path
+ * can only address one.
+ */
+export async function resolveLookupTargetEntity(
+  entityLogicalName: string,
+  attribute: string,
+): Promise<string | null> {
+  const cacheKey = `${entityLogicalName}.${attribute}`;
+  const cached = lookupTargets.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let target: string | null = null;
+  try {
+    const metadata = await fetchMetadata<{ Targets?: string[] }>(
+      `/EntityDefinitions(LogicalName='${entityLogicalName}')`
+      + `/Attributes(LogicalName='${attribute}')`
+      + '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets',
+    );
+    target = metadata.Targets?.[0] ?? null;
+  } catch {
+    target = null;
+  }
+
+  lookupTargets.set(cacheKey, target);
+  return target;
+}
+
 /**
  * The single-valued navigation property behind a lookup attribute, or null when the
  * attribute is not a lookup to that table.
