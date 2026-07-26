@@ -4,6 +4,8 @@ import { CrmApiError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
+import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
+import { indexFieldsById, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 import {
   BatchChangesetBuilder,
   parseBatchResponse,
@@ -44,6 +46,7 @@ const DEFAULT_MAX_BATCH_OPERATIONS = 500;
 
 export class CrmBatchSubmissionService extends CrmBaseService {
   private readonly maxBatchOperations: number;
+  private readonly lookupBindingResolver: LookupBindingResolver;
 
   constructor(
     authService: CrmAuthService,
@@ -51,6 +54,7 @@ export class CrmBatchSubmissionService extends CrmBaseService {
   ) {
     super(authService);
     this.maxBatchOperations = resolveMaxBatchOperations();
+    this.lookupBindingResolver = new LookupBindingResolver((path) => this.crmFetch(path));
   }
 
   async submitFormWithBatch(
@@ -72,7 +76,16 @@ export class CrmBatchSubmissionService extends CrmBaseService {
     }
 
     const fieldIdToSchemaName = buildFieldIdToSchemaNameMap(formDefinition);
-    const parentPayload = buildPayload(parentMappings, fieldValues, fieldIdToSchemaName);
+    // A lookup target needs a navigation binding rather than a plain value; resolve the
+    // bindings once for the whole submission, parent and children together.
+    const lookupBindings = await resolveLookupBindings(
+      formDefinition.submissionMappings.filter((m) => m.isActive),
+      indexFieldsById(formDefinition),
+      this.lookupBindingResolver,
+    );
+    const parentPayload = buildPayload(
+      parentMappings, fieldValues, fieldIdToSchemaName, lookupBindings,
+    );
 
     const childMappings = formDefinition.submissionMappings.filter(
       (m) => m.isActive && m.isMappedToChildEntity,
@@ -100,6 +113,7 @@ export class CrmBatchSubmissionService extends CrmBaseService {
       fieldValues,
       fieldIdToSchemaName,
       parentEntityName,
+      lookupBindings,
     );
 
     appendGridRowOperations(builder, gridFields, parentEntityName);
@@ -263,6 +277,7 @@ function buildPayload(
   mappings: SubmissionMapping[],
   fieldValues: FormFieldValues,
   fieldIdToSchemaName: Map<string, string>,
+  lookupBindings: LookupBindingMap = new Map(),
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   for (const mapping of mappings) {
@@ -270,6 +285,16 @@ function buildPayload(
     if (!schemaName) continue;
     const value = fieldValues[schemaName];
     if (value === undefined || value === null) continue;
+
+    // A lookup target must be written as a navigation binding; assigning the raw GUID to
+    // the column returns "CRM do not support direct update of Entity Reference properties".
+    const binding = lookupBindings.get(mapping.targetAttributeLogicalName);
+    if (binding && typeof value === 'string' && value) {
+      const [key, reference] = toBindingEntry(binding, value);
+      payload[key] = reference;
+      continue;
+    }
+
     payload[mapping.targetAttributeLogicalName] = value;
   }
   return payload;
@@ -293,12 +318,13 @@ function appendStandardChildOperations(
   fieldValues: FormFieldValues,
   fieldIdToSchemaName: Map<string, string>,
   parentEntityName: string,
+  lookupBindings: LookupBindingMap,
 ): void {
   const groups = groupChildMappings(childMappings);
 
   for (const [groupKey, mappings] of groups) {
     const [childEntity, relationship] = groupKey.split(':');
-    const childPayload = buildPayload(mappings, fieldValues, fieldIdToSchemaName);
+    const childPayload = buildPayload(mappings, fieldValues, fieldIdToSchemaName, lookupBindings);
     // Content-ID reference $1 binds to the parent record created in operation 1.
     childPayload[`${relationship}@odata.bind`] = `$1`;
     const schemaName = fieldIdToSchemaName.get(mappings[0].fieldId) ?? groupKey;

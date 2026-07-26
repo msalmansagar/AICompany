@@ -5,6 +5,8 @@ import { CrmApiError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
+import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
+import { indexFieldsById, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 
 const LOOKUP_ID_SCHEMA = z.string().uuid();
 
@@ -41,7 +43,10 @@ export class CrmSubmissionService extends CrmBaseService {
     private readonly auditService: CrmAuditService,
   ) {
     super(authService);
+    this.lookupBindingResolver = new LookupBindingResolver((path) => this.crmFetch(path));
   }
+
+  private readonly lookupBindingResolver: LookupBindingResolver;
 
   async submitForm(
     formDefinition: FormDefinition,
@@ -62,7 +67,16 @@ export class CrmSubmissionService extends CrmBaseService {
       }
 
       const fieldIdToSchemaName = this.buildFieldIdToSchemaNameMap(formDefinition);
-      const parentPayload = this.buildPayload(parentMappings, fieldValues, fieldIdToSchemaName);
+      // A lookup target needs a navigation binding rather than a plain value; resolve the
+      // bindings once for the whole submission, parent and children together.
+      const lookupBindings = await resolveLookupBindings(
+        formDefinition.submissionMappings.filter((m) => m.isActive),
+        indexFieldsById(formDefinition),
+        this.lookupBindingResolver,
+      );
+      const parentPayload = this.buildPayload(
+        parentMappings, fieldValues, fieldIdToSchemaName, lookupBindings,
+      );
       const parentRecordId = await this.createRecord(parentEntityName, parentPayload);
       createdRecords.push({ entity: parentEntityName, id: parentRecordId });
 
@@ -80,7 +94,7 @@ export class CrmSubmissionService extends CrmBaseService {
 
       for (const [groupKey, mappings] of childGroups) {
         const [childEntity, relationship] = groupKey.split(':');
-        const childPayload = this.buildPayload(mappings, fieldValues, fieldIdToSchemaName);
+        const childPayload = this.buildPayload(mappings, fieldValues, fieldIdToSchemaName, lookupBindings);
 
         // Link to parent via relationship
         childPayload[`${relationship}@odata.bind`] =
@@ -188,6 +202,7 @@ export class CrmSubmissionService extends CrmBaseService {
     mappings: SubmissionMapping[],
     fieldValues: FormFieldValues,
     fieldIdToSchemaName: Map<string, string>,
+    lookupBindings: LookupBindingMap = new Map(),
   ): Record<string, unknown> {
     const payload: Record<string, unknown> = {};
 
@@ -202,9 +217,22 @@ export class CrmSubmissionService extends CrmBaseService {
       // An empty selection (cleared multi-lookup / multiselect) maps to nothing on create —
       // never write a raw [] to a Dataverse attribute.
       if (Array.isArray(normalized) && normalized.length === 0) continue;
-      payload[mapping.targetAttributeLogicalName] = mapping.transformExpression
+
+      const transformed = mapping.transformExpression
         ? this.applyTransform(normalized, mapping.transformExpression)
         : normalized;
+
+      // A lookup target must be written as a navigation binding; assigning the raw GUID
+      // to the column returns "CRM do not support direct update of Entity Reference
+      // properties". Mappings with no resolved binding keep the plain assignment.
+      const binding = lookupBindings.get(mapping.targetAttributeLogicalName);
+      if (binding && typeof transformed === 'string' && transformed) {
+        const [key, reference] = toBindingEntry(binding, transformed);
+        payload[key] = reference;
+        continue;
+      }
+
+      payload[mapping.targetAttributeLogicalName] = transformed;
     }
 
     return payload;

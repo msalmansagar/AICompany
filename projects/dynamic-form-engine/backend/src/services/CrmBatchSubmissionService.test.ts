@@ -123,6 +123,63 @@ describe('CrmBatchSubmissionService', () => {
       expect(result.parentEntityLogicalName).toBe('contact');
     });
 
+    it('submitFormWithBatch_withLookupTarget_writesANavigationBindingNotTheRawGuid', async () => {
+      // Arrange — a mapping whose target column is a lookup. Assigning the GUID to the
+      // column returns "CRM do not support direct update of Entity Reference properties".
+      const customerId = '11111111-1111-1111-1111-111111111111';
+      const form = makeFormDefinition({
+        submissionMappings: [{
+          id: 'sm-lookup',
+          fieldId: 'fld-customer',
+          targetEntityLogicalName: 'contact',
+          targetAttributeLogicalName: 'qdb_customerid',
+          isMappedToChildEntity: false,
+          isActive: true,
+        }],
+        tabs: [{
+          sections: [{
+            fields: [{
+              id: 'fld-customer',
+              schemaName: 'qdb_customer',
+              fieldType: 'lookup',
+              lookupConfig: { entityLogicalName: 'account' },
+            }],
+          }],
+        }],
+      });
+
+      mockFetch
+        // navigation property metadata
+        .mockResolvedValueOnce(Promise.resolve({
+          ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve(''),
+          json: () => Promise.resolve({ value: [{
+            ReferencingAttribute: 'qdb_customerid',
+            ReferencingEntityNavigationPropertyName: 'qdb_CustomerId',
+            ReferencedEntity: 'account',
+          }] }),
+        }))
+        // entity set metadata
+        .mockResolvedValueOnce(Promise.resolve({
+          ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve(''),
+          json: () => Promise.resolve({ EntitySetName: 'accounts' }),
+        }))
+        .mockResolvedValueOnce(mockBatchPost(buildSuccessBatchResponse()));
+
+      // Act
+      await service.submitFormWithBatch(
+        form, { qdb_customer: customerId }, 'user-001', 'Ali Hassan',
+        { correlationId: 'corr-lookup' },
+      );
+
+      // Assert — the batch body binds, and never assigns the column directly
+      const batchCall = (mockFetch.mock.calls as [string, RequestInit][])
+        .find((call) => String(call[0]).endsWith('/$batch'));
+      const body = String(batchCall?.[1]?.body);
+
+      expect(body).toContain(`"qdb_CustomerId@odata.bind":"/accounts(${customerId})"`);
+      expect(body).not.toContain(`"qdb_customerid":"${customerId}"`);
+    });
+
     it('submitFormWithBatch_whenNoParentMapping_throwsBeforeBatch', async () => {
       // Arrange
       const form = makeFormDefinition({ submissionMappings: [] });
