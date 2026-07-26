@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
+import { EntitySetNameResolver } from './EntitySetNameResolver.js';
 import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 
 interface UploadAttributeConfig {
@@ -35,9 +36,11 @@ export class CrmSubmissionService extends CrmBaseService {
   ) {
     super(authService);
     this.lookupBindingResolver = new LookupBindingResolver((path) => this.crmFetch(path));
+    this.entitySetNames = new EntitySetNameResolver((path) => this.crmFetch(path));
   }
 
   private readonly lookupBindingResolver: LookupBindingResolver;
+  private readonly entitySetNames: EntitySetNameResolver;
 
   async submitForm(
     formDefinition: FormDefinition,
@@ -87,9 +90,10 @@ export class CrmSubmissionService extends CrmBaseService {
         const [childEntity, relationship] = groupKey.split(':');
         const childPayload = this.buildPayload(mappings, fieldValues, fieldIdToSchemaName, lookupBindings);
 
-        // Link to parent via relationship
+        // Link to parent via relationship — the set name comes from metadata, never from
+        // appending "s" (opportunity -> opportunities, and 290 custom tables in this org).
         childPayload[`${relationship}@odata.bind`] =
-          `/${parentEntityName}s(${parentRecordId})`;
+          `/${await this.entitySetNames.resolve(parentEntityName)}(${parentRecordId})`;
 
         const childId = await this.createRecord(childEntity, childPayload);
         createdRecords.push({ entity: childEntity, id: childId });
@@ -97,7 +101,7 @@ export class CrmSubmissionService extends CrmBaseService {
 
       // Mark parent record as complete. Non-fatal â€” only works if the target entity
       // has the qdb_submission_status attribute (true for all qdb_* entities).
-      await this.crmFetch(`/${parentEntityName}s(${parentRecordId})`, {
+      await this.crmFetch(`/${await this.entitySetNames.resolve(parentEntityName)}(${parentRecordId})`, {
         method: 'PATCH',
         body: JSON.stringify({ qdb_submission_status: 'submitted' }),
       }).catch((error) =>
@@ -159,7 +163,7 @@ export class CrmSubmissionService extends CrmBaseService {
 
     try {
       const record = await this.crmFetch<Record<string, unknown>>(
-        `/${entityName}s(${recordId})?$select=${refAttribute}`,
+        `/${await this.entitySetNames.resolve(entityName)}(${recordId})?$select=${refAttribute}`,
       );
       const value = record[refAttribute];
       if (typeof value === 'string' && value.trim()) return value;
@@ -448,8 +452,9 @@ export class CrmSubmissionService extends CrmBaseService {
     entityLogicalName: string,
     data: Record<string, unknown>,
   ): Promise<string> {
+    const entitySet = await this.entitySetNames.resolve(entityLogicalName);
     const response = await this.crmFetch<Record<string, string>>(
-      `/${entityLogicalName}s`,
+      `/${entitySet}`,
       {
         method: 'POST',
         body: JSON.stringify(data),
@@ -460,7 +465,8 @@ export class CrmSubmissionService extends CrmBaseService {
   }
 
   private async deleteRecord(entityLogicalName: string, recordId: string): Promise<void> {
-    await this.crmFetch(`/${entityLogicalName}s(${recordId})`, { method: 'DELETE' });
+    const entitySet = await this.entitySetNames.resolve(entityLogicalName);
+    await this.crmFetch(`/${entitySet}(${recordId})`, { method: 'DELETE' });
   }
 
   private async triggerWorkflow(flowId: string, recordId: string): Promise<void> {

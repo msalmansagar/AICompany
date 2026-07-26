@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
+import { EntitySetNameResolver } from './EntitySetNameResolver.js';
 import { indexFieldsById, joinLookupRecordIds, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 import {
   BatchChangesetBuilder,
@@ -47,6 +48,7 @@ const DEFAULT_MAX_BATCH_OPERATIONS = 500;
 export class CrmBatchSubmissionService extends CrmBaseService {
   private readonly maxBatchOperations: number;
   private readonly lookupBindingResolver: LookupBindingResolver;
+  private readonly entitySetNames: EntitySetNameResolver;
 
   constructor(
     authService: CrmAuthService,
@@ -55,6 +57,7 @@ export class CrmBatchSubmissionService extends CrmBaseService {
     super(authService);
     this.maxBatchOperations = resolveMaxBatchOperations();
     this.lookupBindingResolver = new LookupBindingResolver((path) => this.crmFetch(path));
+    this.entitySetNames = new EntitySetNameResolver((path) => this.crmFetch(path));
   }
 
   async submitFormWithBatch(
@@ -105,18 +108,22 @@ export class CrmBatchSubmissionService extends CrmBaseService {
     }
 
     const builder = new BatchChangesetBuilder();
-    builder.addParentRecord(`${parentEntityName}s`, parentPayload);
+    const parentEntitySet = await this.entitySetNames.resolve(parentEntityName);
+    builder.addParentRecord(parentEntitySet, parentPayload);
 
-    appendStandardChildOperations(
+    const resolveEntitySet = (logicalName: string) => this.entitySetNames.resolve(logicalName);
+
+    await appendStandardChildOperations(
       builder,
       childMappings,
       fieldValues,
       fieldIdToSchemaName,
       parentEntityName,
       lookupBindings,
+      resolveEntitySet,
     );
 
-    appendGridRowOperations(builder, gridFields, parentEntityName);
+    await appendGridRowOperations(builder, gridFields, parentEntityName, resolveEntitySet);
 
     const batchBody = builder.buildMultipartBody(this.baseUrl);
     const contentIdToSource = builder.buildContentIdToSourceMap();
@@ -247,7 +254,7 @@ export class CrmBatchSubmissionService extends CrmBaseService {
 
     try {
       const record = await this.crmFetch<Record<string, unknown>>(
-        `/${entityName}s(${recordId})?$select=${refAttribute}`,
+        `/${await this.entitySetNames.resolve(entityName)}(${recordId})?$select=${refAttribute}`,
       );
       const value = record[refAttribute];
       if (typeof value === 'string' && value.trim()) return value;
@@ -325,14 +332,15 @@ function computeTotalOperations(
   return 1 + uniqueChildGroups + gridRowTotal;
 }
 
-function appendStandardChildOperations(
+async function appendStandardChildOperations(
   builder: BatchChangesetBuilder,
   childMappings: SubmissionMapping[],
   fieldValues: FormFieldValues,
   fieldIdToSchemaName: Map<string, string>,
   parentEntityName: string,
   lookupBindings: LookupBindingMap,
-): void {
+  resolveEntitySet: (logicalName: string) => Promise<string>,
+): Promise<void> {
   const groups = groupChildMappings(childMappings);
 
   for (const [groupKey, mappings] of groups) {
@@ -341,22 +349,23 @@ function appendStandardChildOperations(
     // Content-ID reference $1 binds to the parent record created in operation 1.
     childPayload[`${relationship}@odata.bind`] = `$1`;
     const schemaName = fieldIdToSchemaName.get(mappings[0].fieldId) ?? groupKey;
-    builder.addStandardChildRecord(`${childEntity}s`, childPayload, schemaName);
+    builder.addStandardChildRecord(await resolveEntitySet(childEntity), childPayload, schemaName);
   }
 }
 
-function appendGridRowOperations(
+async function appendGridRowOperations(
   builder: BatchChangesetBuilder,
   gridFields: GridFieldSubmission[],
   parentEntityName: string,
-): void {
+  resolveEntitySet: (logicalName: string) => Promise<string>,
+): Promise<void> {
   for (const gridField of gridFields) {
     for (let rowIndex = 0; rowIndex < gridField.rows.length; rowIndex++) {
       const rowPayload = { ...gridField.rows[rowIndex] };
       // Bind grid row to parent using Content-ID reference $1.
       rowPayload[`${gridField.relationshipAttribute}@odata.bind`] = `$1`;
       builder.addGridRowRecord(
-        `${gridField.targetEntity}s`,
+        await resolveEntitySet(gridField.targetEntity),
         rowPayload,
         gridField.fieldKey,
         rowIndex,

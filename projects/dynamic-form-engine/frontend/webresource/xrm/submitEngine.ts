@@ -3,7 +3,7 @@
 // creates the parent record, then child records linked by relationship, with rollback on error.
 import type { FormDefinition, FormFieldValues, SubmissionMapping } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
-import { joinLookupRecordIds, readLookupRecordId, resolveLookupBinding, toBindingEntry, type LookupBinding } from './lookupBinding';
+import { joinLookupRecordIds, readLookupRecordId, resolveEntitySetName, resolveLookupBinding, toBindingEntry, type LookupBinding } from './lookupBinding';
 
 interface FieldInfo {
   schemaName: string;
@@ -63,12 +63,28 @@ async function resolveBindings(
     if (field?.fieldType !== 'lookup' || !field.lookupEntity) continue;
     if (bindings.has(mapping.targetAttributeLogicalName)) continue;
 
+    // A mapping may pin either half of the binding — used where metadata cannot be read,
+    // or where the value must be explicit for review. Anything blank is resolved.
+    const pinnedProperty = mapping.targetNavigationProperty?.trim();
+    const pinnedSet = mapping.targetEntitySetName?.trim();
+    if (pinnedProperty && pinnedSet) {
+      bindings.set(mapping.targetAttributeLogicalName, {
+        navigationProperty: pinnedProperty, entitySetName: pinnedSet,
+      });
+      continue;
+    }
+
     const binding = await resolveLookupBinding(
       mapping.targetEntityLogicalName,
       mapping.targetAttributeLogicalName,
       field.lookupEntity,
     );
-    if (binding) bindings.set(mapping.targetAttributeLogicalName, binding);
+    if (!binding) continue;
+
+    bindings.set(mapping.targetAttributeLogicalName, {
+      navigationProperty: pinnedProperty || binding.navigationProperty,
+      entitySetName: pinnedSet || binding.entitySetName,
+    });
   }
 
   return bindings;
@@ -164,7 +180,12 @@ export async function submitForm(form: FormDefinition, values: FormFieldValues):
     for (const [key, mappings] of childGroups) {
       const [childEntity, relationship] = key.split(':');
       const childPayload = buildPayload(mappings, values, fields, bindings);
-      if (relationship) childPayload[`${relationship}@odata.bind`] = `/${parentEntity}s(${parent.id})`;
+      if (relationship) {
+        // The set name comes from metadata, never from appending "s" — it is wrong for
+        // opportunity -> opportunities and for 290 custom tables in this org.
+        const parentSet = await resolveEntitySetName(parentEntity) ?? `${parentEntity}s`;
+        childPayload[`${relationship}@odata.bind`] = `/${parentSet}(${parent.id})`;
+      }
       const child = await webApi().createRecord(childEntity, childPayload);
       created.push({ entity: childEntity, id: child.id });
     }

@@ -66,6 +66,17 @@ export function indexFieldsById(formDefinition: FormDefinition): Map<string, Fie
 }
 
 /**
+ * A binding taken wholly from the mapping's overrides, or null when either half is blank —
+ * in which case metadata is consulted and any single override is layered on top.
+ */
+function readBindingOverride(mapping: SubmissionMapping): LookupBinding | null {
+  const navigationProperty = mapping.targetNavigationProperty?.trim();
+  const entitySetName = mapping.targetEntitySetName?.trim();
+  if (!navigationProperty || !entitySetName) return null;
+  return { navigationProperty, entitySetName };
+}
+
+/**
  * Resolves a binding for every mapping whose source field is a single lookup.
  * Multi-value lookups are left alone — writing several references is an association, not
  * an attribute write, and is out of scope here.
@@ -83,12 +94,25 @@ export async function resolveLookupBindings(
     if (field?.fieldType !== 'lookup' || !referencedEntity) continue;
     if (bindings.has(mapping.targetAttributeLogicalName)) continue;
 
+    // A mapping may pin either half of the binding — used where metadata cannot be read,
+    // or where the value must be explicit for review. Anything left blank is resolved.
+    const override = readBindingOverride(mapping);
+    if (override) {
+      bindings.set(mapping.targetAttributeLogicalName, override);
+      continue;
+    }
+
     const binding = await resolver.resolve(
       mapping.targetEntityLogicalName,
       mapping.targetAttributeLogicalName,
       referencedEntity,
     );
-    if (binding) bindings.set(mapping.targetAttributeLogicalName, binding);
+    if (!binding) continue;
+
+    bindings.set(mapping.targetAttributeLogicalName, {
+      navigationProperty: mapping.targetNavigationProperty || binding.navigationProperty,
+      entitySetName: mapping.targetEntitySetName || binding.entitySetName,
+    });
   }
 
   return bindings;

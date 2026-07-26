@@ -7,7 +7,19 @@ import { CrmGridDataService } from './CrmGridDataService.js';
 const mockGetAccessToken = vi.fn().mockResolvedValue('mock-token');
 const mockAuthService = { getAccessToken: mockGetAccessToken } as never;
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// The grid resolves its entity-set name from metadata (opportunity -> opportunities, and
+// 290 custom tables in this org). Those calls are answered here rather than from the mock
+// queue, so tests keep asserting on the CRM calls they care about.
+function metadataResponse(url: string) {
+  const match = /LogicalName='([^']+)'/.exec(url);
+  const logicalName = match ? match[1] : 'unknown';
+  return Promise.resolve({
+    ok: true, status: 200, text: () => Promise.resolve(''), headers: { get: () => null },
+    json: () => Promise.resolve({ EntitySetName: `${logicalName}s` }),
+  });
+}
+global.fetch = ((url: string, options?: RequestInit) =>
+  String(url).includes('EntityDefinitions') ? metadataResponse(String(url)) : mockFetch(url, options)) as never;
 
 function okJson(data: unknown) {
   return Promise.resolve({

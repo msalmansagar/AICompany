@@ -392,6 +392,11 @@ export interface SubmissionMapping {
   fieldId: string;
   targetEntityLogicalName: string;
   targetAttributeLogicalName: string;
+  // Optional binding overrides. Blank is the normal case: the engine resolves the
+  // navigation property and entity set from metadata. Set one only where metadata cannot
+  // be read, or where the value must be pinned for review.
+  targetNavigationProperty?: string;
+  targetEntitySetName?: string;
   isMappedToChildEntity: boolean;
   childEntityRelationshipName?: string; // relationship used to link child to parent
   transformExpression?: string;         // optional value transform before write

@@ -961,6 +961,9 @@ export class CrmMetadataService extends CrmBaseService {
       fieldId: m._qdb_form_field_id_value,
       targetEntityLogicalName: m.qdb_target_entity_logical_name,
       targetAttributeLogicalName: m.qdb_target_attribute_logical_name,
+      // Blank is the normal case — the engine resolves these from metadata.
+      targetNavigationProperty: m.qdb_target_navigation_property || undefined,
+      targetEntitySetName: m.qdb_target_entity_set_name || undefined,
       isMappedToChildEntity: m.qdb_is_child_entity ?? false,
       childEntityRelationshipName: m.qdb_child_entity_relationship_name,
       transformExpression: m.qdb_transform_expression,
@@ -1419,6 +1422,8 @@ interface RawSubmissionMapping {
   _qdb_form_field_id_value: string;
   qdb_target_entity_logical_name: string;
   qdb_target_attribute_logical_name: string;
+  qdb_target_navigation_property?: string;
+  qdb_target_entity_set_name?: string;
   qdb_is_child_entity?: boolean;
   qdb_child_entity_relationship_name?: string;
   qdb_transform_expression?: string;

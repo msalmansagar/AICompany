@@ -245,6 +245,8 @@ namespace Qdb.FormEngine.Core.Generation
                     FieldId = EntityHelper.GetLookupId(m, "qdb_form_field_id"),
                     TargetEntityLogicalName = m.GetAttributeValue<string>("qdb_target_entity_logical_name"),
                     TargetAttributeLogicalName = m.GetAttributeValue<string>("qdb_target_attribute_logical_name"),
+                    TargetNavigationProperty = m.GetAttributeValue<string>("qdb_target_navigation_property"),
+                    TargetEntitySetName = m.GetAttributeValue<string>("qdb_target_entity_set_name"),
                     IsMappedToChildEntity = m.GetAttributeValue<bool>("qdb_is_child_entity"),
                     ChildEntityRelationshipName = m.GetAttributeValue<string>("qdb_child_entity_relationship_name"),
                     TransformExpression = m.GetAttributeValue<string>("qdb_transform_expression"),

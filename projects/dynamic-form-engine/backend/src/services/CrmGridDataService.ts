@@ -1,5 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import { CrmBaseService } from './CrmBaseService.js';
+import { EntitySetNameResolver } from './EntitySetNameResolver.js';
 import { buildDependsOnFilter } from './gridFilterExpression.js';
 import { logger } from '../utils/logger.js';
 import { CrmApiError, NotFoundError, ValidationError } from '../utils/errors.js';
@@ -104,11 +105,14 @@ const TEXT_SEARCHABLE_FIELD_TYPES = new Set(['text', 'email', 'phone', 'textarea
 export class CrmGridDataService extends CrmBaseService {
   private readonly viewCache: LRUCache<string, string>;
 
+  private readonly entitySetNames: EntitySetNameResolver;
+
   constructor(
     authService: CrmAuthService,
     private readonly metadataCache: LRUCache<string, object>,
   ) {
     super(authService);
+    this.entitySetNames = new EntitySetNameResolver((path) => this.crmFetch(path));
     this.viewCache = new LRUCache<string, string>({
       max: 200,
       ttl: 24 * 60 * 60 * 1000,
@@ -160,7 +164,8 @@ export class CrmGridDataService extends CrmBaseService {
       columnConfigs: fieldConfig.columnConfigs,
     });
 
-    const url = `/${fieldConfig.targetEntity}s?fetchXml=${encodeURIComponent(fetchXml)}`;
+    const entitySet = await this.entitySetNames.resolve(fieldConfig.targetEntity);
+    const url = `/${entitySet}?fetchXml=${encodeURIComponent(fetchXml)}`;
 
     const startMs = Date.now();
     const response = await this.crmFetch<FetchXmlCollection<Record<string, unknown>>>(url);

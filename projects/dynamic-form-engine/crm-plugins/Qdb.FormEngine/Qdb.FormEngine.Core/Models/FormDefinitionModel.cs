@@ -255,6 +255,10 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("fieldId")] public Guid FieldId { get; set; }
         [JsonProperty("targetEntityLogicalName")] public string TargetEntityLogicalName { get; set; }
         [JsonProperty("targetAttributeLogicalName")] public string TargetAttributeLogicalName { get; set; }
+        // Optional binding overrides. Omitted when blank, which is the normal case — the
+        // runtime then resolves the navigation property and entity set from metadata.
+        [JsonProperty("targetNavigationProperty", NullValueHandling = NullValueHandling.Ignore)] public string TargetNavigationProperty { get; set; }
+        [JsonProperty("targetEntitySetName", NullValueHandling = NullValueHandling.Ignore)] public string TargetEntitySetName { get; set; }
         [JsonProperty("isMappedToChildEntity")] public bool IsMappedToChildEntity { get; set; }
         [JsonProperty("childEntityRelationshipName")] public string ChildEntityRelationshipName { get; set; }
         [JsonProperty("transformExpression")] public string TransformExpression { get; set; }

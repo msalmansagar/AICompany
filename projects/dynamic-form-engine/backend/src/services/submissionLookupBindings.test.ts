@@ -162,6 +162,44 @@ describe('resolveLookupBindings', () => {
     expect(resolver.resolve).toHaveBeenCalledTimes(1);
   });
 
+  it('usesTheMappingOverride_withoutConsultingMetadata', async () => {
+    // The escape hatch: an environment where metadata cannot be read, or a value pinned
+    // for review. Both halves set means no metadata call at all.
+    const fields = indexFieldsById(makeForm([
+      makeField({ fieldType: 'lookup', lookupConfig: { entityLogicalName: 'account' } as never }),
+    ]));
+    const resolver = makeResolver();
+    const mapping = makeMapping({
+      targetNavigationProperty: 'qdb_PinnedProperty',
+      targetEntitySetName: 'qdb_pinnedsets',
+    });
+
+    const bindings = await resolveLookupBindings([mapping], fields, resolver);
+
+    expect(bindings.get('qdb_customerid')).toEqual({
+      navigationProperty: 'qdb_PinnedProperty',
+      entitySetName: 'qdb_pinnedsets',
+    });
+    expect(resolver.resolve).not.toHaveBeenCalled();
+  });
+
+  it('layersASingleOverrideOnTopOfMetadata', async () => {
+    // Only one half pinned — the other still comes from metadata.
+    const fields = indexFieldsById(makeForm([
+      makeField({ fieldType: 'lookup', lookupConfig: { entityLogicalName: 'account' } as never }),
+    ]));
+    const resolver = makeResolver();
+    const mapping = makeMapping({ targetEntitySetName: 'qdb_pinnedsets' });
+
+    const bindings = await resolveLookupBindings([mapping], fields, resolver);
+
+    expect(bindings.get('qdb_customerid')).toEqual({
+      navigationProperty: BINDING.navigationProperty, // resolved
+      entitySetName: 'qdb_pinnedsets',                // pinned
+    });
+    expect(resolver.resolve).toHaveBeenCalled();
+  });
+
   it('omitsTheBinding_whenTheResolverCannotResolveIt', async () => {
     const fields = indexFieldsById(makeForm([
       makeField({ fieldType: 'lookup', lookupConfig: { entityLogicalName: 'account' } as never }),
