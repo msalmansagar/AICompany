@@ -69,12 +69,19 @@ truthful diagram. Blocking review of exactly the models DP-1 adds would gut that
   simulation reuses the validator's region model instead of inventing a second one.
 
 **Negative / Risks**
-- `SimPathStep` becomes a discriminated union, so every consumer —
-  `SimulationPanel`, `RoutePickerDialog`, auto-playback, and the `PathEnumerator` tests —
-  must narrow before reading `stepId`. This is the widest type change in the engagement
-  and the most likely source of regression in existing simulation behaviour. Mitigated by
-  the discriminant defaulting to the existing single-step shape, so untouched code paths
-  keep their current type.
+- `SimPathStep` gains a concurrent form, which every consumer — `AutoSimulationPanel`,
+  auto-playback, and the `PathEnumerator` tests — may need to account for. This is the
+  widest type change in the engagement and the most likely source of regression in
+  existing simulation behaviour.
+
+> **Amendment (build, 2026-07-26).** This ADR originally specified a *discriminated
+> union* on `SimPathStep`. It was built as an **optional `concurrentBranches` field** on
+> the existing shape instead. A union would have forced narrowing at every existing read
+> of `stepId` — which is precisely the regression risk this section warns about — for no
+> behavioural gain. With the optional field the concurrent element is still an ordinary
+> path step (it *is* the split step, with its branches attached), so untouched consumers
+> keep working and rendering the branches is opt-in. The decision's intent — concurrency
+> visible, enumeration bounded, one region model shared with the validator — is unchanged.
 - Simulation cannot show what happens when one branch is slower than another; it shows
   structure, not timing. Correct for a design-time tool, but it means simulation cannot be
   used to reason about SLA interaction across branches. Noted for CWFD-005.
