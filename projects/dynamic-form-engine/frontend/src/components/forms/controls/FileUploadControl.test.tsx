@@ -31,8 +31,15 @@ function makeUploadField(maxFiles: number): FieldDefinition {
     isVisible: true,
     validationRules: [],
     businessRules: [],
-    fileUploadConfig: { maxFiles, maxFileSizeBytes: 1024 * 1024 },
-  } as FieldDefinition;
+    fileUploadConfig: {
+      id: 'upload-config-1',
+      fieldId: 'field-1',
+      allowedMimeTypes: ['application/pdf'],
+      destination: 'crmNotes',
+      maxFiles,
+      maxFileSizeBytes: 1024 * 1024,
+    },
+  };
 }
 
 function renderUpload(maxFiles: number) {

@@ -74,11 +74,21 @@ export function DropdownControl({
     [resolvedOptions],
   );
 
+  // Fluent's Dropdown keeps its display text in its own uncontrolled state, so a remount
+  // (switching tabs and back) showed the placeholder again even though the value was still
+  // set — the user reads that as "my filter cleared". Driving `value` from the selection
+  // makes the text survive the remount.
+  const selectedLabel = useMemo(() => {
+    if (selectedValue.length === 0) return '';
+    return activeOptions.find((option) => option.value === selectedValue[0])?.label ?? '';
+  }, [activeOptions, selectedValue]);
+
   return (
     <Dropdown
       id={inputId}
       className={styles.dropdown}
       selectedOptions={selectedValue}
+      value={selectedLabel}
       onOptionSelect={handleOptionSelect}
       placeholder={field.placeholder ?? 'Select an option'}
       disabled={isReadonly}
