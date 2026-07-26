@@ -67,12 +67,17 @@ resource** inside a Dataverse iframe (`vite-plugin-singlefile`). Not adoptable. 
 
 ### 2d. Graph algorithm libraries — the one real hit
 
-**`@dagrejs/graphlib` — ADOPT (already present, promote to direct dependency).**
+**`graphlib` via the existing `@dagrejs/dagre` dependency — ADOPT. No package.json change.**
 
-- MIT, maintained by the dagre org, already installed as a transitive dependency of
-  `@dagrejs/dagre` ^1.1.4, which CWFD already lists as a direct dependency.
-- Verified present in the installed tree, and it ships exactly the primitives DP-1's
-  validation needs:
+- MIT, maintained by the dagre org. `@dagrejs/dagre` ^1.1.4 is **already a direct
+  dependency** and **already re-exports graphlib**: `EditGraphLayout.ts` uses
+  `dagre.graphlib.Graph` today, and `index.d.ts` types the full `graphlib.alg` namespace
+  (`tarjan`, `topsort`, `findCycles`, `components`, `dfs`, `dijkstra`).
+- So this is not a new dependency, a version bump, or even a manifest edit — it is using
+  more of a library the project already ships, already trusts for layout, and already has
+  type definitions for. Verified in the installed tree at
+  `node_modules/@dagrejs/dagre/index.d.ts`.
+- It supplies exactly the primitives DP-1's validation needs:
 
   | Algorithm | DP-1 use |
   |---|---|
@@ -83,22 +88,23 @@ resource** inside a Dataverse iframe (`vite-plugin-singlefile`). Not adoptable. 
   | `isAcyclic`, `findCycles` | Loop-crossing-a-parallel-region check (OQ-4) |
   | `dijkstra` | Not needed |
 
-- **Zero net bundle cost** — it is already in the graph via dagre. Promoting it to a
-  direct dependency is a declaration of intent, not new weight.
+- **Zero net bundle cost and zero new supply-chain surface** — it is already shipped.
 - Satisfies NFR-004 (near-linear analysis): tarjan and topsort are O(V+E), where a
   hand-rolled repeated-DFS reachability check would trend quadratic on large processes.
 
-Star count for `@dagrejs/graphlib` alone is below the 1000 threshold, but the rule's
-intent is satisfied: it is the extracted algorithm core of dagre (5 000+ stars), it is
-already in the dependency tree and already trusted for layout, and it carries no new
-supply-chain surface.
+Star count for graphlib as a standalone package is below the 1000 threshold, but the
+rule's intent is satisfied and then some: it is the algorithm core of dagre (5 000+ stars),
+it is already a shipped, typed, trusted part of this bundle, and adopting it adds nothing
+to review, license or audit.
 
 ---
 
 ## 3. Decision
 
-**ADOPT `@dagrejs/graphlib`** for the graph-theoretic layer of DP-1 validation — SCC,
-topological order, reachability. **BUILD** the domain layer on top of it: what constitutes
+**ADOPT graphlib's algorithms via the existing `@dagrejs/dagre` dependency** for the
+graph-theoretic layer of DP-1 validation — SCC, topological order, reachability. No
+manifest change, no new package to license, review or audit.
+**BUILD** the domain layer on top of it: what constitutes
 a matched split/join, when an AND-join deadlocks, and how that maps to `ViolationCode`s.
 That domain layer is CWFD-specific by definition and has no adoption candidate.
 

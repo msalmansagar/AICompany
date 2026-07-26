@@ -24,7 +24,7 @@ compatibility, and on-premise / browser-only deployment fit. See
 | react-querybuilder | ^8.x | MIT | https://github.com/react-querybuilder/react-querybuilder | ADAPT |
 | html-to-image | ^1.x | MIT | https://github.com/bubkoo/html-to-image | ADOPT |
 | jspdf | ^3.x | MIT | https://github.com/parallax/jsPDF | ADOPT |
-| @dagrejs/graphlib | ^2.x | MIT | https://github.com/dagrejs/graphlib | ADOPT (DP-1) |
+| graphlib algorithms | (via @dagrejs/dagre ^1.x) | MIT | https://github.com/dagrejs/graphlib | ADOPT (DP-1) — no new package |
 
 ---
 
@@ -32,12 +32,16 @@ compatibility, and on-premise / browser-only deployment fit. See
 
 Full detail: `dp-1-parallel-gateway/github-research.md`.
 
-**Adopted:** `@dagrejs/graphlib` — promoted from transitive (via `@dagrejs/dagre`) to a
-direct dependency for DP-1's structural validation. Supplies `tarjan` (SCC), `topsort`,
-`dfs`, `components` and `findCycles` for reachability and AND-join deadlock analysis.
-Zero net bundle cost — already in the tree. Rationale: the graph-theoretic half of DP-1
-validation is not domain logic and should not be hand-rolled; O(V+E) algorithms also
-satisfy NFR-004 where repeated hand-rolled DFS would trend quadratic.
+**Adopted:** graphlib's algorithms, reached through the **existing** `@dagrejs/dagre`
+dependency, which already re-exports the `graphlib` namespace (`EditGraphLayout.ts`
+already uses `dagre.graphlib.Graph`, and `graphlib.alg` is fully typed in dagre's
+`index.d.ts`). Supplies `tarjan` (SCC), `topsort`, `dfs`, `components` and `findCycles`
+for reachability and AND-join deadlock analysis.
+
+**No package.json change, no new package to license, review or audit.** Rationale: the
+graph-theoretic half of DP-1 validation is not domain logic and should not be hand-rolled;
+O(V+E) algorithms also satisfy NFR-004, where repeated hand-rolled DFS would trend
+quadratic on large processes.
 
 **Rejected for DP-1:**
 
