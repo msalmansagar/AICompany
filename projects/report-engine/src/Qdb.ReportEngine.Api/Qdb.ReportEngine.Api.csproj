@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Qdb.ReportEngine.Core\Qdb.ReportEngine.Core.csproj" />
     <ProjectReference Include="..\Qdb.ReportEngine.Execution\Qdb.ReportEngine.Execution.csproj" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Qdb.ReportEngine.Api.Authentication;
 using Qdb.ReportEngine.Core.Abstractions;
 using Qdb.ReportEngine.Core.Common;
 using Qdb.ReportEngine.Core.Models;
@@ -14,13 +15,14 @@ namespace Qdb.ReportEngine.Api.Controllers;
 public sealed class DashboardsController(
     IDashboardExecutionService executionService,
     IDashboardDefinitionLoader loader,
-    IDashboardWriter writer) : ControllerBase
+    IDashboardWriter writer,
+    CallerContext caller) : ControllerBase
 {
     /// <summary>Lists the dashboards the caller can see (the catalog).</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<DashboardSummary>>> List(CancellationToken cancellationToken)
     {
-        var result = await loader.ListAsync(BuildContext(), cancellationToken);
+        var result = await loader.ListAsync(caller.Require(), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
     }
 
@@ -37,7 +39,7 @@ public sealed class DashboardsController(
             return BadRequest(new { code = "invalid_request", message = "A dashboard title is required." });
         }
 
-        var result = await writer.CreateAsync(dashboard, BuildContext(), cancellationToken);
+        var result = await writer.CreateAsync(dashboard, caller.Require(), cancellationToken);
         return result.IsSuccess
             ? CreatedAtAction(nameof(Get), new { dashboardId = result.Value }, new { id = result.Value })
             : Problem(result.Error!);
@@ -56,7 +58,7 @@ public sealed class DashboardsController(
             return BadRequest(new { code = "invalid_request", message = "A dashboard title is required." });
         }
 
-        var result = await writer.UpdateAsync(dashboardId, dashboard, BuildContext(), cancellationToken);
+        var result = await writer.UpdateAsync(dashboardId, dashboard, caller.Require(), cancellationToken);
         return result.IsSuccess ? Ok(new { id = result.Value }) : Problem(result.Error!);
     }
 
@@ -64,7 +66,7 @@ public sealed class DashboardsController(
     [HttpDelete("{dashboardId:guid}")]
     public async Task<ActionResult> Delete(Guid dashboardId, CancellationToken cancellationToken)
     {
-        var result = await writer.DeleteAsync(dashboardId, BuildContext(), cancellationToken);
+        var result = await writer.DeleteAsync(dashboardId, caller.Require(), cancellationToken);
         return result.IsSuccess ? NoContent() : Problem(result.Error!);
     }
 
@@ -72,7 +74,7 @@ public sealed class DashboardsController(
     [HttpGet("{dashboardId:guid}")]
     public async Task<ActionResult<DashboardDefinition>> Get(Guid dashboardId, CancellationToken cancellationToken)
     {
-        var result = await loader.LoadAsync(dashboardId, BuildContext(), cancellationToken);
+        var result = await loader.LoadAsync(dashboardId, caller.Require(), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
     }
 
@@ -84,7 +86,7 @@ public sealed class DashboardsController(
     [HttpPost("{dashboardId:guid}/execute")]
     public async Task<ActionResult<DashboardResult>> Execute(Guid dashboardId, CancellationToken cancellationToken)
     {
-        var context = BuildContext();
+        var context = caller.Require();
         var loaded = await loader.LoadAsync(dashboardId, context, cancellationToken);
         if (!loaded.IsSuccess)
         {
@@ -101,7 +103,7 @@ public sealed class DashboardsController(
         Guid dashboardId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var context = BuildContext();
+        var context = caller.Require();
         var loaded = await loader.LoadAsync(dashboardId, context, cancellationToken);
         if (!loaded.IsSuccess)
         {
@@ -121,16 +123,4 @@ public sealed class DashboardsController(
         _ => StatusCode(StatusCodes.Status502BadGateway, new { error.Code, error.Message })
     };
 
-    // Widgets execute as this user (impersonation → row-level security). The web resource passes the
-    // signed-in user's id; production must derive it from a validated token, not a raw header.
-    private ReportExecutionContext BuildContext()
-    {
-        var header = Request.Headers["X-Report-Caller-Id"].FirstOrDefault() ?? Request.Headers["MSCRMCallerID"].FirstOrDefault();
-        var userId = Guid.TryParse(header, out var id) ? id : Guid.Empty;
-        return new ReportExecutionContext
-        {
-            UserId = userId,
-            RoleSetHash = userId == Guid.Empty ? "anonymous" : userId.ToString("N")
-        };
-    }
 }

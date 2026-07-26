@@ -21,4 +21,10 @@ public sealed record DomainError(string Code, string Message)
     public static DomainError UnsupportedFormat(string format) => new("unsupported_format", $"Export format '{format}' is not supported.");
 
     public static DomainError Invalid(string reason) => new("invalid_request", reason);
+
+    public static DomainError Unauthenticated() =>
+        new("unauthenticated", "The request carried no valid credentials.");
+
+    public static DomainError ImpersonationNotPermitted() =>
+        new("impersonation_not_permitted", "This caller may not act on behalf of another user.");
 }

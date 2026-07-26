@@ -11,5 +11,6 @@
 | ADR-RPT-007 | Role-keyed cache with post-retrieval masking | Accepted | 2026-07-07 | Architect |
 | ADR-RPT-008 | Dashboard fan-out concurrency control and OBO query execution model | Accepted | 2026-07-19 | Architect |
 | ADR-RPT-009 | PDF export library: PDFsharp/MigraDoc (supersedes QuestPDF) | Accepted | 2026-07-21 | Architect + QDB |
+| ADR-RPT-010 | Middle-tier authentication: dual scheme, caller from validated credentials (closes B1) | Accepted | 2026-07-26 | Architect + user |
 
 Status values: Proposed | Accepted | Deprecated | Superseded

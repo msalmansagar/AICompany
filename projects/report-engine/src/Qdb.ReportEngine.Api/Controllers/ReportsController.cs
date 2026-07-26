@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Qdb.ReportEngine.Api.Authentication;
 using Qdb.ReportEngine.Core.Abstractions;
 using Qdb.ReportEngine.Core.Common;
 using Qdb.ReportEngine.Core.Models;
@@ -16,13 +17,14 @@ public sealed class ReportsController(
     IReportDefinitionWriter writer,
     IReportExecutor executor,
     IReportExportService exportService,
-    IReportChartService chartService) : ControllerBase
+    IReportChartService chartService,
+    CallerContext caller) : ControllerBase
 {
     /// <summary>Lists the reports the caller can see (the catalog).</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ReportSummary>>> List(CancellationToken cancellationToken)
     {
-        var result = await loader.ListAsync(BuildContext(), cancellationToken);
+        var result = await loader.ListAsync(caller.Require(), cancellationToken);
         return result.IsSuccess ? Ok(result.Value) : Problem(result.Error!);
     }
 
@@ -39,7 +41,7 @@ public sealed class ReportsController(
             return BadRequest(new { code = "invalid_request", message = "A report name is required." });
         }
 
-        var result = await writer.CreateAsync(definition, BuildContext(), cancellationToken);
+        var result = await writer.CreateAsync(definition, caller.Require(), cancellationToken);
         return result.IsSuccess
             ? CreatedAtAction(nameof(Get), new { reportId = result.Value }, new { id = result.Value })
             : Problem(result.Error!);
@@ -57,7 +59,7 @@ public sealed class ReportsController(
             return BadRequest(new { code = "invalid_request", message = "A report name is required." });
         }
 
-        var result = await writer.UpdateAsync(reportId, definition, BuildContext(), cancellationToken);
+        var result = await writer.UpdateAsync(reportId, definition, caller.Require(), cancellationToken);
         return result.IsSuccess ? Ok(new { id = result.Value }) : Problem(result.Error!);
     }
 
@@ -65,7 +67,7 @@ public sealed class ReportsController(
     [HttpDelete("{reportId:guid}")]
     public async Task<ActionResult> Delete(Guid reportId, CancellationToken cancellationToken)
     {
-        var result = await writer.DeleteAsync(reportId, BuildContext(), cancellationToken);
+        var result = await writer.DeleteAsync(reportId, caller.Require(), cancellationToken);
         return result.IsSuccess ? NoContent() : Problem(result.Error!);
     }
 
@@ -73,7 +75,7 @@ public sealed class ReportsController(
     [HttpGet("{reportId:guid}")]
     public async Task<ActionResult<ReportDefinition>> Get(Guid reportId, CancellationToken cancellationToken)
     {
-        var context = BuildContext();
+        var context = caller.Require();
         var result = await loader.LoadAsync(reportId, context, cancellationToken);
         if (result.IsSuccess)
         {
@@ -88,7 +90,7 @@ public sealed class ReportsController(
     public async Task<ActionResult<ReportResult>> Execute(
         Guid reportId, [FromBody] ReportExecutionRequest? request, CancellationToken cancellationToken)
     {
-        var context = BuildContext();
+        var context = caller.Require();
         var result = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
         if (result.IsSuccess)
         {
@@ -111,7 +113,7 @@ public sealed class ReportsController(
             return BadRequest(new { code = "invalid_request", message = "parentKey is required." });
         }
 
-        var context = BuildContext();
+        var context = caller.Require();
         var result = await executor.ExecuteDrilldownAsync(reportId, relationshipId, request.ParentKey, context, cancellationToken);
         if (result.IsSuccess)
         {
@@ -131,7 +133,7 @@ public sealed class ReportsController(
         [FromBody] ReportExecutionRequest? request,
         CancellationToken cancellationToken)
     {
-        var context = BuildContext();
+        var context = caller.Require();
         var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
         if (!execution.IsSuccess)
         {
@@ -158,7 +160,7 @@ public sealed class ReportsController(
             return BadRequest(new { code = "unsupported_format", message = $"Unknown export format '{format}'. Use csv, excel, word, pdf, or image." });
         }
 
-        var context = BuildContext();
+        var context = caller.Require();
         var execution = await executor.ExecuteAsync(reportId, request ?? new ReportExecutionRequest(), context, cancellationToken);
         if (!execution.IsSuccess)
         {
@@ -203,23 +205,4 @@ public sealed class ReportsController(
         _ => StatusCode(StatusCodes.Status502BadGateway, new { error.Code, error.Message })
     };
 
-    // The report runs as this user (impersonation → row-level security). The web resource passes the
-    // signed-in user's id (Xrm.Utility.getGlobalContext().userSettings.userId).
-    // TODO(prod-auth): derive the caller from a validated CRM/AAD token rather than trusting the
-    // header directly — the middle-tier must authenticate the caller before impersonating.
-    private ReportExecutionContext BuildContext()
-    {
-        var userId = ResolveCallerId();
-        return new ReportExecutionContext
-        {
-            UserId = userId,
-            RoleSetHash = userId == Guid.Empty ? "anonymous" : userId.ToString("N")
-        };
-    }
-
-    private Guid ResolveCallerId()
-    {
-        var header = Request.Headers["X-Report-Caller-Id"].FirstOrDefault() ?? Request.Headers["MSCRMCallerID"].FirstOrDefault();
-        return Guid.TryParse(header, out var id) ? id : Guid.Empty;
-    }
 }

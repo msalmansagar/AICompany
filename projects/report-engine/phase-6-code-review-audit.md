@@ -72,8 +72,29 @@ Both reviews independently reached the same conclusion and overlap heavily on th
 - **P3** ✅ NCalc length + nesting-depth guard. **P4** ✅ malformed transform config logs a warning. **Hardening** ✅ CSV CRLF; Dataverse error body not logged verbatim; viewer object-URL revoke + `parseDur` day fix.
 
 **Still open:**
-- **B1** (auth middleware + token-claim identity) — needs the auth-scheme confirmation (AAD JWT bearer proposed).
 - **B6** (PDPPL residency + AUTH-C-2 region + AUTH-C-6 sign-off) — needs QDB.
 - Pre-prod: P1 (coalescer CT), P2 (distributed cache), P5 (filter GroupId nesting), P6 (HTTPS/HSTS), P7 (OBO), P8/P9 (impersonation-privilege guard + SP role doc). Remaining hardening + clean-code refactors.
 
 Build clean; 82 tests green.
+
+## Remediation status (2026-07-26) — B1 closed
+
+- **B1** ✅ **Resolved.** Every endpoint now requires an authenticated caller, and the acting user is
+  derived from validated credentials instead of a raw header. Two schemes, selected per request and
+  enabled independently, cover both V1 targets: Entra ID JWT (cloud, caller = validated `oid` claim)
+  and a shared-secret `ServiceToken` for the CRM entry point (on-premise, caller = the user the
+  trusted relay names). `X-Report-Caller-Id` is now untrusted input, read only after the caller has
+  proved it is a trusted relay; a user token naming a *different* user is refused outright. A
+  deployment configuring no scheme fails to start, and the Development-only anonymous scheme cannot
+  be enabled outside Development. HSTS + HTTPS redirection added outside Development (**P6**).
+  Design and full verification matrix: `adrs/ADR-RPT-010-middle-tier-authentication.md`.
+  *(Live-verified on org5869857f: unauthenticated → 401; caller header alone → 401; wrong secret →
+  401; relay naming no user → 400; relay naming a sysadmin → 200 with 6 reports and a 5-row execute;
+  relay naming a role-less user → 403, so per-user security is intact.)*
+
+**Consequence to carry forward:** the designer and runtime web resources send no credentials today.
+They keep working locally via the Development scheme, but will receive `401` from any real
+deployment until either a cloud token flow (MSAL.js → `Bearer`) or the on-premise plugin relay is
+built. ADR-RPT-010 records why that choice was deliberately left open.
+
+109 tests green (93 + 9 policy + 7 route-protection).

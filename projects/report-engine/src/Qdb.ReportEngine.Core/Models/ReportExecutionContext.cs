@@ -27,4 +27,14 @@ public sealed record ReportExecutionContext
 
     /// <summary>Correlation id for tracing this execution end-to-end.</summary>
     public string CorrelationId { get; init; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// Builds the context for an authenticated user resolved by <see cref="Security.CallerIdentityPolicy"/>.
+    /// There is deliberately no anonymous form — a request that names no user cannot execute.
+    /// </summary>
+    public static ReportExecutionContext ForUser(Guid userId) => new()
+    {
+        UserId = userId,
+        RoleSetHash = userId.ToString("N")
+    };
 }
