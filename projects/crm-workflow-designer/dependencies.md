@@ -24,6 +24,32 @@ compatibility, and on-premise / browser-only deployment fit. See
 | react-querybuilder | ^8.x | MIT | https://github.com/react-querybuilder/react-querybuilder | ADAPT |
 | html-to-image | ^1.x | MIT | https://github.com/bubkoo/html-to-image | ADOPT |
 | jspdf | ^3.x | MIT | https://github.com/parallax/jsPDF | ADOPT |
+| @dagrejs/graphlib | ^2.x | MIT | https://github.com/dagrejs/graphlib | ADOPT (DP-1) |
+
+---
+
+## DP-1 addendum (2026-07-26) — parallel gateway research pass
+
+Full detail: `dp-1-parallel-gateway/github-research.md`.
+
+**Adopted:** `@dagrejs/graphlib` — promoted from transitive (via `@dagrejs/dagre`) to a
+direct dependency for DP-1's structural validation. Supplies `tarjan` (SCC), `topsort`,
+`dfs`, `components` and `findCycles` for reachability and AND-join deadlock analysis.
+Zero net bundle cost — already in the tree. Rationale: the graph-theoretic half of DP-1
+validation is not domain logic and should not be hand-rolled; O(V+E) algorithms also
+satisfy NFR-004 where repeated hand-rolled DFS would trend quadratic.
+
+**Rejected for DP-1:**
+
+| Package | Stars | Reason for rejection |
+|---|---|---|
+| bpmn-js / bpmn-moddle | 8 000+ | Adopting BPMN notation is DP-8, not DP-1 — a model migration disguised as a dependency. Revisit if DP-8 is authorised |
+| ts-edge | < 1 000 | Runtime execution engine; CWFD is design-time only |
+| workflow-es | ~1 000 | Runtime engine, same architectural inversion; stale |
+| serverlessworkflow/sdk-typescript | ~200 | Validates its own DSL, not an arbitrary graph; below threshold |
+| lyraproj/ts-workflow | < 100 | FSM library, unmaintained, below threshold |
+| Workflow SDK (workflow-sdk.dev) | n/a | Commercial durable-execution service; wrong layer |
+| Woflan / PM4Py | n/a | Java/Python server-side soundness checkers; incompatible with a single-file browser web resource |
 
 ---
 
