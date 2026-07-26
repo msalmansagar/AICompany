@@ -420,6 +420,9 @@ export class CrmMetadataService extends CrmBaseService {
       // DFE-FBE-001: Label field — static content + optional data-bound source.
       staticContent: field.qdb_static_content,
       sourceFieldSchemaName: field.qdb_source_field_schema_name,
+      // Unset counts as enabled — fields predating these columns keep both actions.
+      showDocumentView: field.qdb_show_document_view ?? true,
+      showDocumentDownload: field.qdb_show_document_download ?? true,
       displayOrder: field.qdb_display_order,
       columnSpan: this.mapColumnSpan(field.qdb_column_span),
       isRequired: field.qdb_is_required ?? false,
@@ -1300,6 +1303,8 @@ interface RawField {
   // DFE-FBE-001 Label field
   qdb_static_content?: string;
   qdb_source_field_schema_name?: string;
+  qdb_show_document_view?: boolean;
+  qdb_show_document_download?: boolean;
   // DFE-ADD-002 boolean field
   qdb_true_label?: string;
   qdb_false_label?: string;

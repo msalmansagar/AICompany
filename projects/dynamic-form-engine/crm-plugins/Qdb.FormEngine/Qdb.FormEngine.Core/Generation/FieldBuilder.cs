@@ -98,6 +98,8 @@ namespace Qdb.FormEngine.Core.Generation
                 // DFE-FBE-001: Label field — translatable static content + optional source binding.
                 StaticContent = Resolve(fieldId, "qdb_form_field", "qdb_static_content", field.GetAttributeValue<string>("qdb_static_content")),
                 SourceFieldSchemaName = field.GetAttributeValue<string>("qdb_source_field_schema_name"),
+                ShowDocumentView = ReadOptionalBool(field, "qdb_show_document_view"),
+                ShowDocumentDownload = ReadOptionalBool(field, "qdb_show_document_download"),
                 Options = BuildOptions(fieldId),
                 LookupConfig = BuildLookupConfig(fieldId),
                 FileUploadConfig = BuildFileUploadConfig(field, fieldTypeStr),
@@ -252,6 +254,15 @@ namespace Qdb.FormEngine.Core.Generation
         }
 
         // Only 'table' and 'card' are explicit modes; 'both' (default) is omitted.
+        /// <summary>
+        /// Reads a boolean the record may not carry at all. Absent stays null so the JSON
+        /// omits it and the runtime applies its own default, rather than publishing false.
+        /// </summary>
+        private static bool? ReadOptionalBool(Entity field, string attributeName)
+        {
+            return field.Contains(attributeName) ? field.GetAttributeValue<bool>(attributeName) : (bool?)null;
+        }
+
         private static string NormalizeViewMode(string raw)
         {
             return raw == "table" || raw == "card" ? raw : null;

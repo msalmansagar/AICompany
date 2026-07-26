@@ -86,6 +86,39 @@ namespace Qdb.FormEngine.Tests
         }
 
         [Fact]
+        public void Generate_DocumentActionToggles_PublishesWhatTheMakerSet()
+        {
+            // Arrange
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+            rawData.Fields[0]["qdb_show_document_view"] = true;
+            rawData.Fields[0]["qdb_show_document_download"] = false;
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.True(field.ShowDocumentView);
+            Assert.False(field.ShowDocumentDownload);
+        }
+
+        [Fact]
+        public void Generate_DocumentActionTogglesUnset_OmitsThemSoTheRuntimeDefaultsToBoth()
+        {
+            // Arrange — fields that predate the toggles carry neither attribute. Publishing
+            // false would silently strip actions the maker never turned off.
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.Null(field.ShowDocumentView);
+            Assert.Null(field.ShowDocumentDownload);
+        }
+
+        [Fact]
         public void Generate_GridField_PublishesTheSavedViewIdFromGridConfig()
         {
             // Arrange — the saved view lives in the form's Grid Config section

@@ -451,6 +451,11 @@ export interface FieldDefinition {
   staticContent?: string;
   sourceFieldSchemaName?: string;
 
+  // Which actions a read-only file field offers per document. Undefined counts as true, so
+  // fields created before these toggles existed keep offering both.
+  showDocumentView?: boolean;
+  showDocumentDownload?: boolean;
+
   // DFE-ADD-002: Boolean field config (qdb_true_label, qdb_false_label, qdb_bool_render_style)
   trueLabel?: string;
   falseLabel?: string;

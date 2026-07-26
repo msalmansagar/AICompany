@@ -200,6 +200,10 @@ export interface FieldDefinition {
   // value (sourceFieldSchemaName references that field's key/schema name).
   staticContent?: string;
   sourceFieldSchemaName?: string;
+  // Which actions a read-only file field offers per document. Undefined counts as true, so
+  // fields created before these toggles existed keep offering both.
+  showDocumentView?: boolean;
+  showDocumentDownload?: boolean;
 }
 
 export interface SectionDefinition {

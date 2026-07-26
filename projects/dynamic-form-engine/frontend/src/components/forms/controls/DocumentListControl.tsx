@@ -50,6 +50,11 @@ export function DocumentListControl({ field }: ControlProps) {
     return <span className={styles.empty}>No documents uploaded</span>;
   }
 
+  // Each action is independently switchable; unset means on, so fields configured before
+  // the toggles existed keep both. With both off the list is names and sizes only.
+  const canView = field.showDocumentView !== false;
+  const canDownload = field.showDocumentDownload !== false;
+
   return (
     <div>
       <div className={styles.list} role="list" aria-label={`${field.label} documents`}>
@@ -57,6 +62,8 @@ export function DocumentListControl({ field }: ControlProps) {
           <DocumentRow
             key={document.fileId}
             document={document}
+            canView={canView}
+            canDownload={canDownload}
             styles={styles}
             onFailure={setFailedMessage}
           />
@@ -69,11 +76,13 @@ export function DocumentListControl({ field }: ControlProps) {
 
 interface DocumentRowProps {
   document: UploadedFileReference;
+  canView: boolean;
+  canDownload: boolean;
   styles: ReturnType<typeof useStyles>;
   onFailure: (message: string | null) => void;
 }
 
-function DocumentRow({ document, styles, onFailure }: DocumentRowProps) {
+function DocumentRow({ document, canView, canDownload, styles, onFailure }: DocumentRowProps) {
   const [isBusy, setIsBusy] = useState(false);
 
   async function run(action: (ref: UploadedFileReference) => Promise<void>, verb: string) {
@@ -93,25 +102,29 @@ function DocumentRow({ document, styles, onFailure }: DocumentRowProps) {
       <DocumentRegular className={styles.icon} aria-hidden="true" />
       <span className={styles.name} title={document.fileName}>{document.fileName}</span>
       <span className={styles.size}>{formatFileSize(document.sizeBytes)}</span>
-      <Link
-        as="button"
-        type="button"
-        disabled={isBusy}
-        onClick={() => void run(filesApi.openFile, 'open')}
-        aria-label={`View ${document.fileName}`}
-      >
-        <EyeRegular aria-hidden="true" /> View
-      </Link>
-      <Button
-        appearance="transparent"
-        size="small"
-        disabled={isBusy}
-        icon={<ArrowDownloadRegular />}
-        onClick={() => void run(filesApi.downloadFile, 'download')}
-        aria-label={`Download ${document.fileName}`}
-      >
-        Download
-      </Button>
+      {canView && (
+        <Link
+          as="button"
+          type="button"
+          disabled={isBusy}
+          onClick={() => void run(filesApi.openFile, 'open')}
+          aria-label={`View ${document.fileName}`}
+        >
+          <EyeRegular aria-hidden="true" /> View
+        </Link>
+      )}
+      {canDownload && (
+        <Button
+          appearance="transparent"
+          size="small"
+          disabled={isBusy}
+          icon={<ArrowDownloadRegular />}
+          onClick={() => void run(filesApi.downloadFile, 'download')}
+          aria-label={`Download ${document.fileName}`}
+        >
+          Download
+        </Button>
+      )}
     </div>
   );
 }

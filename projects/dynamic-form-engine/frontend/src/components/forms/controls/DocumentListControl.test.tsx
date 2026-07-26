@@ -106,6 +106,41 @@ describe('read-only document display', () => {
     expect(screen.getByText('invoice.pdf')).toBeInTheDocument();
   });
 
+  describe('action toggles', () => {
+    it('hidesView_whenShowDocumentViewIsFalse', () => {
+      renderReadonly(makeFileField({ showDocumentView: false }), { summary_docs: [DOCUMENT] });
+
+      expect(screen.queryByRole('button', { name: /view invoice\.pdf/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /download invoice\.pdf/i })).toBeInTheDocument();
+    });
+
+    it('hidesDownload_whenShowDocumentDownloadIsFalse', () => {
+      renderReadonly(makeFileField({ showDocumentDownload: false }), { summary_docs: [DOCUMENT] });
+
+      expect(screen.getByRole('button', { name: /view invoice\.pdf/i })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /download invoice\.pdf/i })).not.toBeInTheDocument();
+    });
+
+    it('stillListsTheDocument_whenBothActionsAreOff', () => {
+      renderReadonly(
+        makeFileField({ showDocumentView: false, showDocumentDownload: false }),
+        { summary_docs: [DOCUMENT] },
+      );
+
+      expect(screen.getByText('invoice.pdf')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /view invoice\.pdf/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /download invoice\.pdf/i })).not.toBeInTheDocument();
+    });
+
+    it('offersBoth_whenTheTogglesAreUnset', () => {
+      // Fields created before the toggles existed carry neither value.
+      renderReadonly(makeFileField(), { summary_docs: [DOCUMENT] });
+
+      expect(screen.getByRole('button', { name: /view invoice\.pdf/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /download invoice\.pdf/i })).toBeInTheDocument();
+    });
+  });
+
   it('showsEmptyState_whenNothingUploaded', () => {
     renderReadonly(makeFileField(), { summary_docs: [] });
 

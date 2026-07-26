@@ -3,6 +3,7 @@ import {
   Badge,
   Field,
   Input,
+  Switch,
   Textarea,
   makeStyles,
   tokens,
@@ -126,6 +127,26 @@ export function FileUploadFieldPanel({ field }: Props): React.ReactElement {
           value={field.maxFiles != null ? String(field.maxFiles) : ''}
           placeholder="1"
           onChange={(_, d) => updateField(field.id, { maxFiles: d.value ? parseInt(d.value, 10) : null })}
+        />
+      </Field>
+
+      <Field
+        label="Show View"
+        hint="When this field is read-only, offer a View action that opens each document in a new tab. Note: a viewer can still save the file from the browser's own PDF or image viewer."
+      >
+        <Switch
+          checked={field.showDocumentView !== false}
+          onChange={(_, d) => updateField(field.id, { showDocumentView: d.checked })}
+        />
+      </Field>
+
+      <Field
+        label="Show Download"
+        hint="When this field is read-only, offer a Download action for each document. Turn both actions off to list the documents without any action."
+      >
+        <Switch
+          checked={field.showDocumentDownload !== false}
+          onChange={(_, d) => updateField(field.id, { showDocumentDownload: d.checked })}
         />
       </Field>
 

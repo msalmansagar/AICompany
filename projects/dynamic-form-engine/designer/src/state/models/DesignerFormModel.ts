@@ -141,6 +141,8 @@ export interface DesignerFieldModel {
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;
   maxFiles?: number | null;        // file fields: max documents a user may upload (default 1)
+  showDocumentView?: boolean | null;      // read-only file fields: offer View per document
+  showDocumentDownload?: boolean | null;  // read-only file fields: offer Download per document
   sortOrder: number;
   columnSpan: 1 | 2 | 3;
   /** Present for dropdown, multi_select, radio field types */

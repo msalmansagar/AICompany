@@ -126,6 +126,8 @@ export const FORM_FIELD_ATTRS = {
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
   MAX_FILES: 'qdb_max_files',
+  SHOW_DOCUMENT_VIEW: 'qdb_show_document_view',
+  SHOW_DOCUMENT_DOWNLOAD: 'qdb_show_document_download',
   GRID_PAGE_SIZE: 'qdb_grid_page_size',
   GRID_PAGING_STYLE: 'qdb_grid_paging_style',
   SORT_ORDER: 'qdb_display_order',

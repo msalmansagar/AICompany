@@ -112,6 +112,10 @@ namespace Qdb.FormEngine.Core.Models
         // DFE-FBE-001: Label field — static content + optional data-bound source field.
         [JsonProperty("staticContent", NullValueHandling = NullValueHandling.Ignore)] public string StaticContent { get; set; }
         [JsonProperty("sourceFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string SourceFieldSchemaName { get; set; }
+        // Actions a read-only file field offers per document. Null is omitted from the JSON
+        // and the runtime treats absent as enabled, so pre-existing fields keep both.
+        [JsonProperty("showDocumentView", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowDocumentView { get; set; }
+        [JsonProperty("showDocumentDownload", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowDocumentDownload { get; set; }
         [JsonProperty("trueLabel")] public string TrueLabel { get; set; }
         [JsonProperty("falseLabel")] public string FalseLabel { get; set; }
         [JsonProperty("boolRenderStyle")] public string BoolRenderStyle { get; set; }
