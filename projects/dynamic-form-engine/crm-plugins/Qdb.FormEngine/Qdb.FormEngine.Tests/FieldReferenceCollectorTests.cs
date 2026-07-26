@@ -118,6 +118,29 @@ namespace Qdb.FormEngine.Tests
             return ordered.ToArray();
         }
 
+[Fact]
+        public void CollectReferencedSchemaNames_BarSourceConfig_RetainsTheSourceLookup()
+        {
+            // A bar reading a CRM record finds it through a lookup field, which is often
+            // hidden. Without this the stripper would remove the lookup from the published
+            // JSON and the bar would have no record to read — the original NUMBAR bug.
+            var model = BuildModel(new FieldDefinition
+            {
+                SchemaName = "qdb_utilisation",
+                BarSourceConfig = new BarSourceConfig
+                {
+                    SourceFieldSchemaName = "qdb_customer",
+                    EntityLogicalName = "qdb_creditline",
+                    MaxAttribute = "qdb_limit",
+                    ValueAttribute = "qdb_utilised"
+                }
+            });
+
+            var result = _collector.CollectReferencedSchemaNames(model);
+
+            Assert.Contains("qdb_customer", result);
+        }
+
         private static FormDefinitionModel BuildModel(params FieldDefinition[] fields)
         {
             return new FormDefinitionModel

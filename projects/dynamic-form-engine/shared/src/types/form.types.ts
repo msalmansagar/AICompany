@@ -450,6 +450,9 @@ export interface FieldDefinition {
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
   barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
+  // DFE-BARSRC-001: read the bar's numbers from a CRM record instead of from other fields
+  // on the form. Absent = the field-based behaviour above, unchanged.
+  barSourceConfig?: BarSourceConfig;
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
@@ -694,6 +697,19 @@ export interface GridSchemaHashResult {
 // ── Form definition (root) ────────────────────────────────────
 
 // DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+/**
+ * DFE-BARSRC-001: where a utilization bar reads its numbers from, when they live on a CRM
+ * record rather than on the form. The user's selection in `sourceFieldSchemaName` names the
+ * record; min, max and value are all columns on it, so one selection is one read.
+ */
+export interface BarSourceConfig {
+  sourceFieldSchemaName: string;   // the lookup field on the form whose selection supplies the record
+  entityLogicalName: string;       // table the values are read from
+  maxAttribute: string;            // column the bar fills towards
+  valueAttribute: string;          // column holding the current value
+  minAttribute?: string;           // column holding the minimum; absent = the bar starts at zero
+}
+
 export interface SubmitConfirmationConfig {
   checkboxLabel: string;           // label shown next to the acknowledgement checkbox
   dialogMessage?: string;          // body text of the confirmation dialog

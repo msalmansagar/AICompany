@@ -1,5 +1,6 @@
 ﻿import { LRUCache } from 'lru-cache';
 import type {
+  BarSourceConfig,
   FormDefinition,
   FormSummary,
   FormButton,
@@ -415,12 +416,13 @@ export class CrmMetadataService extends CrmBaseService {
       ? await this.languageConfigService.getLcidForLanguageCode(lang)
       : undefined;
 
-    const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap] = await Promise.all([
+    const [optionsMap, validationMap, lookupMap, businessRulesMap, columnConfigMap, barSourceMap] = await Promise.all([
       this.fetchOptions(fields, requestedLcid),
       this.fetchValidationRules(fieldIds),
       this.fetchLookupConfigs(fieldIds, fieldGuidToSchema),
       this.fetchBusinessRules(formId, fieldIds, fieldGuidToSchema),
       this.fetchGridColumnConfigs(fieldIds),
+      this.fetchBarSourceConfigs(fieldIds, fieldGuidToSchema),
     ]);
 
     const definitions = fields.map((field) => ({
@@ -455,6 +457,11 @@ export class CrmMetadataService extends CrmBaseService {
       ...(field.qdb_number_display_style === 100000002 ? { numberDisplayStyle: 'bar' as const } : {}),
       ...(field.qdb_bar_max_field_schema ? { barMaxFieldSchemaName: field.qdb_bar_max_field_schema } : {}),
       ...(field.qdb_bar_value_field_schema ? { barValueFieldSchemaName: field.qdb_bar_value_field_schema } : {}),
+      // DFE-BARSRC-001: present only when a bar config row exists; absent keeps the
+      // field-based bar above exactly as it was.
+      ...(barSourceMap.has(field.qdb_form_fieldid)
+        ? { barSourceConfig: barSourceMap.get(field.qdb_form_fieldid) }
+        : {}),
       maxRows: field.qdb_max_rows,
       componentKey: field.qdb_component_key,
       // DFE-NUMBAR: bar (100000002) vs textbox default (omitted).
@@ -776,6 +783,60 @@ export class CrmMetadataService extends CrmBaseService {
         // DFE-LKPCOL-001 — multi-column + Arabic-source display.
         displayColumns: this.parseDisplayColumns(lc.qdb_display_columns_json),
       });
+    }
+
+    return map;
+  }
+
+  /**
+   * DFE-BARSRC-001: bar configs, keyed by the bar field they belong to.
+   *
+   * The source field is stored as a Dataverse record GUID and resolved to its schema name
+   * here, because the renderer keys into fieldValues by schema name — the same reason
+   * fetchLookupConfigs resolves its dependsOn field.
+   *
+   * Resilient: the table is provisioned separately, so a missing one yields no configs and
+   * every bar keeps its existing field-based behaviour.
+   */
+  private async fetchBarSourceConfigs(
+    fieldIds: string[],
+    fieldGuidToSchema: Map<string, string>,
+  ): Promise<Map<string, BarSourceConfig>> {
+    const map = new Map<string, BarSourceConfig>();
+    if (fieldIds.length === 0) return map;
+
+    const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
+
+    try {
+      const response = await this.crmFetch<ODataCollection<RawBarSourceConfig>>(
+        `/qdb_form_bar_configs?$filter=(${filter})`,
+      );
+
+      for (const config of response.value) {
+        const sourceSchemaName = config._qdb_source_field_id_value
+          ? fieldGuidToSchema.get(config._qdb_source_field_id_value)
+          : undefined;
+
+        // Without a source field there is no record to read, and without a max there is
+        // nothing to fill towards — an incomplete config is ignored rather than half-applied.
+        if (!sourceSchemaName || !config.qdb_entity_logical_name || !config.qdb_max_attribute) {
+          logger.warn(
+            { fieldId: config._qdb_form_field_id_value },
+            'Bar config incomplete — falling back to the field-based bar',
+          );
+          continue;
+        }
+
+        map.set(config._qdb_form_field_id_value, {
+          sourceFieldSchemaName: sourceSchemaName,
+          entityLogicalName: config.qdb_entity_logical_name,
+          maxAttribute: config.qdb_max_attribute,
+          valueAttribute: config.qdb_value_attribute ?? config.qdb_max_attribute,
+          ...(config.qdb_min_attribute ? { minAttribute: config.qdb_min_attribute } : {}),
+        });
+      }
+    } catch (error) {
+      logger.warn({ error }, 'Bar configs could not be read — bars keep their field-based values');
     }
 
     return map;
@@ -1437,6 +1498,15 @@ interface RawLookupConfig {
   qdb_lookup_api_search_param?: string;
   qdb_lookup_api_search_mode?: string;
   qdb_display_columns_json?: string;
+}
+
+interface RawBarSourceConfig {
+  _qdb_form_field_id_value: string;
+  _qdb_source_field_id_value?: string;
+  qdb_entity_logical_name?: string;
+  qdb_min_attribute?: string;
+  qdb_max_attribute?: string;
+  qdb_value_attribute?: string;
 }
 
 interface RawSubmissionMapping {

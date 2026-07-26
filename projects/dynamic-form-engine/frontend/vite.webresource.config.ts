@@ -29,6 +29,11 @@ function inCrmModuleSwap() {
       if (/[\\/]services[\\/]gridDataService(?:\.ts)?$/.test(source)) {
         return swapTarget('webresource/xrm/gridDataService.ts');
       }
+      // The portal hook reads the bar's source record through the backend; in CRM it is
+      // read straight from Xrm.WebApi, which already runs as the signed-in user.
+      if (/[\\/]hooks[\\/]useBarSourceValues(?:\.ts)?$/.test(source)) {
+        return swapTarget('webresource/xrm/useBarSourceValues.ts');
+      }
       if (/(?:^|[\\/])auth[\\/]tokenService(?:\.ts)?$/.test(source)) {
         return swapTarget('webresource/stubs/tokenService.ts');
       }

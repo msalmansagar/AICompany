@@ -173,6 +173,8 @@ export interface FieldDefinition {
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;
   barValueFieldSchemaName?: string;
+  // DFE-BARSRC-001: read the bar numbers from a CRM record instead of from form fields.
+  barSourceConfig?: BarSourceConfig;
   childFields?: FieldDefinition[];
   boolRenderStyle?: BooleanRenderStyle;
   multiselectRenderStyle?: MultiselectRenderStyle;
@@ -414,6 +416,15 @@ export interface SubmissionMapping {
 }
 
 // DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
+/** DFE-BARSRC-001: where a bar reads min/max/value when they live on a CRM record. */
+export interface BarSourceConfig {
+  sourceFieldSchemaName: string;
+  entityLogicalName: string;
+  maxAttribute: string;
+  valueAttribute: string;
+  minAttribute?: string;
+}
+
 export interface SubmitConfirmationConfig {
   checkboxLabel: string;
   dialogMessage?: string;

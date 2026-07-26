@@ -75,6 +75,7 @@ namespace Qdb.FormEngine.Core.Generation
                 NumberDisplayStyle = field.GetAttributeValue<OptionSetValue>("qdb_number_display_style")?.Value == 100000002 ? "bar" : null,
                 BarMaxFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_max_field_schema"),
                 BarValueFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_value_field_schema"),
+                BarSourceConfig = BuildBarSourceConfig(fieldId),
                 TrueLabel = Resolve(fieldId, "qdb_form_field", "qdb_true_label", field.GetAttributeValue<string>("qdb_true_label")),
                 FalseLabel = Resolve(fieldId, "qdb_form_field", "qdb_false_label", field.GetAttributeValue<string>("qdb_false_label")),
                 BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_boolean_render_style")),
@@ -506,6 +507,53 @@ namespace Qdb.FormEngine.Core.Generation
                 Priority = rule.GetAttributeValue<int>("qdb_priority"),
                 IsActive = rule.GetAttributeValue<bool>("qdb_is_active")
             });
+        }
+
+        /// <summary>
+        /// DFE-BARSRC-001: where this bar reads its numbers from, or null when no config row
+        /// exists — in which case the bar keeps taking them from other fields on the form.
+        /// The source field is stored as a record id and published as its schema name, because
+        /// the renderer keys into form values by schema name.
+        /// </summary>
+        private BarSourceConfig BuildBarSourceConfig(Guid fieldId)
+        {
+            if (_rawData.BarConfigs == null) return null;
+
+            var config = _rawData.BarConfigs
+                .FirstOrDefault(c => EntityHelper.GetLookupId(c, "qdb_form_field_id") == fieldId);
+            if (config == null) return null;
+
+            var sourceFieldId = EntityHelper.GetLookupId(config, "qdb_source_field_id");
+            var sourceField = _rawData.Fields != null
+                ? _rawData.Fields.FirstOrDefault(f => f.Id == sourceFieldId)
+                : null;
+            var sourceSchemaName = sourceField != null
+                ? sourceField.GetAttributeValue<string>("qdb_schema_name")
+                : null;
+
+            var entityLogicalName = config.GetAttributeValue<string>("qdb_entity_logical_name");
+            var maxAttribute = config.GetAttributeValue<string>("qdb_max_attribute");
+
+            // Without a source field there is no record to read, and without a maximum there is
+            // nothing to fill towards — an incomplete config is ignored, not half-applied.
+            if (string.IsNullOrWhiteSpace(sourceSchemaName)
+                || string.IsNullOrWhiteSpace(entityLogicalName)
+                || string.IsNullOrWhiteSpace(maxAttribute))
+            {
+                return null;
+            }
+
+            var valueAttribute = config.GetAttributeValue<string>("qdb_value_attribute");
+            var minAttribute = config.GetAttributeValue<string>("qdb_min_attribute");
+
+            return new BarSourceConfig
+            {
+                SourceFieldSchemaName = sourceSchemaName,
+                EntityLogicalName = entityLogicalName,
+                MaxAttribute = maxAttribute,
+                ValueAttribute = string.IsNullOrWhiteSpace(valueAttribute) ? maxAttribute : valueAttribute,
+                MinAttribute = string.IsNullOrWhiteSpace(minAttribute) ? null : minAttribute
+            };
         }
 
         private string Resolve(Guid recordId, string entityName, string fieldName, string fallback)

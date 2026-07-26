@@ -4,6 +4,7 @@
 // this field's own value.
 import { makeStyles, tokens } from '@fluentui/react-components';
 import { useFormContext } from '../../../contexts/FormContext';
+import { useBarSourceValues } from '../../../hooks/useBarSourceValues';
 import type { ControlProps } from '../FieldRenderer';
 
 const useStyles = makeStyles({
@@ -34,11 +35,23 @@ export function NumberBarControl({ field }: ControlProps) {
   const styles = useStyles();
   const { fieldValues } = useFormContext();
 
-  const value = toNumber(
-    fieldValues[field.barValueFieldSchemaName || field.schemaName],
-  );
-  const max = field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0;
-  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  // DFE-BARSRC-001: when a bar config exists the numbers come from the record the user
+  // picked; otherwise they come from other fields on the form, exactly as before.
+  const sourceValues = useBarSourceValues(field.id, field.barSourceConfig);
+
+  const value = sourceValues
+    ? sourceValues.value
+    : toNumber(fieldValues[field.barValueFieldSchemaName || field.schemaName]);
+
+  const max = sourceValues
+    ? sourceValues.max
+    : (field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0);
+
+  // A configured minimum shifts the origin: a 500–1000 range shows 50% at 750, not 75%.
+  // Without one the bar starts at zero, which is what every existing bar does.
+  const min = sourceValues?.min ?? 0;
+  const span = max - min;
+  const pct = span > 0 ? Math.min(100, Math.max(0, ((value - min) / span) * 100)) : 0;
 
   const fmt = new Intl.NumberFormat(undefined, {
     style: field.currencyCode ? 'currency' : 'decimal',

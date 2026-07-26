@@ -44,6 +44,8 @@ namespace Qdb.FormEngine.Core.Generation
             // DFE-NUMBAR: the bar reads its value and its maximum from other fields.
             AddSchemaName(field.BarValueFieldSchemaName, referencedSchemaNames);
             AddSchemaName(field.BarMaxFieldSchemaName, referencedSchemaNames);
+            // DFE-BARSRC-001: the bar reads its record through this lookup, which may be hidden.
+            AddSchemaName(field.BarSourceConfig?.SourceFieldSchemaName, referencedSchemaNames);
             // DFE-FBE-001: a data-bound Label echoes another field's value.
             AddSchemaName(field.SourceFieldSchemaName, referencedSchemaNames);
             // DFE-GRIDSRC-001: comma-separated schema names feeding the grid filter template.
