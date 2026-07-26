@@ -88,6 +88,35 @@ that choice can be made against working code rather than ahead of it.
 sign-off (AUTH-C-2), not on this decision. Rotating the service secret is an operational concern with
 no automation yet.
 
+### Amendment (2026-07-26) — where the relay's secret can actually live
+
+Building the relay surfaced a platform constraint this ADR had assumed away. The token was to live in
+the plugin's **secure configuration**, which users cannot read. That holds on-premise, where the
+entry point is a Custom Action backed by an ordinary plugin step.
+
+It does **not** hold on cloud. A Custom API is implemented by a platform-managed step pinned to the
+MainOperation stage, and Dataverse refuses to modify it:
+
+```
+0x80044184 — Invalid plug-in registration stage. Steps can only be modified in stages
+BeforeMainOperationOutsideTransaction, BeforeMainOperationInsideTransaction,
+AfterMainOperationInsideTransaction and AfterMainOperationOutsideTransaction.
+```
+
+So that step has no secure configuration to write to. The plugin therefore reads secure configuration
+first and falls back to the `qdb_rpt_service_token` environment variable.
+
+**That fallback is an interim, and it is a weaker position than the on-premise one.** An environment
+variable is an ordinary row: any user who can read it can call the middle tier as any other user —
+B1 through another door, narrowed to those with read access to `environmentvariablevalue` rather
+than the whole network. Tracked as `TODO(RPT-B1-CLOUD)`.
+
+The intended replacement is a **Dataverse plugin managed identity**: the plugin mints an Entra token
+for the middle tier's audience, removing the shared secret from CRM entirely and landing on the
+`EntraJwt` scheme the middle tier already accepts. That is deliberately not built here — it needs the
+Entra app registration that the cloud web-resource token flow also needs, so both should be done
+together rather than the same registration being designed twice.
+
 ## Configuration
 
 ```jsonc

@@ -5,9 +5,14 @@
     runtime for both on-prem 9.x and Dataverse cloud). Builds cross-platform via the reference-
     assemblies package, so no full framework install is required for `dotnet build`.
 
-    Strong-naming: on-prem registration requires a signed assembly. Generate a key once
-    (`sn -k Qdb.ReportEngine.CrmPlugin.snk`) and set SignAssembly=true. Left off by default so the
-    project builds without the Windows SDK present; Dataverse cloud accepts unsigned assemblies.
+    Strong-naming is ON because on-prem registration requires a signed assembly, and signing both
+    targets keeps one assembly identity everywhere. Generate the key once with
+    `sn -k Qdb.ReportEngine.CrmPlugin.snk`.
+
+    The key is deliberately NOT in source control (see .gitignore). It must be escrowed in the
+    team's secret store: the public key token forms part of the assembly identity Dataverse
+    registers, so building with a different key produces an assembly the platform treats as a
+    separate one — the existing registration could no longer be updated in place.
   -->
   <PropertyGroup>
     <TargetFramework>net462</TargetFramework>
@@ -16,7 +21,7 @@
     <AssemblyName>Qdb.ReportEngine.CrmPlugin</AssemblyName>
     <RootNamespace>Qdb.ReportEngine.CrmPlugin</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <SignAssembly>false</SignAssembly>
+    <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>Qdb.ReportEngine.CrmPlugin.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
@@ -26,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" />
+    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" Key="002400000480000094000000060200000024000052534131000400000100010025f0c8c61039117385599fa441506345082acc7a937a334b425d4d81a90929cf95fdcff01abbc1519e20600de83ea7afcab016480cd3adcb3fe43d6e5b38fcb8a41d4b8c7445f9b84ee0385e472f4d5293acac7dd6c060555fe607d68b2873dd4f6fc563a4fec6310e0c068783893f5ca7ded2ba36c5f6a00b570f6e6e4453cd" />
   </ItemGroup>
 
   <ItemGroup>

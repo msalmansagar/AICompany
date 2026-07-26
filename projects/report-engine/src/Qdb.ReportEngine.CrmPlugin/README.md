@@ -45,6 +45,25 @@ It does **not** write an execution-log record — the middle tier already writes
 |---|---|---|
 | `qdb_rpt_middle_tier_url` | Base URL of the hosted middle tier | — (falls back to the plugin's unsecure config) |
 | `qdb_rpt_sync_timeout_ms` | Synchronous HTTP timeout | `90000` (30s buffer under the 2-min ceiling) |
+| `qdb_rpt_service_token` | Middle-tier service token — **cloud only** | — (on-prem uses secure configuration) |
+
+### Where the service token lives, and why it differs per target
+
+The middle tier requires `Authorization: ServiceToken <secret>` (ADR-RPT-010). That secret
+authorises naming the acting user, so it belongs somewhere users cannot read.
+
+- **On-premise** — the plugin step's **secure configuration**. Withheld from everyone but a
+  registration administrator. This is the preferred store and the plugin checks it first.
+- **Cloud** — an environment variable, because a Custom API is implemented by a *platform-managed*
+  step pinned to the MainOperation stage. Dataverse rejects any attempt to modify it
+  (`0x80044184 — Steps can only be modified in stages Before/AfterMainOperation…`), so that step has
+  no secure configuration to write to.
+
+> **TODO(RPT-B1-CLOUD)** — the cloud fallback is an interim. An environment variable is an ordinary
+> row: any user who can read it can call the middle tier as anyone, which is the B1 hole via another
+> door. Replace it with a **Dataverse plugin managed identity** minting an Entra token for the
+> middle tier's audience — no secret in CRM at all, and it lands on the `EntraJwt` scheme the middle
+> tier already accepts.
 
 ## Build
 
@@ -53,19 +72,33 @@ dotnet build src/Qdb.ReportEngine.CrmPlugin -c Release
 ```
 
 Targets `net462` (the plugin sandbox runtime), builds cross-platform via the reference-assemblies
-package. For **on-prem** registration the assembly must be strong-named: generate a key once
-(`sn -k Qdb.ReportEngine.CrmPlugin.snk`) and set `SignAssembly=true` in the csproj. Dataverse cloud
-accepts unsigned assemblies.
+package. The assembly is **strong-named** (`SignAssembly=true`) because on-prem registration
+requires it, and signing both targets keeps one assembly identity everywhere.
+
+Generate the key once: `sn -k Qdb.ReportEngine.CrmPlugin.snk`. It is **gitignored** — the public key
+token forms part of the identity Dataverse registers, so building with a different key yields an
+assembly the platform treats as separate and the existing registration can no longer be updated in
+place. **Escrow the key in the team secret store.** The test project is signed with the same key,
+since a strong-named assembly only grants `InternalsVisibleTo` to a friend bearing the matching
+public key.
 
 ## Deploy & register
 
-1. **Import the assembly** — `pac plugin push` (or the Plugin Registration Tool). Adds the
-   `Qdb.ReportEngine.CrmPlugin.RunReportPlugin` plugin type.
-2. **Register the Custom API + parameters** — `node scripts/register-customapi.mjs <path-to-.env>`
-   (idempotent; creates them in the `qdb_reportengine` solution). Re-run after step 1 to **bind** the
-   plugin type to the Custom API.
-3. **Register the step** — `PostOperation`, **synchronous**, on the `qdb_RunReport` message.
-4. **Set the environment variables** above (point `qdb_rpt_middle_tier_url` at the hosted middle tier).
+```bash
+node scripts/import-plugin-assembly.mjs <path-to-.env>                      # 1
+node scripts/register-customapi.mjs    <path-to-.env>                      # 2
+node scripts/configure-plugin.mjs      <path-to-.env> <url> <service-token> # 3
+node scripts/invoke-runreport.mjs      <path-to-.env>                       # 4 — smoke test
+```
+
+1. **Import the assembly + plugin type** (idempotent — updates content in place rather than creating
+   a duplicate, which would orphan the Custom API binding).
+2. **Register the Custom API + parameters**, and **bind** the plugin type to it. No manual step
+   registration is needed: binding `PluginTypeId` makes the platform create the implementation step.
+3. **Configure** the middle-tier URL and service token.
+4. **Smoke-test** through the platform. Until the middle tier is hosted this returns
+   `errorCode: middle_tier_unreachable`, which still confirms the assembly loaded, the Custom API
+   bound, the configuration resolved, and the sandbox permitted the outbound call.
 
 ## Calling it from a web resource / ribbon
 

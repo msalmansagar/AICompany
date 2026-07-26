@@ -5,6 +5,10 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Signed with the plugin's key: a strong-named assembly only grants InternalsVisibleTo to a
+         friend bearing the matching public key. -->
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\Qdb.ReportEngine.CrmPlugin\Qdb.ReportEngine.CrmPlugin.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +16,8 @@
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- The plugin marks this PrivateAssets, so it does not flow transitively to the tests. -->
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.56" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>

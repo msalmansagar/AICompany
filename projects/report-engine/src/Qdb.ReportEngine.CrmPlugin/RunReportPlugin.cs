@@ -14,15 +14,19 @@ namespace Qdb.ReportEngine.CrmPlugin
     /// </summary>
     /// <remarks>
     /// The unsecure configuration string may hold the middle-tier URL as a fallback when the
-    /// <c>qdb_rpt_middle_tier_url</c> environment variable is not set.
+    /// <c>qdb_rpt_middle_tier_url</c> environment variable is not set. The secure configuration holds
+    /// the middle-tier service token, which is why it is kept out of the unsecure string and out of
+    /// environment variables alike.
     /// </remarks>
     public sealed class RunReportPlugin : IPlugin
     {
         private readonly string _unsecureConfig;
+        private readonly string _secureConfig;
 
         public RunReportPlugin(string unsecureConfig, string secureConfig)
         {
             _unsecureConfig = unsecureConfig;
+            _secureConfig = secureConfig;
         }
 
         public void Execute(IServiceProvider serviceProvider)
@@ -53,7 +57,7 @@ namespace Qdb.ReportEngine.CrmPlugin
 
         private void Run(IPluginExecutionContext context, IOrganizationService service, ITracingService tracing)
         {
-            var configuration = PluginConfiguration.Load(service, _unsecureConfig);
+            var configuration = PluginConfiguration.Load(service, _unsecureConfig, _secureConfig);
             var request = RunReportRequestReader.Read(context);
 
             if (request.Async)
