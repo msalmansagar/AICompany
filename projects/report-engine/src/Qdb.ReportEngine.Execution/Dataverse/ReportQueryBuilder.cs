@@ -39,8 +39,8 @@ public static class ReportQueryBuilder
     /// <summary>Builds the query for <paramref name="definition"/> under <paramref name="request"/>.</summary>
     public static ReportQuery Build(ReportDefinition definition, ReportExecutionRequest request)
     {
-        ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(request);
+        if (definition is null) throw new ArgumentNullException(nameof(definition));
+        if (request is null) throw new ArgumentNullException(nameof(request));
 
         var rootEntity = definition.MainEntityLogicalName ?? FirstMappingEntity(definition)
             ?? throw new InvalidOperationException($"Report {definition.Id} has no entity to query.");
@@ -146,7 +146,9 @@ public static class ReportQueryBuilder
             return null;
         }
 
-        var op = Operators.GetValueOrDefault(filter.Operator?.Label ?? "Equals", "eq");
+        // TryGetValue rather than GetValueOrDefault: this file is also compiled into the net462
+        // plugin (ADR-RPT-011), where the newer dictionary extension does not exist.
+        var op = Operators.TryGetValue(filter.Operator?.Label ?? "Equals", out var mapped) ? mapped : "eq";
         var condition = new XElement("condition",
             new XAttribute("attribute", filter.FieldAlias),
             new XAttribute("operator", op));
@@ -164,9 +166,11 @@ public static class ReportQueryBuilder
 
         if (MultiValueOperators.Contains(op))
         {
-            foreach (var part in value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            // Trimmed explicitly — StringSplitOptions.TrimEntries does not exist on net462, which
+            // this file also targets via the plugin.
+            foreach (var part in value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                condition.Add(new XElement("value", part));
+                condition.Add(new XElement("value", part.Trim()));
             }
 
             return condition.Elements("value").Any() ? condition : null;

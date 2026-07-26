@@ -17,7 +17,12 @@
   <PropertyGroup>
     <TargetFramework>net462</TargetFramework>
     <LangVersion>latest</LangVersion>
-    <Nullable>disable</Nullable>
+    <!-- `annotations`, not `enable`: the shared engine sources use nullable syntax, but the net462
+         reference assemblies carry no nullable metadata, so running the analysis here would flag
+         BCL calls that are already verified clean when the same files build for net8.0. Accept the
+         syntax; let Core and Execution own the analysis. -->
+    <Nullable>annotations</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Qdb.ReportEngine.CrmPlugin</AssemblyName>
     <RootNamespace>Qdb.ReportEngine.CrmPlugin</RootNamespace>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -28,6 +33,29 @@
   <!-- System.Net.Http ships with the framework but is not auto-referenced by the SDK for net462. -->
   <ItemGroup>
     <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <!--
+    Shared engine logic, compiled INTO this assembly rather than referenced (ADR-RPT-011).
+
+    A Dataverse plugin assembly must be self-contained — it cannot resolve sibling custom assemblies
+    from the sandbox, and plugin packages, which would allow it, do not exist on on-premise 9.x.
+    Source-linking keeps one source of truth for logic the middle tier and the plugin both run,
+    without an ILRepack step or a second implementation to drift.
+
+    Deliberately narrow: only pure, dependency-free logic belongs here. Anything needing a NuGet
+    package (formulas via NCalc, exports, charts) stays out and runs in the web resource instead.
+  -->
+  <ItemGroup Label="Shared engine sources">
+    <Compile Include="..\Qdb.ReportEngine.Core\Common\Result.cs" LinkBase="Shared\Common" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Common\DomainError.cs" LinkBase="Shared\Common" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDefinition.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportQueryBuilder.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportRowShaper.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionFetch.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionAssembler.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\RowReader.cs" LinkBase="Shared\Engine" />
   </ItemGroup>
 
   <ItemGroup>

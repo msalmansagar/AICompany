@@ -17,8 +17,8 @@ public static class ReportRowShaper
         IReadOnlyList<ReportResultColumn> columns,
         IReadOnlyList<IReadOnlyDictionary<string, object?>> rawRows)
     {
-        ArgumentNullException.ThrowIfNull(columns);
-        ArgumentNullException.ThrowIfNull(rawRows);
+        if (columns is null) throw new ArgumentNullException(nameof(columns));
+        if (rawRows is null) throw new ArgumentNullException(nameof(rawRows));
 
         var rows = new List<ReportResultRow>(rawRows.Count);
         foreach (var raw in rawRows)

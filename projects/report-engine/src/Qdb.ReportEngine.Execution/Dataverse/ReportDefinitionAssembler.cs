@@ -12,7 +12,7 @@ public static class ReportDefinitionAssembler
     /// <summary>Assembles a <see cref="ReportDefinition"/> from its definition row and child rows.</summary>
     public static ReportDefinition Assemble(RawReportRows rows)
     {
-        ArgumentNullException.ThrowIfNull(rows);
+        if (rows is null) throw new ArgumentNullException(nameof(rows));
         var definition = rows.Definition;
 
         var columnsByMapping = rows.Columns

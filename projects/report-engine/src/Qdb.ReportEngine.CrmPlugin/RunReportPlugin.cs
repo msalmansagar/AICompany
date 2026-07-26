@@ -1,32 +1,29 @@
 using System;
+using System.Diagnostics;
 using Microsoft.Xrm.Sdk;
+using Qdb.ReportEngine.CrmPlugin.Engine;
 using Qdb.ReportEngine.CrmPlugin.Infrastructure;
 using Qdb.ReportEngine.CrmPlugin.Model;
+using Qdb.ReportEngine.Core.Models;
 
 namespace Qdb.ReportEngine.CrmPlugin
 {
     /// <summary>
-    /// The <c>qdb_RunReport</c> entry point (Custom API on cloud / Custom Action on on-prem). A thin,
-    /// stateless proxy: it reads the request, confirms an authenticated caller, relays the run to the
-    /// middle tier as that user, and returns the result. It never parses a definition, queries data,
-    /// or renders output — that work (and the execution-log audit record) lives in the middle tier,
-    /// keeping the plugin well within the 2-minute sandbox ceiling.
+    /// The <c>qdb_RunReport</c> entry point — the Report Engine's data path (ADR-RPT-011).
+    ///
+    /// It loads the stored definition, builds FetchXML from it, executes as the calling user, writes
+    /// the execution audit record, and returns the rows as JSON. Everything presentational —
+    /// formulas, transformations, layout, charts and exports — happens in the web resource that
+    /// called it.
+    ///
+    /// Retrieval lives here rather than in the browser for one reason: it makes the audit record
+    /// unavoidable. The call that returns rows is the call that writes the log, so report output
+    /// cannot be obtained without being recorded.
     /// </summary>
-    /// <remarks>
-    /// The unsecure configuration string may hold the middle-tier URL as a fallback when the
-    /// <c>qdb_rpt_middle_tier_url</c> environment variable is not set. The secure configuration holds
-    /// the middle-tier service token, which is why it is kept out of the unsecure string and out of
-    /// environment variables alike.
-    /// </remarks>
     public sealed class RunReportPlugin : IPlugin
     {
-        private readonly string _unsecureConfig;
-        private readonly string _secureConfig;
-
         public RunReportPlugin(string unsecureConfig, string secureConfig)
         {
-            _unsecureConfig = unsecureConfig;
-            _secureConfig = secureConfig;
         }
 
         public void Execute(IServiceProvider serviceProvider)
@@ -38,54 +35,91 @@ namespace Qdb.ReportEngine.CrmPlugin
 
             var context = Resolve<IPluginExecutionContext>(serviceProvider);
             var tracing = Resolve<ITracingService>(serviceProvider);
-            var service = CreateOrganizationService(serviceProvider, context.UserId);
+            var factory = Resolve<IOrganizationServiceFactory>(serviceProvider);
+
+            // Queries run as the initiating user so Dataverse applies their row-level security; the
+            // audit record is written as the system so the user cannot suppress or alter it.
+            var asUser = factory.CreateOrganizationService(context.InitiatingUserId);
+            var asSystem = factory.CreateOrganizationService(null);
+
+            Run(context, tracing, asUser, new ExecutionLogWriter(asSystem, tracing));
+        }
+
+        private static void Run(
+            IPluginExecutionContext context,
+            ITracingService tracing,
+            IOrganizationService asUser,
+            ExecutionLogWriter log)
+        {
+            var request = RunReportRequestReader.Read(context);
+            var entry = NewLogEntry(request.ReportId, context.InitiatingUserId);
+            var clock = Stopwatch.StartNew();
 
             try
             {
-                Run(context, service, tracing);
-            }
-            catch (InvalidPluginExecutionException)
-            {
-                throw;
+                var result = ExecuteReport(asUser, request, entry);
+                entry.RowCount = result.RowCount;
+                entry.Succeeded = true;
+                WriteSuccess(context, result);
             }
             catch (Exception error)
             {
+                entry.ErrorCode = error is InvalidPluginExecutionException ? "report_failed" : "unexpected_error";
                 tracing.Trace("qdb_RunReport failed: {0}", error);
-                throw new InvalidPluginExecutionException("The report run could not be completed.", error);
+                WriteFailure(context, entry.ErrorCode, error.Message);
             }
-        }
-
-        private void Run(IPluginExecutionContext context, IOrganizationService service, ITracingService tracing)
-        {
-            var configuration = PluginConfiguration.Load(service, _unsecureConfig, _secureConfig);
-            var request = RunReportRequestReader.Read(context);
-
-            if (request.Async)
+            finally
             {
-                // Async job orchestration is a separate build (middle-tier P-items); degrade to sync.
-                tracing.Trace("Async requested but not yet supported; running synchronously.");
+                entry.DurationMs = (int)clock.ElapsedMilliseconds;
+                log.Write(entry);
             }
-
-            var result = MiddleTierClient.Run(configuration, request);
-            WriteResponse(context, result);
         }
 
-        private static void WriteResponse(IPluginExecutionContext context, RelayResult result)
+        private static ReportResult ExecuteReport(
+            IOrganizationService asUser, RunReportRequest request, ExecutionLogEntry entry)
+        {
+            var engine = new SdkReportEngine(asUser);
+            var definition = engine.LoadDefinition(request.ReportId);
+            entry.ReportName = definition.Name;
+
+            return engine.Execute(definition, new ReportExecutionRequest
+            {
+                ParameterValues = ReportParameters.Parse(request.ParametersJson)
+            });
+        }
+
+        private static ExecutionLogEntry NewLogEntry(Guid reportId, Guid userId) => new ExecutionLogEntry
+        {
+            ReportId = reportId,
+            ReportName = reportId.ToString(),
+            UserId = userId,
+            CorrelationId = Guid.NewGuid().ToString("N"),
+            StartedOn = DateTime.UtcNow
+        };
+
+        private static void WriteSuccess(IPluginExecutionContext context, ReportResult result)
+        {
+            WriteCommon(context);
+            context.OutputParameters[ReportEngineParameters.ResultJson] = ReportResultJson.Write(result);
+            context.OutputParameters[ReportEngineParameters.ErrorCode] = string.Empty;
+            context.OutputParameters[ReportEngineParameters.ErrorMessage] = string.Empty;
+        }
+
+        private static void WriteFailure(IPluginExecutionContext context, string errorCode, string message)
+        {
+            WriteCommon(context);
+            context.OutputParameters[ReportEngineParameters.ResultJson] = string.Empty;
+            context.OutputParameters[ReportEngineParameters.ErrorCode] = errorCode;
+            context.OutputParameters[ReportEngineParameters.ErrorMessage] = message;
+        }
+
+        private static void WriteCommon(IPluginExecutionContext context)
         {
             var output = context.OutputParameters;
             output[ReportEngineParameters.ExecutionId] = Guid.NewGuid().ToString();
             output[ReportEngineParameters.Mode] = "SYNC";
             output[ReportEngineParameters.JobId] = string.Empty;
             output[ReportEngineParameters.StatusPollUrl] = string.Empty;
-            output[ReportEngineParameters.ResultJson] = result.Succeeded ? result.Payload : string.Empty;
-            output[ReportEngineParameters.ErrorCode] = result.ErrorCode ?? string.Empty;
-            output[ReportEngineParameters.ErrorMessage] = result.ErrorMessage ?? string.Empty;
-        }
-
-        private static IOrganizationService CreateOrganizationService(IServiceProvider serviceProvider, Guid userId)
-        {
-            var factory = Resolve<IOrganizationServiceFactory>(serviceProvider);
-            return factory.CreateOrganizationService(userId);
         }
 
         private static T Resolve<T>(IServiceProvider serviceProvider) => (T)serviceProvider.GetService(typeof(T));
