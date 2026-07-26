@@ -174,6 +174,34 @@ function buildRegion(
   return { splitStepId, branchEntryIds, joinStepId, interiorStepIds };
 }
 
+/** One branch of a parallel region: where it starts and which steps it covers. */
+export interface ParallelBranch {
+  entryStepId: string;
+  /** The branch's steps in breadth-first order, starting at the entry, excluding the join. */
+  stepIds: string[];
+}
+
+/**
+ * Breaks a region into its branches, for anything that needs to describe what runs
+ * concurrently — simulation, primarily. A step reachable from more than one branch
+ * entry is listed under each, which is honest: it genuinely can run on either.
+ */
+export function describeBranches(
+  input: ControlFlowGraphInput,
+  region: ParallelRegion
+): ParallelBranch[] {
+  const graph = buildStepGraph(input);
+  const join = region.joinStepId;
+  return region.branchEntryIds
+    .filter((entry) => entry !== END_SINK)
+    .map((entry) => ({
+      entryStepId: entry,
+      stepIds: [entry, ...reachableFrom(graph, entry, join ?? undefined)].filter(
+        (stepId) => stepId !== END_SINK && stepId !== join && input.steps[stepId]
+      ),
+    }));
+}
+
 /**
  * Every structural defect in the process's parallel regions. Returns findings, not
  * user-facing messages — ValidationService owns the wording.
