@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { FieldDefinition, FormDefinition, SubmissionMapping } from '@qdb/shared';
-import { indexFieldsById, resolveLookupBindings } from './submissionLookupBindings.js';
+import { indexFieldsById, readLookupRecordId, resolveLookupBindings } from './submissionLookupBindings.js';
 import type { LookupBindingResolver } from './LookupBindingResolver.js';
 
 function makeField(overrides: Partial<FieldDefinition>): FieldDefinition {
@@ -55,6 +55,25 @@ const BINDING = { navigationProperty: 'qdb_CustomerId', entitySetName: 'accounts
 function makeResolver(binding = BINDING) {
   return { resolve: vi.fn(async () => binding) } as unknown as LookupBindingResolver;
 }
+
+describe('readLookupRecordId', () => {
+  it('readsTheIdFromASelection', () => {
+    // What the renderer stores when the user picks from the lookup — an object, not a GUID.
+    expect(readLookupRecordId({ id: 'abc-123', displayName: 'Qatar National Bank' })).toBe('abc-123');
+  });
+
+  it('acceptsABareGuid', () => {
+    expect(readLookupRecordId('abc-123')).toBe('abc-123');
+  });
+
+  it('returnsNull_forAnEmptyOrUnrecognisedValue', () => {
+    expect(readLookupRecordId('')).toBeNull();
+    expect(readLookupRecordId('   ')).toBeNull();
+    expect(readLookupRecordId(null)).toBeNull();
+    expect(readLookupRecordId({ displayName: 'no id here' })).toBeNull();
+    expect(readLookupRecordId(42)).toBeNull();
+  });
+});
 
 describe('indexFieldsById', () => {
   it('includesTabHeaderAndFooterFields', () => {

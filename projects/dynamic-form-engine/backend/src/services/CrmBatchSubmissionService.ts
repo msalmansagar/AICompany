@@ -5,7 +5,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
-import { indexFieldsById, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
+import { indexFieldsById, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 import {
   BatchChangesetBuilder,
   parseBatchResponse,
@@ -288,9 +288,12 @@ function buildPayload(
 
     // A lookup target must be written as a navigation binding; assigning the raw GUID to
     // the column returns "CRM do not support direct update of Entity Reference properties".
+    // A selection arrives as { id, displayName } from the renderer, or a bare GUID from an
+    // API caller — both bind.
     const binding = lookupBindings.get(mapping.targetAttributeLogicalName);
-    if (binding && typeof value === 'string' && value) {
-      const [key, reference] = toBindingEntry(binding, value);
+    const recordId = binding ? readLookupRecordId(value) : null;
+    if (binding && recordId) {
+      const [key, reference] = toBindingEntry(binding, recordId);
       payload[key] = reference;
       continue;
     }

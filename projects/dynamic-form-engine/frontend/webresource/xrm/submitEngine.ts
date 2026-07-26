@@ -3,6 +3,7 @@
 // creates the parent record, then child records linked by relationship, with rollback on error.
 import type { FormDefinition, FormFieldValues, SubmissionMapping } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
+import { readLookupRecordId, resolveLookupBinding, toBindingEntry, type LookupBinding } from './lookupBinding';
 
 interface FieldInfo {
   schemaName: string;
@@ -46,10 +47,38 @@ function normalizeFileRefs(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Resolves a binding for every mapping whose source field is a single lookup, once per
+ * submission. Doing it up front keeps buildPayload synchronous, and a form with no lookup
+ * mappings makes no metadata calls at all.
+ */
+async function resolveBindings(
+  mappings: SubmissionMapping[],
+  fields: Map<string, FieldInfo>,
+): Promise<Map<string, LookupBinding>> {
+  const bindings = new Map<string, LookupBinding>();
+
+  for (const mapping of mappings) {
+    const field = fields.get(mapping.fieldId);
+    if (field?.fieldType !== 'lookup' || !field.lookupEntity) continue;
+    if (bindings.has(mapping.targetAttributeLogicalName)) continue;
+
+    const binding = await resolveLookupBinding(
+      mapping.targetEntityLogicalName,
+      mapping.targetAttributeLogicalName,
+      field.lookupEntity,
+    );
+    if (binding) bindings.set(mapping.targetAttributeLogicalName, binding);
+  }
+
+  return bindings;
+}
+
 function buildPayload(
   mappings: SubmissionMapping[],
   values: FormFieldValues,
   fields: Map<string, FieldInfo>,
+  bindings: Map<string, LookupBinding>,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
   for (const mapping of mappings) {
@@ -59,10 +88,16 @@ function buildPayload(
     const raw = (values as Record<string, unknown>)[field.schemaName];
     if (raw === undefined || raw === null || raw === '') continue;
 
-    // Lookups must be written as navigation bindings, not raw attribute values.
-    if (field.fieldType === 'lookup' && field.lookupEntity && typeof raw === 'string') {
-      payload[`${mapping.targetAttributeLogicalName}@odata.bind`] =
-        `/${field.lookupEntity}s(${cleanGuid(raw)})`;
+    // A lookup is written as a navigation binding, never as a raw attribute value. Both
+    // names come from metadata: the navigation property is not always the column name, and
+    // for a polymorphic lookup there is one per target.
+    // A selection arrives as { id, displayName } from the renderer, or a bare GUID when a
+    // caller supplies one — both bind.
+    const binding = bindings.get(mapping.targetAttributeLogicalName);
+    const recordId = binding ? readLookupRecordId(raw) : null;
+    if (binding && recordId) {
+      const [key, reference] = toBindingEntry(binding, cleanGuid(recordId));
+      payload[key] = reference;
       continue;
     }
 
@@ -106,16 +141,19 @@ export async function submitForm(form: FormDefinition, values: FormFieldValues):
   const parentEntity = parentMappings[0]?.targetEntityLogicalName;
   if (!parentEntity) throw new Error('This form has no parent-entity submission mapping configured.');
 
+  // Resolved once for the whole submission, parent and children together.
+  const bindings = await resolveBindings(active, fields);
+
   const created: Array<{ entity: string; id: string }> = [];
   try {
-    const parentPayload = buildPayload(parentMappings, values, fields);
+    const parentPayload = buildPayload(parentMappings, values, fields, bindings);
     const parent = await webApi().createRecord(parentEntity, parentPayload);
     created.push({ entity: parentEntity, id: parent.id });
 
     const childGroups = groupChildMappings(active.filter((m) => m.isMappedToChildEntity));
     for (const [key, mappings] of childGroups) {
       const [childEntity, relationship] = key.split(':');
-      const childPayload = buildPayload(mappings, values, fields);
+      const childPayload = buildPayload(mappings, values, fields, bindings);
       if (relationship) childPayload[`${relationship}@odata.bind`] = `/${parentEntity}s(${parent.id})`;
       const child = await webApi().createRecord(childEntity, childPayload);
       created.push({ entity: childEntity, id: child.id });

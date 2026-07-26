@@ -9,6 +9,20 @@ import type { LookupBinding, LookupBindingResolver } from './LookupBindingResolv
 /** Bindings keyed by the mapping's target attribute. */
 export type LookupBindingMap = Map<string, LookupBinding>;
 
+/**
+ * The record id a lookup field holds. The renderer stores a selection as
+ * { id, displayName }, while an API caller may send the bare GUID — both have to bind.
+ * Returns null for anything else, so the caller falls back to a plain assignment.
+ */
+export function readLookupRecordId(value: unknown): string | null {
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'object' && value !== null && 'id' in value) {
+    const id = (value as { id: unknown }).id;
+    if (typeof id === 'string' && id.trim()) return id.trim();
+  }
+  return null;
+}
+
 /** Every field on the form, by id — payload builders need the type, not just the schema name. */
 export function indexFieldsById(formDefinition: FormDefinition): Map<string, FieldDefinition> {
   const fields = new Map<string, FieldDefinition>();

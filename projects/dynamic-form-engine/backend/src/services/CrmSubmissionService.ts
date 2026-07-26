@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 import type { CrmAuditService } from './CrmAuditService.js';
 import { LookupBindingResolver, toBindingEntry } from './LookupBindingResolver.js';
-import { indexFieldsById, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
+import { indexFieldsById, readLookupRecordId, resolveLookupBindings, type LookupBindingMap } from './submissionLookupBindings.js';
 
 const LOOKUP_ID_SCHEMA = z.string().uuid();
 
@@ -224,10 +224,13 @@ export class CrmSubmissionService extends CrmBaseService {
 
       // A lookup target must be written as a navigation binding; assigning the raw GUID
       // to the column returns "CRM do not support direct update of Entity Reference
-      // properties". Mappings with no resolved binding keep the plain assignment.
+      // properties". The id is read from the value itself, not the transformed one — a
+      // selection arrives as { id, displayName } and text transforms do not apply to it.
+      // Mappings with no resolved binding keep the plain assignment.
       const binding = lookupBindings.get(mapping.targetAttributeLogicalName);
-      if (binding && typeof transformed === 'string' && transformed) {
-        const [key, reference] = toBindingEntry(binding, transformed);
+      const recordId = binding ? readLookupRecordId(normalized) : null;
+      if (binding && recordId) {
+        const [key, reference] = toBindingEntry(binding, recordId);
         payload[key] = reference;
         continue;
       }

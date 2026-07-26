@@ -5,6 +5,7 @@
 // returns, so the query goes through a same-origin fetch (cookie auth, the pattern
 // optionsApi already uses for metadata) with annotations requested explicitly.
 import { webApi, webApiBaseUrl } from './xrmClient';
+import { resolveEntitySetName, resolveLookupNavigationProperty } from './lookupBinding';
 
 const MORE_RECORDS = '@Microsoft.Dynamics.CRM.morerecords';
 const TOTAL_RECORD_COUNT = '@Microsoft.Dynamics.CRM.totalrecordcount';
@@ -18,7 +19,6 @@ export interface ViewPageResult {
 }
 
 const fetchXmlByViewId = new Map<string, string>();
-const entitySetByLogicalName = new Map<string, string>();
 
 /**
  * Reads the saved view's FetchXML, cached per view for the page's lifetime.
@@ -43,69 +43,6 @@ export async function resolveViewFetchXml(viewId: string): Promise<string | null
   }
 }
 
-// The Web API addresses entities by entity-set name, which is not always the logical
-// name plus "s" — ask the metadata service rather than guessing.
-async function resolveEntitySetName(entityLogicalName: string): Promise<string> {
-  const cached = entitySetByLogicalName.get(entityLogicalName);
-  if (cached) return cached;
-
-  const url = `${webApiBaseUrl()}/EntityDefinitions(LogicalName='${entityLogicalName}')?$select=EntitySetName`;
-  const response = await fetch(url, {
-    headers: { Accept: 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0' },
-    credentials: 'same-origin',
-  });
-  if (!response.ok) throw new Error(`Could not resolve the entity set for ${entityLogicalName}`);
-
-  const metadata = await response.json() as { EntitySetName?: string };
-  const entitySetName = metadata.EntitySetName ?? `${entityLogicalName}s`;
-  entitySetByLogicalName.set(entityLogicalName, entitySetName);
-  return entitySetName;
-}
-
-const navigationPropertyByKey = new Map<string, string | null>();
-
-/**
- * Resolves the single-valued navigation property behind a lookup attribute, so an OData
- * filter can reach the related record's own columns (contains(navProp/name,'…')).
- * It is not always the attribute name: a polymorphic lookup has one property per target
- * (parentcustomerid_account, parentcustomerid_contact). Returns null when unresolvable.
- */
-export async function resolveLookupNavigationProperty(
-  entityLogicalName: string,
-  attribute: string,
-  targetEntity: string,
-): Promise<string | null> {
-  const key = `${entityLogicalName}.${attribute}.${targetEntity}`;
-  const cached = navigationPropertyByKey.get(key);
-  if (cached !== undefined) return cached;
-
-  const url = `${webApiBaseUrl()}/EntityDefinitions(LogicalName='${entityLogicalName}')/ManyToOneRelationships`
-    + `?$select=ReferencingAttribute,ReferencedEntity,ReferencingEntityNavigationPropertyName`
-    + `&$filter=ReferencingAttribute eq '${attribute}'`;
-
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0' },
-      credentials: 'same-origin',
-    });
-    if (!response.ok) throw new Error(String(response.status));
-
-    const payload = await response.json() as {
-      value?: Array<{ ReferencedEntity?: string; ReferencingEntityNavigationPropertyName?: string }>;
-    };
-    const relationships = payload.value ?? [];
-    const match = relationships.find((relationship) => relationship.ReferencedEntity === targetEntity)
-      ?? (relationships.length === 1 ? relationships[0] : undefined);
-    const navigationProperty = match?.ReferencingEntityNavigationPropertyName ?? null;
-
-    navigationPropertyByKey.set(key, navigationProperty);
-    return navigationProperty;
-  } catch {
-    navigationPropertyByKey.set(key, null);
-    return null;
-  }
-}
-
 /** Executes one FetchXML page and reports whether more pages follow. */
 export async function fetchViewPage(
   entityLogicalName: string,
@@ -113,6 +50,8 @@ export async function fetchViewPage(
   signal?: AbortSignal,
 ): Promise<ViewPageResult> {
   const entitySetName = await resolveEntitySetName(entityLogicalName);
+  if (!entitySetName) throw new Error(`Could not resolve the entity set for ${entityLogicalName}`);
+
   const url = `${webApiBaseUrl()}/${entitySetName}?fetchXml=${encodeURIComponent(fetchXml)}`;
 
   const response = await fetch(url, {

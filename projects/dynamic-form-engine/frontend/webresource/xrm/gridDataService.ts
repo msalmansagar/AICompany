@@ -9,7 +9,8 @@ import {
 } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
 import { getLoadedForm } from './formApi';
-import { fetchViewPage, resolveLookupNavigationProperty, resolveViewFetchXml } from './viewQuery';
+import { fetchViewPage, resolveViewFetchXml } from './viewQuery';
+import { resolveLookupNavigationProperty } from './lookupBinding';
 
 const FORMATTED = '@OData.Community.Display.V1.FormattedValue';
 

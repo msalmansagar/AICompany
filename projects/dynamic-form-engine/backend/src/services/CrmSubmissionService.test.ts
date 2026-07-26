@@ -243,8 +243,12 @@ describe('CrmSubmissionService', () => {
         }],
       });
 
-      // Act
-      await service.submitForm(form, { qdb_customer: customerId }, 'user-001', 'Test User');
+      // Act — the renderer stores a selection as { id, displayName }, not a bare GUID
+      await service.submitForm(
+        form,
+        { qdb_customer: { id: customerId, displayName: 'Qatar National Bank' } },
+        'user-001', 'Test User',
+      );
 
       // Assert
       expect(capturedPayload).toMatchObject({
