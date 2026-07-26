@@ -1,6 +1,6 @@
 // Xrm-backed replacement for src/services/gridDataService.ts. Queries a grid field's target
 // entity directly via the CRM Web API instead of the portal's /grids backend endpoint.
-import type { GridRecord, GridRecordPage } from '@qdb/shared';
+import { buildODataFilter, type GridRecord, type GridRecordPage } from '@qdb/shared';
 import { webApi, cleanGuid } from './xrmClient';
 import { getLoadedForm } from './formApi';
 
@@ -11,9 +11,6 @@ interface GridPageRequest {
   page: number;
   pageSize: number;
   signal?: AbortSignal;
-  // NOTE: multi-field depends-on filtering is not yet applied in the in-CRM (OData) grid
-  // path — it needs an OData filter translator (contains() vs like, unquoted lookup GUIDs).
-  // The portal (FetchXML) path supports it; see backend gridFilterExpression.ts.
   dependsOnValues?: Record<string, string>;
   pagingCookie?: string;
   searchText?: string;
@@ -23,7 +20,13 @@ interface GridPageRequest {
 }
 
 interface GridColumn { targetAttribute: string; columnFieldType: string; }
-interface GridConfig { targetEntity: string; entityName?: string; filterExpression?: string; columnConfigs: GridColumn[]; }
+interface GridConfig {
+  targetEntity: string;
+  entityName?: string;
+  filterExpression?: string;
+  dependsOnFilterTemplate?: string;
+  columnConfigs: GridColumn[];
+}
 
 function findGridConfig(fieldId: string): GridConfig | null {
   const form = getLoadedForm();
@@ -42,9 +45,33 @@ function escapeOData(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+// A lookup is only addressable in its navigation form (_attr_value) in $select and
+// $orderby — the bare attribute name is valid FetchXML but makes the Web API return 400.
+function toQueryAttribute(attribute: string, columns: GridColumn[]): string {
+  const column = columns.find((candidate) => candidate.targetAttribute === attribute);
+  return column?.columnFieldType === 'lookup' ? `_${attribute}_value` : attribute;
+}
+
+// Compiles the maker's depends-on template against the current outside-field values.
+// A malformed template must not take the grid down — it degrades to an unfiltered query,
+// matching the portal path's policy.
+function buildDependsOnClause(grid: GridConfig, request: GridPageRequest): string {
+  if (!grid.dependsOnFilterTemplate) return '';
+  try {
+    return buildODataFilter(grid.dependsOnFilterTemplate, request.dependsOnValues ?? {});
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[DFE-grid] depends-on template could not be parsed — skipped', error);
+    return '';
+  }
+}
+
 function buildFilter(grid: GridConfig, request: GridPageRequest): string[] {
   const clauses: string[] = [];
   if (grid.filterExpression) clauses.push(grid.filterExpression);
+
+  const dependsOnClause = buildDependsOnClause(grid, request);
+  if (dependsOnClause) clauses.push(dependsOnClause);
 
   const columns = grid.columnConfigs ?? [];
   if (request.searchText && request.searchText.trim() && columns.length > 0) {
@@ -66,19 +93,20 @@ export async function fetchGridPage(request: GridPageRequest): Promise<GridRecor
   const empty: GridRecordPage = { records: [], page: request.page, pageSize: request.pageSize, hasNextPage: false, isCapped: false };
   const grid = findGridConfig(request.fieldId);
   const entity = grid?.entityName ?? grid?.targetEntity;
-  // TEMP diagnostics for in-CRM grid debugging — remove once confirmed working.
-  // eslint-disable-next-line no-console
-  console.warn('[DFE-grid] field', request.fieldId, '| gridFound', !!grid, '| entity', entity);
   if (!grid || !entity) return empty;
 
   const columns = grid.columnConfigs ?? [];
-  const selectAttributes = Array.from(new Set(columns.map((c) => c.targetAttribute).filter(Boolean)));
+  const selectAttributes = Array.from(
+    new Set(columns.map((c) => toQueryAttribute(c.targetAttribute, columns)).filter(Boolean)),
+  );
   const idAttribute = `${entity}id`;
 
   let options = `?$select=${selectAttributes.join(',') || idAttribute}`;
   const filters = buildFilter(grid, request);
   if (filters.length > 0) options += `&$filter=${encodeURIComponent(filters.join(' and '))}`;
-  if (request.sortBy) options += `&$orderby=${request.sortBy} ${request.sortDirection ?? 'asc'}`;
+  if (request.sortBy) {
+    options += `&$orderby=${toQueryAttribute(request.sortBy, columns)} ${request.sortDirection ?? 'asc'}`;
+  }
 
   let result: { entities: Record<string, unknown>[]; nextLink?: string };
   try {
@@ -88,8 +116,6 @@ export async function fetchGridPage(request: GridPageRequest): Promise<GridRecor
     console.error('[DFE-grid] query FAILED', entity, options, error);
     throw error;
   }
-  // eslint-disable-next-line no-console
-  console.warn('[DFE-grid] query', entity, options, '->', result.entities.length, 'records');
 
   const records: GridRecord[] = result.entities.map((row) => {
     const values: Record<string, unknown> = {};
