@@ -44,7 +44,7 @@ export class FieldDesignRepository {
       return existingId;
     }
 
-    payload[FIELD_DESIGN_ATTRS.FIELD_ID] = dto.fieldId;
+    payload[`${FIELD_DESIGN_ATTRS.FIELD_ID}@odata.bind`] = `/qdb_form_fields(${dto.fieldId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FIELD_DESIGN, payload),
       'createFieldDesign'
@@ -52,10 +52,16 @@ export class FieldDesignRepository {
     return result.id;
   }
 
-  // TODO(DFE-STYLE-001): filter by formDesignId once field_design adds the FK column
-  async getFieldDesigns(_formDesignId: string): Promise<FieldDesign[]> {
+  /**
+   * Field designs for a single form, scoped to that form's field IDs.
+   * field_design has no form_design FK, so scoping is by the form's field lookups —
+   * this keeps one form's styling from bleeding into another (H-1 contamination).
+   */
+  async getFieldDesigns(fieldIds: string[]): Promise<FieldDesign[]> {
+    if (fieldIds.length === 0) return [];
+
     const select = [
-      FIELD_DESIGN_ATTRS.ID, FIELD_DESIGN_ATTRS.FIELD_ID,
+      FIELD_DESIGN_ATTRS.ID, FIELD_DESIGN_ATTRS.FIELD_ID_VALUE,
       FIELD_DESIGN_ATTRS.LABEL_STYLE, FIELD_DESIGN_ATTRS.INPUT_STYLE,
       FIELD_DESIGN_STYLE_ATTRS.WIDTH, FIELD_DESIGN_STYLE_ATTRS.CUSTOM_WIDTH,
       FIELD_DESIGN_STYLE_ATTRS.HEIGHT, FIELD_DESIGN_STYLE_ATTRS.ICON_PREFIX,
@@ -65,10 +71,14 @@ export class FieldDesignRepository {
       FIELD_DESIGN_STYLE_ATTRS.CSS_CLASS,
     ].join(',');
 
+    const filter = fieldIds
+      .map(id => `${FIELD_DESIGN_ATTRS.FIELD_ID_VALUE} eq ${id}`)
+      .join(' or ');
+
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.FIELD_DESIGN,
-        `?$select=${select}&$filter=${FIELD_DESIGN_ATTRS.FIELD_ID} ne null`
+        `?$select=${select}&$filter=${filter}`
       ),
       'getFieldDesigns'
     );
@@ -98,7 +108,7 @@ export class FieldDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.FIELD_DESIGN,
-        `?$select=${FIELD_DESIGN_ATTRS.ID}&$filter=${FIELD_DESIGN_ATTRS.FIELD_ID} eq ${fieldId}&$top=1`
+        `?$select=${FIELD_DESIGN_ATTRS.ID}&$filter=${FIELD_DESIGN_ATTRS.FIELD_ID_VALUE} eq ${fieldId}&$top=1`
       ),
       'findFieldDesign'
     );
@@ -115,7 +125,7 @@ export class FieldDesignRepository {
 
     return {
       id: String(record[FIELD_DESIGN_ATTRS.ID] ?? ''),
-      fieldId: String(record[FIELD_DESIGN_ATTRS.FIELD_ID] ?? ''),
+      fieldId: String(record[FIELD_DESIGN_ATTRS.FIELD_ID_VALUE] ?? ''),
       inputStyle: fromPicklist(record[FIELD_DESIGN_ATTRS.INPUT_STYLE], PICKLIST_TO_INPUT_STYLE, 'Outlined'),
       width: fromPicklist(record[FIELD_DESIGN_STYLE_ATTRS.WIDTH], PICKLIST_TO_WIDTH, 'Full'),
       customWidth: record[FIELD_DESIGN_STYLE_ATTRS.CUSTOM_WIDTH] != null

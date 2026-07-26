@@ -121,13 +121,13 @@ export const FORM_FIELD_ATTRS = {
   DEFAULT_VALUE: 'qdb_default_value',
   CURRENCY_CODE: 'qdb_currency_code',
   DECIMAL_PLACES: 'qdb_decimal_places',
+  NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
+  BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
+  BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
   MAX_FILES: 'qdb_max_files',
   GRID_PAGE_SIZE: 'qdb_grid_page_size',
   GRID_PAGING_STYLE: 'qdb_grid_paging_style',
-  NUMBER_DISPLAY_STYLE: 'qdb_number_display_style',  // DFE-NUMBAR
-  BAR_MAX_FIELD_SCHEMA: 'qdb_bar_max_field_schema',  // DFE-NUMBAR
-  BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   SORT_ORDER: 'qdb_display_order',
   COLUMN_SPAN: 'qdb_column_span',                  // Picklist — see COLUMN_SPAN_TO_PICKLIST
   // DFE-TABZONE-001 — tab header/footer placement
@@ -139,7 +139,7 @@ export const FORM_FIELD_ATTRS = {
   // Sprint 3 — custom field type
   COMPONENT_KEY: 'qdb_component_key',
   // Sprint 4 — boolean field type
-  BOOL_RENDER_STYLE: 'qdb_bool_render_style',
+  BOOL_RENDER_STYLE: 'qdb_boolean_render_style',
   TRUE_LABEL: 'qdb_true_label',
   FALSE_LABEL: 'qdb_false_label',
   // Sprint 4 — info-card inline field
@@ -235,11 +235,12 @@ export const PICKLIST_TO_COLUMN_SPAN: Record<number, 1 | 2 | 3> = {
   1: 1, 2: 2, 3: 3,
 };
 
-// Boolean render style — qdb_bool_render_style picklist
+// Boolean render style — qdb_boolean_render_style picklist
 export const BOOL_RENDER_STYLE_TO_PICKLIST: Record<string, number> = {
   toggle: 100000000,
   radio:  100000001,
 };
+
 export const PICKLIST_TO_BOOL_RENDER_STYLE: Record<number, 'toggle' | 'radio'> = {
   100000000: 'toggle',
   100000001: 'radio',

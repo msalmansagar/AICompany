@@ -61,7 +61,7 @@ export class FormDesignRepository {
       return existingId;
     }
 
-    payload[FORM_DESIGN_ATTRS.FORM_ID] = dto.formId;
+    payload[`${FORM_DESIGN_ATTRS.FORM_ID}@odata.bind`] = `/qdb_form_definitions(${dto.formId})`;
     const result = await withRetry(
       () => this.webApi.createRecord(ENTITY_NAMES.FORM_DESIGN, payload),
       'createFormDesign'
@@ -71,7 +71,7 @@ export class FormDesignRepository {
 
   async getFormDesign(formId: string): Promise<FormDesign | null> {
     const select = [
-      FORM_DESIGN_ATTRS.ID, FORM_DESIGN_ATTRS.FORM_ID, FORM_DESIGN_ATTRS.THEME_ID,
+      FORM_DESIGN_ATTRS.ID, FORM_DESIGN_ATTRS.FORM_ID_VALUE, FORM_DESIGN_ATTRS.THEME_ID_VALUE,
       FORM_DESIGN_ATTRS.CUSTOM_CSS, FORM_DESIGN_ATTRS.TAB_STYLE,
       FORM_DESIGN_STYLE_ATTRS.LAYOUT_TYPE, FORM_DESIGN_STYLE_ATTRS.LABEL_POSITION,
       FORM_DESIGN_STYLE_ATTRS.FORM_BUTTON_STYLE, FORM_DESIGN_STYLE_ATTRS.ALIGNMENT,
@@ -83,7 +83,7 @@ export class FormDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.FORM_DESIGN,
-        `?$select=${select}&$filter=${FORM_DESIGN_ATTRS.FORM_ID} eq ${formId}&$top=1`
+        `?$select=${select}&$filter=${FORM_DESIGN_ATTRS.FORM_ID_VALUE} eq ${formId}&$top=1`
       ),
       'getFormDesign'
     );
@@ -114,7 +114,7 @@ export class FormDesignRepository {
     const result = await withRetry(
       () => this.webApi.retrieveMultipleRecords(
         ENTITY_NAMES.FORM_DESIGN,
-        `?$select=${FORM_DESIGN_ATTRS.ID}&$filter=${FORM_DESIGN_ATTRS.FORM_ID} eq ${formId}&$top=1`
+        `?$select=${FORM_DESIGN_ATTRS.ID}&$filter=${FORM_DESIGN_ATTRS.FORM_ID_VALUE} eq ${formId}&$top=1`
       ),
       'findFormDesign'
     );
@@ -125,8 +125,10 @@ export class FormDesignRepository {
   private mapRecordToFormDesign(record: Record<string, unknown>): FormDesign {
     return {
       id: String(record[FORM_DESIGN_ATTRS.ID] ?? ''),
-      formDefinitionId: record[FORM_DESIGN_ATTRS.FORM_ID] != null
-        ? String(record[FORM_DESIGN_ATTRS.FORM_ID]) : undefined,
+      formDefinitionId: record[FORM_DESIGN_ATTRS.FORM_ID_VALUE] != null
+        ? String(record[FORM_DESIGN_ATTRS.FORM_ID_VALUE]) : undefined,
+      themeId: record[FORM_DESIGN_ATTRS.THEME_ID_VALUE] != null
+        ? String(record[FORM_DESIGN_ATTRS.THEME_ID_VALUE]) : undefined,
       layoutType: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.LAYOUT_TYPE], PICKLIST_TO_LAYOUT, 'SingleColumn'),
       labelPosition: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.LABEL_POSITION], PICKLIST_TO_LABEL_POSITION, 'Top'),
       sectionStyle: fromPicklist(record[FORM_DESIGN_STYLE_ATTRS.SECTION_STYLE], PICKLIST_TO_SECTION_STYLE, 'Card'),

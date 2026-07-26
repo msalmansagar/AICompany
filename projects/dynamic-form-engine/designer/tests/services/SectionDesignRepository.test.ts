@@ -54,7 +54,7 @@ describe('SectionDesignRepository round-trip', () => {
         [SECTION_DESIGN_STYLE_ATTRS.HEADER_STYLE_JSON]: '{"fontWeight":"bold"}',
       }],
     });
-    const [sec] = await repo.getSectionDesigns('fd1');
+    const [sec] = await repo.getSectionDesigns(['s1']);
     expect(sec.columnLayout).toBe(2);
     expect(sec.cardStyle).toBe('Outlined');
     expect(sec.collapsibleStyle).toBe('None'); // 100000001, not 100000000
@@ -71,8 +71,23 @@ describe('SectionDesignRepository round-trip', () => {
         [SECTION_DESIGN_STYLE_ATTRS.HEADER_STYLE_JSON]: 'not-json',
       }],
     });
-    const [sec] = await repo.getSectionDesigns('fd1');
+    const [sec] = await repo.getSectionDesigns(['s1']);
     expect(sec.headerStyle).toBeUndefined();
     expect(sec.collapsibleStyle).toBe('None'); // default when picklist absent
+  });
+
+  it('get_scopesQuery_toGivenSectionIds', async () => {
+    vi.mocked(webApi.retrieveMultipleRecords).mockResolvedValueOnce({ entities: [] });
+    await repo.getSectionDesigns(['s1', 's2']);
+    const query = vi.mocked(webApi.retrieveMultipleRecords).mock.calls[0][1];
+    expect(query).toContain(`${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} eq s1`);
+    expect(query).toContain(`${SECTION_DESIGN_ATTRS.SECTION_ID_VALUE} eq s2`);
+    expect(query).not.toContain('ne null');
+  });
+
+  it('get_returnsEmpty_andSkipsQuery_whenNoSectionIds', async () => {
+    const result = await repo.getSectionDesigns([]);
+    expect(result).toEqual([]);
+    expect(webApi.retrieveMultipleRecords).not.toHaveBeenCalled();
   });
 });

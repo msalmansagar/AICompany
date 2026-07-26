@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Field,
@@ -11,6 +11,7 @@ import {
 import { AddRegular, ArrowLeftRegular, DeleteRegular, CheckmarkRegular, DismissRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
 import { FieldLabelService } from '@/services/FieldLabelService';
+import { CrmContext } from '@/app/App';
 import type { DesignerFieldLabelModel } from '@/state/models/DesignerFieldLabelModel';
 
 const useStyles = makeStyles({
@@ -40,8 +41,11 @@ export function FieldLabelEditorScreen(): React.ReactElement {
   const navigateTo = useDesignerStore(s => s.navigateTo);
   const selectedId = useDesignerStore(s => s.selectedId);
   const field = useDesignerStore(s => selectedId ? s.fields[selectedId] : null);
-  const webApi = (window as unknown as { Xrm: { WebApi: unknown } }).Xrm?.WebApi;
-  const service = webApi && selectedId ? new FieldLabelService(webApi as never) : null;
+  const crmService = useContext(CrmContext);
+  const service = useMemo(
+    () => (crmService && selectedId ? new FieldLabelService(crmService.getWebApi()) : null),
+    [crmService, selectedId],
+  );
 
   const [labels, setLabels] = useState<DesignerFieldLabelModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);

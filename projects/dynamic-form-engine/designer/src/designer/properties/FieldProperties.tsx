@@ -118,7 +118,7 @@ const DISPLAY_ONLY_TYPES = new Set(['info-card', 'label']);
 // Field types that support inline prefix/suffix decorators.
 const FIELD_TYPES_WITH_AFFIX = new Set([
   'text', 'textarea', 'email', 'phone', 'url',
-  'number', 'decimal',
+  'number', 'decimal', 'currency',
 ]);
 
 function CustomFieldPanel({ field }: { field: DesignerFieldModel }): React.ReactElement {

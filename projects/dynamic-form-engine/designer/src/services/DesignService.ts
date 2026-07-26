@@ -66,8 +66,8 @@ export class DesignService {
     return this.sectionDesign.upsertSectionDesign(dto);
   }
 
-  getSectionDesigns(formDesignId: string): Promise<SectionDesign[]> {
-    return this.sectionDesign.getSectionDesigns(formDesignId);
+  getSectionDesigns(sectionIds: string[]): Promise<SectionDesign[]> {
+    return this.sectionDesign.getSectionDesigns(sectionIds);
   }
 
   // ─── Field design ─────────────────────────────────────────────────────────
@@ -76,8 +76,8 @@ export class DesignService {
     return this.fieldDesign.upsertFieldDesign(dto);
   }
 
-  getFieldDesigns(formDesignId: string): Promise<FieldDesign[]> {
-    return this.fieldDesign.getFieldDesigns(formDesignId);
+  getFieldDesigns(fieldIds: string[]): Promise<FieldDesign[]> {
+    return this.fieldDesign.getFieldDesigns(fieldIds);
   }
 
   // ─── Button design ────────────────────────────────────────────────────────
