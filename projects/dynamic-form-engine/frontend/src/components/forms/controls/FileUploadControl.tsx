@@ -18,6 +18,7 @@ import {
   DocumentAddRegular,
 } from '@fluentui/react-icons';
 import { DynamicIcon } from '../DynamicIcon';
+import { DocumentListControl } from './DocumentListControl';
 import { useFormContext } from '../../../contexts/FormContext';
 import { filesApi, UploadedFileReference } from '../../../api/filesApi';
 import type { ControlProps } from '../FieldRenderer';
@@ -117,7 +118,14 @@ interface FileUploadEntry {
   previewUrl: string;
 }
 
-export function FileUploadControl({
+export function FileUploadControl(props: ControlProps) {
+  // A read-only file field is a document display, not an upload: it lists what was
+  // uploaded with View and Download, which is what a summary page needs.
+  if (props.isReadonly) return <DocumentListControl {...props} />;
+  return <FileUploadZone {...props} />;
+}
+
+function FileUploadZone({
   field,
   inputId,
   isRequired,

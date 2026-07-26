@@ -484,7 +484,7 @@ function FileDownloadLink({ fileRef }: { fileRef: UploadedFileReference }) {
   const handleDownload = () => {
     setIsDownloading(true);
     filesApi
-      .downloadFile(fileRef.url, fileRef.fileName)
+      .downloadFile(fileRef)
       .finally(() => setIsDownloading(false));
   };
 
