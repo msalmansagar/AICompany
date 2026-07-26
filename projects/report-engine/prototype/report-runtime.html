@@ -200,29 +200,113 @@
 <script>
 "use strict";
 /* Report Engine — Runtime Viewer (RPT-ENG-001). Self-contained, no deps.
-   Calls the live middle-tier: GET /api/reports, GET/POST /api/reports/{id}/(execute|export|chart|drilldown). */
+   Runs entirely inside CRM (ADR-RPT-011) — there is no middle tier to call. */
 
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const NUMERIC = /^-?[\d,]*\.?\d+$/;
+const FORMATTED = "@OData.Community.Display.V1.FormattedValue";
 
-// In a CRM web resource these come from Xrm; here they're editable in Settings.
 const state = {
-  apiBase: localStorage.getItem("re-api") || "http://localhost:5215",
-  callerId: localStorage.getItem("re-caller") || "",   // empty = run as the service app
-  callerName: localStorage.getItem("re-caller-name") || "app",
   theme: localStorage.getItem("re-theme") || "light",
+  callerName: "user",
   reports: [], view: "catalog", current: null
 };
 
 function toast(msg, kind){ const t=document.createElement("div"); t.className="toast "+(kind||""); t.textContent=msg; $("#toasts").appendChild(t); setTimeout(()=>t.remove(), 4200); }
 
-function api(path, opts={}){
-  const headers = Object.assign({ "Accept":"application/json" }, opts.headers||{});
-  if (state.callerId) headers["X-Report-Caller-Id"] = state.callerId;
-  return fetch(state.apiBase.replace(/\/$/,"") + path, Object.assign({}, opts, { headers }));
+/* ---------------- Dataverse access ----------------
+   Two paths, and the split between them IS the audit guarantee (ADR-RPT-011):
+
+   - CONFIGURATION — the catalog and report definitions — is read directly with Xrm.WebApi. These
+     describe reports; they are not report output, so they need no execution record.
+   - REPORT DATA goes exclusively through the qdb_RunReport Custom API, never a direct query,
+     because that call is what writes qdb_reportexecutionlog. Querying the underlying rows from here
+     would hand back the same data with no audit trail, which is precisely what routing retrieval
+     through the plugin exists to prevent.
+
+   Everything runs as the signed-in CRM user, so row-level security applies with no token to hold. */
+
+function xrm(){
+  const found = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+  if (!found || !found.WebApi) {
+    throw new Error("This viewer must run as a CRM web resource — no Xrm context is available.");
+  }
+  return found;
 }
-async function apiJson(path, opts){ const r=await api(path, opts); const body = r.status===204?null:await r.json().catch(()=>null); if(!r.ok) throw new Error((body&&body.message)||("HTTP "+r.status)); return body; }
+
+async function dvRetrieveMultiple(logicalName, query){
+  const response = await xrm().WebApi.retrieveMultipleRecords(logicalName, query);
+  return response.entities || [];
+}
+
+/** Runs a stored report through the audited Custom API and returns the shaped result. */
+async function runReportInCrm(reportId, parameterValues){
+  const request = {
+    reportId: reportId,
+    parametersJson: JSON.stringify(parameterValues || {}),
+    format: "RUN",
+    async: false,
+    getMetadata: () => ({
+      boundParameter: null, operationType: 0, operationName: "qdb_RunReport",
+      parameterTypes: {
+        reportId:       { typeName: "Edm.String",  structuralProperty: 1 },
+        parametersJson: { typeName: "Edm.String",  structuralProperty: 1 },
+        format:         { typeName: "Edm.String",  structuralProperty: 1 },
+        async:          { typeName: "Edm.Boolean", structuralProperty: 1 }
+      }
+    })
+  };
+
+  const response = await xrm().WebApi.online.execute(request);
+  const output = await response.json();
+  if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  return JSON.parse(output.resultJson);
+}
+
+const coded = (row, attr) => row[attr] == null ? null : { code: row[attr], label: row[attr + FORMATTED] };
+
+async function fetchCatalog(){
+  const rows = await dvRetrieveMultiple("qdb_reportdefinition",
+    "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,qdb_mainentitylogicalname,qdb_status"
+    + "&$orderby=qdb_name&$top=200");
+  return rows.map(r => ({
+    id: r.qdb_reportdefinitionid, name: r.qdb_name, reportCode: r.qdb_reportcode,
+    description: r.qdb_description, mainEntityLogicalName: r.qdb_mainentitylogicalname,
+    status: coded(r, "qdb_status")
+  }));
+}
+
+async function fetchDefinition(id){
+  const parent = `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
+  const [definition, parameters, relationships] = await Promise.all([
+    xrm().WebApi.retrieveRecord("qdb_reportdefinition", id,
+      "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,"
+      + "qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit"),
+    dvRetrieveMultiple("qdb_reportparameter", parent
+      + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,qdb_defaultvalue"
+      + "&$orderby=qdb_displayorder"),
+    dvRetrieveMultiple("qdb_reportrelationship", parent
+      + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey")
+  ]);
+
+  return {
+    id: definition.qdb_reportdefinitionid,
+    name: definition.qdb_name,
+    reportCode: definition.qdb_reportcode,
+    description: definition.qdb_description,
+    mainEntityLogicalName: definition.qdb_mainentitylogicalname,
+    isGoverned: definition.qdb_isgoverned,
+    parameters: parameters.map(p => ({
+      parameterName: p.qdb_parametername, label: p.qdb_label, paramType: coded(p, "qdb_paramtype"),
+      isRequired: p.qdb_isrequired, defaultValue: p.qdb_defaultvalue
+    })),
+    relationships: relationships.map(r => ({
+      id: r.qdb_reportrelationshipid, openType: coded(r, "qdb_opentype"),
+      parentKey: r.qdb_parentkey, childAlias: r.qdb_childalias, childKey: r.qdb_childkey
+    }))
+  };
+}
 
 /* ---------------- catalog ---------------- */
 async function loadCatalog(){
@@ -230,7 +314,7 @@ async function loadCatalog(){
   c.innerHTML = `<div class="cmdbar"><b>Report Catalog</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="reload">↻ Refresh</button></div><div class="page"><div class="empty"><span class="spinner"></span> Loading reports…</div></div>`;
   $("#reload").onclick = loadCatalog;
   try {
-    state.reports = await apiJson("/api/reports");
+    state.reports = await fetchCatalog();
     renderCatalog();
   } catch(e){ c.querySelector(".page").innerHTML = errorState(e.message); }
 }
@@ -253,7 +337,7 @@ async function openReport(id){
   c.innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Catalog</button><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="empty"><span class="spinner"></span> Loading report…</div></div>`;
   $("#back").onclick = loadCatalog;
   try {
-    const def = await apiJson("/api/reports/"+id);
+    const def = await fetchDefinition(id);
     state.current = { def, result:null };
     renderRun();
   } catch(e){ c.querySelector(".page").innerHTML = errorState(e.message); }
@@ -299,14 +383,16 @@ function renderRun(){
 function collectParams(){
   const values = {};
   document.querySelectorAll("[data-param]").forEach(i => { if(i.value!=="") values[i.dataset.param]=i.value; });
-  return { parameterValues: values };
+  return values;
 }
 
 async function runReport(){
   const { def } = state.current;
   const host = $("#resultHost"); host.innerHTML = `<div class="empty"><span class="spinner"></span> Running…</div>`;
+  const startedAt = Date.now();
   try {
-    const result = await apiJson("/api/reports/"+def.id+"/execute", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
+    const result = await runReportInCrm(def.id, collectParams());
+    result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
     renderResult(result);
     toast(`${result.rowCount} row${result.rowCount===1?"":"s"} returned`, "success");
@@ -326,133 +412,121 @@ function renderResult(result){
     return `<tr>${tds}${drill}</tr>`;
   }).join("");
   $("#resultHost").innerHTML = `
-    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${Math.round(parseDur(result.duration))} ms</span></div>
+    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${result.elapsedMs||0} ms</span></div>
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
-  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
+  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol));
 }
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
-async function drilldown(rel, parentKey){
-  openModal(`<div class="m-head"><b>Drilldown — ${esc(drillLabel(rel))}</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div><div class="m-body"><div class="empty"><span class="spinner"></span> Loading related…</div></div>`);
-  try {
-    const result = await apiJson(`/api/reports/${state.current.def.id}/relationships/${rel.id}/drilldown`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ parentKey }) });
-    const head = result.columns.map(c=>`<th>${esc(c.label||c.alias)}</th>`).join("");
-    const rows = result.rows.map(r=>`<tr>${result.columns.map(c=>`<td>${esc((r.cells[c.alias]||{}).text||"")}</td>`).join("")}</tr>`).join("");
-    $("#modal .m-body").innerHTML = `<div class="meta-row"><b>${esc(result.reportName)}</b><span>${result.rowCount} rows</span></div><div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${result.columns.length}" style="text-align:center;color:var(--text-secondary);padding:20px">No related rows.</td></tr>`}</tbody></table></div>`;
-  } catch(e){ $("#modal .m-body").innerHTML = errorState(e.message); }
+// Drilldown builds a scoped child query, which only the plugin can do and log. Until qdb_RunReport
+// accepts a relationship id, saying so beats silently returning nothing.
+function drilldown(rel){
+  openModal(`<div class="m-head"><b>Drilldown — ${esc(drillLabel(rel))}</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
+    <div class="m-body">${notPortedNotice("Drilldown and sub-reports",
+      "The plugin runs the parent report only. Drilldown needs qdb_RunReport to accept a relationship id so the child query is executed — and logged — the same way.")}</div>`);
 }
 
-async function exportReport(fmt){
-  toast(`Exporting ${fmt.toUpperCase()}…`);
-  try {
-    const r = await api(`/api/reports/${state.current.def.id}/export?format=${fmt}`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
-    if(!r.ok){ const b=await r.json().catch(()=>({})); throw new Error(b.message||("HTTP "+r.status)); }
-    await downloadBlob(r);
-    toast(`${fmt.toUpperCase()} downloaded`, "success");
-  } catch(e){ toast(e.message,"error"); }
+/* Exports and charts are produced here in the browser now (ADR-RPT-011) — the data is already
+   loaded, so a round trip would buy nothing but a dependency. CSV needs no library; the richer
+   formats do, and are not wired up yet. */
+const CLIENT_EXPORTS = { csv: true };
+
+function exportReport(fmt){
+  const result = state.current && state.current.result;
+  if (!result) { toast("Run the report first.", "error"); return; }
+
+  if (!CLIENT_EXPORTS[fmt]) {
+    openModal(`<div class="m-head"><b>${fmt.toUpperCase()} export</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
+      <div class="m-body">${notPortedNotice(fmt.toUpperCase() + " export",
+        "Server-side rendering has been retired. This format needs a browser library (SheetJS, docx, jsPDF) bundled into the web resource; CSV works today.")}</div>`);
+    return;
+  }
+
+  downloadCsv(result, (state.current.def.reportCode || state.current.def.name || "report"));
+  toast("CSV downloaded", "success");
 }
-async function chartReport(type){
-  const host=$("#chartHost"); host.innerHTML = `<div class="chartbox"><span class="spinner"></span> Rendering chart…</div>`;
-  try {
-    const r = await api(`/api/reports/${state.current.def.id}/chart?type=${type}`, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(collectParams()) });
-    if(!r.ok){ const b=await r.json().catch(()=>({})); throw new Error(b.message||("HTTP "+r.status)); }
-    const url = URL.createObjectURL(await r.blob());
-    host.innerHTML = `<div class="chartbox"><img src="${url}" alt="chart"/><div style="margin-top:6px"><button class="btn" id="closeChart">Hide chart</button></div></div>`;
-    $("#closeChart").onclick = ()=>{ URL.revokeObjectURL(url); host.innerHTML=""; };
-  } catch(e){ host.innerHTML=""; toast(e.message,"error"); }
-}
-async function downloadBlob(r){
-  const blob = await r.blob();
-  const cd = r.headers.get("Content-Disposition")||""; const m = /filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i.exec(cd);
-  const name = m?decodeURIComponent(m[1]):"report";
-  const url = URL.createObjectURL(blob);
-  const a=document.createElement("a"); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove();
+
+/** RFC 4180 quoting, with a BOM so Excel opens UTF-8 correctly. */
+function downloadCsv(result, baseName){
+  const quote = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = result.columns.map(c => quote(c.label || c.alias)).join(",");
+  const lines = result.rows.map(row =>
+    result.columns.map(c => quote((row.cells[c.alias] || {}).text)).join(","));
+  const csv = "﻿" + [header].concat(lines).join("\r\n");
+
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = baseName.replace(/[^\w.-]+/g, "_") + ".csv";
+  document.body.appendChild(link); link.click(); link.remove();
   URL.revokeObjectURL(url);
 }
 
-/* ---------------- settings / impersonation ---------------- */
+/** Charts render client-side from rows already fetched, reusing the dashboard widget renderers. */
+function chartReport(type){
+  const result = state.current && state.current.result;
+  const host = $("#chartHost");
+  if (!result || !result.rows.length) { toast("Run the report first.", "error"); return; }
+
+  const points = chartPoints(result);
+  if (!points.length) { toast("No numeric column to chart.", "error"); return; }
+
+  const body = (type === "pie") ? wDonut(points) : wBars(points);
+  host.innerHTML = `<div class="chartbox" style="text-align:left"><div class="wt">${esc(type[0].toUpperCase()+type.slice(1))} — ${esc(points.length)} groups</div>${body}
+    <div style="margin-top:8px"><button class="btn" id="closeChart">Hide chart</button></div></div>`;
+  $("#closeChart").onclick = () => { host.innerHTML = ""; };
+}
+
+/** Labels from the first text column, values from the first numeric one. */
+function chartPoints(result){
+  const numericOf = text => parseFloat(String(text ?? "").replace(/[^\d.-]/g, ""));
+  const valueCol = result.columns.find(c =>
+    result.rows.some(r => !isNaN(numericOf((r.cells[c.alias] || {}).text))));
+  if (!valueCol) return [];
+  const labelCol = result.columns.find(c => c.alias !== valueCol.alias) || valueCol;
+
+  return result.rows.map(r => ({
+    label: (r.cells[labelCol.alias] || {}).text || "—",
+    value: numericOf((r.cells[valueCol.alias] || {}).text) || 0
+  }));
+}
+
+function notPortedNotice(what, why){
+  return `<div class="empty"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+    <div><b>${esc(what)} is not available yet.</b></div>
+    <div style="color:var(--text-secondary); max-width:420px; margin-top:6px">${esc(why)}</div></div>`;
+}
+
+/* ---------------- identity ----------------
+   Nothing to configure any more. The engine runs inside CRM, so the acting user is the signed-in
+   session and cannot be chosen — which is why the forgeable caller header and the API base URL are
+   both gone (ADR-RPT-011). */
 function openSettings(){
-  openModal(`<div class="m-head"><b>Connection & identity</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
+  openModal(`<div class="m-head"><b>Identity</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
     <div class="m-body">
-      <div class="field" style="margin-bottom:12px"><label>Middle-tier API base URL</label><input id="s_api" value="${esc(state.apiBase)}"/></div>
-      <div class="field" style="margin-bottom:6px"><label>Run reports as — user id (impersonation), blank = service app</label><input id="s_caller" value="${esc(state.callerId)}" placeholder="Dataverse systemuserid GUID"/></div>
-      <div class="field" style="margin-bottom:12px"><label>Label for that user (display only)</label><input id="s_name" value="${esc(state.callerName)}"/></div>
-      <p style="color:var(--text-secondary); font-size:12px">In a Power Platform / on-prem web resource these come from the signed-in CRM session (userSettings.userId). Here you can set them to test row-level security.</p>
-      <div style="text-align:right; margin-top:8px"><button class="btn" onclick="closeModal()">Cancel</button> <button class="btn primary" id="s_save">Save</button></div>
+      <div class="meta-row"><span><b>Signed in as</b></span><span>${esc(state.callerName)}</span></div>
+      <p style="color:var(--text-secondary); font-size:12px; margin-top:10px">
+        Reports run as you. Every query executes in your CRM session, so Dataverse applies your own
+        row and table security — there is no service account and no identity to select.
+        Each run is recorded in the report execution log.</p>
+      <div style="text-align:right; margin-top:8px"><button class="btn primary" onclick="closeModal()">Close</button></div>
     </div>`);
-  $("#s_save").onclick = () => {
-    state.apiBase = $("#s_api").value.trim() || state.apiBase;
-    state.callerId = $("#s_caller").value.trim();
-    state.callerName = $("#s_name").value.trim() || (state.callerId?"user":"app");
-    localStorage.setItem("re-api", state.apiBase); localStorage.setItem("re-caller", state.callerId); localStorage.setItem("re-caller-name", state.callerName);
-    $("#runAsLabel").textContent = "Running as: " + state.callerName;
-    closeModal(); toast("Settings saved"); loadCatalog();
-  };
 }
 
 /* ---------------- dashboards ---------------- */
 const PAL = ["#0078d4","#2899f5","#00b7c3","#498205","#8764b8","#e3008c","#ca5010","#986f0b"];
-let DASHBOARDS = []; // catalog, loaded from GET /api/dashboards
-
-async function loadDashboards(){
-  state.view="dashboards";
-  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="dreload">↻ Refresh</button></div><div class="page"><div class="empty"><span class="spinner"></span> Loading dashboards…</div></div>`;
-  $("#dreload").onclick = loadDashboards;
-  try {
-    DASHBOARDS = await apiJson("/api/dashboards");
-    const cards = DASHBOARDS.map(d => `<div class="card" data-dash="${d.id}">
-      <div class="code">${esc(d.dashboardCode||"DASHBOARD")}</div><h3>${esc(d.title)}</h3><div class="desc">${esc(d.description||"")}</div></div>`).join("");
-    $("#content .page").innerHTML = DASHBOARDS.length ? `<div class="card-grid">${cards}</div>` : errorState("No dashboards found for this user.");
-    document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(el.dataset.dash));
-  } catch(e){ $("#content .page").innerHTML = errorState(e.message); }
-}
-
-async function openDashboard(id){
-  state.view="dashrun";
-  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><div class="header-spacer" style="flex:1"></div></div><div class="page"><div class="empty"><span class="spinner"></span> Loading dashboard…</div></div>`;
-  $("#back").onclick = loadDashboards;
-  try { renderDashboard(await apiJson("/api/dashboards/"+id)); }
-  catch(e){ $("#content .page").innerHTML = errorState(e.message); }
-}
-
-function renderDashboard(def){
-  const sections = def.sections.map(s => `<div class="dash-sec">${s.title?`<div class="sec-title">${esc(s.title)}</div>`:''}
-    <div class="dash-grid" style="grid-template-columns:repeat(${s.columns||3},1fr)">
-    ${s.widgets.map(w=>`<div class="widget" id="w_${w.id}"><div class="wt">${esc(w.title||w.kind)}</div><div class="kpi-sub"><span class="spinner"></span></div></div>`).join("")}</div></div>`).join("");
-  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button><b style="margin-left:6px">${esc(def.title)}</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="refresh">↻ Refresh</button></div><div class="page">${sections}</div>`;
-  $("#back").onclick = loadDashboards; $("#refresh").onclick = () => openDashboard(def.id);
-  runDashboard(def);
-}
-
-async function runDashboard(def){
-  try {
-    const result = await apiJson("/api/dashboards/"+def.id+"/execute", { method:"POST" }); // server loads the stored definition by id
-    const byId = {}; result.widgets.forEach(w => byId[w.widgetId]=w);
-    def.sections.forEach(s => s.widgets.forEach(w => { const el=$("#w_"+w.id); if(el) el.outerHTML = renderWidget(w, byId[w.id]); }));
-    toast(`Dashboard resolved in ${Math.round(parseDur(result.totalDuration))} ms`, "success");
-  } catch(e){ toast(e.message,"error"); document.querySelectorAll(".widget .kpi-sub").forEach(x=>x.innerHTML=`<span class="werror">failed</span>`); }
-}
-
-function renderWidget(w, wr){
-  const data = (wr && wr.data) || [];
-  let body;
-  if (wr && wr.accessDenied) body = `<div class="werror">No access</div>`;
-  else if (wr && wr.error) body = `<div class="werror">${esc((wr.error.message)||wr.error.code)}</div>`;
-  else switch(w.kind){
-    case "Metric": case "Badge": case "Progress": case "Gauge": body = wKpi(data); break;
-    case "Chart": body = (w.chartType==="donut"||w.chartType==="pie") ? wDonut(data) : wBars(data); break;
-    case "InfoCards": body = wCards(data); break;
-    default: body = wTable(data);
-  }
-  return `<div class="widget"><div class="wt">${esc(w.title||w.kind)}</div>${body}</div>`;
+// Dashboards fan out across many widget queries. That belongs behind the same audited entry point as
+// a report, so it waits on a qdb_RunDashboard Custom API rather than querying Dataverse directly
+// from here and leaving the fan-out unlogged.
+function loadDashboards(){
+  state.view = "dashboards";
+  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div></div>
+    <div class="page">${notPortedNotice("Dashboards",
+      "Report execution moved into CRM first. Dashboards need their own audited entry point so each widget query is logged the same way a report run is.")}</div>`;
 }
 const sumV = d => d.reduce((a,p)=>a+(+p.value||0),0);
 function compact(v){ v=+v||0; const a=Math.abs(v); if(a>=1e9) return (v/1e9).toFixed(1)+"bn"; if(a>=1e6) return (v/1e6).toFixed(1)+"M"; if(a>=1e3) return (v/1e3).toFixed(1)+"k"; return String(Math.round(v*100)/100); }
-function wKpi(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const v = d.length===1?d[0].value:sumV(d); return `<div class="kpi">${compact(v)}</div><div class="kpi-sub">${d.length>1?d.length+" groups":esc(d[0].label||"")}</div>`; }
 function wBars(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const max=Math.max(...d.map(p=>+p.value||0),1); return `<div class="bars">${d.map((p,i)=>`<div class="bar-row"><span class="bl" title="${esc(p.label)}">${esc(p.label)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,(+p.value/max)*100)}%;background:${PAL[i%PAL.length]}"></div></div><span class="bv">${compact(p.value)}</span></div>`).join("")}</div>`; }
 function wDonut(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; const total=sumV(d)||1; let acc=0; const stops=d.map((p,i)=>{const a0=acc/total*360; acc+=(+p.value||0); return `${PAL[i%PAL.length]} ${a0}deg ${acc/total*360}deg`;}).join(","); const legend=d.map((p,i)=>`<div class="li"><span class="dot" style="background:${PAL[i%PAL.length]}"></span><span class="bl" style="flex:1" title="${esc(p.label)}">${esc(p.label)}</span><b>${compact(p.value)}</b></div>`).join(""); return `<div class="donut-wrap"><div class="donut" style="background:conic-gradient(${stops})"><div class="donut-c">${compact(total)}</div></div><div class="legend">${legend}</div></div>`; }
-function wCards(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; return `<div class="icards">${d.map((p,i)=>`<div class="icard"><div class="iv" style="color:${PAL[i%PAL.length]}">${compact(p.value)}</div><div class="il" title="${esc(p.label)}">${esc(p.label)}</div></div>`).join("")}</div>`; }
-function wTable(d){ if(!d.length) return `<div class="kpi-sub">No data</div>`; return `<table class="wtable">${d.map(p=>`<tr><td>${esc(p.label)}</td><td>${compact(p.value)}</td></tr>`).join("")}</table>`; }
 
 /* ---------------- shared UI ---------------- */
 function wireMenu(btnSel, menuSel, onPick){
@@ -463,27 +537,21 @@ function wireMenu(btnSel, menuSel, onPick){
 function errorState(msg){ return `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v.5"/></svg><div style="color:var(--error)">${esc(msg)}</div><div style="margin-top:8px"><button class="btn" onclick="loadCatalog()">Back to catalog</button></div></div>`; }
 function openModal(html){ $("#modal").innerHTML=html; $("#modalBack").classList.add("open"); }
 function closeModal(){ $("#modalBack").classList.remove("open"); }
-function parseDur(d){ if(!d) return 0; const s=String(d); const dm=/^(\d+)\./.exec(s); const days=dm?+dm[1]:0; const p=(dm?s.slice(dm[0].length):s).split(":"); return days*86400000+(+p[0])*3600000+(+p[1])*60000+(parseFloat(p[2]||0))*1000; }
 
 /* ---------------- boot ---------------- */
-// When hosted as a CRM web resource, take the identity + environment from Xrm instead of Settings.
+// The viewer has no standalone mode any more: with the middle tier retired, every call is an Xrm
+// call, so outside CRM there is nothing to talk to. Say that plainly rather than failing per-click.
 function initXrm(){
   try {
-    const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
-    if (!xrm || !xrm.Utility) return false;
-    const ctx = xrm.Utility.getGlobalContext();
-    const us = ctx.userSettings;
-    state.callerId = String(us.userId || "").replace(/[{}]/g, "");
-    state.callerName = us.userName || "user";
-    const apiParam = new URLSearchParams(location.search).get("api"); // deployer configures the middle-tier URL
-    if (apiParam) state.apiBase = apiParam;
+    const context = xrm().Utility.getGlobalContext();
+    state.callerName = context.userSettings.userName || "user";
     return true;
   } catch(e){ return false; }
 }
 function applyTheme(t){ state.theme=t; document.documentElement.setAttribute("data-theme",t); localStorage.setItem("re-theme",t); }
 const inCrm = initXrm();
 applyTheme(state.theme);
-$("#runAsLabel").textContent = "Running as: " + state.callerName + (inCrm ? "" : " (dev)");
+$("#runAsLabel").textContent = inCrm ? ("Running as: " + state.callerName) : "Not connected to CRM";
 $("#themeToggle").onclick = (e)=>{ e.stopPropagation(); $("#themeMenu").classList.toggle("open"); };
 document.querySelectorAll("[data-set-theme]").forEach(b => b.onclick = ()=>{ applyTheme(b.dataset.setTheme); $("#themeMenu").classList.remove("open"); toast("Theme: "+b.dataset.setTheme); });
 $("#settingsBtn").onclick = openSettings; $("#runAs").onclick = openSettings;
@@ -493,5 +561,12 @@ document.querySelectorAll(".nav-item[data-nav]").forEach(b => b.onclick = () => 
   document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active")); b.classList.add("active");
   if (b.dataset.nav === "dashboards") loadDashboards(); else loadCatalog();
 });
-loadCatalog();
+
+if (inCrm) {
+  loadCatalog();
+} else {
+  $("#content").innerHTML = `<div class="cmdbar"><b>Report Catalog</b></div><div class="page">${notPortedNotice(
+    "This viewer runs inside CRM",
+    "Open it as the qdb_reportengine_runtime.html web resource. It reads report definitions and runs reports through your CRM session, so there is no server to point it at and nothing to configure.")}</div>`;
+}
 </script>
