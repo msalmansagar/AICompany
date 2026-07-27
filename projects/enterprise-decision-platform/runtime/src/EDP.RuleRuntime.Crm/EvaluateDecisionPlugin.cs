@@ -44,7 +44,8 @@ namespace EDP.RuleRuntime.Crm
 
                 Guid? ruleVersionId = string.IsNullOrWhiteSpace(ruleVersionIdStr) ? (Guid?)null : Guid.Parse(ruleVersionIdStr);
 
-                if (!string.IsNullOrEmpty(pcrmJson) && pcrmJson.Length > MaxPcrmJsonLength)     // F-08
+                // pcrmJson! — the && short-circuit guarantees non-null; net462 lacks [NotNullWhen] on IsNullOrEmpty.
+                if (!string.IsNullOrEmpty(pcrmJson) && pcrmJson!.Length > MaxPcrmJsonLength)    // F-08
                     throw new InvalidPluginExecutionException($"PcrmJson exceeds the {MaxPcrmJsonLength} character limit.");
                 if (string.IsNullOrWhiteSpace(inputsJson) && targetRef == null)                 // QA-B1: avoid a null-ref crash
                     throw new InvalidPluginExecutionException("Provide InputsJson (ad-hoc inputs) or TargetRef (a record to evaluate).");

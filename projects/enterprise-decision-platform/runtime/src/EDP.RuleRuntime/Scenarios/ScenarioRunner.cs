@@ -83,7 +83,8 @@ namespace EDP.RuleRuntime.Scenarios
             var list = new List<Scenario>();
             if (string.IsNullOrWhiteSpace(scenariosJson)) return list;
 
-            using var doc = JsonDocument.Parse(scenariosJson);
+            // scenariosJson! — guarded above; netstandard2.0 lacks [NotNullWhen] on IsNullOrWhiteSpace.
+            using var doc = JsonDocument.Parse(scenariosJson!);
             if (doc.RootElement.ValueKind != JsonValueKind.Array) return list;
 
             foreach (var element in doc.RootElement.EnumerateArray())

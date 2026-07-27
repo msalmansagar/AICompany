@@ -7,6 +7,11 @@
     <Nullable>enable</Nullable>
     <RootNamespace>EDP.RuleRuntime.Crm</RootNamespace>
     <AssemblyName>EDP.RuleRuntime.Crm</AssemblyName>
+    <!-- QA-C3: null-state warnings are errors in the production assemblies, so a genuine null-ref
+         cannot hide among accepted warnings. Note that net462 does not annotate
+         string.IsNullOrWhiteSpace with [NotNullWhen(false)], so a correct guard still needs `!`
+         at the use site — always with a comment naming the guard. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS8602;CS8604</WarningsAsErrors>
     <!-- Bump on every plugin change so the Dataverse sandbox reloads (it caches by version). -->
     <AssemblyVersion>1.0.23.0</AssemblyVersion>
     <FileVersion>1.0.23.0</FileVersion>

@@ -160,7 +160,8 @@ namespace EDP.RuleRuntime.Crm
             if (string.IsNullOrWhiteSpace(traceJson)) return Array.Empty<TraceStep>();
             try
             {
-                return JsonSerializer.Deserialize<List<TraceStep>>(traceJson,
+                // traceJson! — guarded above; net462 lacks [NotNullWhen] on IsNullOrWhiteSpace.
+                return JsonSerializer.Deserialize<List<TraceStep>>(traceJson!,
                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
                        ?? new List<TraceStep>();
             }
