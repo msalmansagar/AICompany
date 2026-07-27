@@ -145,6 +145,34 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
         </div>
 
         <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Concurrent branches</label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={outcome.checkParallelTasks}
+            onClick={() => setOutcome({ ...outcome, checkParallelTasks: !outcome.checkParallelTasks })}
+            style={{ ...toggleStyle, ...(outcome.checkParallelTasks ? toggleOnStyle : toggleOffStyle) }}
+          >
+            {outcome.checkParallelTasks
+              ? '⧉ Wait — all branches must finish first'
+              : 'Off — this step can finish while branches run'}
+          </button>
+          {!outcome.checkParallelTasks && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={outcome.updateParallelTaskRef}
+              onClick={() => setOutcome({ ...outcome, updateParallelTaskRef: !outcome.updateParallelTaskRef })}
+              style={{ ...toggleStyle, ...(outcome.updateParallelTaskRef ? toggleOnStyle : toggleOffStyle) }}
+            >
+              {outcome.updateParallelTaskRef
+                ? '↪ Carry open branches to the next step'
+                : 'Off — open branches stay where they are'}
+            </button>
+          )}
+        </div>
+
+        <div style={fieldGroupStyle}>
           <label style={labelStyle}>Conditional Routing</label>
           <button
             type="button"

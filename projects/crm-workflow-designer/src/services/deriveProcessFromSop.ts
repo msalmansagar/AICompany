@@ -4,7 +4,7 @@ import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import type { ISopAdapter } from './ISopAdapter';
 import { copySlaFields } from './slaStepFields';
-import { emptyControlFlowFields } from './controlFlowFields';
+import { emptyBranchFields, emptyOutcomeConcurrency } from './branchFields';
 import type { CreateProcessFromSopRequest, StepAssignment } from '@/types/SopTypes';
 
 export async function deriveProcessFromSop(
@@ -46,7 +46,7 @@ export async function deriveProcessFromSop(
       ...copySlaFields(sopStep),
       // SOP template steps carry no control-flow semantics yet (that is DP-1b), so a
       // derived step starts exclusive — the same meaning derivation has always produced.
-      ...emptyControlFlowFields(),
+      ...emptyBranchFields(),
       name: sopStep.name,
       schemaName: '',
       sequenceNo: sopStep.sequenceNo,
@@ -88,6 +88,8 @@ export async function deriveProcessFromSop(
       name: sopOutcome.name,
       sequenceNumber: sopOutcome.sequenceNo,
       applyFilter: false,
+      ...emptyOutcomeConcurrency(),
+      ...emptyOutcomeConcurrency(),
       stepId: workflowStepId,
       nextStepId: nextWorkflowStepId,
     });

@@ -4,7 +4,7 @@ import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
 import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
-import { mapControlFlowFields, buildControlFlowBody, CONTROL_FLOW_SELECT_COLUMNS } from './controlFlowFields';
+import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import { withRetry } from './withRetry';
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type {
@@ -201,7 +201,7 @@ export class ODataAdapter implements ISopAdapter {
   async getSteps(processId: string): Promise<WorkflowStep[]> {
     assertGuid(processId, 'processId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${CONTROL_FLOW_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}`
+      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}`
     );
     return data.value.map(mapStep);
   }
@@ -243,6 +243,10 @@ export class ODataAdapter implements ISopAdapter {
         role: ENTITY_SETS.role,
       })
     );
+    Object.assign(
+      body,
+      await buildParentStepBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, ENTITY_SETS.step)
+    );
     return body;
   }
 
@@ -256,7 +260,7 @@ export class ODataAdapter implements ISopAdapter {
   async getOutcomes(stepId: string): Promise<WorkflowOutcome[]> {
     assertGuid(stepId, 'stepId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.outcome}?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}`
+      `${ENTITY_SETS.outcome}?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS}&$filter=_qdb_workitemstep_value eq ${stepId}`
     );
     return data.value.map(mapOutcome);
   }
@@ -736,7 +740,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamName: null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
     ...mapSlaFields(raw),
-    ...mapControlFlowFields(raw),
+    ...mapBranchFields(raw),
   };
 }
 
@@ -748,6 +752,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
     nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
+    ...mapOutcomeConcurrency(raw),
   };
 }
 
@@ -780,7 +785,7 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
   Object.assign(body, buildSlaBody(data));
-  Object.assign(body, buildControlFlowBody(data));
+  Object.assign(body, buildBranchBody(data));
   return body;
 }
 
@@ -789,6 +794,7 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.name !== undefined) body['qdb_name'] = data.name;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
+  Object.assign(body, buildOutcomeConcurrencyBody(data));
   return body;
 }
 

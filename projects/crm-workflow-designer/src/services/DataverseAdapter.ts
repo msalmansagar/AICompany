@@ -3,7 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
 import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
-import { mapControlFlowFields, buildControlFlowBody, CONTROL_FLOW_SELECT_COLUMNS } from './controlFlowFields';
+import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
   CrmRole,
   SopSummary,
@@ -182,7 +182,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${CONTROL_FLOW_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -233,6 +233,10 @@ export class DataverseAdapter implements ISopAdapter {
         role: SET.role,
       })
     );
+    Object.assign(
+      body,
+      await buildParentStepBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, SET.step)
+    );
     return body;
   }
 
@@ -243,7 +247,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.outcome,
-        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
+        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS}&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapOutcome);
@@ -909,7 +913,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
     ...mapSlaFields(raw),
-    ...mapControlFlowFields(raw),
+    ...mapBranchFields(raw),
   };
 }
 
@@ -927,6 +931,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
     nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
+    ...mapOutcomeConcurrency(raw),
   };
 }
 
@@ -961,7 +966,7 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
   Object.assign(body, buildSlaBody(data));
-  Object.assign(body, buildControlFlowBody(data));
+  Object.assign(body, buildBranchBody(data));
   return body;
 }
 
@@ -970,6 +975,7 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.name !== undefined) body['qdb_name'] = data.name;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
+  Object.assign(body, buildOutcomeConcurrencyBody(data));
   return body;
 }
 

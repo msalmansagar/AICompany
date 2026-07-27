@@ -44,28 +44,31 @@ export interface SlaFields {
   escalationRoleName: string | null;
 }
 
-// --- Control flow: parallel (AND) gateway (DP-1) ---
-
-/** How a step's outcomes relate to each other when the step completes. */
-export type SplitType = 'Exclusive' | 'Parallel';
-
-/** Whether a step waits for its inbound branches before it starts. */
-export type JoinType = 'None' | 'AndJoin';
+// --- Concurrency: the platform engine's model (CWFD-005) ---
 
 /**
- * Explicit control-flow semantics for a process step. Before DP-1 the model
- * carried no gateway concept at all and exclusive choice was implied by
- * convention, so `Exclusive`/`None` are both the defaults and the meaning every
- * pre-DP-1 step keeps. Design-time configuration only — concurrency is enforced
- * by the future CWFD-005 runtime, and a process using it cannot be published
- * until then.
+ * How a step participates in concurrent work.
+ *
+ * These are the columns the QDB process engine actually reads. A step naming a
+ * `parentStepId` is a **branch**: when the parent step's task is created,
+ * `OnTaskCreate` creates a task for this step too, and the two run side by side.
+ * A branch may carry its own condition, so a branch can be skipped without
+ * skipping its siblings.
+ *
+ * DP-1 originally modelled concurrency as `splitType`/`joinType` option sets.
+ * Those were never read by anything — see `cwfd-005-runtime/engine-contract.md`.
  */
-export interface ControlFlowFields {
-  splitType: SplitType;
-  joinType: JoinType;
+export interface BranchFields {
+  /** The step this one runs concurrently beneath. Null for an ordinary step. */
+  parentStepId: string | null;
+  parentStepName: string | null;
+  /** When true, this branch starts only if `branchFilter` matches the record. */
+  applyBranchFilter: boolean;
+  /** FetchXML deciding whether this branch runs at all. */
+  branchFilter: string;
 }
 
-export interface WorkflowStep extends SlaFields, ControlFlowFields {
+export interface WorkflowStep extends SlaFields, BranchFields {
   crmId: string;
   name: string;
   schemaName: string;
@@ -108,6 +111,17 @@ export interface WorkflowOutcome {
   applyFilter: boolean;
   stepId: string;
   nextStepId: string | null;
+  /**
+   * Refuse to complete this step while its concurrent branches are still open.
+   * This is the engine's join: `OnTaskComplete` throws rather than waits, so the
+   * user is told to finish the branches first.
+   */
+  checkParallelTasks: boolean;
+  /**
+   * Carry any still-open branches over to the next task instead of orphaning
+   * them. Only meaningful alongside `checkParallelTasks` being off.
+   */
+  updateParallelTaskRef: boolean;
 }
 
 export type RoundRobinTeamOption = TeamOption;
@@ -190,22 +204,9 @@ export const ESCALATION_TARGET_TYPE_CODES: Record<EscalationTargetType, number> 
   Role: 100000003,
 };
 
-// --- Control-flow option-set codes (DP-1) ---
-// Global Dataverse option sets: qdb_SplitType, qdb_JoinType.
-// Code 100000002 is deliberately unallocated in both sets — reserved for the
-// inclusive (OR) split and the quorum join, which DP-1 does not build. See
-// ADR-1-001: leaving the number free keeps that extension additive, while not
-// creating the value keeps a maker from selecting a semantic nothing implements.
-
-export const SPLIT_TYPE_CODES: Record<SplitType, number> = {
-  Exclusive: 100000000,
-  Parallel: 100000001,
-};
-
-export const JOIN_TYPE_CODES: Record<JoinType, number> = {
-  None: 100000000,
-  AndJoin: 100000001,
-};
+// DP-1's qdb_splittype / qdb_jointype option-set codes lived here. They were
+// removed by the CWFD-005 reconciliation: the engine expresses concurrency
+// through BranchFields instead, and nothing ever read those two columns.
 
 /** Inverts a code map. Safe only for maps with unique integer codes. */
 function invertCodeMap<T extends string>(map: Record<T, number>): Record<number, T> {
@@ -218,6 +219,3 @@ export const SLA_DURATION_UNIT_FROM_CODE = invertCodeMap(SLA_DURATION_UNIT_CODES
 export const SLA_BASIS_FROM_CODE = invertCodeMap(SLA_BASIS_CODES);
 export const ESCALATION_ACTION_FROM_CODE = invertCodeMap(ESCALATION_ACTION_CODES);
 export const ESCALATION_TARGET_TYPE_FROM_CODE = invertCodeMap(ESCALATION_TARGET_TYPE_CODES);
-
-export const SPLIT_TYPE_FROM_CODE = invertCodeMap(SPLIT_TYPE_CODES);
-export const JOIN_TYPE_FROM_CODE = invertCodeMap(JOIN_TYPE_CODES);
