@@ -45,7 +45,7 @@ public static class ReportDefinitionFetch
     {
         var entity = Entity("qdb_reportentitymapping",
             "qdb_reportentitymappingid", "qdb_entitylogicalname", "qdb_entityalias",
-            "qdb_depth", "qdb_jointype", "qdb_reportdatasourceid");
+            "qdb_depth", "qdb_jointype", "qdb_joinexpressionjson", "qdb_reportdatasourceid");
         entity.Add(LinkToReport("qdb_reportdatasource", "qdb_reportdatasourceid", reportId));
         return Wrap(entity);
     }

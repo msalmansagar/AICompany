@@ -146,6 +146,13 @@ public sealed record ReportEntityMapping
 
     public CodedValue? JoinType { get; init; }
 
+    /// <summary>
+    /// How this entity links to its parent, as <c>{"from":"&lt;attribute on this entity&gt;",
+    /// "to":"&lt;attribute on the parent&gt;"}</c>. Empty on the root mapping, which has no parent.
+    /// Stored as JSON rather than two columns because a future composite key needs no schema change.
+    /// </summary>
+    public string? JoinExpressionJson { get; init; }
+
     public IReadOnlyList<ReportColumn> Columns { get; init; } = [];
 }
 

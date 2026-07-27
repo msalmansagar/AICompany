@@ -1492,6 +1492,8 @@ async function saveDashboardToServer(dashboard) {
 // Option-set codes are 100000000-based (verified against the org); aggregate "None" is omitted.
 const RPT_OPERATOR_CODES = { "Equals":100000000,"Not equals":100000001,"Contains":100000002,"Begins with":100000003,"Ends with":100000004,"Greater than":100000005,"Less than":100000006,"Between":100000007,"In":100000008,"Not in":100000009,"Is null":100000010,"Is not null":100000011,"Last X days":100000012,"This month":100000013,"This year":100000014 };
 const RPT_AGG_CODES = { "Sum":100000001,"Count":100000002,"Average":100000003,"Avg":100000003,"Min":100000004,"Max":100000005 };
+const RPT_JOIN_CODES = { "Inner join":100000000, "Left join":100000001, "Right join":100000002, "Full join":100000003 };
+const RPT_JOIN_LABELS = { 100000000:"Inner join", 100000001:"Left join", 100000002:"Right join", 100000003:"Full join" };
 function coded(code, label) { return code == null ? null : { code, label }; }
 
 // Maps the designer's report onto the ReportDefinition the API persists. First slice: definition +
@@ -1499,15 +1501,39 @@ function coded(code, label) { return code == null ? null : { code, label }; }
 // Transformations and relationships (drilldown) are not mapped yet — a documented follow-up.
 function reportToDefinition(report) {
   const alias = "t";
-  const columns = (report.columns || []).filter(c => c.visible !== false).map((c, i) => ({
-    id: newGuid(),
-    columnLogicalName: c.attribute || c.name,
-    outputAlias: c.attribute || c.name,
-    aggregateFunction: (c.agg && c.agg !== "None") ? coded(RPT_AGG_CODES[c.agg] ?? null, c.agg) : null,
-    sortOrder: i + 1,
-    groupOrder: 0,
-    isVisible: c.visible !== false
-  }));
+  const rootEntity = report.mainEntity || "account";
+
+  // Columns say which entity they came from, so each mapping takes its own. A column with no entity
+  // is assumed to be on the main one, which is how single-entity reports have always behaved.
+  const columnsForEntity = (entity, isRoot) => (report.columns || [])
+    .filter(c => c.visible !== false && ((c.entity || rootEntity) === entity || (isRoot && !c.entity)))
+    .map((c, i) => ({
+      id: newGuid(),
+      columnLogicalName: c.attribute || c.name,
+      outputAlias: c.attribute || c.name,
+      aggregateFunction: (c.agg && c.agg !== "None") ? coded(RPT_AGG_CODES[c.agg] ?? null, c.agg) : null,
+      sortOrder: i + 1,
+      groupOrder: 0,
+      isVisible: c.visible !== false
+    }));
+
+  const columns = columnsForEntity(rootEntity, true);
+
+  /* Each join becomes its own entity mapping. FetchXML's link-entity reads `from` as the attribute on
+     the joined entity and `to` as the one on the parent, which is the reverse of how the designer
+     labels them — the right key is on the entity being joined. A join missing either key is dropped
+     rather than persisted half-formed. */
+  const joinMappings = (report.joins || [])
+    .filter(j => j.entity && j.leftKey && j.rightKey)
+    .map((j, i) => ({
+      id: newGuid(),
+      entityLogicalName: j.entity,
+      entityAlias: "j" + (i + 1),
+      depth: i + 1,
+      joinType: coded(RPT_JOIN_CODES[j.joinType] ?? null, j.joinType),
+      joinExpressionJson: JSON.stringify({ from: j.rightKey, to: j.leftKey }),
+      columns: columnsForEntity(j.entity, false)
+    }));
   return {
     id: "00000000-0000-0000-0000-000000000000",
     name: report.name || "Untitled report",
@@ -1521,9 +1547,9 @@ function reportToDefinition(report) {
       name: (report.dataSources && report.dataSources[0] && report.dataSources[0].name) || "Primary source",
       isPrimary: true,
       sourceAlias: alias,
-      entityMappings: [{
-        id: newGuid(), entityLogicalName: report.mainEntity || "account", entityAlias: alias, depth: 0, columns
-      }]
+      entityMappings: [
+        { id: newGuid(), entityLogicalName: rootEntity, entityAlias: alias, depth: 0, columns }
+      ].concat(joinMappings)
     }],
     filters: (report.filters || []).map((f, i) => ({
       id: newGuid(),
@@ -1578,6 +1604,9 @@ async function writeReportChildren(reportId, def) {
         qdb_entitylogicalname: mapping.entityLogicalName,
         qdb_entityalias: mapping.entityAlias,
         qdb_depth: mapping.depth || 0,
+        // Join fields are absent on the root mapping, which has no parent to link to.
+        qdb_jointype: codeOf(mapping.joinType),
+        qdb_joinexpressionjson: mapping.joinExpressionJson,
         "Qdb_reportdatasourceid@odata.bind": `/qdb_reportdatasources(${sourceId})`
       }));
 
@@ -1722,6 +1751,23 @@ function definitionToReport(def) {
       attribute: c.columnLogicalName, type: "Text", format: "", width: 120, align: "Left", agg: aggLabel(c.aggregateFunction), masked: false, visible: c.isVisible !== false });
   })));
   if (columns.length) report.columns = columns;
+
+  // Rebuild the join list from the non-root mappings — without this, reopening a multi-entity report
+  // and saving it again would quietly flatten it back to a single entity.
+  const joins = [];
+  (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => {
+    if (!m.joinExpressionJson || m.entityLogicalName === def.mainEntityLogicalName) return;
+    let link = {};
+    try { link = JSON.parse(m.joinExpressionJson); } catch (e) { return; }
+    if (!link.from || !link.to) return;
+    joins.push({
+      entity: m.entityLogicalName,
+      joinType: RPT_JOIN_LABELS[m.joinType && m.joinType.code] || "Inner join",
+      leftKey: link.to,     // on the parent entity
+      rightKey: link.from   // on the joined entity
+    });
+  }));
+  report.joins = joins;
   report.filters = (def.filters || []).map(f => ({ attribute: f.fieldAlias, operator: (f.operator && f.operator.label) || "Equals",
     value: f.value || "", param: f.isRuntimePrompt ? "param" : "", token: "(none)", group: f.groupId ? (Number(f.groupId) || 0) : 0, andor: "And" }));
   report.parameters = (def.parameters || []).map(p => ({ name: p.parameterName, prompt: p.label || p.parameterName, type: "Text",
@@ -1759,7 +1805,8 @@ async function loadReportDefinition(id) {
   for (const source of sources) {
     const mappings = await dvList("qdb_reportentitymapping",
       `?$filter=_qdb_reportdatasourceid_value eq ${source.qdb_reportdatasourceid}`
-      + "&$select=qdb_reportentitymappingid,qdb_entitylogicalname,qdb_entityalias,qdb_depth");
+      + "&$select=qdb_reportentitymappingid,qdb_entitylogicalname,qdb_entityalias,qdb_depth,"
+      + "qdb_jointype,qdb_joinexpressionjson&$orderby=qdb_depth");
 
     const entityMappings = [];
     for (const mapping of mappings) {
@@ -1771,6 +1818,8 @@ async function loadReportDefinition(id) {
         entityLogicalName: mapping.qdb_entitylogicalname,
         entityAlias: mapping.qdb_entityalias,
         depth: mapping.qdb_depth,
+        joinType: mapping.qdb_jointype == null ? null : { code: mapping.qdb_jointype },
+        joinExpressionJson: mapping.qdb_joinexpressionjson,
         columns: columns.map(c => ({
           columnLogicalName: c.qdb_columnlogicalname, outputAlias: c.qdb_outputalias,
           aggregateFunction: c.qdb_aggregatefunction == null ? null : { code: c.qdb_aggregatefunction },

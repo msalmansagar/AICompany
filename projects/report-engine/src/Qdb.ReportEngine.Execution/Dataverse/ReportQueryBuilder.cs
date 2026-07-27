@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Qdb.ReportEngine.Core.Models;
 
@@ -44,8 +45,10 @@ public static class ReportQueryBuilder
 
         var rootEntity = definition.MainEntityLogicalName ?? FirstMappingEntity(definition)
             ?? throw new InvalidOperationException($"Report {definition.Id} has no entity to query.");
-        var columns = ColumnsFor(definition, rootEntity);
-        var isAggregate = columns.Any(IsMeasure);
+        var joined = JoinedMappings(definition, rootEntity);
+        var columns = ColumnsFor(definition, rootEntity, joined);
+        var joinedColumns = joined.SelectMany(m => VisibleColumns(m.Columns)).ToList();
+        var isAggregate = columns.Concat(joinedColumns).Any(IsMeasure);
 
         var entity = new XElement("entity", new XAttribute("name", rootEntity));
         if (isAggregate)
@@ -55,6 +58,13 @@ public static class ReportQueryBuilder
         else
         {
             AddProjection(entity, columns);
+        }
+
+        // Related entities become link-entity elements. Their attributes carry explicit aliases, so a
+        // joined column is read by the same alias as any other and the row shaper needs no special case.
+        foreach (var mapping in joined)
+        {
+            entity.Add(BuildLinkEntity(mapping, isAggregate));
         }
 
         AddFilters(entity, definition, request.ParameterValues);
@@ -69,7 +79,8 @@ public static class ReportQueryBuilder
             ? new XElement("fetch", new XAttribute("aggregate", "true"), entity)
             : new XElement("fetch", new XAttribute("top", rowLimit), entity);
 
-        return new ReportQuery(fetch.ToString(SaveOptions.DisableFormatting), rootEntity, ToResultColumns(columns), rowLimit, isAggregate);
+        var resultColumns = ToResultColumns(columns).Concat(ToResultColumns(joinedColumns)).ToList();
+        return new ReportQuery(fetch.ToString(SaveOptions.DisableFormatting), rootEntity, resultColumns, rowLimit, isAggregate);
     }
 
     private static void AddProjection(XElement entity, IReadOnlyList<ReportColumn> columns)
@@ -206,21 +217,89 @@ public static class ReportQueryBuilder
         _ => value
     };
 
-    private static IReadOnlyList<ReportColumn> ColumnsFor(ReportDefinition definition, string rootEntity)
+    private static IReadOnlyList<ReportColumn> ColumnsFor(
+        ReportDefinition definition, string rootEntity, IReadOnlyList<ReportEntityMapping> joined)
     {
         var forRoot = definition.DataSources
             .SelectMany(d => d.EntityMappings)
             .Where(m => string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase))
             .SelectMany(m => m.Columns)
             .ToList();
-        var columns = forRoot.Count > 0
+
+        // The fallback exists for definitions whose main entity does not match any mapping. It must not
+        // sweep up joined columns, which belong inside their own link-entity.
+        var columns = forRoot.Count > 0 || joined.Count > 0
             ? forRoot
             : definition.DataSources.SelectMany(d => d.EntityMappings).SelectMany(m => m.Columns).ToList();
 
-        return columns
-            .Where(c => !string.IsNullOrEmpty(c.ColumnLogicalName))
-            .OrderBy(c => c.SortOrder)
+        return VisibleColumns(columns);
+    }
+
+    private static IReadOnlyList<ReportColumn> VisibleColumns(IEnumerable<ReportColumn> columns) =>
+        columns.Where(c => !string.IsNullOrEmpty(c.ColumnLogicalName)).OrderBy(c => c.SortOrder).ToList();
+
+    /// <summary>
+    /// Mappings for entities other than the root that declare how they link to it. A mapping without a
+    /// usable join expression is skipped rather than guessed at — an invented link would silently
+    /// return the wrong rows, which is worse than omitting the columns.
+    /// </summary>
+    private static IReadOnlyList<ReportEntityMapping> JoinedMappings(ReportDefinition definition, string rootEntity) =>
+        definition.DataSources
+            .SelectMany(d => d.EntityMappings)
+            .Where(m => !string.IsNullOrEmpty(m.EntityLogicalName)
+                && !string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrEmpty(ReadJoinKey(m.JoinExpressionJson, "from"))
+                && !string.IsNullOrEmpty(ReadJoinKey(m.JoinExpressionJson, "to")))
+            .OrderBy(m => m.Depth)
             .ToList();
+
+    private static XElement BuildLinkEntity(ReportEntityMapping mapping, bool isAggregate)
+    {
+        var link = new XElement("link-entity",
+            new XAttribute("name", mapping.EntityLogicalName!),
+            new XAttribute("from", ReadJoinKey(mapping.JoinExpressionJson, "from")!),
+            new XAttribute("to", ReadJoinKey(mapping.JoinExpressionJson, "to")!),
+            new XAttribute("link-type", LinkType(mapping.JoinType?.Label)));
+
+        if (!string.IsNullOrEmpty(mapping.EntityAlias))
+        {
+            link.Add(new XAttribute("alias", mapping.EntityAlias!));
+        }
+
+        var columns = VisibleColumns(mapping.Columns);
+        if (isAggregate)
+        {
+            AddAggregateProjection(link, columns);
+        }
+        else
+        {
+            AddProjection(link, columns);
+        }
+
+        return link;
+    }
+
+    /// <summary>
+    /// FetchXML offers only inner and outer, so anything that is not an inner join becomes outer —
+    /// keeping the parent rows is the safer reading of a user asking for a left or right join.
+    /// </summary>
+    private static string LinkType(string? joinType) =>
+        string.Equals(joinType, "Inner", StringComparison.OrdinalIgnoreCase) ? "inner" : "outer";
+
+    /// <summary>
+    /// Reads one key from the join expression. Deliberately a regular expression rather than a JSON
+    /// parser: this file is also compiled into the net462 plugin, which has no System.Text.Json, and
+    /// the document is our own fixed <c>{"from":"…","to":"…"}</c> shape.
+    /// </summary>
+    private static string? ReadJoinKey(string? joinExpressionJson, string key)
+    {
+        if (string.IsNullOrEmpty(joinExpressionJson))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(joinExpressionJson, "\"" + key + "\"\\s*:\\s*\"([^\"]+)\"");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static IReadOnlyList<ReportResultColumn> ToResultColumns(IReadOnlyList<ReportColumn> columns) =>

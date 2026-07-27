@@ -79,6 +79,7 @@ public static class ReportDefinitionAssembler
             EntityAlias = RowReader.String(row, "qdb_entityalias"),
             Depth = RowReader.IntOrZero(row, "qdb_depth"),
             JoinType = RowReader.Coded(row, "qdb_jointype"),
+            JoinExpressionJson = RowReader.String(row, "qdb_joinexpressionjson"),
             Columns = columnsByMapping.TryGetValue(id, out var columns) ? columns : []
         };
     }
