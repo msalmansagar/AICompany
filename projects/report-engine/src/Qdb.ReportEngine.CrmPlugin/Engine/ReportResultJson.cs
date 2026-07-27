@@ -58,7 +58,12 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             for (var index = 0; index < rows.Count; index++)
             {
                 if (index > 0) json.Append(',');
+                // Each row is {"cells":{…}}, not the cell map on its own. The middle tier serialised
+                // ReportResultRow that way and every consumer reads row.cells[alias]; flattening it
+                // here produced rows whose columns all resolved to nothing.
+                json.Append("{\"cells\":");
                 AppendCells(json, rows[index].Cells);
+                json.Append('}');
             }
 
             json.Append(']');

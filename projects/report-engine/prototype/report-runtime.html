@@ -305,7 +305,7 @@ async function fetchCatalog(){
 
 async function fetchDefinition(id){
   const parent = `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
-  const [definition, parameters, relationships] = await Promise.all([
+  const [definition, parameters, relationships, formulas] = await Promise.all([
     xrm().WebApi.retrieveRecord("qdb_reportdefinition", id,
       "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,"
       + "qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit"),
@@ -313,7 +313,9 @@ async function fetchDefinition(id){
       + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,qdb_defaultvalue"
       + "&$orderby=qdb_displayorder"),
     dvRetrieveMultiple("qdb_reportrelationship", parent
-      + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey")
+      + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey"),
+    dvRetrieveMultiple("qdb_reportformula", parent
+      + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder")
   ]);
 
   return {
@@ -330,6 +332,9 @@ async function fetchDefinition(id){
     relationships: relationships.map(r => ({
       id: r.qdb_reportrelationshipid, openType: coded(r, "qdb_opentype"),
       parentKey: r.qdb_parentkey, childAlias: r.qdb_childalias, childKey: r.qdb_childkey
+    })),
+    formulas: formulas.map(f => ({
+      formulaAlias: f.qdb_formulaalias, expression: f.qdb_expression, evaluationOrder: f.qdb_evaluationorder
     }))
   };
 }
@@ -417,7 +422,8 @@ async function runReport(){
   const host = $("#resultHost"); host.innerHTML = `<div class="empty"><span class="spinner"></span> Running…</div>`;
   const startedAt = Date.now();
   try {
-    const result = await runReportInCrm(def.id, collectParams());
+    // The plugin returns stored columns; computed ones are derived here (ADR-RPT-011).
+    const result = applyFormulas(await runReportInCrm(def.id, collectParams()), def.formulas);
     result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
     renderResult(result);
@@ -563,6 +569,201 @@ function wireMenu(btnSel, menuSel, onPick){
 function errorState(msg){ return `<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16v.5"/></svg><div style="color:var(--error)">${esc(msg)}</div><div style="margin-top:8px"><button class="btn" onclick="loadCatalog()">Back to catalog</button></div></div>`; }
 function openModal(html){ $("#modal").innerHTML=html; $("#modalBack").classList.add("open"); }
 function closeModal(){ $("#modalBack").classList.remove("open"); }
+
+/* ---------------- formulas ----------------
+   Computed columns are evaluated here, over rows the plugin has already returned (ADR-RPT-011).
+
+   The expression language is parsed and walked, never executed: no eval, no Function, no template
+   interpolation. That is a hard requirement (C-5) — a report definition is data a power user edits,
+   so an expression must never be able to become code. The evaluator understands only arithmetic,
+   comparison, logic and a fixed function list; anything else fails to parse and the cell goes blank
+   rather than breaking the report, matching how NCalc behaved in the retired middle tier. */
+
+const FORMULA_FUNCTIONS = {
+  if: (test, whenTrue, whenFalse) => truthy(test) ? whenTrue : whenFalse,
+  abs: n => Math.abs(number(n)),
+  round: (n, places) => { const p = Math.pow(10, number(places) || 0); return Math.round(number(n) * p) / p; },
+  min: (...values) => Math.min(...values.map(number)),
+  max: (...values) => Math.max(...values.map(number)),
+  len: s => String(s ?? "").length,
+  upper: s => String(s ?? "").toUpperCase(),
+  lower: s => String(s ?? "").toLowerCase(),
+  concat: (...values) => values.map(v => v == null ? "" : String(v)).join(""),
+  coalesce: (...values) => values.find(v => v != null && v !== "") ?? null
+};
+
+function number(value){ const n = parseFloat(String(value ?? "").replace(/[^\d.eE+-]/g, "")); return isNaN(n) ? 0 : n; }
+function truthy(value){ return !(value == null || value === false || value === 0 || value === "" || value === "false"); }
+
+/**
+ * Whether a value should be treated as a number by `+`. Report cells often arrive already formatted
+ * ("1,250", "QAR 300"), and someone writing `amount + fee` means arithmetic — so a numeric-looking
+ * string counts. Genuine text still concatenates, and concat() is there when joining is the intent.
+ */
+function looksNumeric(value){
+  if (typeof value === "number") return true;
+  if (typeof value !== "string") return false;
+  const cleaned = value.replace(/[\s,]/g, "").replace(/^[^\d.eE+-]+/, "");
+  return cleaned !== "" && isFinite(Number(cleaned));
+}
+
+/** Splits an expression into literals, identifiers, operators and punctuation. */
+function tokenizeFormula(expression){
+  const pattern = /\s*(>=|<=|==|!=|<>|&&|\|\||[+\-*/%(),<>]|'[^']*'|"[^"]*"|[0-9]*\.?[0-9]+|[A-Za-z_][A-Za-z0-9_.]*)/g;
+  const tokens = [];
+  let match, consumed = 0;
+  while ((match = pattern.exec(expression)) !== null) {
+    if (match.index !== consumed) break;          // an unrecognised character — stop, expression is invalid
+    consumed = pattern.lastIndex;
+    tokens.push(match[1]);
+  }
+  if (consumed !== expression.length) throw new Error("Unrecognised characters in expression");
+  return tokens;
+}
+
+const BINARY_PRECEDENCE = {
+  "||": 1, "or": 1, "&&": 2, "and": 2,
+  "==": 3, "!=": 3, "<>": 3, "<": 4, "<=": 4, ">": 4, ">=": 4,
+  "+": 5, "-": 5, "*": 6, "/": 6, "%": 6
+};
+
+/** Precedence-climbing parser producing a plain AST — no code is generated at any point. */
+function parseFormula(tokens){
+  let position = 0;
+  const peek = () => tokens[position];
+  const take = () => tokens[position++];
+
+  function parseExpression(minimumPrecedence){
+    let left = parsePrimary();
+    while (true) {
+      const operator = peek();
+      const precedence = BINARY_PRECEDENCE[String(operator || "").toLowerCase()];
+      if (!operator || precedence === undefined || precedence < minimumPrecedence) return left;
+      take();
+      left = { kind: "binary", operator: String(operator).toLowerCase(), left, right: parseExpression(precedence + 1) };
+    }
+  }
+
+  function parsePrimary(){
+    const token = take();
+    if (token === undefined) throw new Error("Unexpected end of expression");
+    if (token === "(") { const inner = parseExpression(1); expect(")"); return inner; }
+    if (token === "-") return { kind: "negate", operand: parsePrimary() };
+    if (/^['"]/.test(token)) return { kind: "literal", value: token.slice(1, -1) };
+    if (/^[0-9.]/.test(token)) return { kind: "literal", value: parseFloat(token) };
+    if (peek() === "(") { take(); return { kind: "call", name: token.toLowerCase(), args: parseArguments() }; }
+    if (/^(true|false)$/i.test(token)) return { kind: "literal", value: /^true$/i.test(token) };
+    return { kind: "column", name: token };
+  }
+
+  function parseArguments(){
+    const args = [];
+    if (peek() === ")") { take(); return args; }
+    while (true) {
+      args.push(parseExpression(1));
+      const separator = take();
+      if (separator === ")") return args;
+      if (separator !== ",") throw new Error("Expected , or ) in arguments");
+    }
+  }
+
+  function expect(token){ if (take() !== token) throw new Error("Expected " + token); }
+
+  const ast = parseExpression(1);
+  if (position !== tokens.length) throw new Error("Trailing characters in expression");
+  return ast;
+}
+
+function evaluateFormula(node, values){
+  switch (node.kind) {
+    case "literal": return node.value;
+    case "column": return values[node.name] ?? null;
+    case "negate": return -number(evaluateFormula(node.operand, values));
+    case "call": return callFormulaFunction(node, values);
+    case "binary": return applyFormulaOperator(node, values);
+    default: throw new Error("Unsupported expression");
+  }
+}
+
+function callFormulaFunction(node, values){
+  const fn = Object.prototype.hasOwnProperty.call(FORMULA_FUNCTIONS, node.name) ? FORMULA_FUNCTIONS[node.name] : null;
+  if (!fn) throw new Error("Unknown function " + node.name);
+  return fn(...node.args.map(arg => evaluateFormula(arg, values)));
+}
+
+/**
+ * `+` is the one ambiguous operator: it both adds and joins. An empty cell is ambiguous too, so the
+ * other operand decides — `revenue + fee` with no fee is revenue, while `first + last` with no first
+ * is last. Only when neither side is a number does it concatenate.
+ */
+function addOrConcat(left, right){
+  const blank = value => value == null || value === "";
+  const numericOrBlank = value => looksNumeric(value) || blank(value);
+
+  if ((looksNumeric(left) || looksNumeric(right)) && numericOrBlank(left) && numericOrBlank(right)) {
+    return number(left) + number(right);
+  }
+  return String(left ?? "") + String(right ?? "");
+}
+
+function applyFormulaOperator(node, values){
+  const left = evaluateFormula(node.left, values);
+  // Short-circuit so `if(x != 0 && 10/x > 1, …)` behaves as written.
+  if (node.operator === "&&" || node.operator === "and") return truthy(left) ? truthy(evaluateFormula(node.right, values)) : false;
+  if (node.operator === "||" || node.operator === "or") return truthy(left) ? true : truthy(evaluateFormula(node.right, values));
+
+  const right = evaluateFormula(node.right, values);
+  switch (node.operator) {
+    case "+": return addOrConcat(left, right);
+    case "-": return number(left) - number(right);
+    case "*": return number(left) * number(right);
+    case "/": return number(right) === 0 ? null : number(left) / number(right);
+    case "%": return number(right) === 0 ? null : number(left) % number(right);
+    case "==": return String(left) === String(right);
+    case "!=": case "<>": return String(left) !== String(right);
+    case "<": return number(left) < number(right);
+    case "<=": return number(left) <= number(right);
+    case ">": return number(left) > number(right);
+    case ">=": return number(left) >= number(right);
+    default: throw new Error("Unsupported operator " + node.operator);
+  }
+}
+
+/**
+ * Appends a computed column per formula, in evaluation order so a later formula can reference an
+ * earlier one. A formula that cannot be parsed or evaluated yields a blank cell — one bad expression
+ * must never cost the user the rest of the report.
+ */
+function applyFormulas(result, formulas){
+  const ordered = (formulas || []).slice().sort((a, b) => (a.evaluationOrder || 0) - (b.evaluationOrder || 0));
+  if (!ordered.length) return result;
+
+  const compiled = ordered.map(formula => {
+    try { return { alias: formula.formulaAlias, ast: parseFormula(tokenizeFormula(formula.expression || "")) }; }
+    catch (error) { return { alias: formula.formulaAlias, ast: null, error: error.message }; }
+  });
+
+  for (const formula of compiled) {
+    result.columns.push({ alias: formula.alias, label: formula.alias, attribute: null, isVisible: true, isFormula: true });
+  }
+
+  for (const row of result.rows) {
+    const values = {};
+    for (const column of result.columns) {
+      if (!column.isFormula) values[column.alias] = (row.cells[column.alias] || {}).value;
+    }
+    for (const formula of compiled) {
+      let computed = null;
+      if (formula.ast) {
+        try { computed = evaluateFormula(formula.ast, values); } catch (error) { computed = null; }
+      }
+      values[formula.alias] = computed;
+      row.cells[formula.alias] = { value: computed, text: computed == null ? "" : String(computed) };
+    }
+  }
+
+  return result;
+}
 
 /* ---------------- self-check ----------------
    Opened with ?selftest=1, this walks the whole in-CRM path and reports each step.

@@ -30,6 +30,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         };
 
         [Fact]
+        public void Write_WrapsEachRowInACellsObject()
+        {
+            // Consumers read row.cells[alias]; emitting the cell map bare made every column resolve
+            // to nothing while rowCount still looked correct.
+            var json = ReportResultJson.Write(Result("Acme"));
+
+            Assert.Contains("\"rows\":[{\"cells\":{", json);
+        }
+
+        [Fact]
         public void Write_EmitsReportIdentity()
         {
             var json = ReportResultJson.Write(Result("Acme"));
