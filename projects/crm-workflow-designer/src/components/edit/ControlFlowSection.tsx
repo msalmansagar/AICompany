@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { ControlFlowFields, SplitType, JoinType } from '@/types/WorkflowTypes';
 import { controlFlowSummaryText } from '@/services/controlFlowFields';
 
@@ -26,6 +26,7 @@ const JOIN_OPTIONS: Array<{ value: JoinType; label: string }> = [
 const MIN_PARALLEL_BRANCHES = 2;
 
 export function ControlFlowSection({ value, onChange, outcomeCount }: ControlFlowSectionProps) {
+  const sectionId = useId();
   const [expanded, setExpanded] = useState(false);
   const summary = controlFlowSummaryText(value);
   const canGoParallel = outcomeCount >= MIN_PARALLEL_BRANCHES;
@@ -47,6 +48,7 @@ export function ControlFlowSection({ value, onChange, outcomeCount }: ControlFlo
 
           <Choice
             label="When this step completes"
+            groupName={`${sectionId}-split`}
             value={value.splitType}
             options={SPLIT_OPTIONS}
             disabledValues={canGoParallel ? [] : ['Parallel']}
@@ -60,6 +62,7 @@ export function ControlFlowSection({ value, onChange, outcomeCount }: ControlFlo
 
           <Choice
             label="Before this step starts"
+            groupName={`${sectionId}-join`}
             value={value.joinType}
             options={JOIN_OPTIONS}
             disabledValues={[]}
@@ -74,12 +77,15 @@ export function ControlFlowSection({ value, onChange, outcomeCount }: ControlFlo
 /** A labelled radio group. Radios, not a dropdown — both options must be readable at once. */
 function Choice<T extends string>({
   label,
+  groupName,
   value,
   options,
   disabledValues,
   onChange,
 }: {
   label: string;
+  /** Shared by every radio in this group — radio names are document-global. */
+  groupName: string;
   value: T;
   options: Array<{ value: T; label: string }>;
   disabledValues: T[];
@@ -92,7 +98,7 @@ function Choice<T extends string>({
         <label key={option.value} style={radioRowStyle}>
           <input
             type="radio"
-            name={`${label}-${option.value}`}
+            name={groupName}
             checked={value === option.value}
             disabled={disabledValues.includes(option.value)}
             onChange={() => onChange(option.value)}

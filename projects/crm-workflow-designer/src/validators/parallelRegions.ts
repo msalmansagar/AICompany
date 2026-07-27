@@ -137,18 +137,36 @@ function findNearestJoin(
   return candidates[0] ?? null;
 }
 
-/** Steps that sit on a path from the split to the join — the region's interior. */
+/** Every node that can reach `target`, by walking the graph backwards once. */
+function ancestorsOf(graph: dagre.graphlib.Graph, target: string): Set<string> {
+  const seen = new Set<string>();
+  const queue = [...(graph.predecessors(target) ?? [])];
+  while (queue.length > 0) {
+    const node = queue.shift() as string;
+    if (seen.has(node)) continue;
+    seen.add(node);
+    queue.push(...(graph.predecessors(node) ?? []));
+  }
+  return seen;
+}
+
+/**
+ * Steps that sit on a path from the split to the join — the region's interior:
+ * reachable from a branch AND able to reach the join.
+ *
+ * The membership test is one backwards walk from the join, not a forwards
+ * reachability query per candidate. The per-candidate form is the obvious way to
+ * write this and is quadratic in graph size, which NFR-004 rules out.
+ */
 function collectInterior(
   graph: dagre.graphlib.Graph,
   branchReach: Set<string>[],
   joinStepId: string
 ): string[] {
   const downstream = new Set(branchReach.flatMap((set) => [...set]));
+  const ancestors = ancestorsOf(graph, joinStepId);
   return [...downstream].filter(
-    (stepId) =>
-      stepId !== joinStepId &&
-      stepId !== END_SINK &&
-      reachableFrom(graph, stepId).has(joinStepId)
+    (stepId) => stepId !== joinStepId && stepId !== END_SINK && ancestors.has(stepId)
   );
 }
 
@@ -212,17 +230,24 @@ export function analyseParallelRegions(input: ControlFlowGraphInput): ParallelFi
     .filter((step) => step.splitType === 'Parallel')
     .map((step) => buildRegion(input, graph, step.crmId));
 
+  // Cycles are a property of the whole graph, so they are found once here rather
+  // than recomputed for every region.
+  const cycles = dagre.graphlib.alg.findCycles(graph);
+
   return [
-    ...regions.flatMap((region) => checkRegion(input, graph, region)),
+    ...regions.flatMap((region) => checkRegion({ input, graph, cycles }, region)),
     ...checkOrphanJoins(input, regions),
   ];
 }
 
-function checkRegion(
-  input: ControlFlowGraphInput,
-  graph: dagre.graphlib.Graph,
-  region: ParallelRegion
-): ParallelFinding[] {
+/** The once-per-analysis facts every region check shares. */
+interface AnalysisContext {
+  input: ControlFlowGraphInput;
+  graph: dagre.graphlib.Graph;
+  cycles: string[][];
+}
+
+function checkRegion(context: AnalysisContext, region: ParallelRegion): ParallelFinding[] {
   if (region.branchEntryIds.length < 2) {
     return [{ code: 'PARALLEL_SPLIT_SINGLE_BRANCH', stepId: region.splitStepId }];
   }
@@ -230,9 +255,9 @@ function checkRegion(
     return [{ code: 'UNMATCHED_PARALLEL_SPLIT', stepId: region.splitStepId }];
   }
   return [
-    ...checkStarvation(graph, region),
-    ...checkExternalEntry(graph, region),
-    ...checkLoopInRegion(input, graph, region),
+    ...checkStarvation(context.graph, region),
+    ...checkExternalEntry(context.graph, region),
+    ...checkLoopInRegion(context, region),
   ];
 }
 
@@ -280,17 +305,11 @@ function checkExternalEntry(graph: dagre.graphlib.Graph, region: ParallelRegion)
  * deliver one it has already consumed. Loops outside any parallel region are
  * untouched — the existing back-edge modelling keeps working exactly as before.
  */
-function checkLoopInRegion(
-  input: ControlFlowGraphInput,
-  graph: dagre.graphlib.Graph,
-  region: ParallelRegion
-): ParallelFinding[] {
+function checkLoopInRegion(context: AnalysisContext, region: ParallelRegion): ParallelFinding[] {
   const interior = new Set(region.interiorStepIds);
-  const looping = dagre.graphlib.alg
-    .findCycles(graph)
-    .filter((cycle) => cycle.some((stepId) => interior.has(stepId)));
+  const looping = context.cycles.filter((cycle) => cycle.some((stepId) => interior.has(stepId)));
   if (looping.length === 0) return [];
-  const members = [...new Set(looping.flat())].filter((stepId) => input.steps[stepId]);
+  const members = [...new Set(looping.flat())].filter((stepId) => context.input.steps[stepId]);
   return [
     {
       code: 'PARALLEL_LOOP_IN_REGION',

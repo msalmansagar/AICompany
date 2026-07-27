@@ -3,6 +3,7 @@ import {
   buildStepGraph,
   findParallelRegions,
   analyseParallelRegions,
+  describeBranches,
   END_SINK,
 } from '@/validators/parallelRegions';
 import type { ControlFlowGraphInput, ControlFlowStep } from '@/validators/parallelRegions';
@@ -396,6 +397,61 @@ describe('analyseParallelRegions — structural defects', () => {
       ]
     );
     expect(codesOf(input)).toEqual(['PARALLEL_SPLIT_SINGLE_BRANCH', 'PARALLEL_SPLIT_SINGLE_BRANCH']);
+  });
+});
+
+// --- Branch description (feeds simulation) ----------------------------------
+
+describe('describeBranches', () => {
+  it('should_list_one_branch_per_split_successor', () => {
+    const input = wellFormedRegion();
+    const [region] = findParallelRegions(input);
+    expect(describeBranches(input, region)).toHaveLength(2);
+  });
+
+  it('should_exclude_the_join_from_every_branch', () => {
+    const input = wellFormedRegion();
+    const [region] = findParallelRegions(input);
+    const all = describeBranches(input, region).flatMap((branch) => branch.stepIds);
+    expect(all).not.toContain('J');
+  });
+
+  it('should_never_include_the_synthetic_end_sink', () => {
+    const input = wellFormedRegion();
+    const [region] = findParallelRegions(input);
+    const all = describeBranches(input, region).flatMap((branch) => branch.stepIds);
+    expect(all).not.toContain(END_SINK);
+  });
+
+  it('should_carry_every_step_of_a_multi_step_branch', () => {
+    const input = buildInput(
+      [{ id: 'S', split: 'Parallel' }, { id: 'A1' }, { id: 'A2' }, { id: 'B' }, { id: 'J', join: 'AndJoin' }],
+      [
+        { from: 'S', to: 'A1' },
+        { from: 'S', to: 'B' },
+        { from: 'A1', to: 'A2' },
+        { from: 'A2', to: 'J' },
+        { from: 'B', to: 'J' },
+        { from: 'J', to: null },
+      ]
+    );
+    const [region] = findParallelRegions(input);
+    const longBranch = describeBranches(input, region).find((b) => b.entryStepId === 'A1');
+    expect(longBranch?.stepIds.sort()).toEqual(['A1', 'A2']);
+  });
+
+  it('should_describe_a_split_that_has_no_join_rather_than_returning_nothing', () => {
+    const input = buildInput(
+      [{ id: 'S', split: 'Parallel' }, { id: 'A' }, { id: 'B' }],
+      [
+        { from: 'S', to: 'A' },
+        { from: 'S', to: 'B' },
+        { from: 'A', to: null },
+        { from: 'B', to: null },
+      ]
+    );
+    const [region] = findParallelRegions(input);
+    expect(describeBranches(input, region).map((b) => b.entryStepId).sort()).toEqual(['A', 'B']);
   });
 });
 
