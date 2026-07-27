@@ -1320,10 +1320,9 @@ const state = {
   selectedReportId: null,
   dashboard: null,
   navCollapsed: false,
-  // Middle-tier connection. In a CRM web resource these come from the signed-in Xrm session;
-  // standalone they fall back to the local API and "run as service app" (blank caller).
-  apiBase: localStorage.getItem("re-api") || "http://localhost:5215",
-  callerId: localStorage.getItem("re-caller") || ""
+  // Set at boot: definitions are read and written through the signed-in CRM session, so saving and
+  // loading need Xrm. Everything else in the designer works standalone.
+  inCrm: false
 };
 
 /* ---------- small helpers ---------- */
@@ -1346,12 +1345,44 @@ function toast(msg, kind="ok") {
   setTimeout(() => { t.style.transition="opacity .3s"; t.style.opacity="0"; setTimeout(()=>t.remove(),300); }, 2600);
 }
 
-/* ---------- middle-tier API (dashboard persistence) ---------- */
-function apiFetch(path, opts={}) {
-  const headers = Object.assign({ "Accept":"application/json" }, opts.headers||{});
-  if (state.callerId) headers["X-Report-Caller-Id"] = state.callerId;
-  return fetch(state.apiBase.replace(/\/$/,"") + path, Object.assign({}, opts, { headers }));
+/* ---------- Dataverse persistence (ADR-RPT-011) ----------
+   Report and dashboard definitions are written straight to Dataverse with Xrm.WebApi, as the
+   signed-in user. There is no middle tier to POST to any more.
+
+   These are CONFIGURATION writes, so unlike report execution they need no audit record and no
+   Custom API: what a designer saves is metadata about a report, not anybody's data. Execution is the
+   part that has to be logged, and that still goes through qdb_RunReport.
+
+   The attribute names, @odata.bind navigation properties and create ordering mirror the retired
+   ReportDefinitionWriter/DashboardWriter exactly, so definitions written here load identically. */
+
+function xrmApi() {
+  const found = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+  if (!found || !found.WebApi) {
+    throw new Error("Saving needs a CRM session — open the designer as a web resource.");
+  }
+  return found.WebApi;
 }
+
+const dvCreate = async (entity, data) => (await xrmApi().createRecord(entity, data)).id;
+const dvUpdate = (entity, id, data) => xrmApi().updateRecord(entity, id, data);
+const dvDelete = (entity, id) => xrmApi().deleteRecord(entity, id);
+const dvRetrieve = (entity, id, query) => xrmApi().retrieveRecord(entity, id, query);
+const dvList = async (entity, query) => (await xrmApi().retrieveMultipleRecords(entity, query)).entities || [];
+
+/** Children hang off the report by this lookup; the Web API exposes it with the _value spelling. */
+const byReport = id => `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
+
+/** Drops null/undefined so an unset optional never overwrites a value with null. */
+function defined(attributes) {
+  const kept = {};
+  for (const key of Object.keys(attributes)) {
+    if (attributes[key] !== null && attributes[key] !== undefined) kept[key] = attributes[key];
+  }
+  return kept;
+}
+
+const codeOf = value => (value && value.code != null) ? value.code : null;
 function newGuid() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
@@ -1390,20 +1421,65 @@ function dashboardToDefinition(dashboard) {
 }
 // A dashboard that was loaded from Dataverse (has savedId) updates in place (PUT); a new one is
 // created (POST). This keeps edit→save a true round-trip instead of duplicating the record.
+/* ---------- dashboard writer ----------
+   These tables were provisioned via EntityDefinitions, which names the primary attribute
+   qdb_<entity>name — so it is qdb_dashboardname, not qdb_name. Widget kind and aggregation are
+   stored as strings deliberately, to avoid option-set churn as the widget catalogue grows. */
+
+async function writeDashboardSections(dashboardId, def) {
+  let sectionSequence = 1;
+  for (const section of def.sections || []) {
+    const sectionId = await dvCreate("qdb_dashboardsection", defined({
+      qdb_dashboardsectionname: section.title || "Section",
+      qdb_columns: Math.min(Math.max(section.columns || 4, 1), 4),
+      qdb_sequence: sectionSequence++,
+      "qdb_DashboardId@odata.bind": `/qdb_dashboards(${dashboardId})`
+    }));
+
+    let widgetSequence = 1;
+    for (const widget of section.widgets || []) {
+      await dvCreate("qdb_dashboardwidget", defined({
+        qdb_dashboardwidgetname: widget.title || widget.kind,
+        qdb_kind: widget.kind,
+        qdb_entity: widget.entity,
+        qdb_groupby: widget.groupByAttribute,
+        qdb_measure: widget.measureAttribute,
+        qdb_aggregation: widget.aggregation,
+        qdb_charttype: widget.chartType,
+        qdb_sequence: widgetSequence++,
+        "qdb_DashboardSectionId@odata.bind": `/qdb_dashboardsections(${sectionId})`
+      }));
+    }
+  }
+}
+
+/** Widgets before their section, so a widget never outlives the section it points at. */
+async function deleteDashboardSections(dashboardId) {
+  const sections = await dvList("qdb_dashboardsection",
+    `?$filter=_qdb_dashboardid_value eq ${dashboardId}&$select=qdb_dashboardsectionid`);
+  for (const section of sections) {
+    const widgets = await dvList("qdb_dashboardwidget",
+      `?$filter=_qdb_dashboardsectionid_value eq ${section.qdb_dashboardsectionid}&$select=qdb_dashboardwidgetid`);
+    for (const widget of widgets) await dvDelete("qdb_dashboardwidget", widget.qdb_dashboardwidgetid);
+    await dvDelete("qdb_dashboardsection", section.qdb_dashboardsectionid);
+  }
+}
+
 async function saveDashboardToServer(dashboard) {
   const button = $("#dash_save");
   if (button) button.disabled = true;
+  const def = dashboardToDefinition(dashboard);
   const isUpdate = !!dashboard.savedId;
-  const path = isUpdate ? "/api/dashboards/" + dashboard.savedId : "/api/dashboards";
+  const attributes = defined({ qdb_dashboardname: def.title, qdb_isgoverned: !!def.isGoverned });
+
   try {
-    const response = await apiFetch(path, {
-      method: isUpdate ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dashboardToDefinition(dashboard))
-    });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
-    dashboard.savedId = (body && body.id) || dashboard.savedId;
+    if (isUpdate) {
+      await deleteDashboardSections(dashboard.savedId);
+      await dvUpdate("qdb_dashboard", dashboard.savedId, attributes);
+    } else {
+      dashboard.savedId = await dvCreate("qdb_dashboard", attributes);
+    }
+    await writeDashboardSections(dashboard.savedId, def);
     toast(isUpdate ? "Dashboard updated in Dataverse" : "Dashboard saved to Dataverse", "ok");
     refreshSavedDashboards();
   } catch (error) {
@@ -1473,17 +1549,140 @@ function reportToDefinition(report) {
     layout: report.layout ? { id: newGuid(), themeColor: report.layout.themeColor || "#0078d4", layoutJson: JSON.stringify(report.layout) } : null
   };
 }
-// A report loaded from Dataverse (has savedId) updates in place (PUT); a new one is created (POST).
+/* ---------- report definition writer ---------- */
+
+/** Definition first, then data source → entity mapping → columns, then the flat child sets. */
+async function writeReportChildren(reportId, def) {
+  for (const source of def.dataSources || []) {
+    const sourceId = await dvCreate("qdb_reportdatasource", defined({
+      qdb_name: source.name || "Data source",
+      qdb_isprimary: !!source.isPrimary,
+      qdb_sourcealias: source.sourceAlias,
+      qdb_executionorder: 1,
+      "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})`
+    }));
+
+    for (const mapping of source.entityMappings || []) {
+      const mappingId = await dvCreate("qdb_reportentitymapping", defined({
+        qdb_name: mapping.entityLogicalName || "Entity",
+        qdb_entitylogicalname: mapping.entityLogicalName,
+        qdb_entityalias: mapping.entityAlias,
+        qdb_depth: mapping.depth || 0,
+        "Qdb_reportdatasourceid@odata.bind": `/qdb_reportdatasources(${sourceId})`
+      }));
+
+      for (const column of mapping.columns || []) {
+        await dvCreate("qdb_reportcolumn", defined({
+          qdb_name: column.outputAlias || column.columnLogicalName || "Column",
+          qdb_columnlogicalname: column.columnLogicalName,
+          qdb_outputalias: column.outputAlias,
+          qdb_aggregatefunction: codeOf(column.aggregateFunction),
+          qdb_sortorder: column.sortOrder,
+          qdb_grouporder: column.groupOrder,
+          qdb_isvisible: column.isVisible !== false,
+          "Qdb_reportentitymappingid@odata.bind": `/qdb_reportentitymappings(${mappingId})`
+        }));
+      }
+    }
+  }
+
+  const parent = { "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})` };
+
+  for (const filter of def.filters || []) {
+    await dvCreate("qdb_reportfilter", defined(Object.assign({
+      qdb_name: filter.fieldAlias || "Filter",
+      qdb_fieldalias: filter.fieldAlias,
+      qdb_operator: codeOf(filter.operator),
+      qdb_value: filter.value,
+      qdb_sequence: filter.sequence,
+      qdb_groupid: filter.groupId,
+      qdb_isruntimeprompt: !!filter.isRuntimePrompt
+    }, parent)));
+  }
+
+  for (const parameter of def.parameters || []) {
+    await dvCreate("qdb_reportparameter", defined(Object.assign({
+      qdb_name: parameter.parameterName || parameter.label || "Parameter",
+      qdb_parametername: parameter.parameterName,
+      qdb_label: parameter.label,
+      qdb_isrequired: !!parameter.isRequired,
+      qdb_defaultvalue: parameter.defaultValue,
+      qdb_displayorder: parameter.displayOrder,
+      qdb_lookuptargetentity: parameter.lookupTargetEntity
+    }, parent)));
+  }
+
+  for (const formula of def.formulas || []) {
+    await dvCreate("qdb_reportformula", defined(Object.assign({
+      qdb_name: formula.formulaAlias || "Formula",
+      qdb_formulaalias: formula.formulaAlias,
+      qdb_expression: formula.expression,
+      qdb_evaluationorder: formula.evaluationOrder,
+      qdb_isconditional: !!formula.isConditional
+    }, parent)));
+  }
+
+  if (def.layout) {
+    await dvCreate("qdb_reportlayout", defined(Object.assign({
+      qdb_name: "Layout",
+      qdb_themecolor: def.layout.themeColor,
+      qdb_layoutjson: def.layout.layoutJson
+    }, parent)));
+  }
+}
+
+/** Leaf-first, so a child never outlives the parent it points at. */
+async function deleteReportChildren(reportId) {
+  const sources = await dvList("qdb_reportdatasource", byReport(reportId) + "&$select=qdb_reportdatasourceid");
+  for (const source of sources) {
+    const mappings = await dvList("qdb_reportentitymapping",
+      `?$filter=_qdb_reportdatasourceid_value eq ${source.qdb_reportdatasourceid}&$select=qdb_reportentitymappingid`);
+    for (const mapping of mappings) {
+      const columns = await dvList("qdb_reportcolumn",
+        `?$filter=_qdb_reportentitymappingid_value eq ${mapping.qdb_reportentitymappingid}&$select=qdb_reportcolumnid`);
+      for (const column of columns) await dvDelete("qdb_reportcolumn", column.qdb_reportcolumnid);
+      await dvDelete("qdb_reportentitymapping", mapping.qdb_reportentitymappingid);
+    }
+    await dvDelete("qdb_reportdatasource", source.qdb_reportdatasourceid);
+  }
+
+  const flat = [
+    ["qdb_reportfilter", "qdb_reportfilterid"], ["qdb_reportparameter", "qdb_reportparameterid"],
+    ["qdb_reportformula", "qdb_reportformulaid"], ["qdb_reporttransformation", "qdb_reporttransformationid"],
+    ["qdb_reportrelationship", "qdb_reportrelationshipid"], ["qdb_reportlayout", "qdb_reportlayoutid"]
+  ];
+  for (const [entity, idField] of flat) {
+    for (const row of await dvList(entity, byReport(reportId) + `&$select=${idField}`)) {
+      await dvDelete(entity, row[idField]);
+    }
+  }
+}
+
+function reportDefinitionAttributes(def) {
+  return defined({
+    qdb_name: def.name,
+    qdb_description: def.description,
+    qdb_mainentitylogicalname: def.mainEntityLogicalName,
+    qdb_isgoverned: !!def.isGoverned,
+    qdb_rowlimit: def.rowLimit,
+    qdb_timeoutms: def.timeoutMs
+  });
+}
+
+// A report loaded from Dataverse (has savedId) updates in place; a new one is created.
 async function saveReportToServer(report) {
+  const def = reportToDefinition(report);
   const isUpdate = !!report.savedId;
-  const path = isUpdate ? "/api/reports/" + report.savedId : "/api/reports";
   try {
-    const response = await apiFetch(path, {
-      method: isUpdate ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reportToDefinition(report))
-    });
-    const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
-    report.savedId = (body && body.id) || report.savedId;
+    if (isUpdate) {
+      // Replace the children wholesale, matching how the definition is loaded as one graph.
+      await deleteReportChildren(report.savedId);
+      await dvUpdate("qdb_reportdefinition", report.savedId, reportDefinitionAttributes(def));
+      await writeReportChildren(report.savedId, def);
+    } else {
+      report.savedId = await dvCreate("qdb_reportdefinition", reportDefinitionAttributes(def));
+      await writeReportChildren(report.savedId, def);
+    }
     toast(isUpdate ? "Report updated in Dataverse" : "Report saved to Dataverse", "ok");
     refreshSavedReports();
   } catch (error) {
@@ -1524,24 +1723,92 @@ function definitionToReport(def) {
   return report;
 }
 
-// Persisted-report catalog (GET /api/reports). null = not yet fetched this session.
+/** Reassembles the stored graph into the ReportDefinition shape definitionToReport expects. */
+async function loadReportDefinition(id) {
+  const record = await dvRetrieve("qdb_reportdefinition", id,
+    "?$select=qdb_reportdefinitionid,qdb_name,qdb_description,qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit,qdb_timeoutms");
+
+  const [sources, filters, parameters, formulas, layouts] = await Promise.all([
+    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias&$orderby=qdb_executionorder"),
+    dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
+    dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity&$orderby=qdb_displayorder"),
+    dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
+    dvList("qdb_reportlayout", byReport(id) + "&$select=qdb_themecolor,qdb_layoutjson")
+  ]);
+
+  const dataSources = [];
+  for (const source of sources) {
+    const mappings = await dvList("qdb_reportentitymapping",
+      `?$filter=_qdb_reportdatasourceid_value eq ${source.qdb_reportdatasourceid}`
+      + "&$select=qdb_reportentitymappingid,qdb_entitylogicalname,qdb_entityalias,qdb_depth");
+
+    const entityMappings = [];
+    for (const mapping of mappings) {
+      const columns = await dvList("qdb_reportcolumn",
+        `?$filter=_qdb_reportentitymappingid_value eq ${mapping.qdb_reportentitymappingid}`
+        + "&$select=qdb_columnlogicalname,qdb_outputalias,qdb_aggregatefunction,qdb_sortorder,qdb_grouporder,qdb_isvisible&$orderby=qdb_sortorder");
+      entityMappings.push({
+        id: mapping.qdb_reportentitymappingid,
+        entityLogicalName: mapping.qdb_entitylogicalname,
+        entityAlias: mapping.qdb_entityalias,
+        depth: mapping.qdb_depth,
+        columns: columns.map(c => ({
+          columnLogicalName: c.qdb_columnlogicalname, outputAlias: c.qdb_outputalias,
+          aggregateFunction: c.qdb_aggregatefunction == null ? null : { code: c.qdb_aggregatefunction },
+          sortOrder: c.qdb_sortorder, groupOrder: c.qdb_grouporder, isVisible: c.qdb_isvisible !== false
+        }))
+      });
+    }
+    dataSources.push({
+      id: source.qdb_reportdatasourceid, name: source.qdb_name,
+      isPrimary: !!source.qdb_isprimary, sourceAlias: source.qdb_sourcealias, entityMappings
+    });
+  }
+
+  return {
+    id: record.qdb_reportdefinitionid,
+    name: record.qdb_name,
+    description: record.qdb_description,
+    mainEntityLogicalName: record.qdb_mainentitylogicalname,
+    isGoverned: !!record.qdb_isgoverned,
+    rowLimit: record.qdb_rowlimit,
+    timeoutMs: record.qdb_timeoutms,
+    dataSources,
+    filters: filters.map(f => ({
+      fieldAlias: f.qdb_fieldalias,
+      operator: { code: f.qdb_operator, label: f["qdb_operator@OData.Community.Display.V1.FormattedValue"] },
+      value: f.qdb_value, sequence: f.qdb_sequence, groupId: f.qdb_groupid, isRuntimePrompt: !!f.qdb_isruntimeprompt
+    })),
+    parameters: parameters.map(p => ({
+      parameterName: p.qdb_parametername, label: p.qdb_label, isRequired: !!p.qdb_isrequired,
+      defaultValue: p.qdb_defaultvalue, displayOrder: p.qdb_displayorder, lookupTargetEntity: p.qdb_lookuptargetentity
+    })),
+    formulas: formulas.map(f => ({
+      formulaAlias: f.qdb_formulaalias, expression: f.qdb_expression, evaluationOrder: f.qdb_evaluationorder
+    })),
+    layout: layouts.length ? { themeColor: layouts[0].qdb_themecolor, layoutJson: layouts[0].qdb_layoutjson } : null
+  };
+}
+
+// Persisted-report catalog. null = not yet fetched this session.
 let SAVED_REPORTS = null;
 async function refreshSavedReports() {
   try {
-    const response = await apiFetch("/api/reports");
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    SAVED_REPORTS = await response.json();
+    const rows = await dvList("qdb_reportdefinition",
+      "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,qdb_mainentitylogicalname&$orderby=qdb_name&$top=200");
+    SAVED_REPORTS = rows.map(r => ({
+      id: r.qdb_reportdefinitionid, name: r.qdb_name, reportCode: r.qdb_reportcode,
+      description: r.qdb_description, mainEntityLogicalName: r.qdb_mainentitylogicalname
+    }));
   } catch (error) {
+    // Outside CRM there is nothing to read — degrade to "no saved reports" rather than break the UI.
     SAVED_REPORTS = [];
   }
   if (state.view === "reports" || state.view === "myreports") render();
 }
 async function openSavedReport(id) {
   try {
-    const response = await apiFetch("/api/reports/" + id);
-    const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
-    state.report = definitionToReport(body);
+    state.report = definitionToReport(await loadReportDefinition(id));
     state.selectedReportId = state.report.id;
     state.view = "designer"; state.tab = "general"; render();
   } catch (error) {
@@ -1550,11 +1817,8 @@ async function openSavedReport(id) {
 }
 async function deleteSavedReport(id) {
   try {
-    const response = await apiFetch("/api/reports/" + id, { method: "DELETE" });
-    if (!response.ok && response.status !== 204) {
-      const body = await response.json().catch(() => null);
-      throw new Error((body && body.message) || ("HTTP " + response.status));
-    }
+    await deleteReportChildren(id);
+    await dvDelete("qdb_reportdefinition", id);
     toast("Report deleted from Dataverse", "ok");
     await refreshSavedReports();
   } catch (error) {
@@ -1594,36 +1858,55 @@ function definitionToDashboard(def) {
   };
 }
 
-// Persisted-dashboard catalog (GET /api/dashboards). null = not yet fetched this session.
+async function loadDashboardDefinition(id) {
+  const record = await dvRetrieve("qdb_dashboard", id, "?$select=qdb_dashboardid,qdb_dashboardname,qdb_isgoverned");
+  const sections = await dvList("qdb_dashboardsection",
+    `?$filter=_qdb_dashboardid_value eq ${id}&$select=qdb_dashboardsectionid,qdb_dashboardsectionname,qdb_columns&$orderby=qdb_sequence`);
+
+  const mapped = [];
+  for (const section of sections) {
+    const widgets = await dvList("qdb_dashboardwidget",
+      `?$filter=_qdb_dashboardsectionid_value eq ${section.qdb_dashboardsectionid}`
+      + "&$select=qdb_dashboardwidgetid,qdb_dashboardwidgetname,qdb_kind,qdb_entity,qdb_groupby,qdb_measure,qdb_aggregation,qdb_charttype&$orderby=qdb_sequence");
+    mapped.push({
+      id: section.qdb_dashboardsectionid,
+      title: section.qdb_dashboardsectionname,
+      columns: section.qdb_columns,
+      widgets: widgets.map(w => ({
+        id: w.qdb_dashboardwidgetid, title: w.qdb_dashboardwidgetname, kind: w.qdb_kind, entity: w.qdb_entity,
+        groupByAttribute: w.qdb_groupby, measureAttribute: w.qdb_measure,
+        aggregation: w.qdb_aggregation, chartType: w.qdb_charttype
+      }))
+    });
+  }
+
+  return { id: record.qdb_dashboardid, title: record.qdb_dashboardname, isGoverned: !!record.qdb_isgoverned, sections: mapped };
+}
+
+// Persisted-dashboard catalog. null = not yet fetched this session.
 let SAVED_DASHBOARDS = null;
 async function refreshSavedDashboards() {
   try {
-    const response = await apiFetch("/api/dashboards");
-    if (!response.ok) throw new Error("HTTP " + response.status);
-    SAVED_DASHBOARDS = await response.json();
+    const rows = await dvList("qdb_dashboard",
+      "?$select=qdb_dashboardid,qdb_dashboardname,qdb_isgoverned&$orderby=qdb_dashboardname&$top=200");
+    SAVED_DASHBOARDS = rows.map(r => ({ id: r.qdb_dashboardid, title: r.qdb_dashboardname, isGoverned: !!r.qdb_isgoverned }));
   } catch (error) {
-    // API may be unreachable in pure-prototype use — degrade to "no saved dashboards".
+    // Outside CRM there is nothing to read — degrade to "no saved dashboards".
     SAVED_DASHBOARDS = [];
   }
   if (state.view === "dashboards") render();
 }
 async function openSavedDashboard(id) {
   try {
-    const response = await apiFetch("/api/dashboards/" + id);
-    const body = await response.json().catch(() => null);
-    if (!response.ok) throw new Error((body && body.message) || ("HTTP " + response.status));
-    openDashboardComposer(definitionToDashboard(body));
+    openDashboardComposer(definitionToDashboard(await loadDashboardDefinition(id)));
   } catch (error) {
     toast("Couldn't open saved dashboard — " + error.message, "err");
   }
 }
 async function deleteSavedDashboard(id) {
   try {
-    const response = await apiFetch("/api/dashboards/" + id, { method: "DELETE" });
-    if (!response.ok && response.status !== 204) {
-      const body = await response.json().catch(() => null);
-      throw new Error((body && body.message) || ("HTTP " + response.status));
-    }
+    await deleteDashboardSections(id);
+    await dvDelete("qdb_dashboard", id);
     toast("Dashboard deleted from Dataverse", "ok");
     await refreshSavedDashboards();
   } catch (error) {
@@ -4244,14 +4527,16 @@ document.addEventListener("keydown", (event) => { if (event.key === "Escape") to
 
 // When hosted as a CRM web resource, take the identity + middle-tier URL from Xrm / the URL,
 // so dashboard persistence runs as the signed-in user against the deployer-configured API.
+// Definitions are read and written as the signed-in user, so there is no connection to configure
+// and no identity to choose (ADR-RPT-011). Outside CRM the designer still runs as a prototype:
+// everything in-memory works, and only the save/load paths report that they need a CRM session.
 function initCrmContext() {
   try {
-    const apiParam = new URLSearchParams(location.search).get("api");
-    if (apiParam) state.apiBase = apiParam;
     const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
-    if (!xrm || !xrm.Utility) return;
-    state.callerId = String(xrm.Utility.getGlobalContext().userSettings.userId || "").replace(/[{}]/g, "");
-  } catch (e) { /* standalone prototype — fall back to localStorage/localhost */ }
+    state.inCrm = !!(xrm && xrm.WebApi);
+  } catch (e) {
+    state.inCrm = false;
+  }
 }
 initCrmContext();
 
