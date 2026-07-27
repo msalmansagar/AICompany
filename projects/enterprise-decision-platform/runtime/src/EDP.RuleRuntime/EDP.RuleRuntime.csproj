@@ -7,6 +7,11 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <RootNamespace>EDP.RuleRuntime</RootNamespace>
     <AssemblyName>EDP.RuleRuntime</AssemblyName>
+    <!-- QA-C3: null-state warnings are errors in the production assemblies, so a genuine null-ref
+         cannot hide among accepted warnings. Note that netstandard2.0 does not annotate
+         string.IsNullOrWhiteSpace with [NotNullWhen(false)], so a correct guard still needs `!`
+         at the use site — always with a comment naming the guard. -->
+    <WarningsAsErrors>$(WarningsAsErrors);CS8602;CS8604</WarningsAsErrors>
     <!-- netstandard2.0 keeps the core sandbox-compatible (.NET Framework 4.6.2+ / Dataverse). -->
     <!-- NU1902 (NCalcSync 5.4.2, GHSA-3w5p-95mh-gq75 factorial DoS): the fix lands only in
          NCalc 6.x, which requires System.Text.Json 10.x — incompatible with the net462 sandbox.

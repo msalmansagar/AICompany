@@ -21,7 +21,7 @@ namespace EDP.RuleRuntime.Crm.Tests
 
             new DeleteAuditPlugin().Execute(new FakeServiceProvider(ctx, fake));
 
-            var audit = Assert.Single(fake.Created.Where(e => e.LogicalName == "qdb_edp_ruleaudit"));
+            var audit = Assert.Single(fake.Created, e => e.LogicalName == "qdb_edp_ruleaudit");
             Assert.Equal("Deleted", audit.GetAttributeValue<string>("qdb_edp_action"));
             Assert.Contains(entity, audit.GetAttributeValue<string>("qdb_edp_details"));
             Assert.Contains(id.ToString(), audit.GetAttributeValue<string>("qdb_edp_details"));

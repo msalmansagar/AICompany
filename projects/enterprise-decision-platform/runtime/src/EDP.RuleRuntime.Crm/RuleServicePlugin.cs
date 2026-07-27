@@ -582,7 +582,8 @@ namespace EDP.RuleRuntime.Crm
         {
             if (string.IsNullOrWhiteSpace(pcrmJson))
                 throw new InvalidPluginExecutionException("PCRM payload is empty.");
-            return JsonSerializer.Deserialize<PcrmDocument>(pcrmJson, PcrmOptions)
+            // pcrmJson! — the guard above throws on null; net462 lacks [NotNullWhen] on IsNullOrWhiteSpace.
+            return JsonSerializer.Deserialize<PcrmDocument>(pcrmJson!, PcrmOptions)
                    ?? throw new InvalidPluginExecutionException("PCRM payload could not be parsed.");
         }
 

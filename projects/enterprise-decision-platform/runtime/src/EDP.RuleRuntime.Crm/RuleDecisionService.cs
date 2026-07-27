@@ -91,7 +91,8 @@ namespace EDP.RuleRuntime.Crm
         {
             var inputs = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
             if (string.IsNullOrWhiteSpace(inputsJson)) return inputs;
-            using var doc = JsonDocument.Parse(inputsJson);
+            // inputsJson! — guarded above; net462 lacks [NotNullWhen] on IsNullOrWhiteSpace.
+            using var doc = JsonDocument.Parse(inputsJson!);
             foreach (var prop in doc.RootElement.EnumerateObject())
                 inputs[prop.Name] = FromJson(prop.Value);
             return inputs;
