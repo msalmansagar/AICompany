@@ -902,6 +902,9 @@ const FORMULA_FUNCTIONS = {
 function number(value){ const n = parseFloat(String(value ?? "").replace(/[^\d.eE+-]/g, "")); return isNaN(n) ? 0 : n; }
 function truthy(value){ return !(value == null || value === false || value === 0 || value === "" || value === "false"); }
 
+/** Null and undefined read as an empty string, so a blank cell compares equal to ''. */
+function comparableText(value){ return value == null ? "" : String(value); }
+
 /**
  * Whether a value should be treated as a number by `+`. Report cells often arrive already formatted
  * ("1,250", "QAR 300"), and someone writing `amount + fee` means arithmetic — so a numeric-looking
@@ -1026,8 +1029,10 @@ function applyFormulaOperator(node, values){
     case "*": return number(left) * number(right);
     case "/": return number(right) === 0 ? null : number(left) / number(right);
     case "%": return number(right) === 0 ? null : number(left) % number(right);
-    case "==": return String(left) === String(right);
-    case "!=": case "<>": return String(left) !== String(right);
+    // Compared as text, with an empty cell reading as "" rather than "null" — `field != ''` must be
+    // false for a blank value, which is the most common way a formula tests for one.
+    case "==": return comparableText(left) === comparableText(right);
+    case "!=": case "<>": return comparableText(left) !== comparableText(right);
     case "<": return number(left) < number(right);
     case "<=": return number(left) <= number(right);
     case ">": return number(left) > number(right);
