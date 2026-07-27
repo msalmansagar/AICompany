@@ -1,8 +1,6 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
-import { validateSlaConfig } from '@/validators/slaValidator';
-import { analyseParallelRegions } from '@/validators/parallelRegions';
-import type { ParallelFinding } from '@/validators/parallelRegions';
-import { processUsesParallelFlow } from '@/services/controlFlowFields';
+import { analyseBranchRegions } from '@/validators/branchRegions';
+import type { BranchFinding } from '@/validators/branchRegions';
 
 export type ViolationCode =
   | 'NO_PROCESS'
@@ -21,14 +19,12 @@ export type ViolationCode =
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
-  | 'MISSING_FALLBACK_ROUTE'
-  | 'INVALID_SLA'
-  | 'PARALLEL_SPLIT_SINGLE_BRANCH'
-  | 'UNMATCHED_PARALLEL_SPLIT'
-  | 'ORPHAN_AND_JOIN'
-  | 'PARALLEL_JOIN_DEADLOCK'
-  | 'PARALLEL_LOOP_IN_REGION'
-  | 'PARALLEL_NOT_EXECUTABLE';
+  | 'MISSING_FALLBACK_ROUTE'  | 'BRANCH_SELF_PARENT'
+  | 'BRANCH_PARENT_CYCLE'
+  | 'BRANCH_PARENT_MISSING'
+  | 'BRANCH_FILTER_MISSING'
+  | 'BRANCH_NO_JOIN_GUARD'
+  | 'ORPHAN_JOIN_GUARD';
 
 export interface Violation {
   code: ViolationCode;
@@ -41,6 +37,21 @@ export interface Violation {
   affectedNodeIds?: string[];
   severity: 'error' | 'warning';
 }
+
+/**
+ * Which concurrency defects block a publish. The two "guard" findings are
+ * warnings: the engine tolerates both — a parent without a guard simply finishes
+ * early, a guard without branches simply finds none — so they are modelling
+ * smells rather than broken processes.
+ */
+const BRANCH_SEVERITY: Record<BranchFinding['code'], Violation['severity']> = {
+  BRANCH_SELF_PARENT: 'error',
+  BRANCH_PARENT_CYCLE: 'error',
+  BRANCH_PARENT_MISSING: 'error',
+  BRANCH_FILTER_MISSING: 'error',
+  BRANCH_NO_JOIN_GUARD: 'warning',
+  ORPHAN_JOIN_GUARD: 'warning',
+};
 
 export class ValidationService {
   private static readonly MAX_OUTCOMES_PER_STEP = 5;
@@ -66,7 +77,6 @@ export class ValidationService {
     this.checkNoTerminalOutcome(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
-    this.checkInvalidSlaConfig(steps, violations);
     this.checkMissingFetchXml(state, violations);
     this.checkInvalidNextStep(state, violations);
     this.checkDeadLoops(state, violations);
@@ -74,69 +84,54 @@ export class ValidationService {
     this.checkDuplicateOutcomeNames(state, violations);
     this.checkTooManyOutcomes(state, violations);
     this.checkMissingFallbackRoute(state, violations);
-    this.checkParallelRegions(state, violations);
-    this.checkParallelNotExecutable(steps, violations);
+    this.checkBranchRegions(state, violations);
 
     return violations;
   }
 
   /**
-   * Structural defects in the process's parallel (AND) regions. The analysis itself
-   * lives in `parallelRegions.ts` as a pure function; this method owns only the
-   * user-facing wording.
+   * Structural defects in the process's concurrency configuration. The analysis
+   * lives in `branchRegions.ts` as a pure function; this method owns the wording.
+   *
+   * There is no longer a publish block for concurrency. DP-1's block existed because
+   * the designer wrote fields the platform never read; these fields are the ones the
+   * engine actually acts on, so a concurrent process is executable.
    */
-  private checkParallelRegions(
-    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
+  private checkBranchRegions(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes'>,
     violations: Violation[]
   ): void {
-    for (const finding of analyseParallelRegions(state)) {
+    for (const finding of analyseBranchRegions(state)) {
       violations.push({
         code: finding.code,
-        message: this.describeParallelFinding(state, finding),
+        message: this.describeBranchFinding(state, finding),
         nodeId: finding.stepId,
         nodeType: 'step',
         affectedNodeIds: finding.affectedStepIds,
-        severity: 'error',
+        severity: BRANCH_SEVERITY[finding.code],
       });
     }
   }
 
-  private describeParallelFinding(
+  private describeBranchFinding(
     state: Pick<WorkflowDesignerState, 'steps'>,
-    finding: ParallelFinding
+    finding: BranchFinding
   ): string {
     const name = state.steps[finding.stepId]?.name || finding.stepId;
     switch (finding.code) {
-      case 'PARALLEL_SPLIT_SINGLE_BRANCH':
-        return `Step "${name}" runs its branches at the same time but has fewer than two of them — add another outcome, or set it back to running one branch.`;
-      case 'UNMATCHED_PARALLEL_SPLIT':
-        return `The branches of step "${name}" never come back together — every branch must reach the same step marked "wait for all branches".`;
-      case 'ORPHAN_AND_JOIN':
-        return `Step "${name}" waits for all incoming branches, but no step upstream starts concurrent branches — it would wait for branches that never start.`;
-      case 'PARALLEL_JOIN_DEADLOCK':
-        return `Step "${name}" would wait forever: ${finding.detail ?? 'it cannot receive every branch it waits for'}. Route every branch through it, then continue to the End node from there.`;
-      case 'PARALLEL_LOOP_IN_REGION':
-        return `The concurrent branches after step "${name}" contain a loop. Loops are not supported inside concurrent branches — move the loop outside them.`;
+      case 'BRANCH_SELF_PARENT':
+        return `Step "${name}" runs concurrently beneath itself. Pick a different step, or make it an ordinary sequential step.`;
+      case 'BRANCH_PARENT_CYCLE':
+        return `Step "${name}" is part of a loop of concurrent branches, each running beneath the next. One of them has to become an ordinary step.`;
+      case 'BRANCH_PARENT_MISSING':
+        return `Step "${name}" runs concurrently beneath a step that no longer exists.`;
+      case 'BRANCH_FILTER_MISSING':
+        return `Step "${name}" only runs when a condition is met, but no condition is set — so the branch would never start. Set the condition, or make the branch unconditional.`;
+      case 'BRANCH_NO_JOIN_GUARD':
+        return `Step "${name}" starts concurrent branches, but none of its outcomes waits for them. It can be completed while its branches are still open — tick "wait for concurrent branches" on the outcome that should wait.`;
+      case 'ORPHAN_JOIN_GUARD':
+        return `Step "${name}" waits for concurrent branches, but no step runs beneath it — there is nothing to wait for.`;
     }
-  }
-
-  /**
-   * DP-1 ships the ability to MODEL concurrency, not to run it: the CRM execution
-   * layer cannot yet execute concurrent branches. Publishing is therefore blocked
-   * for any process that uses them (ADR-1-003). Emitted at process level — the model
-   * is not wrong, so no individual step is marked as being at fault.
-   */
-  private checkParallelNotExecutable(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    if (!processUsesParallelFlow(steps)) return;
-    violations.push({
-      code: 'PARALLEL_NOT_EXECUTABLE',
-      message:
-        'This process uses concurrent branches. The platform cannot execute them yet, so the process cannot be published. Designing, validating, exporting and saving drafts all work as normal.',
-      severity: 'error',
-    });
   }
 
   private checkStartNode(
@@ -153,8 +148,13 @@ export class ValidationService {
     }
   }
 
+  /**
+   * Every step something can lead to. Routes and outcomes are the obvious sources;
+   * a branch is the non-obvious one — no outcome points at it, because the engine
+   * creates its task from its parent's. Without this it reads as unreachable.
+   */
   private buildReachableStepIds(
-    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>
   ): Set<string> {
     const reachable = new Set<string>();
     for (const outcome of Object.values(state.outcomes)) {
@@ -164,6 +164,9 @@ export class ValidationService {
     }
     for (const route of Object.values(state.routes)) {
       if (route.nextStepId) reachable.add(route.nextStepId);
+    }
+    for (const step of Object.values(state.steps)) {
+      if (step.parentStepId) reachable.add(step.crmId);
     }
     return reachable;
   }
@@ -275,26 +278,6 @@ export class ValidationService {
           code: 'INVALID_ASSIGNMENT',
           message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
           nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-    }
-  }
-
-  private checkInvalidSlaConfig(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    for (const step of steps) {
-      if (!step.slaEnabled) continue;
-      const errors = validateSlaConfig(step);
-      const firstError = Object.values(errors)[0];
-      if (firstError) {
-        violations.push({
-          code: 'INVALID_SLA',
-          message: `Step "${step.name || `#${step.sequenceNo}`}" has an incomplete SLA configuration: ${firstError}`,
-          nodeId: step.crmId,
-          nodeType: 'step',
           severity: 'error',
         });
       }

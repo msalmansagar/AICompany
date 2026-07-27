@@ -138,7 +138,6 @@ function PathDetail({ path, index }: { path: SimPath; index: number }) {
           <span style={{ color: endReasonColor(path.endReason), fontSize: 12, fontWeight: 600 }}>
             {path.endReason === 'end' ? '✓ Process Complete'
               : path.endReason === 'cycle' ? `↩ Loops to: ${path.cycleStepName ?? 'step'}`
-              : path.endReason === 'unmatched-parallel' ? '⧉ Concurrent branches never come back together'
               : '⊘ No further outcomes'}
           </span>
         </div>
@@ -197,10 +196,10 @@ function MetricCard({ metric }: { metric: ComplexityMetric }) {
 function ConcurrentBranches({ branches }: { branches: SimConcurrentBranch[] }) {
   return (
     <div style={concurrentBlockStyle}>
-      <div style={concurrentTitleStyle}>⧉ These {branches.length} branches run at the same time</div>
+      <div style={concurrentTitleStyle}>⧉ These {branches.length} step{branches.length === 1 ? '' : 's'} run at the same time</div>
       {branches.map((branch) => (
         <div key={branch.entryStepName} style={concurrentBranchStyle}>
-          {branch.stepNames.join(' → ')}
+          {branch.entryStepName}{branch.isConditional ? ' — only if its condition is met' : ''}
         </div>
       ))}
     </div>

@@ -3,12 +3,14 @@ import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
-import { emptySlaFields, slaSummaryText } from '@/services/slaStepFields';
+import { emptyEscalationFields, escalationSummaryText } from '@/services/escalationFields';
 import {
-  emptyControlFlowFields,
-  controlFlowSummaryText,
-  controlFlowDescription,
-} from '@/services/controlFlowFields';
+  emptyBranchFields,
+  branchSummaryText,
+  fanOutSummaryText,
+  branchChildrenOf,
+  emptyOutcomeConcurrency,
+} from '@/services/branchFields';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import { computeEditLayout } from '@/services/EditGraphLayout';
@@ -108,9 +110,10 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         assigneeName: resolveAssigneeName(step),
         isSelected: selectedId === `step_${stepId}`,
         hasError: errorStepIds.has(step.crmId),
-        slaSummary: slaSummaryText(step),
-        controlFlowSummary: controlFlowSummaryText(step),
-        controlFlowDescription: controlFlowDescription(step),
+        slaSummary: escalationSummaryText(step),
+        controlFlowSummary:
+          branchSummaryText(step) ?? fanOutSummaryText(branchChildrenOf(step.crmId, steps).length),
+        controlFlowDescription: describeConcurrency(step, branchChildrenOf(step.crmId, steps).length),
       };
 
       return {
@@ -146,8 +149,14 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         ? (routeOrder[outcome.crmId] ?? []).length
         : 0;
 
-      const edge = buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge, routeCount);
-      result.push(sourceStep?.splitType === 'Parallel' ? asParallelBranchEdge(edge) : edge);
+      result.push(buildOutcomeEdge(outcome, sourceNodeId, targetNodeId, isBackEdge, routeCount));
+    }
+
+    // A branch has no outcome pointing at it — the engine creates its task from the
+    // parent's. Without a synthesised edge the branch would float unconnected.
+    for (const step of Object.values(steps)) {
+      if (!step.parentStepId || !steps[step.parentStepId]) continue;
+      result.push(buildBranchEdge(step.parentStepId, step.crmId, step.applyBranchFilter));
     }
 
     return result;
@@ -172,6 +181,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         name: 'Outcome',
         sequenceNumber: nextSeqNo,
         applyFilter: false,
+        ...emptyOutcomeConcurrency(),
         stepId: sourceStepId,
         nextStepId,
       };
@@ -252,6 +262,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         name: 'Next',
         sequenceNumber: nextSeqNo,
         applyFilter: false,
+        ...emptyOutcomeConcurrency(),
         stepId: sourceStepId,
         nextStepId: newStep.crmId,
       });
@@ -291,8 +302,8 @@ function resolveConnectSourceStepId(selectedId: string | null, stepOrder: string
 
 function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
-    ...emptySlaFields(),
-    ...emptyControlFlowFields(),
+    ...emptyEscalationFields(),
+    ...emptyBranchFields(),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',
     sequenceNo,
@@ -329,22 +340,41 @@ function buildStartEdge(entryStepId: string): Edge {
   };
 }
 
-const PARALLEL_BRANCH_STROKE = '#7c3aed';
+const BRANCH_STROKE = '#7c3aed';
 
 /**
- * Marks an edge as one branch of a concurrent split. The "AND" label, not the
- * colour, is what carries the meaning — the notation has to survive greyscale
- * printing and colour blindness (NFR-009).
+ * The link from a step to one that runs alongside it. Dashed, because nothing
+ * "transitions" here — the engine creates both tasks at once. The label, not the
+ * colour, carries the meaning, so the notation survives greyscale export.
  */
-function asParallelBranchEdge(edge: Edge): Edge {
+function buildBranchEdge(parentStepId: string, childStepId: string, isConditional: boolean): Edge {
   return {
-    ...edge,
-    label: 'AND',
-    labelStyle: { fill: PARALLEL_BRANCH_STROKE, fontSize: 10, fontWeight: 700 },
+    id: `branch_${parentStepId}_${childStepId}`,
+    source: `step_${parentStepId}`,
+    target: `step_${childStepId}`,
+    sourceHandle: 'out',
+    targetHandle: 'in',
+    type: 'smoothstep',
+    animated: false,
+    label: isConditional ? 'AT SAME TIME · IF' : 'AT SAME TIME',
+    labelStyle: { fill: BRANCH_STROKE, fontSize: 10, fontWeight: 700 },
     labelBgStyle: { fill: '#f5f3ff' },
-    style: { ...edge.style, stroke: PARALLEL_BRANCH_STROKE, strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as const, color: PARALLEL_BRANCH_STROKE },
+    style: { stroke: BRANCH_STROKE, strokeWidth: 2, strokeDasharray: '6 4' },
+    markerEnd: { type: 'arrowclosed' as const, color: BRANCH_STROKE },
+    selectable: false,
   };
+}
+
+/** Spells the concurrency badge out for the node tooltip. */
+function describeConcurrency(step: WorkflowStep, childCount: number): string | null {
+  if (step.parentStepId) {
+    const conditional = step.applyBranchFilter ? ', when its condition is met' : '';
+    return `Runs at the same time as "${step.parentStepName ?? 'another step'}"${conditional}`;
+  }
+  if (childCount > 0) {
+    return `${childCount} step${childCount === 1 ? '' : 's'} run at the same time as this one`;
+  }
+  return null;
 }
 
 function buildOutcomeEdge(

@@ -16,56 +16,65 @@ export interface WorkflowProcess {
 
 export type AssignToType = 'user' | 'team' | 'roundRobin';
 
-// --- SLA & escalation configuration (DP-2) ---
-export type SlaDurationUnit = 'Hours' | 'CalendarDays' | 'BusinessDays';
-export type SlaBasis = 'TaskCreated' | 'TaskAssigned' | 'PreviousStepCompleted';
-export type EscalationAction = 'Reassign' | 'Notify' | 'Flag' | 'ReassignAndNotify';
-export type EscalationTargetType = 'SpecificUser' | 'SpecificTeam' | 'ManagerOfAssignee' | 'Role';
+// --- Escalation: the platform engine's model (CWFD-005) ---
 
 /**
- * SLA/escalation config fields — shared by process steps (WorkflowStep) and SOP
- * template steps (SopStep). Config-only; consumed by the future CWFD-005 runtime,
- * inert until then. All nullable; slaEnabled defaults to false.
+ * How a step escalates when it runs late.
+ *
+ * These are the only two columns `QDBCatalog.CRM.TatAndEscalations` reads from a
+ * step. Everything a deadline needs — the value, its unit, working-days versus
+ * calendar-days, the level chain, the email template, the workflow to trigger —
+ * lives on a **reusable escalation configuration record**, not on the step. The
+ * step either names one, or asks for one to be resolved by condition:
+ *
+ *     config = step.qdb_escalation
+ *           ?? (step.qdb_applyescalationfilter ? resolveByCondition(...) : null)
+ *
+ * DP-2 modelled this as eleven per-step scalars (duration, unit, basis, warning
+ * percentage, action, target type, three target lookups). Nothing read them, and
+ * they flattened a shared configuration into copies on every step.
  */
-export interface SlaFields {
-  slaEnabled: boolean;
-  slaDuration: number | null;
-  slaDurationUnit: SlaDurationUnit | null;
-  slaBasis: SlaBasis | null;
-  slaWarningPct: number | null;
-  escalationEnabled: boolean;
-  escalationAction: EscalationAction | null;
-  escalationTargetType: EscalationTargetType | null;
-  escalationUserId: string | null;
-  escalationUserName: string | null;
-  escalationTeamId: string | null;
-  escalationTeamName: string | null;
-  escalationRoleId: string | null;
-  escalationRoleName: string | null;
+export interface EscalationFields {
+  /** The escalation configuration this step follows. Null when it does not escalate. */
+  escalationConfigId: string | null;
+  escalationConfigName: string | null;
+  /** Resolve a configuration by condition instead of naming one outright. */
+  applyEscalationFilter: boolean;
 }
 
-// --- Control flow: parallel (AND) gateway (DP-1) ---
+/** An escalation configuration a step can point at. */
+export interface EscalationConfigOption {
+  id: string;
+  name: string;
+  /** Numeric escalation value with its unit, e.g. "3 Days", for the picker. */
+  summary: string | null;
+}
 
-/** How a step's outcomes relate to each other when the step completes. */
-export type SplitType = 'Exclusive' | 'Parallel';
-
-/** Whether a step waits for its inbound branches before it starts. */
-export type JoinType = 'None' | 'AndJoin';
+// --- Concurrency: the platform engine's model (CWFD-005) ---
 
 /**
- * Explicit control-flow semantics for a process step. Before DP-1 the model
- * carried no gateway concept at all and exclusive choice was implied by
- * convention, so `Exclusive`/`None` are both the defaults and the meaning every
- * pre-DP-1 step keeps. Design-time configuration only — concurrency is enforced
- * by the future CWFD-005 runtime, and a process using it cannot be published
- * until then.
+ * How a step participates in concurrent work.
+ *
+ * These are the columns the QDB process engine actually reads. A step naming a
+ * `parentStepId` is a **branch**: when the parent step's task is created,
+ * `OnTaskCreate` creates a task for this step too, and the two run side by side.
+ * A branch may carry its own condition, so a branch can be skipped without
+ * skipping its siblings.
+ *
+ * DP-1 originally modelled concurrency as `splitType`/`joinType` option sets.
+ * Those were never read by anything — see `cwfd-005-runtime/engine-contract.md`.
  */
-export interface ControlFlowFields {
-  splitType: SplitType;
-  joinType: JoinType;
+export interface BranchFields {
+  /** The step this one runs concurrently beneath. Null for an ordinary step. */
+  parentStepId: string | null;
+  parentStepName: string | null;
+  /** When true, this branch starts only if `branchFilter` matches the record. */
+  applyBranchFilter: boolean;
+  /** FetchXML deciding whether this branch runs at all. */
+  branchFilter: string;
 }
 
-export interface WorkflowStep extends SlaFields, ControlFlowFields {
+export interface WorkflowStep extends EscalationFields, BranchFields {
   crmId: string;
   name: string;
   schemaName: string;
@@ -108,6 +117,17 @@ export interface WorkflowOutcome {
   applyFilter: boolean;
   stepId: string;
   nextStepId: string | null;
+  /**
+   * Refuse to complete this step while its concurrent branches are still open.
+   * This is the engine's join: `OnTaskComplete` throws rather than waits, so the
+   * user is told to finish the branches first.
+   */
+  checkParallelTasks: boolean;
+  /**
+   * Carry any still-open branches over to the next task instead of orphaning
+   * them. Only meaningful alongside `checkParallelTasks` being off.
+   */
+  updateParallelTaskRef: boolean;
 }
 
 export type RoundRobinTeamOption = TeamOption;
@@ -160,64 +180,7 @@ export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
   team: 100000002,
 };
 
-// --- SLA & escalation option-set codes (DP-2) ---
-// Global Dataverse option sets: qdb_SLADurationUnit, qdb_SLABasis,
-// qdb_EscalationAction, qdb_EscalationTargetType.
-
-export const SLA_DURATION_UNIT_CODES: Record<SlaDurationUnit, number> = {
-  Hours: 100000000,
-  CalendarDays: 100000001,
-  BusinessDays: 100000002,
-};
-
-export const SLA_BASIS_CODES: Record<SlaBasis, number> = {
-  TaskCreated: 100000000,
-  TaskAssigned: 100000001,
-  PreviousStepCompleted: 100000002,
-};
-
-export const ESCALATION_ACTION_CODES: Record<EscalationAction, number> = {
-  Reassign: 100000000,
-  Notify: 100000001,
-  Flag: 100000002,
-  ReassignAndNotify: 100000003,
-};
-
-export const ESCALATION_TARGET_TYPE_CODES: Record<EscalationTargetType, number> = {
-  SpecificUser: 100000000,
-  SpecificTeam: 100000001,
-  ManagerOfAssignee: 100000002,
-  Role: 100000003,
-};
-
-// --- Control-flow option-set codes (DP-1) ---
-// Global Dataverse option sets: qdb_SplitType, qdb_JoinType.
-// Code 100000002 is deliberately unallocated in both sets — reserved for the
-// inclusive (OR) split and the quorum join, which DP-1 does not build. See
-// ADR-1-001: leaving the number free keeps that extension additive, while not
-// creating the value keeps a maker from selecting a semantic nothing implements.
-
-export const SPLIT_TYPE_CODES: Record<SplitType, number> = {
-  Exclusive: 100000000,
-  Parallel: 100000001,
-};
-
-export const JOIN_TYPE_CODES: Record<JoinType, number> = {
-  None: 100000000,
-  AndJoin: 100000001,
-};
-
-/** Inverts a code map. Safe only for maps with unique integer codes. */
-function invertCodeMap<T extends string>(map: Record<T, number>): Record<number, T> {
-  return Object.fromEntries(
-    Object.entries(map).map(([key, code]) => [code as number, key as T])
-  ) as Record<number, T>;
-}
-
-export const SLA_DURATION_UNIT_FROM_CODE = invertCodeMap(SLA_DURATION_UNIT_CODES);
-export const SLA_BASIS_FROM_CODE = invertCodeMap(SLA_BASIS_CODES);
-export const ESCALATION_ACTION_FROM_CODE = invertCodeMap(ESCALATION_ACTION_CODES);
-export const ESCALATION_TARGET_TYPE_FROM_CODE = invertCodeMap(ESCALATION_TARGET_TYPE_CODES);
-
-export const SPLIT_TYPE_FROM_CODE = invertCodeMap(SPLIT_TYPE_CODES);
-export const JOIN_TYPE_FROM_CODE = invertCodeMap(JOIN_TYPE_CODES);
+// DP-1's qdb_splittype / qdb_jointype and DP-2's four SLA/escalation option sets
+// lived here. All were removed by the CWFD-005 reconciliation: the engine reads a
+// step's escalation configuration lookup and its branch hierarchy instead, and
+// nothing ever read the columns those code maps described.

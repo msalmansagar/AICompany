@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { useSopStore } from '@/store/sopStore';
 import type { SopStore } from '@/store/sopStore';
 import { useSopAdapter } from './useSopAdapter';
-import { copySlaFields } from '@/services/slaStepFields';
+import { copyEscalationFields } from '@/services/escalationFields';
 
 type Adapter = ReturnType<typeof useSopAdapter>;
 
@@ -84,7 +84,7 @@ async function saveSopSteps(adapter: Adapter) {
         stepType: step.stepType ?? 'step',
         executionChannel: step.executionChannel ?? null,
         decisionLabel: step.decisionLabel ?? null,
-        ...copySlaFields(step),
+        ...copyEscalationFields(step),
       });
       getState().resolveTmpId(stepId, realId, 'sopstep');
     } else if (dirtyIds.includes(stepId)) {
@@ -96,7 +96,7 @@ async function saveSopSteps(adapter: Adapter) {
         stepType: step.stepType ?? 'step',
         executionChannel: step.executionChannel ?? null,
         decisionLabel: step.decisionLabel ?? null,
-        ...copySlaFields(step),
+        ...copyEscalationFields(step),
       });
     }
   }

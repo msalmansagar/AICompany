@@ -8,8 +8,8 @@ import type {
   WorkflowOutcome,
   WorkflowRoute,
 } from '@/types/WorkflowTypes';
-import { emptySlaFields } from '@/services/slaStepFields';
-import { emptyControlFlowFields } from '@/services/controlFlowFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
+import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 
 export interface TemplateGraph {
   steps: WorkflowStep[];
@@ -52,8 +52,8 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     roundRobinTeamId: null,
     roundRobinTeamName: null,
     processId,
-    ...emptySlaFields(),
-    ...emptyControlFlowFields(),
+    ...emptyEscalationFields(),
+    ...emptyBranchFields(),
   };
 }
 
@@ -63,14 +63,14 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
   outcome: WorkflowOutcome;
   route: WorkflowRoute;
 } {
-  const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: toStepId };
+  const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(), stepId: fromStepId, nextStepId: toStepId };
   const route: WorkflowRoute = { crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
   return { outcome, route };
 }
 
 /** A terminal branch — a labelled outcome that ends the process (no edge). */
 function terminal(fromStepId: string, label: string, seq: number): WorkflowOutcome {
-  return { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, stepId: fromStepId, nextStepId: null };
+  return { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(), stepId: fromStepId, nextStepId: null };
 }
 
 function graphFrom(steps: WorkflowStep[], parts: (WorkflowOutcome | { outcome: WorkflowOutcome; route: WorkflowRoute })[]): TemplateGraph {

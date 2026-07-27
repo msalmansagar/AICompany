@@ -1,7 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
-import { controlFlowSummaryText, controlFlowDescription } from '../services/controlFlowFields';
+import { branchSummaryText } from '../services/branchFields';
 import type { ViewStepData, StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
@@ -19,7 +19,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
     assignLabel === 'Specific User' ? step.assignedUserName
     : assignLabel === 'Team'        ? step.teamName
     :                                 step.roundRobinTeamName;
-  const controlFlowLabel = controlFlowSummaryText(step);
+  const controlFlowLabel = branchSummaryText(step);
 
   // TB: target=Top, source=Bottom, back handles=Left (offset to avoid overlap)
   // LR: target=Left, source=Right, back handles=Bottom (above) and Top (below)
@@ -38,7 +38,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
         <span style={seqBadge}>{step.sequenceNo}</span>
         <span style={nameText}>{step.name || 'Unnamed Step'}</span>
         {controlFlowLabel && (
-          <span style={controlFlowBadge} title={controlFlowDescription(step) ?? undefined}>
+          <span style={controlFlowBadge} title={step.parentStepName ? `Runs at the same time as "${step.parentStepName}"` : undefined}>
             ⧉ {controlFlowLabel}
           </span>
         )}

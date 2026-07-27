@@ -2,8 +2,8 @@ import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
-import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
-import { mapControlFlowFields, buildControlFlowBody, CONTROL_FLOW_SELECT_COLUMNS } from './controlFlowFields';
+import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
+import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
   CrmRole,
   SopSummary,
@@ -35,6 +35,7 @@ import type {
   AttributeOption,
   UserOption,
   TeamOption,
+  EscalationConfigOption,
   AutoNumberEntityOption,
   AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
@@ -182,7 +183,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${CONTROL_FLOW_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -227,11 +228,11 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${SET.process}(${data.processId})`;
     Object.assign(
       body,
-      await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), E, {
-        user: 'systemusers',
-        team: 'teams',
-        role: SET.role,
-      })
+      await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, ESCALATION_CONFIG_SET)
+    );
+    Object.assign(
+      body,
+      await buildParentStepBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, SET.step)
     );
     return body;
   }
@@ -243,7 +244,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.outcome,
-        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
+        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS}&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapOutcome);
@@ -441,6 +442,20 @@ export class DataverseAdapter implements ISopAdapter {
       }));
     } catch (err) {
       throw asError(err, 'getTeams');
+    }
+  }
+
+  async getEscalationConfigs(): Promise<EscalationConfigOption[]> {
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords(
+          ESCALATION_CONFIG_ENTITY,
+          `?$select=${ESCALATION_CONFIG_ID},qdb_name,qdb_escalationvalue,qdb_escalationvalueunit&$top=200&$orderby=qdb_name asc`
+        )
+      );
+      return result.entities.map(mapEscalationConfig);
+    } catch (err) {
+      throw asError(err, 'getEscalationConfigs');
     }
   }
 
@@ -717,7 +732,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.sopStep,
-        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${SLA_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${ESCALATION_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapSopStep);
@@ -737,8 +752,8 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${SET.role}(${data.roleId})`;
     }
-    Object.assign(body, buildSlaBody(data));
-    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, { user: 'systemusers', team: 'teams', role: SET.role }));
+    Object.assign(body, buildEscalationBody(data));
+    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.sopStep, body));
     return result.id;
   }
@@ -755,8 +770,8 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId ? `/${SET.role}(${data.roleId})` : null;
     }
-    Object.assign(body, buildSlaBody(data));
-    Object.assign(body, await buildEscalationBindPatches(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, { user: 'systemusers', team: 'teams', role: SET.role }));
+    Object.assign(body, buildEscalationBody(data));
+    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.sopStep, id, body));
   }
 
@@ -908,8 +923,8 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
     roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
-    ...mapSlaFields(raw),
-    ...mapControlFlowFields(raw),
+    ...mapEscalationFields(raw),
+    ...mapBranchFields(raw),
   };
 }
 
@@ -927,6 +942,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     applyFilter: (raw['qdb_applyfilter'] as boolean) ?? false,
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
     nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
+    ...mapOutcomeConcurrency(raw),
   };
 }
 
@@ -960,8 +976,8 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
-  Object.assign(body, buildSlaBody(data));
-  Object.assign(body, buildControlFlowBody(data));
+  Object.assign(body, buildEscalationBody(data));
+  Object.assign(body, buildBranchBody(data));
   return body;
 }
 
@@ -970,6 +986,7 @@ function buildOutcomeBody(data: Partial<Omit<WorkflowOutcome, 'crmId'>>): Record
   if (data.name !== undefined) body['qdb_name'] = data.name;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.applyFilter !== undefined) body['qdb_applyfilter'] = data.applyFilter;
+  Object.assign(body, buildOutcomeConcurrencyBody(data));
   return body;
 }
 
@@ -1047,7 +1064,7 @@ function mapSopStep(raw: Record<string, unknown>): SopStep {
     stepType: SOP_STEP_TYPE_FROM_OPTION_VALUE[raw['qdb_steptypecode'] as number] ?? 'step',
     executionChannel: channelRaw === 'crm' || channelRaw === 'manual' ? channelRaw : null,
     decisionLabel: (raw['qdb_decisionlabel'] as string | null) ?? null,
-    ...mapSlaFields(raw),
+    ...mapEscalationFields(raw),
   };
 }
 
