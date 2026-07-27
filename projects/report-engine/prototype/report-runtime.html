@@ -1,6 +1,12 @@
 <meta charset="utf-8" />
 <title>Report Engine — Runtime Viewer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  No ClientGlobalContext.js.aspx here: it returns 404 on this environment, and it is not needed.
+  Xrm is injected by the app shell whenever the page is hosted — a sitemap area, a dashboard, a form,
+  or main.aspx?pagetype=webresource. Opening the raw /WebResources/… URL bypasses the shell, so no
+  Xrm exists and nothing can work; the empty state below says so and gives the URL that does.
+-->
 <style>
   /* ============ Fluent / Power Platform design tokens (shared with the Designer) ============ */
   :root {
@@ -227,12 +233,32 @@ function toast(msg, kind){ const t=document.createElement("div"); t.className="t
 
    Everything runs as the signed-in CRM user, so row-level security applies with no token to hold. */
 
-function xrm(){
-  const found = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
-  if (!found || !found.WebApi) {
-    throw new Error("This viewer must run as a CRM web resource — no Xrm context is available.");
+/* Xrm arrives one of two ways: injected by the app shell when this page is hosted in a form,
+   dashboard or sitemap area, or from ClientGlobalContext.js.aspx when it is opened on its own URL.
+   Both are checked, and which one answered is reported by the self-check — a page that finds Xrm but
+   no WebApi is a different problem from one that finds nothing at all. */
+function findXrm(){
+  const sources = [
+    ["this frame", () => window.Xrm],
+    ["parent frame", () => window.parent && window.parent.Xrm],
+    ["top frame", () => window.top && window.top.Xrm]
+  ];
+  for (const [origin, get] of sources) {
+    let candidate = null;
+    try { candidate = get(); } catch (e) { continue; }   // cross-origin parents throw on access
+    if (candidate && candidate.WebApi) return { xrm: candidate, origin };
   }
-  return found;
+  return null;
+}
+
+function xrm(){
+  const found = findXrm();
+  if (!found) {
+    throw new Error(
+      "No Xrm context. Host this page in the app (sitemap area, dashboard or form), or ensure "
+      + "ClientGlobalContext.js.aspx loaded — check the browser console for a 404 on that script.");
+  }
+  return found.xrm;
 }
 
 async function dvRetrieveMultiple(logicalName, query){
@@ -548,8 +574,8 @@ function closeModal(){ $("#modalBack").classList.remove("open"); }
 const SELF_TEST_STEPS = [
   {
     name: "Xrm context is available",
-    detail: "The web resource can reach Xrm from its own frame, the parent, or the top window.",
-    run: () => { xrm(); return "Xrm.WebApi reachable"; }
+    detail: "Injected by the app shell when hosted, or from ClientGlobalContext.js.aspx when opened directly.",
+    run: () => { xrm(); return "Xrm.WebApi found in the " + findXrm().origin; }
   },
   {
     name: "Signed-in user resolved",
@@ -662,13 +688,29 @@ document.querySelectorAll(".nav-item[data-nav]").forEach(b => b.onclick = () => 
   if (b.dataset.nav === "dashboards") loadDashboards(); else loadCatalog();
 });
 
-if (inCrm && new URLSearchParams(location.search).get("selftest") === "1") {
+// Hosted via main.aspx the query string arrives in `data`, not directly — accept either spelling.
+const launchParams = new URLSearchParams(location.search);
+const wantsSelfTest = launchParams.get("selftest") === "1"
+  || /selftest=1/.test(launchParams.get("data") || "");
+
+if (inCrm && wantsSelfTest) {
   runSelfTest();
 } else if (inCrm) {
   loadCatalog();
 } else {
-  $("#content").innerHTML = `<div class="cmdbar"><b>Report Catalog</b></div><div class="page">${notPortedNotice(
-    "This viewer runs inside CRM",
-    "Open it as the qdb_reportengine_runtime.html web resource. It reads report definitions and runs reports through your CRM session, so there is no server to point it at and nothing to configure.")}</div>`;
+  // Reached by opening the raw /WebResources/ URL, which bypasses the app shell that injects Xrm.
+  $("#content").innerHTML = `<div class="cmdbar"><b>Report Catalog</b></div><div class="page">
+    <div class="empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+      <div><b>Open this from inside the app, not by its file URL.</b></div>
+      <div style="color:var(--text-secondary); max-width:520px; margin-top:6px">
+        The viewer reads and runs reports through your CRM session, so it needs the app shell that
+        supplies it. Opened straight from <code>/WebResources/…</code> there is no session to use.
+      </div>
+      <div style="margin-top:12px; text-align:left; display:inline-block">
+        <div style="color:var(--text-secondary); font-size:12px; margin-bottom:4px">Use this URL instead:</div>
+        <code style="font-size:12px; word-break:break-all">${esc(location.origin)}/main.aspx?pagetype=webresource&amp;webresourceName=qdb_reportengine_runtime.html</code>
+      </div>
+    </div></div>`;
 }
 </script>

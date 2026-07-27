@@ -4540,6 +4540,21 @@ function initCrmContext() {
 }
 initCrmContext();
 
+/* Opened from the raw /WebResources/ URL there is no app shell, so no Xrm, so Save and Open cannot
+   work — while every in-memory part of the designer still looks fine. That combination is the
+   confusing one: you build a report, press Save, and it fails for a reason nothing on screen
+   explains. Say it up front, and name the URL that works. */
+if (!state.inCrm) {
+  const hosted = `${location.origin}/main.aspx?pagetype=webresource&webresourceName=qdb_reportengine_designer.html`;
+  const banner = el(`<div style="padding:10px 16px;background:var(--warning-bg);border-bottom:1px solid var(--border-strong);font-size:13px">
+    <b>Preview mode — Save and Open are unavailable.</b>
+    Designing, previewing and the dashboard composer all work here, but storing to Dataverse needs a
+    CRM session. Open the designer from inside the app instead:
+    <div style="margin-top:6px"><code style="font-size:12px;word-break:break-all">${esc(hosted)}</code></div>
+  </div>`);
+  document.body.insertBefore(banner, document.body.firstChild);
+}
+
 applyTheme(readStoredTheme() ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 
