@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
@@ -5,6 +6,7 @@ import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/ty
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { confirm } from '@/components/ui/ConfirmDialog';
 import { EscalationSection } from './EscalationSection';
+import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { BranchSection } from './BranchSection';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
@@ -159,6 +161,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
       sequenceNumber: maxSeq + 1,
       applyFilter: false,
       ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
       stepId: step.crmId,
       nextStepId: newDecisionTarget === '__end__' ? null : newDecisionTarget,
     });
@@ -342,6 +345,16 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           candidateParents={candidateParents}
           childCount={branchChildrenOf(step.crmId, steps).length}
           onEditCondition={() => setShowBranchFilterBuilder(true)}
+        />
+
+        <div style={dividerStyle} />
+
+        <WorkflowHooksSection
+          value={step.workflowHooks}
+          onChange={(workflowHooks) => setStep({ ...step, workflowHooks })}
+          kinds={STEP_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for every task this step creates. The engine also runs any workflow set on the outcome and on the process, so more than one can fire."
         />
 
         <div style={dividerStyle} />

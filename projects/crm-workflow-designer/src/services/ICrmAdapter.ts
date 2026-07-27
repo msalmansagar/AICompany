@@ -1,3 +1,4 @@
+import type { CallableWorkflowOption } from './workflowHooks';
 import type {
   WorkflowProcess,
   WorkflowStep,
@@ -54,6 +55,8 @@ export interface ICrmAdapter {
   getRoundRobinTeams(): Promise<TeamOption[]>;
   /** Escalation configurations a step can follow (CWFD-005). */
   getEscalationConfigs(): Promise<EscalationConfigOption[]>;
+  /** Workflows the engine can execute on demand (DP-5). */
+  getCallableWorkflows(): Promise<CallableWorkflowOption[]>;
   getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
   getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 
