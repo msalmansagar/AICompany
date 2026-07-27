@@ -305,7 +305,7 @@ async function fetchCatalog(){
 
 async function fetchDefinition(id){
   const parent = `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
-  const [definition, parameters, relationships, formulas] = await Promise.all([
+  const [definition, parameters, relationships, formulas, transformations] = await Promise.all([
     xrm().WebApi.retrieveRecord("qdb_reportdefinition", id,
       "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,"
       + "qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit"),
@@ -315,7 +315,9 @@ async function fetchDefinition(id){
     dvRetrieveMultiple("qdb_reportrelationship", parent
       + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey"),
     dvRetrieveMultiple("qdb_reportformula", parent
-      + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder")
+      + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
+    dvRetrieveMultiple("qdb_reporttransformation", parent
+      + "&$select=qdb_transformtype,qdb_configjson,qdb_steporder,qdb_enabled&$orderby=qdb_steporder")
   ]);
 
   return {
@@ -335,6 +337,12 @@ async function fetchDefinition(id){
     })),
     formulas: formulas.map(f => ({
       formulaAlias: f.qdb_formulaalias, expression: f.qdb_expression, evaluationOrder: f.qdb_evaluationorder
+    })),
+    // Dispatched on the label, as the retired pipeline did — the numeric codes are 100000000-based
+    // and easy to get wrong, while the label is stable and readable.
+    transformations: transformations.map(t => ({
+      transformType: t["qdb_transformtype@OData.Community.Display.V1.FormattedValue"],
+      configJson: t.qdb_configjson, stepOrder: t.qdb_steporder, enabled: t.qdb_enabled !== false
     }))
   };
 }
@@ -422,8 +430,10 @@ async function runReport(){
   const host = $("#resultHost"); host.innerHTML = `<div class="empty"><span class="spinner"></span> Running…</div>`;
   const startedAt = Date.now();
   try {
-    // The plugin returns stored columns; computed ones are derived here (ADR-RPT-011).
-    const result = applyFormulas(await runReportInCrm(def.id, collectParams()), def.formulas);
+    // The plugin returns stored columns; computed ones are derived here, then shaped (ADR-RPT-011).
+    // Transformations run last so they can format a formula's output too.
+    const executed = await runReportInCrm(def.id, collectParams());
+    const result = applyTransformations(applyFormulas(executed, def.formulas), def.transformations);
     result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
     renderResult(result);
@@ -762,6 +772,155 @@ function applyFormulas(result, formulas){
     }
   }
 
+  return result;
+}
+
+/* ---------------- transformations ----------------
+   Post-query shaping, applied after formulas so a computed column can be formatted too — the order
+   the retired C# pipeline used. Ported from it verbatim in behaviour: dispatch on the type LABEL,
+   skip disabled steps, run in StepOrder, and pass the result through untouched when a step's type is
+   unimplemented or its config will not parse. A misconfigured step must never cost the user the
+   report. Formatting rewrites a cell's display text and leaves its underlying value alone, so
+   filters, formulas and exports keep seeing real data. */
+
+const TRANSFORMATIONS = {
+  RenameColumns: (result, config) => {
+    const renames = config.renames || {};
+    for (const column of result.columns) {
+      if (typeof renames[column.alias] === "string") column.label = renames[column.alias];
+    }
+    return result;
+  },
+
+  NullHandling: (result, config) => {
+    const perColumn = config.columns || {};
+    return mapCells(result, (alias, cell) => {
+      if (cell.text) return cell;
+      const replacement = perColumn[alias] ?? config.default;
+      return replacement == null ? cell : { value: cell.value, text: replacement };
+    });
+  },
+
+  Masking: (result, config) => {
+    const columns = new Set(Array.isArray(config.columns) ? config.columns : []);
+    const keepLast = Math.max(parseInt(config.keepLast, 10) || 0, 0);
+    const maskChar = (typeof config.mask === "string" && config.mask.length) ? config.mask[0] : "*";
+    return mapCells(result, (alias, cell) =>
+      columns.has(alias) && cell.text ? { value: cell.value, text: maskText(cell.text, keepLast, maskChar) } : cell);
+  },
+
+  NumberFormat: (result, config) => {
+    const decimals = Math.max(parseInt(config.decimals, 10) || 0, 0);
+    const thousands = config.thousands !== false;
+    return formatColumns(result, config.columns, cell => {
+      const n = toNumberOrNull(cell);
+      return n === null ? cell.text : formatNumber(n, decimals, thousands);
+    });
+  },
+
+  CurrencyFormat: (result, config) => {
+    const symbol = typeof config.symbol === "string" ? config.symbol : "QAR";
+    const decimals = config.decimals == null ? 2 : Math.max(parseInt(config.decimals, 10) || 0, 0);
+    return formatColumns(result, config.columns, cell => {
+      const n = toNumberOrNull(cell);
+      return n === null ? cell.text : `${symbol} ${formatNumber(n, decimals, true)}`;
+    });
+  },
+
+  DateFormat: (result, config) => {
+    const format = (typeof config.format === "string" && config.format.length) ? config.format : "yyyy-MM-dd";
+    return formatColumns(result, config.columns, cell => {
+      const date = toDateOrNull(cell);
+      return date === null ? cell.text : formatDate(date, format);
+    });
+  },
+
+  Mapping: (result, config) => {
+    if (typeof config.column !== "string") return result;
+    const map = config.map || {};
+    return mapCells(result, (alias, cell) => {
+      if (alias !== config.column) return cell;
+      const key = String(cell.value ?? cell.text ?? "");
+      if (Object.prototype.hasOwnProperty.call(map, key)) return { value: cell.value, text: map[key] };
+      return config.default == null ? cell : { value: cell.value, text: config.default };
+    });
+  },
+
+  MergeColumns: (result, config) => {
+    const sources = Array.isArray(config.columns) ? config.columns : [];
+    if (!sources.length || typeof config.into !== "string") return result;
+    const separator = typeof config.separator === "string" ? config.separator : " ";
+
+    result.columns.push({ alias: config.into, label: config.label || config.into, attribute: null, isVisible: true });
+    for (const row of result.rows) {
+      const merged = sources.map(a => (row.cells[a] || {}).text).filter(t => t).join(separator);
+      row.cells[config.into] = { value: merged, text: merged };
+    }
+    return result;
+  }
+};
+
+function mapCells(result, transform){
+  for (const row of result.rows) {
+    for (const alias of Object.keys(row.cells)) row.cells[alias] = transform(alias, row.cells[alias]);
+  }
+  return result;
+}
+
+function formatColumns(result, columns, format){
+  const target = new Set(Array.isArray(columns) ? columns : []);
+  return mapCells(result, (alias, cell) =>
+    target.has(alias) && cell.text ? { value: cell.value, text: format(cell) } : cell);
+}
+
+function maskText(text, keepLast, maskChar){
+  return keepLast >= text.length ? text : maskChar.repeat(text.length - keepLast) + text.slice(text.length - keepLast);
+}
+
+/** Uses the raw value when it is numeric, falling back to parsing the display text. */
+function toNumberOrNull(cell){
+  const source = (cell.value == null || cell.value === "") ? cell.text : cell.value;
+  if (source == null || source === "") return null;
+  const parsed = parseFloat(String(source).replace(/[^\d.eE+-]/g, ""));
+  return isNaN(parsed) ? null : parsed;
+}
+
+function toDateOrNull(cell){
+  const parsed = new Date(cell.value ?? cell.text);
+  return isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatNumber(value, decimals, thousands){
+  const [whole, fraction] = Math.abs(value).toFixed(decimals).split(".");
+  const grouped = thousands ? whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") : whole;
+  return (value < 0 ? "-" : "") + grouped + (fraction ? "." + fraction : "");
+}
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/** Supports the .NET-style tokens the designer offers; anything else is left as written. */
+function formatDate(date, format){
+  const pad = n => String(n).padStart(2, "0");
+  const tokens = {
+    yyyy: date.getFullYear(), MMM: MONTHS[date.getMonth()], MM: pad(date.getMonth() + 1),
+    dd: pad(date.getDate()), HH: pad(date.getHours()), mm: pad(date.getMinutes()), ss: pad(date.getSeconds())
+  };
+  return format.replace(/yyyy|MMM|MM|dd|HH|mm|ss/g, token => tokens[token]);
+}
+
+function applyTransformations(result, transformations){
+  const steps = (transformations || [])
+    .filter(step => step.enabled !== false)
+    .slice()
+    .sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+
+  for (const step of steps) {
+    const apply = TRANSFORMATIONS[step.transformType];
+    if (!apply) continue;                                  // type not implemented yet — pass through
+    let config;
+    try { config = JSON.parse(step.configJson || "{}"); } catch (e) { continue; }
+    try { result = apply(result, config) || result; } catch (e) { /* leave the result as it was */ }
+  }
   return result;
 }
 
