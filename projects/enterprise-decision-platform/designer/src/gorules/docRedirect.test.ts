@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DECISION_GRAPH_GUIDE,
@@ -94,4 +96,19 @@ describe('installGoRulesDocRedirect', () => {
 
     expect(window.open).toBe(openSpy);
   });
+});
+
+describe('guide deployment coupling', () => {
+  // The redirect points at web resources by name. If a guide file is renamed or a new node
+  // type gains a guide without a matching file, the pane still opens — it just renders an
+  // empty iframe, which no other test would catch.
+  const GUIDE_DIR = join(__dirname, '..', '..', '..', 'deploy', 'guides');
+  const ALL_GUIDES = [DECISION_TABLE_GUIDE, DECISION_GRAPH_GUIDE, EXPRESSION_GUIDE, FUNCTION_GUIDE];
+
+  it.each(ALL_GUIDES.map((g) => [g.webResourceName, g] as const))(
+    'has a deployable source file for %s',
+    (_name, guide) => {
+      expect(existsSync(join(GUIDE_DIR, `${guide.webResourceName}.html`))).toBe(true);
+    },
+  );
 });
