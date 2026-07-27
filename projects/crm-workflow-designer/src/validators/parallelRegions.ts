@@ -86,8 +86,7 @@ function outcomeTargets(
 function reachableFrom(graph: dagre.graphlib.Graph, start: string, blocked?: string): Set<string> {
   const seen = new Set<string>();
   const queue = [...(graph.successors(start) ?? [])];
-  while (queue.length > 0) {
-    const node = queue.shift() as string;
+  for (let node = queue.shift(); node !== undefined; node = queue.shift()) {
     if (seen.has(node) || node === blocked) continue;
     seen.add(node);
     queue.push(...(graph.successors(node) ?? []));
@@ -99,9 +98,8 @@ function reachableFrom(graph: dagre.graphlib.Graph, start: string, blocked?: str
 function hopDistances(graph: dagre.graphlib.Graph, start: string): Map<string, number> {
   const distances = new Map<string, number>([[start, 0]]);
   const queue = [start];
-  while (queue.length > 0) {
-    const node = queue.shift() as string;
-    const next = (distances.get(node) as number) + 1;
+  for (let node = queue.shift(); node !== undefined; node = queue.shift()) {
+    const next = (distances.get(node) ?? 0) + 1;
     for (const successor of graph.successors(node) ?? []) {
       if (distances.has(successor)) continue;
       distances.set(successor, next);
@@ -141,8 +139,7 @@ function findNearestJoin(
 function ancestorsOf(graph: dagre.graphlib.Graph, target: string): Set<string> {
   const seen = new Set<string>();
   const queue = [...(graph.predecessors(target) ?? [])];
-  while (queue.length > 0) {
-    const node = queue.shift() as string;
+  for (let node = queue.shift(); node !== undefined; node = queue.shift()) {
     if (seen.has(node)) continue;
     seen.add(node);
     queue.push(...(graph.predecessors(node) ?? []));
@@ -251,12 +248,15 @@ function checkRegion(context: AnalysisContext, region: ParallelRegion): Parallel
   if (region.branchEntryIds.length < 2) {
     return [{ code: 'PARALLEL_SPLIT_SINGLE_BRANCH', stepId: region.splitStepId }];
   }
-  if (!region.joinStepId) {
+  const join = region.joinStepId;
+  if (!join) {
     return [{ code: 'UNMATCHED_PARALLEL_SPLIT', stepId: region.splitStepId }];
   }
+  // `join` is narrowed to string here, so the checks below take it as a parameter
+  // rather than re-deriving it from the nullable field.
   return [
-    ...checkStarvation(context.graph, region),
-    ...checkExternalEntry(context.graph, region),
+    ...checkStarvation(context.graph, region, join),
+    ...checkExternalEntry(context.graph, region, join),
     ...checkLoopInRegion(context, region),
   ];
 }
@@ -265,8 +265,11 @@ function checkRegion(context: AnalysisContext, region: ParallelRegion): Parallel
  * A branch that can reach End without passing through the join leaves the join
  * waiting for a branch that will never arrive.
  */
-function checkStarvation(graph: dagre.graphlib.Graph, region: ParallelRegion): ParallelFinding[] {
-  const join = region.joinStepId as string;
+function checkStarvation(
+  graph: dagre.graphlib.Graph,
+  region: ParallelRegion,
+  join: string
+): ParallelFinding[] {
   const starving = region.branchEntryIds.filter(
     (entry) => entry === END_SINK || reachableFrom(graph, entry, join).has(END_SINK)
   );
@@ -285,8 +288,11 @@ function checkStarvation(graph: dagre.graphlib.Graph, region: ParallelRegion): P
  * An edge into the join from outside the region means the process can arrive at the
  * join having never taken the split, so it waits for branches that never started.
  */
-function checkExternalEntry(graph: dagre.graphlib.Graph, region: ParallelRegion): ParallelFinding[] {
-  const join = region.joinStepId as string;
+function checkExternalEntry(
+  graph: dagre.graphlib.Graph,
+  region: ParallelRegion,
+  join: string
+): ParallelFinding[] {
   const inRegion = new Set([region.splitStepId, ...region.interiorStepIds]);
   const external = (graph.predecessors(join) ?? []).filter((pred) => !inRegion.has(pred));
   if (external.length === 0) return [];
