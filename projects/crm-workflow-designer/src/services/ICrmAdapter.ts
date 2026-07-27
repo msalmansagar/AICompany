@@ -7,6 +7,7 @@ import type {
   AttributeOption,
   UserOption,
   TeamOption,
+  EscalationConfigOption,
   AutoNumberEntityOption,
   AutoNumberFieldOption,
 } from '@/types/WorkflowTypes';
@@ -51,6 +52,8 @@ export interface ICrmAdapter {
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
   getRoundRobinTeams(): Promise<TeamOption[]>;
+  /** Escalation configurations a step can follow (CWFD-005). */
+  getEscalationConfigs(): Promise<EscalationConfigOption[]>;
   getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
   getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 

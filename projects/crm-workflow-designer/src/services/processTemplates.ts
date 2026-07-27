@@ -8,7 +8,7 @@ import type {
   WorkflowOutcome,
   WorkflowRoute,
 } from '@/types/WorkflowTypes';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 
 export interface TemplateGraph {
@@ -52,7 +52,7 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     roundRobinTeamId: null,
     roundRobinTeamName: null,
     processId,
-    ...emptySlaFields(),
+    ...emptyEscalationFields(),
     ...emptyBranchFields(),
   };
 }

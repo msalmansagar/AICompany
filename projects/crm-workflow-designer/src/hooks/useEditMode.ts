@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
-import { emptySlaFields, slaSummaryText } from '@/services/slaStepFields';
+import { emptyEscalationFields, escalationSummaryText } from '@/services/escalationFields';
 import {
   emptyBranchFields,
   branchSummaryText,
@@ -110,7 +110,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         assigneeName: resolveAssigneeName(step),
         isSelected: selectedId === `step_${stepId}`,
         hasError: errorStepIds.has(step.crmId),
-        slaSummary: slaSummaryText(step),
+        slaSummary: escalationSummaryText(step),
         controlFlowSummary:
           branchSummaryText(step) ?? fanOutSummaryText(branchChildrenOf(step.crmId, steps).length),
         controlFlowDescription: describeConcurrency(step, branchChildrenOf(step.crmId, steps).length),
@@ -302,7 +302,7 @@ function resolveConnectSourceStepId(selectedId: string | null, stepOrder: string
 
 function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
-    ...emptySlaFields(),
+    ...emptyEscalationFields(),
     ...emptyBranchFields(),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',

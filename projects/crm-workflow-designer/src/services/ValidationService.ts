@@ -1,5 +1,4 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
-import { validateSlaConfig } from '@/validators/slaValidator';
 import { analyseBranchRegions } from '@/validators/branchRegions';
 import type { BranchFinding } from '@/validators/branchRegions';
 
@@ -20,9 +19,7 @@ export type ViolationCode =
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
-  | 'MISSING_FALLBACK_ROUTE'
-  | 'INVALID_SLA'
-  | 'BRANCH_SELF_PARENT'
+  | 'MISSING_FALLBACK_ROUTE'  | 'BRANCH_SELF_PARENT'
   | 'BRANCH_PARENT_CYCLE'
   | 'BRANCH_PARENT_MISSING'
   | 'BRANCH_FILTER_MISSING'
@@ -80,7 +77,6 @@ export class ValidationService {
     this.checkNoTerminalOutcome(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
-    this.checkInvalidSlaConfig(steps, violations);
     this.checkMissingFetchXml(state, violations);
     this.checkInvalidNextStep(state, violations);
     this.checkDeadLoops(state, violations);
@@ -282,26 +278,6 @@ export class ValidationService {
           code: 'INVALID_ASSIGNMENT',
           message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
           nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-    }
-  }
-
-  private checkInvalidSlaConfig(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    for (const step of steps) {
-      if (!step.slaEnabled) continue;
-      const errors = validateSlaConfig(step);
-      const firstError = Object.values(errors)[0];
-      if (firstError) {
-        violations.push({
-          code: 'INVALID_SLA',
-          message: `Step "${step.name || `#${step.sequenceNo}`}" has an incomplete SLA configuration: ${firstError}`,
-          nodeId: step.crmId,
-          nodeType: 'step',
           severity: 'error',
         });
       }

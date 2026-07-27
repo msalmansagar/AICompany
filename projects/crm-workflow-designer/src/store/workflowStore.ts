@@ -3,7 +3,7 @@ import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { SimPath } from '@/services/PathEnumerator';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 import type { Violation } from '@/services/ValidationService';
 
@@ -316,7 +316,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const nextSeqNo = state.stepOrder.length + 1;
 
           const newStep: WorkflowStep = {
-            ...emptySlaFields(),
+            ...emptyEscalationFields(),
             ...emptyBranchFields(),
             crmId: newStepId,
             name: 'New Step',

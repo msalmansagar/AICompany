@@ -3,7 +3,7 @@
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import type { ISopAdapter } from './ISopAdapter';
-import { copySlaFields } from './slaStepFields';
+import { copyEscalationFields } from './escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from './branchFields';
 import type { CreateProcessFromSopRequest, StepAssignment } from '@/types/SopTypes';
 
@@ -43,7 +43,7 @@ export async function deriveProcessFromSop(
     const workflowStepId = await adapter.createStep({
       // Inherit the SOP step's SLA/escalation config onto the derived process step
       // (a one-time snapshot; independently editable afterward).
-      ...copySlaFields(sopStep),
+      ...copyEscalationFields(sopStep),
       // SOP template steps carry no control-flow semantics yet (that is DP-1b), so a
       // derived step starts exclusive — the same meaning derivation has always produced.
       ...emptyBranchFields(),

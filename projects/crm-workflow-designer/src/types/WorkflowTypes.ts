@@ -16,32 +16,38 @@ export interface WorkflowProcess {
 
 export type AssignToType = 'user' | 'team' | 'roundRobin';
 
-// --- SLA & escalation configuration (DP-2) ---
-export type SlaDurationUnit = 'Hours' | 'CalendarDays' | 'BusinessDays';
-export type SlaBasis = 'TaskCreated' | 'TaskAssigned' | 'PreviousStepCompleted';
-export type EscalationAction = 'Reassign' | 'Notify' | 'Flag' | 'ReassignAndNotify';
-export type EscalationTargetType = 'SpecificUser' | 'SpecificTeam' | 'ManagerOfAssignee' | 'Role';
+// --- Escalation: the platform engine's model (CWFD-005) ---
 
 /**
- * SLA/escalation config fields — shared by process steps (WorkflowStep) and SOP
- * template steps (SopStep). Config-only; consumed by the future CWFD-005 runtime,
- * inert until then. All nullable; slaEnabled defaults to false.
+ * How a step escalates when it runs late.
+ *
+ * These are the only two columns `QDBCatalog.CRM.TatAndEscalations` reads from a
+ * step. Everything a deadline needs — the value, its unit, working-days versus
+ * calendar-days, the level chain, the email template, the workflow to trigger —
+ * lives on a **reusable escalation configuration record**, not on the step. The
+ * step either names one, or asks for one to be resolved by condition:
+ *
+ *     config = step.qdb_escalation
+ *           ?? (step.qdb_applyescalationfilter ? resolveByCondition(...) : null)
+ *
+ * DP-2 modelled this as eleven per-step scalars (duration, unit, basis, warning
+ * percentage, action, target type, three target lookups). Nothing read them, and
+ * they flattened a shared configuration into copies on every step.
  */
-export interface SlaFields {
-  slaEnabled: boolean;
-  slaDuration: number | null;
-  slaDurationUnit: SlaDurationUnit | null;
-  slaBasis: SlaBasis | null;
-  slaWarningPct: number | null;
-  escalationEnabled: boolean;
-  escalationAction: EscalationAction | null;
-  escalationTargetType: EscalationTargetType | null;
-  escalationUserId: string | null;
-  escalationUserName: string | null;
-  escalationTeamId: string | null;
-  escalationTeamName: string | null;
-  escalationRoleId: string | null;
-  escalationRoleName: string | null;
+export interface EscalationFields {
+  /** The escalation configuration this step follows. Null when it does not escalate. */
+  escalationConfigId: string | null;
+  escalationConfigName: string | null;
+  /** Resolve a configuration by condition instead of naming one outright. */
+  applyEscalationFilter: boolean;
+}
+
+/** An escalation configuration a step can point at. */
+export interface EscalationConfigOption {
+  id: string;
+  name: string;
+  /** Numeric escalation value with its unit, e.g. "3 Days", for the picker. */
+  summary: string | null;
 }
 
 // --- Concurrency: the platform engine's model (CWFD-005) ---
@@ -68,7 +74,7 @@ export interface BranchFields {
   branchFilter: string;
 }
 
-export interface WorkflowStep extends SlaFields, BranchFields {
+export interface WorkflowStep extends EscalationFields, BranchFields {
   crmId: string;
   name: string;
   schemaName: string;
@@ -174,48 +180,7 @@ export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
   team: 100000002,
 };
 
-// --- SLA & escalation option-set codes (DP-2) ---
-// Global Dataverse option sets: qdb_SLADurationUnit, qdb_SLABasis,
-// qdb_EscalationAction, qdb_EscalationTargetType.
-
-export const SLA_DURATION_UNIT_CODES: Record<SlaDurationUnit, number> = {
-  Hours: 100000000,
-  CalendarDays: 100000001,
-  BusinessDays: 100000002,
-};
-
-export const SLA_BASIS_CODES: Record<SlaBasis, number> = {
-  TaskCreated: 100000000,
-  TaskAssigned: 100000001,
-  PreviousStepCompleted: 100000002,
-};
-
-export const ESCALATION_ACTION_CODES: Record<EscalationAction, number> = {
-  Reassign: 100000000,
-  Notify: 100000001,
-  Flag: 100000002,
-  ReassignAndNotify: 100000003,
-};
-
-export const ESCALATION_TARGET_TYPE_CODES: Record<EscalationTargetType, number> = {
-  SpecificUser: 100000000,
-  SpecificTeam: 100000001,
-  ManagerOfAssignee: 100000002,
-  Role: 100000003,
-};
-
-// DP-1's qdb_splittype / qdb_jointype option-set codes lived here. They were
-// removed by the CWFD-005 reconciliation: the engine expresses concurrency
-// through BranchFields instead, and nothing ever read those two columns.
-
-/** Inverts a code map. Safe only for maps with unique integer codes. */
-function invertCodeMap<T extends string>(map: Record<T, number>): Record<number, T> {
-  return Object.fromEntries(
-    Object.entries(map).map(([key, code]) => [code as number, key as T])
-  ) as Record<number, T>;
-}
-
-export const SLA_DURATION_UNIT_FROM_CODE = invertCodeMap(SLA_DURATION_UNIT_CODES);
-export const SLA_BASIS_FROM_CODE = invertCodeMap(SLA_BASIS_CODES);
-export const ESCALATION_ACTION_FROM_CODE = invertCodeMap(ESCALATION_ACTION_CODES);
-export const ESCALATION_TARGET_TYPE_FROM_CODE = invertCodeMap(ESCALATION_TARGET_TYPE_CODES);
+// DP-1's qdb_splittype / qdb_jointype and DP-2's four SLA/escalation option sets
+// lived here. All were removed by the CWFD-005 reconciliation: the engine reads a
+// step's escalation configuration lookup and its branch hierarchy instead, and
+// nothing ever read the columns those code maps described.

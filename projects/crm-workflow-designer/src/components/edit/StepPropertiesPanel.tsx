@@ -4,7 +4,7 @@ import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { confirm } from '@/components/ui/ConfirmDialog';
-import { SlaEscalationSection } from './SlaEscalationSection';
+import { EscalationSection } from './EscalationSection';
 import { BranchSection } from './BranchSection';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
@@ -346,11 +346,11 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <SlaEscalationSection
+        <EscalationSection
           value={step}
           onChange={(patch) => setStep({ ...step, ...patch })}
           adapter={adapter}
-        />
+          />
 
         <div style={dividerStyle} />
 

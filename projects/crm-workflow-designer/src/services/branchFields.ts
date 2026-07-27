@@ -1,5 +1,5 @@
 import type { WorkflowStep, WorkflowOutcome, BranchFields } from '@/types/WorkflowTypes';
-import { ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
+import { ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
 
 // Concurrency mapping for BOTH adapters — CWFD-005 reconciliation.
 //

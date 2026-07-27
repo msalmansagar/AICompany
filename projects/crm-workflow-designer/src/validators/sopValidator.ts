@@ -1,6 +1,5 @@
 // src/validators/sopValidator.ts
 import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
-import { validateSlaConfig } from '@/validators/slaValidator';
 
 /** Validates a SOP before publication. Returns all violations found. */
 export function validateSopForPublish(state: SopDesignerState): SopValidationResult[] {
@@ -11,32 +10,7 @@ export function validateSopForPublish(state: SopDesignerState): SopValidationRes
   results.push(...checkStepSequenceUniqueness(state));
   results.push(...checkOutcomeNextStepReferences(state));
   results.push(...checkNoDeadLoops(state));
-  results.push(...checkInvalidSlaConfig(state));
 
-  return results;
-}
-
-/**
- * Blocks publishing a SOP whose step has SLA enabled but incompletely configured
- * (e.g. no duration). Mirrors the process-side INVALID_SLA gate so a SOP cannot
- * seed incomplete SLA config that its derived processes would then inherit as
- * per-process validation errors. SLA fields are inert until the CWFD-005 runtime.
- */
-function checkInvalidSlaConfig(state: SopDesignerState): SopValidationResult[] {
-  const results: SopValidationResult[] = [];
-  for (const id of state.stepOrder) {
-    const step = state.steps[id];
-    if (!step?.slaEnabled) continue;
-    const firstError = Object.values(validateSlaConfig(step))[0];
-    if (firstError) {
-      results.push({
-        code: 'VS-07',
-        severity: 'error',
-        affectedNodeId: id,
-        message: `Step ${step.sequenceNo} ("${step.name || `#${step.sequenceNo}`}") has an incomplete SLA configuration: ${firstError}`,
-      });
-    }
-  }
   return results;
 }
 

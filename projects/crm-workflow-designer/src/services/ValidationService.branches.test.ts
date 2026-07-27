@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ValidationService } from '@/services/ValidationService';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 
@@ -28,7 +28,7 @@ function buildProcess(): WorkflowProcess {
 
 function buildStep(crmId: string, sequenceNo: number, branch: Partial<WorkflowStep> = {}): WorkflowStep {
   return {
-    ...emptySlaFields(),
+    ...emptyEscalationFields(),
     ...emptyBranchFields(),
     ...branch,
     crmId,
