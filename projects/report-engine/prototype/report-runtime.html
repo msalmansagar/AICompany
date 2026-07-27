@@ -538,6 +538,106 @@ function errorState(msg){ return `<div class="empty"><svg width="40" height="40"
 function openModal(html){ $("#modal").innerHTML=html; $("#modalBack").classList.add("open"); }
 function closeModal(){ $("#modalBack").classList.remove("open"); }
 
+/* ---------------- self-check ----------------
+   Opened with ?selftest=1, this walks the whole in-CRM path and reports each step.
+   It exists because everything else was verified by replaying the equivalent calls with a service
+   principal — which cannot prove that Xrm.WebApi behaves the same from inside a web resource,
+   especially Xrm.WebApi.online.execute against a Custom API. This is that proof, and it prints the
+   real error when a step fails instead of leaving a blank screen to interpret. */
+
+const SELF_TEST_STEPS = [
+  {
+    name: "Xrm context is available",
+    detail: "The web resource can reach Xrm from its own frame, the parent, or the top window.",
+    run: () => { xrm(); return "Xrm.WebApi reachable"; }
+  },
+  {
+    name: "Signed-in user resolved",
+    detail: "Reports run as this user; Dataverse applies their row and table security.",
+    run: () => {
+      const settings = xrm().Utility.getGlobalContext().userSettings;
+      return `${settings.userName} (${String(settings.userId).replace(/[{}]/g, "")})`;
+    }
+  },
+  {
+    name: "Report catalog readable",
+    detail: "Direct Xrm.WebApi read of qdb_reportdefinition. Needs the 'Report User' role.",
+    run: async state => {
+      state.reports = await fetchCatalog();
+      if (!state.reports.length) throw new Error("No reports visible to this user.");
+      return `${state.reports.length} report(s)`;
+    }
+  },
+  {
+    name: "Report definition loads",
+    detail: "Definition plus its parameters and relationships.",
+    run: async state => {
+      state.def = await fetchDefinition(state.reports[0].id);
+      return `${state.def.name} — ${state.def.parameters.length} parameter(s), ${state.def.relationships.length} relationship(s)`;
+    }
+  },
+  {
+    name: "qdb_RunReport executes",
+    detail: "The audited Custom API. This is the call the service-principal checks could not prove.",
+    run: async state => {
+      state.result = await runReportInCrm(state.def.id, {});
+      return `${state.result.rowCount} row(s), ${state.result.columns.length} column(s)`;
+    }
+  },
+  {
+    name: "Rows are shaped correctly",
+    detail: "Every column resolves to a cell, so the grid can render.",
+    run: state => {
+      if (!state.result.rowCount) return "0 rows — nothing to shape (not a failure)";
+      const first = state.result.rows[0].cells;
+      const missing = state.result.columns.filter(c => !(c.alias in first)).map(c => c.alias);
+      if (missing.length) throw new Error("Columns with no cell: " + missing.join(", "));
+      return state.result.columns.map(c => `${c.alias}=${(first[c.alias] || {}).text ?? "—"}`).join(" | ");
+    }
+  }
+];
+
+async function runSelfTest(){
+  $("#content").innerHTML = `<div class="cmdbar"><b>Report Engine — in-CRM self-check</b></div>
+    <div class="page"><div id="stRows"></div><div id="stVerdict" style="margin-top:14px"></div></div>`;
+
+  const carried = {};
+  let failed = false;
+
+  for (const step of SELF_TEST_STEPS) {
+    const row = document.createElement("div");
+    row.className = "panel";
+    row.style.marginBottom = "8px";
+    row.innerHTML = `<b>${esc(step.name)}</b> <span class="spinner"></span>`;
+    $("#stRows").appendChild(row);
+
+    if (failed) {
+      row.innerHTML = `<b style="color:var(--text-secondary)">${esc(step.name)}</b>
+        <div style="color:var(--text-secondary);font-size:12px">skipped — an earlier step failed</div>`;
+      continue;
+    }
+
+    try {
+      const outcome = await step.run(carried);
+      row.innerHTML = `<b style="color:var(--success)">✓ ${esc(step.name)}</b>
+        <div style="font-size:12px;margin-top:2px">${esc(outcome)}</div>
+        <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">${esc(step.detail)}</div>`;
+    } catch (error) {
+      failed = true;
+      row.innerHTML = `<b style="color:var(--error)">✗ ${esc(step.name)}</b>
+        <div style="color:var(--error);font-size:12px;margin-top:2px">${esc(error.message)}</div>
+        <div style="color:var(--text-secondary);font-size:11px;margin-top:2px">${esc(step.detail)}</div>`;
+    }
+  }
+
+  $("#stVerdict").innerHTML = failed
+    ? `<div class="empty"><div style="color:var(--error)"><b>Self-check failed.</b></div>
+        <div style="color:var(--text-secondary);margin-top:4px">Send the red line above — it is the actual platform error.</div></div>`
+    : `<div class="empty"><div style="color:var(--success)"><b>All checks passed.</b></div>
+        <div style="color:var(--text-secondary);margin-top:4px">The engine runs end to end inside CRM: catalog, definition, execution and shaping.</div>
+        <div style="margin-top:10px"><button class="btn primary" onclick="location.search=''">Open the catalog</button></div></div>`;
+}
+
 /* ---------------- boot ---------------- */
 // The viewer has no standalone mode any more: with the middle tier retired, every call is an Xrm
 // call, so outside CRM there is nothing to talk to. Say that plainly rather than failing per-click.
@@ -562,7 +662,9 @@ document.querySelectorAll(".nav-item[data-nav]").forEach(b => b.onclick = () => 
   if (b.dataset.nav === "dashboards") loadDashboards(); else loadCatalog();
 });
 
-if (inCrm) {
+if (inCrm && new URLSearchParams(location.search).get("selftest") === "1") {
+  runSelfTest();
+} else if (inCrm) {
   loadCatalog();
 } else {
   $("#content").innerHTML = `<div class="cmdbar"><b>Report Catalog</b></div><div class="page">${notPortedNotice(
