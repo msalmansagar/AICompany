@@ -17,9 +17,15 @@ DLL path is likewise overridable via `EDP_DLL_PATH`.
 | `bre-register.js` | Register the plugin assembly + `qdb_edp_EvaluateDecision` Custom API |
 | `bre-governance.js` | Register the `qdb_edp_RuleGovernanceAction` Custom API |
 | `bre-webresources.js` | Deploy the designer build (`designer/dist`) as web resources |
+| `bre-guides.js` | Deploy the 4 in-app authoring guides (`deploy/guides/*.html`) — `--verify` compares the org against the repo without writing. Both modes first assert that every guide named in the designer's `docRedirect.ts` has a source file, and exit 1 if not |
 | `bre-seed.js` / `bre-seed-all.js` | Seed sample rules |
 | `bre-fixopt.js` | Make a Custom API request parameter optional (delete+recreate) |
 | `bre-roles.js` | Provision the 6 EDP security roles + per-role privileges |
 
 Plugin assembly must be IL-merged first (see `../runtime/README.md`); bump the
 `AssemblyVersion` in `EDP.RuleRuntime.Crm.csproj` on every change so the sandbox reloads.
+
+**The designer needs both web-resource scripts.** `bre-webresources.js` ships the app bundle;
+`bre-guides.js` ships the documentation the app links to. Running only the first leaves the
+in-app "Documentation" side pane rendering empty iframes — the feature fails silently, since
+the pane opens correctly and simply has nothing to show.

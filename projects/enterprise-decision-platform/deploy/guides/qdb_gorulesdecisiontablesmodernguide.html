@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A modern guide to authoring decision tables with interactive examples." />
+  <title>Decision Tables — Modern Authoring Guide</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --surface:#ffffff;
+      --surface-2:#f8fafc;
+      --text:#172033;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --primary:#6d4aff;
+      --primary-2:#8b5cf6;
+      --primary-soft:#f1edff;
+      --success:#0f9f6e;
+      --warning:#c87900;
+      --danger:#d64545;
+      --shadow:0 18px 50px rgba(39,48,82,.10);
+      --shadow-soft:0 8px 28px rgba(39,48,82,.08);
+      --radius-xl:24px;
+      --radius-lg:18px;
+      --radius-md:12px;
+      --max:1220px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(109,74,255,.10), transparent 24rem),
+        linear-gradient(180deg,#fbfcff 0%,var(--bg) 55%);
+      line-height:1.6;
+    }
+
+    a{color:inherit;text-decoration:none}
+    button,input,textarea,select{font:inherit}
+    code{
+      font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+      background:#eef2ff;
+      color:#4937b8;
+      padding:.16rem .42rem;
+      border-radius:7px;
+      font-size:.92em;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns:280px minmax(0,1fr);
+      min-height:100vh;
+    }
+
+    .sidebar{
+      position:sticky;
+      top:0;
+      height:100vh;
+      padding:24px 18px;
+      border-right:1px solid rgba(226,232,240,.9);
+      background:rgba(255,255,255,.78);
+      backdrop-filter:blur(16px);
+      overflow:auto;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:4px 8px 22px;
+    }
+
+    .brand-mark{
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+      box-shadow:0 10px 22px rgba(109,74,255,.28);
+      font-weight:800;
+    }
+
+    .brand strong{display:block;font-size:15px}
+    .brand span{display:block;color:var(--muted);font-size:12px}
+
+    .nav-title{
+      margin:14px 10px 8px;
+      color:#94a3b8;
+      text-transform:uppercase;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.12em;
+    }
+
+    .nav a{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:4px 0;
+      padding:10px 12px;
+      border-radius:10px;
+      color:#526079;
+      font-size:14px;
+      transition:.2s ease;
+    }
+
+    .nav a:hover,.nav a.active{
+      background:var(--primary-soft);
+      color:#4f36d6;
+      transform:translateX(2px);
+    }
+
+    .nav .dot{
+      width:7px;height:7px;border-radius:50%;background:#cbd5e1;
+    }
+    .nav a.active .dot,.nav a:hover .dot{background:var(--primary)}
+
+    .sidebar-note{
+      margin:24px 4px 8px;
+      padding:16px;
+      border:1px solid #ddd6fe;
+      border-radius:16px;
+      background:linear-gradient(145deg,#f7f4ff,#fff);
+      color:#5b4f7d;
+      font-size:12px;
+    }
+
+    main{min-width:0;padding:28px 34px 72px}
+    .container{max-width:var(--max);margin:0 auto}
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:26px;
+    }
+
+    .crumbs{color:var(--muted);font-size:13px}
+    .crumbs strong{color:var(--text)}
+
+    .top-actions{display:flex;gap:10px}
+    .icon-btn{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.85);
+      color:#55627a;
+      border-radius:12px;
+      padding:9px 12px;
+      cursor:pointer;
+      box-shadow:var(--shadow-soft);
+    }
+
+    .hero{
+      position:relative;
+      overflow:hidden;
+      padding:44px;
+      border-radius:var(--radius-xl);
+      background:
+        linear-gradient(135deg,rgba(25,31,55,.97),rgba(70,52,170,.95)),
+        #211b43;
+      color:#fff;
+      box-shadow:var(--shadow);
+    }
+
+    .hero:after{
+      content:"";
+      position:absolute;
+      width:330px;height:330px;
+      right:-120px;top:-150px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(255,255,255,.22),transparent 64%);
+    }
+
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 11px;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      color:#ddd6fe;
+      font-size:12px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+    }
+
+    h1{
+      margin:18px 0 12px;
+      max-width:760px;
+      font-size:clamp(34px,5vw,62px);
+      line-height:1.06;
+      letter-spacing:-.045em;
+    }
+
+    .hero p{
+      max-width:760px;
+      margin:0;
+      color:#d8dced;
+      font-size:17px;
+    }
+
+    .hero-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      margin-top:26px;
+    }
+
+    .btn{
+      border:0;
+      border-radius:12px;
+      padding:12px 16px;
+      cursor:pointer;
+      font-weight:750;
+      transition:.2s ease;
+    }
+    .btn:hover{transform:translateY(-2px)}
+    .btn-primary{background:#fff;color:#3c2aa3}
+    .btn-secondary{
+      color:#fff;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08)
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:14px;
+      margin-top:18px;
+    }
+    .stat{
+      padding:18px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:rgba(255,255,255,.92);
+      box-shadow:var(--shadow-soft);
+    }
+    .stat strong{display:block;font-size:22px}
+    .stat span{color:var(--muted);font-size:13px}
+
+    section{scroll-margin-top:24px;margin-top:30px}
+    .section-card{
+      padding:28px;
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      background:rgba(255,255,255,.94);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .section-heading{
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      align-items:flex-start;
+      margin-bottom:20px;
+    }
+    .section-heading h2{
+      margin:0 0 6px;
+      font-size:27px;
+      letter-spacing:-.025em;
+    }
+    .section-heading p{margin:0;color:var(--muted);max-width:760px}
+    .section-no{
+      flex:none;
+      width:42px;height:42px;
+      display:grid;place-items:center;
+      border-radius:13px;
+      background:var(--primary-soft);
+      color:var(--primary);
+      font-weight:800;
+    }
+
+    .steps{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:14px;
+    }
+    .step{
+      position:relative;
+      padding:20px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--surface-2);
+    }
+    .step b{
+      display:grid;place-items:center;
+      width:30px;height:30px;
+      margin-bottom:14px;
+      border-radius:10px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    }
+    .step strong{display:block;margin-bottom:4px}
+    .step span{color:var(--muted);font-size:13px}
+
+    .policy-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:16px;
+    }
+    .policy{
+      padding:22px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+    }
+    .policy-top{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+    }
+    .badge{
+      padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;
+      text-transform:uppercase;letter-spacing:.08em;
+    }
+    .badge.default{background:#ede9fe;color:#5b21b6}
+    .badge.multi{background:#dcfce7;color:#166534}
+    .policy p{color:var(--muted)}
+    .mini-list{margin:10px 0 0;padding-left:18px;color:#4b5870}
+
+    .callout{
+      display:flex;
+      gap:14px;
+      margin-top:16px;
+      padding:16px 18px;
+      border-radius:14px;
+      border:1px solid #fde68a;
+      background:#fffbeb;
+      color:#755510;
+    }
+    .callout strong{display:block}
+
+    .table-wrap{
+      overflow:auto;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+    }
+
+    table{
+      width:100%;
+      min-width:820px;
+      border-collapse:collapse;
+      font-size:14px;
+    }
+    th,td{padding:14px 16px;text-align:left;border-bottom:1px solid var(--border)}
+    th{
+      position:sticky;top:0;
+      background:#f8fafc;
+      color:#475569;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    tr:last-child td{border-bottom:0}
+    tr:hover td{background:#fbfcff}
+    .input-head{border-top:3px solid var(--primary)}
+    .output-head{border-top:3px solid var(--success)}
+    .row-id{
+      width:38px;height:28px;display:grid;place-items:center;
+      border-radius:8px;background:#f1f5f9;color:#64748b;font-weight:800
+    }
+    .tag{
+      display:inline-flex;padding:4px 8px;border-radius:999px;
+      background:#ecfdf5;color:#047857;font-weight:700;font-size:12px
+    }
+
+    .mode-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:16px;
+    }
+    .mode{
+      padding:22px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2)
+    }
+    .mode h3{margin:0 0 6px}
+    .mode p{margin:0;color:var(--muted)}
+    .code-sample{
+      margin-top:15px;padding:14px;border-radius:12px;
+      background:#171c2c;color:#dbe4ff;overflow:auto;
+      font-family:"SFMono-Regular",Consolas,monospace;font-size:13px
+    }
+
+    .syntax-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:12px;
+    }
+    .syntax{
+      display:flex;justify-content:space-between;gap:16px;align-items:center;
+      padding:14px 16px;border:1px solid var(--border);border-radius:13px;background:#fff
+    }
+    .syntax span{color:var(--muted);font-size:13px}
+    .syntax code{white-space:nowrap}
+
+    .simulator{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      gap:18px;
+    }
+    .panel{
+      padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--surface-2)
+    }
+    .panel h3{margin:0 0 12px;font-size:16px}
+    textarea{
+      width:100%;min-height:230px;resize:vertical;
+      padding:16px;border:1px solid #cbd5e1;border-radius:13px;
+      background:#121827;color:#dbe4ff;outline:none;
+      font-family:"SFMono-Regular",Consolas,monospace;font-size:13px;line-height:1.55
+    }
+    textarea:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(109,74,255,.12)}
+    .run-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px}
+    .run-btn{
+      padding:11px 15px;border:0;border-radius:11px;
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+      color:white;font-weight:800;cursor:pointer
+    }
+    .result{
+      min-height:230px;
+      padding:16px;border:1px solid var(--border);border-radius:13px;background:#fff
+    }
+    .result.empty{
+      display:grid;place-items:center;text-align:center;color:var(--muted)
+    }
+    .result pre{white-space:pre-wrap;word-break:break-word;margin:0;color:#263147}
+    .matched{
+      margin-bottom:12px;padding:10px 12px;border-radius:10px;
+      background:#ecfdf5;color:#047857;font-weight:750
+    }
+    .error{color:var(--danger);font-weight:700}
+
+    .practice-grid{
+      display:grid;grid-template-columns:repeat(4,1fr);gap:14px
+    }
+    .practice{
+      padding:18px;border:1px solid var(--border);border-radius:15px;background:#fff
+    }
+    .practice i{
+      width:34px;height:34px;display:grid;place-items:center;
+      border-radius:10px;background:var(--primary-soft);color:var(--primary);
+      font-style:normal;font-weight:900;margin-bottom:12px
+    }
+    .practice strong{display:block;margin-bottom:4px}
+    .practice span{color:var(--muted);font-size:13px}
+
+    footer{
+      margin-top:30px;padding:20px 4px;
+      color:var(--muted);font-size:12px;text-align:center
+    }
+
+    .mobile-menu{display:none}
+
+    @media (max-width:1050px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      main{padding:20px}
+      .mobile-menu{display:inline-flex}
+      .steps,.practice-grid{grid-template-columns:repeat(2,1fr)}
+    }
+
+    @media (max-width:760px){
+      .hero{padding:30px 24px}
+      .stats,.policy-grid,.mode-grid,.syntax-grid,.simulator{grid-template-columns:1fr}
+      .steps,.practice-grid{grid-template-columns:1fr}
+      .section-card{padding:22px 18px}
+      main{padding:14px}
+      .top-actions .hide-mobile{display:none}
+      .section-heading{flex-direction:column-reverse}
+    }
+
+    @media print{
+      .sidebar,.topbar,.hero-actions,.run-btn{display:none!important}
+      .app{display:block}
+      main{padding:0}
+      body{background:#fff}
+      .hero,.section-card,.stat{box-shadow:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">DT</div>
+        <div>
+          <strong>Decision Tables</strong>
+          <span>Modern authoring guide</span>
+        </div>
+      </div>
+
+      <div class="nav-title">On this page</div>
+      <nav class="nav" id="sideNav">
+        <a href="#overview" class="active"><span class="dot"></span>Overview</a>
+        <a href="#create"><span class="dot"></span>Create a table</a>
+        <a href="#policies"><span class="dot"></span>Hit policies</a>
+        <a href="#columns"><span class="dot"></span>Columns and modes</a>
+        <a href="#conditions"><span class="dot"></span>Condition syntax</a>
+        <a href="#references"><span class="dot"></span>Node references</a>
+        <a href="#testing"><span class="dot"></span>Interactive simulator</a>
+        <a href="#practices"><span class="dot"></span>Best practices</a>
+      </nav>
+
+      <div class="sidebar-note">
+        A decision table represents business rules as rows. Inputs define when a rule applies; outputs define what the rule returns.
+      </div>
+    </aside>
+
+    <main>
+      <div class="container">
+        <div class="topbar">
+          <div class="crumbs">Learn / Authoring / <strong>Decision tables</strong></div>
+          <div class="top-actions">
+            <button class="icon-btn mobile-menu" onclick="document.getElementById('overview').scrollIntoView()">☰</button>
+            <button class="icon-btn hide-mobile" onclick="window.print()">Print guide</button>
+          </div>
+        </div>
+
+        <header class="hero" id="overview">
+          <span class="eyebrow">Business rule authoring</span>
+          <h1>Build clear, testable decision tables</h1>
+          <p>
+            Model business logic in a spreadsheet-style format. Every row is a rule:
+            conditions determine whether the row matches, while outputs define the result.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#create">Start learning</a>
+            <a class="btn btn-secondary" href="#testing">Try simulator</a>
+          </div>
+        </header>
+
+        <div class="stats">
+          <div class="stat"><strong>2</strong><span>Core hit policies</span></div>
+          <div class="stat"><strong>2</strong><span>Input column modes</span></div>
+          <div class="stat"><strong>1 row</strong><span>Represents one business rule</span></div>
+        </div>
+
+        <section id="create" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Create a decision table</h2>
+              <p>Place the table in a decision graph, connect its upstream data, and open the editor.</p>
+            </div>
+            <div class="section-no">01</div>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <b>1</b>
+              <strong>Open the graph</strong>
+              <span>Navigate to the decision graph where the business rule will run.</span>
+            </div>
+            <div class="step">
+              <b>2</b>
+              <strong>Add the node</strong>
+              <span>Drag a Decision Table node onto the visual canvas.</span>
+            </div>
+            <div class="step">
+              <b>3</b>
+              <strong>Connect input</strong>
+              <span>Connect the table to an input node or another upstream decision.</span>
+            </div>
+            <div class="step">
+              <b>4</b>
+              <strong>Edit the table</strong>
+              <span>Open the table editor and define conditions, outputs, labels, and policy.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="policies" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Choose the hit policy</h2>
+              <p>The hit policy determines what the engine does when more than one row matches.</p>
+            </div>
+            <div class="section-no">02</div>
+          </div>
+
+          <div class="policy-grid">
+            <article class="policy">
+              <div class="policy-top">
+                <h3>First hit</h3>
+                <span class="badge default">Default</span>
+              </div>
+              <p>The engine evaluates rows from top to bottom and returns the first matching row.</p>
+              <ul class="mini-list">
+                <li>Place specific rules before general rules.</li>
+                <li>Useful when only one outcome should apply.</li>
+                <li>Returns an empty object when no row matches.</li>
+              </ul>
+            </article>
+
+            <article class="policy">
+              <div class="policy-top">
+                <h3>Collect</h3>
+                <span class="badge multi">Multiple</span>
+              </div>
+              <p>The engine returns every matching row as a collection of results.</p>
+              <ul class="mini-list">
+                <li>Apply several fees or promotions.</li>
+                <li>Aggregate scoring criteria.</li>
+                <li>Returns an empty array when no row matches.</li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="callout">
+            <div>💡</div>
+            <div>
+              <strong>Add a default row</strong>
+              Leave all input cells empty in the last row so the table can return a meaningful fallback result.
+            </div>
+          </div>
+        </section>
+
+        <section id="columns" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Design inputs and outputs</h2>
+              <p>Input columns contain matching conditions. Output columns contain values or expressions returned by the matching row.</p>
+            </div>
+            <div class="section-no">03</div>
+          </div>
+
+          <div class="table-wrap">
+            <table aria-label="Decision table example">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th class="input-head">Customer tier · Input</th>
+                  <th class="input-head">Order total · Input</th>
+                  <th class="output-head">Discount · Output</th>
+                  <th class="output-head">Decision · Output</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="row-id">1</span></td>
+                  <td><code>'Gold'</code></td>
+                  <td><code>&gt;= 1000</code></td>
+                  <td><code>0.15</code></td>
+                  <td><span class="tag">Premium discount</span></td>
+                </tr>
+                <tr>
+                  <td><span class="row-id">2</span></td>
+                  <td><code>'Gold'</code></td>
+                  <td><code>&gt;= 500</code></td>
+                  <td><code>0.10</code></td>
+                  <td><span class="tag">Standard discount</span></td>
+                </tr>
+                <tr>
+                  <td><span class="row-id">3</span></td>
+                  <td><code>'Silver'</code></td>
+                  <td><code>&gt;= 500</code></td>
+                  <td><code>0.05</code></td>
+                  <td><span class="tag">Member discount</span></td>
+                </tr>
+                <tr>
+                  <td><span class="row-id">4</span></td>
+                  <td><em>Any</em></td>
+                  <td><em>Any</em></td>
+                  <td><code>0</code></td>
+                  <td><span class="tag">No discount</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="mode-grid" style="margin-top:18px">
+            <article class="mode">
+              <h3>Targeted field mode</h3>
+              <p>Configure a field path once, then write concise unary conditions in each cell.</p>
+              <div class="code-sample">Field: customer.revenue<br><br>&gt;= 100000</div>
+            </article>
+            <article class="mode">
+              <h3>Generic expression mode</h3>
+              <p>Use a blank or generic field when each cell must contain a complete expression.</p>
+              <div class="code-sample">customer.revenue &gt; 100000<br>and customer.country == "QA"</div>
+            </article>
+          </div>
+        </section>
+
+        <section id="conditions" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Write matching conditions</h2>
+              <p>Targeted input cells use compact unary-test syntax. An empty cell matches any value.</p>
+            </div>
+            <div class="section-no">04</div>
+          </div>
+
+          <div class="syntax-grid">
+            <div class="syntax"><div><strong>Comparison</strong><br><span>Threshold checks</span></div><code>&gt;= 100</code></div>
+            <div class="syntax"><div><strong>Inclusive range</strong><br><span>Includes both boundaries</span></div><code>[18..65]</code></div>
+            <div class="syntax"><div><strong>Exclusive range</strong><br><span>Excludes both boundaries</span></div><code>(0..100)</code></div>
+            <div class="syntax"><div><strong>List</strong><br><span>Match any listed value</span></div><code>'QA', 'AE', 'SA'</code></div>
+            <div class="syntax"><div><strong>Combined</strong><br><span>Join related tests</span></div><code>&gt; 10 and &lt; 50</code></div>
+            <div class="syntax"><div><strong>Function</strong><br><span>Use $ for current value</span></div><code>len($) &gt; 5</code></div>
+          </div>
+        </section>
+
+        <section id="references" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Return values and reference earlier nodes</h2>
+              <p>Outputs may be literal values, calculated expressions, field references, or values produced by previous nodes.</p>
+            </div>
+            <div class="section-no">05</div>
+          </div>
+
+          <div class="mode-grid">
+            <article class="mode">
+              <h3>Output examples</h3>
+              <div class="code-sample">100<br>"approved"<br>true<br>input.amount * 0.1<br>customer.defaultRate</div>
+            </article>
+            <article class="mode">
+              <h3>Previous-node reference</h3>
+              <p>Use <code>$nodes</code> in generic conditions or output expressions to build multi-stage decisions.</p>
+              <div class="code-sample">$nodes.riskScore.output.score &gt; 70<br><br>$nodes.pricing.output.baseRate + 0.5</div>
+            </article>
+          </div>
+        </section>
+
+        <section id="testing" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Test the rule with a simulator</h2>
+              <p>Edit the JSON and run the sample table. The demo applies a first-hit policy.</p>
+            </div>
+            <div class="section-no">06</div>
+          </div>
+
+          <div class="simulator">
+            <div class="panel">
+              <h3>Test input</h3>
+              <textarea id="jsonInput" spellcheck="false">{
+  "customer": {
+    "tier": "Gold"
+  },
+  "order": {
+    "total": 1250
+  }
+}</textarea>
+              <div class="run-row">
+                <span style="color:var(--muted);font-size:12px">Valid JSON is required</span>
+                <button class="run-btn" onclick="runSimulation()">Run decision</button>
+              </div>
+            </div>
+
+            <div class="panel">
+              <h3>Decision result</h3>
+              <div class="result empty" id="result">
+                <div>
+                  <div style="font-size:28px;margin-bottom:8px">◇</div>
+                  Run the table to view the matched rule and output.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="practices" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Authoring best practices</h2>
+              <p>Keep the rule set understandable for both business users and developers.</p>
+            </div>
+            <div class="section-no">07</div>
+          </div>
+
+          <div class="practice-grid">
+            <div class="practice">
+              <i>1</i>
+              <strong>Order by specificity</strong>
+              <span>For first-hit tables, place narrow conditions before broad rules.</span>
+            </div>
+            <div class="practice">
+              <i>2</i>
+              <strong>Use meaningful labels</strong>
+              <span>Readable labels make tables easier to review, test, and maintain.</span>
+            </div>
+            <div class="practice">
+              <i>3</i>
+              <strong>Include a fallback</strong>
+              <span>Add a final catch-all row to prevent ambiguous empty outcomes.</span>
+            </div>
+            <div class="practice">
+              <i>4</i>
+              <strong>Keep tables focused</strong>
+              <span>Split very large tables into smaller decisions or supporting nodes.</span>
+            </div>
+          </div>
+        </section>
+
+        <footer>
+          Modern educational adaptation based on the GoRules decision-table authoring concepts.
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const rules = [
+      {
+        match: input => input?.customer?.tier === "Gold" && Number(input?.order?.total) >= 1000,
+        output: { discount: 0.15, decision: "Premium discount" }
+      },
+      {
+        match: input => input?.customer?.tier === "Gold" && Number(input?.order?.total) >= 500,
+        output: { discount: 0.10, decision: "Standard discount" }
+      },
+      {
+        match: input => input?.customer?.tier === "Silver" && Number(input?.order?.total) >= 500,
+        output: { discount: 0.05, decision: "Member discount" }
+      },
+      {
+        match: () => true,
+        output: { discount: 0, decision: "No discount" }
+      }
+    ];
+
+    function runSimulation(){
+      const result = document.getElementById("result");
+      try{
+        const input = JSON.parse(document.getElementById("jsonInput").value);
+        const index = rules.findIndex(rule => rule.match(input));
+        const output = index >= 0 ? rules[index].output : {};
+        result.classList.remove("empty");
+        result.innerHTML = `
+          <div class="matched">Matched row ${index + 1} · First-hit policy</div>
+          <pre>${escapeHtml(JSON.stringify(output, null, 2))}</pre>
+        `;
+      }catch(error){
+        result.classList.remove("empty");
+        result.innerHTML = `<div class="error">Invalid JSON</div><p>${escapeHtml(error.message)}</p>`;
+      }
+    }
+
+    function escapeHtml(value){
+      return String(value)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    const sections = [...document.querySelectorAll("main section, header.hero")];
+    const links = [...document.querySelectorAll(".nav a")];
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          links.forEach(link => link.classList.toggle(
+            "active",
+            link.getAttribute("href") === "#" + entry.target.id
+          ));
+        }
+      });
+    }, {rootMargin:"-25% 0px -65% 0px", threshold:0});
+
+    sections.forEach(section => observer.observe(section));
+  </script>
+</body>
+</html>
