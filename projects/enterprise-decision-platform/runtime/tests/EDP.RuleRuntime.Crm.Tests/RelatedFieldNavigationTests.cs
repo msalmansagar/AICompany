@@ -33,7 +33,7 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
         """;
 
-        private sealed class NoTrace : ITraceSink { public void WriteTrace(TraceRecord trace) { } }
+        private sealed class NoTrace : ITraceSink { public Guid? WriteTrace(TraceRecord trace) => null; }
 
         private static RuleDecisionService Service(IOrganizationService svc)
             => new RuleDecisionService(svc, new InMemoryMetadataResolver(), new NoTrace());
@@ -52,7 +52,7 @@ namespace EDP.RuleRuntime.Crm.Tests
             loan["qdb_loanamount"] = new Money(100000m);
             loan["qdb_accountid"] = new EntityReference("account", accountId);
 
-            var result = Service(fake).Evaluate(NavPcrm, loan, null, Guid.Empty, DateTime.UtcNow);
+            var result = Service(fake).Evaluate(NavPcrm, loan, null, Guid.Empty, DateTime.UtcNow).Result;
 
             Assert.True(result.Success);
             Assert.True(result.Matched);
@@ -66,7 +66,7 @@ namespace EDP.RuleRuntime.Crm.Tests
             var loan = new Entity("qdb_loanapplication", Guid.NewGuid());
             loan["qdb_loanamount"] = new Money(100000m); // no qdb_accountid on the record
 
-            var result = Service(fake).Evaluate(NavPcrm, loan, null, Guid.Empty, DateTime.UtcNow);
+            var result = Service(fake).Evaluate(NavPcrm, loan, null, Guid.Empty, DateTime.UtcNow).Result;
 
             Assert.True(result.Success);
             Assert.Equal("Auto", result.Outputs["decision"]?.ToString());

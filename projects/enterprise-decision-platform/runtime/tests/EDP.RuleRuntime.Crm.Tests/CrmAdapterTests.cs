@@ -83,6 +83,23 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
 
         [Fact]
+        public void Trace_sink_returns_the_created_log_id()
+        {
+            var fake = new FakeOrganizationService();
+            var logId = new DataverseTraceSink(fake).WriteTrace(new TraceRecord { Outcome = "matched", ExecutedOnUtc = DateTime.UtcNow });
+            Assert.NotNull(logId);
+            Assert.NotEqual(Guid.Empty, logId!.Value);
+        }
+
+        [Fact]
+        public void Trace_sink_returns_null_when_the_trace_is_dropped()
+        {
+            var fake = new FakeOrganizationService { ThrowOnCreate = true };
+            var logId = new DataverseTraceSink(fake, _ => { }).WriteTrace(new TraceRecord { Outcome = "matched", ExecutedOnUtc = DateTime.UtcNow });
+            Assert.Null(logId);
+        }
+
+        [Fact]
         public void Trace_sink_never_throws_and_reports_drop()
         {
             var fake = new FakeOrganizationService { ThrowOnCreate = true };
@@ -115,13 +132,16 @@ namespace EDP.RuleRuntime.Crm.Tests
         }
         """;
 
-        private static RuleDecisionService NewService(FakeOrganizationService fake)
-        {
-            var metadata = new InMemoryMetadataResolver()
+        private static InMemoryMetadataResolver LoanMetadata()
+            => new InMemoryMetadataResolver()
                 .AddAttribute("qdb_loanapplication", "qdb_loanamount", FieldType.Currency)
                 .AddAttribute("qdb_loanapplication", "qdb_riskrating", FieldType.Text);
-            return new RuleDecisionService(fake, metadata, new DataverseTraceSink(fake));
-        }
+
+        private static RuleDecisionService NewService(FakeOrganizationService fake)
+            => new RuleDecisionService(fake, LoanMetadata(), new DataverseTraceSink(fake));
+
+        private static RuleDecisionService NewServiceWithDroppedTrace(FakeOrganizationService fake)
+            => new RuleDecisionService(fake, LoanMetadata(), new DroppingTraceSink());
 
         [Fact]
         public void Binds_inputs_from_target_record_and_evaluates()
@@ -134,7 +154,7 @@ namespace EDP.RuleRuntime.Crm.Tests
             };
 
             var result = NewService(fake).Evaluate(DoaRule, target, Guid.NewGuid(), Guid.NewGuid(),
-                new DateTime(2026, 7, 4, 0, 0, 0, DateTimeKind.Utc));
+                new DateTime(2026, 7, 4, 0, 0, 0, DateTimeKind.Utc)).Result;
 
             Assert.True(result.Success);
             Assert.Equal("CEO", result.Outputs["approvalLevel"]);
@@ -152,6 +172,36 @@ namespace EDP.RuleRuntime.Crm.Tests
             var trace = Assert.Single(fake.Created);
             Assert.Equal("qdb_edp_ruleexecutionlog", trace.LogicalName);
             Assert.Equal("matched", trace["qdb_edp_outcome"]); // otherwise-branch still counts as a matched decision
+        }
+
+        [Fact]
+        public void Decision_carries_the_execution_log_id_it_was_traced_to()
+        {
+            var fake = new FakeOrganizationService();
+            var target = new Entity("qdb_loanapplication") { ["qdb_loanamount"] = new Money(100000m), ["qdb_riskrating"] = "Low" };
+
+            var outcome = NewService(fake).Evaluate(DoaRule, target, Guid.NewGuid(), Guid.NewGuid(),
+                new DateTime(2026, 7, 4, 0, 0, 0, DateTimeKind.Utc));
+
+            Assert.NotNull(outcome.ExecutionLogId); // the caller can address this decision later (ExplainDecision)
+        }
+
+        [Fact]
+        public void Decision_succeeds_without_a_log_id_when_the_trace_is_dropped()
+        {
+            var fake = new FakeOrganizationService();
+            var target = new Entity("qdb_loanapplication") { ["qdb_loanamount"] = new Money(100000m), ["qdb_riskrating"] = "Low" };
+            var outcome = NewServiceWithDroppedTrace(fake).Evaluate(DoaRule, target, Guid.NewGuid(), Guid.NewGuid(),
+                new DateTime(2026, 7, 4, 0, 0, 0, DateTimeKind.Utc));
+
+            Assert.True(outcome.Result.Success);     // ADR-13: trace loss never degrades the decision
+            Assert.Null(outcome.ExecutionLogId);
+        }
+
+        /// <summary>A trace sink that always drops — models the best-effort tier failing.</summary>
+        private sealed class DroppingTraceSink : ITraceSink
+        {
+            public Guid? WriteTrace(TraceRecord trace) => null;
         }
 
         [Fact]

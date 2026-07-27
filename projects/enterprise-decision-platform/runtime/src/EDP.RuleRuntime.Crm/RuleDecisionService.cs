@@ -59,18 +59,18 @@ namespace EDP.RuleRuntime.Crm
         /// attributes via each PCRM input's Binding. Trace is written best-effort after
         /// the decision is produced; it never affects the returned result.
         /// </summary>
-        public RuleResult Evaluate(string pcrmJson, Entity target, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
+        public DecisionOutcome Evaluate(string pcrmJson, Entity target, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
             => EvaluateInputs(pcrmJson, BuildInputs(pcrmJson, target), ruleVersionId, actorId, nowUtc);
 
         /// <summary>
         /// Evaluate against a pre-built input dictionary (e.g. from a Custom API
         /// InputsJson parameter) — lets a decision be tested without a target record.
         /// </summary>
-        public RuleResult EvaluateInputs(string pcrmJson, IDictionary<string, object?> inputs, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
+        public DecisionOutcome EvaluateInputs(string pcrmJson, IDictionary<string, object?> inputs, Guid? ruleVersionId, Guid actorId, DateTime nowUtc)
         {
             var result = _runtime.Execute(pcrmJson, inputs, nowUtc);
 
-            _trace.WriteTrace(new TraceRecord
+            var executionLogId = _trace.WriteTrace(new TraceRecord
             {
                 RuleVersionId = ruleVersionId,
                 ResolvedVersion = ruleVersionId?.ToString() ?? "adhoc",
@@ -83,7 +83,7 @@ namespace EDP.RuleRuntime.Crm
                     : null
             });
 
-            return result;
+            return new DecisionOutcome(result, executionLogId);
         }
 
         /// <summary>Parse a Custom API InputsJson string into a runtime input dictionary.</summary>

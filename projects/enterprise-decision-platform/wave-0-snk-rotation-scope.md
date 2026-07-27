@@ -10,6 +10,12 @@ Replace the compromised strong-name key (`edp.snk`, present in git history — F
 re-sign the merged `EDP.RuleRuntime.Crm.Signed` assembly, and re-establish its plugin identity in Dataverse — folding
 the new **ProductionPinJustificationPlugin** (assembly `1.0.24`) into the same cutover.
 
+`1.0.24` now carries **two** code changes, both already merged and both undeployable until this cutover:
+1. **ProductionPinJustificationPlugin** — ADR-12 layer 1 (justification-on-write).
+2. **`ExecutionId` on `qdb_edp_EvaluateDecision`** — the execution-log id a caller needs to reach
+   `ExplainDecision`. Requires the new **`ExecutionId` response property** (already in `bre-register.js`),
+   so step 7 must re-run that script, not only re-point the assembly.
+
 ## 2. Why now
 - The old private key is recoverable from git history → any actor could sign a DLL under the **current** token.
 - `edp.snk` is not on the build machine, so the next build needs a key regardless.
@@ -54,6 +60,7 @@ and the Plugin Registration path historically **does not allow changing the stro
 
 ### Phase D — Verify
 9. Smoke **all ~19 Custom APIs** → 200 (EvaluateDecision, governance, validate/test, analysis, metadata, analytics…).
+   Run `deploy/verify-execution-id.js` — it fails today (no `ExecutionId`) and must pass after the cutover.
 10. Confirm new `publickeytoken` on `pluginassembly`.
 11. **Pin guard:** in the prod-designated env, pin a version without justification → **blocked** (verification VP-6 flips from residual to enforced); pin with justification → allowed.
 12. Run the scenario/regression suite green.
