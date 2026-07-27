@@ -46,6 +46,45 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             });
         }
 
+        /// <summary>
+        /// Builds and runs the child query behind a drilldown. Two shapes, as the retired middle tier
+        /// had: a relationship carrying a SubReportId runs that separate report scoped to the parent
+        /// row — with its own columns, filters and formulas — while a plain relationship synthesises a
+        /// query over the related entity.
+        ///
+        /// It runs here rather than in the browser for the same reason the parent report does: this is
+        /// the call that writes the audit record, so a drilldown cannot return data unlogged.
+        /// </summary>
+        public ReportResult ExecuteDrilldown(ReportDefinition parent, Guid relationshipId, string parentKey)
+        {
+            var relationship = FindRelationship(parent, relationshipId);
+
+            if (relationship.SubReportId is Guid subReportId && subReportId != Guid.Empty)
+            {
+                var subReport = LoadDefinition(subReportId);
+                var scoped = SubReportPlanner.ScopeToParent(subReport, relationship.ChildKey, parentKey);
+                return Execute(scoped, new ReportExecutionRequest());
+            }
+
+            var child = DrilldownPlanner.BuildChildDefinition(parent, relationship, parentKey);
+            if (!child.IsSuccess)
+            {
+                throw new InvalidPluginExecutionException(child.Error.Message);
+            }
+
+            return Execute(child.Value, new ReportExecutionRequest());
+        }
+
+        private static ReportRelationship FindRelationship(ReportDefinition parent, Guid relationshipId)
+        {
+            foreach (var relationship in parent.Relationships)
+            {
+                if (relationship.Id == relationshipId) return relationship;
+            }
+
+            throw new InvalidPluginExecutionException($"Relationship {relationshipId} is not part of this report.");
+        }
+
         public ReportResult Execute(ReportDefinition definition, ReportExecutionRequest request)
         {
             var query = ReportQueryBuilder.Build(definition, request);

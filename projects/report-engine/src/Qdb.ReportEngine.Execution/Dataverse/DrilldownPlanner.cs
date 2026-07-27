@@ -14,9 +14,9 @@ public static class DrilldownPlanner
     public static Result<ReportDefinition> BuildChildDefinition(
         ReportDefinition definition, ReportRelationship relationship, string parentKey)
     {
-        ArgumentNullException.ThrowIfNull(definition);
-        ArgumentNullException.ThrowIfNull(relationship);
-        ArgumentException.ThrowIfNullOrEmpty(parentKey);
+        if (definition is null) throw new ArgumentNullException(nameof(definition));
+        if (relationship is null) throw new ArgumentNullException(nameof(relationship));
+        if (string.IsNullOrEmpty(parentKey)) throw new ArgumentException("A parent key is required.", nameof(parentKey));
 
         if (string.IsNullOrEmpty(relationship.ChildKey))
         {

@@ -14,6 +14,12 @@ namespace Qdb.ReportEngine.CrmPlugin
         public const string Format = "format";
         public const string Async = "async";
 
+        /// <summary>Drilldown: which relationship on the report to follow. Absent for a normal run.</summary>
+        public const string RelationshipId = "relationshipId";
+
+        /// <summary>Drilldown: the parent row's key value the child query is scoped to.</summary>
+        public const string ParentKey = "parentKey";
+
         // Response
         public const string ExecutionId = "executionId";
         public const string Mode = "mode";

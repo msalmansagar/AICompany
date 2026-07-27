@@ -94,6 +94,15 @@ namespace Qdb.ReportEngine.CrmPlugin
             var definition = engine.LoadDefinition(request.ReportId);
             entry.ReportName = definition.Name;
 
+            // A drilldown is a distinct execution over related rows, so it is logged as its own entry
+            // rather than folded into the parent's — "who saw which child records" is the question the
+            // audit trail has to answer.
+            if (request.IsDrilldown)
+            {
+                entry.ReportName = definition.Name + " — drilldown";
+                return engine.ExecuteDrilldown(definition, request.RelationshipId, request.ParentKey);
+            }
+
             return engine.Execute(definition, new ReportExecutionRequest
             {
                 ParameterValues = ReportParameters.Parse(request.ParametersJson)

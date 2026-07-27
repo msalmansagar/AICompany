@@ -15,8 +15,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Infrastructure
             var format = ReportFormatExtensions.Parse(GetString(context, ReportEngineParameters.Format));
             var async = GetBool(context, ReportEngineParameters.Async);
 
-            return new RunReportRequest(reportId, callerId, parametersJson, format, async);
+            return new RunReportRequest(reportId, callerId, parametersJson, format, async)
+            {
+                // Optional: present only when the caller is drilling into a related record set.
+                RelationshipId = ParseOptionalGuid(GetString(context, ReportEngineParameters.RelationshipId)),
+                ParentKey = GetString(context, ReportEngineParameters.ParentKey)
+            };
         }
+
+        private static Guid ParseOptionalGuid(string value) =>
+            Guid.TryParse(value, out var id) ? id : Guid.Empty;
 
         // The CRM session is authoritative for identity — the caller cannot spoof another user here.
         private static Guid ResolveCaller(IPluginExecutionContext context)

@@ -351,20 +351,28 @@ async function dvRetrieveMultiple(logicalName, query){
   return response.entities || [];
 }
 
-/** Runs a stored report through the audited Custom API and returns the shaped result. */
-async function runReportInCrm(reportId, parameterValues){
+/**
+ * Runs a stored report through the audited Custom API and returns the shaped result.
+ * Passing `drill` ({relationshipId, parentKey}) runs the related-record query behind a row instead;
+ * the plugin builds that child query, so the browser never composes one of its own.
+ */
+async function runReportInCrm(reportId, parameterValues, drill){
   const request = {
     reportId: reportId,
     parametersJson: JSON.stringify(parameterValues || {}),
     format: "RUN",
     async: false,
+    relationshipId: (drill && drill.relationshipId) || "",
+    parentKey: (drill && drill.parentKey) || "",
     getMetadata: () => ({
       boundParameter: null, operationType: 0, operationName: "qdb_RunReport",
       parameterTypes: {
         reportId:       { typeName: "Edm.String",  structuralProperty: 1 },
         parametersJson: { typeName: "Edm.String",  structuralProperty: 1 },
         format:         { typeName: "Edm.String",  structuralProperty: 1 },
-        async:          { typeName: "Edm.Boolean", structuralProperty: 1 }
+        async:          { typeName: "Edm.Boolean", structuralProperty: 1 },
+        relationshipId: { typeName: "Edm.String",  structuralProperty: 1 },
+        parentKey:      { typeName: "Edm.String",  structuralProperty: 1 }
       }
     })
   };
@@ -581,17 +589,31 @@ function renderGrid(result){
   $("#resultHost").innerHTML = `
     <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${result.elapsedMs||0} ms</span></div>
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
-  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol));
+  document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
 }
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
-// Drilldown builds a scoped child query, which only the plugin can do and log. Until qdb_RunReport
-// accepts a relationship id, saying so beats silently returning nothing.
-function drilldown(rel){
-  openModal(`<div class="m-head"><b>Drilldown — ${esc(drillLabel(rel))}</b><button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
-    <div class="m-body">${notPortedNotice("Drilldown and sub-reports",
-      "The plugin runs the parent report only. Drilldown needs qdb_RunReport to accept a relationship id so the child query is executed — and logged — the same way.")}</div>`);
+// The child query is built and run by the plugin, not here — that is what keeps the drilldown
+// audited. The browser only says which relationship to follow and from which row.
+async function drilldown(rel, parentKey){
+  openModal(`<div class="m-head"><b>Drilldown — ${esc(drillLabel(rel))}</b>
+      <button class="icon-btn" style="color:var(--text-secondary)" onclick="closeModal()">✕</button></div>
+    <div class="m-body"><div class="empty"><span class="spinner"></span> Loading related records…</div></div>`);
+
+  try {
+    const result = await runReportInCrm(state.current.def.id, {}, { relationshipId: rel.id, parentKey });
+    const head = result.columns.map(c => `<th>${esc(c.label || c.alias)}</th>`).join("");
+    const rows = result.rows.map(row =>
+      `<tr>${result.columns.map(c => `<td>${esc((row.cells[c.alias] || {}).text || "")}</td>`).join("")}</tr>`).join("");
+
+    $("#modal .m-body").innerHTML = `
+      <div class="meta-row"><b>${esc(result.reportName)}</b><span>${result.rowCount} row${result.rowCount===1?"":"s"}</span></div>
+      <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows
+        || `<tr><td colspan="${result.columns.length}" style="text-align:center;color:var(--text-secondary);padding:20px">No related rows.</td></tr>`}</tbody></table></div>`;
+  } catch (error) {
+    $("#modal .m-body").innerHTML = errorState(error.message);
+  }
 }
 
 /* Exports and charts are produced here in the browser now (ADR-RPT-011) — the data is already

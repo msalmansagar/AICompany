@@ -21,7 +21,10 @@ const REQUEST_PARAMS = [
   { name: 'contextJson', display: 'Context (JSON)', type: STRING, optional: true },
   { name: 'parametersJson', display: 'Parameters (JSON)', type: STRING, optional: true },
   { name: 'format', display: 'Format', type: STRING, optional: true },
-  { name: 'async', display: 'Async', type: BOOLEAN, optional: true }
+  { name: 'async', display: 'Async', type: BOOLEAN, optional: true },
+  // Drilldown: supplied together to run the related-record query behind a parent row.
+  { name: 'relationshipId', display: 'Relationship Id', type: STRING, optional: true },
+  { name: 'parentKey', display: 'Parent Key', type: STRING, optional: true }
 ];
 const RESPONSE_PROPS = [
   { name: 'executionId', display: 'Execution Id', type: STRING },

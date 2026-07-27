@@ -19,6 +19,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Model
         /// <summary>The signed-in CRM user; relayed to the middle-tier for per-user (impersonated) execution.</summary>
         public Guid CallerId { get; }
 
+        /// <summary>
+        /// Set together when the call is a drilldown: the relationship to follow, and the parent row's
+        /// key the child query is scoped to. Both empty for an ordinary run.
+        /// </summary>
+        public Guid RelationshipId { get; set; }
+
+        public string ParentKey { get; set; }
+
+        public bool IsDrilldown => RelationshipId != Guid.Empty && !string.IsNullOrEmpty(ParentKey);
+
         /// <summary>User-supplied runtime parameter values as JSON, or empty for none.</summary>
         public string ParametersJson { get; }
 

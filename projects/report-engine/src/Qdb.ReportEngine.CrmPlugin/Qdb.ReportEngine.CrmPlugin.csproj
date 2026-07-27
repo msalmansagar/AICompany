@@ -58,6 +58,8 @@
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionFetch.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionAssembler.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\RowReader.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\DrilldownPlanner.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\SubReportPlanner.cs" LinkBase="Shared\Engine" />
   </ItemGroup>
 
   <ItemGroup>

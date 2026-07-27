@@ -15,8 +15,8 @@ public static class SubReportPlanner
     /// </summary>
     public static ReportDefinition ScopeToParent(ReportDefinition subReport, string? childKey, string parentKey)
     {
-        ArgumentNullException.ThrowIfNull(subReport);
-        ArgumentException.ThrowIfNullOrEmpty(parentKey);
+        if (subReport is null) throw new ArgumentNullException(nameof(subReport));
+        if (string.IsNullOrEmpty(parentKey)) throw new ArgumentException("A parent key is required.", nameof(parentKey));
         if (string.IsNullOrEmpty(childKey))
         {
             return subReport;
