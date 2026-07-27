@@ -1,5 +1,8 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
 import { validateSlaConfig } from '@/validators/slaValidator';
+import { analyseParallelRegions } from '@/validators/parallelRegions';
+import type { ParallelFinding } from '@/validators/parallelRegions';
+import { processUsesParallelFlow } from '@/services/controlFlowFields';
 
 export type ViolationCode =
   | 'NO_PROCESS'
@@ -19,7 +22,13 @@ export type ViolationCode =
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
   | 'MISSING_FALLBACK_ROUTE'
-  | 'INVALID_SLA';
+  | 'INVALID_SLA'
+  | 'PARALLEL_SPLIT_SINGLE_BRANCH'
+  | 'UNMATCHED_PARALLEL_SPLIT'
+  | 'ORPHAN_AND_JOIN'
+  | 'PARALLEL_JOIN_DEADLOCK'
+  | 'PARALLEL_LOOP_IN_REGION'
+  | 'PARALLEL_NOT_EXECUTABLE';
 
 export interface Violation {
   code: ViolationCode;
@@ -65,8 +74,69 @@ export class ValidationService {
     this.checkDuplicateOutcomeNames(state, violations);
     this.checkTooManyOutcomes(state, violations);
     this.checkMissingFallbackRoute(state, violations);
+    this.checkParallelRegions(state, violations);
+    this.checkParallelNotExecutable(steps, violations);
 
     return violations;
+  }
+
+  /**
+   * Structural defects in the process's parallel (AND) regions. The analysis itself
+   * lives in `parallelRegions.ts` as a pure function; this method owns only the
+   * user-facing wording.
+   */
+  private checkParallelRegions(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
+    violations: Violation[]
+  ): void {
+    for (const finding of analyseParallelRegions(state)) {
+      violations.push({
+        code: finding.code,
+        message: this.describeParallelFinding(state, finding),
+        nodeId: finding.stepId,
+        nodeType: 'step',
+        affectedNodeIds: finding.affectedStepIds,
+        severity: 'error',
+      });
+    }
+  }
+
+  private describeParallelFinding(
+    state: Pick<WorkflowDesignerState, 'steps'>,
+    finding: ParallelFinding
+  ): string {
+    const name = state.steps[finding.stepId]?.name || finding.stepId;
+    switch (finding.code) {
+      case 'PARALLEL_SPLIT_SINGLE_BRANCH':
+        return `Step "${name}" runs its branches at the same time but has fewer than two of them — add another outcome, or set it back to running one branch.`;
+      case 'UNMATCHED_PARALLEL_SPLIT':
+        return `The branches of step "${name}" never come back together — every branch must reach the same step marked "wait for all branches".`;
+      case 'ORPHAN_AND_JOIN':
+        return `Step "${name}" waits for all incoming branches, but no step upstream starts concurrent branches — it would wait for branches that never start.`;
+      case 'PARALLEL_JOIN_DEADLOCK':
+        return `Step "${name}" would wait forever: ${finding.detail ?? 'it cannot receive every branch it waits for'}. Route every branch through it, then continue to the End node from there.`;
+      case 'PARALLEL_LOOP_IN_REGION':
+        return `The concurrent branches after step "${name}" contain a loop. Loops are not supported inside concurrent branches — move the loop outside them.`;
+    }
+  }
+
+  /**
+   * DP-1 ships the ability to MODEL concurrency, not to run it: the CRM execution
+   * layer cannot yet execute concurrent branches. Publishing is therefore blocked
+   * for any process that uses them (ADR-1-003). Emitted at process level — the model
+   * is not wrong, so no individual step is marked as being at fault.
+   */
+  private checkParallelNotExecutable(
+    steps: WorkflowDesignerState['steps'][string][],
+    violations: Violation[]
+  ): void {
+    if (!processUsesParallelFlow(steps)) return;
+    violations.push({
+      code: 'PARALLEL_NOT_EXECUTABLE',
+      message:
+        'This process uses concurrent branches. The platform cannot execute them yet, so the process cannot be published. Designing, validating, exporting and saving drafts all work as normal.',
+      severity: 'error',
+    });
   }
 
   private checkStartNode(

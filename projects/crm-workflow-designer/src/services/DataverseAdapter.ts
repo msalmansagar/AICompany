@@ -3,6 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
 import { mapSlaFields, buildSlaBody, buildEscalationBindPatches, SLA_SELECT_COLUMNS, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './slaStepFields';
+import { mapControlFlowFields, buildControlFlowBody, CONTROL_FLOW_SELECT_COLUMNS } from './controlFlowFields';
 import type {
   CrmRole,
   SopSummary,
@@ -181,7 +182,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${SLA_SELECT_COLUMNS},${CONTROL_FLOW_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -908,6 +909,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
     ...mapSlaFields(raw),
+    ...mapControlFlowFields(raw),
   };
 }
 
@@ -959,6 +961,7 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
     body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
   }
   Object.assign(body, buildSlaBody(data));
+  Object.assign(body, buildControlFlowBody(data));
   return body;
 }
 

@@ -1,6 +1,7 @@
 import type { CrmEnvironmentService, XrmPort } from './CrmEnvironmentService';
 import type { CrmProcess, CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import { logError } from './logError';
+import { mapControlFlowFields, CONTROL_FLOW_SELECT_COLUMNS } from './controlFlowFields';
 
 // Logical entity names — used by Xrm.WebApi.* (it resolves OData set names internally)
 const LOGICAL = {
@@ -43,6 +44,7 @@ const STEP_SELECT = [
   '_qdb_regardingfield_value',
   '_qdb_parententity_value',
   '_qdb_record_type_value',
+  CONTROL_FLOW_SELECT_COLUMNS,
 ].join(',');
 
 const OUTCOME_SELECT = [
@@ -224,6 +226,7 @@ function mapStep(raw: Record<string, unknown>): CrmStep {
     parentEntityId: guidNull(raw, '_qdb_parententity_value'),
     parentEntityName: fmt(raw, '_qdb_parententity_value'),
     processId: guid(raw, '_qdb_record_type_value'),
+    ...mapControlFlowFields(raw),
   };
 }
 

@@ -1,6 +1,14 @@
 import type { WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
+import { findParallelRegions, describeBranches } from '@/validators/parallelRegions';
+import type { ParallelRegion, ParallelBranch } from '@/validators/parallelRegions';
 
-export type PathEndReason = 'end' | 'no-outcomes' | 'cycle';
+export type PathEndReason = 'end' | 'no-outcomes' | 'cycle' | 'unmatched-parallel';
+
+/** One concurrent branch of a parallel region, for the collapsed path element. */
+export interface SimConcurrentBranch {
+  entryStepName: string;
+  stepNames: string[];
+}
 
 export interface SimPathStep {
   stepId: string;
@@ -14,6 +22,14 @@ export interface SimPathStep {
     routeName?: string;
     routeCondition?: string;
   } | null;
+  /**
+   * Present only on a parallel split (DP-1). The whole region collapses into this
+   * one element: every branch runs, so enumerating them as separate paths would
+   * misrepresent concurrency as choice, and interleaving them would explode
+   * combinatorially (ADR-1-004). Absent on every ordinary step, so consumers that
+   * do not know about concurrency keep working unchanged.
+   */
+  concurrentBranches?: SimConcurrentBranch[];
 }
 
 export interface SimPath {
@@ -31,6 +47,9 @@ interface EnumerationContext {
   routes?: Record<string, WorkflowRoute>;
   routeOrder?: Record<string, string[]>;
   result: SimPath[];
+  /** Parallel regions by split step id. Empty for a process with no concurrency. */
+  regions: Map<string, ParallelRegion>;
+  branchesBySplitId: Map<string, ParallelBranch[]>;
 }
 
 /** One node in the traversal: where we are, how we got here, and the cycle guard. */
@@ -48,9 +67,33 @@ export function enumerateAllPaths(
   routes?: Record<string, WorkflowRoute>,
   routeOrder?: Record<string, string[]>
 ): SimPath[] {
-  const context: EnumerationContext = { steps, outcomes, outcomeOrder, routes, routeOrder, result: [] };
+  const context: EnumerationContext = {
+    steps,
+    outcomes,
+    outcomeOrder,
+    routes,
+    routeOrder,
+    result: [],
+    ...buildRegionIndex(steps, outcomes, routes),
+  };
   depthFirstSearch({ stepId: entryStepId, pathSoFar: [], visited: new Set() }, context);
   return context.result;
+}
+
+/** Indexes the process's parallel regions once, so the traversal can look them up. */
+function buildRegionIndex(
+  steps: Record<string, WorkflowStep>,
+  outcomes: Record<string, WorkflowOutcome>,
+  routes: Record<string, WorkflowRoute> | undefined
+): Pick<EnumerationContext, 'regions' | 'branchesBySplitId'> {
+  const input = { steps, outcomes, routes: routes ?? {} };
+  const regions = findParallelRegions(input);
+  return {
+    regions: new Map(regions.map((region) => [region.splitStepId, region])),
+    branchesBySplitId: new Map(
+      regions.map((region) => [region.splitStepId, describeBranches(input, region)])
+    ),
+  };
 }
 
 function depthFirstSearch(frame: TraversalFrame, context: EnumerationContext): void {
@@ -63,6 +106,12 @@ function depthFirstSearch(frame: TraversalFrame, context: EnumerationContext): v
   }
 
   const branchVisited = new Set(frame.visited).add(frame.stepId);
+
+  if (step.splitType === 'Parallel') {
+    traverseParallelRegion({ step, pathSoFar: frame.pathSoFar, visited: branchVisited }, context);
+    return;
+  }
+
   const stepOutcomes = resolveStepOutcomes(frame.stepId, context);
   if (stepOutcomes.length === 0) {
     context.result.push({ id: nextPathId(context), steps: [...frame.pathSoFar, buildPathStep(step, null)], endReason: 'no-outcomes' });
@@ -77,6 +126,38 @@ function depthFirstSearch(frame: TraversalFrame, context: EnumerationContext): v
       traversePlainOutcome({ step, outcome, pathSoFar: frame.pathSoFar, visited: branchVisited }, context);
     }
   }
+}
+
+/**
+ * Collapses a whole parallel region into one path element and continues from the
+ * join. Every branch runs, so there is nothing to choose between: emitting one path
+ * per branch would read as an either/or, and interleaving the branches would
+ * multiply out factorially. Neither is a useful thing to show a reviewer.
+ */
+function traverseParallelRegion(
+  args: { step: WorkflowStep; pathSoFar: SimPathStep[]; visited: Set<string> },
+  context: EnumerationContext
+): void {
+  const region = context.regions.get(args.step.crmId);
+  const branches = context.branchesBySplitId.get(args.step.crmId) ?? [];
+  const pathStep: SimPathStep = {
+    ...buildPathStep(args.step, null),
+    concurrentBranches: branches.map((branch) => toSimBranch(branch, context)),
+  };
+  const steps = [...args.pathSoFar, pathStep];
+
+  if (!region?.joinStepId) {
+    context.result.push({ id: nextPathId(context), steps, endReason: 'unmatched-parallel' });
+    return;
+  }
+  depthFirstSearch({ stepId: region.joinStepId, pathSoFar: steps, visited: args.visited }, context);
+}
+
+function toSimBranch(branch: ParallelBranch, context: EnumerationContext): SimConcurrentBranch {
+  return {
+    entryStepName: context.steps[branch.entryStepId]?.name ?? branch.entryStepId,
+    stepNames: branch.stepIds.map((stepId) => context.steps[stepId]?.name ?? stepId),
+  };
 }
 
 function resolveStepOutcomes(stepId: string, context: EnumerationContext): WorkflowOutcome[] {

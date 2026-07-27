@@ -9,6 +9,7 @@ import type {
   WorkflowRoute,
 } from '@/types/WorkflowTypes';
 import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyControlFlowFields } from '@/services/controlFlowFields';
 
 export interface TemplateGraph {
   steps: WorkflowStep[];
@@ -52,6 +53,7 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     roundRobinTeamName: null,
     processId,
     ...emptySlaFields(),
+    ...emptyControlFlowFields(),
   };
 }
 

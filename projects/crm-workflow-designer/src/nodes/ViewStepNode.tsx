@@ -1,6 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
+import { controlFlowSummaryText, controlFlowDescription } from '../services/controlFlowFields';
 import type { ViewStepData, StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
@@ -18,6 +19,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
     assignLabel === 'Specific User' ? step.assignedUserName
     : assignLabel === 'Team'        ? step.teamName
     :                                 step.roundRobinTeamName;
+  const controlFlowLabel = controlFlowSummaryText(step);
 
   // TB: target=Top, source=Bottom, back handles=Left (offset to avoid overlap)
   // LR: target=Left, source=Right, back handles=Bottom (above) and Top (below)
@@ -35,6 +37,11 @@ export function ViewStepNode({ data, selected }: NodeProps) {
       <div style={headerRow}>
         <span style={seqBadge}>{step.sequenceNo}</span>
         <span style={nameText}>{step.name || 'Unnamed Step'}</span>
+        {controlFlowLabel && (
+          <span style={controlFlowBadge} title={controlFlowDescription(step) ?? undefined}>
+            ⧉ {controlFlowLabel}
+          </span>
+        )}
       </div>
 
       <div style={chipsRow}>
@@ -185,6 +192,14 @@ const seqBadge: React.CSSProperties = {
 const nameText: React.CSSProperties = {
   fontSize: 13, fontWeight: 600, color: '#1e293b',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+};
+
+// DP-1: the label, not the colour, is what makes this readable in greyscale
+// export and to colour-blind reviewers (NFR-009).
+const controlFlowBadge: React.CSSProperties = {
+  background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', borderRadius: 4,
+  fontSize: 9, fontWeight: 700, padding: '1px 5px', flexShrink: 0, lineHeight: '16px',
+  whiteSpace: 'nowrap',
 };
 
 const chipsRow: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 };
