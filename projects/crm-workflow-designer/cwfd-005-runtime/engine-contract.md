@@ -91,6 +91,25 @@ DP-1 is therefore the **second** duplicated engagement, after DP-2.
 
 ## 3. DP-2 / DP-2b — confirmed duplicative
 
+> **Correction (2026-07-27, during the reconciliation).** §3 as first written said the
+> pre-existing four-level TAT stack was *enforcing deadlines*. That was an inference from
+> the column names, and it is **not supported**. Verified since:
+>
+> - `qdb_agreedtat`, `qdb_tasktat`, `qdb_tat_days`, `qdb_tat_level2_days`,
+>   `qdb_tat_level3_days`, `qdb_tatlevel4days`, `qdb_exclude_tat`, `qdb_reminder`,
+>   `qdb_escalationtimeformat`, `qdb_escalationlevel4` are read by **none** of the three
+>   assemblies and by **none of the 1,621 workflows** in the org.
+> - The only step columns any engine code reads are **`qdb_escalation`** and
+>   **`qdb_applyescalationfilter`**.
+> - There are currently **zero** escalation configuration records, so the escalation
+>   machinery is wired but dormant.
+>
+> The duplication finding stands — DP-2 rebuilt a mechanism that already exists — but the
+> mechanism is the escalation-configuration lookup, not the TAT columns, and it is not
+> currently running against anything. The TAT columns are unexplained: possibly legacy,
+> possibly read by something outside these assemblies. The designer therefore does **not**
+> surface them, because surfacing unread columns is the mistake being corrected.
+
 `QDBCatalog.CRM.TatAndEscalations` reads a full escalation-configuration model:
 
 `qdb_escalation`, `qdb_escalationconfiguration`, `qdb_conditionalescalationconfiguration`,
