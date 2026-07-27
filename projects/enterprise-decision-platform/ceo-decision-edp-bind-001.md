@@ -144,7 +144,7 @@ so that this work deploys on a normal release rather than joining a growing batc
 | **C-B1** | **FR-B14 recursion impossibility is release-blocking.** Requires an adversarial test that deliberately constructs a self-retriggering binding and proves it cannot recur — not merely an absence of observed recursion. | Before release | QA |
 | **C-B2** | Async default. No synchronous binding ships until NFR-B1 is measured in a real environment. | Before release | Backend |
 | **C-B3** | The global disable (FR-B30) exists and is verified before the first binding is enabled in any customer environment. | Before first enablement | Backend |
-| **C-B4** | **C-004 checklist corrected** — "Plugin entry point" rescored honestly and a client-side formula row added. **Severed from this feature; due immediately.** | Immediate | Architect |
+| **C-B4** | ~~**C-004 checklist corrected**~~ — **DISCHARGED 2026-07-27, PR #60.** The audit found more than the two defects reported: 4 rows overstated, 4 understated, 5 omitted entirely. Every row re-verified against the environment; build-state markers added so the drift cannot silently recur. | ~~Immediate~~ **Done** | Architect |
 | **C-B5** | Production binding privilege confirmed with the customer's governance owner (OQ-B3 is provisional). | Before release | Auditor |
 | **C-B6** | Write-back included in the W0-5 data-protection review scope. | Before production | Auditor |
 | **C-B7** | **OQ-B1 answered before architecture begins** for the client-side surface. | Before architecture | CEO / human |
