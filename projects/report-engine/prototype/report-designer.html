@@ -1546,7 +1546,17 @@ function reportToDefinition(report) {
     formulas: (report.formulas || []).map((f, i) => ({
       id: newGuid(), formulaAlias: f.target || f.name, expression: f.expression, evaluationOrder: i + 1, isConditional: false
     })),
-    layout: report.layout ? { id: newGuid(), themeColor: report.layout.themeColor || "#0078d4", layoutJson: JSON.stringify(report.layout) } : null
+    // Conditional formatting rides in the layout JSON: it has no table of its own, and the as-built
+    // schema already consolidates presentation concerns there rather than adding a row per rule.
+    layout: report.layout ? {
+      id: newGuid(),
+      themeColor: report.layout.themeColor || "#0078d4",
+      layoutJson: JSON.stringify(Object.assign({}, report.layout, {
+        conditionalFormatting: (report.formatting || [])
+          .filter(rule => rule.column && rule.condition)
+          .map(rule => ({ column: rule.column, condition: rule.condition, style: rule.style }))
+      }))
+    } : null
   };
 }
 /* ---------- report definition writer ---------- */
@@ -1719,7 +1729,16 @@ function definitionToReport(def) {
   report.formulas = (def.formulas || []).map(f => ({ name: f.formulaAlias, expression: f.expression || "", type: "Number", target: f.formulaAlias }));
   report.dataSources = (def.dataSources || []).map(ds => ({ name: ds.name || "Primary source", type: "FetchXML", connector: "", query: "", primary: !!ds.isPrimary, joinL: "", joinR: "" }));
   if (def.dataSources && def.dataSources.length === 0) report.dataSources = newDefinition(null).dataSources;
-  if (def.layout && def.layout.layoutJson) { try { report.layout = JSON.parse(def.layout.layoutJson); } catch (e) { /* keep default layout */ } }
+  if (def.layout && def.layout.layoutJson) {
+    try {
+      const stored = JSON.parse(def.layout.layoutJson);
+      // Formatting rules travel inside the layout JSON but belong on the report, so lift them back
+      // out — otherwise reopening a report would quietly drop every rule on the next save.
+      if (Array.isArray(stored.conditionalFormatting)) report.formatting = stored.conditionalFormatting;
+      delete stored.conditionalFormatting;
+      report.layout = stored;
+    } catch (e) { /* keep default layout */ }
+  }
   return report;
 }
 

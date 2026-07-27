@@ -241,6 +241,13 @@ return groups.slice(0,2).map(g=>{const gr=rows.filter(r=>r[catCol.key]===g);retu
 def.detailTables = (d.detailTables||[]).map(t=>({ entity:t.entity, label:t.label, showTotals:t.showTotals, columns:t.columns.slice() }));
 return `<table class="rp-table"><thead><tr>${cc.map(c=>`<th class="${numCell(c)?"num":""}">${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${rows.slice(0,6).map(r=>`<tr>${cc.map(c=>`<td class="${numCell(c)?"num":""}">${esc(fmtDashCell(c, r[c.key]))}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 return `<div class="w-profile">${cols.slice(0,6).map(c=>`<div class="w-prow"><span class="w-pk">${esc(c.name)}</span><span class="w-pv">${esc(fmtDashCell(c, r0[c.key]))}</span></div>`).join("")}</div>`;
+
+  /* ---- conditional formatting (designer tab 10) ---- */
+  td.cf-bold{font-weight:700;}
+  td.cf-red{color:#a4262c;}
+  td.cf-green{background:#dff6dd; color:#0b5c0b;}
+  td.cf-amber{background:#fff4ce; color:#8a5a00;}
+  td.cf-strike{text-decoration:line-through; opacity:.75;}
 </style>
 
 <div class="app">
@@ -552,6 +559,7 @@ function renderResult(result){
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
       <div class="report-paper">${laidOut}</div>`;
     $("#asGrid").onclick = () => renderGrid(result);
+    applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
     return;
   }
 
@@ -574,6 +582,7 @@ function renderGrid(result){
     <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${result.elapsedMs||0} ms</span></div>
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol));
+  applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
 }
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
@@ -1039,6 +1048,89 @@ function applyTransformations(result, transformations){
     try { result = apply(result, config) || result; } catch (e) { /* leave the result as it was */ }
   }
   return result;
+}
+
+/* ---------------- conditional formatting ----------------
+   Rules are {column, condition, style}. The condition reuses the formula evaluator — the designer
+   already tells users it "evaluates with the same sandboxed engine as formulas", so honouring that
+   keeps one expression language and one security story rather than inventing a second one.
+
+   `value` is bound to the cell under test, and every column is in scope too, so a rule can say
+   `value > 1000000` or `status == 'Overdue' && value > 0`.
+
+   Styling is applied to the DOM after rendering rather than woven into the markup, because the
+   layout renderer escapes everything it emits — injecting styled HTML through it would surface as
+   visible tags. Walking the table afterwards also means the grid and the table-based layouts are
+   formatted by the same code. */
+
+const FORMATTING_STYLES = {
+  "Bold, red text": "cf-bold cf-red",
+  "Green background": "cf-green",
+  "Amber highlight": "cf-amber",
+  "Strikethrough": "cf-strike",
+  "Bold": "cf-bold"
+};
+
+/** Compiles each rule once; a rule that will not parse is dropped rather than failing the report. */
+function compileFormatting(rules){
+  return (rules || []).map(rule => {
+    try { return { column: rule.column, style: rule.style, ast: parseFormula(tokenizeFormula(rule.condition || "")) }; }
+    catch (error) { return null; }
+  }).filter(Boolean);
+}
+
+/**
+ * Works out the style class for every cell, returned as rowIndex → alias → class. Column names in
+ * a rule may be either the stored alias or the label the designer showed, so both are accepted.
+ */
+function evaluateFormatting(result, rules){
+  const compiled = compileFormatting(rules);
+  if (!compiled.length) return null;
+
+  const aliasFor = name => {
+    const match = result.columns.find(c => c.alias === name || c.label === name);
+    return match ? match.alias : name;
+  };
+
+  return result.rows.map(row => {
+    const scope = {};
+    for (const column of result.columns) scope[column.alias] = (row.cells[column.alias] || {}).value;
+
+    const styles = {};
+    for (const rule of compiled) {
+      const alias = aliasFor(rule.column);
+      if (!(alias in row.cells)) continue;
+      let matched = false;
+      try { matched = truthy(evaluateFormula(rule.ast, Object.assign({}, scope, { value: scope[alias] }))); }
+      catch (error) { matched = false; }
+      if (matched) styles[alias] = FORMATTING_STYLES[rule.style] || "cf-bold";
+    }
+    return styles;
+  });
+}
+
+/**
+ * Applies the computed classes to rendered tables. Rows are matched by position among those with one
+ * cell per column, which skips the group headers and total rows a grouped layout injects — a row
+ * that does not line up is left alone rather than mis-styled.
+ */
+function applyConditionalFormatting(host, result, rules){
+  const styles = evaluateFormatting(result, rules);
+  if (!styles) return;
+
+  const columns = result.columns.map(c => c.alias);
+  for (const table of host.querySelectorAll("table.res, table.rp-table")) {
+    const dataRows = [...table.querySelectorAll("tbody tr")]
+      .filter(tr => !tr.className && tr.children.length >= columns.length);
+
+    dataRows.forEach((tr, index) => {
+      const rowStyles = styles[index];
+      if (!rowStyles) return;
+      columns.forEach((alias, cellIndex) => {
+        if (rowStyles[alias] && tr.children[cellIndex]) tr.children[cellIndex].className += " " + rowStyles[alias];
+      });
+    });
+  }
 }
 
 /* ---------------- layout rendering ----------------
