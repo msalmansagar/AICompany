@@ -14,9 +14,21 @@ import { dirname, resolve } from 'node:path';
 
 const SOLUTION_UNIQUE_NAME = 'qdb_reportengine';
 const PROTOTYPE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../prototype');
+// webresourcetype: 1 = HTML, 3 = JScript.
+const HTML = 1;
+const SCRIPT = 3;
+
+/* The export libraries ship as script web resources rather than from a CDN. A Dataverse org — and a
+   bank's in particular — should not depend on an outbound request to render a report, on-premise may
+   have no internet at all, and content-security policy would block it regardless. Served from the
+   same origin they are also cached by the browser and reviewable in the customer's own solution.
+   They are fetched on demand by the viewer, so opening a report downloads none of them. */
 const WEB_RESOURCES = [
-  { name: 'qdb_reportengine_designer.html', display: 'Report Engine — Designer', file: 'report-designer.html' },
-  { name: 'qdb_reportengine_runtime.html', display: 'Report Engine — Runtime Viewer', file: 'report-runtime.html' }
+  { name: 'qdb_reportengine_designer.html', display: 'Report Engine — Designer', file: 'report-designer.html', type: HTML },
+  { name: 'qdb_reportengine_runtime.html', display: 'Report Engine — Runtime Viewer', file: 'report-runtime.html', type: HTML },
+  { name: 'qdb_reportengine_xlsx.js', display: 'Report Engine — SheetJS (Apache-2.0)', file: 'vendor/xlsx.mini.min.js', type: SCRIPT },
+  { name: 'qdb_reportengine_jspdf.js', display: 'Report Engine — jsPDF (MIT)', file: 'vendor/jspdf.umd.min.js', type: SCRIPT },
+  { name: 'qdb_reportengine_jspdf_autotable.js', display: 'Report Engine — jsPDF AutoTable (MIT)', file: 'vendor/jspdf.plugin.autotable.min.js', type: SCRIPT }
 ];
 
 function loadEnv(path) {
@@ -44,10 +56,10 @@ async function findWebResourceId(name) {
   if (!res.ok) throw new Error(`lookup ${name} ${res.status}: ${await res.text()}`);
   return (await res.json()).value?.[0]?.webresourceid ?? null;
 }
-async function upsertWebResource({ name, display, file }) {
+async function upsertWebResource({ name, display, file, type }) {
   const content = readFileSync(resolve(PROTOTYPE_DIR, file)).toString('base64');
   const id = await findWebResourceId(name);
-  const body = JSON.stringify({ name, displayname: display, description: display, webresourcetype: 1, content });
+  const body = JSON.stringify({ name, displayname: display, description: display, webresourcetype: type ?? 1, content });
   if (id) {
     const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset(${id})`, { method: 'PATCH', headers: headers(), body });
     if (!res.ok) throw new Error(`update ${name} ${res.status}: ${await res.text()}`);
