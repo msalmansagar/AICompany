@@ -288,8 +288,17 @@ Both are additive. Neither introduces a second rule engine, and neither weakens 
 
 ## Approval
 
-| Role | Name | Decision | Date |
+| Role | Decision | Date | Record |
 |---|---|---|---|
-| CEO | | | |
+| CEO function | **APPROVE WITH CONDITIONS** | 2026-07-27 | `ceo-decision-edp-bind-001.md` |
+| Human ratification | **PENDING** | — | Required before the build phase begins |
 
-**Recommended decision:** Approve, subject to answers on OQ-B1 and OQ-B2, and with FR-B14 (recursion impossibility) treated as a non-negotiable release gate rather than a requirement among others.
+**Outcome:** Architecture is conditionally authorised — the **server-side** surface may proceed
+now; the **client-side** surface is blocked until OQ-B1 (commercial acceptability of the server
+round trip) is answered by someone with customer knowledge. Implementation is not authorised.
+Seven conditions C-B1..C-B7 apply; C-B4 (correcting the C-004 sales checklist) is severed from
+this feature and due immediately.
+
+> The decision was rendered by the same agent that authored this BRD — the author-approves-own-work
+> pattern this product forbids for rule versions. It is recorded openly in the decision document and
+> requires human ratification.
