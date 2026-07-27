@@ -17,7 +17,7 @@ DLL path is likewise overridable via `EDP_DLL_PATH`.
 | `bre-register.js` | Register the plugin assembly + `qdb_edp_EvaluateDecision` Custom API |
 | `bre-governance.js` | Register the `qdb_edp_RuleGovernanceAction` Custom API |
 | `bre-webresources.js` | Deploy the designer build (`designer/dist`) as web resources |
-| `bre-guides.js` | Deploy the 4 in-app authoring guides (`deploy/guides/*.html`) — `--verify` compares the org against the repo without writing |
+| `bre-guides.js` | Deploy the 4 in-app authoring guides (`deploy/guides/*.html`) — `--verify` compares the org against the repo without writing. Both modes first assert that every guide named in the designer's `docRedirect.ts` has a source file, and exit 1 if not |
 | `bre-seed.js` / `bre-seed-all.js` | Seed sample rules |
 | `bre-fixopt.js` | Make a Custom API request parameter optional (delete+recreate) |
 | `bre-roles.js` | Provision the 6 EDP security roles + per-role privileges |

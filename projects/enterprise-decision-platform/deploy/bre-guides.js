@@ -45,6 +45,29 @@ function guideFiles() {
     .map(f => ({ name: path.basename(f, path.extname(f)), full: path.join(GUIDE_DIR, f) }));
 }
 
+/**
+ * The designer addresses these web resources by name. If a guide is renamed, or a node type
+ * gains a guide with no source file, the side pane still opens and renders an empty iframe —
+ * a silent failure. Fail the deploy instead.
+ *
+ * The check lives here rather than in a designer unit test because the designer is typed for
+ * the browser only (no Node types by design), and this is where the filesystem is native.
+ */
+function assertDesignerNamesHaveFiles(files) {
+  const source = path.join(__dirname, '..', 'designer', 'src', 'gorules', 'docRedirect.ts');
+  if (!fs.existsSync(source)) return; // deploy bundle without designer sources — nothing to check
+  const referenced = [...fs.readFileSync(source, 'utf8').matchAll(/guide\(\s*'([^']+)'/g)].map(m => m[1]);
+  const present = new Set(files.map(f => f.name));
+  const missing = referenced.filter(name => !present.has(name));
+  if (missing.length > 0) {
+    throw new Error(
+      `docRedirect.ts references guide web resource(s) with no source file in ${GUIDE_DIR}:\n` +
+      missing.map(n => `  - ${n}.html`).join('\n'),
+    );
+  }
+  console.log(`coupling ok: all ${referenced.length} guide(s) referenced by the designer have source files`);
+}
+
 async function findWebResource(name, t) {
   const res = await raw('GET', `${API}/webresourceset?$filter=${encodeURIComponent(`name eq '${name}'`)}&$select=webresourceid,content`, t);
   return (j(res).value || [])[0];
@@ -54,6 +77,7 @@ async function findWebResource(name, t) {
   const t = await token();
   const files = guideFiles();
   if (files.length === 0) throw new Error(`No .html guides in ${GUIDE_DIR}`);
+  assertDesignerNamesHaveFiles(files);
   console.log(`${VERIFY_ONLY ? 'verifying' : 'deploying'} ${files.length} guide(s) from ${GUIDE_DIR}\n`);
 
   const ids = [];
