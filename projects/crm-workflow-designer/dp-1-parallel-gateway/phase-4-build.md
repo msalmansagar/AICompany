@@ -3,8 +3,8 @@
 Engagement: DP-1 — Parallel (AND) Gateway
 Branch:     `feat/cwfd-dp1-parallel-gateway` (worktree `D:/AI Projects/cwfd-dp1-wt`)
 Date:       2026-07-26
-Status:     **Build complete, not provisioned.** Awaiting the provisioning gate,
-            then code review → QA → audit → CEO final.
+Status:     **Build complete. Schema PROVISIONED and E2E-verified on org5869857f
+            (2026-07-26, user-authorised).** Next: code review → QA → audit → CEO final.
 
 ---
 
@@ -16,7 +16,7 @@ Status:     **Build complete, not provisioned.** Awaiting the provisioning gate,
 | Tests | **169** (94 pre-existing, all still green, + 75 new) |
 | Production build | green |
 | Bundle | 1760.0 KB → **1770.6 KB** = **+10.6 KB** against the 25 KB NFR-002 budget |
-| Live org | **untouched.** No schema provisioned, no web resource deployed |
+| Live org | schema **provisioned + published + E2E-verified** on org5869857f (§3a); web resource not redeployed |
 
 The bundle figure was measured, not estimated: `origin/main` was built in the same
 worktree with the same `node_modules`, then the branch restored.
@@ -75,23 +75,61 @@ That path turned out not to be a barrier here: `ViewStepData` already carries th
 
 ---
 
-## 4. Known constraint — carried forward from DP-2, unchanged
+## 3a. Provisioning gate — DONE, and it earned its place (2026-07-26)
+
+User-authorised. Run against `org5869857f` (`CRM_ORG_URL` → `DATAVERSE_URL`).
+
+**Live on the org:** global option sets `qdb_gatewaysplittype` + `qdb_gatewayjointype`,
+columns `qdb_splittype` + `qdb_jointype` on `qdb_work_item_steps`, customizations
+published. The script's idempotency was demonstrated, not assumed: the second run skipped
+both option sets and the already-created column and created only the missing one.
+
+**The gate caught a real bug that tsc, 169 unit tests and code reading could not.**
+
+> Sending `Description` on a `PicklistAttributeMetadata` that binds a global option set
+> makes Dataverse reject the entire request with
+> `0x80048403 — "IsGlobal is not specified"`.
+
+The error names a property the payload never sets and says nothing about `Description`,
+so it reads as a malformed option-set binding. It was isolated by posting the DP-2 payload
+shape — identical except for `Description` — which succeeded immediately. The field's
+purpose now lives in `PICKLIST_FIELDS[].description` and a comment in the script rather
+than on the column. This is the third Dataverse metadata quirk this gate has surfaced
+across DP-2 and DP-1, after "logical name derives from SchemaName" and "a lookup can only
+be nulled through its nav-prop bind".
+
+**E2E round trip — 8/8 passed** on a throwaway step, since deleted:
+
+| Assertion | Result |
+|---|---|
+| create with Parallel / AndJoin → both persist | PASS |
+| update back to Exclusive / None → both reset | PASS |
+| null both → both read back null (FR-013) | PASS |
+| partial write of one column leaves the other untouched | PASS (×2) |
+
+**Verified afterwards:** the app-shaped `getSteps` `$select` — SLA and control-flow columns
+together — returns 200; the pre-existing "Test Filter" process still has exactly its 3
+steps, all reading `split=null join=null`, i.e. untouched and interpreted as
+Exclusive/None. Zero leftover test records.
+
+---
+
+## 4. Known constraint — carried forward from DP-2, now RESOLVED on this org
 
 `getSteps`' `$select` now names `qdb_splittype` and `qdb_jointype`. Until those columns
-exist on the org, **opening an existing process will fail**, exactly as DP-2's SLA
-columns did before provisioning. This is a prerequisite, not a defect, and it is the
-reason the provisioning gate comes before any live verification.
+exist on an org, **opening an existing process fails** — exactly as DP-2's SLA columns did
+before provisioning. On `org5869857f` this is now resolved and confirmed by query.
 
-The in-memory new-process path (wizard → template → edit canvas) works pre-provisioning
-and is how the panel and notation can be exercised locally.
+It remains a **prerequisite for every other environment**: the schema must be provisioned
+before this build is deployed anywhere else. That belongs with GL-01 (managed-solution
+packaging), which now widens to cover these two columns as well.
 
 ---
 
 ## 5. Not done
 
-- **Provisioning against org5869857f.** Gated on explicit user authorisation (C-4).
-- **Live E2E round-trip.** Blocked by the above. DP-2 found two real schema-shape bugs
-  at exactly this gate, so this is a test, not a formality.
+- ~~Provisioning~~ **DONE** — see §3a.
+- ~~Live E2E round-trip~~ **DONE** — 8/8, see §3a.
 - **Web resource deployment.** Not required for a schema + design-time change, and DP-2
   set the precedent of not redeploying for one.
 - **Code review, QA, audit, CEO final.** Next gates.

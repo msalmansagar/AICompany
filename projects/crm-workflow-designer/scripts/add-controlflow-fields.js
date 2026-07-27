@@ -117,7 +117,12 @@ async function createGlobalOptionSet(apiBase, token, def) {
 }
 
 async function createPicklistField(apiBase, token, entity, field) {
-  // A global option set must be bound by its MetadataId (GUID), not by Name.
+  // Two Dataverse quirks, both found live at the provisioning gate:
+  //  1. A global option set must be bound by its MetadataId (GUID), not by Name.
+  //  2. Sending `Description` alongside `GlobalOptionSet@odata.bind` makes the whole
+  //     request fail with "IsGlobal is not specified" (0x80048403) — an error that
+  //     says nothing about the actual cause. The field's purpose therefore lives in
+  //     `PICKLIST_FIELDS[].description` and in this file, not on the column.
   const metadataId = await optionSetMetadataId(apiBase, token, field.optionSet);
   await post(apiBase, token, `EntityDefinitions(LogicalName='${entity}')/Attributes`, {
     '@odata.type': 'Microsoft.Dynamics.CRM.PicklistAttributeMetadata',
@@ -126,7 +131,6 @@ async function createPicklistField(apiBase, token, entity, field) {
     SchemaName: field.schema,
     LogicalName: field.logical,
     DisplayName: label(field.display),
-    Description: label(field.description),
     RequiredLevel: { Value: 'None' },
     'GlobalOptionSet@odata.bind': `/GlobalOptionSetDefinitions(${metadataId})`,
   });
