@@ -1469,49 +1469,125 @@ This matrix is the authoritative disclosure document for which EDP capabilities 
 
 ---
 
-## Appendix B — EDP Horizon 1 vs North52 Parity Checklist (C-004 Resolution)
+## Appendix B — EDP vs North52 Parity Checklist (C-004 Resolution · verified 2026-07-27)
 
-This table is the authoritative input for sales positioning and go-to-market. "EDP H1 Superior" means EDP Horizon 1 delivers meaningfully better capability than North52's current offering. "North52 Superior" means North52 has a capability EDP Horizon 1 does not.
+This table is the authoritative input for sales positioning and go-to-market. "EDP Superior" means EDP delivers meaningfully better capability than North52's current offering. "North52 Superior" means North52 has a capability EDP does not.
 
-| Capability | North52 | EDP Horizon 1 | EDP Horizon 2 | EDP Horizon 3 | Verdict |
-|-----------|---------|--------------|--------------|--------------|---------|
-| Visual Decision Table authoring | Yes | Yes | — | — | Parity |
-| Condition/Expression rule authoring | Yes | Yes | — | — | Parity |
-| Formula/Calculation authoring | Yes | Yes | — | — | Parity |
-| Decision graph (node-based authoring) | Limited | Yes (JDM Editor) | — | — | **EDP H1 Superior** |
-| Metadata-driven field selection (no schema names) | Partial (schema name exposure in some contexts) | Yes (Advanced Find-grade) | — | — | **EDP H1 Superior** |
-| Rule versioning with immutable published records | Basic (no immutability enforcement) | Yes | — | — | **EDP H1 Superior** |
-| Approval workflow (submit → review → approve) | No | Design intent (2-state H1: Draft/Published) | Full multi-step | — | EDP H1 Partial; H2 Superior |
-| Visual step-through debugger | No | No | Yes | — | North52 Parity (both lack); EDP H2 Superior |
-| Simulation (what-if before publishing) | No | Yes | — | — | **EDP H1 Superior** |
-| Built-in test cases with pass/fail | No | Yes | — | — | **EDP H1 Superior** |
-| Segregation of duties (author ≠ approver) | No | Yes | — | — | **EDP H1 Superior** |
-| Append-only governance audit trail | No | Yes | — | — | **EDP H1 Superior** |
-| Execution trace per decision | Limited | Yes (full) | — | — | **EDP H1 Superior** |
-| Version pinning with governance justification | No | Yes | — | — | **EDP H1 Superior** |
-| Plugin entry point | Yes | Yes | — | — | Parity |
-| Custom Action entry point | Yes | Yes | — | — | Parity |
-| Custom API entry point (cloud) | No | Yes | — | — | **EDP H1 Superior** |
-| Workflow Activity entry point | Yes | No | Yes | — | **North52 Superior** (H1) |
-| Rule cloning | Yes | No | Yes | — | **North52 Superior** (H1) |
-| Rule templates | Yes | No | Yes | — | **North52 Superior** (H1) |
-| Excel import/export | Yes | No | Yes | — | **North52 Superior** (H1) |
-| JSON import/export | Limited | Yes | — | — | **EDP H1 Superior** |
-| Execution analytics / aggregate reporting | No | No | Yes | — | Parity at H1; EDP H2 Superior |
-| Rule dependency impact analysis | No | No | Yes | — | Parity at H1; EDP H2 Superior |
-| AI-assisted rule generation | No | No | No | Yes | Parity at H1; EDP H3 Superior |
-| Rule marketplace / template packs | No | No | No | Yes | EDP H3 Superior |
-| Data residency (in-tenancy) | Yes | Yes | — | — | Parity |
-| Zero external infrastructure | Yes | Yes | — | — | Parity |
-| Cloud and on-prem parity | Yes | Yes | — | — | Parity |
-| Solution-based deployment (managed) | Yes | Yes | — | — | Parity |
-| Multi-language authoring UI | Partial | Partial | Yes | — | Parity at H1 |
+**Revised 2026-07-27 (condition C-B4).** The original table was written in Phase 3 against *design intent* and was never reconciled against what was subsequently built. An audit found it inaccurate in both directions — it overstated four capabilities, understated four that have since shipped, and omitted five capabilities entirely, including two of North52's most-used features. Every row below was re-verified against the live environment (`org5869857f`) and the committed registration manifest on 2026-07-27.
 
-**Summary for go-to-market positioning:**
-- EDP Horizon 1 is **decisively superior** to North52 in: governance (simulation gate, built-in testing, append-only audit, SoD enforcement, version pinning with justification), decision graph authoring (JDM editor vs. North52's simpler rule structures), and external invocation (Custom API entry point on cloud).
-- EDP Horizon 1 is **behind North52** in: Workflow Activity entry point, rule cloning, rule templates, Excel import/export.
-- The governance story is the primary sales differentiator for regulated-sector buyers who cannot justify North52's lack of an audit trail and simulation requirement.
-- Horizon 2 closes the gaps on Workflow Activity, cloning, templates, and Excel.
+**The `EDP today` column states build state explicitly**, because conflating "designed", "merged" and "running" is what produced the original errors:
+
+| Marker | Meaning |
+|---|---|
+| **LIVE** | Deployed and verified in the environment; a customer can use it |
+| **MERGED** | Code on `main`, not deployed anywhere |
+| **PARTIAL** | Works, with a stated limitation |
+| **DESIGN** | Specified only; no implementation |
+| **NONE** | Not built and not designed |
+
+**Rule for using this document:** never quote a row to a customer without its build-state marker. A LIVE row is a demonstrable claim; a MERGED or DESIGN row is a roadmap statement and must be presented as one.
+
+### B.1 Authoring
+
+| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
+|---|---|---|---|---|
+| Visual decision table authoring | Yes | **LIVE** | — | Parity |
+| Condition / expression authoring | Yes | **LIVE** — AND/OR/NOT builder | — | Parity |
+| Formula / calculation authoring | Yes | **LIVE** — NCalc, 31 bridge functions | — | Parity |
+| Decision graph (node-based) | Limited | **LIVE** — JDM editor, 6 node types | — | **EDP Superior** |
+| Metadata-driven field selection | Partial | **LIVE** — business names, no schema names | — | **EDP Superior** |
+| Cross-entity conditions (N:1 navigation) | Yes | **LIVE** | — | Parity |
+| Child aggregation in conditions (1:N) | Yes | **LIVE** — Count/Sum/Avg/Min/Max + filter | — | Parity |
+| Reason codes on outcomes | No | **LIVE** | — | **EDP Superior** |
+| Rule cloning | Yes | **LIVE** — corrected 2026-07-27 | — | Parity |
+| Rule templates | Yes | **PARTIAL** — API live, designer UI not wired | Wire UI | North52 Superior |
+| Excel import/export of rules | Yes | **NONE** | H2 | **North52 Superior** |
+| JSON import/export | Limited | **LIVE** | — | **EDP Superior** |
+| Multi-language authoring UI | Partial | **PARTIAL** — CRM field labels localise; EDP's own UI chrome is English only | H2 | North52 Superior |
+
+### B.2 Invocation — the weakest area, and the reason EDP-BIND-001 exists
+
+| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
+|---|---|---|---|---|
+| **Server-side trigger on record events** | Yes | **NONE** — 0 SDK steps registered on any business entity | EDP-BIND-001 | **North52 Superior** |
+| **Client-side / form-level formulas** | Yes | **NONE** — no form integration exists | EDP-BIND-001 | **North52 Superior** |
+| **Write-back of outputs to record fields** | Yes | **DESIGN** — ADR-EDS-07, consumer-performed | EDP-BIND-001 | **North52 Superior** |
+| Rollup / cross-record aggregate formulas | Yes | **NONE** | Separate BRD | **North52 Superior** |
+| Workflow activity entry point | Yes | **NONE** | Separate BRD | **North52 Superior** |
+| Plugin-based execution | Yes | **PARTIAL** — a plugin backs the Custom API, but nothing is registered on business entities, so there is no automatic execution | EDP-BIND-001 | **North52 Superior** |
+| Custom Action entry point (on-prem) | Yes | **PARTIAL** — code and runbook complete, never tested; no on-prem instance exists | Test on an instance | North52 Superior |
+| Custom API entry point (cloud) | No | **LIVE** — 22 APIs, privilege-gated | — | **EDP Superior** |
+| REST API + SDKs for external callers | No | **MERGED** — gateway, OpenAPI 3.1, TS and .NET SDKs | Deploy | **EDP Superior** |
+
+### B.3 Governance — the primary differentiator
+
+| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
+|---|---|---|---|---|
+| Rule versioning, immutable once published | Basic | **LIVE** | — | **EDP Superior** |
+| Approval workflow | No | **LIVE** — 4-state lifecycle, two-stage maker-checker (corrected 2026-07-27; previously understated as design intent) | — | **EDP Superior** |
+| Segregation of duties | No | **LIVE** | — | **EDP Superior** |
+| Append-only audit trail | No | **LIVE** — guarded at the data layer | — | **EDP Superior** |
+| Version pinning | No | **LIVE** | — | **EDP Superior** |
+| Enforced justification for a production pin | No | **MERGED** — guard plugin not deployed; pinning is live but justification is *not yet enforced* | W0-1 cutover | EDP Superior once deployed |
+| Effective dating / scheduled activation | No | **LIVE** | — | **EDP Superior** |
+| Governed rule sets and ordered chaining | Partial | **LIVE** | — | **EDP Superior** |
+
+### B.4 Quality, insight and operations
+
+| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
+|---|---|---|---|---|
+| Simulation / what-if before publishing | No | **LIVE** | — | **EDP Superior** |
+| Built-in test cases with pass/fail | No | **LIVE** — scenarios block publish on failure | — | **EDP Superior** |
+| Table completeness / overlap analysis | No | **LIVE** | — | **EDP Superior** |
+| Execution trace per decision | Limited | **LIVE** — full step trace | — | **EDP Superior** |
+| Decision explanation grounded in trace | No | **LIVE** | — | **EDP Superior** |
+| Execution analytics / aggregate reporting | No | **LIVE** — dashboard + API (corrected 2026-07-27; previously scored "No") | — | **EDP Superior** |
+| Rule dependency impact analysis | No | **LIVE** — graph + API (corrected 2026-07-27; previously scored "No") | — | **EDP Superior** |
+| Version comparison / diff | No | **LIVE** | — | **EDP Superior** |
+| Execution log export | Partial | **LIVE** — CSV | — | Parity |
+| Visual step-through debugger | No | **NONE** | H2 | Parity (both lack) |
+| AI-assisted rule generation | No | **DESIGN** — Phase 6, not built | H3 | Parity today |
+| Rule marketplace / template packs | No | **DESIGN** | H3 | Parity today |
+
+### B.5 Platform and deployment
+
+| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
+|---|---|---|---|---|
+| Data residency (in-tenancy) | Yes | **LIVE** | — | Parity |
+| Zero external infrastructure for the core | Yes | **LIVE** — the gateway is an optional tier, not required | — | Parity |
+| Cloud and on-prem parity | Yes | **PARTIAL** — on-prem path is code-complete but unproven | Test on an instance | North52 Superior |
+| Managed-solution deployment | Yes | **PARTIAL** — deployment is by API script; managed packaging is unverified | Verify | North52 Superior |
+
+### B.6 Summary for go-to-market positioning
+
+**Where EDP is decisively ahead — all LIVE and demonstrable:** governance is the story. A four-state lifecycle with two-stage maker-checker, segregation of duties, an append-only trail guarded at the data layer, simulation and saved test scenarios that block a failing publish, effective dating, full execution traces and grounded decision explanations. North52 has none of these. For a regulated buyer this is the whole argument, and every claim in it can be demonstrated today.
+
+**Where EDP is behind — and it is one coherent area, not a scattering of niche gaps.** The original table framed the deficit as four minor items (workflow activities, cloning, templates, Excel). That framing was wrong. The real deficit is **invocation**:
+
+> EDP can author, govern, publish and explain a decision — but cannot make one *happen* on its own. There is no record-event trigger and no form-level execution. A published rule stays inert until a developer writes code to call it.
+
+That is North52's core usage pattern, and it is a single connected gap rather than a feature list. `EDP-BIND-001` addresses it. Until that ships, **EDP is not a drop-in replacement for a North52 deployment**, however strong the governance story is, and it should not be positioned as one.
+
+**Secondary gaps:** rollup formulas, workflow activities, Excel rule import/export, authoring-UI localisation, an unproven on-prem path, and unverified managed-solution packaging.
+
+**Corrections applied 2026-07-27 (C-B4).** Recorded so the same drift is visible if it recurs:
+
+| Row | Was | Now | Direction |
+|---|---|---|---|
+| Plugin entry point | Parity | North52 Superior — nothing registered on business entities | **Overstated** |
+| Client-side formulas | *absent from the table* | North52 Superior | **Omitted** |
+| Server-side triggers | *absent from the table* | North52 Superior | **Omitted** |
+| Write-back | *absent from the table* | North52 Superior (design only) | **Omitted** |
+| Rollup formulas | *absent from the table* | North52 Superior | **Omitted** |
+| Custom Action / on-prem parity | Parity | Partial — never tested | **Overstated** |
+| Managed-solution deployment | Parity | Partial — unverified | **Overstated** |
+| Pin justification | EDP Superior | Superior *once deployed* — guard is merged, not running | **Overstated** |
+| Approval workflow | "design intent, 2-state" | LIVE, 4-state, two-stage maker-checker | **Understated** |
+| Rule cloning | North52 Superior | Parity — it was built | **Understated** |
+| Execution analytics | "No" | LIVE — dashboard and API | **Understated** |
+| Dependency impact analysis | "No" | LIVE — graph and API | **Understated** |
+
+**Root cause:** the table was authored in Phase 3 against design intent and never reconciled against the built system, so it drifted in both directions as the product moved. The `EDP today` build-state column exists to make that drift visible on sight. **This table should be re-verified against the environment at every release**, and it carries a verification date for that reason.
 
 ---
 
