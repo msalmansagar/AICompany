@@ -259,3 +259,48 @@ Only the **chart** widget needs this library. The other V2-Dashboard widgets (ga
 | **jsreport** (>5 templates) | LGPL-3.0 | Commercial license required above 5 stored templates |
 | **DynamicExpresso** | MIT but C-5 risk | Executes C# code — violates security condition C-5 for untrusted formulas |
 | **Jint** | BSD-2 but C-5 risk | Executes arbitrary JavaScript — C-5 violation if CLR access not explicitly disabled and confirmed by security review |
+
+---
+
+## Area 11 — Browser-side export libraries (in-CRM engine, ADR-RPT-011)
+
+Moving execution into CRM retired the server-side exporters (ClosedXML, Open XML SDK,
+PDFsharp, SkiaSharp — Areas 2 and 3). Those ran in a .NET process that no longer exists.
+Exports now have to be produced in the browser, which changes the constraints entirely:
+the library ships inside a CRM web resource, so **download weight is a per-user cost on
+every report page load**, and the licence must permit redistribution inside a customer's
+solution.
+
+| Format | Library | Licence | Approx. min+gzip | Decision |
+|---|---|---|---|---|
+| CSV | *(none — hand-written)* | — | 0 | **DONE** — RFC 4180 + BOM, already shipping |
+| PNG | *(none — canvas.toBlob)* | — | 0 | **ADOPT** — no dependency needed |
+| Excel (.xlsx) | [SheetJS `xlsx`](https://github.com/SheetJS/sheetjs) | Apache-2.0 | ~180 KB | **ADOPT** |
+| Word (.docx) | [`docx`](https://github.com/dolanmiu/docx) | MIT | ~110 KB | **ADOPT** |
+| PDF | [`jsPDF`](https://github.com/parallax/jsPDF) + autotable | MIT | ~150 KB | **ADOPT** |
+
+**Decision: adopt SheetJS, docx and jsPDF; add no library for CSV or PNG.**
+
+Rationale, and the trade being made:
+
+- **Weight is the real constraint.** The viewer is already ~168 KB because the layout
+  renderer was ported into it. Adding all three roughly triples that. They are therefore
+  to be **loaded on demand** — the export menu fetches the library the first time a user
+  picks that format — so the common case (open a report, read it on screen) pays nothing.
+  This is the main reason ExcelJS was not chosen over SheetJS: it is several times larger
+  for capability this engine does not use.
+- **Licences are all permissive** (Apache-2.0 / MIT) and safe to redistribute inside a
+  managed solution. SheetJS's community build is Apache-2.0; the Pro edition is not needed.
+- **PDF is a genuine downgrade and should be stated as such.** jsPDF produces a serviceable
+  tabular PDF, but it is materially weaker than the retired PDFsharp/MigraDoc for pagination,
+  fonts and RTL. Against the CEO-agreed "functional, not pixel-perfect" SSRS parity bar
+  (ADR-RPT-009 context) this is acceptable, but a report that must be typographically exact
+  is now out of reach without a server. That is a direct consequence of ADR-RPT-011, not of
+  the library choice.
+- **Arabic/RTL is a known risk** for both jsPDF and docx and needs testing when tab 14
+  (Style & Language) lands — the engine ships bilingual reports, and PDF is where RTL most
+  often breaks. Deferred, not dismissed.
+
+Rejected: **pdfmake** (larger, embeds fonts by default), **ExcelJS** (size), **PptxGenJS**
+(no PowerPoint requirement), and any wkhtmltopdf/headless-Chrome approach (needs a server,
+which is what the architecture removed).
