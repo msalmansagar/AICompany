@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Newtonsoft.Json.Linq;
 using Moq;
@@ -455,11 +456,37 @@ namespace Qdb.FormEngine.Tests
             rule["qdb_is_active"] = true;
             rawData.BusinessRules = new List<Entity> { rule };
 
+            // The rule is triggered by qdb_status, so that field has to exist for the rule to
+            // attach anywhere. The old build attached by target and never needed it.
+            var triggerEntity = new Entity("qdb_form_field", Guid.NewGuid());
+            triggerEntity["qdb_form_section_id"] = rawData.Fields[0]["qdb_form_section_id"];
+            triggerEntity["qdb_field_type"] = new OptionSetValue(100000006); // dropdown
+            triggerEntity["qdb_schema_name"] = "qdb_status";
+            triggerEntity["qdb_label"] = "Status";
+            triggerEntity["qdb_display_order"] = 5;
+            triggerEntity["qdb_column_span"] = new OptionSetValue(100000001);
+            triggerEntity["qdb_is_required"] = false;
+            triggerEntity["qdb_is_readonly"] = false;
+            triggerEntity["qdb_is_hidden"] = false;
+            triggerEntity["qdb_is_visible"] = true;
+            rawData.Fields.Add(triggerEntity);
+
             var result = _generator.Generate(rawData, "en");
 
-            var field = result.Tabs[0].Sections[0].Fields[0];
-            Assert.Single(field.BusinessRules);
-            var br = field.BusinessRules[0];
+            // The rule hangs off the field that TRIGGERS it, not the one it acts on — it has to
+            // re-evaluate when qdb_status changes. Attaching by target also dropped every rule
+            // aimed at a section or tab, which has no target field at all.
+            var allFields = result.Tabs
+                .SelectMany(t => t.Sections)
+                .SelectMany(s => s.Fields)
+                .ToList();
+            var triggerField = allFields.First(f => f.SchemaName == "qdb_status");
+            var targetField = allFields.First(f => f.Id == targetFieldId);
+
+            Assert.Empty(targetField.BusinessRules);
+            Assert.Single(triggerField.BusinessRules);
+
+            var br = triggerField.BusinessRules[0];
             Assert.Equal("hideField", br.Action);                    // action_type mapped
             Assert.Equal(targetFieldId, br.TargetFieldId.Value);     // target_field_code resolved to GUID
             Assert.Equal("AND", br.ConditionsLogic);

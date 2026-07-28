@@ -431,6 +431,13 @@ namespace Qdb.FormEngine.Core.Generation
 
         private void AppendDesignerRules(Entity rule, JObject def, Guid fieldId, List<BusinessRule> result)
         {
+            // Attach to the TRIGGER field, matching the backend — the rule has to re-evaluate
+            // when the watched field changes, not when the field it acts on does.
+            var triggerCode = (string)def["trigger_field_code"];
+            Guid triggerGuid;
+            if (triggerCode == null || !_schemaToGuid.TryGetValue(triggerCode, out triggerGuid)) return;
+            if (triggerGuid != fieldId) return;
+
             var group = def["condition_group"] as JObject;
             var conditions = new List<RuleCondition>();
             var rawConditions = group != null ? group["conditions"] as JArray : null;
@@ -460,7 +467,6 @@ namespace Qdb.FormEngine.Core.Generation
                 var targetCode = (string)action["target_field_code"];
                 Guid targetGuid;
                 if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out targetGuid)) continue;
-                if (targetGuid != fieldId) continue;
 
                 result.Add(new BusinessRule
                 {
@@ -478,15 +484,42 @@ namespace Qdb.FormEngine.Core.Generation
             }
         }
 
+        /// <summary>
+        /// Whether any condition watches this field. Conditions may carry either the field's
+        /// record id (legacy/seed rows) or its schema name, so both are accepted.
+        /// </summary>
+        private bool TriggersOnField(List<RuleCondition> conditions, Guid fieldId)
+        {
+            if (conditions == null) return false;
+
+            string schemaName;
+            _guidToSchema.TryGetValue(fieldId, out schemaName);
+
+            foreach (var condition in conditions)
+            {
+                if (condition.FieldId == null) continue;
+
+                Guid conditionFieldId;
+                if (Guid.TryParse(condition.FieldId, out conditionFieldId) && conditionFieldId == fieldId) return true;
+                if (schemaName != null && condition.FieldId == schemaName) return true;
+            }
+            return false;
+        }
+
         private void AppendLegacyRule(Entity rule, Guid fieldId, List<BusinessRule> result)
         {
-            var target = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id");
-            if (target != fieldId) return;
-
             var conditionsJson = rule.GetAttributeValue<string>("qdb_conditions_json") ?? "[]";
             List<RuleCondition> conditions;
             try { conditions = JsonConvert.DeserializeObject<List<RuleCondition>>(conditionsJson) ?? new List<RuleCondition>(); }
             catch { conditions = new List<RuleCondition>(); }
+
+            // A rule belongs to the field that TRIGGERS it, not the one it acts on — it has to
+            // be re-evaluated when the watched field changes. Attaching by target also dropped
+            // every rule aimed at a section or tab, which has no target field at all.
+            if (!TriggersOnField(conditions, fieldId)) return;
+
+            var target = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id");
+
             // Resolve legacy GUID field references to schema names to match the runtime.
             foreach (var c in conditions)
             {
