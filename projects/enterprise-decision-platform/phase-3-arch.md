@@ -1469,7 +1469,7 @@ This matrix is the authoritative disclosure document for which EDP capabilities 
 
 ---
 
-## Appendix B — EDP vs North52 Parity Checklist (C-004 Resolution · verified 2026-07-27)
+## Appendix B — EDP Competitive Parity Checklist (C-004 Resolution · verified 2026-07-27, Flowon added 2026-07-28)
 
 This table is the authoritative input for sales positioning and go-to-market. "EDP Superior" means EDP delivers meaningfully better capability than North52's current offering. "North52 Superior" means North52 has a capability EDP does not.
 
@@ -1485,90 +1485,122 @@ This table is the authoritative input for sales positioning and go-to-market. "E
 | **DESIGN** | Specified only; no implementation |
 | **NONE** | Not built and not designed |
 
-**Rule for using this document:** never quote a row to a customer without its build-state marker. A LIVE row is a demonstrable claim; a MERGED or DESIGN row is a roadmap statement and must be presented as one.
+**Rule for using this document:** never quote a row to a customer without its build-state marker. A LIVE row is a demonstrable claim; a MERGED or DESIGN row is a roadmap statement and must be presented as one. `UNVERIFIED` means exactly that — do not claim it in either direction.
+
+### Competitors tracked, and how strong the evidence is
+
+Evidence quality differs by column and **must not be flattened**. Overstating a competitor's weakness is the same class of error as overstating our own strength.
+
+| Column | Source | Confidence |
+|---|---|---|
+| **EDP** | Live environment `org5869857f` + committed registration manifest, re-verified each release | **High** — demonstrable |
+| **North52** | Public product documentation and market knowledge as of Phase 3 | **Medium** — not re-verified since 2026-07-03 |
+| **Flowon** | Vendor's own product page and its interactive product demos, walked 2026-07-28 (`flowon.com/dataverse/logic-composer`) | **Low-to-medium** — vendor marketing claims and simulated UI, **not hands-on use, not documentation review, not a trial tenant** |
+
+**Flowon rows are what the vendor says it does.** Treat every Flowon "Yes" as an unverified vendor claim. Before any Flowon row is used in a competitive deal, it must be confirmed against their documentation or a trial. The North52 column is also stale and should be re-verified on the same principle.
+
+Flowon also ships adjacent products not compared here (Process Orchestrator, API Builder, MCP Server, CLI Tools) and an on-premises D365 CE line. This appendix compares **Logic Composer only**.
 
 ### B.1 Authoring
 
-| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
-|---|---|---|---|---|
-| Visual decision table authoring | Yes | **LIVE** | — | Parity |
-| Condition / expression authoring | Yes | **LIVE** — AND/OR/NOT builder | — | Parity |
-| Formula / calculation authoring | Yes | **LIVE** — NCalc, 31 bridge functions | — | Parity |
-| Decision graph (node-based) | Limited | **LIVE** — JDM editor, 6 node types | — | **EDP Superior** |
-| Metadata-driven field selection | Partial | **LIVE** — business names, no schema names | — | **EDP Superior** |
-| Cross-entity conditions (N:1 navigation) | Yes | **LIVE** | — | Parity |
-| Child aggregation in conditions (1:N) | Yes | **LIVE** — Count/Sum/Avg/Min/Max + filter | — | Parity |
-| Reason codes on outcomes | No | **LIVE** | — | **EDP Superior** |
-| Rule cloning | Yes | **LIVE** — corrected 2026-07-27 | — | Parity |
-| Rule templates | Yes | **PARTIAL** — API live, designer UI not wired | Wire UI | North52 Superior |
-| Excel import/export of rules | Yes | **NONE** | H2 | **North52 Superior** |
-| JSON import/export | Limited | **LIVE** | — | **EDP Superior** |
-| Multi-language authoring UI | Partial | **PARTIAL** — CRM field labels localise; EDP's own UI chrome is English only | H2 | North52 Superior |
+| Capability | North52 | Flowon *(claimed)* | EDP today (verified) | Roadmap | EDP position |
+|---|---|---|---|---|---|
+| Visual decision table authoring | Yes | Yes — first-match, multi in/out, wildcards | **LIVE** | — | Parity |
+| Condition / expression authoring | Yes | Yes | **LIVE** — AND/OR/NOT builder | — | Parity |
+| Formula / calculation authoring | Yes | Yes — claims 200+ functions | **LIVE** — NCalc, 31 bridge functions | — | Parity (function breadth unconfirmed both sides) |
+| Decision graph (node-based) | Limited | Yes — drag-drop **decision tree**, path-based | **LIVE** — JDM editor, 6 node types incl. switch | — | Parity |
+| Metadata-driven field selection | Partial | Not stated | **LIVE** — business names, no schema names | — | **EDP Superior** |
+| Cross-entity conditions (N:1) | Yes | Yes — read related records during computation | **LIVE** | — | Parity |
+| Child aggregation in conditions (1:N) | Yes | Not stated | **LIVE** — Count/Sum/Avg/Min/Max + filter | — | Parity |
+| Reason codes on outcomes | No | Not stated | **LIVE** | — | **EDP Superior** |
+| Reusable validation rules | Partial | Yes — **Validation Sets** applied across entities | **PARTIAL** — validation is per rule, not a reusable set | Consider | **Flowon Superior** |
+| Rule cloning | Yes | Not stated | **LIVE** | — | Parity |
+| Rule templates | Yes | Yes — Templates tab on every block | **PARTIAL** — API live, designer UI not wired | Wire UI | Behind |
+| Excel import/export of rules | Yes | Not stated | **NONE** | H2 | **North52 Superior** |
+| JSON import/export | Limited | Not stated | **LIVE** | — | **EDP Superior** |
+| Self-documenting artifacts | No | Yes — Docs title/description on every artifact | **PARTIAL** — descriptions exist, not a first-class docs pane | Consider | **Flowon Superior** |
+| Multi-language authoring UI | Partial | Partial | **PARTIAL** — CRM field labels localise; EDP UI chrome is English only | H2 | Behind |
 
 ### B.2 Invocation — the weakest area, and the reason EDP-BIND-001 exists
 
-| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
-|---|---|---|---|---|
-| **Server-side trigger on record events** | Yes | **NONE** — 0 SDK steps registered on any business entity | EDP-BIND-001 | **North52 Superior** |
-| **Client-side / form-level formulas** | Yes | **NONE** — no form integration exists | EDP-BIND-001 | **North52 Superior** |
-| **Write-back of outputs to record fields** | Yes | **DESIGN** — ADR-EDS-07, consumer-performed | EDP-BIND-001 | **North52 Superior** |
-| Rollup / cross-record aggregate formulas | Yes | **NONE** | Separate BRD | **North52 Superior** |
-| Workflow activity entry point | Yes | **NONE** | Separate BRD | **North52 Superior** |
-| Plugin-based execution | Yes | **PARTIAL** — a plugin backs the Custom API, but nothing is registered on business entities, so there is no automatic execution | EDP-BIND-001 | **North52 Superior** |
-| Custom Action entry point (on-prem) | Yes | **PARTIAL** — code and runbook complete, never tested; no on-prem instance exists | Test on an instance | North52 Superior |
-| Custom API entry point (cloud) | No | **LIVE** — 22 APIs, privilege-gated | — | **EDP Superior** |
-| REST API + SDKs for external callers | No | **MERGED** — gateway, OpenAPI 3.1, TS and .NET SDKs | Deploy | **EDP Superior** |
+| Capability | North52 | Flowon *(claimed)* | EDP today (verified) | Roadmap | EDP position |
+|---|---|---|---|---|---|
+| **Server-side trigger on record events** | Yes | **Yes — "Logic Recipe"**, binds to Create/Update/Delete on any entity; markets itself as "replaces C# plugins entirely" | **NONE** — 0 SDK steps registered on any business entity | EDP-BIND-001 | **Both Superior** |
+| **Execution phases per event** | Partial | Yes — **Validation / Before / After** per event type | **NONE** | EDP-BIND-001 | **Flowon Superior** |
+| **Blocking validation that cancels the operation** | Yes | Yes — Validation phase cancels and shows the error to the user | **NONE** | EDP-BIND-001 (FR-B17) | **Both Superior** |
+| **Sync and async execution modes** | Yes | Yes — per step, tagged Sync/Async | **NONE** | EDP-BIND-001 (OQ-B2) | **Both Superior** |
+| **Client-side / form-level formulas** | Yes | **Not offered** — every construct is server-side | **NONE** — no form integration exists | EDP-BIND-001 | **North52 Superior** |
+| **Write-back of outputs to record fields** | Yes | Yes — Logic Flows have full create/update/delete access | **DESIGN** — ADR-EDS-07, consumer-performed | EDP-BIND-001 | **Both Superior** |
+| Multi-step stateful orchestration | Partial | Yes — **Logic Flow**: loops, switch, error handling, mid-flow block calls | **NONE** — the runtime is deliberately side-effect-free | Separate BRD | **Flowon Superior** |
+| Scheduled / time-based execution | Partial | Yes — **Schedule**, 5 frequencies, native background job, run history | **NONE** | Separate BRD | **Flowon Superior** |
+| Outbound REST integration | Partial | Yes — **Service Connection**: OpenAPI import, OAuth2 / API key / Basic | **NONE** | Separate BRD | **Flowon Superior** |
+| Publish/subscribe events between artifacts | No | Yes — **Events**: definitions, multiple handlers, sync + async, immutable log | **NONE** | Separate BRD | **Flowon Superior** |
+| Rollup / cross-record aggregate formulas | Yes | Not stated | **NONE** | Separate BRD | **North52 Superior** |
+| Workflow activity entry point | Yes | Yes — can trigger Business Processes from a recipe phase | **NONE** | Separate BRD | **Both Superior** |
+| Plugin-based execution | Yes | Yes | **PARTIAL** — a plugin backs the Custom API, but nothing is registered on business entities, so there is no automatic execution | EDP-BIND-001 | **Both Superior** |
+| Custom Action entry point (on-prem) | Yes | Yes — separate D365 CE on-prem product line | **PARTIAL** — code and runbook complete, never tested | Test on an instance | Behind |
+| Custom API entry point (cloud) | No | Not stated | **LIVE** — 22 APIs, privilege-gated | — | **EDP Superior** |
+| REST API + SDKs for external callers | No | Adjacent product (API Builder), not Logic Composer | **MERGED** — gateway, OpenAPI 3.1, TS and .NET SDKs | Deploy | **EDP Superior** |
 
 ### B.3 Governance — the primary differentiator
 
-| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
-|---|---|---|---|---|
-| Rule versioning, immutable once published | Basic | **LIVE** | — | **EDP Superior** |
-| Approval workflow | No | **LIVE** — 4-state lifecycle, two-stage maker-checker (corrected 2026-07-27; previously understated as design intent) | — | **EDP Superior** |
-| Segregation of duties | No | **LIVE** | — | **EDP Superior** |
-| Append-only audit trail | No | **LIVE** — guarded at the data layer | — | **EDP Superior** |
-| Version pinning | No | **LIVE** | — | **EDP Superior** |
-| Enforced justification for a production pin | No | **MERGED** — guard plugin not deployed; pinning is live but justification is *not yet enforced* | W0-1 cutover | EDP Superior once deployed |
-| Effective dating / scheduled activation | No | **LIVE** | — | **EDP Superior** |
-| Governed rule sets and ordered chaining | Partial | **LIVE** | — | **EDP Superior** |
+| Capability | North52 | Flowon *(claimed)* | EDP today (verified) | Roadmap | EDP position |
+|---|---|---|---|---|---|
+| Rule versioning, immutable once published | Basic | Claims "versioned in Git, readable by anyone" — no in-product immutability described | **LIVE** | — | **EDP Superior** |
+| Approval workflow | No | **Not offered** | **LIVE** — 4-state lifecycle, two-stage maker-checker | — | **EDP Superior** |
+| Segregation of duties | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Append-only audit trail | No | Partial — Events are "immutable and timestamped"; no governance trail described | **LIVE** — guarded at the data layer | — | **EDP Superior** |
+| Version pinning | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Enforced justification for a production pin | No | **Not offered** | **MERGED** — guard not deployed; pinning is live but justification is *not yet enforced* | W0-1 cutover | EDP Superior once deployed |
+| Effective dating / scheduled activation | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Governed rule sets and ordered chaining | Partial | Partial — ordered steps within a recipe phase, no governance over the set | **LIVE** | — | **EDP Superior** |
+| Centralised config / thresholds | Partial | Yes — **Configuration Variables**, typed, environment-aware, cached | **UNVERIFIED** — a `qdb_edp_ruleconfiguration` entity exists; whether it is surfaced to authors is unconfirmed | Verify | **Flowon Superior** |
+| Centralised localised strings | No | Yes — **Localized Resources** resolved by user language | **NONE** | Consider | **Flowon Superior** |
 
 ### B.4 Quality, insight and operations
 
-| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
-|---|---|---|---|---|
-| Simulation / what-if before publishing | No | **LIVE** | — | **EDP Superior** |
-| Built-in test cases with pass/fail | No | **LIVE** — scenarios block publish on failure | — | **EDP Superior** |
-| Table completeness / overlap analysis | No | **LIVE** | — | **EDP Superior** |
-| Execution trace per decision | Limited | **LIVE** — full step trace | — | **EDP Superior** |
-| Decision explanation grounded in trace | No | **LIVE** | — | **EDP Superior** |
-| Execution analytics / aggregate reporting | No | **LIVE** — dashboard + API (corrected 2026-07-27; previously scored "No") | — | **EDP Superior** |
-| Rule dependency impact analysis | No | **LIVE** — graph + API (corrected 2026-07-27; previously scored "No") | — | **EDP Superior** |
-| Version comparison / diff | No | **LIVE** | — | **EDP Superior** |
-| Execution log export | Partial | **LIVE** — CSV | — | Parity |
-| Visual step-through debugger | No | **NONE** | H2 | Parity (both lack) |
-| AI-assisted rule generation | No | **DESIGN** — Phase 6, not built | H3 | Parity today |
-| Rule marketplace / template packs | No | **DESIGN** | H3 | Parity today |
+| Capability | North52 | Flowon *(claimed)* | EDP today (verified) | Roadmap | EDP position |
+|---|---|---|---|---|---|
+| Simulation / what-if before publishing | No | Partial — a **Run** command exists on artifacts | **LIVE** | — | **EDP Superior** |
+| Built-in test cases with pass/fail | No | **Not offered** | **LIVE** — scenarios block publish on failure | — | **EDP Superior** |
+| Table completeness / overlap analysis | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Execution trace per decision | Limited | Not stated | **LIVE** — full step trace | — | **EDP Superior** |
+| Decision explanation grounded in trace | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Execution analytics / aggregate reporting | No | **Not offered** | **LIVE** — dashboard + API | — | **EDP Superior** |
+| Rule dependency impact analysis | No | **Not offered** | **LIVE** — graph + API | — | **EDP Superior** |
+| Version comparison / diff | No | **Not offered** | **LIVE** | — | **EDP Superior** |
+| Execution log export | Partial | Not stated | **LIVE** — CSV | — | Parity |
+| Visual step-through debugger | No | Not stated | **NONE** | H2 | Parity (both lack) |
+| AI-assisted rule generation | No | Adjacent product (MCP Server), not Logic Composer | **DESIGN** — Phase 6, not built | H3 | Parity today |
+| Rule marketplace / template packs | No | **Not offered** | **DESIGN** | H3 | Parity today |
 
 ### B.5 Platform and deployment
 
-| Capability | North52 | EDP today (verified 2026-07-27) | Roadmap | Verdict |
-|---|---|---|---|---|
-| Data residency (in-tenancy) | Yes | **LIVE** | — | Parity |
-| Zero external infrastructure for the core | Yes | **LIVE** — the gateway is an optional tier, not required | — | Parity |
-| Cloud and on-prem parity | Yes | **PARTIAL** — on-prem path is code-complete but unproven | Test on an instance | North52 Superior |
-| Managed-solution deployment | Yes | **PARTIAL** — deployment is by API script; managed packaging is unverified | Verify | North52 Superior |
+| Capability | North52 | Flowon *(claimed)* | EDP today (verified) | Roadmap | EDP position |
+|---|---|---|---|---|---|
+| Data residency (in-tenancy) | Yes | Yes — executes natively inside Dataverse | **LIVE** | — | Parity |
+| Zero external infrastructure for the core | Yes | Yes — "no Azure Functions, no external schedulers" | **LIVE** — the gateway is an optional tier, not required | — | Parity |
+| No deployment cycle per logic change | Yes | Yes — "save and the change is active" | **PARTIAL** — rule changes are instant, but any *runtime* change needs a signed assembly deploy | — | Parity on rules |
+| Cloud and on-prem parity | Yes | Yes — separate D365 CE on-prem product line | **PARTIAL** — on-prem path is code-complete but unproven | Test on an instance | Behind |
+| Managed-solution deployment | Yes | Not stated | **PARTIAL** — deployment is by API script; managed packaging is unverified | Verify | Behind |
 
 ### B.6 Summary for go-to-market positioning
 
-**Where EDP is decisively ahead — all LIVE and demonstrable:** governance is the story. A four-state lifecycle with two-stage maker-checker, segregation of duties, an append-only trail guarded at the data layer, simulation and saved test scenarios that block a failing publish, effective dating, full execution traces and grounded decision explanations. North52 has none of these. For a regulated buyer this is the whole argument, and every claim in it can be demonstrated today.
+**Where EDP is decisively ahead — all LIVE and demonstrable:** governance is the story, and adding a second competitor strengthened rather than weakened it. A four-state lifecycle with two-stage maker-checker, segregation of duties, an append-only trail guarded at the data layer, simulation and saved test scenarios that block a failing publish, effective dating, full execution traces and grounded decision explanations. **Neither North52 nor Flowon offers any of these.** Flowon's entire governance claim is that logic is "versioned in Git, readable by anyone" — that is source control, not governance, and it does not answer who approved a change, whether an approver was distinct from the author, or what the system decided last Tuesday and why. For a regulated buyer this remains the whole argument, and every claim in it can be demonstrated today.
 
 **Where EDP is behind — and it is one coherent area, not a scattering of niche gaps.** The original table framed the deficit as four minor items (workflow activities, cloning, templates, Excel). That framing was wrong. The real deficit is **invocation**:
 
 > EDP can author, govern, publish and explain a decision — but cannot make one *happen* on its own. There is no record-event trigger and no form-level execution. A published rule stays inert until a developer writes code to call it.
 
-That is North52's core usage pattern, and it is a single connected gap rather than a feature list. `EDP-BIND-001` addresses it. Until that ships, **EDP is not a drop-in replacement for a North52 deployment**, however strong the governance story is, and it should not be positioned as one.
+That is North52's core usage pattern **and Flowon's entire product thesis** — Flowon markets its Logic Recipe as "replaces C# plugins entirely." It is a single connected gap rather than a feature list. `EDP-BIND-001` addresses it. Until that ships, **EDP is not a drop-in replacement for either incumbent**, however strong the governance story is, and it should not be positioned as one.
 
-**Secondary gaps:** rollup formulas, workflow activities, Excel rule import/export, authoring-UI localisation, an unproven on-prem path, and unverified managed-solution packaging.
+**Flowon widens the second front: EDP cannot *act*, only decide.** North52 exposed the trigger gap; Flowon exposes a larger one. Its Logic Flow, Schedule, Service Connection and Events constructs let logic write records, run on a timer, call external APIs with managed OAuth, and fan out through publish/subscribe. EDP's runtime is **deliberately side-effect-free** (ADR-EDS-07) and has none of this.
+
+That is a legitimate architectural position, not an oversight — side-effect-freedom is what makes decisions reproducible and explainable. But it must be sold as a *decision engine*, not as a logic platform. Against a customer evaluating Flowon for orchestration, EDP is not competing for the same job, and pretending otherwise loses the deal on a demo.
+
+**One useful datapoint from Flowon:** it ships **no client-side/form execution at all** — every construct is server-side. A serious competitor built this way weakens, though does not settle, the concern behind `OQ-B1` (that ADR-06's server round trip is commercially unacceptable). North52 does offer client-side formulas, so the question stands.
+
+**Secondary gaps:** rollup formulas, workflow activities, Excel rule import/export, reusable validation sets, centralised localised strings, authoring-UI localisation, an unproven on-prem path, and unverified managed-solution packaging.
 
 **Corrections applied 2026-07-27 (C-B4).** Recorded so the same drift is visible if it recurs:
 
@@ -1588,6 +1620,19 @@ That is North52's core usage pattern, and it is a single connected gap rather th
 | Dependency impact analysis | "No" | LIVE — graph and API | **Understated** |
 
 **Root cause:** the table was authored in Phase 3 against design intent and never reconciled against the built system, so it drifted in both directions as the product moved. The `EDP today` build-state column exists to make that drift visible on sight. **This table should be re-verified against the environment at every release**, and it carries a verification date for that reason.
+
+### B.7 Flowon added 2026-07-28 — what it changed
+
+Adding a second competitor moved the picture in both directions:
+
+| Effect | Detail |
+|---|---|
+| **Governance case strengthened** | Flowon offers no approval workflow, no SoD, no pinning, no effective dating, no simulation gate, no dependency analysis. Two independent competitors lacking all of it makes governance a category gap, not a North52 weakness. |
+| **A second gap opened** | Flowon does what EDP deliberately will not: write records, schedule work, call external APIs, publish events. EDP must be positioned as a decision engine, not a logic platform. |
+| **Design validated** | Flowon's Logic Recipe independently confirms EDP-BIND-001's shape — per-entity binding, Validation/Before/After phases, per-step sync/async, blocking validation. Its **one recipe per entity** model is a cleaner answer to step ordering than the multi-binding ordering in FR-B9 and should be considered at architecture. |
+| **Evidence weakened** | The Flowon column is vendor marketing, not verified use. It is explicitly marked as such and must be confirmed before any competitive use. |
+
+**Open action:** the North52 column has not been re-verified since 2026-07-03 and is now the least trustworthy part of this table. It should be refreshed on the same evidence standard before the next competitive cycle.
 
 ---
 
