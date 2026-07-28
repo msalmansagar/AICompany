@@ -130,7 +130,19 @@
   .empty{text-align:center; color:var(--text-secondary); padding:60px 20px;}
   .empty svg{opacity:.4; margin-bottom:12px;}
   .spinner{width:18px; height:18px; border:2px solid var(--border-strong); border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; display:inline-block; vertical-align:middle;}
+  .spinner.sm{width:13px; height:13px; border-width:2px; border-color:currentColor; border-top-color:transparent; opacity:.8;}
   @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* One global signal for work in flight. The inline spinners say what a panel is waiting for; this
+     says the viewer is busy at all, including during an export that renders no panel. */
+  .busy-bar{position:fixed; top:0; left:0; right:0; height:3px; z-index:200; overflow:hidden;
+    background:var(--primary-tint, rgba(0,120,212,.12)); opacity:0; transition:opacity .15s ease; pointer-events:none;}
+  .busy-bar.on{opacity:1;}
+  .busy-bar::after{content:""; position:absolute; inset:0; width:40%; border-radius:3px;
+    background:var(--primary); animation:busySlide 1.1s ease-in-out infinite;}
+  @keyframes busySlide{0%{transform:translateX(-100%);} 100%{transform:translateX(320%);}}
+  .btn.busy{pointer-events:none; opacity:.65;}
+  @media (prefers-reduced-motion: reduce){ .busy-bar::after, .spinner{animation:none;} }
 
   .modal-back{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:none; align-items:center; justify-content:center;}
   .modal-back.open{display:flex;}
@@ -306,6 +318,37 @@ const state = {
 
 function toast(msg, kind){ const t=document.createElement("div"); t.className="toast "+(kind||""); t.textContent=msg; $("#toasts").appendChild(t); setTimeout(()=>t.remove(), 4200); }
 
+/* ---------------- Busy tracking ----------------
+   Counts overlapping operations rather than toggling a flag: a chart render can start while an
+   export is still building, and the first to finish must not clear the signal for the other. */
+let busyDepth = 0;
+
+function paintBusy(){
+  let bar = $("#busyBar");
+  if (!bar) { bar = document.createElement("div"); bar.id = "busyBar"; bar.className = "busy-bar"; document.body.appendChild(bar); }
+  bar.classList.toggle("on", busyDepth > 0);
+}
+
+async function withBusy(operation){
+  busyDepth++; paintBusy();
+  try { return await operation(); }
+  finally { busyDepth = Math.max(0, busyDepth - 1); paintBusy(); }
+}
+
+/**
+ * The same for a button, which also spins and stops accepting clicks. Exports matter most here:
+ * generating a PDF fetches a 476 KB library web resource first, so the wait is real.
+ */
+async function withBusyButton(selector, label, operation){
+  const button = typeof selector === "string" ? $(selector) : selector;
+  const original = button ? button.innerHTML : null;
+  if (button) { button.classList.add("busy"); button.disabled = true; button.innerHTML = `<span class="spinner sm"></span> ${label}`; }
+  try { return await withBusy(operation); }
+  finally {
+    if (button && button.isConnected) { button.classList.remove("busy"); button.disabled = false; button.innerHTML = original; }
+  }
+}
+
 /* ---------------- Dataverse access ----------------
    Two paths, and the split between them IS the audit guarantee (ADR-RPT-011):
 
@@ -461,7 +504,7 @@ function readLayout(record){
 async function loadCatalog(){
   const c = $("#content");
   c.innerHTML = `<div class="cmdbar"><b>Report Catalog</b><div class="header-spacer" style="flex:1"></div><button class="btn" id="reload">↻ Refresh</button></div><div class="page"><div class="empty"><span class="spinner"></span> Loading reports…</div></div>`;
-  $("#reload").onclick = loadCatalog;
+  $("#reload").onclick = () => withBusyButton("#reload", "Refreshing…", loadCatalog);
   try {
     state.reports = await fetchCatalog();
     renderCatalog();
@@ -476,7 +519,7 @@ function renderCatalog(){
       <div class="foot"><span class="chip">${esc(r.mainEntityLogicalName||"—")}</span>${r.status?`<span class="chip">${esc(r.status.label||r.status.code)}</span>`:""}</div>
     </div>`).join("");
   $("#content .page").innerHTML = state.reports.length ? `<div class="card-grid">${cards}</div>` : errorState("No reports found for this user.");
-  document.querySelectorAll("[data-open]").forEach(el => el.onclick = () => openReport(el.dataset.open));
+  document.querySelectorAll("[data-open]").forEach(el => el.onclick = () => withBusy(() => openReport(el.dataset.open)));
 }
 
 /* ---------------- run a report ---------------- */
@@ -523,10 +566,10 @@ function renderRun(){
         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
         <div>Press <b>Run report</b> to load data.</div></div></div>
     </div>`;
-  $("#back").onclick = loadCatalog;
-  $("#run").onclick = runReport;
+  $("#back").onclick = () => withBusy(loadCatalog);
+  $("#run").onclick = () => withBusyButton("#run", "Running…", runReport);
   wireMenu("#exportBtn","#exportMenu", b => exportReport(b.dataset.export));
-  wireMenu("#chartBtn","#chartMenu", b => chartReport(b.dataset.chart));
+  wireMenu("#chartBtn","#chartMenu", b => withBusyButton("#chartBtn", "Charting…", async () => chartReport(b.dataset.chart)));
 }
 
 function collectParams(){
@@ -670,13 +713,14 @@ async function exportReport(fmt){
   const format = EXPORT_FORMATS[fmt];
   if (!format) { toast(`No exporter for ${fmt}.`, "error"); return; }
 
-  toast(`Preparing ${format.label}…`);
-  try {
-    await format.run(result, exportBaseName());
-    toast(`${format.label} downloaded`, "success");
-  } catch (error) {
-    toast(error.message, "error");
-  }
+  await withBusyButton("#exportBtn", `${format.label}…`, async () => {
+    try {
+      await format.run(result, exportBaseName());
+      toast(`${format.label} downloaded`, "success");
+    } catch (error) {
+      toast(error.message, "error");
+    }
+  });
 }
 
 const exportBaseName = () => {
@@ -904,7 +948,7 @@ async function loadDashboards(){
   $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div>
     <button class="btn" id="dreload">↻ Refresh</button></div>
     <div class="page"><div class="empty"><span class="spinner"></span> Loading dashboards…</div></div>`;
-  $("#dreload").onclick = loadDashboards;
+  $("#dreload").onclick = () => withBusyButton("#dreload", "Refreshing…", loadDashboards);
 
   try {
     const dashboards = await fetchDashboards();
@@ -912,7 +956,7 @@ async function loadDashboards(){
       ? `<div class="card-grid">${dashboards.map(d =>
           `<div class="card" data-dash="${esc(d.id)}"><div class="code">DASHBOARD</div><h3>${esc(d.title)}</h3></div>`).join("")}</div>`
       : errorState("No dashboards are visible to you.");
-    document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(el.dataset.dash, el.querySelector("h3").textContent));
+    document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => withBusy(() => openDashboard(el.dataset.dash, el.querySelector("h3").textContent)));
   } catch (error) {
     $("#content .page").innerHTML = errorState(error.message);
   }
@@ -923,7 +967,7 @@ async function openDashboard(id, title){
   $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button>
     <b style="margin-left:6px">${esc(title || "Dashboard")}</b><div class="header-spacer" style="flex:1"></div></div>
     <div class="page"><div class="empty"><span class="spinner"></span> Running widgets…</div></div>`;
-  $("#back").onclick = loadDashboards;
+  $("#back").onclick = () => withBusy(loadDashboards);
 
   try {
     const [layout, result] = await Promise.all([fetchDashboardLayout(id), runDashboardInCrm(id)]);

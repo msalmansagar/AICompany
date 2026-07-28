@@ -726,6 +726,55 @@
   .toast.warn .dot { background: var(--warning); }
   .toast.err .dot { background: var(--error); }
 
+  /* loading — every read and every write now reaches Dataverse, so anything can take a moment.
+     The bar is the one global signal; spinners are local to whatever the user is waiting on. */
+  .busy-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200; overflow: hidden;
+    background: var(--primary-tint-2); opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  }
+  .busy-bar.on { opacity: 1; }
+  .busy-bar::after {
+    content: ""; position: absolute; inset: 0; width: 40%; border-radius: 3px;
+    background: var(--primary); animation: busySlide 1.1s ease-in-out infinite;
+  }
+  @keyframes busySlide {
+    0% { transform: translateX(-100%); } 100% { transform: translateX(320%); }
+  }
+  .busy-label {
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 200;
+    background: var(--text); color: var(--surface); font-size: 12px; padding: 5px 12px;
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-16); display: flex; align-items: center; gap: 8px;
+    opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  }
+  .busy-label.on { opacity: .94; }
+
+  .spinner {
+    display: inline-block; width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: spin .6s linear infinite; opacity: .75;
+  }
+  .spinner.lg { width: 20px; height: 20px; border-width: 2.5px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-note { display: flex; align-items: center; gap: 9px; color: var(--text-secondary); font-size: 13px; }
+
+  /* A command mid-flight: no second click, and it says which one is working. */
+  .cmd[disabled], .btn[disabled] { opacity: .55; cursor: default; }
+  .cmd.busy, .btn.busy { pointer-events: none; }
+  .cmd.busy svg, .btn.busy svg { display: none; }
+
+  /* Rows the shape of the data that is coming, so a list does not jump when it arrives. */
+  .skeleton-row { display: flex; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+  .skeleton-cell {
+    height: 11px; border-radius: 4px; flex: 1;
+    background: linear-gradient(90deg, var(--primary-tint-2) 25%, var(--border) 37%, var(--primary-tint-2) 63%);
+    background-size: 400% 100%; animation: shimmer 1.3s ease infinite;
+  }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .busy-bar::after, .spinner, .skeleton-cell { animation: none; }
+  }
+
   .info-banner {
     display: flex; gap: 10px; align-items: flex-start; background: var(--primary-tint-2); border: 1px solid var(--border-strong);
     border-left: 3px solid var(--primary); border-radius: var(--radius); padding: 10px 14px; font-size: 12.5px; margin-bottom: 16px; color: var(--text);
@@ -1210,6 +1259,7 @@ const metadata = {
 async function loadEntityMetadata() {
   if (metadata.entitiesLoading) return;
   metadata.entitiesLoading = true;
+  beginBusy("Loading tables…");
   try {
     const rows = await dvMetadata(
       "EntityDefinitions?$select=LogicalName,EntitySetName,DisplayName,PrimaryIdAttribute,PrimaryNameAttribute"
@@ -1230,6 +1280,7 @@ async function loadEntityMetadata() {
     metadata.entitiesError = error.message || String(error);
   }
   metadata.entitiesLoading = false;
+  endBusy("Loading tables…");
   syncEntityDatalist();
   render();
 }
@@ -1237,6 +1288,7 @@ async function loadEntityMetadata() {
 async function loadAttributeMetadata(entity) {
   if (metadata.pending[entity]) return;
   metadata.pending[entity] = true;
+  beginBusy(`Loading ${entity} fields…`);
   try {
     const rows = await dvMetadata(
       `EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,AttributeType,DisplayName,AttributeOf,IsValidForRead`);
@@ -1253,6 +1305,7 @@ async function loadAttributeMetadata(entity) {
     metadata.attributesByEntity[entity] = [];
   }
   delete metadata.pending[entity];
+  endBusy(`Loading ${entity} fields…`);
   render();
 }
 
@@ -1261,6 +1314,7 @@ async function loadRelationshipMetadata(entity) {
   const key = "rel:" + entity;
   if (metadata.pending[key]) return;
   metadata.pending[key] = true;
+  beginBusy(`Loading ${entity} relationships…`);
   try {
     const rows = await dvMetadata(
       `EntityDefinitions(LogicalName='${entity}')/OneToManyRelationships?$select=ReferencingEntity,ReferencingAttribute,SchemaName`);
@@ -1274,6 +1328,7 @@ async function loadRelationshipMetadata(entity) {
     metadata.relationsByEntity[entity] = [];
   }
   delete metadata.pending[key];
+  endBusy(`Loading ${entity} relationships…`);
   render();
 }
 
@@ -1284,6 +1339,7 @@ async function loadOptionSets(entity) {
   const key = "opts:" + entity;
   if (metadata.pending[key]) return;
   metadata.pending[key] = true;
+  beginBusy(`Loading ${entity} choices…`);
   try {
     const rows = await dvMetadata(
       `EntityDefinitions(LogicalName='${entity}')/Attributes/Microsoft.Dynamics.CRM.PicklistAttributeMetadata`
@@ -1300,6 +1356,7 @@ async function loadOptionSets(entity) {
     metadata.optionSets[entity] = {};
   }
   delete metadata.pending[key];
+  endBusy(`Loading ${entity} choices…`);
   render();
 }
 
@@ -1371,7 +1428,8 @@ function syncEntityDatalist() {
 /** A type-ahead entity picker. `attrs` carries the ids or data-* the caller's handler binds to. */
 function entityPickerHtml(selected, attrs = "") {
   entityNames();
-  return `<input class="fluent-input" list="${ENTITY_DATALIST_ID}" value="${esc(selected || "")}" placeholder="Search tables…" ${attrs}>`;
+  const placeholder = metadata.entities === null ? "Loading tables…" : "Search tables…";
+  return `<input class="fluent-input" list="${ENTITY_DATALIST_ID}" value="${esc(selected || "")}" placeholder="${placeholder}" ${attrs}>`;
 }
 
 const JOIN_TYPES = ["Inner join","Left join","Right join"];
@@ -1474,6 +1532,97 @@ function toast(msg, kind="ok") {
   setTimeout(() => { t.style.transition="opacity .3s"; t.style.opacity="0"; setTimeout(()=>t.remove(),300); }, 2600);
 }
 
+/* ---------- Busy tracking ----------
+   Nothing in the designer is computed locally any more: opening a report, filling a picker and
+   drawing a preview are all round trips. Every one of them goes through here, so the user is never
+   looking at a screen that is working without saying so.
+
+   The tracker counts overlapping operations rather than toggling a flag, because several run at
+   once — a list refresh while attribute metadata and a preview query are still in flight — and the
+   first one to finish must not clear the signal for the others. It lives on the document, outside
+   the re-rendered region, so a render mid-flight does not wipe it. */
+const busy = { depth: 0, labels: [] };
+
+function beginBusy(label) {
+  busy.depth++;
+  if (label) busy.labels.push(label);
+  paintBusy();
+}
+
+function endBusy(label) {
+  busy.depth = Math.max(0, busy.depth - 1);
+  const at = label ? busy.labels.indexOf(label) : -1;
+  if (at >= 0) busy.labels.splice(at, 1);
+  paintBusy();
+}
+
+function paintBusy() {
+  const bar = busyElement("qdbBusyBar", "busy-bar");
+  const note = busyElement("qdbBusyLabel", "busy-label");
+  const active = busy.depth > 0;
+  bar.classList.toggle("on", active);
+  // The newest label wins: it is the thing the user just asked for.
+  const label = busy.labels[busy.labels.length - 1];
+  note.innerHTML = label ? `<span class="spinner"></span><span>${esc(label)}</span>` : "";
+  note.classList.toggle("on", active && !!label);
+}
+
+function busyElement(id, className) {
+  let node = document.getElementById(id);
+  if (!node) {
+    node = document.createElement("div");
+    node.id = id;
+    node.className = className;
+    document.body.appendChild(node);
+  }
+  return node;
+}
+
+/**
+ * Runs an async operation with the busy signal raised, and lowers it however the operation ends.
+ * Rejections propagate — the caller still decides what a failure means.
+ */
+async function withBusy(label, operation) {
+  beginBusy(label);
+  try {
+    return await operation();
+  } finally {
+    endBusy(label);
+  }
+}
+
+/**
+ * The same, for a command button: it also disables and spins so the user cannot fire it twice.
+ * Buttons are looked up live because a render can replace the element underneath us.
+ */
+async function withBusyButton(selector, label, operation) {
+  const button = typeof selector === "string" ? $(selector) : selector;
+  const original = button ? button.innerHTML : null;
+  if (button) {
+    button.disabled = true;
+    button.classList.add("busy");
+    button.innerHTML = `<span class="spinner"></span>${esc(label)}`;
+  }
+  try {
+    return await withBusy(label, operation);
+  } finally {
+    if (button && button.isConnected) {
+      button.disabled = false;
+      button.classList.remove("busy");
+      button.innerHTML = original;
+    }
+  }
+}
+
+/** The inline "still loading" line a list or panel shows in place of its content. */
+const loadingNote = text => `<div class="loading-note"><span class="spinner"></span><span>${esc(text)}</span></div>`;
+
+/** Placeholder rows shaped like the table that is coming. */
+function skeletonRows(columns, rows = 4) {
+  const cells = Array.from({ length: columns }, () => `<div class="skeleton-cell"></div>`).join("");
+  return Array.from({ length: rows }, () => `<div class="skeleton-row">${cells}</div>`).join("");
+}
+
 /* ---------- Dataverse persistence (ADR-RPT-011) ----------
    Report and dashboard definitions are written straight to Dataverse with Xrm.WebApi, as the
    signed-in user. There is no middle tier to POST to any more.
@@ -1546,6 +1695,7 @@ function dataverseCatalog(entity, query, mapRow) {
     isLoading: () => catalog.rows === null,
     async load() {
       catalog.loading = true;
+      beginBusy(`Reading ${entity}…`);
       try {
         catalog.rows = (await dvList(entity, typeof query === "function" ? query() : query)).map(mapRow);
         catalog.error = null;
@@ -1554,6 +1704,7 @@ function dataverseCatalog(entity, query, mapRow) {
         catalog.error = error.message || String(error);
       }
       catalog.loading = false;
+      endBusy(`Reading ${entity}…`);
       render();
     },
     /** Re-reads from Dataverse, for the Refresh command and after a save. */
@@ -1570,7 +1721,7 @@ function catalogEmptyState(catalog, emptyMessage) {
   if (catalog.error) {
     return `<div class="page-sub" style="color:var(--danger)">Couldn't read from Dataverse — ${esc(catalog.error)}</div>`;
   }
-  if (catalog.isLoading()) return `<div class="page-sub">Loading from Dataverse…</div>`;
+  if (catalog.isLoading()) return loadingNote("Loading from Dataverse…");
   return `<div class="page-sub">${esc(emptyMessage)}</div>`;
 }
 
@@ -1669,6 +1820,7 @@ async function deleteDashboardSections(dashboardId) {
 async function saveDashboardToServer(dashboard) {
   const button = $("#dash_save");
   if (button) button.disabled = true;
+  beginBusy("Saving dashboard…");
   const def = dashboardToDefinition(dashboard);
   const isUpdate = !!dashboard.savedId;
   const attributes = defined({ qdb_dashboardname: def.title, qdb_isgoverned: !!def.isGoverned });
@@ -1687,6 +1839,7 @@ async function saveDashboardToServer(dashboard) {
     toast("Save failed — " + error.message, "err");
   } finally {
     if (button) button.disabled = false;
+    endBusy("Saving dashboard…");
   }
 }
 
@@ -1991,6 +2144,7 @@ function reportDefinitionAttributes(def) {
 async function saveReportToServer(report) {
   const def = reportToDefinition(report);
   const isUpdate = !!report.savedId;
+  beginBusy(isUpdate ? "Saving report…" : "Creating report…");
   try {
     if (isUpdate) {
       // Replace the children wholesale, matching how the definition is loaded as one graph.
@@ -2005,6 +2159,8 @@ async function saveReportToServer(report) {
     reportCatalog.refresh();
   } catch (error) {
     toast("Save failed — " + error.message, "err");
+  } finally {
+    endBusy(isUpdate ? "Saving report…" : "Creating report…");
   }
 }
 
@@ -2244,6 +2400,7 @@ const isOwnedByCurrentUser = report =>
   !!report.ownerId && !!state.userId &&
   report.ownerId.replace(/[{}]/g, "").toLowerCase() === state.userId.replace(/[{}]/g, "").toLowerCase();
 async function openSavedReport(id) {
+  beginBusy("Opening report…");
   try {
     const report = definitionToReport(await loadReportDefinition(id));
     await resolveColumnTypes(report);
@@ -2252,9 +2409,12 @@ async function openSavedReport(id) {
     state.view = "designer"; state.tab = "general"; render();
   } catch (error) {
     toast("Couldn't open saved report — " + error.message, "err");
+  } finally {
+    endBusy("Opening report…");
   }
 }
 async function deleteSavedReport(id) {
+  beginBusy("Deleting report…");
   try {
     await deleteReportChildren(id);
     await dvDelete("qdb_reportdefinition", id);
@@ -2262,6 +2422,8 @@ async function deleteSavedReport(id) {
     await reportCatalog.refresh();
   } catch (error) {
     toast("Delete failed — " + error.message, "err");
+  } finally {
+    endBusy("Deleting report…");
   }
 }
 
@@ -2335,13 +2497,17 @@ const dashboardCatalog = dataverseCatalog(
   })
 );
 async function openSavedDashboard(id) {
+  beginBusy("Opening dashboard…");
   try {
     openDashboardComposer(definitionToDashboard(await loadDashboardDefinition(id)));
   } catch (error) {
     toast("Couldn't open saved dashboard — " + error.message, "err");
+  } finally {
+    endBusy("Opening dashboard…");
   }
 }
 async function deleteSavedDashboard(id) {
+  beginBusy("Deleting dashboard…");
   try {
     await deleteDashboardSections(id);
     await dvDelete("qdb_dashboard", id);
@@ -2349,6 +2515,8 @@ async function deleteSavedDashboard(id) {
     await dashboardCatalog.refresh();
   } catch (error) {
     toast("Delete failed — " + error.message, "err");
+  } finally {
+    endBusy("Deleting dashboard…");
   }
 }
 
@@ -2421,7 +2589,7 @@ function renderReports(c) {
       <tbody>${list.map(rowHtml).join("")}</tbody>
     </table></div>
     <div class="legend"><span><b>${list.filter(r=>r.status==="Published").length}</b> published</span><span><b>${list.filter(r=>r.status!=="Published").length}</b> draft</span><span><b>${list.filter(r=>r.governed).length}</b> governed</span></div>`
-    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(reportCatalog, emptyMessage)}</div>`;
+    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(reportCatalog, emptyMessage)}${reportCatalog.isLoading() ? `<div style="margin-top:12px">${skeletonRows(6)}</div>` : ""}</div>`;
   const scroll = el(`<div class="scroll"><div class="page">
     <div class="page-head"><div><h1>${mine?"My Reports":"All Reports"}</h1><div class="page-sub">${list.length} report definition${list.length===1?"":"s"} in Dataverse · metadata-driven · run on Dynamics 365 on-prem 9.x and Dataverse cloud</div></div></div>
     ${body}
@@ -2445,16 +2613,17 @@ function renderReports(c) {
   });
   $("#btnNew").onclick = () => openNewChooser();
   $("#btnNewDash").onclick = () => { state.view = "dashboards"; render(); setTimeout(openNewDashboardChooser, 30); };
-  $("#btnEdit").onclick = () => selected() && openSavedReport(state.selectedReportId);
-  $("#btnRun").onclick = () => selected() && runSavedReportFromList(state.selectedReportId);
-  $("#btnClone").onclick = () => { const r = selected(); if (r) cloneSavedReport(r); };
-  $("#btnPublish").onclick = () => { const r = selected(); if (r) publishSavedReport(r); };
+  $("#btnEdit").onclick = () => selected() && withBusyButton("#btnEdit", "Opening…", () => openSavedReport(state.selectedReportId));
+  $("#btnRun").onclick = () => selected() && withBusyButton("#btnRun", "Running…", () => runSavedReportFromList(state.selectedReportId));
+  $("#btnClone").onclick = () => { const r = selected(); if (r) withBusyButton("#btnClone", "Cloning…", () => cloneSavedReport(r)); };
+  $("#btnPublish").onclick = () => { const r = selected(); if (r) withBusyButton("#btnPublish", "Publishing…", () => publishSavedReport(r)); };
   $("#btnDelete").onclick = () => {
     if (!selected()) return;
-    deleteSavedReport(state.selectedReportId);
+    const id = state.selectedReportId;
     state.selectedReportId = null;
+    withBusyButton("#btnDelete", "Deleting…", () => deleteSavedReport(id));
   };
-  $("#btnRefresh").onclick = () => reportCatalog.refresh();
+  $("#btnRefresh").onclick = () => withBusyButton("#btnRefresh", "Refreshing…", () => reportCatalog.refresh());
   $("#btnExportView").onclick = () => exportViewCsv(list);
 }
 
@@ -2467,6 +2636,7 @@ async function runSavedReportFromList(id) {
 /* Copies the whole definition, not just the header row: a clone whose columns, filters and security
    were left behind would open looking finished and return nothing. */
 async function cloneSavedReport(report) {
+  beginBusy("Cloning report…");
   try {
     const copy = definitionToReport(await loadReportDefinition(report.id));
     copy.savedId = null;
@@ -2476,10 +2646,13 @@ async function cloneSavedReport(report) {
     await saveReportToServer(copy);
   } catch (error) {
     toast("Clone failed — " + error.message, "err");
+  } finally {
+    endBusy("Cloning report…");
   }
 }
 
 async function publishSavedReport(report) {
+  beginBusy("Publishing…");
   try {
     await dvUpdate("qdb_reportdefinition", report.id, {
       qdb_ispublished: true,
@@ -2490,6 +2663,8 @@ async function publishSavedReport(report) {
     reportCatalog.refresh();
   } catch (error) {
     toast("Publish failed — " + error.message, "err");
+  } finally {
+    endBusy("Publishing…");
   }
 }
 /* Publishing writes to Dataverse rather than flipping a field in memory, so what the list shows and
@@ -2502,6 +2677,8 @@ async function togglePublishState(report) {
   }
   const publishing = report.status !== "Published";
   const version = publishing ? (report.version || 0) + 1 : report.version;
+  const label = publishing ? "Publishing…" : "Unpublishing…";
+  beginBusy(label);
   try {
     await dvUpdate("qdb_reportdefinition", report.savedId, {
       qdb_ispublished: publishing,
@@ -2515,6 +2692,8 @@ async function togglePublishState(report) {
     render();
   } catch (error) {
     toast("Publish failed — " + error.message, "err");
+  } finally {
+    endBusy(label);
   }
 }
 
@@ -2571,14 +2750,16 @@ function renderDesigner(c) {
 
   pivot.querySelectorAll(".pivot-tab").forEach(t => t.onclick = () => { state.tab = t.dataset.tab; render(); });
   $("#dBack").onclick = () => { state.view = "reports"; render(); };
-  $("#dSave").onclick = () => saveReportToServer(state.report);
-  $("#dSaveClose").onclick = async () => { await saveReportToServer(state.report); state.view="reports"; render(); };
-  $("#dPublish").onclick = () => togglePublishState(r);
+  $("#dSave").onclick = () => withBusyButton("#dSave", "Saving…", () => saveReportToServer(state.report));
+  $("#dSaveClose").onclick = () => withBusyButton("#dSaveClose", "Saving…", async () => {
+    await saveReportToServer(state.report); state.view="reports"; render();
+  });
+  $("#dPublish").onclick = () => withBusyButton("#dPublish", "Publishing…", () => togglePublishState(r));
   $("#dRun").onclick = () => openRunDialog();
   // Cloning has to save first: an unsaved draft has no stored children to copy.
-  $("#dClone").onclick = async () => {
+  $("#dClone").onclick = () => {
     if (!r.savedId) { toast("Save the report before cloning it", "warn"); return; }
-    await cloneSavedReport({ id: r.savedId, name: r.name });
+    withBusyButton("#dClone", "Cloning…", () => cloneSavedReport({ id: r.savedId, name: r.name }));
   };
   $("#dVersions").onclick = () => openVersionPanel();
 }
@@ -3387,6 +3568,7 @@ async function applyStart(d) {
 async function copyStoredReportIntoDraft(d) {
   const chosen = reportCatalog.get().find(r => r.name === d.dupPick);
   if (!chosen) { toast("Pick a report to duplicate", "warn"); return; }
+  beginBusy("Reading report to duplicate…");
   try {
     const src = definitionToReport(await loadReportDefinition(chosen.id));
     d.name = `${chosen.name} (copy)`;
@@ -3401,6 +3583,8 @@ async function copyStoredReportIntoDraft(d) {
     d.parameters = src.parameters.map(p => ({ name:p.name, prompt:p.prompt, type:p.type, required:p.required }));
   } catch (error) {
     toast("Couldn't read the report to duplicate — " + error.message, "err");
+  } finally {
+    endBusy("Reading report to duplicate…");
   }
 }
 function renderWizard() {
@@ -3422,7 +3606,7 @@ function renderWizard() {
   ({ start:wizStart, basics:wizBasics, data:wizData, columns:wizColumns, details:wizDetails, filters:wizFilters, etl:wizETL, layout:wizLayout, design:wizDesign, placement:wizPlacement, review:wizReview })[WIZ_STEPS[wiz.step].key]($("#wizContent"), wiz.draft);
   $("#wizClose").onclick = $("#wizCancel").onclick = () => overlay.remove();
   $("#wizBack").onclick = () => { if (wiz.step>0){ wiz.step--; renderWizard(); } };
-  $("#wizNext").onclick = wizNext;
+  $("#wizNext").onclick = () => withBusyButton("#wizNext", "Working…", wizNext);
 }
 function wizBasics(host, d) {
   host.innerHTML = `<div class="wtitle">Let's start with the basics</div><div class="wsub">Give the report a name and tell us where it belongs. You can change all of this later in the designer.</div>
@@ -3674,6 +3858,7 @@ function previewRows(cols, entity) {
 async function loadPreviewRows(key, entity, cols) {
   if (previewData.pending[key]) return;
   previewData.pending[key] = true;
+  beginBusy(`Previewing ${entity}…`);
   try {
     const rows = await dvList(entity, "?fetchXml=" + encodeURIComponent(previewFetchXml(entity, cols)));
     previewData.byKey[key] = rows.map(row => toPreviewRow(row, cols));
@@ -3683,6 +3868,7 @@ async function loadPreviewRows(key, entity, cols) {
     previewData.byKey[key] = [];
   }
   delete previewData.pending[key];
+  endBusy(`Previewing ${entity}…`);
   render();
 }
 
@@ -3710,11 +3896,14 @@ function previewIsLoading(cols, entity) {
 }
 
 function previewPlaceholder(cols, entity) {
+  if (previewIsLoading(cols, entity)) {
+    // Skeleton rows in the shape of the columns already chosen, so the preview does not jump.
+    return `<div class="section-card" style="max-width:940px">${loadingNote(`Reading ${entity} from Dataverse…`)}
+      <div style="margin-top:12px">${skeletonRows(Math.min((cols || []).length || 3, 6))}</div></div>`;
+  }
   const message = !entity
     ? "Pick a main entity to preview real rows from your data."
-    : previewIsLoading(cols, entity)
-      ? `Reading ${esc(entity)} from Dataverse…`
-      : `No rows returned from <span class="kbd">${esc(entity)}</span>. The preview shows your own data, so an empty table here means the query returned nothing or you cannot read that table.`;
+    : `No rows returned from <span class="kbd">${esc(entity)}</span>. The preview shows your own data, so an empty table here means the query returned nothing or you cannot read that table.`;
   return `<div class="section-card" style="max-width:940px"><div class="page-sub">${message}</div></div>`;
 }
 function draftPreviewCols(d) {
@@ -4244,7 +4433,31 @@ function openRunDialog() {
   scrim.querySelector(".close-x").onclick = close;
   scrim.querySelector("[data-close]").onclick = close;
   scrim.addEventListener("click", e => { if (e.target===scrim) close(); });
-  scrim.querySelector("#runGo").onclick = () => { close(); if (state.view==="designer"){ state.tab="preview"; render(); } toast("Report executed — 9 rows in 0.4s","info"); };
+  scrim.querySelector("#runGo").onclick = () =>
+    withBusyButton(scrim.querySelector("#runGo"), "Running…", async () => {
+      const outcome = await runReportPreview(r);
+      close();
+      if (state.view === "designer") { state.tab = "preview"; render(); }
+      toast(outcome.message, outcome.ok ? "ok" : "err");
+    });
+}
+
+/* Re-reads the report's rows and reports what actually came back. This used to close the dialog and
+   toast "9 rows in 0.4s" whatever happened — a fixed number, for a query it never ran. */
+async function runReportPreview(report) {
+  const cols = reportPreviewCols(report);
+  if (!report.mainEntity) return { ok: false, message: "Pick a main entity before running the report." };
+  if (!cols.length) return { ok: false, message: "Select at least one column before running the report." };
+
+  const key = previewKey(report.mainEntity, cols);
+  delete previewData.byKey[key];
+  const startedAt = performance.now();
+  await loadPreviewRows(key, report.mainEntity, cols);
+  const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
+  const rows = previewData.byKey[key] || [];
+  return rows.length
+    ? { ok: true, message: `Report executed — ${rows.length} row${rows.length === 1 ? "" : "s"} in ${seconds}s` }
+    : { ok: false, message: `No rows returned from ${report.mainEntity} in ${seconds}s` };
 }
 
 /* ============================ VERSION PANEL ============================ */
@@ -4281,7 +4494,7 @@ function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog
   const scroll = el(`<div class="scroll"><div class="page"><div class="page-head"><div><h1>${esc(title)}</h1><div class="page-sub">${sub}</div></div></div><div class="grid-wrap">${tableHtml}</div></div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
   if (entityKey) $("#slNew").onclick = () => openEntityForm(entityKey);
-  $("#slRefresh").onclick = () => catalog ? catalog.refresh() : render();
+  $("#slRefresh").onclick = () => withBusyButton("#slRefresh", "Refreshing…", async () => { catalog ? await catalog.refresh() : render(); });
   $("#slExport").onclick = () => toast("View exported to CSV");
 }
 /* The configuration and monitoring views. Each had a literal array behind it — including connectors
@@ -4371,6 +4584,7 @@ async function resolveUserNames(ids) {
   const missing = [...new Set(ids.filter(id => id && !userNames.byId[id]))];
   if (!missing.length || userNames.pending) return;
   userNames.pending = true;
+  beginBusy("Resolving users…");
   try {
     const filter = missing.map(id => `systemuserid eq ${id}`).join(" or ");
     for (const user of await dvList("systemuser", `?$select=systemuserid,fullname&$filter=${filter}`)) {
@@ -4381,6 +4595,7 @@ async function resolveUserNames(ids) {
     for (const id of missing) userNames.byId[id] = "(unresolved)";
   }
   userNames.pending = false;
+  endBusy("Resolving users…");
   render();
 }
 
@@ -4393,7 +4608,10 @@ function datasourceOptions(selectedName) {
 /** Wraps a catalogue-backed table so an empty one explains itself instead of showing blank rows. */
 function catalogTable(catalog, headers, rowHtml, emptyMessage) {
   const rows = catalog.get();
-  if (!rows.length) return `<div class="section-card">${catalogEmptyState(catalog, emptyMessage)}</div>`;
+  if (!rows.length) {
+    const skeleton = catalog.isLoading() ? `<div style="margin-top:12px">${skeletonRows(headers.length)}</div>` : "";
+    return `<div class="section-card">${catalogEmptyState(catalog, emptyMessage)}${skeleton}</div>`;
+  }
   return `<table class="grid"><thead><tr>${headers.map(h => `<th${h.num ? ' class="num"' : ""}>${esc(h.label || h)}</th>`).join("")}</tr></thead>`
     + `<tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
 }
@@ -4462,6 +4680,7 @@ const FORM_SPECS = {
 /* Writes a real qdb_externalconnector. The form used to unshift a row into an array, so a connector
    "created" here vanished on refresh and could never be referenced by a report. */
 async function createConnector(values) {
+  beginBusy("Creating connector…");
   try {
     await dvCreate("qdb_externalconnector", defined({
       qdb_name: values.name,
@@ -4478,6 +4697,8 @@ async function createConnector(values) {
     connectorCatalog.refresh();
   } catch (error) {
     toast("Couldn't create the connector — " + error.message, "err");
+  } finally {
+    endBusy("Creating connector…");
   }
 }
 
@@ -4733,7 +4954,7 @@ function renderDashboards(c) {
   const rowHtml = d => `<tr data-id="${esc(d.id)}"><td class="row-check"><input type="checkbox"></td><td><span class="link-cell">${esc(d.title)}</span></td><td>${cell(d.owner)}</td><td>${d.isGoverned?ic("check"):"—"}</td><td>${cell(d.modified)}</td></tr>`;
   const body = rows.length
     ? `<div class="grid-wrap"><table class="grid" role="grid"><thead><tr><th class="row-check"><input type="checkbox" disabled></th><th>Dashboard name</th><th>Owner</th><th>Governed</th><th>Modified</th></tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table></div>`
-    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(dashboardCatalog, "No dashboards in this environment yet. Use New dashboard to compose one.")}</div>`;
+    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(dashboardCatalog, "No dashboards in this environment yet. Use New dashboard to compose one.")}${dashboardCatalog.isLoading() ? `<div style="margin-top:12px">${skeletonRows(4)}</div>` : ""}</div>`;
   const scroll = el(`<div class="scroll"><div class="page">
     <div class="page-head"><div><h1>Dashboards</h1><div class="page-sub">${rows.length} dashboard${rows.length===1?"":"s"} in Dataverse · a grid of independently data-bound widgets (metrics, charts, gauges, info cards, tables…)</div></div></div>
     ${body}
@@ -4752,14 +4973,15 @@ function renderDashboards(c) {
   });
   $("#dbNew").onclick = () => openNewDashboardChooser();
   $("#dbNewReport").onclick = () => { state.view = "reports"; render(); setTimeout(openNewChooser, 30); };
-  $("#dbOpen").onclick = () => selId && openSavedDashboard(selId);
-  $("#dbClone").onclick = () => selId && cloneSavedDashboard(selId);
-  $("#dbDelete").onclick = () => { if (selId) { deleteSavedDashboard(selId); selId = null; } };
+  $("#dbOpen").onclick = () => selId && withBusyButton("#dbOpen", "Opening…", () => openSavedDashboard(selId));
+  $("#dbClone").onclick = () => selId && withBusyButton("#dbClone", "Cloning…", () => cloneSavedDashboard(selId));
+  $("#dbDelete").onclick = () => { if (selId) { const id = selId; selId = null; withBusyButton("#dbDelete", "Deleting…", () => deleteSavedDashboard(id)); } };
 }
 
 /* Loads the stored dashboard, strips its identity and saves it as a new one, so the copy carries its
    sections and widgets rather than only its title. */
 async function cloneSavedDashboard(id) {
+  beginBusy("Cloning dashboard…");
   try {
     const source = definitionToDashboard(await loadDashboardDefinition(id));
     source.savedId = null;
@@ -4768,6 +4990,8 @@ async function cloneSavedDashboard(id) {
     dashboardCatalog.refresh();
   } catch (error) {
     toast("Clone failed — " + error.message, "err");
+  } finally {
+    endBusy("Cloning dashboard…");
   }
 }
 
