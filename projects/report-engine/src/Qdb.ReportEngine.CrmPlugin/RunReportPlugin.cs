@@ -42,14 +42,17 @@ namespace Qdb.ReportEngine.CrmPlugin
             var asUser = factory.CreateOrganizationService(context.InitiatingUserId);
             var asSystem = factory.CreateOrganizationService(null);
 
-            Run(context, tracing, asUser, new ExecutionLogWriter(asSystem, tracing));
+            Run(context, tracing, asUser, new ExecutionLogWriter(asSystem, tracing),
+                new ReportAccessGuard(asSystem), context.InitiatingUserId);
         }
 
         private static void Run(
             IPluginExecutionContext context,
             ITracingService tracing,
             IOrganizationService asUser,
-            ExecutionLogWriter log)
+            ExecutionLogWriter log,
+            ReportAccessGuard guard,
+            Guid callerId)
         {
             var request = RunReportRequestReader.Read(context);
             var entry = NewLogEntry(request.ReportId, context.InitiatingUserId);
@@ -60,6 +63,10 @@ namespace Qdb.ReportEngine.CrmPlugin
 
             try
             {
+                // Checked before the definition is even loaded, and inside the try so a refusal is
+                // still written to the audit log — a denied attempt is exactly what an auditor asks
+                // about, and it must not be the one execution that leaves no trace.
+                guard.DemandExecute(request.ReportId, callerId);
                 result = ExecuteReport(asUser, request, entry);
                 entry.RowCount = result.RowCount;
                 entry.Succeeded = true;
