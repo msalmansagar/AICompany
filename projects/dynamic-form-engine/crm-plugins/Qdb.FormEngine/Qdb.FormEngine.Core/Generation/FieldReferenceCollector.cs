@@ -21,12 +21,60 @@ namespace Qdb.FormEngine.Core.Generation
             var referencedSchemaNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (model?.Tabs == null) return referencedSchemaNames;
 
-            foreach (var field in EnumerateFields(model))
+            var fields = EnumerateFields(model).ToList();
+
+            // A rule's target is stored as a record id, so resolving it back to a schema name
+            // needs the whole field set first.
+            var schemaNameById = new Dictionary<Guid, string>();
+            foreach (var field in fields)
+            {
+                if (!string.IsNullOrWhiteSpace(field.SchemaName)) schemaNameById[field.Id] = field.SchemaName;
+            }
+
+            foreach (var field in fields)
             {
                 AddReferencesOfField(field, referencedSchemaNames);
+                AddRuleReferences(field, schemaNameById, referencedSchemaNames);
             }
 
             return referencedSchemaNames;
+        }
+
+        /// <summary>
+        /// Fields a business rule depends on. Both directions matter:
+        ///
+        ///  · the fields its CONDITIONS watch — a rule hangs off its trigger field, so if that
+        ///    field is stripped the rule goes with it and can never fire;
+        ///  · the field it TARGETS — "hidden by default, shown by a rule" is a normal pattern,
+        ///    and stripping the target makes the show action unreachable.
+        /// </summary>
+        private static void AddRuleReferences(
+            FieldDefinition field,
+            IDictionary<Guid, string> schemaNameById,
+            ISet<string> referencedSchemaNames)
+        {
+            if (field.BusinessRules == null) return;
+
+            foreach (var rule in field.BusinessRules)
+            {
+                if (rule == null) continue;
+
+                if (rule.Conditions != null)
+                {
+                    foreach (var condition in rule.Conditions)
+                    {
+                        // Conditions carry schema names by the time the model is built.
+                        if (condition != null) AddSchemaName(condition.FieldId, referencedSchemaNames);
+                    }
+                }
+
+                string targetSchemaName;
+                if (rule.TargetFieldId.HasValue
+                    && schemaNameById.TryGetValue(rule.TargetFieldId.Value, out targetSchemaName))
+                {
+                    AddSchemaName(targetSchemaName, referencedSchemaNames);
+                }
+            }
         }
 
         private static IEnumerable<FieldDefinition> EnumerateFields(FormDefinitionModel model)

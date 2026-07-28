@@ -136,6 +136,56 @@ namespace Qdb.FormEngine.Tests
             Assert.Empty(result);
         }
 
+[Fact]
+        public void CollectReferencedSchemaNames_RuleTrigger_RetainsTheWatchedField()
+        {
+            // A rule hangs off the field that triggers it. If that field is hidden and gets
+            // stripped, the rule goes with it and can never fire in CRM — while still working
+            // on the portal, which does not strip.
+            var trigger = new FieldDefinition
+            {
+                Id = Guid.NewGuid(),
+                SchemaName = "qdb_status",
+                BusinessRules = new List<BusinessRule>
+                {
+                    new BusinessRule
+                    {
+                        Action = "hideSection",
+                        Conditions = new List<RuleCondition>
+                        {
+                            new RuleCondition { FieldId = "qdb_status", Operator = "equals" }
+                        }
+                    }
+                }
+            };
+
+            var result = _collector.CollectReferencedSchemaNames(BuildModel(trigger));
+
+            Assert.Contains("qdb_status", result);
+        }
+
+        [Fact]
+        public void CollectReferencedSchemaNames_RuleTarget_RetainsTheFieldTheRuleShows()
+        {
+            // "Hidden by default, shown by a rule" is a normal pattern; stripping the target
+            // makes the show action unreachable.
+            var targetId = Guid.NewGuid();
+            var target = new FieldDefinition { Id = targetId, SchemaName = "qdb_reason" };
+            var trigger = new FieldDefinition
+            {
+                Id = Guid.NewGuid(),
+                SchemaName = "qdb_status",
+                BusinessRules = new List<BusinessRule>
+                {
+                    new BusinessRule { Action = "showField", TargetFieldId = targetId }
+                }
+            };
+
+            var result = _collector.CollectReferencedSchemaNames(BuildModel(trigger, target));
+
+            Assert.Contains("qdb_reason", result);
+        }
+
         private static FormDefinitionModel BuildModel(params FieldDefinition[] fields)
         {
             return new FormDefinitionModel
