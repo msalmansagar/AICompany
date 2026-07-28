@@ -11,6 +11,8 @@ import {
   CALLABLE_WORKFLOW_QUERY,
   STEP_HOOKS,
   OUTCOME_HOOKS,
+  ROUTE_HOOKS,
+  PROCESS_HOOKS,
   HOOK_LABELS,
 } from '@/services/workflowHooks';
 
@@ -160,5 +162,42 @@ describe('hook labels', () => {
   it('should_describe_each_hook_in_the_makers_terms_not_the_columns', () => {
     expect(HOOK_LABELS.onTaskCompletion).toBe('When the task is completed');
     expect(HOOK_LABELS.onTaskOnHold).toBe('When the task is put on hold');
+  });
+});
+
+describe('route and process scopes (DP-5 completion)', () => {
+  it('should_give_a_route_the_same_two_hooks_as_an_outcome', () => {
+    expect(ROUTE_HOOKS).toEqual(OUTCOME_HOOKS);
+  });
+
+  it('should_give_a_process_its_own_application_creation_hook', () => {
+    expect(PROCESS_HOOKS).toContain('onApplicationCreation');
+  });
+
+  it('should_not_offer_application_creation_anywhere_a_task_lives', () => {
+    expect(STEP_HOOKS).not.toContain('onApplicationCreation');
+    expect(ROUTE_HOOKS).not.toContain('onApplicationCreation');
+  });
+
+  it('should_select_three_columns_for_a_process', () => {
+    expect(hookSelectColumns(PROCESS_HOOKS).split(',')).toHaveLength(3);
+  });
+
+  it('should_bind_the_application_creation_hook_to_its_own_column', async () => {
+    const patches = await buildWorkflowHookBindPatches(
+      { onApplicationCreation: { workflowId: 'wf-9', workflowName: 'Kickoff' } },
+      async (_e, a) => `nav_${a}`, 'qdb_work_item_record_type', 'workflows'
+    );
+    expect(patches).toEqual({
+      'nav_qdb_callworkflowonapplicationcreation@odata.bind': '/workflows(wf-9)',
+    });
+  });
+
+  it('should_count_hooks_across_all_three_process_scopes', () => {
+    expect(configuredHookCount({
+      onTaskCreation: { workflowId: 'a', workflowName: 'A' },
+      onTaskCompletion: { workflowId: 'b', workflowName: 'B' },
+      onApplicationCreation: { workflowId: 'c', workflowName: 'C' },
+    })).toBe(3);
   });
 });

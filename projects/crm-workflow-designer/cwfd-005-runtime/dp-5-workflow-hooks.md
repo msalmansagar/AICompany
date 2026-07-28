@@ -2,7 +2,8 @@
 
 Engagement: DP-5 (CWFD-007 backlog §5.B) — re-scoped by the CWFD-005 discovery
 Date:       2026-07-27
-Status:     **Code complete, live-verified. Scoped to step and outcome.**
+Status:     **Complete — all four scopes.** Step and outcome shipped first; route and
+            process followed. Both halves live-verified.
 
 ---
 
@@ -64,19 +65,18 @@ certain at that point.
 
 ## 4. Verification
 
-tsc clean · **142 tests** (121 + 21 new) · production build green · bundle 1763.8 →
-**1768.9 KB**.
+tsc clean · **148 tests** · production build green.
 
-**Live E2E 6/6** on `org5869857f`, throwaway records deleted:
+**Live E2E 6/6** on the step and outcome scopes, and **6/6** again on route and process:
 
 | Assertion | |
 |---|---|
-| step on-creation hook persists | PASS |
-| step on-completion hook persists | PASS |
-| an unset hook stays null | PASS |
+| step on-creation and on-completion hooks persist | PASS |
 | outcome on-completion hook persists | PASS |
-| a hook clears through its nav prop | PASS |
-| clearing one hook leaves the other intact | PASS |
+| process completion **and application-creation** hooks persist | PASS |
+| route completion hook persists | PASS |
+| an unset hook stays null | PASS |
+| a hook clears through its nav prop, leaving the others intact | PASS |
 
 No provisioning was needed — every column already existed.
 

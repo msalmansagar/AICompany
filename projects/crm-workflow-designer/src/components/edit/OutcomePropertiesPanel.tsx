@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
-import { OUTCOME_HOOKS } from '@/services/workflowHooks';
+import { OUTCOME_HOOKS, ROUTE_HOOKS, emptyWorkflowHooks } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowRoute } from '@/types/WorkflowTypes';
@@ -81,6 +81,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
       subject: '',
       sequenceNumber: maxSeq + 1,
       filter: '',
+      workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
       outcomeId: outcome.crmId,
       nextStepId: newRouteTarget,
     });
@@ -106,6 +107,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         subject: '',
         sequenceNumber: 1,
         filter: '',
+        workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId: outcome.crmId,
         nextStepId: outcome.nextStepId ?? null,
       });

@@ -1,4 +1,4 @@
-import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS } from './workflowHooks';
 // Starter templates for the "Create Process" launcher. Each template builds an
 // in-memory graph (steps + outcomes + routes) using temporary ids, which the
 // canvas loads and the user saves like any hand-built process. Entity bindings
@@ -67,7 +67,7 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
 } {
   const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(),
       workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS), stepId: fromStepId, nextStepId: toStepId };
-  const route: WorkflowRoute = { crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
+  const route: WorkflowRoute = { workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS), crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
   return { outcome, route };
 }
 

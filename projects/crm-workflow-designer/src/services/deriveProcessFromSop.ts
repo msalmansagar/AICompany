@@ -1,4 +1,4 @@
-import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 // Client-side orchestration that derives a workflow process from a published SOP.
 // Replaces the qdb_CreateProcessFromSop Custom API (not registered in Dataverse).
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
@@ -30,6 +30,7 @@ export async function deriveProcessFromSop(
     parentEntityName: null,
     versionMajor: 1,
     versionMinor: 0,
+    workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
     workflowState: 'draft',
     snapshot: null,
     sopId: request.sopId,
@@ -103,6 +104,7 @@ export async function deriveProcessFromSop(
         subject: sopOutcome.name,
         sequenceNumber: sopOutcome.sequenceNo,
         filter: '',
+        workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId,
         nextStepId: nextWorkflowStepId,
       });
