@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
 using Qdb.ReportEngine.Core.Models;
@@ -87,8 +88,18 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
         public ReportResult Execute(ReportDefinition definition, ReportExecutionRequest request)
         {
+            var source = ReportSourcePlan.Primary(definition);
+            if (ReportSourcePlan.IsStaticDataset(source))
+            {
+                return StaticResult(definition, source);
+            }
+
             var query = ReportQueryBuilder.Build(definition, request);
-            var rows = Retrieve(query.FetchXml);
+
+            // A saved view or an author-written FetchXML replaces the generated query; the columns the
+            // report declares still drive shaping, so the output stays the shape the designer showed.
+            var fetchXml = ReportSourcePlan.OverrideFetchXml(source, ResolveViewFetchXml) ?? query.FetchXml;
+            var rows = Retrieve(fetchXml);
 
             return new ReportResult
             {
@@ -99,6 +110,63 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 RowCount = rows.Count,
                 // An aggregate fetch returns one row per group, so the row limit says nothing about it.
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit
+            };
+        }
+
+        /// <summary>
+        /// Finds a saved view by name and returns its FetchXML. System views are searched first, then
+        /// personal ones. Runs as the user, so a view they cannot see is a view they cannot report on.
+        /// </summary>
+        private string ResolveViewFetchXml(string viewName)
+        {
+            foreach (var entity in new[] { "savedquery", "userquery" })
+            {
+                var query = new QueryExpression(entity) { ColumnSet = new ColumnSet("fetchxml"), TopCount = 1 };
+                query.Criteria.AddCondition("name", ConditionOperator.Equal, viewName);
+
+                var found = _asUser.RetrieveMultiple(query).Entities;
+                if (found.Count > 0)
+                {
+                    var fetchXml = found[0].GetAttributeValue<string>("fetchxml");
+                    if (!string.IsNullOrWhiteSpace(fetchXml)) return fetchXml;
+                }
+            }
+
+            throw new InvalidPluginExecutionException(
+                $"No saved view named '{viewName}' is visible to you, so this report cannot run.");
+        }
+
+        /// <summary>Builds a result from the rows written into the definition, querying nothing.</summary>
+        private static ReportResult StaticResult(ReportDefinition definition, ReportDataSource source)
+        {
+            var dataset = ReportSourcePlan.ReadStaticRows(source.QueryPayload);
+            var columns = new List<ReportResultColumn>();
+            foreach (var alias in dataset.Columns)
+            {
+                columns.Add(new ReportResultColumn { Alias = alias, Label = alias, IsVisible = true });
+            }
+
+            var rows = new List<ReportResultRow>();
+            foreach (var row in dataset.Rows)
+            {
+                var cells = new Dictionary<string, ReportCell>(StringComparer.Ordinal);
+                foreach (var alias in dataset.Columns)
+                {
+                    var value = row.TryGetValue(alias, out var found) ? found : null;
+                    cells[alias] = new ReportCell(value, value == null ? null : Convert.ToString(value, CultureInfo.InvariantCulture));
+                }
+
+                rows.Add(new ReportResultRow { Cells = cells });
+            }
+
+            return new ReportResult
+            {
+                ReportId = definition.Id,
+                ReportName = definition.Name,
+                Columns = columns,
+                Rows = rows,
+                RowCount = rows.Count,
+                Truncated = false
             };
         }
 

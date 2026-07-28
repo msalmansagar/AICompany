@@ -130,6 +130,12 @@ public sealed record ReportDataSource
 
     public string? SourceAlias { get; init; }
 
+    /// <summary>
+    /// What the source type points at: a saved view's name, a FetchXML document, or inline rows for a
+    /// static dataset. Empty when the engine builds the query from the columns and filters itself.
+    /// </summary>
+    public string? QueryPayload { get; init; }
+
     public IReadOnlyList<ReportEntityMapping> EntityMappings { get; init; } = [];
 }
 

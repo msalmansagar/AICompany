@@ -63,6 +63,7 @@ public static class ReportDefinitionAssembler
             ExecutionOrder = RowReader.IntOrZero(row, "qdb_executionorder"),
             IsPrimary = RowReader.Bool(row, "qdb_isprimary"),
             SourceAlias = RowReader.String(row, "qdb_sourcealias"),
+            QueryPayload = RowReader.String(row, "qdb_querypayload"),
             EntityMappings = mappingsByDataSource.TryGetValue(id, out var mappings) ? mappings : []
         };
     }

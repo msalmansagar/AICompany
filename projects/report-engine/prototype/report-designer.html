@@ -1022,7 +1022,29 @@
 "use strict";
 
 const OPERATORS = ["Equals","Not equals","Contains","Begins with","Ends with","Greater than","Less than","Between","In","Not in","Is null","Is not null","Last X days","This month","This year"];
-const SOURCE_TYPES = ["CRM View","FetchXML","QueryExpression","Dataverse Web API","Custom API / Plugin","SQL","External REST API","Middleware API","Core Banking API","MIS API","Static dataset"];
+/* Data source types, matching the qdb_sourcetype option set exactly.
+   `live` says whether the engine honours the choice. Three do, because they resolve to something the
+   plugin can reach: a saved view already holds FetchXML, an author can supply FetchXML directly, and
+   a static dataset carries its rows inline. The rest are stored but change nothing, and the dropdown
+   says so — QueryExpression and Web API are other routes to the same Dataverse data the engine
+   already queries, SQL cannot be reached from the plugin sandbox, and the four external sources were
+   scoped to V2/V3 by the CEO gate decision. */
+const SOURCES = [
+  { label:"CRM View",            code:100000000, live:true  },
+  { label:"FetchXML",            code:100000001, live:true  },
+  { label:"QueryExpression",     code:100000002, live:false },
+  { label:"Dataverse Web API",   code:100000003, live:false },
+  { label:"Custom API / Plugin", code:100000004, live:false },
+  { label:"SQL",                 code:100000005, live:false },
+  { label:"External REST API",   code:100000006, live:false },
+  { label:"Middleware API",      code:100000007, live:false },
+  { label:"Core Banking API",    code:100000008, live:false },
+  { label:"MIS API",             code:100000009, live:false },
+  { label:"Static Dataset",      code:100000010, live:true  }
+];
+const SOURCE_TYPES = SOURCES.map(s => s.live ? s.label : `${s.label} — stored, not applied yet`);
+const sourceByLabel = label => SOURCES.find(s => label === s.label || label === `${s.label} — stored, not applied yet`);
+const sourceByCode = code => SOURCES.find(s => s.code === code);
 const PARAM_TYPES = ["Text","Number","Date range","Lookup","Option set","Multi-select option set","Boolean"];
 const CONTEXT_TOKENS = ["(none)","Current user","Current business unit","Current record ID","Current entity"];
 const COL_TYPES = ["Text","Whole number","Decimal","Currency","Date/Time","Boolean","Option set","Lookup"];
@@ -1580,6 +1602,13 @@ function reportToDefinition(report) {
       id: newGuid(),
       name: (report.dataSources && report.dataSources[0] && report.dataSources[0].name) || "Primary source",
       isPrimary: true,
+      // The type and its payload decide where rows come from: a view name, a FetchXML document, or
+      // inline rows. Left empty, the engine builds the query from the columns and filters as before.
+      sourceType: (() => {
+        const chosen = sourceByLabel((report.dataSources && report.dataSources[0] || {}).type);
+        return chosen ? coded(chosen.code, chosen.label) : null;
+      })(),
+      queryPayload: (report.dataSources && report.dataSources[0] && report.dataSources[0].query) || null,
       sourceAlias: alias,
       entityMappings: [
         { id: newGuid(), entityLogicalName: rootEntity, entityAlias: alias, depth: 0, columns }
@@ -1659,6 +1688,8 @@ async function writeReportChildren(reportId, def) {
     const sourceId = await dvCreate("qdb_reportdatasource", defined({
       qdb_name: source.name || "Data source",
       qdb_isprimary: !!source.isPrimary,
+      qdb_sourcetype: codeOf(source.sourceType),
+      qdb_querypayload: source.queryPayload,
       qdb_sourcealias: source.sourceAlias,
       qdb_executionorder: 1,
       "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})`
@@ -1888,7 +1919,16 @@ function definitionToReport(def) {
   report.parameters = (def.parameters || []).map(p => ({ name: p.parameterName, prompt: p.label || p.parameterName, type: "Text",
     required: !!p.isRequired, def: p.defaultValue || "", token: "(none)", lookup: p.lookupTargetEntity || "" }));
   report.formulas = (def.formulas || []).map(f => ({ name: f.formulaAlias, expression: f.expression || "", type: "Number", target: f.formulaAlias }));
-  report.dataSources = (def.dataSources || []).map(ds => ({ name: ds.name || "Primary source", type: "FetchXML", connector: "", query: "", primary: !!ds.isPrimary, joinL: "", joinR: "" }));
+  report.dataSources = (def.dataSources || []).map(ds => {
+    const known = sourceByCode(ds.sourceType && ds.sourceType.code);
+    return {
+      name: ds.name || "Primary source",
+      type: known ? (known.live ? known.label : `${known.label} — stored, not applied yet`) : "FetchXML",
+      connector: "",
+      query: ds.queryPayload || "",
+      primary: !!ds.isPrimary, joinL: "", joinR: ""
+    };
+  });
   if (def.dataSources && def.dataSources.length === 0) report.dataSources = newDefinition(null).dataSources;
   if (def.layout && def.layout.layoutJson) {
     try {
@@ -1909,7 +1949,7 @@ async function loadReportDefinition(id) {
     "?$select=qdb_reportdefinitionid,qdb_name,qdb_description,qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit,qdb_timeoutms");
 
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
-    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias&$orderby=qdb_executionorder"),
+    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload&$orderby=qdb_executionorder"),
     dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
     dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
@@ -1948,7 +1988,9 @@ async function loadReportDefinition(id) {
     }
     dataSources.push({
       id: source.qdb_reportdatasourceid, name: source.qdb_name,
-      isPrimary: !!source.qdb_isprimary, sourceAlias: source.qdb_sourcealias, entityMappings
+      isPrimary: !!source.qdb_isprimary, sourceAlias: source.qdb_sourcealias,
+      sourceType: source.qdb_sourcetype == null ? null : { code: source.qdb_sourcetype },
+      queryPayload: source.qdb_querypayload, entityMappings
     });
   }
 

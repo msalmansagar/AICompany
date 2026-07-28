@@ -36,7 +36,7 @@ public static class ReportDefinitionFetch
             attributes:
             [
                 "qdb_reportdatasourceid", "qdb_name", "qdb_sourcetype", "qdb_executionorder",
-                "qdb_isprimary", "qdb_sourcealias", "qdb_reportdefinitionid"
+                "qdb_isprimary", "qdb_sourcealias", "qdb_querypayload", "qdb_reportdefinitionid"
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 
