@@ -66,7 +66,6 @@ namespace Qdb.FormEngine.Data
                 OptionValues = FetchOptionValues(fieldIds),
                 ValidationRules = FetchValidationRules(fieldIds),
                 LookupConfigs = FetchLookupConfigs(fieldIds),
-                BarConfigs = FetchBarConfigs(fieldIds),
                 SubmissionMappings = FetchSubmissionMappings(formId),
                 Buttons = FetchButtons(formId),
                 ScopedButtons = FetchScopedButtons(formId),
@@ -228,30 +227,6 @@ namespace Qdb.FormEngine.Data
             };
             query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             return RetrieveAll(query);
-        }
-
-        /// <summary>
-        /// Bar source configs (DFE-BARSRC-001). The table is provisioned separately, so a
-        /// missing one yields no configs and every bar keeps its field-based values rather
-        /// than failing the whole publish.
-        /// </summary>
-        private List<Entity> FetchBarConfigs(List<Guid> fieldIds)
-        {
-            if (fieldIds == null || fieldIds.Count == 0) return new List<Entity>();
-            try
-            {
-                var query = new QueryExpression("qdb_form_bar_config")
-                {
-                    ColumnSet = new ColumnSet(true),
-                    NoLock = true
-                };
-                query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
-                return RetrieveAll(query);
-            }
-            catch (Exception)
-            {
-                return new List<Entity>();
-            }
         }
 
         private List<Entity> FetchSubmissionMappings(Guid formId)

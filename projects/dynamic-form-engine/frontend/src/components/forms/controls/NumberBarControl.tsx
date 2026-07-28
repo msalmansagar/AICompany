@@ -4,7 +4,6 @@
 // this field's own value.
 import { makeStyles, tokens } from '@fluentui/react-components';
 import { useFormContext } from '../../../contexts/FormContext';
-import { useBarSourceValues } from '../../../hooks/useBarSourceValues';
 import type { ControlProps } from '../FieldRenderer';
 
 const useStyles = makeStyles({
@@ -35,21 +34,20 @@ export function NumberBarControl({ field }: ControlProps) {
   const styles = useStyles();
   const { fieldValues } = useFormContext();
 
-  // DFE-BARSRC-001: when a bar config exists the numbers come from the record the user
-  // picked; otherwise they come from other fields on the form, exactly as before.
-  const sourceValues = useBarSourceValues(field.id, field.barSourceConfig);
+  // DFE-BARSRC-001: the AMOUNT is independent of where the bounds come from — this field's
+  // own value unless barValueFieldSchemaName names another field to read it from.
+  const value = toNumber(fieldValues[field.barValueFieldSchemaName || field.schemaName]);
 
-  const value = sourceValues
-    ? sourceValues.value
-    : toNumber(fieldValues[field.barValueFieldSchemaName || field.schemaName]);
-
-  const max = sourceValues
-    ? sourceValues.max
+  // 'static' takes literal bounds straight from the published JSON — no lookup, no read, no
+  // async. Anything else (including unset, which is every bar predating this) reads the
+  // maximum from another field on the form, exactly as before.
+  const isStatic = field.barSource === 'static';
+  const min = isStatic ? toNumber(field.barMin) : 0;
+  const max = isStatic
+    ? toNumber(field.barMax)
     : (field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0);
 
-  // A configured minimum shifts the origin: a 500–1000 range shows 50% at 750, not 75%.
-  // Without one the bar starts at zero, which is what every existing bar does.
-  const min = sourceValues?.min ?? 0;
+  // A minimum shifts the origin: a 500–1500 band at 750 is a quarter through, not a half.
   const span = max - min;
   const pct = span > 0 ? Math.min(100, Math.max(0, ((value - min) / span) * 100)) : 0;
 

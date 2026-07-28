@@ -32,8 +32,6 @@ namespace Qdb.FormEngine.Core.Abstractions
         /// <summary>All qdb_form_lookup_config records for lookup fields.</summary>
         public List<Entity> LookupConfigs { get; set; }
 
-        /// <summary>All qdb_form_bar_config records for this form's fields (DFE-BARSRC-001).</summary>
-        public List<Entity> BarConfigs { get; set; }
 
         /// <summary>All active qdb_form_submission_mapping records for this form.</summary>
         public List<Entity> SubmissionMappings { get; set; }

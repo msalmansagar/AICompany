@@ -450,9 +450,15 @@ export interface FieldDefinition {
   numberDisplayStyle?: 'textbox' | 'bar';
   barMaxFieldSchemaName?: string;    // schema name of the field providing the bar's maximum (total)
   barValueFieldSchemaName?: string;  // schema name of the field providing the bar's value (fill); absent = this field's own value
-  // DFE-BARSRC-001: read the bar's numbers from a CRM record instead of from other fields
-  // on the form. Absent = the field-based behaviour above, unchanged.
-  barSourceConfig?: BarSourceConfig;
+  // DFE-BARSRC-001: where the bar's BOUNDS come from. Absent = 'formField', the original
+  // behaviour above. The AMOUNT is independent — it is this field's own value unless
+  // barValueFieldSchemaName names another field, in every mode.
+  barSource?: BarSource;
+  barMin?: number;              // static bounds
+  barMax?: number;              // static bounds
+  barSourceEntity?: string;     // dynamic bounds — table the values are read from
+  barMinAttribute?: string;     // dynamic bounds — column holding the minimum
+                                // (the maximum reuses barMaxFieldSchemaName)
   maxRows?: number;                // repeatingGrid
   componentKey?: string;           // custom field type — key used to resolve from ComponentRegistry
 
@@ -698,17 +704,15 @@ export interface GridSchemaHashResult {
 
 // DFE-SUBMITCONFIRM-001: manual acknowledgement gate shown on the final step.
 /**
- * DFE-BARSRC-001: where a utilization bar reads its numbers from, when they live on a CRM
- * record rather than on the form. The user's selection in `sourceFieldSchemaName` names the
- * record; min, max and value are all columns on it, so one selection is one read.
+ * DFE-BARSRC-001: where a utilization bar's minimum and maximum come from.
+ *  · formField — other fields on this form (the original behaviour, and the default)
+ *  · static    — the literal barMin / barMax values
+ *  · dynamic   — a column on another table
+ *
+ * The AMOUNT is a separate decision in every mode: this field's own value, unless
+ * barValueFieldSchemaName names another field to read it from.
  */
-export interface BarSourceConfig {
-  sourceFieldSchemaName: string;   // the lookup field on the form whose selection supplies the record
-  entityLogicalName: string;       // table the values are read from
-  maxAttribute: string;            // column the bar fills towards
-  valueAttribute: string;          // column holding the current value
-  minAttribute?: string;           // column holding the minimum; absent = the bar starts at zero
-}
+export type BarSource = 'formField' | 'static' | 'dynamic';
 
 export interface SubmitConfirmationConfig {
   checkboxLabel: string;           // label shown next to the acknowledgement checkbox

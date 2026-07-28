@@ -75,7 +75,11 @@ namespace Qdb.FormEngine.Core.Generation
                 NumberDisplayStyle = field.GetAttributeValue<OptionSetValue>("qdb_number_display_style")?.Value == 100000002 ? "bar" : null,
                 BarMaxFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_max_field_schema"),
                 BarValueFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_value_field_schema"),
-                BarSourceConfig = BuildBarSourceConfig(fieldId),
+                BarSource = MapBarSource(field),
+                BarMin = ReadStaticBound(field, "qdb_bar_min_value"),
+                BarMax = ReadStaticBound(field, "qdb_bar_max_value"),
+                BarSourceEntity = ReadDynamicName(field, "qdb_bar_source_entity"),
+                BarMinAttribute = ReadDynamicName(field, "qdb_bar_min_attribute"),
                 TrueLabel = Resolve(fieldId, "qdb_form_field", "qdb_true_label", field.GetAttributeValue<string>("qdb_true_label")),
                 FalseLabel = Resolve(fieldId, "qdb_form_field", "qdb_false_label", field.GetAttributeValue<string>("qdb_false_label")),
                 BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_boolean_render_style")),
@@ -509,51 +513,35 @@ namespace Qdb.FormEngine.Core.Generation
             });
         }
 
+        /// <summary>qdb_bar_source option values; unset counts as Form Field.</summary>
+        private const int BarSourceStatic = 100000001;
+        private const int BarSourceDynamic = 100000002;
+
         /// <summary>
-        /// DFE-BARSRC-001: where this bar reads its numbers from, or null when no config row
-        /// exists — in which case the bar keeps taking them from other fields on the form.
-        /// The source field is stored as a record id and published as its schema name, because
-        /// the renderer keys into form values by schema name.
+        /// DFE-BARSRC-001: where the bar's bounds come from, or null for the default
+        /// ("formField") so bars predating this column publish byte-identical JSON.
         /// </summary>
-        private BarSourceConfig BuildBarSourceConfig(Guid fieldId)
+        private static string MapBarSource(Entity field)
         {
-            if (_rawData.BarConfigs == null) return null;
+            var code = EntityHelper.GetOptionSetValue(field, "qdb_bar_source");
+            if (code == BarSourceStatic) return "static";
+            if (code == BarSourceDynamic) return "dynamic";
+            return null;
+        }
 
-            var config = _rawData.BarConfigs
-                .FirstOrDefault(c => EntityHelper.GetLookupId(c, "qdb_form_field_id") == fieldId);
-            if (config == null) return null;
+        /// <summary>A literal bound, emitted only in Static mode so other modes stay clean.</summary>
+        private static decimal? ReadStaticBound(Entity field, string attribute)
+        {
+            if (MapBarSource(field) != "static") return null;
+            return field.Contains(attribute) ? (decimal?)field.GetAttributeValue<decimal>(attribute) : null;
+        }
 
-            var sourceFieldId = EntityHelper.GetLookupId(config, "qdb_source_field_id");
-            var sourceField = _rawData.Fields != null
-                ? _rawData.Fields.FirstOrDefault(f => f.Id == sourceFieldId)
-                : null;
-            var sourceSchemaName = sourceField != null
-                ? sourceField.GetAttributeValue<string>("qdb_schema_name")
-                : null;
-
-            var entityLogicalName = config.GetAttributeValue<string>("qdb_entity_logical_name");
-            var maxAttribute = config.GetAttributeValue<string>("qdb_max_attribute");
-
-            // Without a source field there is no record to read, and without a maximum there is
-            // nothing to fill towards — an incomplete config is ignored, not half-applied.
-            if (string.IsNullOrWhiteSpace(sourceSchemaName)
-                || string.IsNullOrWhiteSpace(entityLogicalName)
-                || string.IsNullOrWhiteSpace(maxAttribute))
-            {
-                return null;
-            }
-
-            var valueAttribute = config.GetAttributeValue<string>("qdb_value_attribute");
-            var minAttribute = config.GetAttributeValue<string>("qdb_min_attribute");
-
-            return new BarSourceConfig
-            {
-                SourceFieldSchemaName = sourceSchemaName,
-                EntityLogicalName = entityLogicalName,
-                MaxAttribute = maxAttribute,
-                ValueAttribute = string.IsNullOrWhiteSpace(valueAttribute) ? maxAttribute : valueAttribute,
-                MinAttribute = string.IsNullOrWhiteSpace(minAttribute) ? null : minAttribute
-            };
+        /// <summary>An entity/column name, emitted only in Dynamic mode.</summary>
+        private static string ReadDynamicName(Entity field, string attribute)
+        {
+            if (MapBarSource(field) != "dynamic") return null;
+            var value = field.GetAttributeValue<string>(attribute);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
         private string Resolve(Guid recordId, string entityName, string fieldName, string fallback)

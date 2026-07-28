@@ -68,16 +68,6 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("submitConfirmation", NullValueHandling = NullValueHandling.Ignore)] public SubmitConfirmationConfig SubmitConfirmation { get; set; }
     }
 
-    /// <summary>Where a utilization bar reads its minimum, maximum and value from.</summary>
-    public sealed class BarSourceConfig
-    {
-        [JsonProperty("sourceFieldSchemaName")] public string SourceFieldSchemaName { get; set; }
-        [JsonProperty("entityLogicalName")] public string EntityLogicalName { get; set; }
-        [JsonProperty("maxAttribute")] public string MaxAttribute { get; set; }
-        [JsonProperty("valueAttribute")] public string ValueAttribute { get; set; }
-        [JsonProperty("minAttribute", NullValueHandling = NullValueHandling.Ignore)] public string MinAttribute { get; set; }
-    }
-
     /// <summary>An acknowledgement the user must tick before the form can be submitted.</summary>
     public sealed class SubmitConfirmationConfig
     {
@@ -131,7 +121,14 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("numberDisplayStyle", NullValueHandling = NullValueHandling.Ignore)] public string NumberDisplayStyle { get; set; }
         [JsonProperty("barMaxFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarMaxFieldSchemaName { get; set; }
         // DFE-BARSRC-001: bar numbers read from a CRM record. Omitted when no config row exists.
-        [JsonProperty("barSourceConfig", NullValueHandling = NullValueHandling.Ignore)] public BarSourceConfig BarSourceConfig { get; set; }
+        // DFE-BARSRC-001: where the bar's BOUNDS come from. Omitted for the default
+        // ("formField"), so bars predating this stay byte-identical. The AMOUNT is separate —
+        // BarValueFieldSchemaName above, or this field's own value.
+        [JsonProperty("barSource", NullValueHandling = NullValueHandling.Ignore)] public string BarSource { get; set; }
+        [JsonProperty("barMin", NullValueHandling = NullValueHandling.Ignore)] public decimal? BarMin { get; set; }
+        [JsonProperty("barMax", NullValueHandling = NullValueHandling.Ignore)] public decimal? BarMax { get; set; }
+        [JsonProperty("barSourceEntity", NullValueHandling = NullValueHandling.Ignore)] public string BarSourceEntity { get; set; }
+        [JsonProperty("barMinAttribute", NullValueHandling = NullValueHandling.Ignore)] public string BarMinAttribute { get; set; }
         [JsonProperty("barValueFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarValueFieldSchemaName { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }

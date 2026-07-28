@@ -52,8 +52,6 @@ import { createFormsRouter } from './routes/forms.routes.js';
 import { createLanguagesRouter } from './routes/languages.routes.js';
 import { createInternalCacheRouter } from './routes/internal-cache.routes.js';
 import { createOptionsRouter } from './routes/options.routes.js';
-import { createBarSourceRouter } from './routes/barSource.routes.js';
-import { BarSourceService } from './services/BarSourceService.js';
 import { createFilesRouter } from './routes/files.routes.js';
 import { createThemesRouter, createFormDesignRouter, createDesignCacheRouter } from './routes/design.routes.js';
 import { createAdminRouter } from './routes/admin.routes.js';
@@ -243,8 +241,6 @@ async function bootstrap(): Promise<void> {
     app.use('/api/grids', createGridsRouter(gridDataService));
   }
   app.use('/api/options', createOptionsRouter(metadataService));
-  // DFE-BARSRC-001: a bar whose numbers live on a CRM record reads them through here.
-  app.use('/api/bar-source', createBarSourceRouter(metadataService, new BarSourceService(authService)));
   app.use('/api/files', createFilesRouter(fileService, documentService));
   app.use('/api/themes', createThemesRouter(designService));
   app.use('/api/form-design', createFormDesignRouter(designService));
