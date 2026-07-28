@@ -1788,6 +1788,56 @@ function catalogEmptyState(catalog, emptyMessage) {
   return `<div class="page-sub">${esc(emptyMessage)}</div>`;
 }
 
+/**
+ * Every data source the author defined, not only the first.
+ *
+ * Only dataSources[0] used to be written, so a report built with several sources lost all but one on
+ * save — the tab offered an Add button whose result never survived. The entity mappings (the columns
+ * and joins) belong to the primary source, which is the one the engine reads; the others carry their
+ * own type, payload and connector so the definition is stored whole.
+ */
+function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
+  const authored = (report.dataSources || []).filter(source => source && (source.name || source.type));
+  const sources = authored.length ? authored : [{ name: "Primary source", primary: true }];
+  const primaryIndex = Math.max(0, sources.findIndex(source => source.primary));
+
+  return sources.map((source, index) => {
+    const chosen = sourceByLabel(source.type);
+    const isPrimary = index === primaryIndex;
+    return {
+      id: newGuid(),
+      name: source.name || (isPrimary ? "Primary source" : `Source ${index + 1}`),
+      isPrimary,
+      // The type and its payload decide where rows come from: a view name, a FetchXML document, or
+      // inline rows. Left empty, the engine builds the query from the columns and filters as before.
+      sourceType: chosen ? coded(chosen.code, chosen.label) : null,
+      queryPayload: source.query || null,
+      sourceAlias: isPrimary ? alias : (source.alias || null),
+      externalConnectorId: source.connectorId || null,
+      executionOrder: index + 1,
+      // The mappings describe the report's own columns and joins, so they hang off the source the
+      // engine actually executes.
+      entityMappings: isPrimary
+        ? [{ id: newGuid(), entityLogicalName: rootEntity, entityAlias: alias, depth: 0, columns }].concat(joinMappings)
+        : []
+    };
+  });
+}
+
+/**
+ * The @odata.bind for a data source's connector, or nothing at all when it reads Dataverse.
+ * Binding an empty or unknown id would have Dataverse reject the whole source record.
+ *
+ * The property is the relationship's navigation name — "Qdb_externalconnectorid", capital Q — not the
+ * attribute's logical name. The lowercase spelling is rejected, and because the save deletes a
+ * report's children before rewriting them, that rejection left the report with none at all.
+ */
+function connectorBinding(connectorId) {
+  return connectorId
+    ? { "Qdb_externalconnectorid@odata.bind": `/qdb_externalconnectors(${connectorId})` }
+    : {};
+}
+
 /** Drops null/undefined so an unset optional never overwrites a value with null. */
 function defined(attributes) {
   const kept = {};
@@ -1966,22 +2016,7 @@ function reportToDefinition(report) {
     module: report.module || null,
     status: report.status || "Draft",
     version: report.version || 1,
-    dataSources: [{
-      id: newGuid(),
-      name: (report.dataSources && report.dataSources[0] && report.dataSources[0].name) || "Primary source",
-      isPrimary: true,
-      // The type and its payload decide where rows come from: a view name, a FetchXML document, or
-      // inline rows. Left empty, the engine builds the query from the columns and filters as before.
-      sourceType: (() => {
-        const chosen = sourceByLabel((report.dataSources && report.dataSources[0] || {}).type);
-        return chosen ? coded(chosen.code, chosen.label) : null;
-      })(),
-      queryPayload: (report.dataSources && report.dataSources[0] && report.dataSources[0].query) || null,
-      sourceAlias: alias,
-      entityMappings: [
-        { id: newGuid(), entityLogicalName: rootEntity, entityAlias: alias, depth: 0, columns }
-      ].concat(joinMappings)
-    }],
+    dataSources: dataSourcesOf(report, alias, rootEntity, columns, joinMappings),
     filters: (report.filters || []).map((f, i) => ({
       id: newGuid(),
       fieldAlias: f.attribute,
@@ -2051,20 +2086,35 @@ function reportToDefinition(report) {
 /* ---------- report definition writer ---------- */
 
 /** Definition first, then data source → entity mapping → columns, then the flat child sets. */
-async function writeReportChildren(reportId, def) {
+/**
+ * Creates every child of a report. Each created record is appended to `written` so the caller can
+ * undo them if a later create is rejected — Dataverse gives no transaction across these calls.
+ */
+async function writeReportChildren(reportId, def, written = []) {
+  const create = async (entity, attributes) => {
+    const id = await dvCreate(entity, attributes);
+    written.push({ entity, id });
+    return id;
+  };
+  let executionOrder = 0;
   for (const source of def.dataSources || []) {
-    const sourceId = await dvCreate("qdb_reportdatasource", defined({
+    executionOrder++;
+    const sourceId = await create("qdb_reportdatasource", defined({
       qdb_name: source.name || "Data source",
       qdb_isprimary: !!source.isPrimary,
       qdb_sourcetype: codeOf(source.sourceType),
       qdb_querypayload: source.queryPayload,
       qdb_sourcealias: source.sourceAlias,
-      qdb_executionorder: 1,
+      // Was hardcoded to 1, so a report with several sources lost the order they run in.
+      qdb_executionorder: source.executionOrder || executionOrder,
+      // The connector a source reaches through. This was never written, so choosing one in the
+      // designer looked like configuration and was discarded on save.
+      ...connectorBinding(source.externalConnectorId),
       "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})`
     }));
 
     for (const mapping of source.entityMappings || []) {
-      const mappingId = await dvCreate("qdb_reportentitymapping", defined({
+      const mappingId = await create("qdb_reportentitymapping", defined({
         qdb_name: mapping.entityLogicalName || "Entity",
         qdb_entitylogicalname: mapping.entityLogicalName,
         qdb_entityalias: mapping.entityAlias,
@@ -2076,7 +2126,7 @@ async function writeReportChildren(reportId, def) {
       }));
 
       for (const column of mapping.columns || []) {
-        await dvCreate("qdb_reportcolumn", defined({
+        await create("qdb_reportcolumn", defined({
           qdb_name: column.outputAlias || column.columnLogicalName || "Column",
           qdb_columnlogicalname: column.columnLogicalName,
           qdb_outputalias: column.outputAlias,
@@ -2093,7 +2143,7 @@ async function writeReportChildren(reportId, def) {
   const parent = { "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})` };
 
   for (const filter of def.filters || []) {
-    await dvCreate("qdb_reportfilter", defined(Object.assign({
+    await create("qdb_reportfilter", defined(Object.assign({
       qdb_name: filter.fieldAlias || "Filter",
       qdb_fieldalias: filter.fieldAlias,
       qdb_operator: codeOf(filter.operator),
@@ -2105,7 +2155,7 @@ async function writeReportChildren(reportId, def) {
   }
 
   for (const parameter of def.parameters || []) {
-    await dvCreate("qdb_reportparameter", defined(Object.assign({
+    await create("qdb_reportparameter", defined(Object.assign({
       qdb_name: parameter.parameterName || parameter.label || "Parameter",
       qdb_parametername: parameter.parameterName,
       qdb_label: parameter.label,
@@ -2117,7 +2167,7 @@ async function writeReportChildren(reportId, def) {
   }
 
   for (const formula of def.formulas || []) {
-    await dvCreate("qdb_reportformula", defined(Object.assign({
+    await create("qdb_reportformula", defined(Object.assign({
       qdb_name: formula.formulaAlias || "Formula",
       qdb_formulaalias: formula.formulaAlias,
       qdb_expression: formula.expression,
@@ -2127,7 +2177,7 @@ async function writeReportChildren(reportId, def) {
   }
 
   for (const step of def.transformations || []) {
-    await dvCreate("qdb_reporttransformation", defined(Object.assign({
+    await create("qdb_reporttransformation", defined(Object.assign({
       qdb_name: (step.transformType && step.transformType.label) || "Transformation",
       qdb_transformtype: codeOf(step.transformType),
       qdb_configjson: step.configJson,
@@ -2137,7 +2187,7 @@ async function writeReportChildren(reportId, def) {
   }
 
   for (const rule of def.security || []) {
-    await dvCreate("qdb_reportsecurity", defined(Object.assign({
+    await create("qdb_reportsecurity", defined(Object.assign({
       qdb_name: rule.principalIdText || "Principal",
       qdb_principaltype: codeOf(rule.principalType),
       qdb_principalidtext: rule.principalIdText,
@@ -2149,7 +2199,7 @@ async function writeReportChildren(reportId, def) {
   }
 
   if (def.layout) {
-    await dvCreate("qdb_reportlayout", defined(Object.assign({
+    await create("qdb_reportlayout", defined(Object.assign({
       qdb_name: "Layout",
       qdb_themecolor: def.layout.themeColor,
       qdb_layoutjson: def.layout.layoutJson
@@ -2158,7 +2208,13 @@ async function writeReportChildren(reportId, def) {
 }
 
 /** Leaf-first, so a child never outlives the parent it points at. */
-async function deleteReportChildren(reportId) {
+/**
+ * Every child record of a report, deepest first, so deleting the list in order never orphans a row.
+ * Finding and deleting are separate steps because a save has to know what was there before it can
+ * safely replace it.
+ */
+async function findReportChildren(reportId) {
+  const found = [];
   const sources = await dvList("qdb_reportdatasource", byReport(reportId) + "&$select=qdb_reportdatasourceid");
   for (const source of sources) {
     const mappings = await dvList("qdb_reportentitymapping",
@@ -2166,10 +2222,10 @@ async function deleteReportChildren(reportId) {
     for (const mapping of mappings) {
       const columns = await dvList("qdb_reportcolumn",
         `?$filter=_qdb_reportentitymappingid_value eq ${mapping.qdb_reportentitymappingid}&$select=qdb_reportcolumnid`);
-      for (const column of columns) await dvDelete("qdb_reportcolumn", column.qdb_reportcolumnid);
-      await dvDelete("qdb_reportentitymapping", mapping.qdb_reportentitymappingid);
+      for (const column of columns) found.push({ entity: "qdb_reportcolumn", id: column.qdb_reportcolumnid });
+      found.push({ entity: "qdb_reportentitymapping", id: mapping.qdb_reportentitymappingid });
     }
-    await dvDelete("qdb_reportdatasource", source.qdb_reportdatasourceid);
+    found.push({ entity: "qdb_reportdatasource", id: source.qdb_reportdatasourceid });
   }
 
   const flat = [
@@ -2180,9 +2236,10 @@ async function deleteReportChildren(reportId) {
   ];
   for (const [entity, idField] of flat) {
     for (const row of await dvList(entity, byReport(reportId) + `&$select=${idField}`)) {
-      await dvDelete(entity, row[idField]);
+      found.push({ entity, id: row[idField] });
     }
   }
+  return found;
 }
 
 /* Category, module and status are written, not just collected. They were captured by the General tab
@@ -2204,16 +2261,24 @@ function reportDefinitionAttributes(def) {
 }
 
 // A report loaded from Dataverse (has savedId) updates in place; a new one is created.
+/**
+ * Saves the report and replaces its children.
+ *
+ * The old children are deleted only once the new ones are safely written. Dataverse has no
+ * transaction across these calls, and deleting first meant a single rejected create — one wrong
+ * navigation property was enough — left the report with no columns, filters, parameters or layout at
+ * all, silently, with only a toast to say so. Writing first costs a moment of duplication that
+ * nothing reads, and turns a destructive failure into a no-op.
+ */
 async function saveReportToServer(report) {
   const def = reportToDefinition(report);
   const isUpdate = !!report.savedId;
   beginBusy(isUpdate ? "Saving report…" : "Creating report…");
   try {
     if (isUpdate) {
-      // Replace the children wholesale, matching how the definition is loaded as one graph.
-      await deleteReportChildren(report.savedId);
+      const previousChildren = await findReportChildren(report.savedId);
       await dvUpdate("qdb_reportdefinition", report.savedId, reportDefinitionAttributes(def));
-      await writeReportChildren(report.savedId, def);
+      await replaceReportChildren(report.savedId, def, previousChildren);
     } else {
       report.savedId = await dvCreate("qdb_reportdefinition", reportDefinitionAttributes(def));
       await writeReportChildren(report.savedId, def);
@@ -2224,6 +2289,28 @@ async function saveReportToServer(report) {
     toast("Save failed — " + error.message, "err");
   } finally {
     endBusy(isUpdate ? "Saving report…" : "Creating report…");
+  }
+}
+
+/**
+ * Writes the new children, then removes the ones that were there before. A failure part-way rolls
+ * back what this call created, so the report is left exactly as it was found.
+ */
+async function replaceReportChildren(reportId, def, previousChildren) {
+  const written = [];
+  try {
+    await writeReportChildren(reportId, def, written);
+  } catch (error) {
+    await deleteRecords(written.reverse());
+    throw error;
+  }
+  await deleteRecords(previousChildren);
+}
+
+/** Best effort: one row that refuses to delete must not fail a save that already succeeded. */
+async function deleteRecords(records) {
+  for (const record of records) {
+    try { await dvDelete(record.entity, record.id); } catch (error) { /* already gone, or blocked */ }
   }
 }
 
@@ -2305,7 +2392,10 @@ function definitionToReport(def) {
     return {
       name: ds.name || "Primary source",
       type: known ? (known.live ? known.label : `${known.label} — stored, not applied yet`) : "FetchXML",
-      connector: "",
+      // Both are kept: the id is what round-trips, the name is what the picker displays.
+      connectorId: ds.externalConnectorId || "",
+      connector: ds.externalConnectorName || "",
+      alias: ds.sourceAlias || "",
       query: ds.queryPayload || "",
       primary: !!ds.isPrimary, joinL: "", joinR: ""
     };
@@ -2331,7 +2421,7 @@ async function loadReportDefinition(id) {
     + "qdb_rowlimit,qdb_timeoutms,qdb_category,qdb_module,qdb_status,qdb_ispublished,qdb_currentversionnumber");
 
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
-    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload&$orderby=qdb_executionorder"),
+    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload,qdb_executionorder,_qdb_externalconnectorid_value&$orderby=qdb_executionorder"),
     dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
     dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
@@ -2372,7 +2462,11 @@ async function loadReportDefinition(id) {
       id: source.qdb_reportdatasourceid, name: source.qdb_name,
       isPrimary: !!source.qdb_isprimary, sourceAlias: source.qdb_sourcealias,
       sourceType: source.qdb_sourcetype == null ? null : { code: source.qdb_sourcetype },
-      queryPayload: source.qdb_querypayload, entityMappings
+      queryPayload: source.qdb_querypayload,
+      executionOrder: source.qdb_executionorder,
+      externalConnectorId: source._qdb_externalconnectorid_value || null,
+      externalConnectorName: formattedValue(source, "_qdb_externalconnectorid_value"),
+      entityMappings
     });
   }
 
@@ -2479,7 +2573,7 @@ async function openSavedReport(id) {
 async function deleteSavedReport(id) {
   beginBusy("Deleting report…");
   try {
-    await deleteReportChildren(id);
+    await deleteRecords(await findReportChildren(id));
     await dvDelete("qdb_reportdefinition", id);
     toast("Report deleted from Dataverse", "ok");
     await reportCatalog.refresh();
@@ -2614,8 +2708,8 @@ function render() {
   if (state.view === "manualdesigner") return renderManualDesigner(c);
   if (state.view === "dashboards") return renderDashboards(c);
   if (state.view === "dashboardcomposer") return renderDashboardComposer(c);
-  if (state.view === "datasources") return renderSimpleList(c, "Data Sources", "The data sources belonging to report definitions in this environment. They are created as part of a report.", dataSourcesView(), null, null, dataSourceCatalog);
-  if (state.view === "connectors") return renderSimpleList(c, "External Connectors", "Secure connections to SQL, Core Banking, MIS and REST systems. Secrets are stored as Key Vault references — never in Dataverse.", connectorsView(), "connector", "New connector", connectorCatalog);
+  if (state.view === "datasources") return renderSimpleList(c, "Data Sources", "The data sources belonging to report definitions in this environment. They are created and edited inside a report.", dataSourcesView(), null, null, dataSourceCatalog, DATA_SOURCE_COMMANDS);
+  if (state.view === "connectors") return renderSimpleList(c, "External Connectors", "Connections to SQL, Core Banking, MIS and REST systems. Credentials are stored as Key Vault references — never in Dataverse. Reports do not call these yet; outbound execution is gated (ADR-RPT-011, CEO V2/V3 scope).", connectorsView(), "connector", "New connector", connectorCatalog, CONNECTOR_COMMANDS);
   if (state.view === "logs") return renderSimpleList(c, "Execution Logs", "Every report run is logged by the engine (who, when, rows, duration, outcome). Written with the system identity so a user cannot suppress their own trail.", logsView(), null, null, executionLogCatalog);
   if (state.view === "audit") return renderSimpleList(c, "Audit Log", "Append-only change history of report configuration. No update or delete is permitted on audit records.", auditView(), null, null, auditLogCatalog);
   if (state.view === "categories") return renderSimpleList(c, "Report Categories", "Reports grouped by category.", categoriesView(), null, null, reportCatalog);
@@ -2906,7 +3000,7 @@ function tabDataSources(body, r) {
     <td class="handle">${ic("drag")}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="name" value="${esc(s.name)}"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="type">${opts(SOURCE_TYPES, s.type)}</select></td>
-    <td><select class="fluent-select" data-i="${i}" data-k="connector">${opts(["(CRM native)","Core Banking API","MIS API","Risk SQL DB","Payments REST"], s.connector||"(CRM native)")}</select></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="connectorId">${connectorOptions(s.connectorId)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="query" placeholder="FetchXML / OData / SQL…" value="${esc(s.query)}"></td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="primary" ${s.primary?"checked":""}></td>
     <td><input class="fluent-input" data-i="${i}" data-k="joinL" value="${esc(s.joinL)}" placeholder="—"></td>
@@ -4549,16 +4643,43 @@ function openVersionPanel() {
 /* `catalog` is the Dataverse list behind the view, so Refresh re-reads the org instead of toasting.
    A view with no `entityKey` shows no New button: execution and audit logs are written by the
    engine, and a data source only exists as part of a report, so there is nothing to create by hand. */
-function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog) {
+function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog, commands) {
   const newButton = entityKey
     ? `<button class="cmd primary" id="slNew">${ic("add")}${esc(newLabel || "New")}</button>`
     : "";
-  const cmd = el(`<div class="cmdbar">${newButton}<button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
+  const extra = (commands || []).map(cmd =>
+    `<button class="cmd" id="${cmd.id}" disabled>${ic(cmd.icon)}${esc(cmd.label)}</button>`).join("");
+  const cmd = el(`<div class="cmdbar">${newButton}${extra}<button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
   const scroll = el(`<div class="scroll"><div class="page"><div class="page-head"><div><h1>${esc(title)}</h1><div class="page-sub">${sub}</div></div></div><div class="grid-wrap">${tableHtml}</div></div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
   if (entityKey) $("#slNew").onclick = () => openEntityForm(entityKey);
   $("#slRefresh").onclick = () => withBusyButton("#slRefresh", "Refreshing…", async () => { catalog ? await catalog.refresh() : render(); });
   $("#slExport").onclick = () => toast("View exported to CSV");
+  if (commands && commands.length) wireRowCommands(scroll, commands);
+}
+
+/** Row selection driving the command bar, for the lists that act on a selected record. */
+function wireRowCommands(scroll, commands) {
+  let selectedId = null;
+  const refresh = () => commands.forEach(cmd => { $("#" + cmd.id).disabled = !selectedId; });
+  scroll.querySelectorAll("tbody tr[data-id]").forEach(row => {
+    row.addEventListener("click", () => {
+      scroll.querySelectorAll("tbody tr").forEach(other => other.classList.remove("selected"));
+      row.classList.add("selected");
+      selectedId = row.dataset.id;
+      refresh();
+    });
+    const link = row.querySelector(".link-cell");
+    if (link) link.addEventListener("click", e => {
+      e.stopPropagation();
+      const open = commands.find(cmd => cmd.isDefault);
+      if (open) open.run(row.dataset.id);
+    });
+  });
+  commands.forEach(cmd => {
+    $("#" + cmd.id).onclick = () =>
+      selectedId && withBusyButton("#" + cmd.id, cmd.busyLabel || cmd.label + "…", async () => cmd.run(selectedId));
+  });
 }
 /* The configuration and monitoring views. Each had a literal array behind it — including connectors
    listing Key Vault secret names for vaults that do not exist — and each has a real table. The
@@ -4567,30 +4688,43 @@ function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog
 
 const dataSourceCatalog = dataverseCatalog(
   "qdb_reportdatasource",
-  "?$select=qdb_name,qdb_sourcetype,qdb_sourcealias,qdb_isprimary,qdb_executionorder,"
-  + "_qdb_reportdefinitionid_value,_qdb_externalconnectorid_value&$orderby=qdb_name",
+  "?$select=qdb_reportdatasourceid,qdb_name,qdb_sourcetype,qdb_sourcealias,qdb_isprimary,"
+  + "qdb_executionorder,qdb_querypayload,_qdb_reportdefinitionid_value,_qdb_externalconnectorid_value"
+  + "&$orderby=qdb_name",
   row => ({
+    id: row.qdb_reportdatasourceid,
     name: row.qdb_name,
     type: formattedValue(row, "qdb_sourcetype"),
     alias: row.qdb_sourcealias,
+    reportId: row._qdb_reportdefinitionid_value,
     report: formattedValue(row, "_qdb_reportdefinitionid_value"),
-    connector: formattedValue(row, "_qdb_externalconnectorid_value") || "(CRM native)",
+    connectorId: row._qdb_externalconnectorid_value || null,
+    connector: formattedValue(row, "_qdb_externalconnectorid_value") || "(Dataverse)",
+    executionOrder: row.qdb_executionorder,
+    hasQuery: !!row.qdb_querypayload,
     primary: !!row.qdb_isprimary
   })
 );
 
 const connectorCatalog = dataverseCatalog(
   "qdb_externalconnector",
-  "?$select=qdb_name,qdb_connectortype,qdb_endpointurl,qdb_authmode,qdb_credentialreference,"
-  + "qdb_isactive,qdb_residencyregion&$orderby=qdb_name",
+  "?$select=qdb_externalconnectorid,qdb_name,qdb_connectortype,qdb_endpointurl,qdb_authmode,"
+  + "qdb_credentialreference,qdb_isactive,qdb_residencyregion,qdb_timeoutseconds,qdb_retrycount"
+  + "&$orderby=qdb_name",
   row => ({
+    id: row.qdb_externalconnectorid,
     name: row.qdb_name,
     type: formattedValue(row, "qdb_connectortype"),
+    typeCode: row.qdb_connectortype,
     url: row.qdb_endpointurl,
     auth: formattedValue(row, "qdb_authmode"),
+    authCode: row.qdb_authmode,
     // The reference to the credential, never the credential. Blank means none is configured.
     secret: row.qdb_credentialreference,
     region: row.qdb_residencyregion,
+    timeoutSeconds: row.qdb_timeoutseconds,
+    retryCount: row.qdb_retrycount,
+    isActive: !!row.qdb_isactive,
     status: row.qdb_isactive ? "Active" : "Inactive"
   })
 );
@@ -4662,6 +4796,17 @@ async function resolveUserNames(ids) {
   render();
 }
 
+/**
+ * Connectors to reach a source through, by id — the value that round-trips. Empty means Dataverse,
+ * which is what every source uses today. Inactive ones are shown but marked, because a report that
+ * points at a disabled connector should say so rather than look correctly configured.
+ */
+function connectorOptions(selectedId) {
+  const pairs = [["", "(Dataverse — no connector)"]].concat(
+    connectorCatalog.get().map(c => [c.id, c.status === "Active" ? c.name : `${c.name} (inactive)`]));
+  return opts2(pairs, selectedId || "");
+}
+
 function datasourceOptions(selectedName) {
   return `<option value="">— Select a data source —</option>` +
     dataSourceCatalog.get().map(x =>
@@ -4683,19 +4828,78 @@ const MONO = 'style="font-family:ui-monospace,Consolas,monospace;font-size:12px"
 
 function dataSourcesView() {
   return catalogTable(dataSourceCatalog,
-    ["Name", "Type", "Alias", "Report", "Connector", "Primary"],
-    r => `<tr><td class="link-cell">${cell(r.name)}</td><td>${cell(r.type)}</td><td>${cell(r.alias)}</td>
-      <td>${cell(r.report)}</td><td>${cell(r.connector)}</td><td>${r.primary ? ic("check") : "—"}</td></tr>`,
+    ["Name", "Type", { label: "Order", num: true }, "Alias", "Report", "Connector", "Query", "Primary"],
+    r => `<tr data-id="${esc(r.id)}"><td class="link-cell">${cell(r.name)}</td>
+      <td>${cell(r.type)}</td><td class="num">${cell(r.executionOrder)}</td><td>${cell(r.alias)}</td>
+      <td>${cell(r.report)}</td><td>${cell(r.connector)}</td>
+      <td>${r.hasQuery ? ic("check") : "—"}</td><td>${r.primary ? ic("check") : "—"}</td></tr>`,
     "No data sources yet — they are created as part of a report definition.");
 }
 
+/* Commands for the two configuration lists. Each acts on the selected row; the one marked isDefault
+   is what clicking the row's name does. */
+const CONNECTOR_COMMANDS = [
+  { id: "slEdit", icon: "edit", label: "Edit", isDefault: true, busyLabel: "Opening…",
+    run: id => editConnector(id) },
+  { id: "slToggle", icon: "publish", label: "Enable / disable", busyLabel: "Updating…",
+    run: id => withConnector(id, toggleConnectorActive) },
+  { id: "slDelete", icon: "trash", label: "Delete", busyLabel: "Deleting…",
+    run: id => withConnector(id, deleteConnector) }
+];
+
+const DATA_SOURCE_COMMANDS = [
+  { id: "slOpen", icon: "edit", label: "Open report", isDefault: true, busyLabel: "Opening…",
+    run: id => openReportOfDataSource(id) }
+];
+
+const withConnector = (id, action) => {
+  const connector = connectorCatalog.get().find(c => c.id === id);
+  return connector ? action(connector) : Promise.resolve();
+};
+
+/** Edits in the same form the New button uses, pre-filled from the stored record. */
+function editConnector(id) {
+  const connector = connectorCatalog.get().find(c => c.id === id);
+  if (!connector) return;
+  openEntityForm("connector", {
+    id: connector.id, name: connector.name, type: connector.type, auth: connector.auth,
+    url: connector.url, secret: connector.secret, timeout: connector.timeoutSeconds,
+    retry: connector.retryCount, region: connector.region, active: connector.isActive
+  });
+}
+
+/* A data source is not editable on its own — it belongs to a report — so the list opens the report
+   that owns it, on the tab where it lives. The rows used to show a link cursor and do nothing. */
+async function openReportOfDataSource(dataSourceId) {
+  const source = dataSourceCatalog.get().find(s => s.id === dataSourceId);
+  if (!source || !source.reportId) { toast("This data source has no parent report.", "warn"); return; }
+  await openSavedReport(source.reportId);
+  state.tab = "datasources";
+  render();
+}
+
+/** How many data sources point at each connector, so one in use cannot be deleted unnoticed. */
+function connectorUsage() {
+  const counts = {};
+  for (const source of dataSourceCatalog.get()) {
+    if (source.connectorId) counts[source.connectorId] = (counts[source.connectorId] || 0) + 1;
+  }
+  return counts;
+}
+
 function connectorsView() {
+  // Touched here so the choices are loaded before the New button can be pressed — a required
+  // dropdown that is empty because its metadata has not arrived is indistinguishable from a broken one.
+  connectorChoiceLabels("qdb_connectortype");
+  connectorChoiceLabels("qdb_authmode");
+  const usage = connectorUsage();
   return catalogTable(connectorCatalog,
-    ["Name", "Type", "Endpoint", "Auth", "Credential reference", "Region", "Status"],
-    r => `<tr><td class="link-cell">${cell(r.name)}</td><td>${cell(r.type)}</td>
+    ["Name", "Type", "Endpoint", "Auth", "Credential reference", "Region", { label: "Used by", num: true }, "Status"],
+    r => `<tr data-id="${esc(r.id)}"><td class="link-cell">${cell(r.name)}</td><td>${cell(r.type)}</td>
       <td ${MONO}>${cell(r.url)}</td><td>${cell(r.auth)}</td>
       <td>${r.secret ? `<span class="kbd">${esc(r.secret)}</span>` : "—"}</td><td>${cell(r.region)}</td>
-      <td><span class="pill ${r.status === "Active" ? "published" : "draft"}">${esc(r.status)}</span></td></tr>`,
+      <td class="num">${usage[r.id] || 0}</td>
+      <td><span class="pill ${r.isActive ? "published" : "draft"}">${esc(r.status)}</span></td></tr>`,
     "No external connectors configured in this environment.");
 }
 
@@ -4721,47 +4925,140 @@ function auditView() {
     "No configuration changes recorded yet.");
 }
 
-/* ---------------- Create-record forms (New button) ---------------- */
+/* ---------------- Record forms ----------------
+   The connector form's dropdowns are built from option-set metadata rather than listed here. They
+   used to offer "Web API", "Certificate" and "Managed Identity", none of which are in the org's
+   option sets — choiceCode returned null and the field was dropped on save, so a connector could be
+   created with no type and no auth mode and nothing said so. */
 const FORM_SPECS = {
   connector: {
-    title:"New External Connector", table:"qdb_externalconnector", saveLabel:"Save",
-    banner:"Secrets are stored as <b>Key Vault references</b> — enter the secret <em>name</em>, never the secret value itself (condition C-9).",
-    fields:[
+    title: "External Connector", table: "qdb_externalconnector", saveLabel: "Save",
+    banner: "Secrets are stored as <b>Key Vault references</b> — enter the secret <em>name</em>, never the secret value itself (condition C-9).",
+    fields: () => [
       { key:"name", label:"Name", required:true, placeholder:"e.g. Core Banking API", full:true },
-      { key:"type", label:"Connector type", type:"select", options:["SQL","REST API","Middleware","Core Banking","MIS","Web API"], value:"REST API", required:true },
-      { key:"auth", label:"Auth type", type:"select", options:["API key","OAuth2","Basic","Certificate","Managed Identity"], value:"OAuth2", required:true },
-      { key:"url", label:"Base URL / connection", placeholder:"https://… (no credentials)", full:true },
-      { key:"secret", label:"Secret reference (Key Vault)", placeholder:"kv:my-secret-name", hint:"Key Vault secret name — never the secret value." },
+      { key:"type", label:"Connector type", type:"select", required:true,
+        options: connectorChoiceLabels("qdb_connectortype") },
+      { key:"auth", label:"Auth mode", type:"select", required:true,
+        options: connectorChoiceLabels("qdb_authmode") },
+      { key:"url", label:"Endpoint URL", placeholder:"https://… (no credentials)", full:true,
+        hint:"Must be https, and must not carry a user name or password." },
+      { key:"secret", label:"Credential reference (Key Vault)", placeholder:"kv:my-secret-name",
+        hint:"The secret's NAME. The value itself must never reach Dataverse." },
       { key:"timeout", label:"Timeout (seconds)", type:"number", value:"30" },
+      { key:"retry", label:"Retry count", type:"number", value:"0" },
       { key:"region", label:"Residency region", placeholder:"e.g. Qatar Central" },
       { key:"active", label:"Active", type:"toggle", toggleLabel:"Active", value:true }
     ],
-    onSave: createConnector
+    validate: validateConnector,
+    onSave: saveConnector
   },
 };
 
-/* Writes a real qdb_externalconnector. The form used to unshift a row into an array, so a connector
-   "created" here vanished on refresh and could never be referenced by a report. */
-async function createConnector(values) {
-  beginBusy("Creating connector…");
+const connectorChoiceLabels = attribute =>
+  optionSetOf("qdb_externalconnector", attribute).map(o => o.label);
+
+/**
+ * Rejects what must not be stored, with the reason. Returns a message, or null when the values are
+ * acceptable.
+ *
+ * The endpoint rules are not cosmetic: an outbound banking integration over http is a finding on its
+ * own, and credentials in the URL's userinfo would be written to Dataverse in clear and echoed into
+ * every log line that prints the connector.
+ */
+function validateConnector(values) {
+  const url = (values.url || "").trim();
+  if (url) {
+    let parsed;
+    try { parsed = new URL(url); } catch (error) { return "Endpoint URL is not a valid URL."; }
+    if (parsed.protocol !== "https:") return "Endpoint URL must use https.";
+    if (parsed.username || parsed.password) return "Endpoint URL must not contain a user name or password.";
+  }
+  if (looksLikeASecret(values.secret)) {
+    return "That looks like a secret value, not a reference. Enter the Key Vault secret NAME instead.";
+  }
+  for (const [key, label] of [["timeout", "Timeout"], ["retry", "Retry count"]]) {
+    const raw = String(values[key] ?? "").trim();
+    if (raw && (!/^\d+$/.test(raw) || Number(raw) > 3600)) return `${label} must be a whole number of 3600 or less.`;
+  }
+  return null;
+}
+
+/* A reference is a short name. Anything long, or carrying the punctuation of an encoded token or a
+   connection string, is far more likely to be the credential itself being pasted by mistake. */
+function looksLikeASecret(reference) {
+  const value = (reference || "").trim();
+  if (!value) return false;
+  return value.length > 120
+    || /password\s*=|pwd\s*=|secret\s*=|apikey\s*=/i.test(value)
+    || /^ey[A-Za-z0-9_-]{20,}\./.test(value);
+}
+
+/** Creates or updates, depending on whether the form was opened on an existing record. */
+async function saveConnector(values, existingId) {
+  const attributes = defined({
+    qdb_name: values.name,
+    qdb_connectortype: choiceCode("qdb_externalconnector", "qdb_connectortype", values.type),
+    qdb_authmode: choiceCode("qdb_externalconnector", "qdb_authmode", values.auth),
+    qdb_endpointurl: values.url || null,
+    // The reference to a secret, not a secret. Never store the value itself (condition C-9).
+    qdb_credentialreference: values.secret || null,
+    qdb_timeoutseconds: values.timeout ? Number(values.timeout) : null,
+    qdb_retrycount: values.retry ? Number(values.retry) : null,
+    qdb_residencyregion: values.region || null,
+    qdb_isactive: !!values.active
+  });
+
+  beginBusy(existingId ? "Saving connector…" : "Creating connector…");
   try {
-    await dvCreate("qdb_externalconnector", defined({
-      qdb_name: values.name,
-      qdb_connectortype: choiceCode("qdb_externalconnector", "qdb_connectortype", values.type),
-      qdb_authmode: choiceCode("qdb_externalconnector", "qdb_authmode", values.auth),
-      qdb_endpointurl: values.url || null,
-      // The reference to a secret, not a secret. Never store the value itself (condition C-9).
-      qdb_credentialreference: values.secret || null,
-      qdb_timeoutseconds: values.timeout ? Number(values.timeout) : null,
-      qdb_residencyregion: values.region || null,
-      qdb_isactive: !!values.active
-    }));
-    toast("Connector created in Dataverse", "ok");
+    if (existingId) await dvUpdate("qdb_externalconnector", existingId, attributes);
+    else await dvCreate("qdb_externalconnector", attributes);
+    toast(existingId ? "Connector updated" : "Connector created in Dataverse", "ok");
     connectorCatalog.refresh();
   } catch (error) {
-    toast("Couldn't create the connector — " + error.message, "err");
+    toast("Couldn't save the connector — " + error.message, "err");
   } finally {
-    endBusy("Creating connector…");
+    endBusy(existingId ? "Saving connector…" : "Creating connector…");
+  }
+}
+
+/**
+ * Deletes a connector, unless a data source still points at it.
+ *
+ * Dataverse would happily null the lookups and leave those reports silently reconfigured to read
+ * Dataverse instead — a change nobody asked for and nothing records. Naming the reports lets the
+ * author decide.
+ */
+async function deleteConnector(connector) {
+  const users = dataSourceCatalog.get().filter(source => source.connectorId === connector.id);
+  if (users.length) {
+    const reports = [...new Set(users.map(source => source.report).filter(Boolean))];
+    toast(`“${connector.name}” is used by ${users.length} data source${users.length === 1 ? "" : "s"}`
+      + (reports.length ? ` in ${reports.join(", ")}` : "") + " — remove those first.", "warn");
+    return;
+  }
+  beginBusy("Deleting connector…");
+  try {
+    await dvDelete("qdb_externalconnector", connector.id);
+    toast("Connector deleted", "ok");
+    await connectorCatalog.refresh();
+  } catch (error) {
+    toast("Delete failed — " + error.message, "err");
+  } finally {
+    endBusy("Deleting connector…");
+  }
+}
+
+/** Disabling is the reversible alternative to deleting one that is in use. */
+async function toggleConnectorActive(connector) {
+  beginBusy(connector.isActive ? "Disabling connector…" : "Enabling connector…");
+  try {
+    await dvUpdate("qdb_externalconnector", connector.id, { qdb_isactive: !connector.isActive });
+    toast(connector.isActive ? `“${connector.name}” disabled` : `“${connector.name}” enabled`, "ok");
+    await connectorCatalog.refresh();
+  } catch (error) {
+    toast("Couldn't change the connector — " + error.message, "err");
+  } finally {
+    endBusy(connector.isActive ? "Disabling connector…" : "Enabling connector…");
   }
 }
 
@@ -4779,13 +5076,21 @@ function fieldHtml(f) {
   else control = `<input class="fluent-input" data-f="${f.key}" type="${f.type||"text"}" value="${esc(f.value||"")}" placeholder="${esc(f.placeholder||"")}">`;
   return `<div class="field${span}"><label class="lbl">${esc(f.label)}${f.required?'<span class="req">*</span>':""}</label>${control}${f.hint?`<span class="hint-inline">${esc(f.hint)}</span>`:""}</div>`;
 }
-function openEntityForm(entityKey) {
+/**
+ * Opens a record form. With `existing` it edits that record — the same spec, pre-filled — so create
+ * and edit cannot drift apart into two forms that accept different things.
+ */
+function openEntityForm(entityKey, existing) {
   const spec = FORM_SPECS[entityKey]; if (!spec) return;
+  // Fields are a function so their choices come from metadata each time the form opens.
+  const fields = (typeof spec.fields === "function" ? spec.fields() : spec.fields)
+    .map(field => existing && existing[field.key] !== undefined ? { ...field, value: existing[field.key] } : field);
+
   const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:600px">
-    <div class="dialog-head"><div><h3>${esc(spec.title)}</h3><div class="page-sub" style="margin-top:2px">New record · <span class="kbd">${esc(spec.table)}</span></div></div><button class="close-x" aria-label="Close">✕</button></div>
+    <div class="dialog-head"><div><h3>${esc(spec.title)}</h3><div class="page-sub" style="margin-top:2px">${existing ? "Edit" : "New"} record · <span class="kbd">${esc(spec.table)}</span></div></div><button class="close-x" aria-label="Close">✕</button></div>
     <div class="dialog-body">
       ${spec.banner?`<div class="info-banner">${ic("info")}<div>${spec.banner}</div></div>`:""}
-      <div class="field-grid">${spec.fields.map(fieldHtml).join("")}</div>
+      <div class="field-grid">${fields.map(fieldHtml).join("")}</div>
     </div>
     <div class="dialog-foot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="efSave">${ic("save")}${esc(spec.saveLabel||"Save")}</button></div>
   </div></div>`);
@@ -4796,10 +5101,16 @@ function openEntityForm(entityKey) {
   scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
   scrim.querySelector("#efSave").onclick = () => {
     const values = {};
-    spec.fields.forEach(f => { const n = scrim.querySelector(`[data-f="${f.key}"]`); values[f.key] = n.type==="checkbox" ? n.checked : n.value; });
-    const missing = spec.fields.find(f => f.required && !String(values[f.key]||"").trim());
+    fields.forEach(f => { const n = scrim.querySelector(`[data-f="${f.key}"]`); values[f.key] = n.type==="checkbox" ? n.checked : n.value; });
+
+    const missing = fields.find(f => f.required && !String(values[f.key]||"").trim());
     if (missing) { toast(`${missing.label} is required`, "warn"); return; }
-    close(); spec.onSave(values);
+    // Validation happens at the boundary, before anything is written.
+    const rejection = spec.validate ? spec.validate(values) : null;
+    if (rejection) { toast(rejection, "warn"); return; }
+
+    close();
+    spec.onSave(values, existing && existing.id);
   };
 }
 /* Counted from the reports themselves rather than listed, so a category with no reports in it does
