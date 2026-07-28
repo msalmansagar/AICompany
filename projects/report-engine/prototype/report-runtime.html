@@ -142,6 +142,17 @@
     background:var(--primary); animation:busySlide 1.1s ease-in-out infinite;}
   @keyframes busySlide{0%{transform:translateX(-100%);} 100%{transform:translateX(320%);}}
   .btn.busy{pointer-events:none; opacity:.65;}
+
+  /* The lock. Present from the first millisecond of any operation so a second one cannot be
+     started; visible only once the wait is long enough to be worth interrupting the view for. */
+  .busy-shield{position:fixed; inset:0; z-index:190; cursor:progress; background:transparent;
+    transition:background .18s ease; display:flex; align-items:center; justify-content:center;}
+  .busy-shield .busy-panel{display:flex; align-items:center; gap:11px; background:var(--surface); color:var(--text);
+    border:1px solid var(--border-strong); border-radius:var(--radius-lg); box-shadow:var(--shadow-64);
+    padding:14px 20px; font-size:13px; opacity:0; transform:scale(.97);
+    transition:opacity .18s ease, transform .18s ease;}
+  .busy-shield.visible{background:rgba(0,0,0,.18);}
+  .busy-shield.visible .busy-panel{opacity:1; transform:none;}
   @media (prefers-reduced-motion: reduce){ .busy-bar::after, .spinner{animation:none;} }
 
   .modal-back{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; display:none; align-items:center; justify-content:center;}
@@ -319,20 +330,67 @@ const state = {
 function toast(msg, kind){ const t=document.createElement("div"); t.className="toast "+(kind||""); t.textContent=msg; $("#toasts").appendChild(t); setTimeout(()=>t.remove(), 4200); }
 
 /* ---------------- Busy tracking ----------------
+   While an operation is in flight the viewer is LOCKED: a shield covers the surface and swallows
+   pointer events, and Enter/Space/Escape are refused, so a second run or export cannot be started
+   on top of the first. Running a report writes an audit record, so a double-fire is not just wasted
+   work — it is a second row in the trail for one user action.
+
    Counts overlapping operations rather than toggling a flag: a chart render can start while an
-   export is still building, and the first to finish must not clear the signal for the other. */
+   export is still building, and the first to finish must not unlock for the other. */
 let busyDepth = 0;
+let busyLabel = "Working…";
+let busyRevealTimer = null;
+
+/* Long enough that a fast round trip never flashes a modal; short enough to cover any real wait. */
+const BUSY_VISIBLE_AFTER_MS = 180;
 
 function paintBusy(){
   let bar = $("#busyBar");
   if (!bar) { bar = document.createElement("div"); bar.id = "busyBar"; bar.className = "busy-bar"; document.body.appendChild(bar); }
   bar.classList.toggle("on", busyDepth > 0);
+  busyDepth > 0 ? raiseShield() : dropShield();
 }
 
-async function withBusy(operation){
-  busyDepth++; paintBusy();
+function raiseShield(){
+  let shield = $("#busyShield");
+  if (!shield) { shield = document.createElement("div"); shield.id = "busyShield"; shield.className = "busy-shield"; document.body.appendChild(shield); }
+  shield.innerHTML = `<div class="busy-panel"><span class="spinner"></span><span>${esc(busyLabel)}</span></div>`;
+  if (busyRevealTimer) return;
+  busyRevealTimer = setTimeout(() => { const s = $("#busyShield"); if (s) s.classList.add("visible"); }, BUSY_VISIBLE_AFTER_MS);
+}
+
+function dropShield(){
+  clearTimeout(busyRevealTimer); busyRevealTimer = null;
+  const shield = $("#busyShield");
+  if (shield) shield.remove();
+}
+
+document.addEventListener("keydown", e => {
+  if (busyDepth === 0) return;
+  if (["Enter", " ", "Spacebar", "Escape"].includes(e.key)) { e.preventDefault(); e.stopPropagation(); }
+}, true);
+
+/* A lock that never releases is worse than no lock: the viewer would be dead until a reload with no
+   clue why. If an operation hangs, the watchdog unlocks and says so. */
+const BUSY_WATCHDOG_MS = 45000;
+let busyWatchdog = null;
+
+async function withBusy(operation, label){
+  busyDepth++;
+  if (label) busyLabel = label;
+  clearTimeout(busyWatchdog);
+  busyWatchdog = setTimeout(() => {
+    busyDepth = 0; paintBusy();
+    toast(`Timed out waiting for ${busyLabel} — the screen was unlocked.`, "error");
+  }, BUSY_WATCHDOG_MS);
+  paintBusy();
   try { return await operation(); }
-  finally { busyDepth = Math.max(0, busyDepth - 1); paintBusy(); }
+  finally {
+    busyDepth = Math.max(0, busyDepth - 1);
+    clearTimeout(busyWatchdog);
+    if (busyDepth > 0) busyWatchdog = setTimeout(() => { busyDepth = 0; paintBusy(); }, BUSY_WATCHDOG_MS);
+    paintBusy();
+  }
 }
 
 /**
@@ -343,7 +401,7 @@ async function withBusyButton(selector, label, operation){
   const button = typeof selector === "string" ? $(selector) : selector;
   const original = button ? button.innerHTML : null;
   if (button) { button.classList.add("busy"); button.disabled = true; button.innerHTML = `<span class="spinner sm"></span> ${label}`; }
-  try { return await withBusy(operation); }
+  try { return await withBusy(operation, label); }
   finally {
     if (button && button.isConnected) { button.classList.remove("busy"); button.disabled = false; button.innerHTML = original; }
   }

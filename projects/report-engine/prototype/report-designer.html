@@ -740,13 +740,23 @@
   @keyframes busySlide {
     0% { transform: translateX(-100%); } 100% { transform: translateX(320%); }
   }
-  .busy-label {
-    position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 200;
-    background: var(--text); color: var(--surface); font-size: 12px; padding: 5px 12px;
-    border-radius: var(--radius-lg); box-shadow: var(--shadow-16); display: flex; align-items: center; gap: 8px;
-    opacity: 0; transition: opacity .15s ease; pointer-events: none;
+  /* The shield is the actual lock: while anything is in flight it sits over the whole app and
+     swallows every click, so a second operation cannot be started on top of the first. It is
+     present from the moment work starts but stays invisible for a moment, so the sub-second
+     round trips that make up most of the traffic never flash a modal over the screen. */
+  .busy-shield {
+    position: fixed; inset: 0; z-index: 190; cursor: progress;
+    background: transparent; transition: background .18s ease;
+    display: flex; align-items: center; justify-content: center;
   }
-  .busy-label.on { opacity: .94; }
+  .busy-shield .busy-panel {
+    display: flex; align-items: center; gap: 11px; background: var(--surface); color: var(--text);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-64);
+    padding: 14px 20px; font-size: 13px; opacity: 0; transform: scale(.97);
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  .busy-shield.visible { background: rgba(0, 0, 0, .18); }
+  .busy-shield.visible .busy-panel { opacity: 1; transform: none; }
 
   .spinner {
     display: inline-block; width: 13px; height: 13px; flex-shrink: 0; vertical-align: -2px;
@@ -1534,38 +1544,91 @@ function toast(msg, kind="ok") {
 
 /* ---------- Busy tracking ----------
    Nothing in the designer is computed locally any more: opening a report, filling a picker and
-   drawing a preview are all round trips. Every one of them goes through here, so the user is never
-   looking at a screen that is working without saying so.
+   drawing a preview are all round trips. Every one of them goes through here.
+
+   While any of them is in flight the app is LOCKED, not merely annotated. A shield covers the whole
+   surface and swallows pointer events, and Enter/Space/Escape are refused, so a second operation
+   cannot be started on top of the first. That matters beyond tidiness: the designer replaces a
+   report's children wholesale on save, so a Delete or a second Save fired mid-write would race
+   against a definition that is momentarily half-written.
 
    The tracker counts overlapping operations rather than toggling a flag, because several run at
    once — a list refresh while attribute metadata and a preview query are still in flight — and the
-   first one to finish must not clear the signal for the others. It lives on the document, outside
-   the re-rendered region, so a render mid-flight does not wipe it. */
-const busy = { depth: 0, labels: [] };
+   first one to finish must not unlock the app for the others. It lives on the document, outside the
+   re-rendered region, so a render mid-flight does not wipe it. */
+const busy = { depth: 0, labels: [], revealTimer: null, watchdog: null };
+
+/* A lock that never releases is worse than no lock: the app would be dead until a reload, with no
+   clue why. If a caller ever loses its endBusy — a throw on a path without a finally, a hung
+   request — the watchdog releases everything and says so, rather than leaving a shield up. */
+const BUSY_WATCHDOG_MS = 45000;
 
 function beginBusy(label) {
   busy.depth++;
   if (label) busy.labels.push(label);
+  clearTimeout(busy.watchdog);
+  busy.watchdog = setTimeout(releaseStuckBusy, BUSY_WATCHDOG_MS);
   paintBusy();
+}
+
+function releaseStuckBusy() {
+  const stuck = busy.labels.slice();
+  busy.depth = 0;
+  busy.labels = [];
+  paintBusy();
+  toast(`Timed out waiting for ${stuck[stuck.length - 1] || "an operation"} — the screen was unlocked.`, "err");
 }
 
 function endBusy(label) {
   busy.depth = Math.max(0, busy.depth - 1);
   const at = label ? busy.labels.indexOf(label) : -1;
   if (at >= 0) busy.labels.splice(at, 1);
+  clearTimeout(busy.watchdog);
+  if (busy.depth > 0) busy.watchdog = setTimeout(releaseStuckBusy, BUSY_WATCHDOG_MS);
   paintBusy();
 }
 
+/* Long enough that a fast round trip never flashes a modal over the screen, short enough that
+   anything a user would call slow is covered. Input is blocked from the first millisecond either
+   way — only the dimming waits. */
+const BUSY_VISIBLE_AFTER_MS = 180;
+
 function paintBusy() {
-  const bar = busyElement("qdbBusyBar", "busy-bar");
-  const note = busyElement("qdbBusyLabel", "busy-label");
   const active = busy.depth > 0;
-  bar.classList.toggle("on", active);
-  // The newest label wins: it is the thing the user just asked for.
-  const label = busy.labels[busy.labels.length - 1];
-  note.innerHTML = label ? `<span class="spinner"></span><span>${esc(label)}</span>` : "";
-  note.classList.toggle("on", active && !!label);
+  busyElement("qdbBusyBar", "busy-bar").classList.toggle("on", active);
+  active ? raiseShield() : dropShield();
 }
+
+/** The newest label wins: it is the thing the user just asked for. */
+const currentBusyLabel = () => busy.labels[busy.labels.length - 1] || "Working…";
+
+function raiseShield() {
+  const shield = busyElement("qdbBusyShield", "busy-shield");
+  shield.innerHTML = `<div class="busy-panel"><span class="spinner lg"></span><span>${esc(currentBusyLabel())}</span></div>`;
+  if (busy.revealTimer) return;
+  busy.revealTimer = setTimeout(() => {
+    const node = document.getElementById("qdbBusyShield");
+    if (node) node.classList.add("visible");
+  }, BUSY_VISIBLE_AFTER_MS);
+}
+
+function dropShield() {
+  clearTimeout(busy.revealTimer);
+  busy.revealTimer = null;
+  const shield = document.getElementById("qdbBusyShield");
+  if (shield) shield.remove();
+}
+
+/* Pointer events stop at the shield, but a focused control can still be fired from the keyboard,
+   and Escape would close a dialog out from under an operation. Both are refused while busy. */
+function blockKeyboardWhileBusy(event) {
+  if (busy.depth === 0) return;
+  if (["Enter", " ", "Spacebar", "Escape"].includes(event.key)) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+document.addEventListener("keydown", blockKeyboardWhileBusy, true);
 
 function busyElement(id, className) {
   let node = document.getElementById(id);
