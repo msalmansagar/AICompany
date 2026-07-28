@@ -1172,75 +1172,208 @@ const EXPORT_FORMATS = ["PDF","Excel","CSV","Word","Image (PNG)","HTML"];
 const PRINCIPAL_TYPES = ["Security role","Team","User"];
 const RIBBON_LOCS = ["Entity form ribbon","Home grid ribbon","Subgrid ribbon","Dashboard button","Sitemap page"];
 
-/* Attribute catalog per entity — drives the wizard's column picker */
-const ATTR_CATALOG = {
-  qdb_loanapplication: [
-    { a:"qdb_applicationnumber", n:"Application No", t:"Text" },
-    { a:"qdb_requestedamount", n:"Requested Amount", t:"Currency" },
-    { a:"statuscode", n:"Status", t:"Option set" },
-    { a:"createdon", n:"Created On", t:"Date/Time" },
-    { a:"qdb_branchid", n:"Branch", t:"Lookup" },
-    { a:"qdb_product", n:"Product", t:"Option set" },
-    { a:"qdb_term", n:"Term (months)", t:"Whole number" },
-    { a:"qdb_interestrate", n:"Interest Rate", t:"Decimal" }
-  ],
-  account: [
-    { a:"name", n:"Account Name", t:"Text" },
-    { a:"accountnumber", n:"Account Number", t:"Text" },
-    { a:"telephone1", n:"Phone", t:"Text" },
-    { a:"address1_city", n:"City", t:"Text" },
-    { a:"revenue", n:"Annual Revenue", t:"Currency" },
-    { a:"createdon", n:"Created On", t:"Date/Time" }
-  ],
-  contact: [
-    { a:"fullname", n:"Full Name", t:"Text" },
-    { a:"emailaddress1", n:"Email", t:"Text" },
-    { a:"telephone1", n:"Phone", t:"Text" },
-    { a:"jobtitle", n:"Job Title", t:"Text" },
-    { a:"createdon", n:"Created On", t:"Date/Time" }
-  ],
-  qdb_facility: [
-    { a:"qdb_facilitynumber", n:"Facility No", t:"Text" },
-    { a:"qdb_limit", n:"Limit", t:"Currency" },
-    { a:"qdb_outstanding", n:"Outstanding", t:"Currency" },
-    { a:"qdb_status", n:"Status", t:"Option set" },
-    { a:"qdb_maturitydate", n:"Maturity Date", t:"Date/Time" }
-  ],
-  qdb_collateral: [
-    { a:"qdb_collateraltype", n:"Type", t:"Option set" },
-    { a:"qdb_value", n:"Value", t:"Currency" },
-    { a:"qdb_valuationdate", n:"Valuation Date", t:"Date/Time" },
-    { a:"qdb_coverageratio", n:"Coverage Ratio", t:"Decimal" }
-  ],
-  qdb_processhistory: [
-    { a:"qdb_stage", n:"Stage", t:"Text" },
-    { a:"qdb_action", n:"Action", t:"Text" },
-    { a:"qdb_recordref", n:"Record No", t:"Text" },
-    { a:"qdb_fromstatus", n:"From Status", t:"Option set" },
-    { a:"qdb_tostatus", n:"To Status", t:"Option set" },
-    { a:"qdb_performedby", n:"Performed By", t:"Text" },
-    { a:"qdb_actionon", n:"Action On", t:"Date/Time" },
-    { a:"qdb_durationhrs", n:"Duration (hrs)", t:"Whole number" }
-  ],
-  qdb_slatracking: [
-    { a:"qdb_caseref", n:"Case No", t:"Text" },
-    { a:"qdb_slapolicy", n:"SLA Policy", t:"Text" },
-    { a:"qdb_targethrs", n:"Target (hrs)", t:"Whole number" },
-    { a:"qdb_elapsedhrs", n:"Elapsed (hrs)", t:"Whole number" },
-    { a:"qdb_slastatus", n:"SLA Status", t:"Option set" },
-    { a:"qdb_owner", n:"Owner", t:"Text" },
-    { a:"qdb_duedate", n:"Due Date", t:"Date/Time" }
-  ]
+/* ---------- Dataverse metadata ----------
+   Entities, their attributes and their relationships are read from the org rather than listed here.
+   The designer used to carry a literal catalogue of five invented tables, so every column picker,
+   filter list and dashboard tile offered fields that existed nowhere — a report built from them
+   could not run. Reading metadata means the pickers can only offer what the org actually has.
+
+   Reads are cached for the session and shared by every picker: the entity list is one request, and
+   each entity's attributes are fetched the first time something asks for them. Accessors are
+   synchronous because the render path is, so a miss returns empty and re-renders when the fetch
+   lands — the same contract as dataverseCatalog above. */
+
+/** Dataverse attribute types, in the vocabulary the designer's column editors already speak. */
+const ATTRIBUTE_TYPE_LABELS = {
+  String: "Text", Memo: "Text",
+  Integer: "Whole number", BigInt: "Whole number",
+  Decimal: "Decimal", Double: "Decimal",
+  Money: "Currency",
+  DateTime: "Date/Time",
+  Boolean: "Boolean",
+  Picklist: "Option set", State: "Option set", Status: "Option set",
+  MultiSelectPicklist: "Multi-select option set",
+  Lookup: "Lookup", Owner: "Lookup", Customer: "Lookup"
 };
-const SRC_DESC = { "FetchXML":"Simple CRM queries", "QueryExpression":"SDK-based, complex joins", "Dataverse Web API":"Flexible OData reads", "CRM View":"Reuse a saved view", "Custom API / Plugin":"Server-side custom query", "Static dataset":"Manual test data" };
-/* Related entities per entity — drives the manual designer's datasource tree */
-const ENTITY_RELATIONS = {
-  qdb_loanapplication: [ {entity:"qdb_facility", label:"Facilities"}, {entity:"qdb_collateral", label:"Collaterals"}, {entity:"contact", label:"Guarantors"} ],
-  account: [ {entity:"qdb_loanapplication", label:"Loan Applications"}, {entity:"contact", label:"Contacts"}, {entity:"qdb_facility", label:"Facilities"} ],
-  contact: [ {entity:"qdb_loanapplication", label:"Applications"} ],
-  qdb_facility: [ {entity:"qdb_collateral", label:"Collaterals"} ],
-  qdb_collateral: []
+
+const metadata = {
+  entities: null,
+  entitiesError: null,
+  entitiesLoading: false,
+  attributesByEntity: {},
+  relationsByEntity: {},
+  optionSets: {},
+  pending: {}
 };
+
+/** Entities a report can be built over: those the org exposes to advanced find. */
+async function loadEntityMetadata() {
+  if (metadata.entitiesLoading) return;
+  metadata.entitiesLoading = true;
+  try {
+    const rows = await dvMetadata(
+      "EntityDefinitions?$select=LogicalName,EntitySetName,DisplayName,PrimaryIdAttribute,PrimaryNameAttribute"
+      + "&$filter=IsValidForAdvancedFind eq true");
+    metadata.entities = rows
+      .filter(e => e.EntitySetName)
+      .map(e => ({
+        logicalName: e.LogicalName,
+        entitySet: e.EntitySetName,
+        label: (e.DisplayName && e.DisplayName.UserLocalizedLabel && e.DisplayName.UserLocalizedLabel.Label) || e.LogicalName,
+        primaryId: e.PrimaryIdAttribute,
+        primaryName: e.PrimaryNameAttribute
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    metadata.entitiesError = null;
+  } catch (error) {
+    metadata.entities = [];
+    metadata.entitiesError = error.message || String(error);
+  }
+  metadata.entitiesLoading = false;
+  syncEntityDatalist();
+  render();
+}
+
+async function loadAttributeMetadata(entity) {
+  if (metadata.pending[entity]) return;
+  metadata.pending[entity] = true;
+  try {
+    const rows = await dvMetadata(
+      `EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,AttributeType,DisplayName,AttributeOf,IsValidForRead`);
+    metadata.attributesByEntity[entity] = rows
+      // A shadow attribute (AttributeOf) is the formatted twin of a real one and cannot be selected.
+      .filter(a => a.IsValidForRead && !a.AttributeOf && ATTRIBUTE_TYPE_LABELS[a.AttributeType])
+      .map(a => ({
+        a: a.LogicalName,
+        n: (a.DisplayName && a.DisplayName.UserLocalizedLabel && a.DisplayName.UserLocalizedLabel.Label) || a.LogicalName,
+        t: ATTRIBUTE_TYPE_LABELS[a.AttributeType]
+      }))
+      .sort((x, y) => x.n.localeCompare(y.n));
+  } catch (error) {
+    metadata.attributesByEntity[entity] = [];
+  }
+  delete metadata.pending[entity];
+  render();
+}
+
+/** One-to-many relationships, which is what the manual designer's detail tables can hang off. */
+async function loadRelationshipMetadata(entity) {
+  const key = "rel:" + entity;
+  if (metadata.pending[key]) return;
+  metadata.pending[key] = true;
+  try {
+    const rows = await dvMetadata(
+      `EntityDefinitions(LogicalName='${entity}')/OneToManyRelationships?$select=ReferencingEntity,ReferencingAttribute,SchemaName`);
+    metadata.relationsByEntity[entity] = rows.map(r => ({
+      entity: r.ReferencingEntity,
+      label: entityLabel(r.ReferencingEntity),
+      foreignKey: r.ReferencingAttribute,
+      schema: r.SchemaName
+    }));
+  } catch (error) {
+    metadata.relationsByEntity[entity] = [];
+  }
+  delete metadata.pending[key];
+  render();
+}
+
+/* Choice columns read their options from the org too. The designer used to offer categories and
+   modules it had invented — "Financial", "Lending", "Treasury" — none of which are in the option set,
+   so a chosen value could never be stored. */
+async function loadOptionSets(entity) {
+  const key = "opts:" + entity;
+  if (metadata.pending[key]) return;
+  metadata.pending[key] = true;
+  try {
+    const rows = await dvMetadata(
+      `EntityDefinitions(LogicalName='${entity}')/Attributes/Microsoft.Dynamics.CRM.PicklistAttributeMetadata`
+      + "?$select=LogicalName&$expand=OptionSet($select=Options)");
+    const byAttribute = {};
+    for (const row of rows) {
+      byAttribute[row.LogicalName] = ((row.OptionSet && row.OptionSet.Options) || []).map(o => ({
+        value: o.Value,
+        label: (o.Label && o.Label.UserLocalizedLabel && o.Label.UserLocalizedLabel.Label) || String(o.Value)
+      }));
+    }
+    metadata.optionSets[entity] = byAttribute;
+  } catch (error) {
+    metadata.optionSets[entity] = {};
+  }
+  delete metadata.pending[key];
+  render();
+}
+
+function optionSetOf(entity, attribute) {
+  if (!metadata.optionSets[entity]) { loadOptionSets(entity); return []; }
+  return metadata.optionSets[entity][attribute] || [];
+}
+
+/** Labels of a report-definition choice column, for the designer's dropdowns. */
+const reportChoiceLabels = attribute =>
+  optionSetOf("qdb_reportdefinition", attribute).map(o => o.label);
+
+/** Turns a chosen label back into the code Dataverse stores. */
+function reportChoiceCode(attribute, label) {
+  const match = optionSetOf("qdb_reportdefinition", attribute).find(o => o.label === label);
+  return match ? match.value : null;
+}
+
+/** Logical names of every reportable entity. Empty until the metadata request lands. */
+function entityNames() {
+  if (metadata.entities === null) loadEntityMetadata();
+  return (metadata.entities || []).map(e => e.logicalName);
+}
+
+function entityRecord(logicalName) {
+  if (metadata.entities === null) loadEntityMetadata();
+  return (metadata.entities || []).find(e => e.logicalName === logicalName) || null;
+}
+
+function entityLabel(logicalName) {
+  const record = entityRecord(logicalName);
+  return record ? record.label : logicalName;
+}
+
+/** The OData collection name — "accounts", not "accounts" guessed by appending an s. */
+function entitySetOf(logicalName) {
+  const record = entityRecord(logicalName);
+  return record ? record.entitySet : null;
+}
+
+function attributesOf(entity) {
+  if (!entity) return [];
+  if (!metadata.attributesByEntity[entity]) { loadAttributeMetadata(entity); return []; }
+  return metadata.attributesByEntity[entity];
+}
+
+function relationsOf(entity) {
+  if (!entity) return [];
+  if (!metadata.relationsByEntity[entity]) { loadRelationshipMetadata(entity); return []; }
+  return metadata.relationsByEntity[entity];
+}
+
+/* An org has thousands of reportable tables, so entity pickers are type-ahead inputs over one shared
+   datalist rather than dropdowns. The datalist lives on the document and is written once when the
+   metadata lands, so a form with six pickers costs six inputs, not six thousand options. */
+const ENTITY_DATALIST_ID = "dvEntityNames";
+
+function syncEntityDatalist() {
+  let list = document.getElementById(ENTITY_DATALIST_ID);
+  if (!list) {
+    list = document.createElement("datalist");
+    list.id = ENTITY_DATALIST_ID;
+    document.body.appendChild(list);
+  }
+  list.innerHTML = (metadata.entities || [])
+    .map(e => `<option value="${esc(e.logicalName)}">${esc(e.label)}</option>`).join("");
+}
+
+/** A type-ahead entity picker. `attrs` carries the ids or data-* the caller's handler binds to. */
+function entityPickerHtml(selected, attrs = "") {
+  entityNames();
+  return `<input class="fluent-input" list="${ENTITY_DATALIST_ID}" value="${esc(selected || "")}" placeholder="Search tables…" ${attrs}>`;
+}
+
 const JOIN_TYPES = ["Inner join","Left join","Right join"];
 /* Report design themes — colours + fonts a business user can pick */
 const THEMES = [
@@ -1271,79 +1404,28 @@ const I18N = {
 };
 function tr(s, lang) { return (I18N[lang] && I18N[lang][s]) || s; }
 
-/* Sample data used by the live preview (Active Loan Applications by Branch) */
-const SAMPLE_ROWS = [
-  { app:"LA-24001", branch:"Doha Main", status:"Active", amount:1500000, created:"2026-06-02" },
-  { app:"LA-24002", branch:"Doha Main", status:"Active", amount:  850000, created:"2026-06-05" },
-  { app:"LA-24003", branch:"Doha Main", status:"Active", amount: 2200000, created:"2026-06-11" },
-  { app:"LA-24010", branch:"Al Sadd",   status:"Active", amount:  640000, created:"2026-06-03" },
-  { app:"LA-24011", branch:"Al Sadd",   status:"Active", amount: 1750000, created:"2026-06-09" },
-  { app:"LA-24012", branch:"Al Sadd",   status:"Active", amount:  980000, created:"2026-06-18" },
-  { app:"LA-24020", branch:"West Bay",  status:"Active", amount: 3100000, created:"2026-06-01" },
-  { app:"LA-24021", branch:"West Bay",  status:"Active", amount:  520000, created:"2026-06-14" },
-  { app:"LA-24022", branch:"West Bay",  status:"Active", amount: 1280000, created:"2026-06-22" }
-];
-
-/* Seed report list (Dataverse view) */
-let REPORTS = [
-  { id:"r1", name:"Active Loan Applications by Branch", category:"Operational", module:"Lending", owner:"Salman Sagar", status:"Published", modified:"2026-07-14", version:3, governed:true },
-  { id:"r2", name:"Overdue Facilities Summary", category:"Regulatory", module:"Collections", owner:"A. Rahman", status:"Published", modified:"2026-07-12", version:5, governed:true },
-  { id:"r3", name:"Customer 360 Drilldown", category:"Management", module:"CRM", owner:"L. Haddad", status:"Draft", modified:"2026-07-15", version:1, governed:false },
-  { id:"r4", name:"Daily Disbursement Register", category:"Financial", module:"Treasury", owner:"Salman Sagar", status:"Unpublished", modified:"2026-07-08", version:2, governed:true },
-  { id:"r5", name:"Collateral Valuation vs Exposure", category:"Regulatory", module:"Risk", owner:"M. Idris", status:"Draft", modified:"2026-07-15", version:1, governed:true }
-];
 
 /* Deep-ish clone helper for the working report definition */
 function newDefinition(seed) {
   return {
     id: seed ? seed.id : "r_new", name: seed ? seed.name : "New Report",
-    description: seed ? "Operational report over CRM loan applications, grouped by branch with a requested-amount total." : "",
-    category: seed ? seed.category : "Operational", module: seed ? seed.module : "",
-    owner: seed ? seed.owner : "Salman Sagar", approver: "Lending Manager",
-    status: seed ? seed.status : "Draft", mainEntity: "qdb_loanapplication",
+    description: "",
+    category: seed ? seed.category : "", module: seed ? seed.module : "",
+    owner: seed ? seed.owner : (state.userName || ""), approver: "",
+    status: seed ? seed.status : "Draft", mainEntity: "",
     executionMode: "Auto", rowLimit: 50000, timeout: 120, governed: seed ? seed.governed : false,
     version: seed ? seed.version : 1,
-    dataSources: [ { name:"Applications", type:"FetchXML", connector:"", query:"", primary:true, joinL:"", joinR:"" } ],
-    columns: [
-      { name:"Application No", entity:"qdb_loanapplication", attribute:"qdb_applicationnumber", type:"Text", format:"", width:120, align:"Left", agg:"None", masked:false, visible:true },
-      { name:"Branch", entity:"account", attribute:"name", type:"Text", format:"", width:140, align:"Left", agg:"None", masked:false, visible:true },
-      { name:"Status", entity:"qdb_loanapplication", attribute:"statuscode", type:"Option set", format:"", width:90, align:"Left", agg:"None", masked:false, visible:true },
-      { name:"Requested Amount", entity:"qdb_loanapplication", attribute:"qdb_requestedamount", type:"Currency", format:"#,##0.00", width:140, align:"Right", agg:"Sum", masked:false, visible:true },
-      { name:"Created On", entity:"qdb_loanapplication", attribute:"createdon", type:"Date/Time", format:"dd/MM/yyyy", width:110, align:"Left", agg:"None", masked:false, visible:true }
-    ],
-    filters: [
-      { attribute:"statuscode", operator:"Equals", value:"Active", param:"", token:"(none)", group:0, andor:"And" },
-      { attribute:"createdon", operator:"Last X days", value:"90", param:"", token:"(none)", group:0, andor:"And" },
-      { attribute:"qdb_branchid", operator:"Equals", value:"", param:"Branch", token:"(none)", group:0, andor:"And" }
-    ],
-    parameters: [
-      { name:"Branch", prompt:"Branch", type:"Lookup", required:false, def:"", token:"(none)", lookup:"account" },
-      { name:"CreatedFrom", prompt:"Created from", type:"Date range", required:true, def:"Last 90 days", token:"(none)", lookup:"" }
-    ],
-    relationships: [
-      { parent:"account", child:"qdb_loanapplication", type:"1:N (One-to-many)", schema:"qdb_account_loanapplication_branch", level:1, opens:true, sub:"" }
-    ],
-    transformations: [
-      { type:"Option set label resolution", target:"Status", config:"", seq:1 },
-      { type:"Currency format", target:"Requested Amount", config:'{ "symbol":"QAR" }', seq:2 },
-      { type:"Grouping", target:"Branch", config:"", seq:3 },
-      { type:"Aggregation", target:"Requested Amount", config:'{ "op":"Sum" }', seq:4 }
-    ],
-    formulas: [
-      { name:"Avg Ticket", expression:"[Requested Amount] / [Count]", type:"Currency", target:"Avg Ticket" }
-    ],
-    layout: { type:"Grouped Report", showHeader:true, showFooter:true, showLogo:true, pageNumber:true, genDate:true, genBy:true, watermark:"", orientation:"Landscape", pageSize:"A4", groupBy:"Branch", grandTotal:true, chartType:"Column", cardIcon:"chart", showFilterBar:true },
-    formatting: [
-      { column:"Requested Amount", condition:"value > 2000000", style:"Bold, red text" }
-    ],
-    security: [
-      { ptype:"Security role", ref:"Lending Officer", view:true, run:true, export:true, edit:false, approve:false },
-      { ptype:"Security role", ref:"Lending Manager", view:true, run:true, export:true, edit:true, approve:true }
-    ],
-    ribbon: [
-      { loc:"Home grid ribbon", entity:"qdb_loanapplication", form:"", role:"", bu:"", record:false, selected:true, userbu:true },
-      { loc:"Entity form ribbon", entity:"account", form:"Main", role:"", bu:"", record:true, selected:false, userbu:true }
-    ],
+    dataSources: [ { name:"Primary", type:"FetchXML", connector:"", query:"", primary:true, joinL:"", joinR:"" } ],
+    columns: [],
+    filters: [],
+    parameters: [],
+    relationships: [],
+    transformations: [],
+    formulas: [],
+    layout: { type:"Tabular Report", showHeader:true, showFooter:true, showLogo:true, pageNumber:true, genDate:true, genBy:true, watermark:"", orientation:"Landscape", pageSize:"A4", groupBy:"(none)", grandTotal:true, chartType:"Column", cardIcon:"chart", showFilterBar:true },
+    formatting: [],
+    security: [],
+    ribbon: [],
     exports: [
       { format:"PDF", enabled:true, filename:"{report}_{date}" },
       { format:"Excel", enabled:true, filename:"{report}_{date}" },
@@ -1351,19 +1433,10 @@ function newDefinition(seed) {
       { format:"Word", enabled:false, filename:"{report}_{date}" },
       { format:"Image (PNG)", enabled:false, filename:"{report}_{date}" }
     ],
-    joins: seed ? [
-      { entity:"account", joinType:"Inner join", leftKey:"qdb_branchid", rightKey:"accountid" },
-      { entity:"contact", joinType:"Left join", leftKey:"qdb_customerid", rightKey:"contactid" }
-    ] : [],
-    externalSources: seed ? [
-      { connector:"Core Banking API", operation:"GET /balances:batch", crmKey:"qdb_customernumber", extKey:"customerNumber", direction:"CRM → Source", pass:"customerNumber, branchCode" }
-    ] : [],
+    joins: [],
+    externalSources: [],
     theme: "qdb", languages: ["en"], primaryLang: "en", renderMode: "report",
-    versions: [
-      { n:3, by:"Salman Sagar", on:"2026-07-14 10:22", note:"Added branch grouping + grand total", current:true },
-      { n:2, by:"Salman Sagar", on:"2026-07-02 16:40", note:"Added Created On column + date filter", current:false },
-      { n:1, by:"Salman Sagar", on:"2026-06-20 09:05", note:"Initial version", current:false }
-    ]
+    versions: []
   };
 }
 
@@ -1374,9 +1447,11 @@ const state = {
   selectedReportId: null,
   dashboard: null,
   navCollapsed: false,
-  // Set at boot: definitions are read and written through the signed-in CRM session, so saving and
-  // loading need Xrm. Everything else in the designer works standalone.
-  inCrm: false
+  // Set at boot: every catalogue, every picker and every preview reads through the signed-in CRM
+  // session, so the designer has nothing to show without Xrm.
+  inCrm: false,
+  userId: null,
+  userName: null
 };
 
 /* ---------- small helpers ---------- */
@@ -1424,8 +1499,80 @@ const dvDelete = (entity, id) => xrmApi().deleteRecord(entity, id);
 const dvRetrieve = (entity, id, query) => xrmApi().retrieveRecord(entity, id, query);
 const dvList = async (entity, query) => (await xrmApi().retrieveMultipleRecords(entity, query)).entities || [];
 
+/* Metadata does not go through Xrm.WebApi: it rejects EntityDefinitions with "the entity cannot be
+   found", because retrieveMultipleRecords resolves a logical name to a record collection and the
+   metadata endpoints are neither. They are read straight off the Web API on the signed-in session
+   instead. Note $top is rejected on these endpoints, so paging options must not be added here. */
+async function dvMetadata(path) {
+  const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+  if (!xrm || !xrm.Utility) throw new Error("Reading metadata needs a CRM session.");
+  const url = `${xrm.Utility.getGlobalContext().getClientUrl()}/api/data/v9.2/${path}`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json", "OData-Version": "4.0", "OData-MaxVersion": "4.0" }
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error((payload.error && payload.error.message) || `Metadata request failed (${response.status})`);
+  }
+  return payload.value || [];
+}
+
 /** Children hang off the report by this lookup; the Web API exposes it with the _value spelling. */
 const byReport = id => `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
+
+/* Xrm.WebApi returns a display string alongside every choice, lookup and date, under this suffix.
+   Reading it rather than mapping option-set codes here keeps the labels in step with the org. */
+const FORMATTED_SUFFIX = "@OData.Community.Display.V1.FormattedValue";
+const formattedValue = (row, attribute) => row[attribute + FORMATTED_SUFFIX] || null;
+
+/**
+ * One Dataverse-backed list, fetched once per session.
+ *
+ * Every catalogue in the designer used to be a literal array, so the UI looked populated in an
+ * environment that had nothing in it. These load on demand instead, and a load that fails is kept
+ * rather than swallowed: an empty grid and a broken query are indistinguishable on screen, and
+ * showing "no reports" when the query actually failed is the same class of lie as the seed data.
+ */
+function dataverseCatalog(entity, query, mapRow) {
+  const catalog = {
+    rows: null,
+    error: null,
+    loading: false,
+    /** Rows if loaded, otherwise an empty list — and starts the fetch the first time it is asked. */
+    get() {
+      if (catalog.rows === null && !catalog.loading) catalog.load();
+      return catalog.rows || [];
+    },
+    isLoading: () => catalog.rows === null,
+    async load() {
+      catalog.loading = true;
+      try {
+        catalog.rows = (await dvList(entity, typeof query === "function" ? query() : query)).map(mapRow);
+        catalog.error = null;
+      } catch (error) {
+        catalog.rows = [];
+        catalog.error = error.message || String(error);
+      }
+      catalog.loading = false;
+      render();
+    },
+    /** Re-reads from Dataverse, for the Refresh command and after a save. */
+    refresh() {
+      catalog.rows = null;
+      return catalog.load();
+    }
+  };
+  return catalog;
+}
+
+/** The message a list shows in place of rows: still loading, failed, or genuinely empty. */
+function catalogEmptyState(catalog, emptyMessage) {
+  if (catalog.error) {
+    return `<div class="page-sub" style="color:var(--danger)">Couldn't read from Dataverse — ${esc(catalog.error)}</div>`;
+  }
+  if (catalog.isLoading()) return `<div class="page-sub">Loading from Dataverse…</div>`;
+  return `<div class="page-sub">${esc(emptyMessage)}</div>`;
+}
 
 /** Drops null/undefined so an unset optional never overwrites a value with null. */
 function defined(attributes) {
@@ -1550,6 +1697,7 @@ const RPT_JOIN_CODES = { "Inner join":100000000, "Left join":100000001, "Right j
 const RPT_PRINCIPAL_CODES = { "User":100000000, "Team":100000001, "Security role":100000002, "Business unit":100000003 };
 const RPT_PRINCIPAL_LABELS = { 100000000:"User", 100000001:"Team", 100000002:"Security role", 100000003:"Business unit" };
 const RPT_JOIN_LABELS = { 100000000:"Inner join", 100000001:"Left join", 100000002:"Right join", 100000003:"Full join" };
+const RPT_STATUS_CODES = { "Draft":100000000, "Published":100000001 };
 function coded(code, label) { return code == null ? null : { code, label }; }
 
 // Maps the designer's report onto the ReportDefinition the API persists. First slice: definition +
@@ -1598,6 +1746,10 @@ function reportToDefinition(report) {
     isGoverned: !!report.governed,
     rowLimit: report.rowLimit || null,
     timeoutMs: report.timeout ? report.timeout * 1000 : null,
+    category: report.category || null,
+    module: report.module || null,
+    status: report.status || "Draft",
+    version: report.version || 1,
     dataSources: [{
       id: newGuid(),
       name: (report.dataSources && report.dataSources[0] && report.dataSources[0].name) || "Primary source",
@@ -1817,6 +1969,8 @@ async function deleteReportChildren(reportId) {
   }
 }
 
+/* Category, module and status are written, not just collected. They were captured by the General tab
+   and then dropped on save, so the list could only ever show them blank. */
 function reportDefinitionAttributes(def) {
   return defined({
     qdb_name: def.name,
@@ -1824,7 +1978,12 @@ function reportDefinitionAttributes(def) {
     qdb_mainentitylogicalname: def.mainEntityLogicalName,
     qdb_isgoverned: !!def.isGoverned,
     qdb_rowlimit: def.rowLimit,
-    qdb_timeoutms: def.timeoutMs
+    qdb_timeoutms: def.timeoutMs,
+    qdb_category: reportChoiceCode("qdb_category", def.category),
+    qdb_module: reportChoiceCode("qdb_module", def.module),
+    qdb_status: reportChoiceCode("qdb_status", def.status),
+    qdb_ispublished: def.status === "Published",
+    qdb_currentversionnumber: def.version
   });
 }
 
@@ -1843,7 +2002,7 @@ async function saveReportToServer(report) {
       await writeReportChildren(report.savedId, def);
     }
     toast(isUpdate ? "Report updated in Dataverse" : "Report saved to Dataverse", "ok");
-    refreshSavedReports();
+    reportCatalog.refresh();
   } catch (error) {
     toast("Save failed — " + error.message, "err");
   }
@@ -1863,7 +2022,10 @@ function definitionToReport(def) {
   report.governed = !!def.isGoverned;
   report.rowLimit = def.rowLimit || report.rowLimit;
   report.timeout = def.timeoutMs ? Math.round(def.timeoutMs / 1000) : report.timeout;
-  report.status = "Draft"; report.owner = "Saved";
+  report.category = def.category || "";
+  report.module = def.module || "";
+  report.status = def.status || "Draft";
+  report.version = def.version || 1;
 
   const columns = [];
   (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
@@ -1946,7 +2108,8 @@ function definitionToReport(def) {
 /** Reassembles the stored graph into the ReportDefinition shape definitionToReport expects. */
 async function loadReportDefinition(id) {
   const record = await dvRetrieve("qdb_reportdefinition", id,
-    "?$select=qdb_reportdefinitionid,qdb_name,qdb_description,qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit,qdb_timeoutms");
+    "?$select=qdb_reportdefinitionid,qdb_name,qdb_description,qdb_mainentitylogicalname,qdb_isgoverned,"
+    + "qdb_rowlimit,qdb_timeoutms,qdb_category,qdb_module,qdb_status,qdb_ispublished,qdb_currentversionnumber");
 
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
     dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload&$orderby=qdb_executionorder"),
@@ -1955,7 +2118,7 @@ async function loadReportDefinition(id) {
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
     dvList("qdb_reportlayout", byReport(id) + "&$select=qdb_themecolor,qdb_layoutjson"),
     dvList("qdb_reporttransformation", byReport(id)
-      + "&=qdb_transformtype,qdb_configjson,qdb_steporder,qdb_enabled&=qdb_steporder"),
+      + "&$select=qdb_transformtype,qdb_configjson,qdb_steporder,qdb_enabled&$orderby=qdb_steporder"),
     dvList("qdb_reportsecurity", byReport(id)
       + "&$select=qdb_principaltype,qdb_principalidtext,qdb_canexecute,qdb_canexport,qdb_canedit,qdb_canapprove")
   ]);
@@ -2002,6 +2165,10 @@ async function loadReportDefinition(id) {
     isGoverned: !!record.qdb_isgoverned,
     rowLimit: record.qdb_rowlimit,
     timeoutMs: record.qdb_timeoutms,
+    category: formattedValue(record, "qdb_category"),
+    module: formattedValue(record, "qdb_module"),
+    status: record.qdb_ispublished ? "Published" : (formattedValue(record, "qdb_status") || "Draft"),
+    version: record.qdb_currentversionnumber,
     dataSources,
     filters: filters.map(f => ({
       fieldAlias: f.qdb_fieldalias,
@@ -2029,25 +2196,58 @@ async function loadReportDefinition(id) {
   };
 }
 
-// Persisted-report catalog. null = not yet fetched this session.
-let SAVED_REPORTS = null;
-async function refreshSavedReports() {
-  try {
-    const rows = await dvList("qdb_reportdefinition",
-      "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,qdb_mainentitylogicalname&$orderby=qdb_name&$top=200");
-    SAVED_REPORTS = rows.map(r => ({
-      id: r.qdb_reportdefinitionid, name: r.qdb_name, reportCode: r.qdb_reportcode,
-      description: r.qdb_description, mainEntityLogicalName: r.qdb_mainentitylogicalname
-    }));
-  } catch (error) {
-    // Outside CRM there is nothing to read — degrade to "no saved reports" rather than break the UI.
-    SAVED_REPORTS = [];
+/* Only the column's logical name is stored, so its data type comes back from metadata rather than
+   being assumed. Without this every reopened column is "Text", and a currency column loses its
+   formatting and its right alignment the moment the report is reopened. */
+async function resolveColumnTypes(report) {
+  const entities = [...new Set((report.columns || []).map(c => c.entity || report.mainEntity).filter(Boolean))];
+  await Promise.all(entities.map(entity =>
+    metadata.attributesByEntity[entity] ? Promise.resolve() : loadAttributeMetadata(entity)));
+  for (const column of report.columns || []) {
+    const known = attributesOf(column.entity || report.mainEntity).find(a => a.a === column.attribute);
+    if (known) { column.type = known.t; column.name = column.name || known.n; }
   }
-  if (state.view === "reports" || state.view === "myreports") render();
 }
+
+/* The report catalogue. Every column the grid shows is a real attribute, so a report reads the same
+   in the designer as it does in an advanced find. */
+const REPORT_LIST_SELECT = [
+  "qdb_reportdefinitionid", "qdb_name", "qdb_reportcode", "qdb_description", "qdb_mainentitylogicalname",
+  "qdb_category", "qdb_module", "qdb_status", "qdb_ispublished", "qdb_isgoverned",
+  "qdb_currentversionnumber", "modifiedon", "_ownerid_value"
+].join(",");
+
+const reportCatalog = dataverseCatalog(
+  "qdb_reportdefinition",
+  `?$select=${REPORT_LIST_SELECT}&$orderby=qdb_name&$top=200`,
+  row => ({
+    id: row.qdb_reportdefinitionid,
+    name: row.qdb_name || "(unnamed)",
+    reportCode: row.qdb_reportcode,
+    description: row.qdb_description,
+    mainEntityLogicalName: row.qdb_mainentitylogicalname,
+    category: formattedValue(row, "qdb_category"),
+    module: formattedValue(row, "qdb_module"),
+    // qdb_ispublished is the flag the runtime honours; qdb_status is the label a user picked.
+    status: row.qdb_ispublished ? "Published" : (formattedValue(row, "qdb_status") || "Draft"),
+    isPublished: !!row.qdb_ispublished,
+    governed: !!row.qdb_isgoverned,
+    version: row.qdb_currentversionnumber,
+    modified: formattedValue(row, "modifiedon"),
+    ownerId: row._ownerid_value,
+    owner: formattedValue(row, "_ownerid_value")
+  })
+);
+
+/** Reports the signed-in user owns — what "My Reports" means once the list is real. */
+const isOwnedByCurrentUser = report =>
+  !!report.ownerId && !!state.userId &&
+  report.ownerId.replace(/[{}]/g, "").toLowerCase() === state.userId.replace(/[{}]/g, "").toLowerCase();
 async function openSavedReport(id) {
   try {
-    state.report = definitionToReport(await loadReportDefinition(id));
+    const report = definitionToReport(await loadReportDefinition(id));
+    await resolveColumnTypes(report);
+    state.report = report;
     state.selectedReportId = state.report.id;
     state.view = "designer"; state.tab = "general"; render();
   } catch (error) {
@@ -2059,7 +2259,7 @@ async function deleteSavedReport(id) {
     await deleteReportChildren(id);
     await dvDelete("qdb_reportdefinition", id);
     toast("Report deleted from Dataverse", "ok");
-    await refreshSavedReports();
+    await reportCatalog.refresh();
   } catch (error) {
     toast("Delete failed — " + error.message, "err");
   }
@@ -2195,15 +2395,8 @@ function render() {
 /* ============================ REPORTS LIST ============================ */
 function renderReports(c) {
   const mine = state.view === "myreports";
-  // Saved (Dataverse) reports first with a badge, then the local samples. Only the "All Reports" view
-  // shows saved reports; "My Reports" stays the local sample subset.
-  const saved = (mine ? [] : (SAVED_REPORTS || [])).map(s => ({
-    id: s.id, name: s.name, category: (s.category && s.category.label) || "—", module: "—",
-    owner: "Saved", status: "Draft", version: "—", modified: "Dataverse", governed: false, _saved: true
-  }));
-  const locals = (mine ? REPORTS.filter(r => r.owner === "Salman Sagar") : REPORTS).map(r => ({ ...r, _saved: false }));
-  const list = saved.concat(locals);
-  if (!mine && SAVED_REPORTS === null) refreshSavedReports();
+  const all = reportCatalog.get();
+  const list = mine ? all.filter(isOwnedByCurrentUser) : all;
   const cmd = el(`<div class="cmdbar">
     <button class="cmd primary" id="btnNew">${ic("add")}New report</button>
     <button class="cmd" id="btnNewDash">${ic("chart")}New dashboard</button>
@@ -2217,27 +2410,29 @@ function renderReports(c) {
     <div class="cmd-spacer"></div>
     <button class="cmd" id="btnExportView">${ic("excel")}Export to Excel</button>
   </div>`);
-  const scroll = el(`<div class="scroll"><div class="page">
-    <div class="page-head"><div><h1>${mine?"My Reports":"All Reports"}</h1><div class="page-sub">${list.length} report definitions${mine?"":(SAVED_REPORTS===null?" · loading saved…":` · ${saved.length} saved in Dataverse`)} · metadata-driven · run on Dynamics 365 on-prem 9.x and Dataverse cloud</div></div></div>
-    <div class="grid-wrap"><table class="grid" role="grid">
+  const emptyMessage = mine
+    ? "You don't own any report definitions in this environment yet."
+    : "No report definitions in this environment yet. Use New report to create one.";
+  const body = list.length
+    ? `<div class="grid-wrap"><table class="grid" role="grid">
       <thead><tr>
         <th class="row-check"><input type="checkbox" disabled></th>
         <th>Report name ↓</th><th>Category</th><th>Module</th><th>Owner</th><th>Status</th><th>Ver.</th><th>Modified</th><th>Governed</th>
       </tr></thead>
       <tbody>${list.map(rowHtml).join("")}</tbody>
     </table></div>
-    <div class="legend"><span><b>${list.filter(r=>r.status==="Published").length}</b> published</span><span><b>${list.filter(r=>r.status==="Draft").length}</b> draft</span><span><b>${list.filter(r=>r.status==="Unpublished").length}</b> unpublished</span></div>
+    <div class="legend"><span><b>${list.filter(r=>r.status==="Published").length}</b> published</span><span><b>${list.filter(r=>r.status!=="Published").length}</b> draft</span><span><b>${list.filter(r=>r.governed).length}</b> governed</span></div>`
+    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(reportCatalog, emptyMessage)}</div>`;
+  const scroll = el(`<div class="scroll"><div class="page">
+    <div class="page-head"><div><h1>${mine?"My Reports":"All Reports"}</h1><div class="page-sub">${list.length} report definition${list.length===1?"":"s"} in Dataverse · metadata-driven · run on Dynamics 365 on-prem 9.x and Dataverse cloud</div></div></div>
+    ${body}
   </div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
 
-  let selSaved = false;
-  const openRow = (id, isSaved) => isSaved ? openSavedReport(id) : openDesigner(id);
+  const selected = () => list.find(r => r.id === state.selectedReportId) || null;
   const refreshButtons = () => {
-    const has = !!state.selectedReportId;
-    $("#btnEdit").disabled = !has;
-    $("#btnDelete").disabled = !has;
-    // Clone/Run/Publish act on local sample state only.
-    ["btnClone","btnRun","btnPublish"].forEach(id => $("#"+id).disabled = !has || selSaved);
+    const has = !!selected();
+    ["btnEdit","btnDelete","btnClone","btnRun","btnPublish"].forEach(id => $("#"+id).disabled = !has);
   };
   scroll.querySelectorAll("tbody tr").forEach(tr => {
     tr.addEventListener("click", (e) => {
@@ -2245,40 +2440,95 @@ function renderReports(c) {
       scroll.querySelectorAll("tbody tr").forEach(x => x.classList.remove("selected"));
       tr.classList.add("selected");
       const cb = tr.querySelector("input"); cb.checked = true;
-      state.selectedReportId = tr.dataset.id; selSaved = tr.dataset.saved === "1"; refreshButtons();
+      state.selectedReportId = tr.dataset.id; refreshButtons();
     });
-    tr.querySelector(".link-cell").addEventListener("click", () => openRow(tr.dataset.id, tr.dataset.saved === "1"));
+    tr.querySelector(".link-cell").addEventListener("click", () => openSavedReport(tr.dataset.id));
   });
   $("#btnNew").onclick = () => openNewChooser();
   $("#btnNewDash").onclick = () => { state.view = "dashboards"; render(); setTimeout(openNewDashboardChooser, 30); };
-  $("#btnEdit").onclick = () => state.selectedReportId && openRow(state.selectedReportId, selSaved);
-  $("#btnRun").onclick = () => { const r = REPORTS.find(x=>x.id===state.selectedReportId); openDesigner(state.selectedReportId); setTimeout(()=>{ state.tab="preview"; render(); openRunDialog(); }, 40); };
-  $("#btnClone").onclick = () => {
-    const r = REPORTS.find(x=>x.id===state.selectedReportId); if(!r) return;
-    const copy = { ...r, id:"r"+(REPORTS.length+1), name:r.name+" (copy)", status:"Draft", version:1, modified:"2026-07-15" };
-    REPORTS.unshift(copy); state.selectedReportId = copy.id; render(); toast("Report cloned to a new draft");
-  };
-  $("#btnPublish").onclick = () => {
-    const r = REPORTS.find(x=>x.id===state.selectedReportId); if(!r) return;
-    r.status = "Published"; r.version++; r.modified="2026-07-15"; render(); toast(`“${r.name}” published as v${r.version}`);
-  };
+  $("#btnEdit").onclick = () => selected() && openSavedReport(state.selectedReportId);
+  $("#btnRun").onclick = () => selected() && runSavedReportFromList(state.selectedReportId);
+  $("#btnClone").onclick = () => { const r = selected(); if (r) cloneSavedReport(r); };
+  $("#btnPublish").onclick = () => { const r = selected(); if (r) publishSavedReport(r); };
   $("#btnDelete").onclick = () => {
-    if (!state.selectedReportId) return;
-    if (selSaved) { deleteSavedReport(state.selectedReportId); state.selectedReportId=null; return; }
-    const r = REPORTS.find(x=>x.id===state.selectedReportId); if(!r) return;
-    REPORTS = REPORTS.filter(x=>x.id!==r.id); state.selectedReportId=null; render(); toast("Report deleted", "warn");
+    if (!selected()) return;
+    deleteSavedReport(state.selectedReportId);
+    state.selectedReportId = null;
   };
-  $("#btnRefresh").onclick = () => { toast("Refreshed", "info"); };
+  $("#btnRefresh").onclick = () => reportCatalog.refresh();
   $("#btnExportView").onclick = () => exportViewCsv(list);
 }
+
+/** Opens the stored report and lands on Preview, which runs it against the org. */
+async function runSavedReportFromList(id) {
+  await openSavedReport(id);
+  state.tab = "preview"; render(); openRunDialog();
+}
+
+/* Copies the whole definition, not just the header row: a clone whose columns, filters and security
+   were left behind would open looking finished and return nothing. */
+async function cloneSavedReport(report) {
+  try {
+    const copy = definitionToReport(await loadReportDefinition(report.id));
+    copy.savedId = null;
+    copy.name = `${report.name} (copy)`;
+    copy.reportCode = "";
+    copy.isPublished = false;
+    await saveReportToServer(copy);
+  } catch (error) {
+    toast("Clone failed — " + error.message, "err");
+  }
+}
+
+async function publishSavedReport(report) {
+  try {
+    await dvUpdate("qdb_reportdefinition", report.id, {
+      qdb_ispublished: true,
+      qdb_status: RPT_STATUS_CODES.Published,
+      qdb_currentversionnumber: (report.version || 0) + 1
+    });
+    toast(`“${report.name}” published as v${(report.version || 0) + 1}`, "ok");
+    reportCatalog.refresh();
+  } catch (error) {
+    toast("Publish failed — " + error.message, "err");
+  }
+}
+/* Publishing writes to Dataverse rather than flipping a field in memory, so what the list shows and
+   what the runtime honours are the same fact. */
+async function togglePublishState(report) {
+  if (!report.savedId) { toast("Save the report before publishing it", "warn"); return; }
+  if (report.governed && report.approver === report.owner) {
+    toast("Governed reports need an approver different from the author (BR-3)", "warn");
+    return;
+  }
+  const publishing = report.status !== "Published";
+  const version = publishing ? (report.version || 0) + 1 : report.version;
+  try {
+    await dvUpdate("qdb_reportdefinition", report.savedId, {
+      qdb_ispublished: publishing,
+      qdb_status: publishing ? RPT_STATUS_CODES.Published : RPT_STATUS_CODES.Draft,
+      qdb_currentversionnumber: version
+    });
+    report.status = publishing ? "Published" : "Draft";
+    report.version = version;
+    toast(publishing ? `Published as v${version}` : "Report unpublished", "ok");
+    reportCatalog.refresh();
+    render();
+  } catch (error) {
+    toast("Publish failed — " + error.message, "err");
+  }
+}
+
+/** An attribute the report has not been given yet reads as an em dash, not as an invented value. */
+const cell = value => (value === null || value === undefined || value === "") ? "—" : esc(String(value));
+
 function rowHtml(r) {
-  const badge = r._saved ? `<span class="pill" style="margin-left:8px;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--primary-bg,rgba(0,120,212,.12));color:var(--primary)">Saved</span>` : "";
-  return `<tr data-id="${r.id}" data-saved="${r._saved?"1":"0"}">
+  return `<tr data-id="${r.id}">
     <td class="row-check"><input type="checkbox"></td>
-    <td><span class="link-cell">${esc(r.name)}</span>${badge}</td>
-    <td>${esc(r.category)}</td><td>${esc(r.module)}</td><td>${esc(r.owner)}</td>
-    <td><span class="pill ${String(r.status).toLowerCase()}">${r.status}</span></td>
-    <td class="num">${r.version}</td><td>${esc(r.modified)}</td>
+    <td><span class="link-cell">${esc(r.name)}</span></td>
+    <td>${cell(r.category)}</td><td>${cell(r.module)}</td><td>${cell(r.owner)}</td>
+    <td><span class="pill ${String(r.status).toLowerCase()}">${esc(r.status)}</span></td>
+    <td class="num">${cell(r.version)}</td><td>${cell(r.modified)}</td>
     <td>${r.governed?ic("check"):"—"}</td>
   </tr>`;
 }
@@ -2290,11 +2540,6 @@ const TABS = [
   ["layout","Layout"],["formatting","Cond. Formatting"],["security","Security"],["ribbon","Ribbon"],
   ["export","Export"],["style","Style & Language"],["preview","Preview"]
 ];
-function openDesigner(id) {
-  const seed = id ? REPORTS.find(r => r.id===id) : null;
-  state.report = newDefinition(seed);
-  state.view = "designer"; state.tab = "general"; render();
-}
 function badgeFor(tab, r) {
   const map = { datasources:r.dataSources.length, columns:r.columns.length, filters:r.filters.length, parameters:r.parameters.length,
     drilldown:r.relationships.length, transform:r.transformations.length, formulas:r.formulas.length,
@@ -2327,22 +2572,16 @@ function renderDesigner(c) {
 
   pivot.querySelectorAll(".pivot-tab").forEach(t => t.onclick = () => { state.tab = t.dataset.tab; render(); });
   $("#dBack").onclick = () => { state.view = "reports"; render(); };
-  $("#dSave").onclick = () => { syncReportToList(); saveReportToServer(state.report); };
-  $("#dSaveClose").onclick = async () => { syncReportToList(); await saveReportToServer(state.report); state.view="reports"; render(); };
-  $("#dPublish").onclick = () => {
-    if (r.governed && r.approver === r.owner) { toast("Governed reports need an approver different from the author (BR-3)", "warn"); return; }
-    if (r.status === "Published") { r.status = "Unpublished"; toast("Report unpublished"); }
-    else { r.status = "Published"; r.version++; r.versions.unshift({ n:r.version, by:r.owner, on:"2026-07-15 12:00", note:"Published from designer", current:true }); r.versions.forEach((v,i)=>v.current=i===0); toast(`Published as v${r.version}`); }
-    syncReportToList(); render();
-  };
+  $("#dSave").onclick = () => saveReportToServer(state.report);
+  $("#dSaveClose").onclick = async () => { await saveReportToServer(state.report); state.view="reports"; render(); };
+  $("#dPublish").onclick = () => togglePublishState(r);
   $("#dRun").onclick = () => openRunDialog();
-  $("#dClone").onclick = () => { toast("Cloned to a new draft"); r.name += " (copy)"; r.status="Draft"; r.version=1; render(); };
+  // Cloning has to save first: an unsaved draft has no stored children to copy.
+  $("#dClone").onclick = async () => {
+    if (!r.savedId) { toast("Save the report before cloning it", "warn"); return; }
+    await cloneSavedReport({ id: r.savedId, name: r.name });
+  };
   $("#dVersions").onclick = () => openVersionPanel();
-}
-function syncReportToList() {
-  const r = state.report; const existing = REPORTS.find(x => x.id === r.id);
-  const summary = { id:r.id, name:r.name, category:r.category, module:r.module, owner:r.owner, status:r.status, modified:"2026-07-15", version:r.version, governed:r.governed };
-  if (existing) Object.assign(existing, summary); else { r.id = "r"+(REPORTS.length+1); summary.id=r.id; REPORTS.unshift(summary); }
 }
 
 /* ---------------- TAB CONTENT ---------------- */
@@ -2387,13 +2626,13 @@ function tabGeneral(body, r) {
     <div class="hint">Identity, ownership and lifecycle. Stored in <span class="kbd">qdb_reportdefinition</span>.</div>
     <div class="field-grid">
       <div class="field col-2"><label class="lbl">Report name<span class="req">*</span></label><input class="fluent-input" data-g="name" value="${esc(r.name)}"></div>
-      <div class="field"><label class="lbl">Category<span class="req">*</span></label><select class="fluent-select" data-g="category">${opts(["Operational","Regulatory","Financial","Management","Adhoc"], r.category)}</select></div>
-      <div class="field"><label class="lbl">Module</label><input class="fluent-input" data-g="module" value="${esc(r.module)}" placeholder="e.g. Lending"></div>
+      <div class="field"><label class="lbl">Category<span class="req">*</span></label><select class="fluent-select" data-g="category">${opts(["", ...reportChoiceLabels("qdb_category")], r.category)}</select></div>
+      <div class="field"><label class="lbl">Module</label><select class="fluent-select" data-g="module">${opts(["", ...reportChoiceLabels("qdb_module")], r.module)}</select></div>
       <div class="field col-2"><label class="lbl">Description</label><textarea class="fluent-input" data-g="description" rows="2">${esc(r.description)}</textarea></div>
       <div class="field"><label class="lbl">Report owner<span class="req">*</span></label><input class="fluent-input" data-g="owner" value="${esc(r.owner)}"></div>
       <div class="field"><label class="lbl">Approver</label><input class="fluent-input" data-g="approver" value="${esc(r.approver)}"></div>
-      <div class="field"><label class="lbl">Main entity<span class="req">*</span></label><select class="fluent-select" data-g="mainEntity">${opts(["qdb_loanapplication","account","contact","qdb_facility","qdb_collateral"], r.mainEntity)}</select></div>
-      <div class="field"><label class="lbl">Status</label><select class="fluent-select" data-g="status">${opts(["Draft","Published","Unpublished","Archived"], r.status)}</select></div>
+      <div class="field"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(r.mainEntity, 'data-g="mainEntity"')}</div>
+      <div class="field"><label class="lbl">Status</label><select class="fluent-select" data-g="status">${opts(reportChoiceLabels("qdb_status"), r.status)}</select></div>
     </div>
   </div>
   <div class="section-card">
@@ -2438,11 +2677,11 @@ function tabDataSources(body, r) {
   const jcols = [{t:"Join type"},{t:"Related entity"},{t:"Left key (primary)"},{t:"Right key (related)"}];
   const jrow = (j,i) => `<tr><td class="handle">${ic("tree")}</td>
     <td><select class="fluent-select" data-i="${i}" data-k="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
-    <td><select class="fluent-select" data-i="${i}" data-k="entity">${opts(Object.keys(ATTR_CATALOG), j.entity)}</select></td>
+    <td>${entityPickerHtml(j.entity, `data-i="${i}" data-k="entity"`)}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="leftKey" value="${esc(j.leftKey)}"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="rightKey" value="${esc(j.rightKey)}"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  jcard.appendChild(listTable(jcols, r.joins, jrow, () => { r.joins.push({entity:"account",joinType:"Inner join",leftKey:"",rightKey:""}); renderTab(); }, "Add join"));
+  jcard.appendChild(listTable(jcols, r.joins, jrow, () => { r.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); renderTab(); }, "Add join"));
   body.appendChild(jcard); bindInputs(jcard, r.joins);
 
   const xcard = el(`<div class="section-card"><h3>External data sources</h3><div class="hint">Systems your administrator connected under <b>External Connectors</b>. Map the matching key and choose which way parameters flow (CRM ↔ source). Stored in <span class="kbd">qdb_externalconnector</span> refs.</div></div>`);
@@ -2487,7 +2726,7 @@ function tabColumns(body, r) {
   const rowHtml = (col,i) => `<tr>
     <td class="handle">${ic("drag")}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="name" value="${esc(col.name)}"></td>
-    <td><select class="fluent-select" data-i="${i}" data-k="entity">${opts(["qdb_loanapplication","account","contact","qdb_facility"], col.entity)}</select></td>
+    <td>${entityPickerHtml(col.entity, `data-i="${i}" data-k="entity"`)}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="attribute" value="${esc(col.attribute)}"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="type">${opts(COL_TYPES, col.type)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="format" value="${esc(col.format)}" placeholder="—"></td>
@@ -2551,7 +2790,7 @@ function tabDrilldown(body, r) {
     <td><input class="fluent-input" data-i="${i}" data-k="schema" value="${esc(d.schema)}"></td>
     <td><input class="fluent-input" type="number" data-i="${i}" data-k="level" data-num value="${d.level}" style="width:56px"></td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="opens" ${d.opens?"checked":""}></td>
-    <td><select class="fluent-select" data-i="${i}" data-k="sub">${opts(["(none)", ...REPORTS.map(x=>x.name)], d.sub||"(none)")}</select></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="sub">${opts(["(none)", ...reportCatalog.get().map(x=>x.name)], d.sub||"(none)")}</select></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.relationships, rowHtml, () => { r.relationships.push({parent:"",child:"",type:"1:N (One-to-many)",schema:"",level:r.relationships.length+1,opens:true,sub:""}); renderTab(); }, "Add relationship"));
   body.appendChild(card); bindInputs(card, r.relationships);
@@ -2723,7 +2962,7 @@ function renderPaper(host, r) {
   const body = cols.length ? (kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill }))) : `<div class="page-sub">No visible columns — add columns to preview.</div>`;
   const mode = r._renderMode || r.renderMode || "report";
   const langBar = renderModeTabs(mode) + langTabsHtml(langs, lang);
-  const nameOf = (attr) => { const c=(r.columns||[]).find(x=>x.attribute===attr); if(c) return c.name; const a=(ATTR_CATALOG[r.mainEntity]||[]).find(x=>x.a===attr); return a?a.n:attr; };
+  const nameOf = (attr) => { const c=(r.columns||[]).find(x=>x.attribute===attr); if(c) return c.name; const a=attributesOf(r.mainEntity).find(x=>x.a===attr); return a?a.n:attr; };
   const filterBar = (L.showFilterBar!==false) ? filtersParamBar(r.filters, r.parameters, nameOf) : "";
   const paper = el(`<div>${langBar}<div class="report-paper ${mode!=="report"?"render-"+mode:""}" dir="${(LANGUAGES.find(x=>x.code===lang)||{}).rtl?"rtl":"ltr"}" style="${themeStyle(r.theme)}">
     ${L.showHeader?`<div class="rp-head">
@@ -2845,8 +3084,8 @@ function renderManualDesigner(c) {
   renderManualDesigner._refresh = refresh;
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
-  $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); saveReportToServer(r); };
-  $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; syncReportToList(); state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
+  $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; saveReportToServer(r); };
+  $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
 }
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
@@ -2867,8 +3106,8 @@ function dsPanel(r) {
   let tree;
   if (!ent) tree = `<div class="page-sub">Select a main entity to see its fields.</div>`;
   else {
-    const mainCols = (ATTR_CATALOG[ent]||[]).map(at=>fieldItem(at, ent)).join("");
-    const rels = (ENTITY_RELATIONS[ent]||[]).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${(ATTR_CATALOG[rel.entity]||[]).map(at=>fieldItem(at, rel.entity)).join("")}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
+    const mainCols = attributesOf(ent).map(at=>fieldItem(at, ent)).join("");
+    const rels = relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${attributesOf(rel.entity).map(at=>fieldItem(at, rel.entity)).join("")}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
     tree = `<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span></div>${mainCols}<h4 class="mt">Related entities</h4>${rels||'<div class="page-sub">No related entities.</div>'}`;
   }
   const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
@@ -2876,7 +3115,7 @@ function dsPanel(r) {
   host.innerHTML = `<h4>Data source</h4>
     <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
     <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
-    <div class="mini-field"><label>Main CRM entity</label><select class="fluent-select" id="md_entity"><option value="" ${!ent?"selected":""}>— Select entity —</option>${Object.keys(ATTR_CATALOG).map(e=>`<option ${e===ent?"selected":""}>${esc(e)}</option>`).join("")}</select></div>
+    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(ent, 'id="md_entity"')}</div>
     <button class="btn sm" id="md_newds" style="margin-bottom:6px">${ic("add")}New data source</button>
     <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
     ${tree}
@@ -2885,7 +3124,7 @@ function dsPanel(r) {
   $("#md_ds").onchange = e => {
     const ds = DATASOURCES.find(x=>x.name===e.target.value);
     r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
-    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; if (ds.entity && ATTR_CATALOG[ds.entity]) { r.mainEntity = ds.entity; r._dsExpanded = {}; } }
+    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; if (entityRecord(ds.entity)) { r.mainEntity = ds.entity; r._dsExpanded = {}; } }
     else r.dataSources[0].name = "";
     dsPanel(r);
   };
@@ -3041,7 +3280,7 @@ function renderProps(r) {
       <div class="mini-field"><label>Show as</label><select class="fluent-select" id="p_sdisp">${opts2([["table","Table"],["header","Header (label : value)"],["chart","Chart"],["infocards","Info cards"],["subreport","Sub-report (embed a report)"]], t.displayAs||"table")}</select></div>
       ${t.displayAs==="chart"?`<div class="mini-field"><label>Chart type</label><select class="fluent-select" id="p_schart">${opts2(CHART_TYPES.map(x=>[x,x]), t.chartType||"Column")}</select></div>`:""}
       ${t.displayAs==="infocards"?`<div class="mini-field"><label>Card icon</label><select class="fluent-select" id="p_sicon">${opts2(CARD_ICONS.map(x=>[x,x]), t.cardIcon||"chart")}</select></div>`:""}
-      ${t.displayAs==="subreport"?`<div class="mini-field"><label>Embedded report</label><select class="fluent-select" id="p_ssub">${opts(["(none)", ...REPORTS.map(x=>x.name)], t.subReport||"(none)")}</select></div><div class="mini-field"><label>Link field (optional)</label><input class="fluent-input" id="p_ssublink" value="${esc(t.subLink||"")}" placeholder="e.g. qdb_customerid"></div>`:""}
+      ${t.displayAs==="subreport"?`<div class="mini-field"><label>Embedded report</label><select class="fluent-select" id="p_ssub">${opts(["(none)", ...reportCatalog.get().map(x=>x.name)], t.subReport||"(none)")}</select></div><div class="mini-field"><label>Link field (optional)</label><input class="fluent-input" id="p_ssublink" value="${esc(t.subLink||"")}" placeholder="e.g. qdb_customerid"></div>`:""}
       <div class="mini-field"><label>Column layout (header)</label><select class="fluent-select" id="p_scols">${opts2([["auto","Auto"],["1","1 column"],["2","2 columns"],["3","3 columns"],["4","4 columns"]], String(t.cols||"auto"))}</select></div>
       <label class="toggle"><input type="checkbox" id="p_stot" ${t.showTotals?"checked":""}><span class="track"></span><span class="tlabel">Totals (Subtotal / Tax / Total)</span></label>
       <button class="btn sm" id="p_sdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Delete section</button>`;
@@ -3129,20 +3368,37 @@ function openWizard() {
     placements:{ form:false, grid:true, dashboard:false, subgrid:false, sitemap:false, entity:"", role:"", passRecord:true, passSelected:true, passUserBu:true, passFields:[] } };
   renderWizard();
 }
-function applyStart(d) {
+async function applyStart(d) {
   if (d.start && d.start.startsWith("tpl:")) {
     const t = TEMPLATES[d.start.slice(4)]; if (t) Object.assign(d, JSON.parse(JSON.stringify(t.data)));
   } else if (d.start === "ssrs") {
     const name = (d.ssrsPick || SSRS_INVENTORY[0]).replace(/^RPT_/,"").replace(/\.rdl$/,"").replace(/_/g," ");
     d.name = "[SSRS] " + name; d.category = "Operational"; d.module = "Migration";
   } else if (d.start === "duplicate") {
-    const orig = REPORTS.find(r => r.name === (d.dupPick || REPORTS[0].name));
-    if (orig) { const src = newDefinition(orig);
-      d.name = orig.name + " (copy)"; d.category = orig.category; d.module = orig.module; d.mainEntity = src.mainEntity;
-      d.sourceType = src.dataSources[0].type; d.columns = src.columns.map(c=>c.attribute); d.layoutType = src.layout.type;
-      d.exports = src.exports.filter(e=>e.enabled).map(e=>e.format);
-      d.filters = src.filters.map(f=>({attribute:f.attribute,operator:f.operator,value:f.value,param:f.param}));
-      d.parameters = src.parameters.map(p=>({name:p.name,prompt:p.prompt,type:p.type,required:p.required})); }
+    await copyStoredReportIntoDraft(d);
+  }
+}
+
+/* Duplicating reads the stored definition rather than a row from the list. The list carries a name
+   and a category; the columns, filters and parameters the user expects to be copied only exist in
+   Dataverse. */
+async function copyStoredReportIntoDraft(d) {
+  const chosen = reportCatalog.get().find(r => r.name === d.dupPick);
+  if (!chosen) { toast("Pick a report to duplicate", "warn"); return; }
+  try {
+    const src = definitionToReport(await loadReportDefinition(chosen.id));
+    d.name = `${chosen.name} (copy)`;
+    d.category = chosen.category || d.category;
+    d.module = chosen.module || d.module;
+    d.mainEntity = src.mainEntity;
+    d.sourceType = src.dataSources[0].type;
+    d.columns = src.columns.map(c => c.attribute);
+    d.layoutType = src.layout.type;
+    d.exports = src.exports.filter(e => e.enabled).map(e => e.format);
+    d.filters = src.filters.map(f => ({ attribute:f.attribute, operator:f.operator, value:f.value, param:f.param }));
+    d.parameters = src.parameters.map(p => ({ name:p.name, prompt:p.prompt, type:p.type, required:p.required }));
+  } catch (error) {
+    toast("Couldn't read the report to duplicate — " + error.message, "err");
   }
 }
 function renderWizard() {
@@ -3171,8 +3427,8 @@ function wizBasics(host, d) {
   <div class="field-grid" style="max-width:760px">
     <div class="field col-2"><label class="lbl">Report name<span class="req">*</span></label><input class="fluent-input" id="wz_name" value="${esc(d.name)}" placeholder="e.g. Active Loan Applications by Branch"></div>
     <div class="field col-2"><label class="lbl">Description</label><textarea class="fluent-input" id="wz_description" rows="2" placeholder="What does this report answer?">${esc(d.description)}</textarea></div>
-    <div class="field"><label class="lbl">Category<span class="req">*</span></label><select class="fluent-select" id="wz_category">${opts(["Operational","Regulatory","Financial","Management","Adhoc"], d.category)}</select></div>
-    <div class="field"><label class="lbl">Module</label><input class="fluent-input" id="wz_module" value="${esc(d.module)}" placeholder="e.g. Lending"></div>
+    <div class="field"><label class="lbl">Category<span class="req">*</span></label><select class="fluent-select" id="wz_category">${opts(["", ...reportChoiceLabels("qdb_category")], d.category)}</select></div>
+    <div class="field"><label class="lbl">Module</label><select class="fluent-select" id="wz_module">${opts(["", ...reportChoiceLabels("qdb_module")], d.module)}</select></div>
     <div class="field"><label class="lbl">Owner</label><input class="fluent-input" id="wz_owner" value="${esc(d.owner)}"></div>
     <div class="field"><label class="lbl">Governed report</label><label class="toggle"><input type="checkbox" id="wz_governed" ${d.governed?"checked":""}><span class="track"></span><span class="tlabel">Needs approval before production</span></label></div>
   </div>`;
@@ -3184,7 +3440,6 @@ function wizData(host, d) {
   render();
 }
 function wizDataCanvas(host, d) {
-  const entities = Object.keys(ATTR_CATALOG);
   d._pos = d._pos || {};
   const pos = (id, dx, dy) => { if (!d._pos[id]) d._pos[id] = { x:dx, y:dy }; return d._pos[id]; };
   const pp = pos("primary", 40, 60);
@@ -3203,15 +3458,14 @@ function wizDataCanvas(host, d) {
   canvas.querySelectorAll(".node").forEach(n => { makeNodeDraggable(n, () => { const p = d._pos[n.dataset.node]; if (p) { p.x = parseFloat(n.style.left)||0; p.y = parseFloat(n.style.top)||0; } redraw(); }); });
   canvas.querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>{ d.joins.splice(+b.dataset.jdel,1); d._pos={}; wizDataCanvas(host,d); });
   canvas.querySelectorAll("[data-xdel]").forEach(b=>b.onclick=()=>{ d.externalSources.splice(+b.dataset.xdel,1); d._pos={}; wizDataCanvas(host,d); });
-  $("#cv_addjoin").onclick = () => { d.joins.push({entity:entities.find(e=>e!==d.mainEntity)||"account",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataCanvas(host,d); };
+  $("#cv_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataCanvas(host,d); };
   $("#cv_addext").onclick = () => { d.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
   redraw();
 }
 function wizDataForm(host, d) {
-  const entities = Object.keys(ATTR_CATALOG);
   const joinRows = d.joins.length ? d.joins.map((j,i)=>`<tr>
       <td><select class="fluent-select" data-ji="${i}" data-jk="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
-      <td><select class="fluent-select" data-ji="${i}" data-jk="entity">${opts(entities, j.entity)}</select></td>
+      <td>${entityPickerHtml(j.entity, `data-ji="${i}" data-jk="entity"`)}</td>
       <td><input class="fluent-input" data-ji="${i}" data-jk="leftKey" value="${esc(j.leftKey)}" placeholder="${esc(d.mainEntity)} key"></td>
       <td><input class="fluent-input" data-ji="${i}" data-jk="rightKey" value="${esc(j.rightKey)}" placeholder="related key"></td>
       <td><button class="del" data-jdel="${i}">${ic("trash")}</button></td></tr>`).join("")
@@ -3234,7 +3488,7 @@ function wizDataForm(host, d) {
         <button class="btn sm" id="wz_newds">${ic("add")}New data source</button>
       </div></div>
     <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The main table the report is built on — pre-set from the data source, still editable.</div>
-      <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label><select class="fluent-select" id="wz_entity">${opts(entities, d.mainEntity)}</select></div>
+      <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(d.mainEntity, 'id="wz_entity"')}</div>
       <label class="lbl" style="display:block;margin-bottom:8px">Read via</label>
       <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${Object.keys(SRC_DESC).map(s=>`<div class="choice-card ${d.sourceType===s?"sel":""}" data-src="${esc(s)}" style="padding:12px"><div class="cc-t">${esc(s)}</div><div class="cc-d">${esc(SRC_DESC[s])}</div></div>`).join("")}</div></div>
 
@@ -3250,7 +3504,7 @@ function wizDataForm(host, d) {
 
   $("#wz_ds").onchange = (e) => {
     const ds = DATASOURCES.find(x=>x.name===e.target.value);
-    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; if (ds.entity && ATTR_CATALOG[ds.entity] && ds.entity !== d.mainEntity) { d.mainEntity = ds.entity; d.columns = []; } }
+    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; if (entityRecord(ds.entity) && ds.entity !== d.mainEntity) { d.mainEntity = ds.entity; d.columns = []; } }
     else d.dataSourceName = "";
     wizDataForm(host,d);
   };
@@ -3261,7 +3515,7 @@ function wizDataForm(host, d) {
   host.querySelectorAll("[data-jdel]").forEach(b => b.onclick = () => { d.joins.splice(+b.dataset.jdel,1); wizDataForm(host,d); });
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
-  $("#wz_addjoin").onclick = () => { d.joins.push({entity:entities.find(e=>e!==d.mainEntity)||"account",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
+  $("#wz_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
   $("#wz_addext").onclick = () => { d.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
 }
 function wizColumns(host, d) {
@@ -3271,7 +3525,7 @@ function wizColumns(host, d) {
   render();
 }
 function wizColumnsCanvas(host, d) {
-  const groups = [{ent:d.mainEntity, attrs:ATTR_CATALOG[d.mainEntity]||[]}, ...d.joins.map(j=>({ent:j.entity, attrs:ATTR_CATALOG[j.entity]||[]}))];
+  const groups = [{ent:d.mainEntity, attrs:attributesOf(d.mainEntity)}, ...d.joins.map(j=>({ent:j.entity, attrs:attributesOf(j.entity)}))];
   const nameFor = a => { for (const g of groups) { const m = g.attrs.find(x=>x.a===a); if (m) return m; } return {a, n:a, t:"Text"}; };
   const palette = groups.map(g=>`<div class="palette-group">${esc(g.ent)}</div>${g.attrs.map(at=>`<div class="palette-item ${d.columns.includes(at.a)?"used":""}" draggable="true" data-attr="${esc(at.a)}"><span>${ic("drag")}</span><div><div>${esc(at.n)}</div><div class="pt">${esc(at.a)} · ${esc(at.t)}</div></div></div>`).join("")}`).join("");
   const chips = d.columns.length ? d.columns.map((a,i)=>{const m=nameFor(a);return `<div class="col-chip" draggable="true" data-idx="${i}"><span class="cgrip">${ic("drag")}</span><div><div>${esc(m.n)}</div><div class="ctype">${esc(m.t)}</div></div><button class="cx" data-cdel="${i}">✕</button></div>`;}).join("") : `<div class="page-sub" style="text-align:center;padding:40px 10px">Drag fields from the palette to build your report →</div>`;
@@ -3298,7 +3552,7 @@ function wizColumnsCanvas(host, d) {
 }
 function wizColumnsList(host, d) {
   d.colMeta = d.colMeta || {};
-  const attrs = ATTR_CATALOG[d.mainEntity] || [];
+  const attrs = attributesOf(d.mainEntity);
   const nameFor = a => (attrs.find(x=>x.a===a)||{n:a}).n;
   const labelRows = d.columns.length ? d.columns.map(a=>{ const meta = d.colMeta[a] || (d.colMeta[a]={label:nameFor(a),labelPos:"left"}); if(!meta.label)meta.label=nameFor(a); if(!meta.labelPos)meta.labelPos="left";
     return `<tr><td style="font-size:12.5px;color:var(--text-secondary)">${esc(nameFor(a))}</td><td><input class="fluent-input" data-lbl="${esc(a)}" value="${esc(meta.label)}" style="height:28px"></td><td><div class="seg" data-lpos="${esc(a)}">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${meta.labelPos===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div></td></tr>`; }).join("") : `<tr class="empty-row"><td colspan="3">Select columns above first.</td></tr>`;
@@ -3330,7 +3584,7 @@ function wizStart(host, d) {
   const extra = () => {
     const box = $("#wz_startextra");
     if (d.start === "ssrs") box.innerHTML = `<div class="field"><label class="lbl">SSRS report to migrate</label><select class="fluent-select" id="wz_ssrs">${opts(SSRS_INVENTORY, d.ssrsPick||SSRS_INVENTORY[0])}</select><span class="hint-inline">The engine seeds a draft; you rebuild it in the designer to functional parity.</span></div>`;
-    else if (d.start === "duplicate") box.innerHTML = `<div class="field"><label class="lbl">Report to duplicate</label><select class="fluent-select" id="wz_dup">${opts(REPORTS.map(r=>r.name), d.dupPick||REPORTS[0].name)}</select></div>`;
+    else if (d.start === "duplicate") box.innerHTML = `<div class="field"><label class="lbl">Report to duplicate</label><select class="fluent-select" id="wz_dup">${opts(reportCatalog.get().map(r=>r.name), d.dupPick||"")}</select></div>`;
     else box.innerHTML = "";
     if ($("#wz_ssrs")) $("#wz_ssrs").onchange = e => d.ssrsPick = e.target.value;
     if ($("#wz_dup")) $("#wz_dup").onchange = e => d.dupPick = e.target.value;
@@ -3439,15 +3693,15 @@ function synthRows(cols, entity) {
   return rows;
 }
 function draftPreviewCols(d) {
-  const cat = ATTR_CATALOG[d.mainEntity] || [];
+  const cat = attributesOf(d.mainEntity);
   return d.columns.map(a => { const m = cat.find(x=>x.a===a); return m ? { name:m.n, key:m.a, type:m.t, right:["Currency","Decimal","Whole number"].includes(m.t) } : null; }).filter(Boolean);
 }
 function wizDetails(host, d) {
   d.detailTables = d.detailTables || [];
-  const rels = ENTITY_RELATIONS[d.mainEntity] || [];
+  const rels = relationsOf(d.mainEntity);
   const avail = rels.filter(rel => !d.detailTables.some(t=>t.entity===rel.entity));
   const tablesHtml = d.detailTables.length ? d.detailTables.map((t,i)=>{
-    const attrs = ATTR_CATALOG[t.entity] || [];
+    const attrs = attributesOf(t.entity);
     return `<div class="section-card" style="max-width:840px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><b>${esc(t.label)}</b> <span class="rel-tag">${esc(t.entity)}</span> · ${t.columns.length} cols</div><div style="display:flex;gap:14px;align-items:center"><label class="toggle" style="transform:scale(.85)"><input type="checkbox" data-dtot="${i}" ${t.showTotals?"checked":""}><span class="track"></span><span class="tlabel">Totals</span></label><button class="del" data-dtdel="${i}">${ic("trash")}</button></div></div>
       <div class="attr-pick">${attrs.map(at=>`<label class="attr-item ${t.columns.some(c=>c.attr===at.a)?"sel":""}" data-dtcol="${i}" data-attr="${esc(at.a)}"><input type="checkbox" ${t.columns.some(c=>c.attr===at.a)?"checked":""}><div><div class="an">${esc(at.n)}</div><div class="at">${esc(at.t)}</div></div></label>`).join("")}</div>
@@ -3457,7 +3711,7 @@ function wizDetails(host, d) {
   const subCards = d.subReports.length
     ? d.subReports.map((s,i)=>`<div class="section-card" style="max-width:840px;display:flex;justify-content:space-between;align-items:center"><div>${ic("doc")} <b>${esc(s.report)}</b>${s.link?` <span class="rel-tag">linked on ${esc(s.link)}</span>`:""}</div><button class="del" data-srdel="${i}">${ic("trash")}</button></div>`).join("")
     : `<div class="info-banner">${ic("info")}<div>No sub-reports yet. Embed an existing report to run <b>inline for each header record</b> (e.g. show <b>Facilities</b> under each <b>Customer</b>). Sub-reports render in Master-Detail / Invoice layouts and can be linked on a matching field.</div></div>`;
-  const otherReports = REPORTS.map(x=>x.name).filter(n=>n!==d.name);
+  const otherReports = reportCatalog.get().map(x=>x.name).filter(n=>n!==d.name);
   host.innerHTML = `<div class="wtitle">Detail tables &amp; sub-reports <span class="rel-tag">Optional</span></div><div class="wsub">Attach child tables related to <b>${esc(d.mainEntity)}</b>, and/or embed existing reports as <b>sub-reports</b> that run inline for each header record.</div>
     <h3 style="margin:6px 0 4px">Detail tables</h3>
     ${tablesHtml}
@@ -3469,12 +3723,12 @@ function wizDetails(host, d) {
       <div class="field" style="max-width:200px"><label class="lbl">Link field (optional)</label><input class="fluent-input" id="wz_sublink" placeholder="e.g. qdb_customerid"></div>
       <button class="btn sm" id="wz_addsub" ${otherReports.length?"":"disabled"}>${ic("add")}Add sub-report</button>
     </div>`;
-  host.querySelectorAll("[data-adddt]").forEach(b=>b.onclick=()=>{ const rel=rels.find(x=>x.entity===b.dataset.adddt); const cat=ATTR_CATALOG[rel.entity]||[]; d.detailTables.push({entity:rel.entity,label:rel.label,columns:cat.slice(0,3).map(a=>({name:a.n,attr:a.a,type:a.t})),showTotals:false}); wizDetails(host,d); });
+  host.querySelectorAll("[data-adddt]").forEach(b=>b.onclick=()=>{ const rel=rels.find(x=>x.entity===b.dataset.adddt); const cat=attributesOf(rel.entity); d.detailTables.push({entity:rel.entity,label:rel.label,columns:cat.slice(0,3).map(a=>({name:a.n,attr:a.a,type:a.t})),showTotals:false}); wizDetails(host,d); });
   const addSubBtn = $("#wz_addsub"); if (addSubBtn) addSubBtn.onclick = () => { d.subReports.push({ report:$("#wz_subrep").value, link:$("#wz_sublink").value.trim() }); wizDetails(host,d); };
   host.querySelectorAll("[data-srdel]").forEach(b=>b.onclick=()=>{ d.subReports.splice(+b.dataset.srdel,1); wizDetails(host,d); });
   host.querySelectorAll("[data-dtdel]").forEach(b=>b.onclick=()=>{ d.detailTables.splice(+b.dataset.dtdel,1); wizDetails(host,d); });
   host.querySelectorAll("[data-dtot]").forEach(cb=>cb.onchange=()=>{ d.detailTables[+cb.dataset.dtot].showTotals=cb.checked; });
-  host.querySelectorAll("[data-dtcol]").forEach(it=>it.onclick=(e)=>{ e.preventDefault(); const i=+it.dataset.dtcol, attr=it.dataset.attr, t=d.detailTables[i]; const at=(ATTR_CATALOG[t.entity]||[]).find(x=>x.a===attr)||{a:attr,n:attr,t:"Text"}; const j=t.columns.findIndex(c=>c.attr===attr); if(j>=0)t.columns.splice(j,1); else t.columns.push({name:at.n,attr:at.a,type:at.t}); wizDetails(host,d); });
+  host.querySelectorAll("[data-dtcol]").forEach(it=>it.onclick=(e)=>{ e.preventDefault(); const i=+it.dataset.dtcol, attr=it.dataset.attr, t=d.detailTables[i]; const at=attributesOf(t.entity).find(x=>x.a===attr)||{a:attr,n:attr,t:"Text"}; const j=t.columns.findIndex(c=>c.attr===attr); if(j>=0)t.columns.splice(j,1); else t.columns.push({name:at.n,attr:at.a,type:at.t}); wizDetails(host,d); });
 }
 function buildHeaderDetailBody(hCols, hRow, details, lang) {
   const T = s => tr(s, lang);
@@ -3502,7 +3756,7 @@ function renderMiniPreview(host, d) {
   const meta = d.colMeta || {};
   const hCols = cols.map(c => ({ ...c, label:(meta[c.key]&&meta[c.key].label)||c.name, labelPos:(meta[c.key]&&meta[c.key].labelPos)||"left" }));
   const hd = ["Master-Detail Report","Invoice Layout"].includes(d.layoutType) && (d.detailTables||[]).some(t=>t.columns.length);
-  const nameOf = (attr) => { const a=(ATTR_CATALOG[d.mainEntity]||[]).find(x=>x.a===attr); return a?a.n:attr; };
+  const nameOf = (attr) => { const a=attributesOf(d.mainEntity).find(x=>x.a===attr); return a?a.n:attr; };
   const filterBar = filtersParamBar(d.filters, d.parameters, nameOf);
   const chartBody = buildPreviewBody(d.layoutType, cols, rows, { lang, chartType:d.chartType, cardIcon:d.cardIcon, drill:d._chartDrill });
   const body = filterBar + (d.renderMode&&d.renderMode!=="report"?kpiTiles(cols,rows):"") + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, d.detailTables, lang) : chartBody);
@@ -3566,7 +3820,7 @@ function wizETLFlow(host, d) {
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
-  const colNames = d.columns.map(a=>{const m=(ATTR_CATALOG[d.mainEntity]||[]).find(x=>x.a===a);return m?m.n:a;});
+  const colNames = d.columns.map(a=>{const m=attributesOf(d.mainEntity).find(x=>x.a===a);return m?m.n:a;});
   const stepRows = d.etl.length ? d.etl.map((s,i)=>`<tr>
       <td class="handle">${ic("flow")}</td>
       <td><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${s.seq}" style="width:52px"></td>
@@ -3610,7 +3864,7 @@ function wizPlacement(host, d) {
     </div>
     <div class="section-card" style="max-width:660px;margin-top:18px"><h3>Context &amp; scope</h3><div class="hint">What CRM passes to the report at run time. Stored in <span class="kbd">qdb_reportribbonplacement</span>.</div>
       <div class="field-grid" style="grid-template-columns:1fr 1fr">
-        <div class="field"><label class="lbl">Target entity</label><select class="fluent-select" id="wz_pentity">${opts(Object.keys(ATTR_CATALOG), p.entity||d.mainEntity)}</select></div>
+        <div class="field"><label class="lbl">Target entity</label>${entityPickerHtml(p.entity||d.mainEntity, 'id="wz_pentity"')}</div>
         <div class="field"><label class="lbl">Restrict to role (optional)</label><input class="fluent-input" id="wz_prole" value="${esc(p.role||"")}" placeholder="(any role)"></div>
       </div>
       <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:14px">
@@ -3619,11 +3873,11 @@ function wizPlacement(host, d) {
         <label class="toggle"><input type="checkbox" id="wz_puserbu" ${p.passUserBu?"checked":""}><span class="track"></span><span class="tlabel">Pass user &amp; business unit</span></label>
       </div>
       <label class="lbl" style="display:block;margin:18px 0 8px">Pass specific fields as parameters <span class="hint-inline">— pick fields from the in-context record; their values flow into the report as parameters at run time</span></label>
-      <div class="chips" id="wz_passfields">${(ATTR_CATALOG[p.entity||d.mainEntity]||[]).map(a=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-pf="${esc(a.a)}" ${(p.passFields||[]).includes(a.a)?"checked":""}>${esc(a.n)} <span class="rel-tag" style="margin-left:4px">${esc(a.t)}</span></label>`).join("")||'<span class="page-sub">Select a target entity to choose fields.</span>'}</div>
-      ${(p.passFields||[]).length?`<div class="hint-inline" style="margin-top:8px">Passing: ${(p.passFields||[]).map(a=>{const m=(ATTR_CATALOG[p.entity||d.mainEntity]||[]).find(x=>x.a===a);return esc(m?m.n:a);}).join(", ")} → report parameters.</div>`:""}
+      <div class="chips" id="wz_passfields">${attributesOf(p.entity||d.mainEntity).map(a=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-pf="${esc(a.a)}" ${(p.passFields||[]).includes(a.a)?"checked":""}>${esc(a.n)} <span class="rel-tag" style="margin-left:4px">${esc(a.t)}</span></label>`).join("")||'<span class="page-sub">Select a target entity to choose fields.</span>'}</div>
+      ${(p.passFields||[]).length?`<div class="hint-inline" style="margin-top:8px">Passing: ${(p.passFields||[]).map(a=>{const m=attributesOf(p.entity||d.mainEntity).find(x=>x.a===a);return esc(m?m.n:a);}).join(", ")} → report parameters.</div>`:""}
     </div>`;
   host.querySelectorAll("[data-surf]").forEach(c=>c.onclick=()=>{ const k=c.dataset.surf; p[k]=!p[k]; c.classList.toggle("sel",p[k]); });
-  $("#wz_pentity").onchange = e => { p.entity = e.target.value; const valid=(ATTR_CATALOG[p.entity]||[]).map(a=>a.a); p.passFields=(p.passFields||[]).filter(x=>valid.includes(x)); wizPlacement(host, d); };
+  $("#wz_pentity").onchange = e => { p.entity = e.target.value; const valid=attributesOf(p.entity).map(a=>a.a); p.passFields=(p.passFields||[]).filter(x=>valid.includes(x)); wizPlacement(host, d); };
   $("#wz_prole").oninput = e => p.role = e.target.value;
   $("#wz_precord").onchange = e => p.passRecord = e.target.checked;
   $("#wz_pselected").onchange = e => p.passSelected = e.target.checked;
@@ -3881,7 +4135,7 @@ function themedPaper(meta, bodyHtml, themeId, langCode) {
     <div style="margin-top:14px">${bodyHtml}</div></div>`;
 }
 function wizReview(host, d) {
-  const cols = (ATTR_CATALOG[d.mainEntity]||[]).filter(a=>d.columns.includes(a.a)).map(a=>a.n).join(", ") || "—";
+  const cols = attributesOf(d.mainEntity).filter(a=>d.columns.includes(a.a)).map(a=>a.n).join(", ") || "—";
   const joinsTxt = d.joins.length ? d.joins.map(j=>`${j.joinType.replace(" join","")} ${j.entity}`).join(", ") : "—";
   const extTxt = d.externalSources.length ? d.externalSources.map(x=>`${x.connector} (${x.direction})`).join(", ") : "—";
   const themeName = (THEMES.find(t=>t.id===d.theme)||THEMES[0]).name;
@@ -3894,10 +4148,12 @@ function wizReview(host, d) {
     <div class="section-card" style="max-width:720px">${rows.map(r=>`<div class="review-row"><div class="rk">${esc(r[0])}</div><div class="rv">${esc(r[1])}</div></div>`).join("")}</div>
     <div class="info-banner" style="max-width:720px">${ic("info")}<div>Creating this report saves a <b>Draft</b>. It won't run in production until you publish it.</div></div>`;
 }
-function wizNext() {
+async function wizNext() {
   const d = wiz.draft, key = WIZ_STEPS[wiz.step].key;
   if (key === "start") {
-    applyStart(d);
+    // Awaited: duplicating reads the stored definition, and advancing before it lands would show
+    // the next step with none of the copied columns in it.
+    await applyStart(d);
   } else if (key === "basics") {
     d.name = $("#wz_name").value.trim(); d.description = $("#wz_description").value; d.category = $("#wz_category").value;
     d.module = $("#wz_module").value; d.owner = $("#wz_owner").value; d.governed = $("#wz_governed").checked;
@@ -3908,7 +4164,7 @@ function wizNext() {
   if (wiz.step < WIZ_STEPS.length - 1) { wiz.step++; renderWizard(); } else wizCreate();
 }
 function wizCreate() {
-  const d = wiz.draft, def = newDefinition(null), cat = ATTR_CATALOG[d.mainEntity] || [];
+  const d = wiz.draft, def = newDefinition(null), cat = attributesOf(d.mainEntity);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connector:"", query:"", primary:true, joinL:"", joinR:"" }];
   def.columns = d.columns.map(a => { const m = cat.find(x=>x.a===a); const rightAlign = m && ["Currency","Decimal","Whole number"].includes(m.t); const meta = (d.colMeta||{})[a] || {};
@@ -3935,7 +4191,6 @@ function wizCreate() {
   def.subReports = (d.subReports||[]).map(s=>({ report:s.report, link:s.link||"" }));
   (d.subReports||[]).forEach(s => def.relationships.push({ parent:d.mainEntity, child:s.report, type:"Sub-report", schema:s.link||"", level:def.relationships.length+1, opens:false, sub:s.report }));
   def.theme = d.theme; def.languages = d.languages.slice(); def.primaryLang = d.primaryLang; def.logoData = d.logoData || null; def.renderMode = d.renderMode || "report";
-  def.id = "r" + (REPORTS.length + 1);
   document.getElementById("wizOverlay").remove();
   state.report = def; state.view = "designer"; state.tab = "general"; render();
   toast("Draft report created — refine it in the designer");
@@ -3943,7 +4198,7 @@ function wizCreate() {
 
 /* ============================ RUN DIALOG ============================ */
 function openRunDialog() {
-  const r = state.report || newDefinition(REPORTS.find(x=>x.id===state.selectedReportId));
+  const r = state.report || newDefinition(null);
   const paramsHtml = r.parameters.map(p => `<div class="field"><label class="lbl">${esc(p.prompt)}${p.required?'<span class="req">*</span>':""}</label>
     ${p.type==="Boolean"
       ? `<label class="toggle"><input type="checkbox"><span class="track"></span><span class="tlabel">Yes</span></label>`
@@ -4079,7 +4334,7 @@ const FORM_SPECS = {
     banner:"Execution logs are written <b>automatically by the engine</b> on every run — this form shows the fields it captures. The Correlation ID is the alternate key (BR-11).",
     fields:[
       { key:"cid", label:"Correlation ID", required:true, placeholder:"auto-generated GUID" },
-      { key:"report", label:"Report", type:"select", options:REPORTS.map(r=>r.name), value:REPORTS[0].name },
+      { key:"report", label:"Report", type:"select", options:reportCatalog.get().map(r=>r.name), value:"" },
       { key:"version", label:"Version", type:"number", value:"1" },
       { key:"by", label:"Run by", value:"Salman Sagar" },
       { key:"on", label:"Run on", value:"2026-07-15 12:00" },
@@ -4097,7 +4352,7 @@ const FORM_SPECS = {
     title:"Audit Log Entry", table:"qdb_reportauditlog", saveLabel:"Create (simulate)",
     banner:"The audit log is <b>append-only</b> and written by the platform — no update or delete is ever permitted (BR-4). This form shows the captured fields.",
     fields:[
-      { key:"report", label:"Report", type:"select", options:REPORTS.map(r=>r.name), value:REPORTS[0].name },
+      { key:"report", label:"Report", type:"select", options:reportCatalog.get().map(r=>r.name), value:"" },
       { key:"entity", label:"Entity affected", type:"select", options:["qdb_reportdefinition","qdb_reportcolumn","qdb_reportfilter","qdb_reportparameter","qdb_reportsecurity","qdb_reportlayout","qdb_reportexportsetting"], value:"qdb_reportdefinition" },
       { key:"ref", label:"Record reference", placeholder:"affected row id" },
       { key:"action", label:"Action", type:"select", options:["Create","Update","Delete","Publish","Unpublish","Clone","Approve","Reject"], value:"Update" },
@@ -4180,10 +4435,10 @@ const WIDGET_DEFAULTS = {
   matrix:    { title:"Breakdown",       entity:"qdb_loanapplication" },
   table:     { title:"Records",         entity:"qdb_loanapplication" }
 };
-function dashEntityCols(entity) { return (ATTR_CATALOG[entity]||[]).map(c=>({ name:c.n, key:c.a, type:c.t })); }
+function dashEntityCols(entity) { return attributesOf(entity).map(c=>({ name:c.n, key:c.a, type:c.t })); }
 function dashRows(tile) { return synthRows(dashEntityCols(tile.entity), tile.entity); }
 function defaultBind(entity) {
-  const cols = ATTR_CATALOG[entity] || [];
+  const cols = attributesOf(entity);
   const groupBy = (cols.find(c=>["Option set","Lookup"].includes(c.t)) || cols.find(c=>c.t==="Text") || cols[0] || {}).a || "";
   const measure = (cols.find(c=>c.t==="Currency") || cols.find(c=>["Decimal","Whole number"].includes(c.t)) || {}).a || "";
   return { groupBy, measure };
@@ -4201,7 +4456,7 @@ function dashGroup(rows, gkey, mkey, agg) {
   const gs = [...new Set(rows.map(r=>r[gkey]))];
   return gs.map((g,i)=>({ label:g, v: dashAgg(rows.filter(r=>r[gkey]===g), mkey, agg), color: CHART_PALETTE[i%CHART_PALETTE.length] }));
 }
-function isCurrencyCol(entity, attr) { return ((ATTR_CATALOG[entity]||[]).find(c=>c.a===attr)||{}).t === "Currency"; }
+function isCurrencyCol(entity, attr) { return (attributesOf(entity).find(c=>c.a===attr)||{}).t === "Currency"; }
 function fmtMeasure(entity, attr, agg, v) {
   if (agg==="Count" || !attr) return Math.round(v).toLocaleString();
   return isCurrencyCol(entity, attr) ? money(v) : (Math.round(v*100)/100).toLocaleString();
@@ -4376,15 +4631,15 @@ function openWidgetPicker(D, sectionId) {
   scrim.querySelectorAll("[data-wpick]").forEach(cd => cd.onclick = () => { close(); pushHistory(D); addWidgetToSection(D, sectionId, cd.dataset.wpick); render(); });
 }
 function dashPropsHtml(D, t) {
-  const cats = (ATTR_CATALOG[t.entity]||[]).filter(c=>["Text","Option set","Lookup"].includes(c.t));
-  const nums = (ATTR_CATALOG[t.entity]||[]).filter(c=>["Currency","Decimal","Whole number"].includes(c.t));
+  const cats = attributesOf(t.entity).filter(c=>["Text","Option set","Lookup"].includes(c.t));
+  const nums = attributesOf(t.entity).filter(c=>["Currency","Decimal","Whole number"].includes(c.t));
   const showGroup = ["chart","infocards","gauge","checklist","matrix","badge"].includes(t.widget);
   const showMeasure = ["metric","chart","infocards","gauge","progress","checklist","badge"].includes(t.widget);
   return `<div class="dash-props">
     <h4>Widget properties</h4>
     <div class="mini-field"><label>Title</label><input class="fluent-input" id="dp_title" value="${esc(t.title)}"></div>
     <div class="mini-field"><label>Display as</label><select class="fluent-select" id="dp_widget">${opts2(DASH_WIDGETS.map(x=>[x.w,x.label]), t.widget)}</select></div>
-    <div class="mini-field"><label>Data source</label><select class="fluent-select" id="dp_entity">${opts2(Object.keys(ATTR_CATALOG).map(k=>[k, entityLabel(k)]), t.entity)}</select></div>
+    <div class="mini-field"><label>Data source</label>${entityPickerHtml(t.entity, 'id="dp_entity"')}</div>
     ${showGroup?`<div class="mini-field"><label>Group by</label><select class="fluent-select" id="dp_group">${opts2(cats.map(c=>[c.a,c.n]), t.groupBy)}</select></div>`:""}
     ${showMeasure?`<div class="mini-field"><label>Measure</label><select class="fluent-select" id="dp_measure">${opts2([["","(count of records)"], ...nums.map(c=>[c.a,c.n])], t.measure)}</select></div>`:""}
     ${showMeasure?`<div class="mini-field"><label>Aggregation</label><select class="fluent-select" id="dp_agg">${opts(["Sum","Average","Count","Max","Min"], t.agg)}</select></div>`:""}
@@ -4396,11 +4651,6 @@ function dashPropsHtml(D, t) {
     <button class="btn sm" id="dp_del" style="margin-top:14px;color:var(--error)">${ic("trash")}Delete widget</button>
   </div>`;
 }
-const ENTITY_LABELS = {
-  qdb_loanapplication:"Loan Applications", account:"Accounts (Customers)", contact:"Contacts",
-  qdb_facility:"Facilities", qdb_collateral:"Collaterals", qdb_processhistory:"Workflow History", qdb_slatracking:"SLA Tracking"
-};
-function entityLabel(e) { return ENTITY_LABELS[e] || e; }
 function fieldTypeMeta(t) {
   if (t==="Currency") return { cls:"cur", g:"$" };
   if (t==="Decimal" || t==="Whole number") return { cls:"num", g:"#" };
@@ -4410,9 +4660,9 @@ function fieldTypeMeta(t) {
   return { cls:"text", g:"A" };
 }
 function autoViz(entity, attr) {
-  const c = (ATTR_CATALOG[entity]||[]).find(x=>x.a===attr) || {};
+  const c = attributesOf(entity).find(x=>x.a===attr) || {};
   if (["Currency","Decimal","Whole number"].includes(c.t)) return { widget:"metric", title:c.n, props:{ measure:attr, agg:"Sum" } };
-  if (["Option set","Lookup","Text"].includes(c.t)) { const measure = ((ATTR_CATALOG[entity]||[]).find(x=>x.t==="Currency")||{}).a || ""; return { widget:"chart", title:c.n, props:{ groupBy:attr, measure, chartType:"Column" } }; }
+  if (["Option set","Lookup","Text"].includes(c.t)) { const measure = (attributesOf(entity).find(x=>x.t==="Currency")||{}).a || ""; return { widget:"chart", title:c.n, props:{ groupBy:attr, measure, chartType:"Column" } }; }
   return { widget:"table", title:c.n, props:{} };
 }
 function addAutoWidget(D, sectionId, entity, attr) {
@@ -4451,11 +4701,11 @@ function dominantEntity(D) {
 }
 function dashFilterBar(D) {
   const ent = dominantEntity(D);
-  const cats = (ATTR_CATALOG[ent]||[]).filter(c=>["Option set","Lookup"].includes(c.t)).slice(0,3);
+  const cats = attributesOf(ent).filter(c=>["Option set","Lookup"].includes(c.t)).slice(0,3);
   const rows = synthRows(dashEntityCols(ent), ent);
   const slicers = cats.map(c => { const key = ent+"|"+c.a, vals = [...new Set(rows.map(r=>r[c.a]))], cur = (D.filters||{})[key]||"";
     return `<label class="fbar-slicer"><span>${esc(c.n)}</span><select data-slicer="${key}"><option value="">All</option>${vals.map(v=>`<option ${cur===v?"selected":""}>${esc(v)}</option>`).join("")}</select></label>`; }).join("");
-  const active = Object.entries(D.filters||{}).filter(([,v])=>v!=="").map(([k,v])=>{ const attr=k.split("|")[1], c=(ATTR_CATALOG[k.split("|")[0]]||[]).find(x=>x.a===attr)||{}; return `<span class="fbar-chip">${esc(c.n||attr)}: <b>${esc(v)}</b> <button data-fclear="${k}" title="Clear">✕</button></span>`; }).join("");
+  const active = Object.entries(D.filters||{}).filter(([,v])=>v!=="").map(([k,v])=>{ const attr=k.split("|")[1], c=attributesOf(k.split("|")[0]).find(x=>x.a===attr)||{}; return `<span class="fbar-chip">${esc(c.n||attr)}: <b>${esc(v)}</b> <button data-fclear="${k}" title="Clear">✕</button></span>`; }).join("");
   return `<div class="dash-filterbar"><span class="fbar-icon">${ic("filter")}</span><span class="fbar-label">Filters</span>${slicers}${active?`<span class="fbar-sep"></span>${active}<button class="fbar-clearall" data-fclearall>Clear all</button>`:""}</div>`;
 }
 function renderDashboardComposer(host) {
@@ -4464,10 +4714,10 @@ function renderDashboardComposer(host) {
   const pv = !!D._preview;
   const sel = pv ? null : (findWidget(D, D._sel) || {}).widget;
   const fieldEnt = D._fieldEntity || dominantEntity(D);
-  const fieldCols = ATTR_CATALOG[fieldEnt] || [];
+  const fieldCols = attributesOf(fieldEnt);
   const palette = pv ? "" : `<div class="dash-palette">
     <h4>Data fields</h4>
-    <select class="fluent-select" id="fld_entity" style="width:100%">${opts2(Object.keys(ATTR_CATALOG).map(k=>[k, entityLabel(k)]), fieldEnt)}</select>
+    ${entityPickerHtml(fieldEnt, 'id="fld_entity" style="width:100%"')}
     <div class="fld-list">${fieldCols.map(c=>{ const m=fieldTypeMeta(c.t); return `<div class="fld-chip" draggable="true" data-fld-ent="${fieldEnt}" data-fld-attr="${c.a}"><span class="fld-type ${m.cls}">${m.g}</span>${esc(c.n)}</div>`; }).join("")}</div>
     <div class="fld-hint">Drag a field onto a placeholder — it becomes a widget automatically (numbers → metric, categories → chart).</div>
     <h4 style="margin-top:14px">Add section</h4>
@@ -4773,22 +5023,35 @@ function initCrmContext() {
   try {
     const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
     state.inCrm = !!(xrm && xrm.WebApi);
+    // Needed to tell "My Reports" from "All Reports" by real ownership rather than a hardcoded name.
+    const user = signedInUser(xrm);
+    state.userId = user.id;
+    state.userName = user.name;
   } catch (e) {
     state.inCrm = false;
+    state.userId = null;
+    state.userName = null;
   }
+}
+
+function signedInUser(xrm) {
+  const settings = xrm && xrm.Utility && xrm.Utility.getGlobalContext
+    ? xrm.Utility.getGlobalContext().userSettings
+    : null;
+  return settings ? { id: settings.userId, name: settings.userName } : { id: null, name: null };
 }
 initCrmContext();
 
-/* Opened from the raw /WebResources/ URL there is no app shell, so no Xrm, so Save and Open cannot
-   work — while every in-memory part of the designer still looks fine. That combination is the
-   confusing one: you build a report, press Save, and it fails for a reason nothing on screen
-   explains. Say it up front, and name the URL that works. */
+/* Opened from the raw /WebResources/ URL there is no app shell, so no Xrm, and now that every list,
+   picker and preview reads from Dataverse there is nothing at all to show. The designer used to look
+   populated here because it carried sample reports and invented preview rows; without those the
+   honest state is empty, so say why rather than leaving the user staring at blank grids. */
 if (!state.inCrm) {
   const hosted = `${location.origin}/main.aspx?pagetype=webresource&webresourceName=qdb_reportengine_designer.html`;
   const banner = el(`<div style="padding:10px 16px;background:var(--warning-bg);border-bottom:1px solid var(--border-strong);font-size:13px">
-    <b>Preview mode — Save and Open are unavailable.</b>
-    Designing, previewing and the dashboard composer all work here, but storing to Dataverse needs a
-    CRM session. Open the designer from inside the app instead:
+    <b>No CRM session — the designer has no data to show.</b>
+    Reports, dashboards, entity metadata and previews are all read from Dataverse, which needs the app
+    shell. Open the designer from inside the app instead:
     <div style="margin-top:6px"><code style="font-size:12px;word-break:break-all">${esc(hosted)}</code></div>
   </div>`);
   document.body.insertBefore(banner, document.body.firstChild);
