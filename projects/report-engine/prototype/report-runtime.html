@@ -853,14 +853,106 @@ function openSettings(){
 
 /* ---------------- dashboards ---------------- */
 const PAL = ["#0078d4","#2899f5","#00b7c3","#498205","#8764b8","#e3008c","#ca5010","#986f0b"];
-// Dashboards fan out across many widget queries. That belongs behind the same audited entry point as
-// a report, so it waits on a qdb_RunDashboard Custom API rather than querying Dataverse directly
-// from here and leaving the fan-out unlogged.
-function loadDashboards(){
+/* Dashboards follow the same split as reports: the catalogue and layout are configuration and are
+   read directly, while the data goes through qdb_RunDashboard — the call that writes the audit
+   record. Querying each widget from here would leave the fan-out unlogged. */
+
+async function fetchDashboards(){
+  const rows = await dvRetrieveMultiple("qdb_dashboard",
+    "?$select=qdb_dashboardid,qdb_dashboardname&$orderby=qdb_dashboardname&$top=200");
+  return rows.map(r => ({ id: r.qdb_dashboardid, title: r.qdb_dashboardname }));
+}
+
+/** Sections and widgets, for laying the tiles out before their data arrives. */
+async function fetchDashboardLayout(id){
+  const sections = await dvRetrieveMultiple("qdb_dashboardsection",
+    `?$filter=_qdb_dashboardid_value eq ${id}&$select=qdb_dashboardsectionid,qdb_dashboardsectionname,qdb_columns&$orderby=qdb_sequence`);
+
+  const laid = [];
+  for (const section of sections) {
+    const widgets = await dvRetrieveMultiple("qdb_dashboardwidget",
+      `?$filter=_qdb_dashboardsectionid_value eq ${section.qdb_dashboardsectionid}`
+      + "&$select=qdb_dashboardwidgetid,qdb_dashboardwidgetname,qdb_kind,qdb_charttype&$orderby=qdb_sequence");
+    laid.push({
+      title: section.qdb_dashboardsectionname,
+      columns: Math.min(Math.max(section.qdb_columns || 3, 1), 4),
+      widgets: widgets.map(w => ({
+        id: w.qdb_dashboardwidgetid, title: w.qdb_dashboardwidgetname,
+        kind: w.qdb_kind || "Metric", chartType: w.qdb_charttype
+      }))
+    });
+  }
+  return laid;
+}
+
+async function runDashboardInCrm(dashboardId){
+  const request = {
+    dashboardId: dashboardId,
+    getMetadata: () => ({
+      boundParameter: null, operationType: 0, operationName: "qdb_RunDashboard",
+      parameterTypes: { dashboardId: { typeName: "Edm.String", structuralProperty: 1 } }
+    })
+  };
+  const response = await xrm().WebApi.online.execute(request);
+  const output = await response.json();
+  if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  return JSON.parse(output.resultJson);
+}
+
+async function loadDashboards(){
   state.view = "dashboards";
-  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div></div>
-    <div class="page">${notPortedNotice("Dashboards",
-      "Report execution moved into CRM first. Dashboards need their own audited entry point so each widget query is logged the same way a report run is.")}</div>`;
+  $("#content").innerHTML = `<div class="cmdbar"><b>Dashboards</b><div class="header-spacer" style="flex:1"></div>
+    <button class="btn" id="dreload">↻ Refresh</button></div>
+    <div class="page"><div class="empty"><span class="spinner"></span> Loading dashboards…</div></div>`;
+  $("#dreload").onclick = loadDashboards;
+
+  try {
+    const dashboards = await fetchDashboards();
+    $("#content .page").innerHTML = dashboards.length
+      ? `<div class="card-grid">${dashboards.map(d =>
+          `<div class="card" data-dash="${esc(d.id)}"><div class="code">DASHBOARD</div><h3>${esc(d.title)}</h3></div>`).join("")}</div>`
+      : errorState("No dashboards are visible to you.");
+    document.querySelectorAll("[data-dash]").forEach(el => el.onclick = () => openDashboard(el.dataset.dash, el.querySelector("h3").textContent));
+  } catch (error) {
+    $("#content .page").innerHTML = errorState(error.message);
+  }
+}
+
+async function openDashboard(id, title){
+  state.view = "dashrun";
+  $("#content").innerHTML = `<div class="cmdbar"><button class="btn" id="back">← Dashboards</button>
+    <b style="margin-left:6px">${esc(title || "Dashboard")}</b><div class="header-spacer" style="flex:1"></div></div>
+    <div class="page"><div class="empty"><span class="spinner"></span> Running widgets…</div></div>`;
+  $("#back").onclick = loadDashboards;
+
+  try {
+    const [layout, result] = await Promise.all([fetchDashboardLayout(id), runDashboardInCrm(id)]);
+    const byId = {};
+    for (const widget of result.widgets) byId[widget.widgetId] = widget;
+
+    $("#content .page").innerHTML = layout.map(section => `
+      <div class="dash-sec">${section.title ? `<div class="sec-title">${esc(section.title)}</div>` : ""}
+        <div class="dash-grid" style="grid-template-columns:repeat(${section.columns},1fr)">
+          ${section.widgets.map(w => renderWidgetTile(w, byId[w.id])).join("")}
+        </div></div>`).join("") || errorState("This dashboard has no widgets.");
+  } catch (error) {
+    $("#content .page").innerHTML = errorState(error.message);
+  }
+}
+
+function renderWidgetTile(widget, result){
+  const data = (result && result.data) || [];
+  let body;
+
+  if (!result) body = `<div class="werror">no result</div>`;
+  else if (result.accessDenied) body = `<div class="werror">No access</div>`;   // AUTH-C-8
+  else if (result.error) body = `<div class="werror">${esc(result.error.message || result.error.code)}</div>`;
+  else if (!data.length) body = `<div class="kpi-sub">No data</div>`;
+  else if (/chart/i.test(widget.kind)) body = /pie|donut/i.test(widget.chartType || "") ? wDonut(data) : wBars(data);
+  else if (data.length === 1) body = `<div class="kpi">${compact(data[0].value)}</div><div class="kpi-sub">${esc(data[0].label)}</div>`;
+  else body = wBars(data);
+
+  return `<div class="widget"><div class="wt">${esc(widget.title || widget.kind)}</div>${body}</div>`;
 }
 const sumV = d => d.reduce((a,p)=>a+(+p.value||0),0);
 function compact(v){ v=+v||0; const a=Math.abs(v); if(a>=1e9) return (v/1e9).toFixed(1)+"bn"; if(a>=1e6) return (v/1e6).toFixed(1)+"M"; if(a>=1e3) return (v/1e3).toFixed(1)+"k"; return String(Math.round(v*100)/100); }

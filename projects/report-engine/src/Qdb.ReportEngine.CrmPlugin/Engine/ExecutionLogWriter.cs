@@ -65,7 +65,13 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             record["qdb_resultsummary"] =
                 $"user={entry.UserId}; outcome={(entry.Succeeded ? "success" : "failed")}; rows={entry.RowCount}";
             record["qdb_errorcode"] = entry.ErrorCode ?? string.Empty;
-            record["qdb_reportdefinitionid"] = new EntityReference("qdb_reportdefinition", entry.ReportId);
+            // Only when there is a report to point at. A dashboard run has none, and binding an empty
+            // GUID makes Dataverse reject the whole record — which, because the writer fails closed,
+            // would withhold the dashboard's results over a lookup it never needed.
+            if (entry.ReportId != Guid.Empty)
+            {
+                record["qdb_reportdefinitionid"] = new EntityReference("qdb_reportdefinition", entry.ReportId);
+            }
 
             return record;
         }

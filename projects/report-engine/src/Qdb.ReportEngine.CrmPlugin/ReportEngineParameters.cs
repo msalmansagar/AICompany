@@ -9,6 +9,9 @@ namespace Qdb.ReportEngine.CrmPlugin
     {
         // Request
         public const string ReportId = "reportId";
+
+        /// <summary>qdb_RunDashboard: which stored dashboard to execute.</summary>
+        public const string DashboardId = "dashboardId";
         public const string ContextJson = "contextJson";
         public const string ParametersJson = "parametersJson";
         public const string Format = "format";

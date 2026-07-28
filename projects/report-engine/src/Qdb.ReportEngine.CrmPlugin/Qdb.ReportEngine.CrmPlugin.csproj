@@ -60,6 +60,10 @@
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\RowReader.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\DrilldownPlanner.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\SubReportPlanner.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\DashboardDefinition.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\WidgetResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlAggregateBuilder.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\DashboardDefinitionFetch.cs" LinkBase="Shared\Engine" />
   </ItemGroup>
 
   <ItemGroup>

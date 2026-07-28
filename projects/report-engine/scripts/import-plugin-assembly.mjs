@@ -12,7 +12,10 @@ import { readFileSync } from 'node:fs';
 
 const SOLUTION = 'qdb_reportengine';
 const ASSEMBLY_NAME = 'Qdb.ReportEngine.CrmPlugin';
-const PLUGIN_TYPE_NAME = 'Qdb.ReportEngine.CrmPlugin.RunReportPlugin';
+const PLUGIN_TYPES = [
+  'Qdb.ReportEngine.CrmPlugin.RunReportPlugin',
+  'Qdb.ReportEngine.CrmPlugin.RunDashboardPlugin'
+];
 const ASSEMBLY_PATH = new URL(
   '../src/Qdb.ReportEngine.CrmPlugin/bin/Release/net462/Qdb.ReportEngine.CrmPlugin.dll',
   import.meta.url
@@ -94,18 +97,21 @@ async function upsertAssembly(content) {
   return id;
 }
 
-async function ensurePluginType(assemblyId) {
+async function ensurePluginType(assemblyId, PLUGIN_TYPE_NAME) {
   const existing = await findId('plugintypes', `typename eq '${PLUGIN_TYPE_NAME}'`, 'plugintypeid');
   if (existing) {
     console.log(`  = plugin type ${PLUGIN_TYPE_NAME} exists`);
     return existing;
   }
 
+  // friendlyname must be unique within the assembly — reusing one string across both types fails
+  // with a 412 "matching key values already exists", which reads like a duplicate typename and is not.
+  const shortName = PLUGIN_TYPE_NAME.split('.').pop();
   const id = await post('plugintypes', {
     name: PLUGIN_TYPE_NAME,
     typename: PLUGIN_TYPE_NAME,
-    friendlyname: 'Report Engine — RunReport relay',
-    description: 'Relays qdb_RunReport to the Report Engine middle tier as the calling user.',
+    friendlyname: `Report Engine — ${shortName}`,
+    description: `Report Engine entry point: ${shortName}, executing as the calling user.`,
     'pluginassemblyid@odata.bind': `/pluginassemblies(${assemblyId})`
   });
   console.log(`  + plugin type ${PLUGIN_TYPE_NAME} created ${id}`);
@@ -124,7 +130,7 @@ async function main() {
   console.log(`Importing ${ASSEMBLY_NAME} (${content.length} base64 chars) into ${baseUrl}`);
 
   const assemblyId = await upsertAssembly(content);
-  await ensurePluginType(assemblyId);
+  for (const typeName of PLUGIN_TYPES) await ensurePluginType(assemblyId, typeName);
 
   console.log('\nDone. Next: node register-customapi.mjs <env> to bind the Custom API.');
 }

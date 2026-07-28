@@ -66,6 +66,19 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         [Fact]
+        public void Write_WithoutAReport_OmitsTheLookupRatherThanBindingAnEmptyGuid()
+        {
+            // A dashboard run has no report. Binding Guid.Empty makes Dataverse reject the record, and
+            // because the writer fails closed that would withhold results over a lookup never needed.
+            var entry = Entry();
+            entry.ReportId = Guid.Empty;
+
+            var record = WriteAndCapture(entry);
+
+            Assert.False(record.Contains("qdb_reportdefinitionid"));
+        }
+
+        [Fact]
         public void Write_RecordsTheActingUserAndOutcome()
         {
             var record = WriteAndCapture(Entry());

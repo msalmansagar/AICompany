@@ -133,40 +133,8 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             AppendString(json, Convert.ToString(value, CultureInfo.InvariantCulture));
         }
 
-        /// <summary>
-        /// Escapes per RFC 8259. Control characters and the HTML-significant &lt; &gt; &amp; are
-        /// emitted as \u escapes so the payload cannot break out of a script context in the browser
-        /// that consumes it.
-        /// </summary>
-        private static void AppendString(StringBuilder json, string value)
-        {
-            json.Append('"');
-            foreach (var character in value)
-            {
-                switch (character)
-                {
-                    case '"': json.Append("\\\""); break;
-                    case '\\': json.Append("\\\\"); break;
-                    case '\b': json.Append("\\b"); break;
-                    case '\f': json.Append("\\f"); break;
-                    case '\n': json.Append("\\n"); break;
-                    case '\r': json.Append("\\r"); break;
-                    case '\t': json.Append("\\t"); break;
-                    default:
-                        if (character < ' ' || character == '<' || character == '>' || character == '&')
-                        {
-                            json.Append("\\u").Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
-                        }
-                        else
-                        {
-                            json.Append(character);
-                        }
-
-                        break;
-                }
-            }
-
-            json.Append('"');
-        }
+        /// <summary>Escaping lives in one place, shared with the dashboard writer — it is a security
+        /// property rather than formatting, and two copies could drift apart.</summary>
+        private static void AppendString(StringBuilder json, string value) => JsonText.Append(json, value);
     }
 }

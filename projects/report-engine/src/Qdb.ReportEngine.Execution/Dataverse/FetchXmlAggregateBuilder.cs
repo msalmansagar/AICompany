@@ -13,7 +13,7 @@ public static class FetchXmlAggregateBuilder
     /// <summary>Builds the aggregate FetchXML for <paramref name="widget"/>.</summary>
     public static string Build(DashboardWidget widget)
     {
-        ArgumentNullException.ThrowIfNull(widget);
+        if (widget is null) throw new ArgumentNullException(nameof(widget));
 
         var entity = new XElement("entity", new XAttribute("name", widget.Entity));
         entity.Add(BuildValueAttribute(widget));
