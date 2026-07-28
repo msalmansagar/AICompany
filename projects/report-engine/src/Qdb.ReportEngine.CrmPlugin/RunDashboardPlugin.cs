@@ -57,12 +57,18 @@ namespace Qdb.ReportEngine.CrmPlugin
 
             try
             {
+                // As in a report run, each assignment marks the stage now in progress so a failure is
+                // logged where it happened: a broken layout fails in LoadMetadata, a widget whose
+                // query is refused fails in DataFetch.
+                entry.Stage = ExecutionStage.LoadMetadata;
                 var engine = new SdkDashboardEngine(asUser);
                 var definition = engine.LoadDefinition(dashboardId);
                 entry.ReportName = "Dashboard — " + definition.Title;
+                entry.Stage = ExecutionStage.DataFetch;
                 result = engine.Execute(definition);
                 entry.RowCount = CountPoints(result);
                 entry.Succeeded = true;
+                entry.Stage = ExecutionStage.Complete;
             }
             catch (Exception error)
             {

@@ -63,6 +63,9 @@ namespace Qdb.ReportEngine.CrmPlugin
 
             try
             {
+                // Each assignment marks the stage now in progress, so if the next call throws the log
+                // records where it broke rather than only that it did.
+                entry.Stage = ExecutionStage.Validate;
                 // Checked before the definition is even loaded, and inside the try so a refusal is
                 // still written to the audit log — a denied attempt is exactly what an auditor asks
                 // about, and it must not be the one execution that leaves no trace.
@@ -70,6 +73,7 @@ namespace Qdb.ReportEngine.CrmPlugin
                 result = ExecuteReport(asUser, request, entry);
                 entry.RowCount = result.RowCount;
                 entry.Succeeded = true;
+                entry.Stage = ExecutionStage.Complete;
             }
             catch (Exception error)
             {
@@ -98,8 +102,12 @@ namespace Qdb.ReportEngine.CrmPlugin
             IOrganizationService asUser, RunReportRequest request, ExecutionLogEntry entry)
         {
             var engine = new SdkReportEngine(asUser);
+            entry.Stage = ExecutionStage.LoadMetadata;
             var definition = engine.LoadDefinition(request.ReportId);
+            // The report is known to exist now, so the audit row can safely reference it.
+            entry.ReportId = request.ReportId;
             entry.ReportName = definition.Name;
+            entry.Stage = ExecutionStage.DataFetch;
 
             // A drilldown is a distinct execution over related rows, so it is logged as its own entry
             // rather than folded into the parent's — "who saw which child records" is the question the
@@ -116,9 +124,13 @@ namespace Qdb.ReportEngine.CrmPlugin
             });
         }
 
+        /* ReportId is deliberately left unset: the audit row is linked to the report only once the
+           definition has loaded. An id that does not exist cannot be bound as a lookup — Dataverse
+           rejects the record, and a plugin cannot recover by retrying because the transaction is
+           already doomed. The requested id travels separately so the trail still names it. */
         private static ExecutionLogEntry NewLogEntry(Guid reportId, Guid userId) => new ExecutionLogEntry
         {
-            ReportId = reportId,
+            RequestedReportId = reportId,
             ReportName = reportId.ToString(),
             UserId = userId,
             CorrelationId = Guid.NewGuid().ToString("N"),

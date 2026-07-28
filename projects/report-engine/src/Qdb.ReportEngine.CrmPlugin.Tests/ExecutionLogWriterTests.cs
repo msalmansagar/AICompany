@@ -79,6 +79,49 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         [Fact]
+        public void Write_StoresTheStageAsAnOptionSetValue()
+        {
+            // A raw int is rejected by the SDK for a choice column, the same way an ISO string was
+            // rejected for qdb_startedon.
+            var entry = Entry();
+            entry.Stage = ExecutionStage.Complete;
+
+            var record = WriteAndCapture(entry);
+
+            Assert.Equal(ExecutionStage.Complete, Assert.IsType<OptionSetValue>(record["qdb_executionstage"]).Value);
+        }
+
+        [Fact]
+        public void Write_StoresTheStageTheRunReached_NotJustSuccessOrFailure()
+        {
+            // The point of the column: a report that dies loading its definition is a different
+            // problem from one that dies querying, and the error code does not separate them.
+            var entry = Entry();
+            entry.Succeeded = false;
+            entry.Stage = ExecutionStage.LoadMetadata;
+
+            var record = WriteAndCapture(entry);
+
+            Assert.Equal(ExecutionStage.LoadMetadata, ((OptionSetValue)record["qdb_executionstage"]).Value);
+        }
+
+        [Fact]
+        public void Entry_DefaultsToFailed_SoARunThatBreaksImmediatelyIsNotRecordedAsHavingProgressed()
+        {
+            Assert.Equal(ExecutionStage.Failed, new ExecutionLogEntry().Stage);
+        }
+
+        [Fact]
+        public void Write_StoresCacheHitAsABoolean()
+        {
+            var record = WriteAndCapture(Entry());
+
+            Assert.IsType<bool>(record["qdb_cachehit"]);
+            // No cache exists yet, so every run is served from source and must say so.
+            Assert.False((bool)record["qdb_cachehit"]);
+        }
+
+        [Fact]
         public void Write_RecordsTheActingUserAndOutcome()
         {
             var record = WriteAndCapture(Entry());
@@ -109,6 +152,39 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
             Assert.Throws<InvalidPluginExecutionException>(() => writer.Write(Entry()));
         }
 
+        [Fact]
+        public void Write_ForAReportThatDidNotLoad_OmitsTheLookupAndNamesTheRequestedIdInstead()
+        {
+            /* A caller asking for an id that does not exist must still leave a trail — it is exactly
+               the run an auditor asks about. The lookup cannot be bound (Dataverse rejects it) and a
+               failed write cannot be retried (the plugin transaction is doomed after any
+               OrganizationService throw), so the reference is simply never set. */
+            var entry = Entry();
+            entry.ReportId = Guid.Empty;
+            entry.RequestedReportId = ReportId;
+            entry.Succeeded = false;
+            entry.Stage = ExecutionStage.LoadMetadata;
+
+            var service = new RecordingOrganizationService { FailWhenReportLookupPresent = true };
+            new ExecutionLogWriter(service, new NullTracingService()).Write(entry);
+
+            var record = Assert.Single(service.Created);
+            Assert.False(record.Contains("qdb_reportdefinitionid"));
+            Assert.Contains(ReportId.ToString(), (string)record["qdb_resultsummary"]);
+        }
+
+        [Fact]
+        public void Write_ForALoadedReport_DoesNotRepeatTheIdInTheSummary()
+        {
+            // It is already in the lookup; repeating it would only add noise.
+            var entry = Entry();
+            entry.RequestedReportId = ReportId;
+
+            var record = WriteAndCapture(entry);
+
+            Assert.DoesNotContain("requested report", (string)record["qdb_resultsummary"]);
+        }
+
         private sealed class NullTracingService : ITracingService
         {
             public void Trace(string format, params object[] args) { }
@@ -120,9 +196,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
 
             public bool FailOnCreate { get; set; }
 
+            /// <summary>Mimics Dataverse refusing a record whose lookup points at a missing row.</summary>
+            public bool FailWhenReportLookupPresent { get; set; }
+
             public Guid Create(Entity entity)
             {
                 if (FailOnCreate) throw new InvalidOperationException("Incorrect attribute value type System.String");
+                if (FailWhenReportLookupPresent && entity.Contains("qdb_reportdefinitionid"))
+                {
+                    throw new InvalidOperationException("qdb_ReportDefinition With Id = ... Does Not Exist");
+                }
                 Created.Add(entity);
                 return Guid.NewGuid();
             }

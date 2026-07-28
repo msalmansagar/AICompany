@@ -4707,7 +4707,7 @@ function logsView() {
     r => `<tr><td>${cell(r.startedOn)}</td><td>${cell(r.report)}</td>
       <td>${cell(r.userId ? (userNames.byId[r.userId] || "resolving…") : null)}</td>
       <td class="num">${cell(r.rows)}</td><td class="num">${cell(r.durationMs)}</td>
-      <td>${cell(r.stage)}</td><td>${r.cacheHit ? ic("check") : "—"}</td>
+      <td>${cell(r.stage)}</td><td>${r.cacheHit ? ic("check") : "No"}</td>
       <td><span class="pill ${String(r.outcome || "").toLowerCase()}">${cell(r.outcome)}</span>${r.errorCode ? ` <span class="kbd">${esc(r.errorCode)}</span>` : ""}</td>
       <td class="link-cell" ${MONO}>${cell(r.correlationId)}</td></tr>`,
     "No report runs recorded yet.");
