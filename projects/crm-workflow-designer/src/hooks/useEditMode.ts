@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
@@ -182,6 +183,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         sequenceNumber: nextSeqNo,
         applyFilter: false,
         ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
         stepId: sourceStepId,
         nextStepId,
       };
@@ -263,6 +265,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         sequenceNumber: nextSeqNo,
         applyFilter: false,
         ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
         stepId: sourceStepId,
         nextStepId: newStep.crmId,
       });
@@ -304,6 +307,7 @@ function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
+    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',
     sequenceNo,

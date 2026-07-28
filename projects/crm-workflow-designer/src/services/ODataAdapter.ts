@@ -4,6 +4,8 @@ import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
 import { mapEscalationConfig, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import type { CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import { withRetry } from './withRetry';
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
@@ -202,7 +204,7 @@ export class ODataAdapter implements ISopAdapter {
   async getSteps(processId: string): Promise<WorkflowStep[]> {
     assertGuid(processId, 'processId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}`
+      `${ENTITY_SETS.step}?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}`
     );
     return data.value.map(mapStep);
   }
@@ -244,6 +246,10 @@ export class ODataAdapter implements ISopAdapter {
       body,
       await buildParentStepBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, ENTITY_SETS.step)
     );
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), E, WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -257,7 +263,7 @@ export class ODataAdapter implements ISopAdapter {
   async getOutcomes(stepId: string): Promise<WorkflowOutcome[]> {
     assertGuid(stepId, 'stepId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.outcome}?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS}&$filter=_qdb_workitemstep_value eq ${stepId}`
+      `${ENTITY_SETS.outcome}?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS},${hookSelectColumns(OUTCOME_HOOKS)}&$filter=_qdb_workitemstep_value eq ${stepId}`
     );
     return data.value.map(mapOutcome);
   }
@@ -280,6 +286,10 @@ export class ODataAdapter implements ISopAdapter {
     ]);
     if (data.stepId     && ws)  body[`${ws}@odata.bind`]  = `/${ENTITY_SETS.step}(${data.stepId})`;
     if (data.nextStepId && nws) body[`${nws}@odata.bind`] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), 'qdb_outcome', WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -407,6 +417,11 @@ export class ODataAdapter implements ISopAdapter {
       id: t['teamid'] as string,
       name: t['name'] as string,
     }));
+  }
+
+  async getCallableWorkflows(): Promise<CallableWorkflowOption[]> {
+    const data = await this.get<{ value: Record<string, unknown>[] }>(CALLABLE_WORKFLOW_QUERY);
+    return data.value.map(mapCallableWorkflow);
   }
 
   async getEscalationConfigs(): Promise<EscalationConfigOption[]> {
@@ -745,6 +760,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
     ...mapEscalationFields(raw),
     ...mapBranchFields(raw),
+    workflowHooks: mapWorkflowHooks(raw, STEP_HOOKS),
   };
 }
 
@@ -757,6 +773,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
     nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
     ...mapOutcomeConcurrency(raw),
+    workflowHooks: mapWorkflowHooks(raw, OUTCOME_HOOKS),
   };
 }
 

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ValidationService } from '@/services/ValidationService';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 
 // The reconciliation's headline behavioural change: concurrency no longer blocks
@@ -31,6 +32,7 @@ function buildStep(crmId: string, sequenceNo: number, branch: Partial<WorkflowSt
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
     ...branch,
+    workflowHooks: branch.workflowHooks ?? emptyWorkflowHooks(STEP_HOOKS),
     crmId,
     name: `Step ${sequenceNo}`,
     schemaName: '',
@@ -63,6 +65,7 @@ function buildOutcome(
   return {
     ...emptyOutcomeConcurrency(),
     ...concurrency,
+    workflowHooks: concurrency.workflowHooks ?? emptyWorkflowHooks(OUTCOME_HOOKS),
     crmId,
     name: `${stepId}->${nextStepId ?? 'End'}`,
     sequenceNumber: 1,

@@ -3,6 +3,8 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
 import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import type { CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
   CrmRole,
@@ -183,7 +185,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -234,6 +236,10 @@ export class DataverseAdapter implements ISopAdapter {
       body,
       await buildParentStepBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, SET.step)
     );
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), E, WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -244,7 +250,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.outcome,
-        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS}&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
+        `?$select=qdb_outcomeid,qdb_name,qdb_sequencenumber,qdb_applyfilter,_qdb_workitemstep_value,_qdb_nextworkitemstep_value,${OUTCOME_CONCURRENCY_SELECT_COLUMNS},${hookSelectColumns(OUTCOME_HOOKS)}&$filter=_qdb_workitemstep_value eq ${stepId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapOutcome);
@@ -276,6 +282,10 @@ export class DataverseAdapter implements ISopAdapter {
     ]);
     if (data.stepId     && ws)  body[`${ws}@odata.bind`]  = `/${SET.step}(${data.stepId})`;
     if (data.nextStepId && nws) body[`${nws}@odata.bind`] = `/${SET.step}(${data.nextStepId})`;
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), 'qdb_outcome', WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -442,6 +452,17 @@ export class DataverseAdapter implements ISopAdapter {
       }));
     } catch (err) {
       throw asError(err, 'getTeams');
+    }
+  }
+
+  async getCallableWorkflows(): Promise<CallableWorkflowOption[]> {
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords('workflow', `?${CALLABLE_WORKFLOW_QUERY.split('?')[1]}`)
+      );
+      return result.entities.map(mapCallableWorkflow);
+    } catch (err) {
+      throw asError(err, 'getCallableWorkflows');
     }
   }
 
@@ -925,6 +946,7 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
     ...mapEscalationFields(raw),
     ...mapBranchFields(raw),
+    workflowHooks: mapWorkflowHooks(raw, STEP_HOOKS),
   };
 }
 
@@ -943,6 +965,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
     stepId: (raw['_qdb_workitemstep_value'] as string) ?? '',
     nextStepId: (raw['_qdb_nextworkitemstep_value'] as string | null) ?? null,
     ...mapOutcomeConcurrency(raw),
+    workflowHooks: mapWorkflowHooks(raw, OUTCOME_HOOKS),
   };
 }
 

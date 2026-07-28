@@ -32,6 +32,7 @@ function buildInput(stepSpecs: StepSpec[], outcomeSpecs: OutcomeSpec[] = []): Br
       applyFilter: false,
       stepId: spec.stepId,
       nextStepId: null,
+      workflowHooks: {},
       checkParallelTasks: spec.guards ?? false,
       updateParallelTaskRef: false,
     };

@@ -1,13 +1,17 @@
 import { useState } from 'react';
+import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { OUTCOME_HOOKS } from '@/services/workflowHooks';
+import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowRoute } from '@/types/WorkflowTypes';
 import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface OutcomePropertiesPanelProps {
   outcomeId: string | null;
+  adapter: ICrmAdapter;
 }
 
-export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProps) {
+export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomePropertiesPanelProps) {
   const {
     outcomes,
     routes,
@@ -143,6 +147,14 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
             {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
           </div>
         </div>
+
+        <WorkflowHooksSection
+          value={outcome.workflowHooks}
+          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
+          kinds={OUTCOME_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
+        />
 
         <div style={fieldGroupStyle}>
           <label style={labelStyle}>Concurrent branches</label>

@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
 import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
@@ -318,6 +319,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const newStep: WorkflowStep = {
             ...emptyEscalationFields(),
             ...emptyBranchFields(),
+    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
             crmId: newStepId,
             name: 'New Step',
             sequenceNo: nextSeqNo,
@@ -361,7 +363,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
             sequenceNumber: maxSeq + 1,
             applyFilter: false,
             ...emptyOutcomeConcurrency(),
-            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
             stepId: fromStepId,
             nextStepId: newStepId,
           };

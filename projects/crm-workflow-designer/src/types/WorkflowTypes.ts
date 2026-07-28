@@ -1,3 +1,5 @@
+import type { WorkflowHooks } from '@/services/workflowHooks';
+
 export interface WorkflowProcess {
   crmId: string;
   name: string;
@@ -75,6 +77,8 @@ export interface BranchFields {
 }
 
 export interface WorkflowStep extends EscalationFields, BranchFields {
+  /** Workflows the engine runs at points in this step’s task life (DP-5). */
+  workflowHooks: WorkflowHooks;
   crmId: string;
   name: string;
   schemaName: string;
@@ -111,6 +115,8 @@ export interface AutoNumberFieldOption {
 }
 
 export interface WorkflowOutcome {
+  /** Workflows the engine runs for the task this outcome leads to (DP-5). */
+  workflowHooks: WorkflowHooks;
   crmId: string;
   name: string;
   sequenceNumber: number;

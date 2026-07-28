@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
 // Starter templates for the "Create Process" launcher. Each template builds an
 // in-memory graph (steps + outcomes + routes) using temporary ids, which the
 // canvas loads and the user saves like any hand-built process. Entity bindings
@@ -54,6 +55,7 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     processId,
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
+    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
   };
 }
 
@@ -63,14 +65,16 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
   outcome: WorkflowOutcome;
   route: WorkflowRoute;
 } {
-  const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(), stepId: fromStepId, nextStepId: toStepId };
+  const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS), stepId: fromStepId, nextStepId: toStepId };
   const route: WorkflowRoute = { crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
   return { outcome, route };
 }
 
 /** A terminal branch — a labelled outcome that ends the process (no edge). */
 function terminal(fromStepId: string, label: string, seq: number): WorkflowOutcome {
-  return { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(), stepId: fromStepId, nextStepId: null };
+  return { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS), stepId: fromStepId, nextStepId: null };
 }
 
 function graphFrom(steps: WorkflowStep[], parts: (WorkflowOutcome | { outcome: WorkflowOutcome; route: WorkflowRoute })[]): TemplateGraph {
