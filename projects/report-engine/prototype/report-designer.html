@@ -1682,7 +1682,7 @@ async function saveDashboardToServer(dashboard) {
     }
     await writeDashboardSections(dashboard.savedId, def);
     toast(isUpdate ? "Dashboard updated in Dataverse" : "Dashboard saved to Dataverse", "ok");
-    refreshSavedDashboards();
+    dashboardCatalog.refresh();
   } catch (error) {
     toast("Save failed — " + error.message, "err");
   } finally {
@@ -2322,19 +2322,18 @@ async function loadDashboardDefinition(id) {
   return { id: record.qdb_dashboardid, title: record.qdb_dashboardname, isGoverned: !!record.qdb_isgoverned, sections: mapped };
 }
 
-// Persisted-dashboard catalog. null = not yet fetched this session.
-let SAVED_DASHBOARDS = null;
-async function refreshSavedDashboards() {
-  try {
-    const rows = await dvList("qdb_dashboard",
-      "?$select=qdb_dashboardid,qdb_dashboardname,qdb_isgoverned&$orderby=qdb_dashboardname&$top=200");
-    SAVED_DASHBOARDS = rows.map(r => ({ id: r.qdb_dashboardid, title: r.qdb_dashboardname, isGoverned: !!r.qdb_isgoverned }));
-  } catch (error) {
-    // Outside CRM there is nothing to read — degrade to "no saved dashboards".
-    SAVED_DASHBOARDS = [];
-  }
-  if (state.view === "dashboards") render();
-}
+const dashboardCatalog = dataverseCatalog(
+  "qdb_dashboard",
+  "?$select=qdb_dashboardid,qdb_dashboardname,qdb_isgoverned,modifiedon,_ownerid_value"
+  + "&$orderby=qdb_dashboardname&$top=200",
+  row => ({
+    id: row.qdb_dashboardid,
+    title: row.qdb_dashboardname || "(unnamed)",
+    isGoverned: !!row.qdb_isgoverned,
+    owner: formattedValue(row, "_ownerid_value"),
+    modified: formattedValue(row, "modifiedon")
+  })
+);
 async function openSavedDashboard(id) {
   try {
     openDashboardComposer(definitionToDashboard(await loadDashboardDefinition(id)));
@@ -2347,7 +2346,7 @@ async function deleteSavedDashboard(id) {
     await deleteDashboardSections(id);
     await dvDelete("qdb_dashboard", id);
     toast("Dashboard deleted from Dataverse", "ok");
-    await refreshSavedDashboards();
+    await dashboardCatalog.refresh();
   } catch (error) {
     toast("Delete failed — " + error.message, "err");
   }
@@ -2384,11 +2383,11 @@ function render() {
   if (state.view === "manualdesigner") return renderManualDesigner(c);
   if (state.view === "dashboards") return renderDashboards(c);
   if (state.view === "dashboardcomposer") return renderDashboardComposer(c);
-  if (state.view === "datasources") return renderSimpleList(c, "Data Sources", "Reusable data-source definitions across reports.", dataSourcesView(), "datasource", "New data source");
-  if (state.view === "connectors") return renderSimpleList(c, "External Connectors", "Secure connections to SQL, Core Banking, MIS and REST systems. Secrets are stored as Key Vault references — never in Dataverse.", connectorsView(), "connector", "New connector");
-  if (state.view === "logs") return renderSimpleList(c, "Execution Logs", "Every production report run is logged (who, when, parameters, source, rows, duration, outcome).", logsView(), "executionlog", "New entry");
-  if (state.view === "audit") return renderSimpleList(c, "Audit Log", "Append-only change history of report configuration. No update or delete is permitted on audit records.", auditView(), "auditlog", "New entry");
-  if (state.view === "categories") return renderSimpleList(c, "Report Categories", "Reports grouped by category.", categoriesView());
+  if (state.view === "datasources") return renderSimpleList(c, "Data Sources", "The data sources belonging to report definitions in this environment. They are created as part of a report.", dataSourcesView(), null, null, dataSourceCatalog);
+  if (state.view === "connectors") return renderSimpleList(c, "External Connectors", "Secure connections to SQL, Core Banking, MIS and REST systems. Secrets are stored as Key Vault references — never in Dataverse.", connectorsView(), "connector", "New connector", connectorCatalog);
+  if (state.view === "logs") return renderSimpleList(c, "Execution Logs", "Every report run is logged by the engine (who, when, rows, duration, outcome). Written with the system identity so a user cannot suppress their own trail.", logsView(), null, null, executionLogCatalog);
+  if (state.view === "audit") return renderSimpleList(c, "Audit Log", "Append-only change history of report configuration. No update or delete is permitted on audit records.", auditView(), null, null, auditLogCatalog);
+  if (state.view === "categories") return renderSimpleList(c, "Report Categories", "Reports grouped by category.", categoriesView(), null, null, reportCatalog);
   return renderReports(c);
 }
 
@@ -2687,14 +2686,14 @@ function tabDataSources(body, r) {
   const xcard = el(`<div class="section-card"><h3>External data sources</h3><div class="hint">Systems your administrator connected under <b>External Connectors</b>. Map the matching key and choose which way parameters flow (CRM ↔ source). Stored in <span class="kbd">qdb_externalconnector</span> refs.</div></div>`);
   const xcols = [{t:"System"},{t:"Operation"},{t:"Direction"},{t:"CRM key"},{t:"Ext. key"},{t:"Params passed"}];
   const xrow = (x,i) => `<tr><td class="handle">${ic("flow")}</td>
-    <td><select class="fluent-select" data-i="${i}" data-k="connector">${opts(CONNECTORS.map(c=>c.name), x.connector)}</select></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="connector">${opts(["", ...connectorCatalog.get().map(c=>c.name)], x.connector)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="operation" value="${esc(x.operation)}" placeholder="GET /balances"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="direction">${opts(["CRM → Source","Source → CRM","Both ways"], x.direction)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="crmKey" value="${esc(x.crmKey)}"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="extKey" value="${esc(x.extKey)}"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="pass" value="${esc(x.pass)}"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  xcard.appendChild(listTable(xcols, r.externalSources, xrow, () => { r.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); renderTab(); }, "Add external source"));
+  xcard.appendChild(listTable(xcols, r.externalSources, xrow, () => { r.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); renderTab(); }, "Add external source"));
   body.appendChild(xcard); bindInputs(xcard, r.externalSources);
 }
 function tabStyle(body, r) {
@@ -2952,7 +2951,8 @@ function reportPreviewCols(r) {
 }
 function renderPaper(host, r) {
   const cols = reportPreviewCols(r);
-  const rows = synthRows(cols, r.mainEntity).map(row => { cols.forEach(c => { if (c.masked) row[c.key] = "•••••"; }); return row; });
+  const rows = previewRows(cols, r.mainEntity).map(row => { cols.forEach(c => { if (c.masked) row[c.key] = "•••••"; }); return row; });
+  if (!rows.length) { host.innerHTML = previewPlaceholder(cols, r.mainEntity); return; }
   const L = r.layout;
   const langs = r.languages || ["en"];
   const lang = r._previewLang || r.primaryLang || "en";
@@ -2986,7 +2986,7 @@ function renderPaper(host, r) {
 function runExport(format, r) {
   if (format === "CSV") {
     const cols = reportPreviewCols(r);
-    const rows = synthRows(cols, r.mainEntity);
+    const rows = previewRows(cols, r.mainEntity);
     const header = cols.map(c=>`"${c.name}"`).join(",");
     const lines = rows.map(row => cols.map(c=>{ let v = c.masked?"•••••":row[c.key]; return `"${v}"`; }).join(",")).join("\n");
     const blob = new Blob([header+"\n"+lines], {type:"text/csv"});
@@ -3122,9 +3122,11 @@ function dsPanel(r) {
     <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
     <button class="btn sm" id="md_addext">${ic("add")}Add external source</button>`;
   $("#md_ds").onchange = e => {
-    const ds = DATASOURCES.find(x=>x.name===e.target.value);
+    const ds = dataSourceCatalog.get().find(x=>x.name===e.target.value);
     r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
-    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; if (entityRecord(ds.entity)) { r.mainEntity = ds.entity; r._dsExpanded = {}; } }
+    // The stored source carries its name and type; its entity lives on the mapping rows, so the
+    // main entity stays whatever the picker beside this one says.
+    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; }
     else r.dataSources[0].name = "";
     dsPanel(r);
   };
@@ -3138,12 +3140,12 @@ function dsPanel(r) {
     it.addEventListener("click", () => addFieldByClick(r, fdata()));
   });
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { r.externalSources.splice(+b.dataset.xdel,1); dsPanel(r); });
-  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
+  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
 }
 function renderCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const H = D.header, F = D.footer; const sel = r._sel || {};
   const fieldSel = (tid, ci) => (sel.t==="field" && sel.tid===tid && sel.ci===ci) ? " sel" : "";
-  const hdrRow = t => synthRows(t.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity)[0] || {};
+  const hdrRow = t => previewRows(t.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity)[0] || {};
   const align = c => (c.align||(["Currency","Decimal","Whole number"].includes(c.type)?"Right":"Left"));
   const fieldBox = (t, c, ci, row) => {
     if (c.placeholder) return `<div class="cv-slot${fieldSel(t.id,ci)}" data-slot="${t.id}" data-ci="${ci}" data-selfield="${t.id}"><span>${esc(c.label||"Field")}</span><span class="cv-slot-hint">drop field here</span></div>`;
@@ -3157,7 +3159,7 @@ function renderCanvas(r) {
   const secTag = (t, idx) => `<div class="cv-sectag${(sel.t==="section"&&sel.tid===t.id)?" sel":""}" data-selsec="${t.id}"><span>${t.role==="master"?"HEADER / MASTER":"DETAIL"} · ${esc(t.name)}${t.role==="child"?` <span style="opacity:.7">↳ ${esc((D.tables.find(x=>x.id===t.parentId)||{}).name||"unlinked")}</span>`:""}</span><span class="cv-secbtns"><button data-taddcol="${t.id}" title="Add field placeholder">+ field</button><button data-tmv="${idx}" data-dir="-1" ${idx===0?"disabled":""} title="Up">▲</button><button data-tmv="${idx}" data-dir="1" ${idx===D.tables.length-1?"disabled":""} title="Down">▼</button><button data-tdel="${t.id}" title="Delete section">✕</button></span></div>`;
   const sectionGroupData = (t) => {
     const filled = t.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type}));
-    const rows = synthRows(filled, t.entity||r.mainEntity);
+    const rows = previewRows(filled, t.entity||r.mainEntity);
     const valCol = filled.find(c=>["Currency","Decimal","Whole number"].includes(c.type));
     let catCol = null, best = Infinity;
     filled.filter(c=>["Text","Option set","Lookup"].includes(c.type)).forEach(c => { const dc=new Set(rows.map(x=>x[c.key])).size; const b=(c.type==="Option set"||c.type==="Lookup")?0.5:1; if (dc>1 && dc<rows.length && dc*b<best) { best=dc*b; catCol=c; } });
@@ -3190,7 +3192,7 @@ function renderCanvas(r) {
       return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}${body}</div>`;
     }
     const filled = t.columns.filter(c=>!c.placeholder);
-    const rows = synthRows(filled.map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity).slice(0,3);
+    const rows = previewRows(filled.map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity).slice(0,3);
     const th = t.columns.map((c,ci)=> c.placeholder ? `<th class="cv-slot" data-slot="${t.id}" data-ci="${ci}" data-selcol="${t.id}" style="min-width:74px">drop field</th>` : `<th class="cv-col${(sel.t==="col"&&sel.tid===t.id&&sel.ci===ci)?" sel":""}" data-selcol="${t.id}" data-ci="${ci}" style="text-align:${align(c).toLowerCase()}">${esc(c.label||c.name)}</th>`).join("");
     const vc = filled.find(c=>["Currency","Decimal","Whole number"].includes(c.type));
     const tot = t.showTotals && vc ? (() => { const sub=rows.reduce((s,rw)=>s+(+rw[vc.attr]||0),0), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12px"><tr><td style="padding:1px 12px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:1px 12px;color:#605e5c">Tax</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:3px 12px;border-top:1px solid var(--ac)">Total</td><td style="text-align:right;border-top:1px solid var(--ac)">${money(sub+tax)}</td></tr></table></div>`; })() : "";
@@ -3198,7 +3200,7 @@ function renderCanvas(r) {
     return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}${body}</div>`;
   };
   const mode = r._renderMode || "report";
-  const kpiHtml = (mode!=="report") ? (() => { const mt = D.tables.find(t=>t.columns.some(c=>!c.placeholder)); if(!mt)return ""; const cc = mt.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type})); return kpiTiles(cc, synthRows(cc, mt.entity||r.mainEntity)); })() : "";
+  const kpiHtml = (mode!=="report") ? (() => { const mt = D.tables.find(t=>t.columns.some(c=>!c.placeholder)); if(!mt)return ""; const cc = mt.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type})); return kpiTiles(cc, previewRows(cc, mt.entity||r.mainEntity)); })() : "";
   host.innerHTML = `<div style="max-width:820px;margin:0 auto">${renderModeTabs(mode)}</div><div class="report-paper ${mode!=="report"?"render-"+mode:""}" style="${themeStyle(r.theme)};max-width:820px;margin:0 auto">
     ${H.show?`<div class="rp-head cv-el${sel.t==="header"?" sel":""}" data-sel="header"><div style="display:flex;gap:12px;align-items:center">${H.logo?logoBox(H.logoData):""}<div><div class="rp-title">${esc(H.title||"Report title")}</div><div style="font-size:11px;color:#605e5c">${esc(H.subtitle||"")}</div></div></div><div class="rp-meta">${H.showDate?"16/07/2026<br>":""}${H.showBy?"By "+esc(r.owner):""}</div></div>`:""}
     ${kpiHtml}
@@ -3459,7 +3461,7 @@ function wizDataCanvas(host, d) {
   canvas.querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>{ d.joins.splice(+b.dataset.jdel,1); d._pos={}; wizDataCanvas(host,d); });
   canvas.querySelectorAll("[data-xdel]").forEach(b=>b.onclick=()=>{ d.externalSources.splice(+b.dataset.xdel,1); d._pos={}; wizDataCanvas(host,d); });
   $("#cv_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataCanvas(host,d); };
-  $("#cv_addext").onclick = () => { d.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
+  $("#cv_addext").onclick = () => { d.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
   redraw();
 }
 function wizDataForm(host, d) {
@@ -3473,7 +3475,7 @@ function wizDataForm(host, d) {
   const extCards = d.externalSources.length ? d.externalSources.map((x,i)=>`<div class="ext-src">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b style="font-size:13px">${esc(x.connector||"Select a system")}</b><button class="del" data-xdel="${i}">${ic("trash")}</button></div>
       <div class="field-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
-        <div class="field"><label class="lbl">System (connector)</label><select class="fluent-select" data-xi="${i}" data-xk="connector">${opts(CONNECTORS.map(c=>c.name), x.connector||CONNECTORS[0].name)}</select></div>
+        <div class="field"><label class="lbl">System (connector)</label><select class="fluent-select" data-xi="${i}" data-xk="connector">${opts(["", ...connectorCatalog.get().map(c=>c.name)], x.connector)}</select></div>
         <div class="field"><label class="lbl">Operation</label><input class="fluent-input" data-xi="${i}" data-xk="operation" value="${esc(x.operation)}" placeholder="GET /balances:batch"></div>
         <div class="field"><label class="lbl">Direction</label><select class="fluent-select" data-xi="${i}" data-xk="direction">${opts(["CRM → Source","Source → CRM","Both ways"], x.direction)}</select></div>
         <div class="field"><label class="lbl">Match: CRM field</label><input class="fluent-input" data-xi="${i}" data-xk="crmKey" value="${esc(x.crmKey)}" placeholder="qdb_customernumber"></div>
@@ -3503,8 +3505,8 @@ function wizDataForm(host, d) {
       <button class="btn sm btn-add" id="wz_addext">${ic("add")}Add external source</button></div>`;
 
   $("#wz_ds").onchange = (e) => {
-    const ds = DATASOURCES.find(x=>x.name===e.target.value);
-    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; if (entityRecord(ds.entity) && ds.entity !== d.mainEntity) { d.mainEntity = ds.entity; d.columns = []; } }
+    const ds = dataSourceCatalog.get().find(x=>x.name===e.target.value);
+    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; }
     else d.dataSourceName = "";
     wizDataForm(host,d);
   };
@@ -3516,7 +3518,7 @@ function wizDataForm(host, d) {
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
   $("#wz_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
-  $("#wz_addext").onclick = () => { d.externalSources.push({connector:CONNECTORS[0].name,operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
+  $("#wz_addext").onclick = () => { d.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
 }
 function wizColumns(host, d) {
   d._colView = d._colView || "list";
@@ -3644,53 +3646,76 @@ function wizLayout(host, d) {
   renderMiniPreview($("#wz_preview"), d);
 }
 /* Synthesize type-appropriate sample rows for any entity + column set */
-function synthRows(cols, entity) {
-  const branches = ["Doha Main","Al Sadd","West Bay"], statuses = ["Active","Pending","Approved"], words = ["Alpha","Bravo","Charlie","Delta","Echo","Foxtrot"];
-  const names = ["Ahmed Al-Thani","Fatima Hassan","QNB Corp","Doha Trading","Gulf Holding","Sara Malik","Al Rayyan LLC","Khalid Nasser","Mariam Ali"];
-  const amounts = [1500000,850000,2200000,640000,1750000,980000,3100000,520000,1280000];
-  const stages = ["Submitted","Under Review","Credit Check","Approval","Disbursed","Closed"];
-  const actions = ["Created","Reassigned","Approved","Escalated","Returned","Completed"];
-  const wfStatus = ["Draft","Pending","Approved","Rejected","On Hold"];
-  const slaStatus = ["Met","Breached","At Risk"];
-  const policies = ["Standard 48h","Priority 24h","Critical 8h","Regulatory 72h"];
-  const isWorkflow = entity === "qdb_processhistory", isSla = entity === "qdb_slatracking";
-  const prefix = (entity||"RE").replace("qdb_","").slice(0,2).toUpperCase();
-  const domainValue = (label, i) => {
-    if (isSla) {
-      if (label.includes("status")) return slaStatus[i%slaStatus.length];
-      if (label.includes("policy")||label.includes("sla")) return policies[i%policies.length];
-      if (label.includes("owner")||label.includes("assigned")||label.includes("team")) return names[i%names.length];
-    }
-    if (isWorkflow) {
-      if (label.includes("stage")||label.includes("step")) return stages[i%stages.length];
-      if (label.includes("action")||label.includes("activity")) return actions[i%actions.length];
-      if (label.includes("to status")||label.startsWith("to ")) return wfStatus[(i+1)%wfStatus.length];
-      if (label.includes("from")||label.includes("status")) return wfStatus[i%wfStatus.length];
-      if (label.includes("by")||label.includes("actor")||label.includes("performed")||label.includes("user")) return names[i%names.length];
-    }
-    return null;
-  };
-  const rows = [];
-  for (let i=0;i<9;i++) {
-    const row = {};
-    cols.forEach(c => {
-      const label = c.name.toLowerCase();
-      const domain = domainValue(label, i);
-      if (domain != null) row[c.key] = domain;
-      else if (c.type==="Currency") row[c.key] = amounts[i%9];
-      else if (c.type==="Decimal") row[c.key] = [1.25,3.50,2.10,4.80,0.95][i%5];
-      else if (c.type==="Whole number") row[c.key] = (isSla ? [24,48,8,72,36][i%5] : [12,24,36,18,60][i%5]);
-      else if (c.type==="Date/Time") row[c.key] = "2026-06-"+String((i%27)+1).padStart(2,"0");
-      else if (c.type==="Option set") row[c.key] = statuses[i%3];
-      else if (c.type==="Lookup") row[c.key] = branches[i%3];
-      else if (label.includes("branch")) row[c.key] = branches[i%3];
-      else if (label.includes("no")||label.includes("number")) row[c.key] = prefix+"-"+(24001+i);
-      else if (label.includes("name")) row[c.key] = names[i%names.length];
-      else row[c.key] = words[i%words.length]+" "+(i+1);
-    });
-    rows.push(row);
+/* ---------- Preview rows ----------
+   Every preview surface — the paper preview, the banded designer, KPI tiles, charts and dashboard
+   tiles — used to render invented rows: Doha Main, QNB Corp, amounts down a fixed list. It looked
+   convincing and told the user nothing, because the numbers had no relationship to their data.
+
+   These read the org instead: a small FetchXML over the entity the draft is built on, top 10 rows,
+   just the selected columns. Formatted values are preferred so a choice shows its label and a
+   currency shows its symbol, exactly as the report will render it.
+
+   Synchronous, for the same reason the metadata accessors are: the render path cannot await. A miss
+   starts the query and returns nothing, and the fetch re-renders when it lands. */
+
+const PREVIEW_ROW_LIMIT = 10;
+const previewData = { byKey: {}, pending: {} };
+
+const previewKey = (entity, cols) => entity + "|" + cols.map(c => c.key).join(",");
+
+function previewRows(cols, entity) {
+  const usable = (cols || []).filter(c => c && c.key);
+  if (!entity || !usable.length) return [];
+  const key = previewKey(entity, usable);
+  if (!previewData.byKey[key]) { loadPreviewRows(key, entity, usable); return []; }
+  return previewData.byKey[key];
+}
+
+async function loadPreviewRows(key, entity, cols) {
+  if (previewData.pending[key]) return;
+  previewData.pending[key] = true;
+  try {
+    const rows = await dvList(entity, "?fetchXml=" + encodeURIComponent(previewFetchXml(entity, cols)));
+    previewData.byKey[key] = rows.map(row => toPreviewRow(row, cols));
+  } catch (error) {
+    // An entity the user cannot read, or a column that no longer exists: an empty preview is the
+    // honest answer. It must not fall back to invented rows.
+    previewData.byKey[key] = [];
   }
-  return rows;
+  delete previewData.pending[key];
+  render();
+}
+
+function previewFetchXml(entity, cols) {
+  const attributes = [...new Set(cols.map(c => c.key))]
+    .map(name => `<attribute name="${esc(name)}"/>`).join("");
+  return `<fetch top="${PREVIEW_ROW_LIMIT}"><entity name="${esc(entity)}">${attributes}</entity></fetch>`;
+}
+
+/** Keyed by attribute, because that is what every preview renderer looks the value up by. */
+function toPreviewRow(row, cols) {
+  const shaped = {};
+  for (const col of cols) {
+    const formatted = row[col.key + FORMATTED_SUFFIX];
+    shaped[col.key] = formatted !== undefined && formatted !== null ? formatted : row[col.key];
+  }
+  return shaped;
+}
+
+/** Whether a preview is still waiting on its query, so the UI can say so rather than look empty. */
+function previewIsLoading(cols, entity) {
+  const usable = (cols || []).filter(c => c && c.key);
+  if (!entity || !usable.length) return false;
+  return !previewData.byKey[previewKey(entity, usable)];
+}
+
+function previewPlaceholder(cols, entity) {
+  const message = !entity
+    ? "Pick a main entity to preview real rows from your data."
+    : previewIsLoading(cols, entity)
+      ? `Reading ${esc(entity)} from Dataverse…`
+      : `No rows returned from <span class="kbd">${esc(entity)}</span>. The preview shows your own data, so an empty table here means the query returned nothing or you cannot read that table.`;
+  return `<div class="section-card" style="max-width:940px"><div class="page-sub">${message}</div></div>`;
 }
 function draftPreviewCols(d) {
   const cat = attributesOf(d.mainEntity);
@@ -3741,7 +3766,7 @@ function buildHeaderDetailBody(hCols, hRow, details, lang) {
   const header = `<div style="font-weight:700;color:var(--acd);border-bottom:2px solid var(--ac);padding-bottom:6px;margin-bottom:10px">Header record</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 20px;margin-bottom:16px">${hCols.map(fieldBox).join("")}</div>`;
   const tables = (details||[]).filter(dt=>dt.columns.length).map(dt=>{
     const cols = dt.columns.map(c=>({name:c.name, key:c.attr, type:c.type, right:["Currency","Decimal","Whole number"].includes(c.type)}));
-    const rows = synthRows(cols, dt.entity).slice(0,4);
+    const rows = previewRows(cols, dt.entity).slice(0,4);
     const vc = cols.find(c=>c.right); const sub = vc?rows.reduce((s,r)=>s+(+r[vc.key]||0),0):0, tax = Math.round(sub*0.1);
     const totals = dt.showTotals && vc ? `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12.5px"><tr><td style="padding:2px 14px;color:#605e5c">${T("Subtotal")}</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:2px 14px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid var(--ac)">${T("Total")}</td><td style="text-align:right;border-top:2px solid var(--ac)">${money(sub+tax)}</td></tr></table></div>` : "";
     return `<div style="margin-bottom:16px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">${esc(T(dt.label))} (detail)</div><table class="rp-table"><thead><tr>${cols.map(c=>`<th class="${c.right?"num":""}">${esc(T(c.name))}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.right?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join("")}</tbody></table>${totals}</div>`;
@@ -3751,7 +3776,10 @@ function buildHeaderDetailBody(hCols, hRow, details, lang) {
 function renderMiniPreview(host, d) {
   const cols = draftPreviewCols(d);
   if (!cols.length) { host.innerHTML = `<div class="section-card" style="max-width:940px"><div class="page-sub">Go back and select columns to see a preview.</div></div>`; return; }
-  const rows = synthRows(cols, d.mainEntity);
+  const rows = previewRows(cols, d.mainEntity);
+  // The preview reads the org, so an empty one means something — say which, rather than drawing an
+  // empty chart that reads as a rendering fault.
+  if (!rows.length) { host.innerHTML = previewPlaceholder(cols, d.mainEntity); return; }
   const lang = d.previewLang || d.primaryLang || "en";
   const meta = d.colMeta || {};
   const hCols = cols.map(c => ({ ...c, label:(meta[c.key]&&meta[c.key].label)||c.name, labelPos:(meta[c.key]&&meta[c.key].labelPos)||"left" }));
@@ -4242,78 +4270,178 @@ function openVersionPanel() {
 }
 
 /* ============================ SIMPLE LIST VIEWS ============================ */
-function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel) {
-  const cmd = el(`<div class="cmdbar"><button class="cmd primary" id="slNew">${ic("add")}${esc(newLabel||"New")}</button><button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
+/* `catalog` is the Dataverse list behind the view, so Refresh re-reads the org instead of toasting.
+   A view with no `entityKey` shows no New button: execution and audit logs are written by the
+   engine, and a data source only exists as part of a report, so there is nothing to create by hand. */
+function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog) {
+  const newButton = entityKey
+    ? `<button class="cmd primary" id="slNew">${ic("add")}${esc(newLabel || "New")}</button>`
+    : "";
+  const cmd = el(`<div class="cmdbar">${newButton}<button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
   const scroll = el(`<div class="scroll"><div class="page"><div class="page-head"><div><h1>${esc(title)}</h1><div class="page-sub">${sub}</div></div></div><div class="grid-wrap">${tableHtml}</div></div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
-  $("#slNew").onclick = () => entityKey ? openEntityForm(entityKey) : toast("Opens the new-record form","info");
-  $("#slRefresh").onclick = () => toast("Refreshed","info");
+  if (entityKey) $("#slNew").onclick = () => openEntityForm(entityKey);
+  $("#slRefresh").onclick = () => catalog ? catalog.refresh() : render();
   $("#slExport").onclick = () => toast("View exported to CSV");
 }
-/* Mutable data for the configuration / monitoring views (so New actually adds a row) */
-let DATASOURCES = [
-  { name:"Loan Applications (FetchXML)", type:"FetchXML", entity:"qdb_loanapplication", connector:"(CRM native)", status:"Active" },
-  { name:"Accounts view", type:"CRM View", entity:"account", connector:"(CRM native)", status:"Active" },
-  { name:"Core Banking balances", type:"Core Banking API", entity:"—", connector:"Core Banking API", status:"Active" },
-  { name:"Risk exposures (SQL)", type:"SQL", entity:"—", connector:"Risk SQL DB", status:"Active" },
-  { name:"MIS branch KPIs", type:"MIS API", entity:"—", connector:"MIS API", status:"Inactive" }
-];
-let CONNECTORS = [
-  { name:"Core Banking API", type:"Core Banking", url:"https://cbs.internal/api", auth:"OAuth2", secret:"kv:cbs-client-secret", status:"Active" },
-  { name:"MIS API", type:"MIS", url:"https://mis.internal/v2", auth:"API key", secret:"kv:mis-api-key", status:"Active" },
-  { name:"Risk SQL DB", type:"SQL", url:"sql://risk-db;ReadOnly", auth:"Managed Identity", secret:"(managed identity)", status:"Active" },
-  { name:"Payments REST", type:"REST API", url:"https://pay.internal", auth:"Certificate", secret:"kv:pay-cert", status:"Inactive" }
-];
-let EXEC_LOGS = [
-  { cid:"3af9-1c2e", report:"Active Loan Applications by Branch", by:"Salman Sagar", on:"2026-07-15 11:58", source:"FetchXML", rows:"342", ms:"410", outcome:"Success", exp:"PDF" },
-  { cid:"7bd2-0a91", report:"Overdue Facilities Summary", by:"A. Rahman", on:"2026-07-15 09:12", source:"QueryExpression", rows:"1,204", ms:"2,180", outcome:"Success", exp:"Excel" },
-  { cid:"c1e8-44af", report:"Collateral Valuation vs Exposure", by:"M. Idris", on:"2026-07-15 08:40", source:"SQL + FetchXML", rows:"880", ms:"6,720", outcome:"Partial", exp:"—" },
-  { cid:"9f00-71bd", report:"Daily Disbursement Register", by:"Salman Sagar", on:"2026-07-14 18:02", source:"FetchXML", rows:"56", ms:"230", outcome:"Success", exp:"CSV" },
-  { cid:"2a55-e3c0", report:"Customer 360 Drilldown", by:"L. Haddad", on:"2026-07-14 15:20", source:"Web API", rows:"—", ms:"—", outcome:"Failed", exp:"—" }
-];
-let AUDIT_LOGS = [
-  { report:"Active Loan Applications by Branch", entity:"qdb_reportdefinition", action:"Publish", by:"Salman Sagar", on:"2026-07-14 10:22" },
-  { report:"Active Loan Applications by Branch", entity:"qdb_reportcolumn", action:"Update", by:"Salman Sagar", on:"2026-07-14 10:19" },
-  { report:"Overdue Facilities Summary", entity:"qdb_reportfilter", action:"Create", by:"A. Rahman", on:"2026-07-12 14:05" },
-  { report:"Daily Disbursement Register", entity:"qdb_reportsecurity", action:"Update", by:"Salman Sagar", on:"2026-07-08 16:41" },
-  { report:"Customer 360 Drilldown", entity:"qdb_reportdefinition", action:"Create", by:"L. Haddad", on:"2026-07-07 09:03" }
-];
+/* The configuration and monitoring views. Each had a literal array behind it — including connectors
+   listing Key Vault secret names for vaults that do not exist — and each has a real table. The
+   execution log matters most: it is the trail the plugin writes on every run, and a view that showed
+   invented runs instead of it was worse than no view at all. */
+
+const dataSourceCatalog = dataverseCatalog(
+  "qdb_reportdatasource",
+  "?$select=qdb_name,qdb_sourcetype,qdb_sourcealias,qdb_isprimary,qdb_executionorder,"
+  + "_qdb_reportdefinitionid_value,_qdb_externalconnectorid_value&$orderby=qdb_name",
+  row => ({
+    name: row.qdb_name,
+    type: formattedValue(row, "qdb_sourcetype"),
+    alias: row.qdb_sourcealias,
+    report: formattedValue(row, "_qdb_reportdefinitionid_value"),
+    connector: formattedValue(row, "_qdb_externalconnectorid_value") || "(CRM native)",
+    primary: !!row.qdb_isprimary
+  })
+);
+
+const connectorCatalog = dataverseCatalog(
+  "qdb_externalconnector",
+  "?$select=qdb_name,qdb_connectortype,qdb_endpointurl,qdb_authmode,qdb_credentialreference,"
+  + "qdb_isactive,qdb_residencyregion&$orderby=qdb_name",
+  row => ({
+    name: row.qdb_name,
+    type: formattedValue(row, "qdb_connectortype"),
+    url: row.qdb_endpointurl,
+    auth: formattedValue(row, "qdb_authmode"),
+    // The reference to the credential, never the credential. Blank means none is configured.
+    secret: row.qdb_credentialreference,
+    region: row.qdb_residencyregion,
+    status: row.qdb_isactive ? "Active" : "Inactive"
+  })
+);
+
+const executionLogCatalog = dataverseCatalog(
+  "qdb_reportexecutionlog",
+  "?$select=qdb_correlationid,qdb_startedon,qdb_completedon,qdb_durationms,qdb_rowcount,qdb_status,"
+  + "qdb_errorcode,qdb_resultsummary,qdb_executionstage,qdb_cachehit,_qdb_reportdefinitionid_value"
+  + "&$orderby=qdb_startedon desc",
+  row => ({
+    correlationId: row.qdb_correlationid,
+    report: formattedValue(row, "_qdb_reportdefinitionid_value"),
+    startedOn: formattedValue(row, "qdb_startedon"),
+    rows: row.qdb_rowcount,
+    durationMs: row.qdb_durationms,
+    stage: formattedValue(row, "qdb_executionstage"),
+    cacheHit: !!row.qdb_cachehit,
+    errorCode: row.qdb_errorcode,
+    summary: row.qdb_resultsummary,
+    userId: actingUserIdOf(row.qdb_resultsummary),
+    outcome: formattedValue(row, "qdb_status") || outcomeFromSummary(row.qdb_resultsummary)
+  })
+);
+
+const auditLogCatalog = dataverseCatalog(
+  "qdb_reportauditlog",
+  "?$select=qdb_name,qdb_actiontype,qdb_changedon,qdb_comment,_qdb_reportdefinitionid_value,"
+  + "_ownerid_value&$orderby=qdb_changedon desc",
+  row => ({
+    name: row.qdb_name,
+    report: formattedValue(row, "_qdb_reportdefinitionid_value"),
+    action: formattedValue(row, "qdb_actiontype"),
+    changedOn: formattedValue(row, "qdb_changedon"),
+    changedBy: formattedValue(row, "_ownerid_value"),
+    comment: row.qdb_comment
+  })
+);
+
+/* The log is written with the system identity so a user cannot suppress their own trail, which means
+   ownerid names the system, not the person who ran the report. Their id is in the summary. */
+const ACTING_USER_PATTERN = /user=([0-9a-f-]{36})/i;
+function actingUserIdOf(summary) {
+  const match = ACTING_USER_PATTERN.exec(summary || "");
+  return match ? match[1] : null;
+}
+function outcomeFromSummary(summary) {
+  return /outcome=success/i.test(summary || "") ? "Success" : (summary ? "Failed" : null);
+}
+
+/* Names for the ids found in those summaries, resolved once per set of logs so the audit view reads
+   as people rather than GUIDs. */
+const userNames = { byId: {}, pending: false };
+async function resolveUserNames(ids) {
+  const missing = [...new Set(ids.filter(id => id && !userNames.byId[id]))];
+  if (!missing.length || userNames.pending) return;
+  userNames.pending = true;
+  try {
+    const filter = missing.map(id => `systemuserid eq ${id}`).join(" or ");
+    for (const user of await dvList("systemuser", `?$select=systemuserid,fullname&$filter=${filter}`)) {
+      userNames.byId[user.systemuserid] = user.fullname;
+    }
+    for (const id of missing) userNames.byId[id] = userNames.byId[id] || "(unknown user)";
+  } catch (error) {
+    for (const id of missing) userNames.byId[id] = "(unresolved)";
+  }
+  userNames.pending = false;
+  render();
+}
 
 function datasourceOptions(selectedName) {
   return `<option value="">— Select a data source —</option>` +
-    DATASOURCES.filter(x=>x.status==="Active").map(x=>`<option value="${esc(x.name)}" ${selectedName===x.name?"selected":""}>${esc(x.name)} · ${esc(x.type)}${x.entity&&x.entity!=="—"?" · "+esc(x.entity):""}</option>`).join("");
+    dataSourceCatalog.get().map(x =>
+      `<option value="${esc(x.name)}" ${selectedName === x.name ? "selected" : ""}>${esc(x.name)}${x.type ? " · " + esc(x.type) : ""}${x.report ? " · " + esc(x.report) : ""}</option>`
+    ).join("");
 }
+/** Wraps a catalogue-backed table so an empty one explains itself instead of showing blank rows. */
+function catalogTable(catalog, headers, rowHtml, emptyMessage) {
+  const rows = catalog.get();
+  if (!rows.length) return `<div class="section-card">${catalogEmptyState(catalog, emptyMessage)}</div>`;
+  return `<table class="grid"><thead><tr>${headers.map(h => `<th${h.num ? ' class="num"' : ""}>${esc(h.label || h)}</th>`).join("")}</tr></thead>`
+    + `<tbody>${rows.map(rowHtml).join("")}</tbody></table>`;
+}
+
+const MONO = 'style="font-family:ui-monospace,Consolas,monospace;font-size:12px"';
+
 function dataSourcesView() {
-  return `<table class="grid"><thead><tr><th>Name</th><th>Type</th><th>Target entity</th><th>Connector</th><th>Status</th></tr></thead><tbody>${DATASOURCES.map(r=>`<tr><td class="link-cell">${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.entity)}</td><td>${esc(r.connector)}</td><td><span class="pill ${r.status==="Active"?"published":"draft"}">${esc(r.status)}</span></td></tr>`).join("")}</tbody></table>`;
+  return catalogTable(dataSourceCatalog,
+    ["Name", "Type", "Alias", "Report", "Connector", "Primary"],
+    r => `<tr><td class="link-cell">${cell(r.name)}</td><td>${cell(r.type)}</td><td>${cell(r.alias)}</td>
+      <td>${cell(r.report)}</td><td>${cell(r.connector)}</td><td>${r.primary ? ic("check") : "—"}</td></tr>`,
+    "No data sources yet — they are created as part of a report definition.");
 }
+
 function connectorsView() {
-  return `<table class="grid"><thead><tr><th>Name</th><th>Type</th><th>Base URL / connection</th><th>Auth</th><th>Secret reference</th><th>Status</th></tr></thead><tbody>${CONNECTORS.map(r=>`<tr><td class="link-cell">${esc(r.name)}</td><td>${esc(r.type)}</td><td style="font-family:ui-monospace,Consolas,monospace;font-size:12px">${esc(r.url)}</td><td>${esc(r.auth)}</td><td><span class="kbd">${esc(r.secret)}</span></td><td><span class="pill ${r.status==="Active"?"published":"draft"}">${esc(r.status)}</span></td></tr>`).join("")}</tbody></table>`;
+  return catalogTable(connectorCatalog,
+    ["Name", "Type", "Endpoint", "Auth", "Credential reference", "Region", "Status"],
+    r => `<tr><td class="link-cell">${cell(r.name)}</td><td>${cell(r.type)}</td>
+      <td ${MONO}>${cell(r.url)}</td><td>${cell(r.auth)}</td>
+      <td>${r.secret ? `<span class="kbd">${esc(r.secret)}</span>` : "—"}</td><td>${cell(r.region)}</td>
+      <td><span class="pill ${r.status === "Active" ? "published" : "draft"}">${esc(r.status)}</span></td></tr>`,
+    "No external connectors configured in this environment.");
 }
+
 function logsView() {
-  return `<table class="grid"><thead><tr><th>Correlation ID</th><th>Report</th><th>Run by</th><th>Run on</th><th>Source</th><th class="num">Rows</th><th class="num">ms</th><th>Outcome</th><th>Export</th></tr></thead><tbody>${EXEC_LOGS.map(r=>`<tr><td style="font-family:ui-monospace,Consolas,monospace;font-size:12px" class="link-cell">${esc(r.cid)}</td><td>${esc(r.report)}</td><td>${esc(r.by)}</td><td>${esc(r.on)}</td><td>${esc(r.source)}</td><td class="num">${esc(r.rows)}</td><td class="num">${esc(r.ms)}</td><td><span class="pill ${r.outcome.toLowerCase()}">${esc(r.outcome)}</span></td><td>${esc(r.exp)}</td></tr>`).join("")}</tbody></table>`;
+  const logs = executionLogCatalog.get();
+  resolveUserNames(logs.map(l => l.userId));
+  return catalogTable(executionLogCatalog,
+    ["Started", "Report", "Run by", { label: "Rows", num: true }, { label: "ms", num: true }, "Stage", "Cache", "Outcome", "Correlation ID"],
+    r => `<tr><td>${cell(r.startedOn)}</td><td>${cell(r.report)}</td>
+      <td>${cell(r.userId ? (userNames.byId[r.userId] || "resolving…") : null)}</td>
+      <td class="num">${cell(r.rows)}</td><td class="num">${cell(r.durationMs)}</td>
+      <td>${cell(r.stage)}</td><td>${r.cacheHit ? ic("check") : "—"}</td>
+      <td><span class="pill ${String(r.outcome || "").toLowerCase()}">${cell(r.outcome)}</span>${r.errorCode ? ` <span class="kbd">${esc(r.errorCode)}</span>` : ""}</td>
+      <td class="link-cell" ${MONO}>${cell(r.correlationId)}</td></tr>`,
+    "No report runs recorded yet.");
 }
+
 function auditView() {
-  return `<table class="grid"><thead><tr><th>Report</th><th>Entity affected</th><th>Action</th><th>Changed by</th><th>Changed on</th></tr></thead><tbody>${AUDIT_LOGS.map(r=>`<tr><td>${esc(r.report)}</td><td><span class="kbd">${esc(r.entity)}</span></td><td>${esc(r.action)}</td><td>${esc(r.by)}</td><td>${esc(r.on)}</td></tr>`).join("")}</tbody></table>`;
+  return catalogTable(auditLogCatalog,
+    ["Report", "Action", "Changed by", "Changed on", "Comment"],
+    r => `<tr><td>${cell(r.report || r.name)}</td><td>${cell(r.action)}</td><td>${cell(r.changedBy)}</td>
+      <td>${cell(r.changedOn)}</td><td>${cell(r.comment)}</td></tr>`,
+    "No configuration changes recorded yet.");
 }
 
 /* ---------------- Create-record forms (New button) ---------------- */
 const FORM_SPECS = {
-  datasource: {
-    title:"New Data Source", table:"qdb_reportdatasource", saveLabel:"Save",
-    fields:[
-      { key:"name", label:"Name", required:true, placeholder:"e.g. Loan Applications (FetchXML)", full:true },
-      { key:"type", label:"Source type", type:"select", options:SOURCE_TYPES, value:"FetchXML", required:true },
-      { key:"connector", label:"Connector", type:"select", options:["(CRM native)","Core Banking API","MIS API","Risk SQL DB","Payments REST"], value:"(CRM native)" },
-      { key:"entity", label:"Target entity", placeholder:"e.g. qdb_loanapplication" },
-      { key:"seq", label:"Sequence", type:"number", value:"1" },
-      { key:"query", label:"Query text", type:"textarea", placeholder:"FetchXML / OData / SQL…", full:true },
-      { key:"joinL", label:"Join key (left)", placeholder:"— for multi-source combine" },
-      { key:"joinR", label:"Join key (right)", placeholder:"—" },
-      { key:"primary", label:"Primary source", type:"toggle", toggleLabel:"Primary dataset", value:false },
-      { key:"static", label:"Static dataset (JSON)", type:"textarea", placeholder:"[ { … } ] — test data only", full:true }
-    ],
-    onSave:(v)=>{ DATASOURCES.unshift({ name:v.name, type:v.type, entity:v.entity||"—", connector:v.connector, status:"Active" }); render(); toast("Data source created"); }
-  },
   connector: {
     title:"New External Connector", table:"qdb_externalconnector", saveLabel:"Save",
     banner:"Secrets are stored as <b>Key Vault references</b> — enter the secret <em>name</em>, never the secret value itself (condition C-9).",
@@ -4327,43 +4455,35 @@ const FORM_SPECS = {
       { key:"region", label:"Residency region", placeholder:"e.g. Qatar Central" },
       { key:"active", label:"Active", type:"toggle", toggleLabel:"Active", value:true }
     ],
-    onSave:(v)=>{ CONNECTORS.unshift({ name:v.name, type:v.type, url:v.url||"—", auth:v.auth, secret:v.secret||"—", status:v.active?"Active":"Inactive" }); render(); toast("Connector created"); }
+    onSave: createConnector
   },
-  executionlog: {
-    title:"Execution Log Entry", table:"qdb_reportexecutionlog", saveLabel:"Create (simulate)",
-    banner:"Execution logs are written <b>automatically by the engine</b> on every run — this form shows the fields it captures. The Correlation ID is the alternate key (BR-11).",
-    fields:[
-      { key:"cid", label:"Correlation ID", required:true, placeholder:"auto-generated GUID" },
-      { key:"report", label:"Report", type:"select", options:reportCatalog.get().map(r=>r.name), value:"" },
-      { key:"version", label:"Version", type:"number", value:"1" },
-      { key:"by", label:"Run by", value:"Salman Sagar" },
-      { key:"on", label:"Run on", value:"2026-07-15 12:00" },
-      { key:"source", label:"Source(s)", placeholder:"e.g. FetchXML" },
-      { key:"rows", label:"Row count", type:"number", value:"0" },
-      { key:"ms", label:"Duration (ms)", type:"number", value:"0" },
-      { key:"outcome", label:"Outcome", type:"select", options:["Success","Partial","Failed"], value:"Success" },
-      { key:"exp", label:"Export format", type:"select", options:["—","PDF","Excel","CSV","Word","Image (PNG)"], value:"—" },
-      { key:"params", label:"Parameters (JSON)", type:"textarea", placeholder:'{ "branchId": "…" }', full:true },
-      { key:"error", label:"Error (if failed)", type:"textarea", placeholder:"—", full:true }
-    ],
-    onSave:(v)=>{ EXEC_LOGS.unshift({ cid:v.cid, report:v.report, by:v.by, on:v.on, source:v.source||"—", rows:v.rows||"—", ms:v.ms||"—", outcome:v.outcome, exp:v.exp }); render(); toast("Execution log entry added (simulated)","info"); }
-  },
-  auditlog: {
-    title:"Audit Log Entry", table:"qdb_reportauditlog", saveLabel:"Create (simulate)",
-    banner:"The audit log is <b>append-only</b> and written by the platform — no update or delete is ever permitted (BR-4). This form shows the captured fields.",
-    fields:[
-      { key:"report", label:"Report", type:"select", options:reportCatalog.get().map(r=>r.name), value:"" },
-      { key:"entity", label:"Entity affected", type:"select", options:["qdb_reportdefinition","qdb_reportcolumn","qdb_reportfilter","qdb_reportparameter","qdb_reportsecurity","qdb_reportlayout","qdb_reportexportsetting"], value:"qdb_reportdefinition" },
-      { key:"ref", label:"Record reference", placeholder:"affected row id" },
-      { key:"action", label:"Action", type:"select", options:["Create","Update","Delete","Publish","Unpublish","Clone","Approve","Reject"], value:"Update" },
-      { key:"by", label:"Changed by", value:"Salman Sagar" },
-      { key:"on", label:"Changed on", value:"2026-07-15 12:00" },
-      { key:"cid", label:"Correlation ID", placeholder:"ties to session / execution" },
-      { key:"oldv", label:"Old value (JSON)", type:"textarea", placeholder:"{ }", full:true },
-      { key:"newv", label:"New value (JSON)", type:"textarea", placeholder:"{ }", full:true }
-    ],
-    onSave:(v)=>{ AUDIT_LOGS.unshift({ report:v.report, entity:v.entity, action:v.action, by:v.by, on:v.on }); render(); toast("Audit entry appended (simulated)","info"); }
+};
+
+/* Writes a real qdb_externalconnector. The form used to unshift a row into an array, so a connector
+   "created" here vanished on refresh and could never be referenced by a report. */
+async function createConnector(values) {
+  try {
+    await dvCreate("qdb_externalconnector", defined({
+      qdb_name: values.name,
+      qdb_connectortype: choiceCode("qdb_externalconnector", "qdb_connectortype", values.type),
+      qdb_authmode: choiceCode("qdb_externalconnector", "qdb_authmode", values.auth),
+      qdb_endpointurl: values.url || null,
+      // The reference to a secret, not a secret. Never store the value itself (condition C-9).
+      qdb_credentialreference: values.secret || null,
+      qdb_timeoutseconds: values.timeout ? Number(values.timeout) : null,
+      qdb_residencyregion: values.region || null,
+      qdb_isactive: !!values.active
+    }));
+    toast("Connector created in Dataverse", "ok");
+    connectorCatalog.refresh();
+  } catch (error) {
+    toast("Couldn't create the connector — " + error.message, "err");
   }
+}
+
+const choiceCode = (entity, attribute, label) => {
+  const match = optionSetOf(entity, attribute).find(o => o.label === label);
+  return match ? match.value : null;
 };
 function fieldHtml(f) {
   const span = f.full ? " col-2" : "";
@@ -4398,9 +4518,24 @@ function openEntityForm(entityKey) {
     close(); spec.onSave(values);
   };
 }
+/* Counted from the reports themselves rather than listed, so a category with no reports in it does
+   not claim to have any. Every choice in the option set appears, including the empty ones. */
 function categoriesView() {
-  const cats = [["Operational",1],["Regulatory",2],["Financial",1],["Management",1]];
-  return `<table class="grid"><thead><tr><th>Category</th><th class="num">Reports</th></tr></thead><tbody>${cats.map(c=>`<tr><td class="link-cell">${c[0]}</td><td class="num">${c[1]}</td></tr>`).join("")}</tbody></table>`;
+  const reports = reportCatalog.get();
+  const counts = new Map(reportChoiceLabels("qdb_category").map(label => [label, 0]));
+  let uncategorised = 0;
+  for (const report of reports) {
+    if (!report.category) { uncategorised++; continue; }
+    counts.set(report.category, (counts.get(report.category) || 0) + 1);
+  }
+  const rows = [...counts.entries()];
+  if (uncategorised) rows.push(["(no category)", uncategorised]);
+  if (!rows.length) {
+    return `<div class="section-card">${catalogEmptyState(reportCatalog, "No reports to categorise yet.")}</div>`;
+  }
+  return `<table class="grid"><thead><tr><th>Category</th><th class="num">Reports</th></tr></thead><tbody>${
+    rows.map(([label, count]) => `<tr><td class="link-cell">${esc(label)}</td><td class="num">${count}</td></tr>`).join("")
+  }</tbody></table>`;
 }
 function exportViewCsv(list) {
   const header = "Name,Category,Module,Owner,Status,Version,Modified";
@@ -4435,8 +4570,27 @@ const WIDGET_DEFAULTS = {
   matrix:    { title:"Breakdown",       entity:"qdb_loanapplication" },
   table:     { title:"Records",         entity:"qdb_loanapplication" }
 };
-function dashEntityCols(entity) { return attributesOf(entity).map(c=>({ name:c.n, key:c.a, type:c.t })); }
-function dashRows(tile) { return synthRows(dashEntityCols(tile.entity), tile.entity); }
+/* A real table has hundreds of attributes, so a tile asks for the ones it is bound to plus a few for
+   the table widget to show — not every column in the entity, which would be an unreadable tile and a
+   needlessly wide query. */
+const DASH_TILE_COLUMN_LIMIT = 8;
+
+function dashEntityCols(entity) {
+  return attributesOf(entity).slice(0, DASH_TILE_COLUMN_LIMIT).map(c => ({ name:c.n, key:c.a, type:c.t }));
+}
+
+/** The tile's own bindings always come back, even if they fall outside the display slice. */
+function dashTileCols(tile) {
+  const bound = [tile.groupBy, tile.measure].filter(Boolean);
+  const extra = attributesOf(tile.entity)
+    .filter(c => bound.includes(c.a))
+    .map(c => ({ name:c.n, key:c.a, type:c.t }));
+  const shown = dashEntityCols(tile.entity);
+  const seen = new Set(shown.map(c => c.key));
+  return shown.concat(extra.filter(c => !seen.has(c.key)));
+}
+
+function dashRows(tile) { return previewRows(dashTileCols(tile), tile.entity); }
 function defaultBind(entity) {
   const cols = attributesOf(entity);
   const groupBy = (cols.find(c=>["Option set","Lookup"].includes(c.t)) || cols.find(c=>c.t==="Text") || cols[0] || {}).a || "";
@@ -4542,328 +4696,21 @@ function renderWidget(tile) {
   }
   return "";
 }
-function sampleDashboard() {
-  const w = (o) => Object.assign({ agg:"Sum", chartType:"Column", cardIcon:"money", badgeText:"", badgeLevel:"" }, o);
-  return { id:"d1", title:"Customer 360 Dashboard", owner:"Salman Sagar", modified:"2026-07-18", _seq:12, _sel:null, _preview:false, sections:[
-    { id:"s1", title:"Key indicators", cols:4, widgets:[
-      w({ id:"w1", title:"Total Requested",     widget:"metric", entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"qdb_requestedamount" }),
-      w({ id:"w2", title:"Applications",         widget:"metric", entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"", agg:"Count" }),
-      w({ id:"w3", title:"Branch Concentration", widget:"gauge",  entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"qdb_requestedamount" }),
-      w({ id:"w4", title:"Distress Risk",        widget:"badge",  entity:"qdb_loanapplication", groupBy:"statuscode", measure:"qdb_requestedamount", badgeText:"Possible Distress", badgeLevel:"high" })
-    ]},
-    { id:"s2", title:"Portfolio breakdown", cols:3, widgets:[
-      w({ id:"w5", title:"Amount by Branch",     widget:"chart",     entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"qdb_requestedamount", chartType:"Donut" }),
-      w({ id:"w6", title:"By Status",            widget:"infocards", entity:"qdb_loanapplication", groupBy:"statuscode", measure:"qdb_requestedamount", cardIcon:"money" }),
-      w({ id:"w7", title:"Facility Utilization", widget:"progress",  entity:"qdb_facility", groupBy:"qdb_status", measure:"qdb_outstanding" })
-    ]},
-    { id:"s3", title:"Customer & coverage", cols:3, widgets:[
-      w({ id:"w8", title:"Customer Profile",  widget:"profile",   entity:"account", groupBy:"name", measure:"revenue" }),
-      w({ id:"w9", title:"Product Coverage",  widget:"checklist", entity:"qdb_loanapplication", groupBy:"qdb_product", measure:"qdb_requestedamount" }),
-      w({ id:"w10", title:"Branch × Status",  widget:"matrix",    entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"qdb_requestedamount" })
-    ]},
-    { id:"s4", title:"Detail", cols:2, widgets:[
-      w({ id:"w11", title:"Amount by Product",   widget:"chart", entity:"qdb_loanapplication", groupBy:"qdb_product", measure:"qdb_requestedamount", chartType:"Column" }),
-      w({ id:"w12", title:"Recent Applications", widget:"table", entity:"qdb_loanapplication", groupBy:"qdb_branchid", measure:"qdb_requestedamount" })
-    ]}
-  ]};
-}
-function findWidget(D, id) { for (const s of (D.sections||[])) { const w = s.widgets.find(x=>x.id===id); if (w) return { section:s, widget:w }; } return null; }
-function countWidgets(D) { return (D.sections||[]).reduce((n,s)=>n+s.widgets.length, 0); }
-function placeholderCount(s) { const n = s.widgets.length; return n===0 ? s.cols : (n % s.cols === 0 ? 1 : s.cols - n%s.cols); }
-function addSection(D, cols) { D.sections = D.sections || []; D._seq = (D._seq||0)+1; D.sections.push({ id:"s"+D._seq, title:"", cols:Math.max(1,Math.min(4, cols||3)), widgets:[] }); }
-function deleteSection(D, id) { D.sections = D.sections.filter(s=>s.id!==id); }
-function moveSection(D, id, dir) { const i=D.sections.findIndex(s=>s.id===id), j=i+dir; if(i<0||j<0||j>=D.sections.length) return; const [s]=D.sections.splice(i,1); D.sections.splice(j,0,s); }
-function addWidgetToSection(D, sectionId, w) {
-  const s = D.sections.find(x=>x.id===sectionId); if(!s) return;
-  const base = WIDGET_DEFAULTS[w] || WIDGET_DEFAULTS.metric, bind = defaultBind(base.entity);
-  D._seq = (D._seq||0)+1; const id = "w"+D._seq;
-  s.widgets.push({ id, title:base.title, widget:w, entity:base.entity, groupBy:bind.groupBy, measure:bind.measure,
-    agg:base.agg||"Sum", chartType:base.chartType||"Column", cardIcon:base.cardIcon||"money", badgeText:base.badgeText||"", badgeLevel:base.badgeLevel||"" });
-  D._sel = id;
-}
-function deleteWidget(D, id) { const f = findWidget(D, id); if (f) f.section.widgets = f.section.widgets.filter(x=>x.id!==id); if (D._sel===id) D._sel=null; }
-function moveWidget(D, widgetId, targetSectionId, targetIndex) {
-  const f = findWidget(D, widgetId), tgt = D.sections.find(s=>s.id===targetSectionId);
-  if (!f || !tgt) return;
-  const srcIdx = f.section.widgets.indexOf(f.widget);
-  f.section.widgets.splice(srcIdx, 1);
-  let idx = targetIndex;
-  if (f.section===tgt && srcIdx < idx) idx--;
-  idx = Math.max(0, Math.min(idx, tgt.widgets.length));
-  tgt.widgets.splice(idx, 0, f.widget);
-}
-function widgetTileHtml(D, w, s, idx) {
-  const sel = D._sel===w.id ? " sel" : "", pv = D._preview;
-  const grip = pv ? "" : `<span class="dt-grip" title="Drag to move / rearrange">&#9783;&#9783;</span>`;
-  const tools = pv ? "" : `<span class="dt-tools"><button data-tdup="${w.id}" title="Duplicate widget">⎘</button><button data-tdel="${w.id}" title="Delete widget">✕</button></span>`;
-  return `<div class="dash-tile${sel}" data-tile="${w.id}" data-insection="${s.id}" data-idx="${idx}">
-    <div class="dt-head">${grip}<span class="dt-title">${esc(w.title)}</span>${tools}</div>
-    <div class="dt-body">${renderWidget(w)}</div></div>`;
-}
-function sectionHtml(D, s) {
-  const pv = D._preview;
-  const head = pv
-    ? (s.title ? `<div class="ds-sec-title">${esc(s.title)}</div>` : "")
-    : `<div class="ds-sec-head">
-        <input class="ds-sec-name" data-secname="${s.id}" value="${esc(s.title||"")}" placeholder="Section title (optional)">
-        <div class="ds-sec-tools">
-          <span class="ds-cols" title="Columns in this section">${[1,2,3,4].map(n=>`<button class="${s.cols===n?"on":""}" data-seccols="${s.id}" data-n="${n}">${n}</button>`).join("")}</span>
-          <button data-secmv="${s.id}" data-dir="-1" title="Move section up">▲</button>
-          <button data-secmv="${s.id}" data-dir="1" title="Move section down">▼</button>
-          <button data-secdup="${s.id}" title="Duplicate section">⎘</button>
-          <button data-secdel="${s.id}" title="Delete section">✕</button>
-        </div></div>`;
-  const widgets = s.widgets.map((w,i)=>widgetTileHtml(D,w,s,i)).join("");
-  const phc = pv ? 0 : placeholderCount(s);
-  const ph = Array.from({length:phc}).map(()=>`<button class="ds-ph" data-ph="${s.id}">${ic("add")}<span>Add widget</span></button>`).join("");
-  return `<div class="ds-section" data-section="${s.id}">${head}<div class="ds-cols-grid" style="grid-template-columns:repeat(${s.cols},minmax(0,1fr))">${widgets}${ph}</div></div>`;
-}
-function openWidgetPicker(D, sectionId) {
-  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:640px">
-    <div class="dialog-head"><h3>Add a widget</h3><button class="close-x">✕</button></div>
-    <div class="dialog-body"><div class="choice-cards" style="grid-template-columns:repeat(3,1fr)">${DASH_WIDGETS.map(x=>`<div class="choice-card" data-wpick="${x.w}" style="padding:14px"><div class="cc-t" style="display:flex;align-items:center;gap:8px">${ic(x.icon)} ${esc(x.label)}</div></div>`).join("")}</div></div>
-    <div class="dialog-foot"><button class="btn" data-close>Cancel</button></div>
-  </div></div>`);
-  document.body.appendChild(scrim);
-  const close = () => scrim.remove();
-  scrim.querySelector(".close-x").onclick = close; scrim.querySelector("[data-close]").onclick = close;
-  scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
-  scrim.querySelectorAll("[data-wpick]").forEach(cd => cd.onclick = () => { close(); pushHistory(D); addWidgetToSection(D, sectionId, cd.dataset.wpick); render(); });
-}
-function dashPropsHtml(D, t) {
-  const cats = attributesOf(t.entity).filter(c=>["Text","Option set","Lookup"].includes(c.t));
-  const nums = attributesOf(t.entity).filter(c=>["Currency","Decimal","Whole number"].includes(c.t));
-  const showGroup = ["chart","infocards","gauge","checklist","matrix","badge"].includes(t.widget);
-  const showMeasure = ["metric","chart","infocards","gauge","progress","checklist","badge"].includes(t.widget);
-  return `<div class="dash-props">
-    <h4>Widget properties</h4>
-    <div class="mini-field"><label>Title</label><input class="fluent-input" id="dp_title" value="${esc(t.title)}"></div>
-    <div class="mini-field"><label>Display as</label><select class="fluent-select" id="dp_widget">${opts2(DASH_WIDGETS.map(x=>[x.w,x.label]), t.widget)}</select></div>
-    <div class="mini-field"><label>Data source</label>${entityPickerHtml(t.entity, 'id="dp_entity"')}</div>
-    ${showGroup?`<div class="mini-field"><label>Group by</label><select class="fluent-select" id="dp_group">${opts2(cats.map(c=>[c.a,c.n]), t.groupBy)}</select></div>`:""}
-    ${showMeasure?`<div class="mini-field"><label>Measure</label><select class="fluent-select" id="dp_measure">${opts2([["","(count of records)"], ...nums.map(c=>[c.a,c.n])], t.measure)}</select></div>`:""}
-    ${showMeasure?`<div class="mini-field"><label>Aggregation</label><select class="fluent-select" id="dp_agg">${opts(["Sum","Average","Count","Max","Min"], t.agg)}</select></div>`:""}
-    ${t.widget==="chart"?`<div class="mini-field"><label>Chart type</label><select class="fluent-select" id="dp_chart">${opts(CHART_TYPES, t.chartType)}</select></div>`:""}
-    ${t.widget==="infocards"?`<div class="mini-field"><label>Card icon</label><select class="fluent-select" id="dp_icon">${opts(CARD_ICONS, t.cardIcon)}</select></div>`:""}
-    ${t.widget==="badge"?`<div class="mini-field"><label>Badge text</label><input class="fluent-input" id="dp_btext" value="${esc(t.badgeText||"")}"></div>
-    <div class="mini-field"><label>Level</label><select class="fluent-select" id="dp_blevel">${opts2([["high","High (red)"],["med","Medium (amber)"],["low","Low (green)"],["","Auto (from data)"]], t.badgeLevel||"")}</select></div>`:""}
-    <div class="mini-field" style="color:var(--text-secondary);font-size:11.5px">Width follows the section's column count. Change columns in the section header.</div>
-    <button class="btn sm" id="dp_del" style="margin-top:14px;color:var(--error)">${ic("trash")}Delete widget</button>
-  </div>`;
-}
-function fieldTypeMeta(t) {
-  if (t==="Currency") return { cls:"cur", g:"$" };
-  if (t==="Decimal" || t==="Whole number") return { cls:"num", g:"#" };
-  if (t==="Date/Time") return { cls:"date", g:"◷" };
-  if (t==="Option set") return { cls:"cat", g:"⌄" };
-  if (t==="Lookup") return { cls:"cat", g:"↗" };
-  return { cls:"text", g:"A" };
-}
-function autoViz(entity, attr) {
-  const c = attributesOf(entity).find(x=>x.a===attr) || {};
-  if (["Currency","Decimal","Whole number"].includes(c.t)) return { widget:"metric", title:c.n, props:{ measure:attr, agg:"Sum" } };
-  if (["Option set","Lookup","Text"].includes(c.t)) { const measure = (attributesOf(entity).find(x=>x.t==="Currency")||{}).a || ""; return { widget:"chart", title:c.n, props:{ groupBy:attr, measure, chartType:"Column" } }; }
-  return { widget:"table", title:c.n, props:{} };
-}
-function addAutoWidget(D, sectionId, entity, attr) {
-  const s = D.sections.find(x=>x.id===sectionId); if (!s) return;
-  const av = autoViz(entity, attr), bind = defaultBind(entity);
-  D._seq = (D._seq||0)+1; const id = "w"+D._seq;
-  s.widgets.push(Object.assign({ id, title:av.title, widget:av.widget, entity, groupBy:bind.groupBy, measure:bind.measure, agg:"Sum", chartType:"Column", cardIcon:"money", badgeText:"", badgeLevel:"" }, av.props));
-  D._sel = id;
-}
-/* history / undo-redo */
-function dashSnapshot(D) { return JSON.stringify({ title:D.title, sections:D.sections }); }
-function pushHistory(D) {
-  D._undo = D._undo || []; const snap = dashSnapshot(D);
-  if (D._undo.length && D._undo[D._undo.length-1] === snap) return;
-  D._undo.push(snap); if (D._undo.length > 60) D._undo.shift(); D._redo = [];
-}
-function dashRestore(D, snap) { const o = JSON.parse(snap); D.title = o.title; D.sections = o.sections; D._sel = null; }
-function dashUndo(D) { if (!(D._undo && D._undo.length)) return; D._redo = D._redo || []; D._redo.push(dashSnapshot(D)); dashRestore(D, D._undo.pop()); }
-function dashRedo(D) { if (!(D._redo && D._redo.length)) return; D._undo = D._undo || []; D._undo.push(dashSnapshot(D)); dashRestore(D, D._redo.pop()); }
-function dashAct(D, fn) { pushHistory(D); fn(); render(); }
-function duplicateWidget(D, id) {
-  const f = findWidget(D, id); if (!f) return;
-  const idx = f.section.widgets.indexOf(f.widget);
-  D._seq = (D._seq||0)+1; const copy = Object.assign({}, f.widget, { id:"w"+D._seq, title:f.widget.title+" copy" });
-  f.section.widgets.splice(idx+1, 0, copy); D._sel = copy.id;
-}
-function duplicateSection(D, id) {
-  const i = D.sections.findIndex(s=>s.id===id); if (i<0) return; const s = D.sections[i];
-  D._seq = (D._seq||0)+1; const ns = { id:"s"+D._seq, title:s.title?s.title+" copy":"", cols:s.cols, widgets:s.widgets.map(w=>{ D._seq++; return Object.assign({}, w, { id:"w"+D._seq }); }) };
-  D.sections.splice(i+1, 0, ns);
-}
-function dominantEntity(D) {
-  const counts = {}; (D.sections||[]).forEach(s=>s.widgets.forEach(w=>counts[w.entity]=(counts[w.entity]||0)+1));
-  let best = "qdb_loanapplication", n = -1; Object.entries(counts).forEach(([e,c])=>{ if (c>n) { n=c; best=e; } });
-  return best;
-}
-function dashFilterBar(D) {
-  const ent = dominantEntity(D);
-  const cats = attributesOf(ent).filter(c=>["Option set","Lookup"].includes(c.t)).slice(0,3);
-  const rows = synthRows(dashEntityCols(ent), ent);
-  const slicers = cats.map(c => { const key = ent+"|"+c.a, vals = [...new Set(rows.map(r=>r[c.a]))], cur = (D.filters||{})[key]||"";
-    return `<label class="fbar-slicer"><span>${esc(c.n)}</span><select data-slicer="${key}"><option value="">All</option>${vals.map(v=>`<option ${cur===v?"selected":""}>${esc(v)}</option>`).join("")}</select></label>`; }).join("");
-  const active = Object.entries(D.filters||{}).filter(([,v])=>v!=="").map(([k,v])=>{ const attr=k.split("|")[1], c=attributesOf(k.split("|")[0]).find(x=>x.a===attr)||{}; return `<span class="fbar-chip">${esc(c.n||attr)}: <b>${esc(v)}</b> <button data-fclear="${k}" title="Clear">✕</button></span>`; }).join("");
-  return `<div class="dash-filterbar"><span class="fbar-icon">${ic("filter")}</span><span class="fbar-label">Filters</span>${slicers}${active?`<span class="fbar-sep"></span>${active}<button class="fbar-clearall" data-fclearall>Clear all</button>`:""}</div>`;
-}
-function renderDashboardComposer(host) {
-  if (!state.dashboard) state.dashboard = DASHBOARDS[0];
-  const D = state.dashboard; D.sections = D.sections || []; D.filters = D.filters || {};
-  const pv = !!D._preview;
-  const sel = pv ? null : (findWidget(D, D._sel) || {}).widget;
-  const fieldEnt = D._fieldEntity || dominantEntity(D);
-  const fieldCols = attributesOf(fieldEnt);
-  const palette = pv ? "" : `<div class="dash-palette">
-    <h4>Data fields</h4>
-    ${entityPickerHtml(fieldEnt, 'id="fld_entity" style="width:100%"')}
-    <div class="fld-list">${fieldCols.map(c=>{ const m=fieldTypeMeta(c.t); return `<div class="fld-chip" draggable="true" data-fld-ent="${fieldEnt}" data-fld-attr="${c.a}"><span class="fld-type ${m.cls}">${m.g}</span>${esc(c.n)}</div>`; }).join("")}</div>
-    <div class="fld-hint">Drag a field onto a placeholder — it becomes a widget automatically (numbers → metric, categories → chart).</div>
-    <h4 style="margin-top:14px">Add section</h4>
-    <div class="ds-addsec">${[1,2,3,4].map(n=>`<button data-addsec="${n}"><span class="ds-secicon">${"■ ".repeat(n).trim()}</span>${n} column${n>1?"s":""}</button>`).join("")}</div>
-  </div>`;
-  host.innerHTML = `
-    <div class="cmdbar">
-      <button class="cmd" id="dash_back">${ic("back")}Back</button><div class="cmd-sep"></div>
-      <button class="cmd" id="dash_undo" ${(D._undo&&D._undo.length)?"":"disabled"} title="Undo (Ctrl+Z)">${ic("back")}Undo</button>
-      <button class="cmd" id="dash_redo" ${(D._redo&&D._redo.length)?"":"disabled"} title="Redo (Ctrl+Y)">Redo</button>
-      <div class="cmd-sep"></div>
-      <input class="fluent-input" id="dash_title" value="${esc(D.title)}" style="max-width:280px;height:32px;font-weight:600">
-      <div class="cmd-spacer"></div>
-      <button class="cmd" id="dash_preview">${ic(pv?"edit":"play")}${pv?"Edit":"Preview"}</button>
-      <button class="cmd primary" id="dash_save">${ic("save")}Save</button>
-    </div>
-    <div class="dash-shell">
-      ${palette}
-      <div class="dash-main">
-        <div class="dash-ctx"><span class="cx-chip">Customer: ACCESS COMPANY — CIF 1000020</span><span style="font-size:12px;color:var(--text-secondary)">${pv?"Click a chart segment to cross-filter every widget":"Slicers below filter all widgets · switch to Preview to cross-filter by clicking charts"}</span></div>
-        ${dashFilterBar(D)}
-        <div class="ds-sections">${D.sections.length ? D.sections.map(s=>sectionHtml(D,s)).join("") : `<div style="text-align:center;color:var(--text-secondary);padding:64px 20px">${ic("add")}<div style="margin-top:8px">Add a section from the left, choose its columns, then drop widgets (or drag a field) into the placeholders.</div></div>`}</div>
-      </div>
-      ${sel ? dashPropsHtml(D, sel) : ""}
-    </div>`;
-  $("#dash_back").onclick = () => { state.view="dashboards"; render(); };
-  $("#dash_undo").onclick = () => { dashUndo(D); render(); };
-  $("#dash_redo").onclick = () => { dashRedo(D); render(); };
-  $("#dash_preview").onclick = () => { D._preview = !D._preview; D._sel=null; render(); };
-  $("#dash_save").onclick = () => saveDashboardToServer(D);
-  $("#dash_title").onfocus = () => pushHistory(D);
-  $("#dash_title").oninput = e => { D.title = e.target.value; };
-  const fe = $("#fld_entity"); if (fe) fe.onchange = e => { D._fieldEntity = e.target.value; render(); };
-  host.querySelectorAll("[data-slicer]").forEach(sl => sl.onchange = e => { const v=e.target.value; if (v) D.filters[sl.dataset.slicer]=v; else delete D.filters[sl.dataset.slicer]; render(); });
-  host.querySelectorAll("[data-fclear]").forEach(b => b.onclick = () => { delete D.filters[b.dataset.fclear]; render(); });
-  const fca = host.querySelector("[data-fclearall]"); if (fca) fca.onclick = () => { D.filters = {}; render(); };
-  host.querySelectorAll("[data-addsec]").forEach(b => b.onclick = () => dashAct(D, () => addSection(D, +b.dataset.addsec)));
-  host.querySelectorAll("[data-ph]").forEach(b => b.onclick = () => openWidgetPicker(D, b.dataset.ph));
-  host.querySelectorAll("[data-secname]").forEach(inp => { inp.onfocus = () => pushHistory(D); inp.oninput = e => { const s = D.sections.find(x=>x.id===inp.dataset.secname); if (s) s.title = e.target.value; }; });
-  host.querySelectorAll("[data-seccols]").forEach(b => b.onclick = () => dashAct(D, () => { const s = D.sections.find(x=>x.id===b.dataset.seccols); if (s) s.cols = +b.dataset.n; }));
-  host.querySelectorAll("[data-secmv]").forEach(b => b.onclick = () => dashAct(D, () => moveSection(D, b.dataset.secmv, +b.dataset.dir)));
-  host.querySelectorAll("[data-secdup]").forEach(b => b.onclick = () => dashAct(D, () => duplicateSection(D, b.dataset.secdup)));
-  host.querySelectorAll("[data-secdel]").forEach(b => b.onclick = () => dashAct(D, () => deleteSection(D, b.dataset.secdel)));
-  host.querySelectorAll("[data-tile]").forEach(tl => tl.onclick = e => {
-    if (D._preview) return;
-    if (e.target.closest("[data-tdel],[data-tdup]")) return;
-    D._sel = tl.dataset.tile; render();
-  });
-  host.querySelectorAll("[data-tdup]").forEach(b => b.onclick = e => { e.stopPropagation(); dashAct(D, () => duplicateWidget(D, b.dataset.tdup)); });
-  host.querySelectorAll("[data-tdel]").forEach(b => b.onclick = e => { e.stopPropagation(); dashAct(D, () => deleteWidget(D, b.dataset.tdel)); });
-  if (pv) host.querySelectorAll("[data-slice]").forEach(sl => sl.onclick = e => {
-    e.stopPropagation();
-    const tileEl = sl.closest("[data-tile]"); if (!tileEl) return;
-    const w = (findWidget(D, tileEl.dataset.tile)||{}).widget; if (!w || !w.groupBy) return;
-    const key = w.entity+"|"+w.groupBy, val = sl.dataset.slice;
-    if (D.filters[key]===val) delete D.filters[key]; else D.filters[key]=val;
-    render();
-  });
-  if (!pv) bindDashDrag(D, host);
-  if (sel) bindDashProps(D, sel);
-}
-function bindDashDrag(D, host) {
-  let dragKind = null, dragWidgetId = null, dragField = null;
-  const clearDrop = () => host.querySelectorAll(".drop-before,.drop-after,.drop-hover,.drop-field").forEach(x => x.classList.remove("drop-before","drop-after","drop-hover","drop-field"));
-  host.querySelectorAll(".fld-chip").forEach(chip => {
-    chip.addEventListener("dragstart", e => { dragKind="field"; dragField={ entity:chip.dataset.fldEnt, attr:chip.dataset.fldAttr }; e.dataTransfer.effectAllowed="copy"; try { e.dataTransfer.setData("text/plain","field"); } catch (_) {} });
-    chip.addEventListener("dragend", () => { clearDrop(); dragKind=null; dragField=null; });
-  });
-  host.querySelectorAll(".dash-tile").forEach(tile => {
-    tile.setAttribute("draggable", "true");
-    tile.addEventListener("dragstart", e => { dragKind="widget"; dragWidgetId=tile.dataset.tile; tile.classList.add("dragging"); e.dataTransfer.effectAllowed="move"; try { e.dataTransfer.setData("text/plain", dragWidgetId); } catch (_) {} });
-    tile.addEventListener("dragend", () => { tile.classList.remove("dragging"); clearDrop(); dragKind=null; dragWidgetId=null; });
-    tile.addEventListener("dragover", e => {
-      if (!dragKind) return;
-      if (dragKind==="widget" && tile.dataset.tile===dragWidgetId) return;
-      e.preventDefault();
-      const r = tile.getBoundingClientRect(), after = (e.clientX - r.left) > r.width/2;
-      tile.classList.toggle("drop-after", after); tile.classList.toggle("drop-before", !after);
-    });
-    tile.addEventListener("dragleave", () => tile.classList.remove("drop-before","drop-after"));
-    tile.addEventListener("drop", e => {
-      e.preventDefault();
-      if (dragKind==="field" && dragField) { pushHistory(D); addAutoWidget(D, tile.dataset.insection, dragField.entity, dragField.attr); render(); }
-      else if (dragKind==="widget" && dragWidgetId && tile.dataset.tile!==dragWidgetId) {
-        const r = tile.getBoundingClientRect(), after = (e.clientX - r.left) > r.width/2;
-        pushHistory(D); moveWidget(D, dragWidgetId, tile.dataset.insection, (+tile.dataset.idx) + (after?1:0)); render();
-      }
-    });
-  });
-  host.querySelectorAll(".ds-ph").forEach(ph => {
-    ph.addEventListener("dragover", e => { if (!dragKind) return; e.preventDefault(); ph.classList.add(dragKind==="field"?"drop-field":"drop-hover"); });
-    ph.addEventListener("dragleave", () => ph.classList.remove("drop-hover","drop-field"));
-    ph.addEventListener("drop", e => {
-      e.preventDefault(); if (!dragKind) return;
-      if (dragKind==="field" && dragField) { pushHistory(D); addAutoWidget(D, ph.dataset.ph, dragField.entity, dragField.attr); render(); }
-      else if (dragKind==="widget" && dragWidgetId) { const s = D.sections.find(x=>x.id===ph.dataset.ph); pushHistory(D); moveWidget(D, dragWidgetId, ph.dataset.ph, s ? s.widgets.length : 0); render(); }
-    });
-  });
-}
-function bindDashProps(D, t) {
-  const q = id => document.getElementById(id);
-  q("dp_title").onfocus = () => pushHistory(D);
-  q("dp_title").oninput = e => { t.title = e.target.value; const el2 = document.querySelector(`[data-tile="${t.id}"] .dt-title`); if (el2) el2.textContent = e.target.value; };
-  q("dp_widget").onchange = e => { pushHistory(D); t.widget = e.target.value; render(); };
-  q("dp_entity").onchange = e => { pushHistory(D); t.entity = e.target.value; const b = defaultBind(t.entity); t.groupBy = b.groupBy; t.measure = b.measure; render(); };
-  const g = q("dp_group"); if (g) g.onchange = e => { pushHistory(D); t.groupBy = e.target.value; render(); };
-  const m = q("dp_measure"); if (m) m.onchange = e => { pushHistory(D); t.measure = e.target.value; render(); };
-  const a = q("dp_agg"); if (a) a.onchange = e => { pushHistory(D); t.agg = e.target.value; render(); };
-  const ch = q("dp_chart"); if (ch) ch.onchange = e => { pushHistory(D); t.chartType = e.target.value; render(); };
-  const ci = q("dp_icon"); if (ci) ci.onchange = e => { pushHistory(D); t.cardIcon = e.target.value; render(); };
-  const bt = q("dp_btext"); if (bt) { bt.onfocus = () => pushHistory(D); bt.oninput = e => { t.badgeText = e.target.value; const el2 = document.querySelector(`[data-tile="${t.id}"] .w-badge-text`); if (el2) el2.textContent = e.target.value; }; }
-  const bl = q("dp_blevel"); if (bl) bl.onchange = e => { pushHistory(D); t.badgeLevel = e.target.value; render(); };
-  q("dp_del").onclick = () => dashAct(D, () => deleteWidget(D, t.id));
-}
-
-function portfolioDashboard() {
-  const w = (o) => Object.assign({ agg:"Sum", chartType:"Column", cardIcon:"money", badgeText:"", badgeLevel:"" }, o);
-  return { id:"d2", title:"Portfolio Overview", owner:"L. Haddad", modified:"2026-07-15", _seq:5, _sel:null, _preview:false, sections:[
-    { id:"s1", title:"Facility summary", cols:4, widgets:[
-      w({ id:"w1", title:"Total Outstanding",    widget:"metric", entity:"qdb_facility", groupBy:"qdb_status", measure:"qdb_outstanding" }),
-      w({ id:"w2", title:"Facilities",           widget:"metric", entity:"qdb_facility", groupBy:"qdb_status", measure:"", agg:"Count" }),
-      w({ id:"w3", title:"Limit Utilization",    widget:"gauge",  entity:"qdb_facility", groupBy:"qdb_status", measure:"qdb_limit" }),
-      w({ id:"w4", title:"Outstanding by Status", widget:"chart", entity:"qdb_facility", groupBy:"qdb_status", measure:"qdb_outstanding", chartType:"Bar" })
-    ]},
-    { id:"s2", title:"Facilities", cols:1, widgets:[
-      w({ id:"w5", title:"All facilities", widget:"table", entity:"qdb_facility", groupBy:"qdb_status", measure:"qdb_outstanding" })
-    ]}
-  ]};
-}
-const DASHBOARDS = [ sampleDashboard(), portfolioDashboard() ];
 function openDashboardComposer(d) { state.dashboard = d; state.view = "dashboardcomposer"; render(); }
-function createDashboard(kind) {
-  const id = "d" + (DASHBOARDS.length + 1);
-  let d;
-  if (kind === "template") { d = sampleDashboard(); d.id = id; d.title = "Customer 360 (copy)"; d.owner = "Salman Sagar"; d.modified = "2026-07-19"; }
-  else { d = { id, title:"New Dashboard", owner:"Salman Sagar", modified:"2026-07-19", _seq:0, _sel:null, _preview:false, sections:[] }; }
-  DASHBOARDS.unshift(d);
-  openDashboardComposer(d);
-  toast(kind === "template" ? "Dashboard created from the Customer 360 template" : "Blank dashboard created — add widgets from the palette");
+/* A new dashboard exists only in the composer until it is saved. It used to be pushed onto an
+   in-memory list as well, which is why a dashboard could look created and then not be there. */
+function createDashboard() {
+  openDashboardComposer({
+    id: "d_new", title: "New Dashboard", owner: state.userName || "",
+    _seq: 0, _sel: null, _preview: false, sections: []
+  });
+  toast("Blank dashboard created — add widgets from the palette");
 }
 function openNewDashboardChooser() {
   const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:560px">
     <div class="dialog-head"><h3>Create a new dashboard</h3><button class="close-x">✕</button></div>
-    <div class="dialog-body"><div class="choice-cards" style="grid-template-columns:1fr 1fr">
-      <div class="choice-card" data-dnew="blank" style="padding:20px"><div class="cc-t" style="font-size:15px">${ic("add")} Blank dashboard</div><div class="cc-d" style="margin-top:6px">Start empty — add sections, choose 1–4 columns each, then drop widgets into placeholders.</div></div>
-      <div class="choice-card" data-dnew="template" style="padding:20px"><div class="cc-t" style="font-size:15px">${ic("chart")} Customer 360 template</div><div class="cc-d" style="margin-top:6px">Pre-built with metrics, gauge, distress badge, charts, info cards, profile &amp; matrix.</div></div>
+    <div class="dialog-body"><div class="choice-cards" style="grid-template-columns:1fr">
+      <div class="choice-card" data-dnew="blank" style="padding:20px"><div class="cc-t" style="font-size:15px">${ic("add")} Blank dashboard</div><div class="cc-d" style="margin-top:6px">Start empty — add sections, choose 1–4 columns each, then drop widgets into placeholders. Each widget binds to a table in this environment.</div></div>
     </div></div>
     <div class="dialog-foot"><button class="btn" data-close>Cancel</button></div>
   </div></div>`);
@@ -4882,41 +4729,46 @@ function renderDashboards(c) {
     <div class="cmd-spacer"></div>
     <button class="cmd" id="dbNewReport">${ic("doc")}New report instead</button>
   </div>`);
-  // Saved (Dataverse) dashboards are shown first with a badge; the local samples follow as
-  // design references. `_saved` rows reopen by loading the persisted definition from the API.
-  const saved = (SAVED_DASHBOARDS || []).map(s => ({ id: s.id, title: s.title, owner: "Saved", modified: "Dataverse", widgets: s.widgetCount, _saved: true }));
-  const samples = DASHBOARDS.map(d => ({ id: d.id, title: d.title, owner: d.owner, modified: d.modified, widgets: countWidgets(d), _saved: false }));
-  const rows = saved.concat(samples);
-  const badge = `<span class="pill" style="margin-left:8px;font-size:11px;padding:1px 7px;border-radius:9px;background:var(--primary-bg,rgba(0,120,212,.12));color:var(--primary)">Saved</span>`;
-  const rowHtml = d => `<tr data-id="${esc(d.id)}" data-saved="${d._saved?"1":"0"}"><td class="row-check"><input type="checkbox"></td><td><span class="link-cell">${esc(d.title)}</span>${d._saved?badge:""}</td><td>${esc(d.owner)}</td><td>${esc(String(d.widgets))}</td><td>${esc(d.modified)}</td></tr>`;
-  const loading = SAVED_DASHBOARDS === null ? " · loading saved dashboards…" : ` · ${saved.length} saved in Dataverse`;
+  const rows = dashboardCatalog.get();
+  const rowHtml = d => `<tr data-id="${esc(d.id)}"><td class="row-check"><input type="checkbox"></td><td><span class="link-cell">${esc(d.title)}</span></td><td>${cell(d.owner)}</td><td>${d.isGoverned?ic("check"):"—"}</td><td>${cell(d.modified)}</td></tr>`;
+  const body = rows.length
+    ? `<div class="grid-wrap"><table class="grid" role="grid"><thead><tr><th class="row-check"><input type="checkbox" disabled></th><th>Dashboard name</th><th>Owner</th><th>Governed</th><th>Modified</th></tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table></div>`
+    : `<div class="section-card" style="max-width:940px">${catalogEmptyState(dashboardCatalog, "No dashboards in this environment yet. Use New dashboard to compose one.")}</div>`;
   const scroll = el(`<div class="scroll"><div class="page">
-    <div class="page-head"><div><h1>Dashboards</h1><div class="page-sub">${rows.length} interactive dashboards${loading} · a grid of independently data-bound widgets (metrics, charts, gauges, info cards, tables…)</div></div></div>
-    <div class="grid-wrap"><table class="grid" role="grid"><thead><tr><th class="row-check"><input type="checkbox" disabled></th><th>Dashboard name</th><th>Owner</th><th>Widgets</th><th>Modified</th></tr></thead><tbody>${rows.map(rowHtml).join("")}</tbody></table></div>
+    <div class="page-head"><div><h1>Dashboards</h1><div class="page-sub">${rows.length} dashboard${rows.length===1?"":"s"} in Dataverse · a grid of independently data-bound widgets (metrics, charts, gauges, info cards, tables…)</div></div></div>
+    ${body}
   </div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
-  if (SAVED_DASHBOARDS === null) refreshSavedDashboards();
-  let selId = null, selSaved = false;
-  const btns = () => { $("#dbOpen").disabled = !selId; $("#dbClone").disabled = !selId || selSaved; $("#dbDelete").disabled = !selId; };
-  const openRow = (id, isSaved) => isSaved ? openSavedDashboard(id) : openDashboardComposer(DASHBOARDS.find(d => d.id === id));
+  let selId = null;
+  const btns = () => { $("#dbOpen").disabled = !selId; $("#dbClone").disabled = !selId; $("#dbDelete").disabled = !selId; };
   scroll.querySelectorAll("tbody tr").forEach(tr => {
     tr.addEventListener("click", e => {
       if (e.target.closest(".link-cell")) return;
       scroll.querySelectorAll("tbody tr").forEach(x => x.classList.remove("selected"));
       tr.classList.add("selected"); tr.querySelector("input").checked = true;
-      selId = tr.dataset.id; selSaved = tr.dataset.saved === "1"; btns();
+      selId = tr.dataset.id; btns();
     });
-    tr.querySelector(".link-cell").addEventListener("click", () => openRow(tr.dataset.id, tr.dataset.saved === "1"));
+    tr.querySelector(".link-cell").addEventListener("click", () => openSavedDashboard(tr.dataset.id));
   });
   $("#dbNew").onclick = () => openNewDashboardChooser();
   $("#dbNewReport").onclick = () => { state.view = "reports"; render(); setTimeout(openNewChooser, 30); };
-  $("#dbOpen").onclick = () => selId && openRow(selId, selSaved);
-  $("#dbClone").onclick = () => { const d = DASHBOARDS.find(x=>x.id===selId); if(!d) return; const copy = JSON.parse(JSON.stringify(d)); copy.id = "d"+(DASHBOARDS.length+1); copy.title = d.title+" (copy)"; copy.modified = "2026-07-19"; DASHBOARDS.unshift(copy); render(); toast("Dashboard cloned to a new draft"); };
-  $("#dbDelete").onclick = () => {
-    if (!selId) return;
-    if (selSaved) { deleteSavedDashboard(selId); return; }
-    const i = DASHBOARDS.findIndex(x=>x.id===selId); if (i>=0) { DASHBOARDS.splice(i,1); selId=null; render(); toast("Dashboard deleted"); }
-  };
+  $("#dbOpen").onclick = () => selId && openSavedDashboard(selId);
+  $("#dbClone").onclick = () => selId && cloneSavedDashboard(selId);
+  $("#dbDelete").onclick = () => { if (selId) { deleteSavedDashboard(selId); selId = null; } };
+}
+
+/* Loads the stored dashboard, strips its identity and saves it as a new one, so the copy carries its
+   sections and widgets rather than only its title. */
+async function cloneSavedDashboard(id) {
+  try {
+    const source = definitionToDashboard(await loadDashboardDefinition(id));
+    source.savedId = null;
+    source.title = `${source.title} (copy)`;
+    await saveDashboardToServer(source);
+    dashboardCatalog.refresh();
+  } catch (error) {
+    toast("Clone failed — " + error.message, "err");
+  }
 }
 
 /* ============================ ICONS ============================ */
