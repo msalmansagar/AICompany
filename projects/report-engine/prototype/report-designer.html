@@ -1029,7 +1029,35 @@ const COL_TYPES = ["Text","Whole number","Decimal","Currency","Date/Time","Boole
 const AGG = ["None","Count","Sum","Average","Min","Max"];
 const ALIGN = ["Left","Center","Right"];
 const REL_TYPES = ["1:N (One-to-many)","N:1 (Many-to-one)","N:N (Many-to-many)","Manual join","External key"];
-const TRANSFORM_TYPES = ["Rename column","Merge columns","Split value","Lookup name resolution","Option set label resolution","Currency format","Date format","Number format","Conditional value","Value mapping","Aggregation","Grouping","Pivot","JSON flatten","External data map","Data masking","Null handling","Filter rows","Derive column","Join / Lookup merge","Unpivot","Deduplicate","Sort","Cast data type","Fill nulls","Clean & trim","Currency convert"];
+/* The transformation catalogue, aligned to the qdb_transformtype option set.
+   It used to list 27 types while the option set holds 18, so nine of them could not be saved at all —
+   picking "Unpivot" failed silently at persistence, not merely at execution. The list is now exactly
+   what the schema can store, and `live` says whether the engine actually applies it: a step that is
+   stored but passed through is labelled as such in the dropdown rather than looking supported.
+   Adding a type here means adding it to the option set too, or it will not persist. */
+const TRANSFORMS = [
+  { label:"Rename column",             name:"RenameColumns",         code:100000000, live:true  },
+  { label:"Merge columns",             name:"MergeColumns",          code:100000001, live:true  },
+  { label:"Split value",               name:"SplitValues",           code:100000002, live:true  },
+  { label:"Lookup name resolution",    name:"LookupResolution",      code:100000003, live:false },
+  { label:"Option set label",          name:"ChoiceLabelResolution", code:100000004, live:true  },
+  { label:"Currency format",           name:"CurrencyFormat",        code:100000005, live:true  },
+  { label:"Date format",               name:"DateFormat",            code:100000006, live:true  },
+  { label:"Number format",             name:"NumberFormat",          code:100000007, live:true  },
+  { label:"Formula",                   name:"Formula",               code:100000008, live:true  },
+  { label:"Conditional value",         name:"ConditionalValue",      code:100000009, live:true  },
+  { label:"Value mapping",             name:"Mapping",               code:100000010, live:true  },
+  { label:"Aggregation",               name:"Aggregation",           code:100000011, live:false },
+  { label:"Grouping",                  name:"Grouping",              code:100000012, live:false },
+  { label:"Pivot",                     name:"Pivot",                 code:100000013, live:false },
+  { label:"JSON flatten",              name:"JsonFlatten",           code:100000014, live:true  },
+  { label:"External data map",         name:"ExternalMapping",       code:100000015, live:false },
+  { label:"Data masking",              name:"Masking",               code:100000016, live:true  },
+  { label:"Null handling",             name:"NullHandling",          code:100000017, live:true  }
+];
+const TRANSFORM_TYPES = TRANSFORMS.map(t => t.live ? t.label : `${t.label} — stored, not applied yet`);
+const transformByLabel = label => TRANSFORMS.find(t => label === t.label || label === `${t.label} — stored, not applied yet`);
+const transformByCode = code => TRANSFORMS.find(t => t.code === code);
 const ETL_OPS = [
   { op:"Filter rows", desc:"Keep only rows meeting a condition" },
   { op:"Derive column", desc:"New column from a formula (NCalc)" },
@@ -1082,7 +1110,11 @@ const CONFIG_SCHEMAS = {
   "Clean & trim": '{ "column": "Name", "ops": ["trim","collapseSpaces","titleCase"] }',
   "Currency convert": '{ "column": "Amount", "from": "USD", "to": "QAR", "rate": 3.64 }'
 };
-function configTemplate(type) { return CONFIG_SCHEMAS[type] || "{ }"; }
+// Accepts the decorated dropdown label as well as the bare one.
+function configTemplate(type) {
+  const known = transformByLabel(type);
+  return CONFIG_SCHEMAS[known ? known.label : type] || CONFIG_SCHEMAS[type] || "{ }";
+}
 function isValidJson(s) { if (!s || !s.trim()) return true; try { JSON.parse(s); return true; } catch { return false; } }
 const LAYOUT_CATALOG = [
   { type:"Tabular Report", best:"Simple lists", ex:"Customer List, Loan List" },
@@ -1574,6 +1606,23 @@ function reportToDefinition(report) {
     formulas: (report.formulas || []).map((f, i) => ({
       id: newGuid(), formulaAlias: f.target || f.name, expression: f.expression, evaluationOrder: i + 1, isConditional: false
     })),
+    /* The pipeline the runtime applies after formulas. A step whose type is not in the option set
+       cannot be stored at all, so an unrecognised label is dropped here rather than failing the
+       whole save — the catalogue and the option set are kept in step precisely to prevent that. */
+    transformations: (report.transformations || [])
+      .map((step, i) => ({ step, known: transformByLabel(step.type), typed: Number(step.seq) || i + 1 }))
+      .filter(entry => entry.known)
+      // Sorted by the sequence the user typed, then renumbered 1..n. The table carries a unique key
+      // on (report, step order), so two steps sharing a number fail the whole save with a 412 — and
+      // typing the same number twice is an easy thing to do. Their intended order is preserved.
+      .sort((a, b) => a.typed - b.typed)
+      .map((entry, index) => ({
+        id: newGuid(),
+        transformType: coded(entry.known.code, entry.known.name),
+        configJson: entry.step.config || "{}",
+        stepOrder: index + 1,
+        enabled: true
+      })),
     /* Access rules. The table has no "can view" column — only execute, export, edit and approve — so
        the designer's View checkbox is not persisted; catalog visibility follows the right to run.
        Only `canExecute` is enforced by the plugin; the rest are advisory in this architecture and
@@ -1675,6 +1724,16 @@ async function writeReportChildren(reportId, def) {
       qdb_expression: formula.expression,
       qdb_evaluationorder: formula.evaluationOrder,
       qdb_isconditional: !!formula.isConditional
+    }, parent)));
+  }
+
+  for (const step of def.transformations || []) {
+    await dvCreate("qdb_reporttransformation", defined(Object.assign({
+      qdb_name: (step.transformType && step.transformType.label) || "Transformation",
+      qdb_transformtype: codeOf(step.transformType),
+      qdb_configjson: step.configJson,
+      qdb_steporder: step.stepOrder,
+      qdb_enabled: step.enabled !== false
     }, parent)));
   }
 
@@ -1799,6 +1858,18 @@ function definitionToReport(def) {
   }));
   report.joins = joins;
 
+  if ((def.transformations || []).length) {
+    report.transformations = def.transformations.map((step, i) => {
+      const known = transformByCode(step.transformType && step.transformType.code);
+      return {
+        type: known ? (known.live ? known.label : `${known.label} — stored, not applied yet`) : TRANSFORM_TYPES[0],
+        target: "",
+        config: step.configJson || "{}",
+        seq: step.stepOrder || i + 1
+      };
+    });
+  }
+
   // View is not stored — the table has no column for it — so a loaded rule shows View ticked
   // wherever the principal may run the report, which is what catalog visibility follows.
   if ((def.security || []).length) {
@@ -1837,12 +1908,14 @@ async function loadReportDefinition(id) {
   const record = await dvRetrieve("qdb_reportdefinition", id,
     "?$select=qdb_reportdefinitionid,qdb_name,qdb_description,qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit,qdb_timeoutms");
 
-  const [sources, filters, parameters, formulas, layouts, security] = await Promise.all([
+  const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
     dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias&$orderby=qdb_executionorder"),
     dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
     dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
     dvList("qdb_reportlayout", byReport(id) + "&$select=qdb_themecolor,qdb_layoutjson"),
+    dvList("qdb_reporttransformation", byReport(id)
+      + "&=qdb_transformtype,qdb_configjson,qdb_steporder,qdb_enabled&=qdb_steporder"),
     dvList("qdb_reportsecurity", byReport(id)
       + "&$select=qdb_principaltype,qdb_principalidtext,qdb_canexecute,qdb_canexport,qdb_canedit,qdb_canapprove")
   ]);
@@ -1901,6 +1974,10 @@ async function loadReportDefinition(id) {
       formulaAlias: f.qdb_formulaalias, expression: f.qdb_expression, evaluationOrder: f.qdb_evaluationorder
     })),
     layout: layouts.length ? { themeColor: layouts[0].qdb_themecolor, layoutJson: layouts[0].qdb_layoutjson } : null,
+    transformations: transformations.map(t => ({
+      transformType: t.qdb_transformtype == null ? null : { code: t.qdb_transformtype },
+      configJson: t.qdb_configjson, stepOrder: t.qdb_steporder, enabled: t.qdb_enabled !== false
+    })),
     security: security.map(s => ({
       principalType: s.qdb_principaltype == null ? null : { code: s.qdb_principaltype },
       principalIdText: s.qdb_principalidtext,
@@ -2449,7 +2526,7 @@ function tabTransform(body, r) {
     <td><input class="fluent-input" data-i="${i}" data-k="target" value="${esc(t.target)}" placeholder="—"></td>
     <td><input class="fluent-input ${isValidJson(t.config)?"":"badjson"}" data-i="${i}" data-k="config" value="${esc(t.config)}" placeholder="${esc(configTemplate(t.type))}"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  card.appendChild(listTable(cols, r.transformations, rowHtml, () => { r.transformations.push({type:"Rename column",target:"",config:configTemplate("Rename column"),seq:r.transformations.length+1}); renderTab(); }, "Add transformation"));
+  card.appendChild(listTable(cols, r.transformations, rowHtml, () => { r.transformations.push({type:TRANSFORM_TYPES[0],target:"",config:configTemplate(TRANSFORM_TYPES[0]),seq:r.transformations.length+1}); renderTab(); }, "Add transformation"));
   body.appendChild(card); bindInputs(card, r.transformations);
   card.querySelectorAll('[data-k="type"]').forEach(s => s.addEventListener("change", () => { const t = r.transformations[+s.dataset.i]; if (!t.config) { t.config = configTemplate(s.value); } renderTab(); }));
   card.querySelectorAll('[data-k="config"]').forEach(inp => inp.addEventListener("input", () => inp.classList.toggle("badjson", !isValidJson(inp.value))));

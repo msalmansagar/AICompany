@@ -1148,6 +1148,81 @@ const TRANSFORMATIONS = {
     });
   },
 
+  // { "column": "fullname", "delimiter": " ", "into": ["first","last"] }
+  SplitValues: (result, config) => {
+    if (typeof config.column !== "string" || !Array.isArray(config.into) || !config.into.length) return result;
+    const delimiter = typeof config.delimiter === "string" ? config.delimiter : " ";
+
+    for (const alias of config.into) {
+      result.columns.push({ alias, label: alias, attribute: null, isVisible: true });
+    }
+    for (const row of result.rows) {
+      const parts = String((row.cells[config.column] || {}).text ?? "").split(delimiter);
+      config.into.forEach((alias, i) => {
+        const value = parts[i] ?? "";
+        row.cells[alias] = { value, text: value };
+      });
+    }
+    return result;
+  },
+
+  /* { "columns": ["statuscode"] } — or omit columns to apply to all.
+     The plugin already returns each cell's formatted label alongside its raw value, so resolving a
+     choice is a matter of promoting that text to the value: exports and formulas then carry "Active"
+     rather than 0, which is what someone asking for label resolution wants. */
+  ChoiceLabelResolution: (result, config) => {
+    const named = Array.isArray(config.columns) ? new Set(config.columns) : null;
+    return mapCells(result, (alias, cell) =>
+      (!named || named.has(alias)) && cell.text ? { value: cell.text, text: cell.text } : cell);
+  },
+
+  // { "alias": "total", "label": "Total", "expression": "amount * 1.05" }
+  Formula: (result, config) => {
+    if (typeof config.alias !== "string" || typeof config.expression !== "string") return result;
+    // Reuses the computed-column engine, so a formula step and the Formulas tab behave identically.
+    return applyFormulas(result, [{ formulaAlias: config.alias, expression: config.expression, evaluationOrder: 1 }]);
+  },
+
+  // { "column": "status", "condition": "value > 90", "then": "Overdue", "else": "Current" }
+  ConditionalValue: (result, config) => {
+    if (typeof config.column !== "string" || typeof config.condition !== "string") return result;
+    let ast;
+    try { ast = parseFormula(tokenizeFormula(config.condition)); } catch (error) { return result; }
+
+    for (const row of result.rows) {
+      const scope = {};
+      for (const column of result.columns) scope[column.alias] = (row.cells[column.alias] || {}).value;
+      scope.value = scope[config.column];
+
+      let matched = false;
+      try { matched = truthy(evaluateFormula(ast, scope)); } catch (error) { continue; }
+      const replacement = matched ? config.then : config.else;
+      if (replacement === undefined) continue;
+      row.cells[config.column] = { value: replacement, text: String(replacement) };
+    }
+    return result;
+  },
+
+  // { "column": "payload", "fields": { "iban": "Bank IBAN" } }
+  JsonFlatten: (result, config) => {
+    if (typeof config.column !== "string" || !config.fields) return result;
+    const fields = Object.keys(config.fields);
+    for (const key of fields) {
+      result.columns.push({ alias: key, label: config.fields[key] || key, attribute: null, isVisible: true });
+    }
+
+    for (const row of result.rows) {
+      let parsed = {};
+      // A row whose JSON will not parse yields blanks rather than failing the report.
+      try { parsed = JSON.parse((row.cells[config.column] || {}).text || "{}"); } catch (error) { parsed = {}; }
+      for (const key of fields) {
+        const value = parsed[key];
+        row.cells[key] = { value: value ?? null, text: value == null ? "" : String(value) };
+      }
+    }
+    return result;
+  },
+
   MergeColumns: (result, config) => {
     const sources = Array.isArray(config.columns) ? config.columns : [];
     if (!sources.length || typeof config.into !== "string") return result;

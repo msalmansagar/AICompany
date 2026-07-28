@@ -1,10 +1,12 @@
 import { fileURLToPath } from 'node:url';
 const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
-// Exercises the ported transformation pipeline against the config shapes the C# version documented.
+// Exercises the transformation pipeline against the config shapes the C# version documented.
+// Slices from the formula section, not the transformations one: ConditionalValue and Formula reuse the
+// expression evaluator, which sits above them in the viewer and must be in scope here too.
 import { readFileSync } from 'node:fs';
 
 const html = readFileSync(VIEWER, 'utf8');
-const source = html.slice(html.indexOf('const TRANSFORMATIONS'), html.indexOf('/* ---------------- self-check'));
+const source = html.slice(html.indexOf('const FORMULA_FUNCTIONS'), html.indexOf('/* ---------------- self-check'));
 const { applyTransformations } = new Function(`${source}; return { applyTransformations };`)();
 
 let passed = 0, failed = 0;
@@ -65,6 +67,31 @@ const merged = run({ first: ['Al', 'Al'], last: ['Khalij', 'Khalij'] }, 'MergeCo
 check('creates the merged column', textOf(merged, 'full'), 'Al Khalij');
 check('uses the given label', labelOf(merged, 'full'), 'Full name');
 check('custom separator', textOf(run({ a: ['x', 'x'], b: ['y', 'y'] }, 'MergeColumns', { columns: ['a', 'b'], into: 'j', separator: '-' }), 'j'), 'x-y');
+
+console.log('\nSplitValues');
+const split = run({ fullname: ['Al Khalij Bank', 'Al Khalij Bank'] }, 'SplitValues', { column:'fullname', delimiter:' ', into:['first','rest'] });
+check('splits into new columns', [textOf(split,'first'), textOf(split,'rest')], ['Al','Khalij']);
+check('missing part becomes empty', textOf(run({ a:['x','x'] }, 'SplitValues', { column:'a', delimiter:',', into:['p','q'] }), 'q'), '');
+
+console.log('\nChoiceLabelResolution');
+check('promotes the label to the value', textOf(run({ statecode:[0,'Active'] }, 'ChoiceLabelResolution', { columns:['statecode'] }), 'statecode'), 'Active');
+const promoted = run({ statecode:[0,'Active'] }, 'ChoiceLabelResolution', { columns:['statecode'] });
+check('value now carries the label too', promoted.rows[0].cells.statecode.value, 'Active');
+
+console.log('\nFormula (as a pipeline step)');
+check('computes a new column', textOf(run({ amount:[100,'100'] }, 'Formula', { alias:'withTax', expression:'amount * 2' }), 'withTax'), '200');
+
+console.log('\nConditionalValue');
+check('replaces when the condition holds', textOf(run({ days:[95,'95'] }, 'ConditionalValue', { column:'days', condition:'value > 90', then:'Overdue', else:'Current' }), 'days'), 'Overdue');
+check('uses the else branch otherwise', textOf(run({ days:[10,'10'] }, 'ConditionalValue', { column:'days', condition:'value > 90', then:'Overdue', else:'Current' }), 'days'), 'Current');
+check('an unparsable condition changes nothing', textOf(run({ days:[10,'10'] }, 'ConditionalValue', { column:'days', condition:'value >', then:'x' }), 'days'), '10');
+
+console.log('\nJsonFlatten');
+const flat = run({ payload:['{"iban":"QA58","branch":"Doha"}', '{"iban":"QA58","branch":"Doha"}'] }, 'JsonFlatten',
+  { column:'payload', fields:{ iban:'IBAN', branch:'Branch' } });
+check('extracts each named field', [textOf(flat,'iban'), textOf(flat,'branch')], ['QA58','Doha']);
+check('labels the new columns', labelOf(flat,'iban'), 'IBAN');
+check('unparsable json yields blanks', textOf(run({ payload:['{oops','{oops'] }, 'JsonFlatten', { column:'payload', fields:{ a:'A' } }), 'a'), '');
 
 console.log('\nrobustness — a bad step never breaks the report');
 check('disabled step is skipped', textOf(run({ a: [null, ''] }, 'NullHandling', { default: '—' }, false), 'a'), '');

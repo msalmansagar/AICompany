@@ -3,6 +3,8 @@ const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.
 // Runs the viewer's exporters against a real executed result, with the vendored libraries loaded
 // from disk, and checks each produces a genuinely valid file rather than merely not throwing.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const PROTO = fileURLToPath(new URL('../prototype', import.meta.url));
 const html = readFileSync(`${PROTO}/report-runtime.html`, 'utf8');
@@ -84,7 +86,7 @@ file = downloads[0]; bytes = bytesOf(file.blob);
 check('named .xlsx', file.filename === 'report.xlsx');
 check('is a real ZIP (PK header)', bytes.slice(0,2).toString() === 'PK');
 check('contains the workbook part', bytes.toString('latin1').includes('xl/worksheets'));
-writeFileSync('export-check.xlsx', bytes);
+writeFileSync(join(tmpdir(), 'export-check.xlsx'), bytes);   // inspectable, but not in the repo
 
 console.log('\nPDF');
 downloads.length = 0; await api.exportPdf(result, 'report');
@@ -92,7 +94,7 @@ file = downloads[0]; bytes = bytesOf(file.blob);
 check('named .pdf', file.filename === 'report.pdf');
 check('is a real PDF (%PDF header)', bytes.slice(0,4).toString() === '%PDF');
 check('has an EOF marker', bytes.slice(-8).toString().includes('EOF'));
-writeFileSync('export-check.pdf', bytes);
+writeFileSync(join(tmpdir(), 'export-check.pdf'), bytes);   // inspectable, but not in the repo
 
 console.log('\nPNG');
 downloads.length = 0; await api.exportPng(result, 'report');
