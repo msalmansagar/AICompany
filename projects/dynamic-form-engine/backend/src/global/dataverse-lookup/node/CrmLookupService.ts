@@ -71,6 +71,9 @@ export class CrmLookupService implements DataverseLookupService {
   private readonly ceiling: number;
   private readonly activePolicy: Required<ActiveRecordPolicy>;
 
+  /** Entity-set names resolved from metadata, cached for the life of the process. */
+  private readonly entitySetNames = new Map<string, string>();
+
   constructor(options: CrmLookupServiceOptions) {
     this.baseUrl = `${options.dataverseUrl}/api/data/${API_VERSION}`;
     this.tokenProvider = options.tokenProvider;
@@ -80,6 +83,33 @@ export class CrmLookupService implements DataverseLookupService {
       default: options.activeRecords?.default ?? DEFAULT_ACTIVE_POLICY.default,
       overrides: { ...DEFAULT_ACTIVE_POLICY.overrides, ...options.activeRecords?.overrides },
     };
+  }
+
+  /**
+   * The entity-set name for a logical name, from metadata.
+   *
+   * Cached for the life of the process — it changes only when a table is created. Falls back
+   * to the naive plural when metadata cannot be read, so a metadata outage degrades to the
+   * previous behaviour rather than failing every lookup.
+   */
+  private async resolveEntitySetName(entity: string): Promise<string> {
+    const cached = this.entitySetNames.get(entity);
+    if (cached) return cached;
+
+    try {
+      const metadata = await this.get<{ EntitySetName?: string }>(
+        `/EntityDefinitions(LogicalName='${entity}')?$select=EntitySetName`,
+        { entity },
+      );
+      if (metadata.EntitySetName) {
+        this.entitySetNames.set(entity, metadata.EntitySetName);
+        return metadata.EntitySetName;
+      }
+    } catch {
+      // fall through to the naive plural
+    }
+
+    return `${entity}s`;
   }
 
   /** The active-record OData filter for an entity, or null if none applies. */
@@ -121,8 +151,13 @@ export class CrmLookupService implements DataverseLookupService {
       .filter((part): part is string => part !== null)
       .join('&');
 
+    // The Web API addresses records by entity-set name, which is NOT the logical name plus
+    // "s" — qdb_applicationstatus is qdb_applicationstatuses, and hundreds of custom tables
+    // are irregular. Guessing produces "Resource not found for the segment".
+    const entitySet = await this.resolveEntitySetName(query.entity);
+
     const collection = await this.get<{ value: Record<string, unknown>[] }>(
-      `/${query.entity}s?${odata}`,
+      `/${entitySet}?${odata}`,
       { entity: query.entity },
     );
 

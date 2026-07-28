@@ -45,8 +45,15 @@ export function useBarSourceValues(
 
   const recordId = config ? readRecordId(fieldValues[config.sourceFieldSchemaName]) : null;
 
+  // Depend on the config's VALUES, not the object. The form definition hands a fresh object
+  // on every render, so an object dependency re-fires the effect each time it runs — which
+  // sets state, re-renders, and loops until the page freezes.
+  const configKey = config
+    ? [config.entityLogicalName, config.minAttribute, config.maxAttribute, config.valueAttribute].join('|')
+    : null;
+
   useEffect(() => {
-    if (!config || !recordId) {
+    if (!config || !configKey || !recordId) {
       setValues(null);
       return;
     }
@@ -73,7 +80,8 @@ export function useBarSourceValues(
       });
 
     return () => { isCurrent = false; };
-  }, [recordId, config]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- configKey covers config by value
+  }, [recordId, configKey]);
 
   return values;
 }
