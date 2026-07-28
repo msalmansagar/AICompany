@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, PROCESS_HOOKS } from '@/services/workflowHooks';
 import { useState, useEffect, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
@@ -98,6 +99,7 @@ export function Toolbar({
         regardingField: '',
         parentEntity: '', parentEntityName: null,
         versionMajor: 1, versionMinor: 0,
+        workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
         workflowState: 'draft', snapshot: null,
       };
       loadWorkflow(newProcess, [], [], [], {});

@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, PROCESS_HOOKS } from '@/services/workflowHooks';
 import { useState, useCallback } from 'react';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -69,6 +70,7 @@ export function useWorkflowSave(): UseSaveResult {
           parentEntityName: process.parentEntityName,
           versionMajor: process.versionMajor,
           versionMinor: process.versionMinor,
+          workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
           workflowState: 'draft',
           snapshot: null,
         });

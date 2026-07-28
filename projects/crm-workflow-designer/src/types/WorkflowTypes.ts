@@ -1,6 +1,8 @@
 import type { WorkflowHooks } from '@/services/workflowHooks';
 
 export interface WorkflowProcess {
+  /** Workflows the engine runs across every task in this process (DP-5). */
+  workflowHooks: WorkflowHooks;
   crmId: string;
   name: string;
   recordEntity: string;
@@ -139,6 +141,8 @@ export interface WorkflowOutcome {
 export type RoundRobinTeamOption = TeamOption;
 
 export interface WorkflowRoute {
+  /** Workflows the engine runs for the task this route leads to (DP-5). */
+  workflowHooks: WorkflowHooks;
   crmId: string;
   name: string;
   subject: string;

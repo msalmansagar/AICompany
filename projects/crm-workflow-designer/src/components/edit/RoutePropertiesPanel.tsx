@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
+import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { ROUTE_HOOKS } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 interface RoutePropertiesPanelProps {
@@ -123,6 +125,22 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
           </button>
         </Field>
       </div>
+
+
+      <WorkflowHooksSection
+
+        value={route.workflowHooks}
+
+        onChange={(workflowHooks) => setRoute({ ...route, workflowHooks })}
+
+        kinds={ROUTE_HOOKS}
+
+        adapter={adapter}
+
+        scopeNote="Runs for the task this route leads to. The step and the process may add their own, and the engine runs all of them."
+
+      />
+
 
       {isFetchXmlOpen && (
         <FetchXmlBuilderDialog

@@ -4,7 +4,7 @@ import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
 import { mapEscalationConfig, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
-import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 import type { CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import { withRetry } from './withRetry';
@@ -155,7 +155,7 @@ export class ODataAdapter implements ISopAdapter {
 
   async getProcessList(): Promise<WorkflowProcess[]> {
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.process}?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value`
+      `${ENTITY_SETS.process}?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
     );
     return data.value.map(mapProcess);
   }
@@ -163,7 +163,7 @@ export class ODataAdapter implements ISopAdapter {
   async getProcess(id: string): Promise<WorkflowProcess> {
     assertGuid(id, 'processId');
     const raw = await this.get<Record<string, unknown>>(
-      `${ENTITY_SETS.process}(${id})?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value`
+      `${ENTITY_SETS.process}(${id})?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
     );
     return mapProcess(raw);
   }
@@ -191,6 +191,10 @@ export class ODataAdapter implements ISopAdapter {
       if (data.parentEntity   && pe)  body[`${pe}@odata.bind`]  = `/${ENTITY_SETS.crmEntity}(${data.parentEntity})`;
       if (data.sopId          && sop) body[`${sop}@odata.bind`] = `/${ENTITY_SETS.sop}(${data.sopId})`;
     }
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), 'qdb_work_item_record_type', WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -303,20 +307,29 @@ export class ODataAdapter implements ISopAdapter {
   async getRoutes(outcomeId: string): Promise<WorkflowRoute[]> {
     assertGuid(outcomeId, 'outcomeId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.route}?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value&$filter=_qdb_outcome_value eq ${outcomeId}`
+      `${ENTITY_SETS.route}?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}`
     );
     return data.value.map(mapRoute);
+  }
+
+  private async buildRouteBodyResolved(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildRouteBody(data);
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), 'qdb_outcomeworktasks', WORKFLOW_SET)
+    );
+    return body;
   }
 
   async createRoute(data: Omit<WorkflowRoute, 'crmId'>): Promise<string> {
     assertGuid(data.outcomeId, 'outcomeId');
     if (data.nextStepId) assertGuid(data.nextStepId, 'nextStepId');
-    return this.post(ENTITY_SETS.route, buildRouteBody(data));
+    return this.post(ENTITY_SETS.route, await this.buildRouteBodyResolved(data));
   }
 
   async updateRoute(id: string, data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<void> {
     assertGuid(id, 'routeId');
-    await this.patch(`${ENTITY_SETS.route}(${id})`, buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>));
+    await this.patch(`${ENTITY_SETS.route}(${id})`, await this.buildRouteBodyResolved(data));
   }
 
   async deleteRoute(id: string): Promise<void> {
@@ -719,6 +732,7 @@ export class ODataAdapter implements ISopAdapter {
 
 function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
+    workflowHooks: mapWorkflowHooks(raw, PROCESS_HOOKS),
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     recordEntity: (raw['_qdb_recordentity_value'] as string) ?? '',
@@ -779,6 +793,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
 
 function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
   return {
+    workflowHooks: mapWorkflowHooks(raw, ROUTE_HOOKS),
     crmId: raw['qdb_outcomeworktasksid'] as string,
     name: (raw['qdb_name'] as string) ?? '',
     subject: (raw['qdb_subject'] as string) ?? '',

@@ -3,7 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
 import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
-import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS } from './workflowHooks';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 import type { CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
@@ -123,7 +123,7 @@ export class DataverseAdapter implements ISopAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
-          '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value&$top=100&$orderby=qdb_name asc'
+          '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc'
         )
       );
       return result.entities.map(mapProcess);
@@ -138,7 +138,7 @@ export class DataverseAdapter implements ISopAdapter {
       this.xrm.WebApi.retrieveRecord(
         LOGICAL.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value'
+        '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}'
       )
     );
     return mapProcess(raw as Record<string, unknown>);
@@ -170,6 +170,10 @@ export class DataverseAdapter implements ISopAdapter {
       if (data.parentEntity   && pe)  body[`${pe}@odata.bind`]  = `/${SET.crmEntity}(${data.parentEntity})`;
       if (data.sopId          && sop) body[`${sop}@odata.bind`] = `/${SET.sop}(${data.sopId})`;
     }
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), 'qdb_work_item_record_type', WORKFLOW_SET)
+    );
     return body;
   }
 
@@ -296,25 +300,36 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.route,
-        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
+        `?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}&$orderby=qdb_sequencenumber asc`
       )
     );
     return result.entities.map(mapRoute);
   }
 
+  private async buildRouteBodyResolved(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<Record<string, unknown>> {
+    const body = buildRouteBody(data);
+    Object.assign(
+      body,
+      await buildWorkflowHookBindPatches(data.workflowHooks, (e, a) => this.resolveNavProp(e, a), LOGICAL.route, WORKFLOW_SET)
+    );
+    return body;
+  }
+
   async createRoute(data: Omit<WorkflowRoute, 'crmId'>): Promise<string> {
     assertGuid(data.outcomeId, 'outcomeId');
     if (data.nextStepId) assertGuid(data.nextStepId, 'nextStepId');
+    const routeBody = await this.buildRouteBodyResolved(data);
     const result = await withRetry(() =>
-      this.xrm.WebApi.createRecord(LOGICAL.route, buildRouteBody(data))
+      this.xrm.WebApi.createRecord(LOGICAL.route, routeBody)
     );
     return result.id;
   }
 
   async updateRoute(id: string, data: Partial<Omit<WorkflowRoute, 'crmId'>>): Promise<void> {
     assertGuid(id, 'routeId');
+    const routeBody = await this.buildRouteBodyResolved(data);
     await withRetry(() =>
-      this.xrm.WebApi.updateRecord(LOGICAL.route, id, buildRouteBody(data as Omit<WorkflowRoute, 'crmId'>))
+      this.xrm.WebApi.updateRecord(LOGICAL.route, id, routeBody)
     );
   }
 
@@ -907,6 +922,7 @@ export class DataverseAdapter implements ISopAdapter {
 
 function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
+    workflowHooks: mapWorkflowHooks(raw, PROCESS_HOOKS),
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     recordEntity: (raw['_qdb_recordentity_value'] as string) ?? '',
@@ -971,6 +987,7 @@ function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
 
 function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
   return {
+    workflowHooks: mapWorkflowHooks(raw, ROUTE_HOOKS),
     crmId: (raw['qdb_outcomeworktasksid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
     subject: (raw['qdb_subject'] as string) ?? '',
