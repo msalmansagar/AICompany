@@ -2041,7 +2041,10 @@ document.addEventListener("keydown", blockKeyboardWhileBusy, true);
 
    Deliberately not every step: rebuilding the overlay discards whatever is typed into the current
    one, and the steps left out are the ones a user types into rather than picks from. */
-const METADATA_DRIVEN_WIZARD_STEPS = ["data", "columns", "filters", "details"];
+/* Basics is on this list for its Category and Module dropdowns: they come from the report
+   definition's own choice columns, which load lazily. Landing on the step before they arrive showed
+   an empty list under a required field, and nothing brought them in afterwards. */
+const METADATA_DRIVEN_WIZARD_STEPS = ["basics", "data", "columns", "filters", "details"];
 
 /**
  * Re-labels attribute combos once their table's fields arrive.
@@ -4757,6 +4760,19 @@ function wizBasics(host, d) {
     <div class="field"><label class="lbl">Owner</label><input class="fluent-input" id="wz_owner" value="${esc(d.owner)}"></div>
     <div class="field"><label class="lbl">Governed report</label><label class="toggle"><input type="checkbox" id="wz_governed" ${d.governed?"checked":""}><span class="track"></span><span class="tlabel">Needs approval before production</span></label></div>
   </div>`;
+
+  /* Written as they are typed, not only on Next. The step re-renders when the Category and Module
+     choices arrive, and a re-render reads from the draft — anything not yet written would be lost
+     mid-sentence, which is a strange thing to have happen while naming a report. */
+  const bind = (id, key) => {
+    const input = $("#" + id);
+    if (input) input.addEventListener(input.type === "checkbox" ? "change" : "input",
+      () => { d[key] = input.type === "checkbox" ? input.checked : input.value; });
+  };
+  [["wz_name","name"],["wz_description","description"],["wz_category","category"],
+   ["wz_module","module"],["wz_owner","owner"],["wz_governed","governed"]].forEach(([id,key]) => bind(id,key));
+  $("#wz_category").addEventListener("change", () => { d.category = $("#wz_category").value; });
+  $("#wz_module").addEventListener("change", () => { d.module = $("#wz_module").value; });
 }
 function wizData(host, d) {
   d._dataView = d._dataView || "form";
