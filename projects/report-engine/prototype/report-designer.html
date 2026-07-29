@@ -3785,33 +3785,127 @@ const WIZ_STEPS = [
   { key:"placement", title:"Use in CRM", desc:"Form, grid or dashboard" },
   { key:"review", title:"Review", desc:"Create report" }
 ];
-const TEMPLATES = {
-  loanBranch: { label:"Applications by Branch", desc:"Loan applications grouped by branch with amount totals", data:{ name:"Active Loan Applications by Branch", category:"Operational", module:"Lending", mainEntity:"qdb_loanapplication", sourceType:"FetchXML", columns:["qdb_applicationnumber","qdb_branchid","statuscode","qdb_requestedamount","createdon"], layoutType:"Grouped Report", exports:["PDF","Excel","CSV"], filters:[{attribute:"statuscode",operator:"Equals",value:"Active",param:""},{attribute:"createdon",operator:"Last X days",value:"90",param:""}], parameters:[{name:"Branch",prompt:"Branch",type:"Lookup",required:false}] } },
-  overdue: { label:"Overdue Facilities", desc:"Facilities past maturity with outstanding balances", data:{ name:"Overdue Facilities Summary", category:"Regulatory", module:"Collections", mainEntity:"qdb_facility", sourceType:"QueryExpression", columns:["qdb_facilitynumber","qdb_limit","qdb_outstanding","qdb_status","qdb_maturitydate"], layoutType:"Tabular Report", exports:["PDF","Excel"], filters:[{attribute:"qdb_status",operator:"Equals",value:"Overdue",param:""}], parameters:[] } },
-  kpi: { label:"Portfolio KPIs", desc:"Card / KPI summary of the loan book", data:{ name:"Loan Portfolio KPIs", category:"Management", module:"Lending", mainEntity:"qdb_loanapplication", sourceType:"Dataverse Web API", columns:["qdb_branchid","statuscode","qdb_requestedamount"], layoutType:"Dashboard Report", exports:["PDF","Image (PNG)"], filters:[], parameters:[] } },
-  invoice: { label:"Invoice / Header-Detail", desc:"Header record + multiple detail tables (line items, collaterals) with totals", data:{ name:"Sales Invoice", category:"Financial", module:"Sales", mainEntity:"qdb_loanapplication", sourceType:"FetchXML", columns:["qdb_applicationnumber","qdb_branchid","statuscode","createdon","qdb_requestedamount"], layoutType:"Invoice Layout", exports:["PDF","Excel","Word"], filters:[], parameters:[], detailTables:[ {entity:"qdb_facility", label:"Line Items", showTotals:true, columns:[{name:"Facility No",attr:"qdb_facilitynumber",type:"Text"},{name:"Limit",attr:"qdb_limit",type:"Currency"},{name:"Outstanding",attr:"qdb_outstanding",type:"Currency"}]}, {entity:"qdb_collateral", label:"Collaterals", showTotals:false, columns:[{name:"Type",attr:"qdb_collateraltype",type:"Option set"},{name:"Value",attr:"qdb_value",type:"Currency"}]} ] } },
-  workflowTable: { label:"Workflow History (Table)", desc:"Step-by-step approval history in a grouped table — stage, action, actor, status transitions and duration", data:{ name:"Workflow / Approval History", category:"Operational", module:"Process", mainEntity:"qdb_processhistory", sourceType:"Dataverse Web API", columns:["qdb_stage","qdb_action","qdb_recordref","qdb_fromstatus","qdb_tostatus","qdb_performedby","qdb_actionon","qdb_durationhrs"], layoutType:"Grouped Report", exports:["PDF","Excel","CSV"], filters:[{attribute:"qdb_actionon",operator:"Last X days",value:"30",param:""}], parameters:[{name:"Record",prompt:"Record",type:"Lookup",required:false}] } },
-  workflowVisual: { label:"Workflow History (Visual)", desc:"The same approval history as a vertical timeline — each stage a milestone with actor and timestamp", data:{ name:"Workflow History Timeline", category:"Operational", module:"Process", mainEntity:"qdb_processhistory", sourceType:"Dataverse Web API", columns:["qdb_stage","qdb_action","qdb_performedby","qdb_actionon","qdb_durationhrs"], layoutType:"Timeline Layout", exports:["PDF","Image (PNG)"], filters:[], parameters:[{name:"Record",prompt:"Record",type:"Lookup",required:true}] } },
-  sla: { label:"SLA Compliance", desc:"Service-level tracking — target vs elapsed time with Met / Breached / At-Risk status per case", data:{ name:"SLA Compliance Report", category:"Regulatory", module:"Service", mainEntity:"qdb_slatracking", sourceType:"QueryExpression", columns:["qdb_caseref","qdb_slapolicy","qdb_targethrs","qdb_elapsedhrs","qdb_slastatus","qdb_owner","qdb_duedate"], layoutType:"Tabular Report", exports:["PDF","Excel"], filters:[{attribute:"qdb_duedate",operator:"Last X days",value:"30",param:""}], parameters:[{name:"SLA Policy",prompt:"SLA Policy",type:"Option set",required:false}] } }
+/* ---------- Starting shapes ----------
+   These replace a catalogue of ready-made reports that named tables — qdb_loanapplication,
+   qdb_processhistory, qdb_slatracking — which do not exist in this org, and whose columns did not
+   exist on the two tables that do. Every report started from one was born broken: it saved happily
+   and failed at DataFetch, which is exactly how the "Overdue Facilities" sample came to select a
+   qdb_amount column that was never on the table.
+
+   A shape names nothing. It carries a layout, sensible export defaults, and a rule for picking
+   columns from whatever entity the author chooses — so it cannot reference something that is not
+   there, and it is as useful in one org as in the next. The columns it suggests are only a starting
+   point; the Columns step is still where the author decides. */
+const REPORT_SHAPES = {
+  tabular: {
+    label: "Simple table",
+    desc: "Every row, straight down the page. The plainest useful report.",
+    layoutType: "Tabular Report",
+    exports: ["PDF", "Excel", "CSV"],
+    pick: columnsForTable
+  },
+  grouped: {
+    label: "Grouped with totals",
+    desc: "Rows gathered under a category — a choice or lookup column — with a total per group.",
+    layoutType: "Grouped Report",
+    exports: ["PDF", "Excel", "CSV"],
+    pick: columnsForGrouping
+  },
+  summary: {
+    label: "Summary",
+    desc: "One line per category with its total. The grouped report without the detail.",
+    layoutType: "Summary Report",
+    exports: ["PDF", "Excel"],
+    pick: columnsForGrouping
+  },
+  chart: {
+    label: "Chart",
+    desc: "A category and a measure, drawn. Falls back to a count when nothing numeric exists.",
+    layoutType: "Chart Report",
+    exports: ["PDF", "Image (PNG)"],
+    pick: columnsForGrouping
+  },
+  kpi: {
+    label: "KPI cards",
+    desc: "Headline numbers rather than rows — totals and counts across the table.",
+    layoutType: "Dashboard Report",
+    exports: ["PDF", "Image (PNG)"],
+    pick: columnsForGrouping
+  }
 };
-const SSRS_INVENTORY = ["RPT_LoanBook_Monthly.rdl","RPT_Overdue_Aging.rdl","RPT_Branch_Performance.rdl","RPT_Collateral_Coverage.rdl","RPT_Disbursement_Daily.rdl"];
+
+/** The first few readable columns: what someone would put in a plain table. */
+function columnsForTable(entity) {
+  const usable = reportableAttributes(entity);
+  return usable.slice(0, 6).map(a => a.a);
+}
+
+/** A category to group by, a number to total, and a little context around them. */
+function columnsForGrouping(entity) {
+  const usable = reportableAttributes(entity);
+  const category = usable.find(a => ["Option set", "Lookup"].includes(a.t)) || usable.find(a => a.t === "Text");
+  const measure = usable.find(a => a.t === "Currency") || usable.find(a => ["Decimal", "Whole number"].includes(a.t));
+  const chosen = [category, measure].filter(Boolean).map(a => a.a);
+  for (const attribute of usable) {
+    if (chosen.length >= 5) break;
+    if (!chosen.includes(attribute.a)) chosen.push(attribute.a);
+  }
+
+  return chosen;
+}
+
+/* Columns worth offering as a starting point. The keys, state fields and audit stamps every table
+   carries are real attributes and terrible first suggestions. */
+const UNHELPFUL_FIRST_COLUMNS = /^(createdonbehalfby|modifiedonbehalfby|importsequencenumber|overriddencreatedon|timezoneruleversionnumber|utcconversiontimezonecode|versionnumber|owningbusinessunit|owningteam|owninguser|statecode|statuscode)$/i;
+
+function reportableAttributes(entity) {
+  return attributesOf(entity).filter(a =>
+    a.t !== "Uniqueidentifier" && !UNHELPFUL_FIRST_COLUMNS.test(a.a));
+}
 const wiz = { step:0, draft:null };
 function openWizard() {
   wiz.step = 0;
-  wiz.draft = { start:"blank", ssrsPick:"", dupPick:"", name:"", description:"", category:"Operational", module:"", owner:"Salman Sagar", governed:false,
-    mainEntity:"qdb_loanapplication", dataSourceName:"", sourceType:"FetchXML", joins:[], externalSources:[], columns:[], colMeta:{}, detailTables:[], subReports:[], filters:[], parameters:[], etl:[],
+  wiz.draft = { start:"blank", dupPick:"", shape:"", name:"", description:"", category:"", module:"", owner:state.userName||"", governed:false,
+    mainEntity:"", dataSourceName:"", sourceType:"FetchXML", joins:[], externalSources:[], columns:[], colMeta:{}, detailTables:[], subReports:[], filters:[], parameters:[], etl:[],
     layoutType:"Tabular Report", exports:["PDF","Excel","CSV"], theme:"qdb", languages:["en"], primaryLang:"en", previewLang:"en", logoData:null, renderMode:"report", chartType:"Column", cardIcon:"chart",
     placements:{ form:false, grid:true, dashboard:false, subgrid:false, sitemap:false, entity:"", role:"", passRecord:true, passSelected:true, passUserBu:true, passFields:[] } };
   renderWizard();
 }
 async function applyStart(d) {
   if (d.start && d.start.startsWith("tpl:")) {
-    const t = TEMPLATES[d.start.slice(4)]; if (t) Object.assign(d, JSON.parse(JSON.stringify(t.data)));
-  } else if (d.start === "ssrs") {
-    const name = (d.ssrsPick || SSRS_INVENTORY[0]).replace(/^RPT_/,"").replace(/\.rdl$/,"").replace(/_/g," ");
-    d.name = "[SSRS] " + name; d.category = "Operational"; d.module = "Migration";
+    applyShape(d, d.start.slice(4));
   } else if (d.start === "duplicate") {
     await copyStoredReportIntoDraft(d);
+  }
+}
+
+/* A shape contributes its layout and export defaults now, and its column rule later — once the
+   author has chosen a table. Nothing here names an entity, which is the whole point. */
+function applyShape(d, shapeId) {
+  const shape = REPORT_SHAPES[shapeId];
+  if (!shape) return;
+  d.shape = shapeId;
+  d.layoutType = shape.layoutType;
+  d.exports = shape.exports.slice();
+}
+
+/**
+ * Suggests the shape's columns against the table the author picked. Only ever suggests: it runs when
+ * nothing has been chosen yet, so it cannot overwrite a selection someone has already made.
+ */
+function suggestShapeColumns(d) {
+  if (!d.shape || !d.mainEntity || (d.columns && d.columns.length)) return;
+  const shape = REPORT_SHAPES[d.shape];
+  if (!shape) return;
+
+  const suggested = shape.pick(d.mainEntity);
+  if (!suggested.length) return;
+
+  d.columns = suggested;
+  d.colMeta = d.colMeta || {};
+  for (const attribute of suggested) {
+    const known = attributesOf(d.mainEntity).find(a => a.a === attribute);
+    if (!d.colMeta[attribute]) d.colMeta[attribute] = { label: known ? known.n : attribute, labelPos: "left" };
   }
 }
 
@@ -3959,6 +4053,9 @@ function wizDataForm(host, d) {
 }
 function wizColumns(host, d) {
   d._colView = d._colView || "list";
+  // The shape's suggestion lands here, where the table is finally known, and only if the author has
+  // not already chosen for themselves.
+  suggestShapeColumns(d);
   host.innerHTML = `<div id="wz_cv"></div>`;
   const render = () => { const c = $("#wz_cv"); c.innerHTML = ""; c.appendChild(el(viewToggle(d._colView, [{k:"list",label:"List view"},{k:"canvas",label:"Design canvas"}]))); const inner = el(`<div></div>`); c.appendChild(inner); (d._colView==="canvas"?wizColumnsCanvas:wizColumnsList)(inner, d); c.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{ d._colView=b.dataset.view; render(); }); };
   render();
@@ -4007,25 +4104,18 @@ function wizColumnsList(host, d) {
 function wizStart(host, d) {
   const cards = [
     { k:"blank", t:"Blank report", dsc:"Start from scratch" },
-    { k:"tpl:loanBranch", t:TEMPLATES.loanBranch.label, dsc:TEMPLATES.loanBranch.desc, tag:"Template" },
-    { k:"tpl:overdue", t:TEMPLATES.overdue.label, dsc:TEMPLATES.overdue.desc, tag:"Template" },
-    { k:"tpl:kpi", t:TEMPLATES.kpi.label, dsc:TEMPLATES.kpi.desc, tag:"Template" },
-    { k:"tpl:invoice", t:TEMPLATES.invoice.label, dsc:TEMPLATES.invoice.desc, tag:"Template" },
-    { k:"tpl:workflowTable", t:TEMPLATES.workflowTable.label, dsc:TEMPLATES.workflowTable.desc, tag:"Template" },
-    { k:"tpl:workflowVisual", t:TEMPLATES.workflowVisual.label, dsc:TEMPLATES.workflowVisual.desc, tag:"Template" },
-    { k:"tpl:sla", t:TEMPLATES.sla.label, dsc:TEMPLATES.sla.desc, tag:"Template" },
-    { k:"ssrs", t:"From SSRS report", dsc:"Migrate an existing .rdl", tag:"Migration" },
+    ...Object.keys(REPORT_SHAPES).map(id => ({
+      k: "tpl:" + id, t: REPORT_SHAPES[id].label, dsc: REPORT_SHAPES[id].desc, tag:"Shape"
+    })),
     { k:"duplicate", t:"Duplicate existing", dsc:"Copy a report you already have" }
   ];
-  host.innerHTML = `<div class="wtitle">How do you want to start?</div><div class="wsub">Begin blank, use a ready-made template, migrate an SSRS report, or duplicate an existing one. Everything stays editable in the later steps.</div>
+  host.innerHTML = `<div class="wtitle">How do you want to start?</div><div class="wsub">Pick a shape and choose the table in the next step — a shape brings the layout and suggests columns from whatever table you pick, so it works against your own data. Everything stays editable later.</div>
     <div class="choice-cards" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">${cards.map(c=>`<div class="choice-card ${d.start===c.k?"sel":""}" data-start="${esc(c.k)}">${c.tag?`<div class="rel-tag" style="margin:0 0 8px 0">${esc(c.tag)}</div>`:""}<div class="cc-t">${esc(c.t)}</div><div class="cc-d">${esc(c.dsc)}</div></div>`).join("")}</div>
     <div id="wz_startextra" style="margin-top:20px;max-width:440px"></div>`;
   const extra = () => {
     const box = $("#wz_startextra");
-    if (d.start === "ssrs") box.innerHTML = `<div class="field"><label class="lbl">SSRS report to migrate</label><select class="fluent-select" id="wz_ssrs">${opts(SSRS_INVENTORY, d.ssrsPick||SSRS_INVENTORY[0])}</select><span class="hint-inline">The engine seeds a draft; you rebuild it in the designer to functional parity.</span></div>`;
-    else if (d.start === "duplicate") box.innerHTML = `<div class="field"><label class="lbl">Report to duplicate</label><select class="fluent-select" id="wz_dup">${opts(reportCatalog.get().map(r=>r.name), d.dupPick||"")}</select></div>`;
+    if (d.start === "duplicate") box.innerHTML = `<div class="field"><label class="lbl">Report to duplicate</label><select class="fluent-select" id="wz_dup">${opts(reportCatalog.get().map(r=>r.name), d.dupPick||"")}</select></div>`;
     else box.innerHTML = "";
-    if ($("#wz_ssrs")) $("#wz_ssrs").onchange = e => d.ssrsPick = e.target.value;
     if ($("#wz_dup")) $("#wz_dup").onchange = e => d.dupPick = e.target.value;
   };
   host.querySelectorAll("[data-start]").forEach(c => c.onclick = () => { d.start = c.dataset.start; host.querySelectorAll("[data-start]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); extra(); });
