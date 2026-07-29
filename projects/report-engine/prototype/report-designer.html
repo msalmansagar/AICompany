@@ -963,6 +963,19 @@
   .node .ndel:hover { opacity:1; }
   .canvas-toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
   .canvas-hint { font-size:11.5px; color:var(--text-secondary); margin-top:8px; }
+  /* A node you can add but not configure is half a canvas: the panel edits whatever is selected,
+     so adding a join and describing it happen in the same place. */
+  .canvas-grid { display:grid; grid-template-columns:1fr 280px; gap:16px; align-items:start; }
+  .node.sel { outline:2px solid var(--primary); outline-offset:1px; box-shadow:var(--shadow-16); }
+  .node-props { border:1px solid var(--border-strong); border-radius:var(--radius-lg); background:var(--surface);
+    padding:14px; max-height:400px; overflow-y:auto; }
+  .node-props h4 { margin:0 0 4px; font-size:13px; }
+  .node-props .np-sub { font-size:11.5px; color:var(--text-secondary); margin-bottom:12px; }
+  .node-props .field { margin-bottom:10px; }
+  .node-props .field .lbl { display:block; font-size:11.5px; margin-bottom:4px; }
+  .node-props .fluent-input, .node-props .fluent-select { width:100%; }
+  .np-empty { font-size:12px; color:var(--text-secondary); line-height:1.5; }
+  @media (max-width: 1100px) { .canvas-grid { grid-template-columns:1fr; } }
   /* Report design canvas: palette + drop surface */
   .design-grid { display:grid; grid-template-columns:230px 1fr; gap:16px; align-items:start; }
   .palette { border:1px solid var(--border-strong); border-radius:var(--radius-lg); background:var(--surface); overflow:hidden; display:flex; flex-direction:column; max-height:520px; }
@@ -4785,28 +4798,147 @@ function wizData(host, d) {
   const render = () => { const c = $("#wz_dv"); c.innerHTML = ""; c.appendChild(el(viewToggle(d._dataView, [{k:"form",label:"Form view"},{k:"canvas",label:"Join canvas"}]))); const inner = el(`<div></div>`); c.appendChild(inner); (d._dataView==="canvas"?wizDataCanvas:wizDataForm)(inner, d); c.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{ d._dataView=b.dataset.view; render(); }); };
   render();
 }
+/* The canvas could add a node and not describe it: "Add joined entity" dropped an empty box and
+   sent you to Form view to say what it joined. It now selects whatever you add and edits it here,
+   so arranging the shape of the data and defining it are the same act. */
 function wizDataCanvas(host, d) {
   d._pos = d._pos || {};
   const pos = (id, dx, dy) => { if (!d._pos[id]) d._pos[id] = { x:dx, y:dy }; return d._pos[id]; };
+  const viaView = isCrmViewSource(d.sourceType);
+  const viewLinks = viaView ? (viewSelection(d.mainEntity, d.dataSourceQuery) || { links: [] }).links : [];
+
   const pp = pos("primary", 40, 60);
-  let nodes = canvasNode("primary", "c-extract", d.mainEntity + " (primary)", `<div class="kv"><span>role</span><b>Primary</b></div><div class="kv"><span>via</span><b>${esc(d.sourceType)}</b></div>`, pp.x, pp.y, "");
-  d.joins.forEach((j,i) => { const p = pos("j"+i, 320, 30 + i*110); nodes += canvasNode("j"+i, "c-transform", j.entity, `<div class="kv"><span>join</span><b>${esc(j.joinType.replace(" join",""))}</b></div><div class="kv"><span>on</span><b>${esc(j.leftKey||"key")}</b></div>`, p.x, p.y, `data-jdel="${i}"`); });
-  d.externalSources.forEach((x,i) => { const p = pos("x"+i, 320, 30 + (d.joins.length+i)*110 + 20); nodes += canvasNode("x"+i, "c-ext", x.connector, `<div class="kv"><span>dir</span><b>${esc(x.direction)}</b></div><div class="kv"><span>key</span><b>${esc(x.crmKey||"—")}</b></div>`, p.x, p.y, `data-xdel="${i}"`); });
-  host.innerHTML = `<div class="wtitle">Data — join canvas</div><div class="wsub">Drag the boxes to arrange them. Lines show joins between CRM entities and links to external systems. Edit details in Form view.</div>
-    <div class="canvas-toolbar"><button class="btn sm" id="cv_addjoin">${ic("add")}Add joined entity</button><button class="btn sm" id="cv_addext">${ic("add")}Add external source</button><span class="canvas-hint">${d.joins.length} join(s) · ${d.externalSources.length} external source(s)</span></div>
-    <div class="canvas-wrap" id="cv_canvas"><svg class="canvas-svg" id="cv_svg"></svg>${nodes}</div>
-    <div class="canvas-hint">Blue = CRM joins · amber dashed = external systems (parameter passing direction shown).</div>`;
+  const primaryBody = `<div class="kv"><span>role</span><b>Primary</b></div><div class="kv"><span>via</span><b>${esc(d.sourceType)}</b></div>`;
+  let nodes = canvasNode("primary", "c-extract", d.mainEntity || "(no table)", primaryBody, pp.x, pp.y, "");
+
+  // A view supplies its own joins, and the report's are discarded — so they are shown, not offered.
+  if (viaView) {
+    viewLinks.forEach((link, i) => { const p = pos("v"+i, 320, 30 + i*110);
+      nodes += canvasNode("v"+i, "c-transform", link.entity, `<div class="kv"><span>join</span><b>${esc(link.linkType)}</b></div><div class="kv"><span>on</span><b>${esc(link.to)}</b></div>`, p.x, p.y, ""); });
+  } else {
+    d.joins.forEach((j,i) => { const p = pos("j"+i, 320, 30 + i*110);
+      nodes += canvasNode("j"+i, "c-transform", j.entity || "(pick a table)", `<div class="kv"><span>join</span><b>${esc(j.joinType.replace(" join",""))}</b></div><div class="kv"><span>on</span><b>${esc(j.leftKey||"—")}</b></div>`, p.x, p.y, `data-jdel="${i}"`); });
+  }
+  const linkCount = viaView ? viewLinks.length : d.joins.length;
+  d.externalSources.forEach((x,i) => { const p = pos("x"+i, 320, 30 + (linkCount+i)*110 + 20);
+    nodes += canvasNode("x"+i, "c-ext", x.connector || "(pick a system)", `<div class="kv"><span>dir</span><b>${esc(x.direction)}</b></div><div class="kv"><span>key</span><b>${esc(x.crmKey||"—")}</b></div>`, p.x, p.y, `data-xdel="${i}"`); });
+
+  host.innerHTML = `<div class="wtitle">Data — join canvas</div><div class="wsub">Click a box to edit it here; drag to arrange. Lines show joins between CRM tables and links to external systems.</div>
+    <div class="canvas-toolbar">
+      <button class="btn sm" id="cv_addjoin" ${viaView?"disabled":""}>${ic("add")}Add joined entity</button>
+      <button class="btn sm" id="cv_addext">${ic("add")}Add external source</button>
+      <span class="canvas-hint">${viaView
+        ? `${viewLinks.length} join(s) from <b>${esc(d.dataSourceQuery || "the view")}</b>`
+        : `${d.joins.length} join(s)`} · ${d.externalSources.length} external source(s)</span></div>
+    <div class="canvas-grid">
+      <div>
+        <div class="canvas-wrap" id="cv_canvas"><svg class="canvas-svg" id="cv_svg"></svg>${nodes}</div>
+        <div class="canvas-hint">Blue = CRM joins · amber dashed = external systems (parameter passing direction shown).</div>
+      </div>
+      <div class="node-props" id="cv_props"></div>
+    </div>`;
+
   const canvas = $("#cv_canvas"), svg = $("#cv_svg");
   const redraw = () => { const conns = [];
-    d.joins.forEach((j,i)=> conns.push({ from:canvas.querySelector('[data-node="primary"]'), to:canvas.querySelector('[data-node="j'+i+'"]'), label:j.joinType.replace(" join","") }));
-    d.externalSources.forEach((x,i)=> conns.push({ from:canvas.querySelector('[data-node="primary"]'), to:canvas.querySelector('[data-node="x'+i+'"]'), label:x.direction.includes("→ Source")?"CRM →":(x.direction.includes("Source →")?"→ CRM":"↔"), dashed:true, color:"var(--warning)" }));
+    const to = id => canvas.querySelector('[data-node="'+id+'"]');
+    if (viaView) viewLinks.forEach((link,i)=> conns.push({ from:to("primary"), to:to("v"+i), label:link.linkType }));
+    else d.joins.forEach((j,i)=> conns.push({ from:to("primary"), to:to("j"+i), label:j.joinType.replace(" join","") }));
+    d.externalSources.forEach((x,i)=> conns.push({ from:to("primary"), to:to("x"+i), label:x.direction.includes("→ Source")?"CRM →":(x.direction.includes("Source →")?"→ CRM":"↔"), dashed:true, color:"var(--warning)" }));
     drawWires(svg, conns); };
-  canvas.querySelectorAll(".node").forEach(n => { makeNodeDraggable(n, () => { const p = d._pos[n.dataset.node]; if (p) { p.x = parseFloat(n.style.left)||0; p.y = parseFloat(n.style.top)||0; } redraw(); }); });
-  canvas.querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>{ d.joins.splice(+b.dataset.jdel,1); d._pos={}; wizDataCanvas(host,d); });
-  canvas.querySelectorAll("[data-xdel]").forEach(b=>b.onclick=()=>{ d.externalSources.splice(+b.dataset.xdel,1); d._pos={}; wizDataCanvas(host,d); });
-  $("#cv_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataCanvas(host,d); };
-  $("#cv_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
+
+  const paintSelection = () => canvas.querySelectorAll(".node").forEach(n => n.classList.toggle("sel", n.dataset.node === d._cvSel));
+  const select = (id) => { d._cvSel = id; paintSelection(); renderProps(); };
+
+  const renderProps = () => {
+    const panel = $("#cv_props");
+    panel.innerHTML = dataNodeProps(d, d._cvSel, viaView, viewLinks);
+    bindDataNodeProps(panel, d, () => wizDataCanvas(host, d), redraw);
+  };
+
+  canvas.querySelectorAll(".node").forEach(n => {
+    makeNodeDraggable(n, () => { const p = d._pos[n.dataset.node]; if (p) { p.x = parseFloat(n.style.left)||0; p.y = parseFloat(n.style.top)||0; } redraw(); });
+    n.addEventListener("mousedown", () => select(n.dataset.node));
+  });
+  canvas.querySelectorAll("[data-jdel]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); d.joins.splice(+b.dataset.jdel,1); d._pos={}; d._cvSel=null; wizDataCanvas(host,d); });
+  canvas.querySelectorAll("[data-xdel]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); d.externalSources.splice(+b.dataset.xdel,1); d._pos={}; d._cvSel=null; wizDataCanvas(host,d); });
+
+  // Adding selects what was added: an empty box with no panel open is the thing being fixed.
+  $("#cv_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); d._cvSel = "j"+(d.joins.length-1); wizDataCanvas(host,d); };
+  $("#cv_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); d._cvSel = "x"+(d.externalSources.length-1); wizDataCanvas(host,d); };
+
+  paintSelection();
+  renderProps();
   redraw();
+}
+
+/** The editor for whichever node is selected, or an instruction when none is. */
+function dataNodeProps(d, selected, viaView, viewLinks) {
+  if (!selected) {
+    return `<h4>Properties</h4><div class="np-sub">Nothing selected</div>
+      <div class="np-empty">Click a box on the canvas to edit it here, or add a joined table or external system from the toolbar.</div>`;
+  }
+
+  if (selected === "primary") {
+    return `<h4>${esc(d.mainEntity || "Primary table")}</h4><div class="np-sub">The table this report reads</div>
+      <div class="field"><label class="lbl">Read via</label><input class="fluent-input" value="${esc(d.sourceType)}" disabled></div>
+      ${viaView ? `<div class="field"><label class="lbl">Saved view</label><input class="fluent-input" value="${esc(d.dataSourceQuery || "—")}" disabled></div>` : ""}
+      <div class="np-empty">The table and read method are chosen in Form view, because changing either clears the columns picked from the old one.</div>`;
+  }
+
+  if (selected.startsWith("v")) {
+    const link = viewLinks[+selected.slice(1)];
+    if (!link) return `<h4>Properties</h4><div class="np-empty">This join no longer exists.</div>`;
+    return `<h4>${esc(link.entity)}</h4><div class="np-sub">Joined by <b>${esc(d.dataSourceQuery || "the view")}</b></div>
+      <div class="field"><label class="lbl">Join type</label><input class="fluent-input" value="${esc(link.linkType)} join" disabled></div>
+      <div class="field"><label class="lbl">Left key</label><input class="fluent-input" value="${esc(link.to)}" disabled></div>
+      <div class="field"><label class="lbl">Right key</label><input class="fluent-input" value="${esc(link.from)}" disabled></div>
+      <div class="np-empty">The view carries this join and its query replaces the report's, so it cannot be edited here. Change it in CRM, or read via FetchXML.</div>`;
+  }
+
+  if (selected.startsWith("j")) {
+    const i = +selected.slice(1), join = d.joins[i];
+    if (!join) return `<h4>Properties</h4><div class="np-empty">This join no longer exists.</div>`;
+    return `<h4>Joined table</h4><div class="np-sub">Combined with ${esc(d.mainEntity || "the primary table")}</div>
+      <div class="field"><label class="lbl">Join type</label><select class="fluent-select" data-ji="${i}" data-jk="joinType">${opts(JOIN_TYPES, join.joinType)}</select></div>
+      <div class="field"><label class="lbl">Related entity</label>${entityPickerHtml(join.entity, `data-ji="${i}" data-jk="entity"`)}</div>
+      <div class="field"><label class="lbl">Left key (on ${esc(d.mainEntity || "primary")})</label>${attributePickerHtml(d.mainEntity, join.leftKey, `data-ji="${i}" data-jk="leftKey"`, "Search primary fields…")}</div>
+      <div class="field"><label class="lbl">Right key (on ${esc(join.entity || "related")})</label>${attributePickerHtml(join.entity, join.rightKey, `data-ji="${i}" data-jk="rightKey"`, "Search related fields…")}</div>`;
+  }
+
+  const i = +selected.slice(1), source = d.externalSources[i];
+  if (!source) return `<h4>Properties</h4><div class="np-empty">This source no longer exists.</div>`;
+  return `<h4>External system</h4><div class="np-sub">Blended with the CRM rows on a matching key</div>
+    <div class="field"><label class="lbl">System (connector)</label><select class="fluent-select" data-xi="${i}" data-xk="connector">${opts(["", ...connectorCatalog.get().map(c=>c.name)], source.connector)}</select></div>
+    <div class="field"><label class="lbl">Operation</label><input class="fluent-input" data-xi="${i}" data-xk="operation" value="${esc(source.operation)}" placeholder="GET /balances"></div>
+    <div class="field"><label class="lbl">Direction</label><select class="fluent-select" data-xi="${i}" data-xk="direction">${opts(["CRM → Source","Source → CRM","Both ways"], source.direction)}</select></div>
+    <div class="field"><label class="lbl">Match: CRM field</label>${attributePickerHtml(d.mainEntity, source.crmKey, `data-xi="${i}" data-xk="crmKey"`, "Search fields…")}</div>
+    <div class="field"><label class="lbl">Match: ${esc(source.connector || "source")} field</label><input class="fluent-input" data-xi="${i}" data-xk="extKey" value="${esc(source.extKey)}" placeholder="customerNumber"></div>
+    <div class="field"><label class="lbl">Parameters passed</label><input class="fluent-input" data-xi="${i}" data-xk="pass" value="${esc(source.pass)}" placeholder="branchCode, dateFrom"></div>`;
+}
+
+/**
+ * Binds the properties panel to the draft.
+ *
+ * Edits that change what a node says — its table, its key — rebuild the canvas so the box and the
+ * panel agree; the rest only redraw the wires, so a half-typed value is not interrupted.
+ */
+function bindDataNodeProps(panel, d, rebuild, redraw) {
+  panel.querySelectorAll("[data-ji]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    const join = d.joins[+input.dataset.ji];
+    join[input.dataset.jk] = input.value;
+    if (input.dataset.jk === "entity") suggestJoinKeys(d, join);
+    rebuild();
+  }));
+  panel.querySelectorAll("[data-xi]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    const source = d.externalSources[+input.dataset.xi];
+    source[input.dataset.xk] = input.value;
+    if (input.dataset.xk === "connector") {
+      const chosen = connectorCatalog.get().find(c => c.name === input.value);
+      source.connectorId = chosen ? chosen.id : "";
+    }
+    if (input.dataset.xk === "connector" || input.dataset.xk === "direction" || input.dataset.xk === "crmKey") rebuild();
+    else redraw();
+  }));
 }
 function wizDataForm(host, d) {
   /* The keys were free-text boxes: you had to know a column's logical name and type it correctly,
@@ -5408,27 +5540,105 @@ function wizETL(host, d) {
   const render = () => { const c = $("#wz_ev"); c.innerHTML = ""; c.appendChild(el(viewToggle(d._etlView, [{k:"list",label:"List view"},{k:"flow",label:"Flow canvas"}]))); const inner = el(`<div></div>`); c.appendChild(inner); (d._etlView==="flow"?wizETLFlow:wizETLList)(inner, d); c.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{ d._etlView=b.dataset.view; render(); }); };
   render();
 }
+/* Same fix as the join canvas: a step could be added here but only configured in List view, so the
+   quick buttons produced a chain of boxes that all said "all columns" until you left. */
 function wizETLFlow(host, d) {
   d._etlpos = d._etlpos || {};
   const pos = (id,x,y) => { if (!d._etlpos[id]) d._etlpos[id] = {x,y}; return d._etlpos[id]; };
-  const extract = [{id:"src0",label:d.mainEntity}, ...d.joins.map((j,i)=>({id:"srcj"+i,label:j.entity})), ...d.externalSources.map((x,i)=>({id:"srcx"+i,label:x.connector}))];
+  const extract = [{id:"src0",label:d.mainEntity || "(no table)"},
+    ...(isCrmViewSource(d.sourceType) ? [] : d.joins.map((j,i)=>({id:"srcj"+i,label:j.entity||"(join)"}))),
+    ...d.externalSources.map((x,i)=>({id:"srcx"+i,label:x.connector||"(external)"}))];
   let nodes = "";
   extract.forEach((s,i)=>{ const p = pos(s.id, 24, 24+i*92); nodes += canvasNode(s.id, "c-extract", s.label, `<div class="kv"><span>stage</span><b>Extract</b></div>`, p.x, p.y, ""); });
   d.etl.forEach((s,i)=>{ const p = pos("t"+i, 300, 34+i*92); nodes += canvasNode("t"+i, "c-transform", s.op, `<div class="kv"><span>seq</span><b>${s.seq}</b></div><div class="kv"><span>on</span><b>${esc(s.target==="(all columns)"?"all":(s.target||"all"))}</b></div>`, p.x, p.y, `data-tdel="${i}"`); });
   const lp = pos("load", 596, 54); nodes += canvasNode("load", "c-load", "Report output", `<div class="kv"><span>layout</span><b>${esc(d.layoutType)}</b></div>`, lp.x, lp.y, "");
-  host.innerHTML = `<div class="wtitle">Transform — ETL flow canvas</div><div class="wsub">Drag nodes to arrange the Extract → Transform → Load flow. Add steps below; edit their configs in List view.</div>
+
+  host.innerHTML = `<div class="wtitle">Transform — ETL flow canvas</div><div class="wsub">Click a step to configure it here; drag to arrange the Extract → Transform → Load flow.</div>
     <div class="canvas-toolbar">${["Filter rows","Aggregation","Derive column","Join / Lookup merge","Deduplicate"].map(q=>`<button class="btn sm" data-fquick="${esc(q)}">${ic("add")}${esc(q)}</button>`).join("")}<span class="canvas-hint">${d.etl.length} step(s)</span></div>
-    <div class="canvas-wrap" id="et_canvas"><svg class="canvas-svg" id="et_svg"></svg>${nodes}</div>
-    <div class="canvas-hint">Blue = extract feed · amber = transform chain · green = load into the report layout.</div>`;
+    <div class="canvas-grid">
+      <div>
+        <div class="canvas-wrap" id="et_canvas"><svg class="canvas-svg" id="et_svg"></svg>${nodes}</div>
+        <div class="canvas-hint">Blue = extract feed · amber = transform chain · green = load into the report layout.</div>
+      </div>
+      <div class="node-props" id="et_props"></div>
+    </div>`;
+
   const canvas = $("#et_canvas"), svg = $("#et_svg");
   const redraw = () => { const conns = []; const q = id => canvas.querySelector('[data-node="'+id+'"]');
     if (d.etl.length) { extract.forEach(s=>conns.push({from:q(s.id),to:q("t0"),color:"var(--primary)"})); for (let i=0;i<d.etl.length-1;i++) conns.push({from:q("t"+i),to:q("t"+(i+1)),color:"var(--warning)"}); conns.push({from:q("t"+(d.etl.length-1)),to:q("load"),color:"var(--success)"}); }
     else extract.forEach(s=>conns.push({from:q(s.id),to:q("load"),color:"var(--primary)"}));
     drawWires(svg, conns); };
-  canvas.querySelectorAll(".node").forEach(n => makeNodeDraggable(n, () => { const p = d._etlpos[n.dataset.node]; if (p) { p.x=parseFloat(n.style.left)||0; p.y=parseFloat(n.style.top)||0; } redraw(); }));
-  canvas.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=()=>{ d.etl.splice(+b.dataset.tdel,1); d._etlpos={}; wizETLFlow(host,d); });
-  host.querySelectorAll("[data-fquick]").forEach(b=>b.onclick=()=>{ d.etl.push({op:b.dataset.fquick,target:"(all columns)",config:"",seq:d.etl.length+1}); d._etlpos={}; wizETLFlow(host,d); });
+
+  const paintSelection = () => canvas.querySelectorAll(".node").forEach(n => n.classList.toggle("sel", n.dataset.node === d._etlSel));
+  const renderProps = () => {
+    const panel = $("#et_props");
+    panel.innerHTML = etlNodeProps(d, d._etlSel, extract);
+    bindEtlNodeProps(panel, d, () => wizETLFlow(host, d), redraw);
+  };
+
+  canvas.querySelectorAll(".node").forEach(n => {
+    makeNodeDraggable(n, () => { const p = d._etlpos[n.dataset.node]; if (p) { p.x=parseFloat(n.style.left)||0; p.y=parseFloat(n.style.top)||0; } redraw(); });
+    n.addEventListener("mousedown", () => { d._etlSel = n.dataset.node; paintSelection(); renderProps(); });
+  });
+  canvas.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); d.etl.splice(+b.dataset.tdel,1); d._etlpos={}; d._etlSel=null; wizETLFlow(host,d); });
+  // The step is selected as it is added, so its configuration is the next thing in front of you.
+  host.querySelectorAll("[data-fquick]").forEach(b=>b.onclick=()=>{ const op=b.dataset.fquick;
+    d.etl.push({op, target:"(all columns)", config:configTemplate(op), seq:d.etl.length+1});
+    d._etlpos={}; d._etlSel="t"+(d.etl.length-1); wizETLFlow(host,d); });
+
+  paintSelection();
+  renderProps();
   redraw();
+}
+
+/** The editor for the selected step, or a description of a stage that has nothing to configure. */
+function etlNodeProps(d, selected, extract) {
+  if (!selected) {
+    return `<h4>Properties</h4><div class="np-sub">Nothing selected</div>
+      <div class="np-empty">Click a step on the canvas to configure it, or add one from the toolbar.</div>`;
+  }
+
+  if (selected === "load") {
+    return `<h4>Report output</h4><div class="np-sub">Where the transformed rows land</div>
+      <div class="field"><label class="lbl">Layout</label><input class="fluent-input" value="${esc(d.layoutType)}" disabled></div>
+      <div class="np-empty">The layout is chosen in the Layout step.</div>`;
+  }
+
+  if (selected.startsWith("src")) {
+    const source = extract.find(s => s.id === selected);
+    return `<h4>${esc(source ? source.label : "Source")}</h4><div class="np-sub">Feeds rows into the chain</div>
+      <div class="np-empty">Extract sources come from the Data step — the table, its joins, and any external systems.</div>`;
+  }
+
+  const i = +selected.slice(1), step = d.etl[i];
+  if (!step) return `<h4>Properties</h4><div class="np-empty">This step no longer exists.</div>`;
+  const catalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const columnNames = d.columns.map(key => { const m = catalogue.find(a => a.a === key); return m ? columnHeadingFor(m) : key; });
+  const described = (ETL_OPS.find(o => o.op === step.op) || {}).desc || "";
+
+  return `<h4>${esc(step.op)}</h4><div class="np-sub">${esc(described)}</div>
+    <div class="field"><label class="lbl">Operation</label><select class="fluent-select" data-ei="${i}" data-ek="op" data-rerender>${ETL_OPS.map(o=>`<option ${o.op===step.op?"selected":""}>${esc(o.op)}</option>`).join("")}</select></div>
+    <div class="field"><label class="lbl">Applies to</label><select class="fluent-select" data-ei="${i}" data-ek="target">${opts(["(all columns)",...columnNames], step.target||"(all columns)")}</select></div>
+    <div class="field"><label class="lbl">Configuration (JSON)</label>
+      <input class="fluent-input ${isValidJson(step.config)?"":"badjson"}" data-ei="${i}" data-ek="config" value="${esc(step.config)}" placeholder="${esc(configTemplate(step.op))}"></div>
+    <div class="field"><label class="lbl">Sequence</label><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${step.seq}"></div>
+    ${isValidJson(step.config) ? "" : `<div class="np-empty" style="color:var(--danger)">This is not valid JSON, so the step would be stored unusable.</div>`}`;
+}
+
+/**
+ * Binds the step editor. Only changes the box itself shows — the operation, what it applies to, its
+ * order — rebuild the canvas; typing a config redraws nothing, so the caret stays put.
+ */
+function bindEtlNodeProps(panel, d, rebuild, redraw) {
+  panel.querySelectorAll("[data-ei]").forEach(input => input.addEventListener(input.tagName==="SELECT"?"change":"input", () => {
+    const step = d.etl[+input.dataset.ei];
+    const value = input.dataset.num ? +input.value : input.value;
+    step[input.dataset.ek] = value;
+    if (input.dataset.ek === "op" && !step.config) step.config = configTemplate(value);
+    if (input.dataset.ek === "config") input.classList.toggle("badjson", !isValidJson(input.value));
+    if (input.dataset.ek === "config") return;
+    rebuild();
+  }));
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
