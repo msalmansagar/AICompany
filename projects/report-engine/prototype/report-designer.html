@@ -4068,11 +4068,19 @@ function addFieldByClick(r, f) {
 }
 function dsPanel(r) {
   const host = $("#md_ds"); const ent = r.mainEntity;
-  const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" data-fattr="${esc(at.a)}" data-fent="${esc(entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(at.n)}"><span>${ic("drag")}</span><span>${esc(at.n)}</span><span class="pt">${esc(at.t)}</span></div>`;
+  const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" data-fattr="${esc(at.a)}" data-fent="${esc(at.linkedEntity ? ent : entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(columnHeadingFor(at))}"><span>${ic("drag")}</span><span>${esc(at.n)}</span>${at.linkedEntity?`<span class="rel-tag">${esc(at.linkedEntityLabel)}</span>`:""}<span class="pt">${esc(at.t)}</span></div>`;
   /* The tree is the same problem in a narrower column: a main entity contributes hundreds of
      draggable fields, and each expanded relationship adds hundreds more. */
   const term = r._fieldSearch || "";
-  const visible = (entity) => attributesOf(entity).filter(at => matchesSearch(term, at.n, at.a, at.t));
+  // The tree offers the same fields the wizard does. Under a saved view that is the view's own
+  // fields plus the tables it joins — the report's other relationships are unreachable, because the
+  // view's query replaces the generated one and never links to them.
+  const source = primarySourceOf(r);
+  const viaView = source && isCrmViewSource(source.type);
+  const groups = ent ? attributeGroupsFor(ent, source && source.type, source && source.query, []) : [];
+  const groupFor = entity => groups.find(g => g.entity === entity);
+  const matches = attrs => attrs.filter(at => matchesSearch(term, at.n, at.a, at.t, at.linkedEntityLabel || ""));
+  const visible = (entity) => matches(groupFor(entity) ? groupFor(entity).attrs : attributesOf(entity));
   const fieldsHtml = (entity) => {
     const found = visible(entity);
     return found.length
@@ -4083,11 +4091,25 @@ function dsPanel(r) {
   let tree;
   if (!ent) tree = `<div class="page-sub">Select a main entity to see its fields.</div>`;
   else {
-    const total = attributesOf(ent).length;
+    const rootGroup = groupFor(ent);
+    const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
     const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
       placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
-    const rels = relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
-    tree = `${search}<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>${fieldsHtml(ent)}<h4 class="mt">Related entities</h4>${rels||'<div class="page-sub">No related entities.</div>'}`;
+    const related = viaView
+      ? groups.filter(g => g.joinedByView).map(g => {
+          const exp = r._dsExpanded[g.entity];
+          const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
+          return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} via view</span></div>${cols}`;
+        }).join("")
+      : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
+    const relatedHeading = viaView ? "Joined by the view" : "Related entities";
+    const relatedEmpty = viaView
+      ? `<div class="page-sub">This view joins no other table.</div>`
+      : `<div class="page-sub">No related entities.</div>`;
+    const viewNote = viaView
+      ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
+      : "";
+    tree = `${search}${viewNote}<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>${fieldsHtml(ent)}<h4 class="mt">${relatedHeading}</h4>${related||relatedEmpty}`;
   }
   const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
   const ds0 = (r.dataSources && r.dataSources[0]) || {};
@@ -4095,6 +4117,7 @@ function dsPanel(r) {
     <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
     <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
     <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(ent, 'id="md_entity"')}</div>
+    ${isCrmViewSource(ds0.type) ? `<div class="mini-field"><label>Saved view</label>${viewPickerHtml(ent, ds0.query, 'id="md_view"')}</div>` : ""}
     <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
     ${tree}
     <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
@@ -4108,7 +4131,19 @@ function dsPanel(r) {
     else r.dataSources[0].name = "";
     dsPanel(r);
   };
-  $("#md_srctype").onchange = e => { r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }]; r.dataSources[0].type = e.target.value; };
+  $("#md_srctype").onchange = e => {
+    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }];
+    r.dataSources[0].type = e.target.value;
+    // The payload belongs to the read method it was written for, exactly as in the wizard.
+    r.dataSources[0].query = "";
+    dsPanel(r);
+  };
+  const viewPicker = $("#md_view");
+  if (viewPicker) viewPicker.addEventListener(comboSafeEvent(viewPicker), () => {
+    if (viewPicker.value === r.dataSources[0].query) return;
+    r.dataSources[0].query = viewPicker.value;
+    dsPanel(r);
+  });
   $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; r._fieldSearch = ""; dsPanel(r); };
   const fieldSearch = $("#md_fieldsearch");
   if (fieldSearch) {
@@ -4476,6 +4511,37 @@ function linkedAttributesOf(selection) {
   }));
 }
 
+/** The source the report reads through. Its type decides what the field pickers may offer. */
+function primarySourceOf(report) {
+  const sources = report.dataSources || [];
+  return sources.find(source => source.primary) || sources[0] || null;
+}
+
+/**
+ * The fields a report can offer, grouped by the table each comes from.
+ *
+ * One shape for every picker — the wizard's list and canvas palette, and the manual designer's field
+ * tree — so they cannot disagree about what is selectable. Under a CRM View the groups come from the
+ * view: its own table, then each table it joins. Otherwise, from the report's own joins.
+ */
+function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
+  const named = entity => entityLabel(entity) || entity;
+  if (!isCrmViewSource(sourceType)) {
+    return [{ entity: mainEntity, label: named(mainEntity), attrs: attributesOf(mainEntity) }]
+      .concat(joins.filter(j => j.entity).map(j => ({ entity: j.entity, label: named(j.entity), attrs: attributesOf(j.entity) })));
+  }
+
+  const available = availableAttributes(mainEntity, sourceType, viewName);
+  const groups = [{ entity: mainEntity, label: named(mainEntity), attrs: available.filter(a => !a.linkedEntity) }];
+  available.filter(a => a.linkedEntity).forEach(attribute => {
+    const existing = groups.find(group => group.entity === attribute.linkedEntity);
+    if (existing) existing.attrs.push(attribute);
+    else groups.push({ entity: attribute.linkedEntity, label: attribute.linkedEntityLabel, joinedByView: true, attrs: [attribute] });
+  });
+
+  return groups.filter(group => group.attrs.length);
+}
+
 /**
  * The heading for a picked field. A linked one names its table, since "Email" alone does not say
  * whose — unless the field's own label already does, which would read "Account Name (Account)".
@@ -4762,7 +4828,9 @@ function wizColumns(host, d) {
   render();
 }
 function wizColumnsCanvas(host, d) {
-  const groups = [{ent:d.mainEntity, attrs:attributesOf(d.mainEntity)}, ...d.joins.map(j=>({ent:j.entity, attrs:attributesOf(j.entity)}))];
+  // The same catalogue the list view offers, so the two cannot disagree about what is selectable.
+  const groups = attributeGroupsFor(d.mainEntity, d.sourceType, d.dataSourceQuery, d.joins);
+  const viaView = isCrmViewSource(d.sourceType);
   const nameFor = a => { for (const g of groups) { const m = g.attrs.find(x=>x.a===a); if (m) return m; } return {a, n:a, t:"Text"}; };
   /* Same search as the list view, over the same fields — a palette of several hundred draggable
      rows is no more usable than a list of them. A group whose fields all filter out drops away
@@ -4770,15 +4838,16 @@ function wizColumnsCanvas(host, d) {
   const term = d._colSearch || "";
   const totalFields = groups.reduce((count, g) => count + g.attrs.length, 0);
   const filtered = groups
-    .map(g => ({ ent: g.ent, attrs: g.attrs.filter(at => matchesSearch(term, at.n, at.a, at.t)) }))
+    .map(g => ({ ...g, attrs: g.attrs.filter(at => matchesSearch(term, at.n, at.a, at.t, at.linkedEntityLabel || "")) }))
     .filter(g => g.attrs.length);
   const shownFields = filtered.reduce((count, g) => count + g.attrs.length, 0);
 
   const palette = filtered.length
-    ? filtered.map(g=>`<div class="palette-group">${esc(g.ent)}</div>${g.attrs.map(at=>`<div class="palette-item ${d.columns.includes(at.a)?"used":""}" draggable="true" data-attr="${esc(at.a)}"><span>${ic("drag")}</span><div><div>${highlight(at.n, term)}</div><div class="pt">${highlight(at.a, term)} · ${esc(at.t)}</div></div></div>`).join("")}`).join("")
+    ? filtered.map(g=>`<div class="palette-group">${esc(g.label || g.entity)}${g.joinedByView?` <span class="rel-tag">joined by the view</span>`:""}</div>${g.attrs.map(at=>`<div class="palette-item ${d.columns.includes(at.a)?"used":""}" draggable="true" data-attr="${esc(at.a)}"><span>${ic("drag")}</span><div><div>${highlight(at.n, term)}</div><div class="pt">${highlight(at.linkedEntity ? at.attribute : at.a, term)} · ${esc(at.t)}</div></div></div>`).join("")}`).join("")
     : `<div class="pick-empty">No field matches “${esc(term)}”.</div>`;
   const chips = d.columns.length ? d.columns.map((a,i)=>{const m=nameFor(a);return `<div class="col-chip" draggable="true" data-idx="${i}"><span class="cgrip">${ic("drag")}</span><div><div>${esc(m.n)}</div><div class="ctype">${esc(m.t)}</div></div><button class="cx" data-cdel="${i}">✕</button></div>`;}).join("") : `<div class="page-sub" style="text-align:center;padding:40px 10px">Drag fields from the palette to build your report →</div>`;
   host.innerHTML = `<div class="wtitle">Columns — report design canvas</div><div class="wsub">Drag fields from the palette onto the report surface to add columns, and drag the chips to reorder them. This defines the report's detail row.</div>
+    ${viaView ? `<div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>The palette holds what <b>${esc(d.dataSourceQuery)}</b> returns — its own fields, and the tables it joins. A field outside the view would render as an empty column.</div></div>` : ""}
     <div class="design-grid">
       <div class="palette">
         <div class="palette-search"><input class="fluent-input" id="cn_search" autocomplete="off"
@@ -5270,7 +5339,8 @@ function wizETLFlow(host, d) {
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
-  const colNames = d.columns.map(a=>{const m=attributesOf(d.mainEntity).find(x=>x.a===a);return m?m.n:a;});
+  const layoutCatalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const colNames = d.columns.map(a=>{const m=layoutCatalogue.find(x=>x.a===a);return m?columnHeadingFor(m):a;});
   const stepRows = d.etl.length ? d.etl.map((s,i)=>`<tr>
       <td class="handle">${ic("flow")}</td>
       <td><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${s.seq}" style="width:52px"></td>
@@ -5585,7 +5655,10 @@ function themedPaper(meta, bodyHtml, themeId, langCode) {
     <div style="margin-top:14px">${bodyHtml}</div></div>`;
 }
 function wizReview(host, d) {
-  const cols = attributesOf(d.mainEntity).filter(a=>d.columns.includes(a.a)).map(a=>a.n).join(", ") || "—";
+  // The same catalogue the picker used, or a column taken from a view's joined table is listed
+  // nowhere on the page that is meant to show everything before it is created.
+  const catalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const cols = d.columns.map(key => { const m = catalogue.find(a => a.a === key); return m ? columnHeadingFor(m) : key; }).join(", ") || "—";
   const joinsTxt = d.joins.length ? d.joins.map(j=>`${j.joinType.replace(" join","")} ${j.entity}`).join(", ") : "—";
   const extTxt = d.externalSources.length ? d.externalSources.map(x=>`${x.connector} (${x.direction})`).join(", ") : "—";
   const themeName = (THEMES.find(t=>t.id===d.theme)||THEMES[0]).name;
