@@ -2492,12 +2492,16 @@ function reportToDefinition(report) {
   const alias = "t";
   const rootEntity = report.mainEntity || "account";
 
-  // Columns say which entity they came from, so each mapping takes its own. A column with no entity
-  // is assumed to be on the main one, which is how single-entity reports have always behaved.
-  // A column the view already joined in rides the root mapping. Its own table has no mapping with
-  // join keys — the view supplies the link — and a mapping without them is dropped when the query is
-  // built, which would silently lose the column.
-  const joinedByTheView = c => !!c.sourceAlias;
+  /* Columns say which entity they came from, so each mapping takes its own. A column with no entity
+     is assumed to be on the main one, which is how single-entity reports have always behaved.
+
+     Where a joined column belongs depends on who did the joining. A saved view supplies the whole
+     query, so its linked columns ride the ROOT mapping — their own table has no mapping with join
+     keys, and a mapping without them is dropped when the query is built. A join the report declares
+     is the opposite: the generated query builds a link-entity for it, and the column has to sit
+     inside that, or the root entity is asked for an attribute belonging to another table. */
+  const joinedTables = new Set((report.joins || []).map(j => j.entity).filter(Boolean));
+  const joinedByTheView = c => !!c.sourceAlias && !joinedTables.has(c.entity);
   const columnsForEntity = (entity, isRoot) => (report.columns || [])
     .filter(c => c.visible !== false)
     .filter(c => (isRoot && joinedByTheView(c))
@@ -2914,10 +2918,14 @@ function definitionToReport(def) {
 
   const columns = [];
   (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
-    // An alias that is not simply the attribute name came from a view's linked table, and losing it
-    // on reload would turn a working column into one that looks up a key the row does not carry.
+    // An alias that is not simply the attribute name came from a joined table, and losing it on
+    // reload would turn a working column into one that looks up a key the row does not carry.
     const sourceAlias = c.outputAlias && c.outputAlias !== c.columnLogicalName ? c.outputAlias : "";
-    columns.push({ name: c.displayName || c.columnLogicalName, entity: m.entityLogicalName || def.mainEntityLogicalName,
+    /* The alias names the table it came from — "contact.fullname" — and that is more trustworthy
+       than the mapping it happens to be filed under: a column stored against the wrong mapping would
+       otherwise reload as a column of that table and be written back wrongly for ever. */
+    const aliasTable = sourceAlias.includes(".") ? sourceAlias.slice(0, sourceAlias.indexOf(".")) : "";
+    columns.push({ name: c.displayName || c.columnLogicalName, entity: aliasTable || m.entityLogicalName || def.mainEntityLogicalName,
       attribute: c.columnLogicalName, sourceAlias, type: "Text", format: "", width: 120, align: "Left", agg: aggLabel(c.aggregateFunction), masked: false, visible: c.isVisible !== false });
   })));
   if (columns.length) report.columns = columns;
