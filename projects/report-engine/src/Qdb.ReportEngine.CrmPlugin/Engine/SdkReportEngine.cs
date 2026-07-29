@@ -98,7 +98,8 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
             // A saved view or an author-written FetchXML replaces the generated query; the columns the
             // report declares still drive shaping, so the output stays the shape the designer showed.
-            var fetchXml = ReportSourcePlan.OverrideFetchXml(source, ResolveViewFetchXml) ?? query.FetchXml;
+            var fetchXml = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity))
+                ?? query.FetchXml;
             var rows = Retrieve(fetchXml);
 
             return new ReportResult
@@ -116,13 +117,18 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
         /// <summary>
         /// Finds a saved view by name and returns its FetchXML. System views are searched first, then
         /// personal ones. Runs as the user, so a view they cannot see is a view they cannot report on.
+        ///
+        /// Scoped to the report's own table. View names are not unique across the org — "My Connections"
+        /// and "Active Accounts" style names repeat on many tables — so matching on the name alone could
+        /// return another table's view and quietly produce a report of the wrong records.
         /// </summary>
-        private string ResolveViewFetchXml(string viewName)
+        internal string ResolveViewFetchXml(string viewName, string entityLogicalName)
         {
-            foreach (var entity in new[] { "savedquery", "userquery" })
+            foreach (var viewEntity in new[] { "savedquery", "userquery" })
             {
-                var query = new QueryExpression(entity) { ColumnSet = new ColumnSet("fetchxml"), TopCount = 1 };
+                var query = new QueryExpression(viewEntity) { ColumnSet = new ColumnSet("fetchxml"), TopCount = 1 };
                 query.Criteria.AddCondition("name", ConditionOperator.Equal, viewName);
+                query.Criteria.AddCondition("returnedtypecode", ConditionOperator.Equal, entityLogicalName);
 
                 var found = _asUser.RetrieveMultiple(query).Entities;
                 if (found.Count > 0)
@@ -133,7 +139,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             }
 
             throw new InvalidPluginExecutionException(
-                $"No saved view named '{viewName}' is visible to you, so this report cannot run.");
+                $"No saved view named '{viewName}' on {entityLogicalName} is visible to you, so this report cannot run.");
         }
 
         /// <summary>Builds a result from the rows written into the definition, querying nothing.</summary>

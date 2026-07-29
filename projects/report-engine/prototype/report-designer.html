@@ -1319,6 +1319,7 @@ const metadata = {
   attributesByEntity: {},
   relationsByEntity: {},
   optionSets: {},
+  viewsByEntity: {},
   pending: {}
 };
 
@@ -1446,6 +1447,75 @@ function reportChoiceCode(attribute, label) {
   return match ? match.value : null;
 }
 
+/* ---------- Saved views ----------
+   Choosing "CRM View" as the read method means the report runs a saved view's query instead of a
+   generated one, and the engine finds that view BY NAME. The designer offered a free-text box, so
+   the name had to be typed from memory and exactly — a typo produced a report that saved happily
+   and then found no view at runtime. These are the views the org actually has. */
+
+/** querytype tells a view meant for people from one that is lookup or de-dup plumbing. */
+const VIEW_KINDS = { 0: "Main view", 1: "Advanced find", 2: "Associated", 4: "Quick find", 64: "Lookup" };
+const MAIN_VIEW_TYPE = 0;
+
+async function loadViews(entity) {
+  const key = "views:" + entity;
+  if (metadata.pending[key]) return;
+  metadata.pending[key] = true;
+  beginBusy(`Loading ${entity} views…`);
+  try {
+    const system = await dvList("savedquery",
+      `?$select=name,querytype&$filter=returnedtypecode eq '${entity}' and statecode eq 0&$orderby=name`);
+    let personal = [];
+    try {
+      personal = await dvList("userquery", `?$select=name&$filter=returnedtypecode eq '${entity}'`);
+    } catch (error) { /* personal views are not always readable; system views are enough */ }
+
+    const views = system.map(v => ({
+      name: v.name,
+      kind: VIEW_KINDS[v.querytype] || "System view",
+      isMain: v.querytype === MAIN_VIEW_TYPE
+    })).concat(personal.map(v => ({ name: v.name, kind: "Personal view", isMain: false })));
+
+    // Main views first: they are what someone means by "the view", the rest is plumbing.
+    metadata.viewsByEntity[entity] = views.sort((a, b) =>
+      (b.isMain - a.isMain) || String(a.name).localeCompare(String(b.name)));
+  } catch (error) {
+    metadata.viewsByEntity[entity] = [];
+  }
+  delete metadata.pending[key];
+  endBusy(`Loading ${entity} views…`);
+  render();
+  refreshOpenWizard();
+}
+
+function viewsOf(entity) {
+  if (!entity) return [];
+  if (!metadata.viewsByEntity[entity]) { loadViews(entity); return []; }
+  return metadata.viewsByEntity[entity];
+}
+
+/* The source-type label carries a suffix for the types that are stored but not applied, so it is
+   matched by prefix rather than compared. */
+const isCrmViewSource = type => String(type || "").startsWith("CRM View");
+const isStaticSource = type => String(type || "").startsWith("Static Dataset");
+
+/** What the payload box is actually for, which depends entirely on the read method. */
+function queryPlaceholder(type) {
+  if (isStaticSource(type)) return '[ { "column": "value" } ] — inline rows';
+  if (String(type || "").startsWith("FetchXML")) return "<fetch>…</fetch> — leave empty to generate";
+  return "Leave empty — the engine builds the query";
+}
+
+/** A searchable picker over an entity's saved views. The stored value is the name the engine matches. */
+function viewPickerHtml(entity, selected, attrs = "") {
+  const placeholder = !entity ? "Pick a table first"
+    : (viewsOf(entity).length ? "Search saved views…" : "Loading views…");
+  return `<div class="combo"><input class="fluent-input combo-input" autocomplete="off" role="combobox"
+    data-combo="view" data-combo-entity="${esc(entity || "")}" value="${esc(selected || "")}"
+    data-entity="${esc(selected || "")}" placeholder="${esc(placeholder)}" ${attrs}>
+    <div class="combo-panel"></div></div>`;
+}
+
 /** Logical names of every reportable entity. Empty until the metadata request lands. */
 function entityNames() {
   if (metadata.entities === null) loadEntityMetadata();
@@ -1535,15 +1605,21 @@ function attributePickerHtml(entity, selected, attrs = "", placeholderText) {
 
 /** What a combo offers, and how each option reads. One shape, two sources. */
 function comboCandidates(input) {
+  const scope = input.dataset.comboEntity;
   if (input.dataset.combo === "attribute") {
-    const entity = input.dataset.comboEntity;
-    return attributesOf(entity).map(a => ({ id: a.a, title: a.n, subtitle: `${a.a} · ${a.t}` }));
+    return attributesOf(scope).map(a => ({ id: a.a, title: a.n, subtitle: `${a.a} · ${a.t}` }));
+  }
+
+  // A view is identified by its name, so the id and the title are the same string.
+  if (input.dataset.combo === "view") {
+    return viewsOf(scope).map(v => ({ id: v.name, title: v.name, subtitle: v.kind }));
   }
 
   return (metadata.entities || []).map(e => ({ id: e.logicalName, title: e.label, subtitle: e.logicalName }));
 }
 
 const comboDisplay = (input, id) => {
+  if (input.dataset.combo === "view") return id || "";
   const found = comboCandidates(input).find(c => c.id === id);
   return found ? `${found.title} (${found.id})` : (id || "");
 };
@@ -1588,7 +1664,8 @@ function bindEntityCombos(scope) {
       }
     };
 
-    const noun = () => input.dataset.combo === "attribute" ? "field" : "table";
+    const NOUNS = { attribute: "field", view: "saved view" };
+    const noun = () => NOUNS[input.dataset.combo] || "table";
 
     const draw = () => {
       const term = shownText();
@@ -1857,7 +1934,7 @@ document.addEventListener("keydown", blockKeyboardWhileBusy, true);
 
    Deliberately not every step: rebuilding the overlay discards whatever is typed into the current
    one, and the steps left out are the ones a user types into rather than picks from. */
-const METADATA_DRIVEN_WIZARD_STEPS = ["columns", "filters", "details"];
+const METADATA_DRIVEN_WIZARD_STEPS = ["data", "columns", "filters", "details"];
 
 /**
  * Re-labels attribute combos once their table's fields arrive.
@@ -3380,13 +3457,21 @@ function tabDataSources(body, r) {
     <td><input class="fluent-input" data-i="${i}" data-k="name" value="${esc(s.name)}"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="type">${opts(SOURCE_TYPES, s.type)}</select></td>
     <td><select class="fluent-select" data-i="${i}" data-k="connectorId">${connectorOptions(s.connectorId)}</select></td>
-    <td><input class="fluent-input" data-i="${i}" data-k="query" placeholder="FetchXML / OData / SQL…" value="${esc(s.query)}"></td>
+    <td>${isCrmViewSource(s.type)
+      ? viewPickerHtml(r.mainEntity, s.query, `data-i="${i}" data-k="query"`)
+      : `<input class="fluent-input" data-i="${i}" data-k="query" placeholder="${esc(queryPlaceholder(s.type))}" value="${esc(s.query)}">`}</td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="primary" ${s.primary?"checked":""}></td>
     <td><input class="fluent-input" data-i="${i}" data-k="joinL" value="${esc(s.joinL)}" placeholder="—"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="joinR" value="${esc(s.joinR)}" placeholder="—"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,joinL:"",joinR:""}); renderTab(); }, "Add data source"));
   body.appendChild(card); bindInputs(card, r.dataSources);
+  // A payload only means something to the read method it was written for. Carried across a change
+  // it becomes a view name the engine reads as FetchXML, or the reverse — stored, wrong, and silent.
+  card.querySelectorAll('select[data-k="type"]').forEach(select => select.addEventListener("change", () => {
+    r.dataSources[+select.dataset.i].query = "";
+    renderTab();
+  }));
 
   r.joins = r.joins || []; r.externalSources = r.externalSources || [];
   const jcard = el(`<div class="section-card"><h3>Joined CRM entities</h3><div class="hint">Combine multiple entities with inner / left / right joins on matching keys. Stored in <span class="kbd">qdb_reportrelationship</span>.</div></div>`);
@@ -4273,6 +4358,7 @@ async function copyStoredReportIntoDraft(d) {
     d.module = chosen.module || d.module;
     d.mainEntity = src.mainEntity;
     d.sourceType = src.dataSources[0].type;
+    d.dataSourceQuery = src.dataSources[0].query || "";
     d.columns = src.columns.map(c => c.attribute);
     d.layoutType = src.layout.type;
     d.exports = src.exports.filter(e => e.enabled).map(e => e.format);
@@ -4375,7 +4461,8 @@ function wizDataForm(host, d) {
     <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The table this report reads. This is the one thing the step actually needs.</div>
       <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(d.mainEntity, 'id="wz_entity"')}</div>
       <label class="lbl" style="display:block;margin-bottom:8px">Read via</label>
-      <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${SOURCES.map(s=>`<div class="choice-card ${d.sourceType===s.label?"sel":""}" data-src="${esc(s.label)}" style="padding:12px"><div class="cc-t">${esc(s.label)}</div><div class="cc-d">${esc(SOURCE_DESCRIPTIONS[s.label] || "")}</div>${s.live?"":`<div class="rel-tag" style="margin-top:6px">stored, not applied yet</div>`}</div>`).join("")}</div></div>
+      <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${SOURCES.map(s=>`<div class="choice-card ${d.sourceType===s.label?"sel":""}" data-src="${esc(s.label)}" style="padding:12px"><div class="cc-t">${esc(s.label)}</div><div class="cc-d">${esc(SOURCE_DESCRIPTIONS[s.label] || "")}</div>${s.live?"":`<div class="rel-tag" style="margin-top:6px">stored, not applied yet</div>`}</div>`).join("")}</div>
+      ${isCrmViewSource(d.sourceType) ? `<div class="field" style="max-width:440px;margin-top:16px"><label class="lbl">Saved view<span class="req">*</span></label>${viewPickerHtml(d.mainEntity, d.dataSourceQuery, 'id="wz_view"')}<div class="hint" style="margin-top:6px">The view decides <b>which rows</b> come back and in what order — its filters and sort replace the ones you set later. The columns you pick still decide what is <b>shown</b>, so choose fields the view itself selects, or they arrive empty.</div></div>` : ""}</div>
 
     <div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
       <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
@@ -4406,7 +4493,16 @@ function wizDataForm(host, d) {
     wizDataForm(host,d);
   };
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
-  host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => { d.sourceType = c.dataset.src; host.querySelectorAll("[data-src]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); });
+  host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => {
+    if (d.sourceType === c.dataset.src) return;
+    d.sourceType = c.dataset.src;
+    // The payload belongs to the read method it was written for; carried across a change it is a
+    // view name the engine reads as FetchXML, or the reverse.
+    d.dataSourceQuery = "";
+    wizDataForm(host, d);
+  });
+  const viewInput = host.querySelector("#wz_view");
+  if (viewInput) viewInput.addEventListener(comboSafeEvent(viewInput), () => { d.dataSourceQuery = viewInput.value; });
   host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(comboSafeEvent(inp), () => {
     const join = d.joins[+inp.dataset.ji];
     join[inp.dataset.jk] = inp.value;
@@ -5260,7 +5356,7 @@ function wizReview(host, d) {
   const etlTxt = d.etl.length ? d.etl.map(s=>s.op).join(", ") : "—";
   const surfTxt = [["form","Form"],["grid","Grid"],["dashboard","Dashboard"],["subgrid","Subgrid"],["sitemap","Sitemap"]].filter(([k])=>d.placements[k]).map(([,v])=>v).join(", ") || "—";
   const detTxt = (d.detailTables||[]).filter(t=>t.columns.length).length ? d.detailTables.filter(t=>t.columns.length).map(t=>`${t.label} (${t.columns.length}${t.showTotals?", totals":""})`).join(", ") : "—";
-  const rows = [["Name",d.name||"—"],["Category",d.category],["Module",d.module||"—"],["Owner",d.owner],["Governed",d.governed?"Yes — needs approver":"No"],["Main entity (header)",d.mainEntity],["Data source",d.sourceType],["Joined entities",joinsTxt],["External sources",extTxt],["Header columns",cols],["Detail tables",detTxt],["Sub-reports",(d.subReports||[]).length?d.subReports.map(s=>s.report).join(", "):"—"],["Transform (ETL)",etlTxt],["Layout",d.layoutType],["Theme",themeName],["Languages",langTxt],["Used in CRM",surfTxt],["Exports",d.exports.join(", ")||"—"]];
+  const rows = [["Name",d.name||"—"],["Category",d.category],["Module",d.module||"—"],["Owner",d.owner],["Governed",d.governed?"Yes — needs approver":"No"],["Main entity (header)",d.mainEntity],["Data source", isCrmViewSource(d.sourceType) ? `${d.sourceType} — ${d.dataSourceQuery || "no view picked"}` : d.sourceType],["Joined entities",joinsTxt],["External sources",extTxt],["Header columns",cols],["Detail tables",detTxt],["Sub-reports",(d.subReports||[]).length?d.subReports.map(s=>s.report).join(", "):"—"],["Transform (ETL)",etlTxt],["Layout",d.layoutType],["Theme",themeName],["Languages",langTxt],["Used in CRM",surfTxt],["Exports",d.exports.join(", ")||"—"]];
   host.innerHTML = `<div class="wtitle">Review &amp; create</div><div class="wsub">Here's your starting report. After creating, you'll land in the full designer to add filters, parameters, drilldown, transformations, formulas, security and ribbon placement.</div>
     <div class="section-card" style="max-width:720px">${rows.map(r=>`<div class="review-row"><div class="rk">${esc(r[0])}</div><div class="rv">${esc(r[1])}</div></div>`).join("")}</div>
     <div class="info-banner" style="max-width:720px">${ic("info")}<div>Creating this report saves a <b>Draft</b>. It won't run in production until you publish it.</div></div>`;
@@ -5275,6 +5371,12 @@ async function wizNext() {
     d.name = $("#wz_name").value.trim(); d.description = $("#wz_description").value; d.category = $("#wz_category").value;
     d.module = $("#wz_module").value; d.owner = $("#wz_owner").value; d.governed = $("#wz_governed").checked;
     if (!d.name) { toast("Report name is required", "warn"); return; }
+  } else if (key === "data") {
+    if (!d.mainEntity) { toast("Pick a main entity", "warn"); return; }
+    if (isCrmViewSource(d.sourceType) && !d.dataSourceQuery) {
+      toast("Pick the saved view this report reads", "warn");
+      return;
+    }
   } else if (key === "columns") {
     if (!d.columns.length) { toast("Select at least one column", "warn"); return; }
   }
