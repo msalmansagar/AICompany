@@ -4871,6 +4871,28 @@ function wizDataCanvas(host, d) {
   redraw();
 }
 
+/**
+ * The relationships that could join these two tables, when there is more than one.
+ *
+ * suggestJoinKeys declines to guess between them, and rightly — contact reaches account four
+ * separate ways on this org. But leaving two empty key pickers behind says nothing about why, when
+ * the author's real decision is simply which relationship they meant. Naming them turns a dead end
+ * into a choice; the key pickers stay for a join no relationship describes.
+ */
+function relationshipChoiceHtml(draft, join, index) {
+  if (!draft.mainEntity || !join.entity) return "";
+  const candidates = relationsOf(draft.mainEntity).filter(relation => relation.entity === join.entity);
+  if (candidates.length < 2) return "";
+
+  const chosen = candidates.findIndex(relation => relation.foreignKey === join.rightKey);
+  return `<div class="field"><label class="lbl">Join on relationship</label>
+    <select class="fluent-select" data-jrel="${index}">
+      <option value="">— pick the relationship —</option>
+      ${candidates.map((relation, at) => `<option value="${at}" ${at === chosen ? "selected" : ""}>${esc(relation.label)} · ${esc(relation.foreignKey)}</option>`).join("")}
+    </select>
+    <div class="np-empty" style="margin-top:6px">${esc(join.entity)} relates to ${esc(draft.mainEntity)} ${candidates.length} ways, so the keys are not filled in for you.</div></div>`;
+}
+
 /** The editor for whichever node is selected, or an instruction when none is. */
 function dataNodeProps(d, selected, viaView, viewLinks) {
   if (!selected) {
@@ -4901,6 +4923,7 @@ function dataNodeProps(d, selected, viaView, viewLinks) {
     return `<h4>Joined table</h4><div class="np-sub">Combined with ${esc(d.mainEntity || "the primary table")}</div>
       <div class="field"><label class="lbl">Join type</label><select class="fluent-select" data-ji="${i}" data-jk="joinType">${opts(JOIN_TYPES, join.joinType)}</select></div>
       <div class="field"><label class="lbl">Related entity</label>${entityPickerHtml(join.entity, `data-ji="${i}" data-jk="entity"`)}</div>
+      ${relationshipChoiceHtml(d, join, i)}
       <div class="field"><label class="lbl">Left key (on ${esc(d.mainEntity || "primary")})</label>${attributePickerHtml(d.mainEntity, join.leftKey, `data-ji="${i}" data-jk="leftKey"`, "Search primary fields…")}</div>
       <div class="field"><label class="lbl">Right key (on ${esc(join.entity || "related")})</label>${attributePickerHtml(join.entity, join.rightKey, `data-ji="${i}" data-jk="rightKey"`, "Search related fields…")}</div>`;
   }
@@ -4923,6 +4946,15 @@ function dataNodeProps(d, selected, viaView, viewLinks) {
  * panel agree; the rest only redraw the wires, so a half-typed value is not interrupted.
  */
 function bindDataNodeProps(panel, d, rebuild, redraw) {
+  panel.querySelectorAll("[data-jrel]").forEach(select => select.addEventListener("change", () => {
+    const join = d.joins[+select.dataset.jrel];
+    const relation = relationsOf(d.mainEntity).filter(r => r.entity === join.entity)[+select.value];
+    if (!relation) return;
+    const primary = entityRecord(d.mainEntity);
+    join.leftKey = primary ? primary.primaryId : join.leftKey;
+    join.rightKey = relation.foreignKey;
+    rebuild();
+  }));
   panel.querySelectorAll("[data-ji]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
     const join = d.joins[+input.dataset.ji];
     join[input.dataset.jk] = input.value;
