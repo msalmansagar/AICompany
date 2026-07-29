@@ -820,6 +820,29 @@
   .attr-item input { pointer-events: none; }
   .attr-item .an { font-size: 13px; font-weight: 600; }
   .attr-item .at { font-size: 11px; color: var(--text-secondary); font-family: ui-monospace, Consolas, monospace; }
+  .attr-item mark, .combo-option mark { background: var(--primary-tint-2); color: inherit; border-radius: 2px; padding: 0 1px; }
+
+  /* Field search. A table with 588 columns is not a list you scroll — it is one you query. */
+  .pick-search { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; max-width: 900px; }
+  .pick-search input { flex: 1; }
+  .pick-search .count { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+  .attr-pick.scrolls { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  .pick-empty { padding: 18px; color: var(--text-secondary); font-size: 13px; }
+
+  /* Entity combo — a datalist matches on the value only, which meant typing a table's display name
+     found nothing. This filters on both and shows both. */
+  .combo { position: relative; }
+  .combo-panel {
+    position: absolute; z-index: 70; left: 0; right: 0; top: calc(100% + 2px); max-height: 320px; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius);
+    box-shadow: var(--shadow-16); display: none;
+  }
+  .combo-panel.open { display: block; }
+  .combo-option { padding: 7px 11px; cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+  .combo-option:hover, .combo-option.active { background: var(--primary-tint-2); }
+  .combo-option .cn { font-size: 13px; }
+  .combo-option .cl { font-size: 11px; color: var(--text-secondary); font-family: ui-monospace, Consolas, monospace; }
+  .combo-more { padding: 7px 11px; font-size: 11.5px; color: var(--text-secondary); border-top: 1px solid var(--border); }
   .choice-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; max-width: 900px; }
   .choice-card { border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 16px; cursor: pointer; background: var(--surface); }
   .choice-card:hover { border-color: var(--primary); }
@@ -1438,28 +1461,139 @@ function relationsOf(entity) {
   return metadata.relationsByEntity[entity];
 }
 
-/* An org has thousands of reportable tables, so entity pickers are type-ahead inputs over one shared
-   datalist rather than dropdowns. The datalist lives on the document and is written once when the
-   metadata lands, so a form with six pickers costs six inputs, not six thousand options. */
-const ENTITY_DATALIST_ID = "dvEntityNames";
+/* ---------- Searching long lists ----------
+   Both places a user picks from metadata are long: an org has thousands of reportable tables, and a
+   table like account carries nearly six hundred columns. Neither is a list anyone scrolls. */
 
-function syncEntityDatalist() {
-  let list = document.getElementById(ENTITY_DATALIST_ID);
-  if (!list) {
-    list = document.createElement("datalist");
-    list.id = ENTITY_DATALIST_ID;
-    document.body.appendChild(list);
-  }
-  list.innerHTML = (metadata.entities || [])
-    .map(e => `<option value="${esc(e.logicalName)}">${esc(e.label)}</option>`).join("");
+/** Case-insensitive substring match across several fields of a candidate. */
+function matchesSearch(term, ...fields) {
+  const needle = (term || "").trim().toLowerCase();
+  if (!needle) return true;
+  return fields.some(field => String(field || "").toLowerCase().includes(needle));
 }
 
-/** A type-ahead entity picker. `attrs` carries the ids or data-* the caller's handler binds to. */
+/** Marks the matched run, so a result shows why it came back. */
+function highlight(text, term) {
+  const value = String(text == null ? "" : text);
+  const needle = (term || "").trim();
+  if (!needle) return esc(value);
+  const at = value.toLowerCase().indexOf(needle.toLowerCase());
+  if (at < 0) return esc(value);
+  return esc(value.slice(0, at)) + "<mark>" + esc(value.slice(at, at + needle.length)) + "</mark>"
+    + esc(value.slice(at + needle.length));
+}
+
+/* The entity picker was a datalist, and browsers filter those on the option's VALUE — the logical
+   name. Typing "Account" worked by luck; typing "Loan" to reach qdb_loan_application found nothing,
+   because the display name lives in the option's text and is not searched. This filters on display
+   name and logical name together, shows both, and keeps arrow keys and Enter working. */
+const ENTITY_RESULT_LIMIT = 60;
+
 function entityPickerHtml(selected, attrs = "") {
   entityNames();
-  const placeholder = metadata.entities === null ? "Loading tables…" : "Search tables…";
-  return `<input class="fluent-input" list="${ENTITY_DATALIST_ID}" value="${esc(selected || "")}" placeholder="${placeholder}" ${attrs}>`;
+  const record = entityRecord(selected);
+  const shown = record ? `${record.label} (${record.logicalName})` : (selected || "");
+  const placeholder = metadata.entities === null ? "Loading tables…" : "Search tables by name…";
+  return `<div class="combo"><input class="fluent-input combo-input" autocomplete="off" role="combobox"
+    value="${esc(shown)}" data-entity="${esc(selected || "")}" placeholder="${placeholder}" ${attrs}>
+    <div class="combo-panel"></div></div>`;
 }
+
+/**
+ * Wires every entity combo inside `scope`.
+ *
+ * The input's `value` is redefined to report the chosen logical name rather than the text on screen,
+ * because every existing handler — bindInputs, the onchange handlers, the wizard — already reads
+ * `.value` and expects a logical name. The visible text stays human.
+ */
+const NATIVE_INPUT_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+
+function bindEntityCombos(scope) {
+  (scope || document).querySelectorAll(".combo > .combo-input").forEach(input => {
+    if (input.dataset.bound) return;
+    input.dataset.bound = "1";
+
+    const panel = input.parentElement.querySelector(".combo-panel");
+    let active = -1;
+
+    // The text on screen, reached through the native accessor because `value` is redefined below.
+    const shownText = () => NATIVE_INPUT_VALUE.get.call(input);
+    const setShownText = text => NATIVE_INPUT_VALUE.set.call(input, text);
+
+    const draw = () => {
+      const term = shownText();
+      const found = (metadata.entities || []).filter(e => matchesSearch(term, e.label, e.logicalName));
+      const shown = found.slice(0, ENTITY_RESULT_LIMIT);
+      panel.innerHTML = shown.length
+        ? shown.map((e, i) => `<div class="combo-option ${i === active ? "active" : ""}" data-pick="${esc(e.logicalName)}">
+            <div class="cn">${highlight(e.label, term)}</div><div class="cl">${highlight(e.logicalName, term)}</div></div>`).join("")
+          + (found.length > shown.length ? `<div class="combo-more">${found.length - shown.length} more — keep typing to narrow</div>` : "")
+        : `<div class="combo-more">No table matches “${esc(term)}”.</div>`;
+      panel.classList.add("open");
+      panel.querySelectorAll("[data-pick]").forEach(option =>
+        option.addEventListener("mousedown", event => { event.preventDefault(); choose(option.dataset.pick); }));
+    };
+
+    const choose = logicalName => {
+      input.dataset.entity = logicalName;
+      setShownText(entityDisplay(logicalName));
+      panel.classList.remove("open");
+      // Both, because some callers listen for one and some for the other.
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    Object.defineProperty(input, "value", {
+      configurable: true,
+      get: () => input.dataset.entity || "",
+      set: logicalName => { input.dataset.entity = logicalName || ""; setShownText(entityDisplay(logicalName)); }
+    });
+
+    input.addEventListener("focus", () => { active = -1; input.select(); draw(); });
+    input.addEventListener("input", () => { active = -1; draw(); });
+    input.addEventListener("blur", () => setTimeout(() => {
+      panel.classList.remove("open");
+      // Typing something and wandering off must not leave half a table name on screen.
+      setShownText(entityDisplay(input.dataset.entity));
+    }, 140));
+    input.addEventListener("keydown", event => {
+      const options = [...panel.querySelectorAll("[data-pick]")];
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        active = Math.max(0, Math.min(options.length - 1, active + (event.key === "ArrowDown" ? 1 : -1)));
+        draw();
+        const current = panel.querySelectorAll("[data-pick]")[active];
+        if (current) current.scrollIntoView({ block: "nearest" });
+      } else if (event.key === "Enter" && options[active]) {
+        event.preventDefault();
+        choose(options[active].dataset.pick);
+      } else if (event.key === "Escape") {
+        panel.classList.remove("open");
+      }
+    });
+  });
+}
+
+/* Combos are emitted from eight places — tabs, dialogs, the wizard overlay, the dashboard composer —
+   and each renders on its own schedule. Watching for them is one rule that cannot be forgotten at a
+   new call site, which hooking each render path would be. */
+function watchForEntityCombos() {
+  bindEntityCombos(document);
+  new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      if (mutation.addedNodes.length) { bindEntityCombos(document); return; }
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
+const entityDisplay = logicalName => {
+  const record = entityRecord(logicalName);
+  return record ? `${record.label} (${record.logicalName})` : (logicalName || "");
+};
+
+/* The datalist is gone. The metadata loader still calls this, and a no-op is cheaper than threading
+   the removal through every load path. */
+function syncEntityDatalist() {}
 
 const JOIN_TYPES = ["Inner join","Left join","Right join"];
 /* Report design themes — colours + fonts a business user can pick */
@@ -4144,11 +4278,31 @@ function wizColumnsList(host, d) {
   const nameFor = a => (attrs.find(x=>x.a===a)||{n:a}).n;
   const labelRows = d.columns.length ? d.columns.map(a=>{ const meta = d.colMeta[a] || (d.colMeta[a]={label:nameFor(a),labelPos:"left"}); if(!meta.label)meta.label=nameFor(a); if(!meta.labelPos)meta.labelPos="left";
     return `<tr><td style="font-size:12.5px;color:var(--text-secondary)">${esc(nameFor(a))}</td><td><input class="fluent-input" data-lbl="${esc(a)}" value="${esc(meta.label)}" style="height:28px"></td><td><div class="seg" data-lpos="${esc(a)}">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${meta.labelPos===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div></td></tr>`; }).join("") : `<tr class="empty-row"><td colspan="3">Select columns above first.</td></tr>`;
+  // Selected columns stay pinned above the results, so filtering never hides what is already chosen.
+  const term = d._colSearch || "";
+  const matching = attrs.filter(a => d.columns.includes(a.a) || matchesSearch(term, a.n, a.a, a.t));
+  const fieldHtml = a => `<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${highlight(a.n, term)}</div><div class="at">${highlight(a.a, term)} · ${esc(a.t)}</div></div></label>`;
+
   host.innerHTML = `<div class="wtitle">Choose the columns</div><div class="wsub">Select the report fields. For header / master-detail layouts you can rename each field's <b>label</b> and set its <b>label position</b> (top / left / right).</div>
-    <div class="attr-pick">${attrs.map(a=>`<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${esc(a.n)}</div><div class="at">${esc(a.a)} · ${esc(a.t)}</div></div></label>`).join("")}</div>
-    <div class="page-sub" style="margin-top:14px"><b>${d.columns.length}</b> column(s) selected</div>
+    <div class="pick-search">
+      <input class="fluent-input" id="wz_colsearch" placeholder="Search ${attrs.length} fields by name or logical name…" value="${esc(term)}" autocomplete="off">
+      <span class="count">${matching.length} shown · <b>${d.columns.length}</b> selected</span>
+    </div>
+    <div class="attr-pick${attrs.length > 24 ? " scrolls" : ""}">${
+      matching.length ? matching.map(fieldHtml).join("")
+        : `<div class="pick-empty">No field matches “${esc(term)}”.</div>`}</div>
     <div class="section-card" style="max-width:780px;margin-top:12px"><h3>Header field labels &amp; position</h3><div class="hint">Applies to the header block in Master-Detail / Invoice layouts.</div>
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Field</th><th>Label</th><th>Label position</th></tr></thead><tbody>${labelRows}</tbody></table></div></div>`;
+  const search = host.querySelector("#wz_colsearch");
+  if (search) {
+    search.oninput = () => {
+      d._colSearch = search.value;
+      wizColumnsList(host, d);
+      // Re-rendering replaces the box, so put the caret back where the user left it.
+      const again = host.querySelector("#wz_colsearch");
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
   host.querySelectorAll("[data-attr]").forEach(it => it.onclick = (e) => { e.preventDefault(); const a=it.dataset.attr, i=d.columns.indexOf(a); if(i>=0)d.columns.splice(i,1); else { d.columns.push(a); if(!d.colMeta[a])d.colMeta[a]={label:nameFor(a),labelPos:"left"}; } wizColumnsList(host,d); });
   host.querySelectorAll("[data-lbl]").forEach(inp => inp.oninput = () => { (d.colMeta[inp.dataset.lbl]||(d.colMeta[inp.dataset.lbl]={})).label = inp.value; });
   host.querySelectorAll("[data-lpos]").forEach(seg => seg.querySelectorAll("button").forEach(b => b.onclick = () => { (d.colMeta[seg.dataset.lpos]||(d.colMeta[seg.dataset.lpos]={})).labelPos = b.dataset.val; wizColumnsList(host,d); }));
@@ -5764,4 +5918,5 @@ applyTheme(readStoredTheme() ||
   (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 
 render();
+watchForEntityCombos();
 </script>
