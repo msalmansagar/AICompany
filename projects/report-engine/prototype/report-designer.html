@@ -957,7 +957,13 @@
   .canvas-hint { font-size:11.5px; color:var(--text-secondary); margin-top:8px; }
   /* Report design canvas: palette + drop surface */
   .design-grid { display:grid; grid-template-columns:230px 1fr; gap:16px; align-items:start; }
-  .palette { border:1px solid var(--border-strong); border-radius:var(--radius-lg); background:var(--surface); overflow:hidden; }
+  .palette { border:1px solid var(--border-strong); border-radius:var(--radius-lg); background:var(--surface); overflow:hidden; display:flex; flex-direction:column; max-height:520px; }
+  /* The search stays put while the fields under it scroll — with hundreds of columns the box would
+     otherwise scroll out of reach exactly when it is being used. */
+  .palette-search { padding:8px; border-bottom:1px solid var(--border-strong); background:var(--surface); }
+  .palette-search input { width:100%; }
+  .palette-scroll { overflow-y:auto; flex:1; }
+  .palette-count { font-size:11px; color:var(--text-secondary); padding:6px 12px; border-top:1px solid var(--border); }
   .palette-group { font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); font-weight:600; padding:8px 12px 4px; }
   .palette-item { display:flex; align-items:center; gap:8px; padding:7px 12px; cursor:grab; font-size:12.5px; border-top:1px solid var(--border); }
   .palette-item:hover { background:var(--primary-tint-2); }
@@ -3704,12 +3710,25 @@ function addFieldByClick(r, f) {
 function dsPanel(r) {
   const host = $("#md_ds"); const ent = r.mainEntity;
   const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" data-fattr="${esc(at.a)}" data-fent="${esc(entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(at.n)}"><span>${ic("drag")}</span><span>${esc(at.n)}</span><span class="pt">${esc(at.t)}</span></div>`;
+  /* The tree is the same problem in a narrower column: a main entity contributes hundreds of
+     draggable fields, and each expanded relationship adds hundreds more. */
+  const term = r._fieldSearch || "";
+  const visible = (entity) => attributesOf(entity).filter(at => matchesSearch(term, at.n, at.a, at.t));
+  const fieldsHtml = (entity) => {
+    const found = visible(entity);
+    return found.length
+      ? found.map(at => fieldItem(at, entity)).join("")
+      : `<div class="page-sub" style="padding:6px 0">No field matches “${esc(term)}”.</div>`;
+  };
+
   let tree;
   if (!ent) tree = `<div class="page-sub">Select a main entity to see its fields.</div>`;
   else {
-    const mainCols = attributesOf(ent).map(at=>fieldItem(at, ent)).join("");
-    const rels = relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${attributesOf(rel.entity).map(at=>fieldItem(at, rel.entity)).join("")}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
-    tree = `<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span></div>${mainCols}<h4 class="mt">Related entities</h4>${rels||'<div class="page-sub">No related entities.</div>'}`;
+    const total = attributesOf(ent).length;
+    const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
+      placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
+    const rels = relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
+    tree = `${search}<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>${fieldsHtml(ent)}<h4 class="mt">Related entities</h4>${rels||'<div class="page-sub">No related entities.</div>'}`;
   }
   const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
   const ds0 = (r.dataSources && r.dataSources[0]) || {};
@@ -3733,7 +3752,16 @@ function dsPanel(r) {
   };
   $("#md_srctype").onchange = e => { r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }]; r.dataSources[0].type = e.target.value; };
   $("#md_newds").onclick = () => openEntityForm("datasource");
-  $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; dsPanel(r); };
+  $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; r._fieldSearch = ""; dsPanel(r); };
+  const fieldSearch = $("#md_fieldsearch");
+  if (fieldSearch) {
+    fieldSearch.oninput = () => {
+      r._fieldSearch = fieldSearch.value;
+      dsPanel(r);
+      const again = $("#md_fieldsearch");
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
   host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => { const k = n.dataset.exp; if (k==="__main") return; r._dsExpanded[k] = !r._dsExpanded[k]; dsPanel(r); });
   host.querySelectorAll("[data-fattr]").forEach(it => {
     const fdata = () => ({ attr:it.dataset.fattr, entity:it.dataset.fent, type:it.dataset.ftype, name:it.dataset.fname });
@@ -4249,14 +4277,41 @@ function wizColumns(host, d) {
 function wizColumnsCanvas(host, d) {
   const groups = [{ent:d.mainEntity, attrs:attributesOf(d.mainEntity)}, ...d.joins.map(j=>({ent:j.entity, attrs:attributesOf(j.entity)}))];
   const nameFor = a => { for (const g of groups) { const m = g.attrs.find(x=>x.a===a); if (m) return m; } return {a, n:a, t:"Text"}; };
-  const palette = groups.map(g=>`<div class="palette-group">${esc(g.ent)}</div>${g.attrs.map(at=>`<div class="palette-item ${d.columns.includes(at.a)?"used":""}" draggable="true" data-attr="${esc(at.a)}"><span>${ic("drag")}</span><div><div>${esc(at.n)}</div><div class="pt">${esc(at.a)} · ${esc(at.t)}</div></div></div>`).join("")}`).join("");
+  /* Same search as the list view, over the same fields — a palette of several hundred draggable
+     rows is no more usable than a list of them. A group whose fields all filter out drops away
+     rather than leaving a heading over nothing. */
+  const term = d._colSearch || "";
+  const totalFields = groups.reduce((count, g) => count + g.attrs.length, 0);
+  const filtered = groups
+    .map(g => ({ ent: g.ent, attrs: g.attrs.filter(at => matchesSearch(term, at.n, at.a, at.t)) }))
+    .filter(g => g.attrs.length);
+  const shownFields = filtered.reduce((count, g) => count + g.attrs.length, 0);
+
+  const palette = filtered.length
+    ? filtered.map(g=>`<div class="palette-group">${esc(g.ent)}</div>${g.attrs.map(at=>`<div class="palette-item ${d.columns.includes(at.a)?"used":""}" draggable="true" data-attr="${esc(at.a)}"><span>${ic("drag")}</span><div><div>${highlight(at.n, term)}</div><div class="pt">${highlight(at.a, term)} · ${esc(at.t)}</div></div></div>`).join("")}`).join("")
+    : `<div class="pick-empty">No field matches “${esc(term)}”.</div>`;
   const chips = d.columns.length ? d.columns.map((a,i)=>{const m=nameFor(a);return `<div class="col-chip" draggable="true" data-idx="${i}"><span class="cgrip">${ic("drag")}</span><div><div>${esc(m.n)}</div><div class="ctype">${esc(m.t)}</div></div><button class="cx" data-cdel="${i}">✕</button></div>`;}).join("") : `<div class="page-sub" style="text-align:center;padding:40px 10px">Drag fields from the palette to build your report →</div>`;
   host.innerHTML = `<div class="wtitle">Columns — report design canvas</div><div class="wsub">Drag fields from the palette onto the report surface to add columns, and drag the chips to reorder them. This defines the report's detail row.</div>
     <div class="design-grid">
-      <div class="palette" id="cn_palette">${palette}</div>
+      <div class="palette">
+        <div class="palette-search"><input class="fluent-input" id="cn_search" autocomplete="off"
+          placeholder="Search ${totalFields} fields…" value="${esc(term)}"></div>
+        <div class="palette-scroll" id="cn_palette">${palette}</div>
+        <div class="palette-count">${shownFields} of ${totalFields} shown</div>
+      </div>
       <div><div class="drop-zone-label">Report detail — columns in order</div><div class="drop-surface" id="cn_drop">${chips}</div><div class="canvas-hint">${d.columns.length} column(s) · drag to reorder · ✕ to remove</div></div>
     </div>`;
   const drop = $("#cn_drop");
+  const search = host.querySelector("#cn_search");
+  if (search) {
+    search.oninput = () => {
+      // Shared with the list view, so switching between them keeps what was being looked for.
+      d._colSearch = search.value;
+      wizColumnsCanvas(host, d);
+      const again = host.querySelector("#cn_search");
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
   host.querySelectorAll("#cn_palette .palette-item").forEach(it => it.addEventListener("dragstart", e => e.dataTransfer.setData("text/attr", it.dataset.attr)));
   drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
