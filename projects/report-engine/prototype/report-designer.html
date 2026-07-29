@@ -414,6 +414,9 @@
   .btn.primary:hover { background: var(--primary-hover); }
   .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; }
   .btn-add { margin-top: 12px; }
+  /* Several buttons on one line. The spacing above belongs to the row, not to a button — .btn-add
+     carries its own top margin, which inside a flex row sits one button lower than its neighbours. */
+  .action-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
@@ -4380,8 +4383,8 @@ function wizDataForm(host, d) {
     <div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
       <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Join type</th><th>Related entity</th><th>Left key (primary)</th><th>Right key (related)</th><th></th></tr></thead><tbody>${joinRows}</tbody></table></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn sm btn-add" id="wz_addjoin">${ic("add")}Add joined entity</button>
+      <div class="action-row">
+        <button class="btn sm" id="wz_addjoin">${ic("add")}Add joined entity</button>
         <button class="btn sm" id="wz_joindata" ${d.joins.some(isRunnableJoin)?"":"disabled"}>${ic("play")}View data</button>
         <span class="canvas-hint">Runs the joined query against your data — the only way to see whether these keys really match.</span>
       </div></div>
