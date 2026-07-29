@@ -1801,7 +1801,7 @@ function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
   const sources = authored.length ? authored : [{ name: "Primary source", primary: true }];
   const primaryIndex = Math.max(0, sources.findIndex(source => source.primary));
 
-  return sources.map((source, index) => {
+  const mapped = sources.map((source, index) => {
     const chosen = sourceByLabel(source.type);
     const isPrimary = index === primaryIndex;
     return {
@@ -1812,7 +1812,9 @@ function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
       // inline rows. Left empty, the engine builds the query from the columns and filters as before.
       sourceType: chosen ? coded(chosen.code, chosen.label) : null,
       queryPayload: source.query || null,
-      sourceAlias: isPrimary ? alias : (source.alias || null),
+      // Unique within the report: (report, alias) is an alternate key, so two sources left
+      // aliasless would refuse to coexist.
+      sourceAlias: isPrimary ? alias : (source.alias || `s${index + 1}`),
       externalConnectorId: source.connectorId || null,
       executionOrder: index + 1,
       // The mappings describe the report's own columns and joins, so they hang off the source the
@@ -1822,6 +1824,53 @@ function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
         : []
     };
   });
+
+  return mapped.concat(externalSourcesOf(report, mapped.length));
+}
+
+/* The External data sources card collected an operation and a key mapping and stored none of it —
+   reportToDefinition never looked at report.externalSources. It is stored as what it is: a data
+   source that reaches through a connector, with the mapping in the payload. That needs no new table,
+   and the marker below is what lets a load tell it apart from a query payload. */
+const EXTERNAL_MAPPING_KEY = "externalMapping";
+const EXTERNAL_SOURCE_LABEL = "External REST API";
+
+function externalSourcesOf(report, alreadyWritten) {
+  return (report.externalSources || [])
+    .filter(mapping => mapping && (mapping.connectorId || mapping.operation))
+    .map((mapping, index) => {
+      const chosen = sourceByLabel(EXTERNAL_SOURCE_LABEL);
+      return {
+        id: newGuid(),
+        name: mapping.operation || mapping.connector || `External source ${index + 1}`,
+        isPrimary: false,
+        sourceType: chosen ? coded(chosen.code, chosen.label) : null,
+        queryPayload: JSON.stringify({
+          [EXTERNAL_MAPPING_KEY]: {
+            operation: mapping.operation || "",
+            crmKey: mapping.crmKey || "",
+            extKey: mapping.extKey || "",
+            direction: mapping.direction || "",
+            pass: mapping.pass || ""
+          }
+        }),
+        sourceAlias: `ext${index + 1}`,
+        externalConnectorId: mapping.connectorId || null,
+        executionOrder: alreadyWritten + index + 1,
+        entityMappings: []
+      };
+    });
+}
+
+/** The mapping a stored payload carries, or null when it is an ordinary query. */
+function externalMappingIn(queryPayload) {
+  if (!queryPayload || queryPayload.indexOf(EXTERNAL_MAPPING_KEY) === -1) return null;
+  try {
+    const parsed = JSON.parse(queryPayload);
+    return parsed && parsed[EXTERNAL_MAPPING_KEY] ? parsed[EXTERNAL_MAPPING_KEY] : null;
+  } catch (error) {
+    return null;
+  }
 }
 
 /**
@@ -2215,7 +2264,9 @@ async function writeReportChildren(reportId, def, written = []) {
  */
 async function findReportChildren(reportId) {
   const found = [];
-  const sources = await dvList("qdb_reportdatasource", byReport(reportId) + "&$select=qdb_reportdatasourceid");
+  // The alias comes back too: a replace has to park it and be able to put it back.
+  const sources = await dvList("qdb_reportdatasource",
+    byReport(reportId) + "&$select=qdb_reportdatasourceid,qdb_sourcealias");
   for (const source of sources) {
     const mappings = await dvList("qdb_reportentitymapping",
       `?$filter=_qdb_reportdatasourceid_value eq ${source.qdb_reportdatasourceid}&$select=qdb_reportentitymappingid`);
@@ -2225,7 +2276,11 @@ async function findReportChildren(reportId) {
       for (const column of columns) found.push({ entity: "qdb_reportcolumn", id: column.qdb_reportcolumnid });
       found.push({ entity: "qdb_reportentitymapping", id: mapping.qdb_reportentitymappingid });
     }
-    found.push({ entity: "qdb_reportdatasource", id: source.qdb_reportdatasourceid });
+    found.push({
+      entity: "qdb_reportdatasource",
+      id: source.qdb_reportdatasourceid,
+      sourceAlias: source.qdb_sourcealias || null
+    });
   }
 
   const flat = [
@@ -2293,18 +2348,44 @@ async function saveReportToServer(report) {
 }
 
 /**
- * Writes the new children, then removes the ones that were there before. A failure part-way rolls
- * back what this call created, so the report is left exactly as it was found.
+ * Replaces a report's children, and puts the old ones back if the new ones cannot be written.
+ *
+ * The obvious safe order — write the new rows, then delete the old — does not work here. Five of the
+ * child tables carry alternate keys scoped to the report (data source alias, parameter name, formula
+ * alias, transformation step, security principal), so a replacement row refuses to coexist with the
+ * row it replaces. The old ones genuinely have to go first.
+ *
+ * What makes that survivable is keeping the definition that was stored. If the write fails, whatever
+ * this call created is removed and the previous definition is written back through the same writer —
+ * so a failed save ends where it started rather than leaving a report stripped of its columns,
+ * filters and layout, which is exactly what used to happen.
  */
 async function replaceReportChildren(reportId, def, previousChildren) {
+  const previousDefinition = await loadReportDefinition(reportId);
+  await deleteRecords(previousChildren);
+
   const written = [];
   try {
     await writeReportChildren(reportId, def, written);
   } catch (error) {
     await deleteRecords(written.reverse());
+    await restorePreviousDefinition(reportId, previousDefinition);
     throw error;
   }
-  await deleteRecords(previousChildren);
+}
+
+/**
+ * Puts back what was stored before the failed save. It goes through the same writer, so it is
+ * writing a graph that Dataverse has already accepted once. If even this fails the report really has
+ * lost its children, and that must be said out loud rather than left to be discovered later.
+ */
+async function restorePreviousDefinition(reportId, previousDefinition) {
+  try {
+    await writeReportChildren(reportId, previousDefinition, []);
+  } catch (error) {
+    toast("The save failed AND the previous definition could not be restored. "
+      + "Do not close this tab — its contents are still on screen. " + error.message, "err");
+  }
 }
 
 /** Best effort: one row that refuses to delete must not fail a save that already succeeded. */
@@ -2387,7 +2468,22 @@ function definitionToReport(def) {
   report.parameters = (def.parameters || []).map(p => ({ name: p.parameterName, prompt: p.label || p.parameterName, type: "Text",
     required: !!p.isRequired, def: p.defaultValue || "", token: "(none)", lookup: p.lookupTargetEntity || "" }));
   report.formulas = (def.formulas || []).map(f => ({ name: f.formulaAlias, expression: f.expression || "", type: "Number", target: f.formulaAlias }));
-  report.dataSources = (def.dataSources || []).map(ds => {
+  // Rows carrying an external mapping go back to the card they came from, not the data-source grid.
+  const stored = def.dataSources || [];
+  report.externalSources = stored
+    .map(ds => ({ mapping: externalMappingIn(ds.queryPayload), ds }))
+    .filter(entry => entry.mapping)
+    .map(entry => ({
+      connectorId: entry.ds.externalConnectorId || "",
+      connector: entry.ds.externalConnectorName || "",
+      operation: entry.mapping.operation || "",
+      crmKey: entry.mapping.crmKey || "",
+      extKey: entry.mapping.extKey || "",
+      direction: entry.mapping.direction || "CRM → Source",
+      pass: entry.mapping.pass || ""
+    }));
+
+  report.dataSources = stored.filter(ds => !externalMappingIn(ds.queryPayload)).map(ds => {
     const known = sourceByCode(ds.sourceType && ds.sourceType.code);
     return {
       name: ds.name || "Primary source",
@@ -3024,14 +3120,14 @@ function tabDataSources(body, r) {
   const xcard = el(`<div class="section-card"><h3>External data sources</h3><div class="hint">Systems your administrator connected under <b>External Connectors</b>. Map the matching key and choose which way parameters flow (CRM ↔ source). Stored in <span class="kbd">qdb_externalconnector</span> refs.</div></div>`);
   const xcols = [{t:"System"},{t:"Operation"},{t:"Direction"},{t:"CRM key"},{t:"Ext. key"},{t:"Params passed"}];
   const xrow = (x,i) => `<tr><td class="handle">${ic("flow")}</td>
-    <td><select class="fluent-select" data-i="${i}" data-k="connector">${opts(["", ...connectorCatalog.get().map(c=>c.name)], x.connector)}</select></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="connectorId">${connectorOptions(x.connectorId)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="operation" value="${esc(x.operation)}" placeholder="GET /balances"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="direction">${opts(["CRM → Source","Source → CRM","Both ways"], x.direction)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="crmKey" value="${esc(x.crmKey)}"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="extKey" value="${esc(x.extKey)}"></td>
     <td><input class="fluent-input" data-i="${i}" data-k="pass" value="${esc(x.pass)}"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  xcard.appendChild(listTable(xcols, r.externalSources, xrow, () => { r.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); renderTab(); }, "Add external source"));
+  xcard.appendChild(listTable(xcols, r.externalSources, xrow, () => { r.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); renderTab(); }, "Add external source"));
   body.appendChild(xcard); bindInputs(xcard, r.externalSources);
 }
 function tabStyle(body, r) {
@@ -3478,7 +3574,7 @@ function dsPanel(r) {
     it.addEventListener("click", () => addFieldByClick(r, fdata()));
   });
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { r.externalSources.splice(+b.dataset.xdel,1); dsPanel(r); });
-  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
+  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
 }
 function renderCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const H = D.header, F = D.footer; const sel = r._sel || {};
@@ -3802,7 +3898,7 @@ function wizDataCanvas(host, d) {
   canvas.querySelectorAll("[data-jdel]").forEach(b=>b.onclick=()=>{ d.joins.splice(+b.dataset.jdel,1); d._pos={}; wizDataCanvas(host,d); });
   canvas.querySelectorAll("[data-xdel]").forEach(b=>b.onclick=()=>{ d.externalSources.splice(+b.dataset.xdel,1); d._pos={}; wizDataCanvas(host,d); });
   $("#cv_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataCanvas(host,d); };
-  $("#cv_addext").onclick = () => { d.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
+  $("#cv_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataCanvas(host,d); };
   redraw();
 }
 function wizDataForm(host, d) {
@@ -3859,7 +3955,7 @@ function wizDataForm(host, d) {
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
   $("#wz_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
-  $("#wz_addext").onclick = () => { d.externalSources.push({connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
+  $("#wz_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
 }
 function wizColumns(host, d) {
   d._colView = d._colView || "list";
@@ -4709,7 +4805,7 @@ const dataSourceCatalog = dataverseCatalog(
 const connectorCatalog = dataverseCatalog(
   "qdb_externalconnector",
   "?$select=qdb_externalconnectorid,qdb_name,qdb_connectortype,qdb_endpointurl,qdb_authmode,"
-  + "qdb_credentialreference,qdb_isactive,qdb_residencyregion,qdb_timeoutseconds,qdb_retrycount"
+  + "qdb_credentialreference,qdb_isactive,qdb_residencyregion,qdb_timeoutseconds,qdb_retrycount,qdb_headersjson"
   + "&$orderby=qdb_name",
   row => ({
     id: row.qdb_externalconnectorid,
@@ -4724,6 +4820,7 @@ const connectorCatalog = dataverseCatalog(
     region: row.qdb_residencyregion,
     timeoutSeconds: row.qdb_timeoutseconds,
     retryCount: row.qdb_retrycount,
+    headersJson: row.qdb_headersjson,
     isActive: !!row.qdb_isactive,
     status: row.qdb_isactive ? "Active" : "Inactive"
   })
@@ -4864,7 +4961,8 @@ function editConnector(id) {
   openEntityForm("connector", {
     id: connector.id, name: connector.name, type: connector.type, auth: connector.auth,
     url: connector.url, secret: connector.secret, timeout: connector.timeoutSeconds,
-    retry: connector.retryCount, region: connector.region, active: connector.isActive
+    retry: connector.retryCount, region: connector.region, headers: connector.headersJson,
+    active: connector.isActive
   });
 }
 
@@ -4947,6 +5045,8 @@ const FORM_SPECS = {
       { key:"timeout", label:"Timeout (seconds)", type:"number", value:"30" },
       { key:"retry", label:"Retry count", type:"number", value:"0" },
       { key:"region", label:"Residency region", placeholder:"e.g. Qatar Central" },
+      { key:"headers", label:"Default headers (JSON)", type:"textarea", full:true,
+        placeholder:'{ "Accept": "application/json" }', hint:"Sent with every call. Never put a credential here." },
       { key:"active", label:"Active", type:"toggle", toggleLabel:"Active", value:true }
     ],
     validate: validateConnector,
@@ -4980,6 +5080,16 @@ function validateConnector(values) {
     const raw = String(values[key] ?? "").trim();
     if (raw && (!/^\d+$/.test(raw) || Number(raw) > 3600)) return `${label} must be a whole number of 3600 or less.`;
   }
+
+  const headers = (values.headers || "").trim();
+  if (headers) {
+    let parsed;
+    try { parsed = JSON.parse(headers); } catch (error) { return "Default headers must be valid JSON."; }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "Default headers must be a JSON object.";
+    // A header is the other place a credential gets pasted by accident, and it would be stored in clear.
+    const credentialHeader = Object.keys(parsed).find(name => /^(authorization|x-api-key|api-key|cookie)$/i.test(name));
+    if (credentialHeader) return `Remove the "${credentialHeader}" header — credentials belong in the credential reference, not here.`;
+  }
   return null;
 }
 
@@ -5005,6 +5115,7 @@ async function saveConnector(values, existingId) {
     qdb_timeoutseconds: values.timeout ? Number(values.timeout) : null,
     qdb_retrycount: values.retry ? Number(values.retry) : null,
     qdb_residencyregion: values.region || null,
+    qdb_headersjson: values.headers || null,
     qdb_isactive: !!values.active
   });
 
