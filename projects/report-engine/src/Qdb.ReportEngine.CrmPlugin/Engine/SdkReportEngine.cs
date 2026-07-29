@@ -101,7 +101,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             // The report's own filters are carried across rather than discarded with the query that
             // held them — otherwise the Filters tab and every runtime prompt would change nothing.
             var supplied = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity));
-            var fetchXml = supplied is null ? query.FetchXml : FetchXmlFilters.ApplyTo(supplied, query.FetchXml);
+            var fetchXml = supplied is null ? query.FetchXml : Combine(supplied, query);
             var rows = Retrieve(fetchXml);
 
             return new ReportResult
@@ -114,6 +114,29 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 // An aggregate fetch returns one row per group, so the row limit says nothing about it.
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit
             };
+        }
+
+        /// <summary>
+        /// Puts the report's own query terms onto the query that supplies the rows.
+        ///
+        /// Filters are appended; a grouped report additionally has its projection swapped in. A
+        /// grouping that cannot be expressed against the supplied query is refused out loud, because
+        /// the alternative is a page of ungrouped rows where a total was asked for — an answer that
+        /// looks like data and is not.
+        /// </summary>
+        private static string Combine(string supplied, ReportQuery query)
+        {
+            var filtered = FetchXmlFilters.ApplyTo(supplied, query.FetchXml);
+            if (!query.IsAggregate)
+            {
+                return filtered;
+            }
+
+            return FetchXmlAggregates.ApplyTo(filtered, query.FetchXml)
+                ?? throw new InvalidPluginExecutionException(
+                    "This report groups or totals a column the saved view brings in from another table, "
+                    + "which cannot be grouped in the view's own query. Remove the aggregate, or read via "
+                    + "FetchXML so the report builds the query itself.");
         }
 
         /// <summary>
