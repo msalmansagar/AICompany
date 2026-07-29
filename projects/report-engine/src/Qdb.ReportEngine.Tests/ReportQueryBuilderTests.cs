@@ -147,6 +147,53 @@ public sealed class ReportQueryBuilderTests
         Filters = filters ?? []
     };
 
+    [Fact]
+    public void Build_KeysAColumnByItsOutputAlias_SoAViewsLinkedFieldCanBeFound()
+    {
+        // A view names its own link alias, and the row arrives under "alias.attribute". The column
+        // has to be keyed by that, or the value is looked up under a key the row does not carry.
+        var linked = new ReportColumn
+        {
+            Id = Guid.NewGuid(),
+            ColumnLogicalName = "emailaddress1",
+            OutputAlias = "accountprimarycontact.emailaddress1",
+            DisplayName = "Email (Contact)",
+            SortOrder = 1,
+            IsVisible = true
+        };
+
+        var column = ReportQueryBuilder.Build(Report(columns: [linked]), new ReportExecutionRequest()).Columns[0];
+
+        Assert.Equal("accountprimarycontact.emailaddress1", column.Alias);
+        Assert.Equal("emailaddress1", column.Attribute);
+    }
+
+    [Fact]
+    public void Build_LabelsAColumnByItsDisplayName_NotByTheKeyItArrivesUnder()
+    {
+        var linked = new ReportColumn
+        {
+            Id = Guid.NewGuid(),
+            ColumnLogicalName = "emailaddress1",
+            OutputAlias = "accountprimarycontact.emailaddress1",
+            DisplayName = "Email (Contact)",
+            SortOrder = 1,
+            IsVisible = true
+        };
+
+        var column = ReportQueryBuilder.Build(Report(columns: [linked]), new ReportExecutionRequest()).Columns[0];
+
+        Assert.Equal("Email (Contact)", column.Label);
+    }
+
+    [Fact]
+    public void Build_WithoutADisplayName_FallsBackToTheLogicalName()
+    {
+        var column = ReportQueryBuilder.Build(Report(columns: [Column("qdb_name", 1)]), new ReportExecutionRequest()).Columns[0];
+
+        Assert.Equal("qdb_name", column.Label);
+    }
+
     private static ReportColumn Column(string logical, int sort) =>
         new() { Id = Guid.NewGuid(), ColumnLogicalName = logical, SortOrder = sort, IsVisible = true };
 

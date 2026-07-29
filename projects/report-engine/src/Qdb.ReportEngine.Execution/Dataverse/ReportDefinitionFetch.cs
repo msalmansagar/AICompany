@@ -54,7 +54,7 @@ public static class ReportDefinitionFetch
     public static string Columns(Guid reportId)
     {
         var entity = Entity("qdb_reportcolumn",
-            "qdb_reportcolumnid", "qdb_columnlogicalname", "qdb_outputalias", "qdb_datatype",
+            "qdb_reportcolumnid", "qdb_name", "qdb_columnlogicalname", "qdb_outputalias", "qdb_datatype",
             "qdb_aggregatefunction", "qdb_sortorder", "qdb_grouporder", "qdb_isvisible",
             "qdb_reportentitymappingid");
 

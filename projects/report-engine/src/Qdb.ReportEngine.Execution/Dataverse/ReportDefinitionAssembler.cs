@@ -89,6 +89,7 @@ public static class ReportDefinitionAssembler
     {
         Id = RowReader.Guid(row, "qdb_reportcolumnid") ?? Guid.Empty,
         ColumnLogicalName = RowReader.String(row, "qdb_columnlogicalname"),
+        DisplayName = RowReader.String(row, "qdb_name"),
         OutputAlias = RowReader.String(row, "qdb_outputalias"),
         DataType = RowReader.Coded(row, "qdb_datatype"),
         AggregateFunction = RowReader.Coded(row, "qdb_aggregatefunction"),

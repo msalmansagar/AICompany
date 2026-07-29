@@ -52,7 +52,7 @@ internal static class ReportDefinitionAttributes
 
     public static Dictionary<string, object?> Column(Guid entityMappingId, ReportColumn column) => new(StringComparer.Ordinal)
     {
-        ["qdb_name"] = column.OutputAlias ?? column.ColumnLogicalName ?? "Column",
+        ["qdb_name"] = column.DisplayName ?? column.OutputAlias ?? column.ColumnLogicalName ?? "Column",
         ["qdb_columnlogicalname"] = column.ColumnLogicalName,
         ["qdb_outputalias"] = column.OutputAlias,
         ["qdb_datatype"] = column.DataType?.Code,

@@ -306,7 +306,7 @@ public static class ReportQueryBuilder
         columns.Select(c => new ReportResultColumn
         {
             Alias = Alias(c),
-            Label = c.OutputAlias ?? c.ColumnLogicalName,
+            Label = c.DisplayName ?? c.OutputAlias ?? c.ColumnLogicalName,
             Attribute = c.ColumnLogicalName,
             DataType = c.DataType,
             IsVisible = c.IsVisible

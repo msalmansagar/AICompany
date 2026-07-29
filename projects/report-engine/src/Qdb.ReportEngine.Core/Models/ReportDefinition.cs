@@ -169,6 +169,14 @@ public sealed record ReportColumn
 
     public string? ColumnLogicalName { get; init; }
 
+    /// <summary>
+    /// The heading a reader sees. Distinct from <see cref="OutputAlias"/>, which is the key the row
+    /// arrives under: a column drawn from a view's linked table is keyed by that view's own alias
+    /// (<c>accountprimarycontactidcontactcontactid.emailaddress1</c>), which is no one's idea of a
+    /// column heading.
+    /// </summary>
+    public string? DisplayName { get; init; }
+
     public string? OutputAlias { get; init; }
 
     public CodedValue? DataType { get; init; }

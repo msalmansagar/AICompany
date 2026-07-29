@@ -2484,12 +2484,21 @@ function reportToDefinition(report) {
 
   // Columns say which entity they came from, so each mapping takes its own. A column with no entity
   // is assumed to be on the main one, which is how single-entity reports have always behaved.
+  // A column the view already joined in rides the root mapping. Its own table has no mapping with
+  // join keys — the view supplies the link — and a mapping without them is dropped when the query is
+  // built, which would silently lose the column.
+  const joinedByTheView = c => !!c.sourceAlias;
   const columnsForEntity = (entity, isRoot) => (report.columns || [])
-    .filter(c => c.visible !== false && ((c.entity || rootEntity) === entity || (isRoot && !c.entity)))
+    .filter(c => c.visible !== false)
+    .filter(c => (isRoot && joinedByTheView(c))
+      || (!joinedByTheView(c) && ((c.entity || rootEntity) === entity || (isRoot && !c.entity))))
     .map((c, i) => ({
       id: newGuid(),
       columnLogicalName: c.attribute || c.name,
-      outputAlias: c.attribute || c.name,
+      displayName: c.name,
+      // A column taken from a view's linked table arrives under that view's own alias, so that is
+      // what identifies it. Everything else is keyed by its own attribute name.
+      outputAlias: c.sourceAlias || c.attribute || c.name,
       aggregateFunction: (c.agg && c.agg !== "None") ? coded(RPT_AGG_CODES[c.agg] ?? null, c.agg) : null,
       sortOrder: i + 1,
       groupOrder: 0,
@@ -2636,7 +2645,7 @@ async function writeReportChildren(reportId, def, written = []) {
 
       for (const column of mapping.columns || []) {
         await create("qdb_reportcolumn", defined({
-          qdb_name: column.outputAlias || column.columnLogicalName || "Column",
+          qdb_name: column.displayName || column.outputAlias || column.columnLogicalName || "Column",
           qdb_columnlogicalname: column.columnLogicalName,
           qdb_outputalias: column.outputAlias,
           qdb_aggregatefunction: codeOf(column.aggregateFunction),
@@ -2876,8 +2885,11 @@ function definitionToReport(def) {
 
   const columns = [];
   (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
-    columns.push({ name: c.outputAlias || c.columnLogicalName, entity: m.entityLogicalName || def.mainEntityLogicalName,
-      attribute: c.columnLogicalName, type: "Text", format: "", width: 120, align: "Left", agg: aggLabel(c.aggregateFunction), masked: false, visible: c.isVisible !== false });
+    // An alias that is not simply the attribute name came from a view's linked table, and losing it
+    // on reload would turn a working column into one that looks up a key the row does not carry.
+    const sourceAlias = c.outputAlias && c.outputAlias !== c.columnLogicalName ? c.outputAlias : "";
+    columns.push({ name: c.displayName || c.columnLogicalName, entity: m.entityLogicalName || def.mainEntityLogicalName,
+      attribute: c.columnLogicalName, sourceAlias, type: "Text", format: "", width: 120, align: "Left", agg: aggLabel(c.aggregateFunction), masked: false, visible: c.isVisible !== false });
   })));
   if (columns.length) report.columns = columns;
 
@@ -2999,7 +3011,7 @@ async function loadReportDefinition(id) {
     for (const mapping of mappings) {
       const columns = await dvList("qdb_reportcolumn",
         `?$filter=_qdb_reportentitymappingid_value eq ${mapping.qdb_reportentitymappingid}`
-        + "&$select=qdb_columnlogicalname,qdb_outputalias,qdb_aggregatefunction,qdb_sortorder,qdb_grouporder,qdb_isvisible&$orderby=qdb_sortorder");
+        + "&$select=qdb_name,qdb_columnlogicalname,qdb_outputalias,qdb_aggregatefunction,qdb_sortorder,qdb_grouporder,qdb_isvisible&$orderby=qdb_sortorder");
       entityMappings.push({
         id: mapping.qdb_reportentitymappingid,
         entityLogicalName: mapping.qdb_entitylogicalname,
@@ -3008,7 +3020,7 @@ async function loadReportDefinition(id) {
         joinType: mapping.qdb_jointype == null ? null : { code: mapping.qdb_jointype },
         joinExpressionJson: mapping.qdb_joinexpressionjson,
         columns: columns.map(c => ({
-          columnLogicalName: c.qdb_columnlogicalname, outputAlias: c.qdb_outputalias,
+          columnLogicalName: c.qdb_columnlogicalname, outputAlias: c.qdb_outputalias, displayName: c.qdb_name,
           aggregateFunction: c.qdb_aggregatefunction == null ? null : { code: c.qdb_aggregatefunction },
           sortOrder: c.qdb_sortorder, groupOrder: c.qdb_grouporder, isVisible: c.qdb_isvisible !== false
         }))
@@ -4440,7 +4452,45 @@ function availableAttributes(entity, sourceType, viewName) {
   if (!selection || !selection.attributes.length) return all;
 
   const selected = new Set(selection.attributes);
-  return all.filter(a => selected.has(a.a));
+  return all.filter(a => selected.has(a.a)).concat(linkedAttributesOf(selection));
+}
+
+/**
+ * The fields a view brings in from its joined tables, as columns the report can select.
+ *
+ * They are keyed by the view's own alias rather than by the attribute name, because that is how the
+ * row arrives — two joined tables can both carry <c>name</c>, and only the alias tells them apart.
+ * Marked so the picker can label which table each came from.
+ */
+function linkedAttributesOf(selection) {
+  return selection.links.flatMap(link => link.attributes.map(attribute => {
+    const known = attributesOf(link.entity).find(a => a.a === attribute);
+    return {
+      a: `${link.alias}.${attribute}`,
+      n: known ? known.n : attribute,
+      t: known ? known.t : "Text",
+      attribute,
+      linkedEntity: link.entity,
+      linkedEntityLabel: entityLabel(link.entity) || link.entity
+    };
+  }));
+}
+
+/**
+ * The heading for a picked field. A linked one names its table, since "Email" alone does not say
+ * whose — unless the field's own label already does, which would read "Account Name (Account)".
+ */
+function columnHeadingFor(entry) {
+  if (!entry.linkedEntity) return entry.n;
+  const table = entry.linkedEntityLabel;
+  return entry.n.toLowerCase().includes(table.toLowerCase()) ? entry.n : `${entry.n} (${table})`;
+}
+
+/** Splits a picker entry back into what gets stored: the attribute, its table, and its row key. */
+function columnSourceOf(entry, mainEntity) {
+  return entry.linkedEntity
+    ? { attribute: entry.attribute, entity: entry.linkedEntity, sourceAlias: entry.a }
+    : { attribute: entry.a, entity: mainEntity, sourceAlias: "" };
 }
 const wiz = { step:0, draft:null };
 function openWizard() {
@@ -4773,8 +4823,12 @@ function wizColumnsList(host, d) {
     return `<tr><td style="font-size:12.5px;color:var(--text-secondary)">${esc(nameFor(a))}</td><td><input class="fluent-input" data-lbl="${esc(a)}" value="${esc(meta.label)}" style="height:28px"></td><td><div class="seg" data-lpos="${esc(a)}">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${meta.labelPos===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div></td></tr>`; }).join("") : `<tr class="empty-row"><td colspan="3">Select columns above first.</td></tr>`;
   // Selected columns stay pinned above the results, so filtering never hides what is already chosen.
   const term = d._colSearch || "";
-  const matching = attrs.filter(a => d.columns.includes(a.a) || matchesSearch(term, a.n, a.a, a.t));
-  const fieldHtml = a => `<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${highlight(a.n, term)}</div><div class="at">${highlight(a.a, term)} · ${esc(a.t)}</div></div></label>`;
+  const matching = attrs.filter(a => d.columns.includes(a.a)
+    || matchesSearch(term, a.n, a.a, a.t, a.linkedEntityLabel || "", a.linkedEntity || ""));
+  // A linked field is shown under its own table, not under the alias the view happened to give it.
+  const fieldHtml = a => `<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${highlight(a.n, term)}${
+      a.linkedEntity ? ` <span class="rel-tag">${esc(a.linkedEntityLabel)}</span>` : ""}</div><div class="at">${
+      highlight(a.linkedEntity ? a.attribute : a.a, term)} · ${esc(a.t)}${a.linkedEntity ? ` · joined via the view` : ""}</div></div></label>`;
 
   host.innerHTML = `<div class="wtitle">Choose the columns</div><div class="wsub">Select the report fields. For header / master-detail layouts you can rename each field's <b>label</b> and set its <b>label position</b> (top / left / right).</div>
     ${viaView ? `<div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>These are the fields <b>${esc(d.dataSourceQuery)}</b> selects. The view decides what comes back, so a field outside it would render as an empty column. To use other fields, edit the view in CRM or read via FetchXML instead.</div></div>` : ""}
@@ -5584,12 +5638,21 @@ async function wizNext() {
   if (wiz.step < WIZ_STEPS.length - 1) { wiz.step++; renderWizard(); } else wizCreate();
 }
 function wizCreate() {
-  const d = wiz.draft, def = newDefinition(null), cat = attributesOf(d.mainEntity);
+  const d = wiz.draft, def = newDefinition(null);
+  const cat = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
     query:d.dataSourceQuery||"", primary:true, joinL:"", joinR:"" }];
-  def.columns = d.columns.map(a => { const m = cat.find(x=>x.a===a); const rightAlign = m && ["Currency","Decimal","Whole number"].includes(m.t); const meta = (d.colMeta||{})[a] || {};
-    return { name:m?m.n:a, entity:d.mainEntity, attribute:a, type:m?m.t:"Text", format:"", width:120, align:rightAlign?"Right":"Left", agg:(m&&m.t==="Currency")?"Sum":"None", masked:false, visible:true, label:meta.label||(m?m.n:a), labelPos:meta.labelPos||"left" }; });
+  def.columns = d.columns.map(a => {
+    const m = cat.find(x => x.a === a);
+    const source = columnSourceOf(m || { a }, d.mainEntity);
+    const rightAlign = m && ["Currency","Decimal","Whole number"].includes(m.t);
+    const meta = (d.colMeta||{})[a] || {};
+    const name = m ? columnHeadingFor(m) : a;
+    return { name, entity:source.entity, attribute:source.attribute, sourceAlias:source.sourceAlias,
+      type:m?m.t:"Text", format:"", width:120, align:rightAlign?"Right":"Left",
+      agg:(m&&m.t==="Currency")?"Sum":"None", masked:false, visible:true,
+      label:meta.label||name, labelPos:meta.labelPos||"left" }; });
   def.filters = (d.filters||[]).map(f => ({ attribute:f.attribute, operator:f.operator, value:f.value, param:(f.param&&f.param!=="(none)")?f.param:"", token:"(none)", group:0, andor:"And" }));
   def.parameters = (d.parameters||[]).map(p => ({ name:p.name, prompt:p.prompt, type:p.type, required:!!p.required, def:"", token:"(none)", lookup:p.type==="Lookup"?"account":"" }));
   def.relationships = []; def.formulas = []; def.formatting = [];
