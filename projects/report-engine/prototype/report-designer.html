@@ -1102,6 +1102,23 @@ const SOURCES = [
   { label:"Static Dataset",      code:100000010, live:true  }
 ];
 const SOURCE_TYPES = SOURCES.map(s => s.live ? s.label : `${s.label} — stored, not applied yet`);
+
+/* One line on what each source means, for the wizard's picker. Keyed by label so a source without a
+   description simply shows none, rather than the picker disappearing — which is what happened when
+   the previous map was deleted along with the invented attribute catalogue it sat next to. */
+const SOURCE_DESCRIPTIONS = {
+  "CRM View": "Reuse a saved view's query",
+  "FetchXML": "Write the query yourself",
+  "QueryExpression": "SDK-style query object",
+  "Dataverse Web API": "OData against the same data",
+  "Custom API / Plugin": "Server-side custom query",
+  "SQL": "Direct database query",
+  "External REST API": "A system outside Dataverse",
+  "Middleware API": "Via an integration layer",
+  "Core Banking API": "The core banking system",
+  "MIS API": "Management information system",
+  "Static Dataset": "Rows you paste in, for testing"
+};
 const sourceByLabel = label => SOURCES.find(s => label === s.label || label === `${s.label} — stored, not applied yet`);
 const sourceByCode = code => SOURCES.find(s => s.code === code);
 const PARAM_TYPES = ["Text","Number","Date range","Lookup","Option set","Multi-select option set","Boolean"];
@@ -1293,6 +1310,7 @@ async function loadEntityMetadata() {
   endBusy("Loading tables…");
   syncEntityDatalist();
   render();
+  refreshOpenWizard();
 }
 
 async function loadAttributeMetadata(entity) {
@@ -1317,6 +1335,7 @@ async function loadAttributeMetadata(entity) {
   delete metadata.pending[entity];
   endBusy(`Loading ${entity} fields…`);
   render();
+  refreshOpenWizard();
 }
 
 /** One-to-many relationships, which is what the manual designer's detail tables can hang off. */
@@ -1629,6 +1648,20 @@ function blockKeyboardWhileBusy(event) {
   }
 }
 document.addEventListener("keydown", blockKeyboardWhileBusy, true);
+
+/* Steps whose content is a list of fields. They are empty until attribute metadata arrives, and the
+   wizard lives in its own overlay outside the re-rendered region — so a load that lands while one is
+   open has to refresh it explicitly, or the step stays blank until the user navigates away and back.
+
+   Deliberately not every step: rebuilding the overlay discards whatever is typed into the current
+   one, and the steps left out are the ones a user types into rather than picks from. */
+const METADATA_DRIVEN_WIZARD_STEPS = ["columns", "filters", "details"];
+
+function refreshOpenWizard() {
+  if (!document.getElementById("wizOverlay")) return;
+  const step = WIZ_STEPS[wiz.step];
+  if (step && METADATA_DRIVEN_WIZARD_STEPS.includes(step.key)) renderWizard();
+}
 
 function busyElement(id, className) {
   let node = document.getElementById(id);
@@ -3834,29 +3867,48 @@ const REPORT_SHAPES = {
   }
 };
 
-/** The first few readable columns: what someone would put in a plain table. */
+/** The name of the record first, then whatever else reads usefully in a plain table. */
 function columnsForTable(entity) {
-  const usable = reportableAttributes(entity);
-  return usable.slice(0, 6).map(a => a.a);
+  return takeColumns(entity, [primaryNameOf(entity)], 6);
 }
 
-/** A category to group by, a number to total, and a little context around them. */
+/** The name, a category to group by, a number to total, and a little context around them. */
 function columnsForGrouping(entity) {
   const usable = reportableAttributes(entity);
-  const category = usable.find(a => ["Option set", "Lookup"].includes(a.t)) || usable.find(a => a.t === "Text");
+  const category = usable.find(a => ["Option set", "Lookup"].includes(a.t));
   const measure = usable.find(a => a.t === "Currency") || usable.find(a => ["Decimal", "Whole number"].includes(a.t));
-  const chosen = [category, measure].filter(Boolean).map(a => a.a);
+  const preferred = [primaryNameOf(entity), category && category.a, measure && measure.a, "createdon"];
+  return takeColumns(entity, preferred, 5);
+}
+
+/**
+ * The preferred columns that exist, topped up from what is left.
+ *
+ * Ordering matters more than it looks: attributes arrive sorted by display name, so filling straight
+ * from the top gives whatever begins with a digit — "1st disbursement date", "Aging30" — which is a
+ * valid suggestion and a useless one.
+ */
+function takeColumns(entity, preferred, limit) {
+  const usable = reportableAttributes(entity);
+  const chosen = [];
+  for (const attribute of preferred) {
+    if (attribute && usable.some(a => a.a === attribute) && !chosen.includes(attribute)) chosen.push(attribute);
+  }
+
   for (const attribute of usable) {
-    if (chosen.length >= 5) break;
+    if (chosen.length >= limit) break;
     if (!chosen.includes(attribute.a)) chosen.push(attribute.a);
   }
 
-  return chosen;
+  return chosen.slice(0, limit);
 }
 
-/* Columns worth offering as a starting point. The keys, state fields and audit stamps every table
-   carries are real attributes and terrible first suggestions. */
-const UNHELPFUL_FIRST_COLUMNS = /^(createdonbehalfby|modifiedonbehalfby|importsequencenumber|overriddencreatedon|timezoneruleversionnumber|utcconversiontimezonecode|versionnumber|owningbusinessunit|owningteam|owninguser|statecode|statuscode)$/i;
+const primaryNameOf = entity => (entityRecord(entity) || {}).primaryName;
+
+/* Attributes worth offering as a starting point. Every table carries keys, state fields, audit
+   stamps, currency shadows and workflow plumbing — all real, all terrible first suggestions. */
+const UNHELPFUL_FIRST_COLUMNS =
+  /^(traversedpath|processid|stageid|versionnumber|importsequencenumber|overriddencreatedon|timezoneruleversionnumber|utcconversiontimezonecode|exchangerate|transactioncurrencyid|entityimage.*|.*_base|owning(businessunit|team|user)|statecode|statuscode|(created|modified)onbehalfby|(created|modified)by)$/i;
 
 function reportableAttributes(entity) {
   return attributesOf(entity).filter(a =>
@@ -4023,7 +4075,7 @@ function wizDataForm(host, d) {
     <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The main table the report is built on — pre-set from the data source, still editable.</div>
       <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(d.mainEntity, 'id="wz_entity"')}</div>
       <label class="lbl" style="display:block;margin-bottom:8px">Read via</label>
-      <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${Object.keys(SRC_DESC).map(s=>`<div class="choice-card ${d.sourceType===s?"sel":""}" data-src="${esc(s)}" style="padding:12px"><div class="cc-t">${esc(s)}</div><div class="cc-d">${esc(SRC_DESC[s])}</div></div>`).join("")}</div></div>
+      <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${SOURCES.map(s=>`<div class="choice-card ${d.sourceType===s.label?"sel":""}" data-src="${esc(s.label)}" style="padding:12px"><div class="cc-t">${esc(s.label)}</div><div class="cc-d">${esc(SOURCE_DESCRIPTIONS[s.label] || "")}</div>${s.live?"":`<div class="rel-tag" style="margin-top:6px">stored, not applied yet</div>`}</div>`).join("")}</div></div>
 
     <div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
       <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
