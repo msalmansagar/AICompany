@@ -832,8 +832,10 @@
   /* Entity combo — a datalist matches on the value only, which meant typing a table's display name
      found nothing. This filters on both and shows both. */
   .combo { position: relative; }
+  /* Fixed, not absolute: several of these sit inside tables wrapped in overflow-x:auto, which clips
+     an absolutely-positioned dropdown and scrolls it out of view. Coordinates are set when it opens. */
   .combo-panel {
-    position: absolute; z-index: 70; left: 0; right: 0; top: calc(100% + 2px); max-height: 320px; overflow-y: auto;
+    position: fixed; z-index: 210; max-height: 320px; overflow-y: auto; min-width: 220px;
     background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius);
     box-shadow: var(--shadow-16); display: none;
   }
@@ -1298,7 +1300,10 @@ const ATTRIBUTE_TYPE_LABELS = {
   Boolean: "Boolean",
   Picklist: "Option set", State: "Option set", Status: "Option set",
   MultiSelectPicklist: "Multi-select option set",
-  Lookup: "Lookup", Owner: "Lookup", Customer: "Lookup"
+  Lookup: "Lookup", Owner: "Lookup", Customer: "Lookup",
+  // Kept because a record's id is a legitimate join key. It is filtered out of column suggestions
+  // separately — offering it and suggesting it are different questions.
+  Uniqueidentifier: "Unique identifier"
 };
 
 const metadata = {
@@ -1365,6 +1370,7 @@ async function loadAttributeMetadata(entity) {
   endBusy(`Loading ${entity} fields…`);
   render();
   refreshOpenWizard();
+  refreshComboLabels();
 }
 
 /** One-to-many relationships, which is what the manual designer's detail tables can hang off. */
@@ -1388,6 +1394,7 @@ async function loadRelationshipMetadata(entity) {
   delete metadata.pending[key];
   endBusy(`Loading ${entity} relationships…`);
   render();
+  refreshJoinKeySuggestions(entity);
 }
 
 /* Choice columns read their options from the org too. The designer used to offer categories and
@@ -1501,9 +1508,39 @@ function entityPickerHtml(selected, attrs = "") {
   const shown = record ? `${record.label} (${record.logicalName})` : (selected || "");
   const placeholder = metadata.entities === null ? "Loading tables…" : "Search tables by name…";
   return `<div class="combo"><input class="fluent-input combo-input" autocomplete="off" role="combobox"
-    value="${esc(shown)}" data-entity="${esc(selected || "")}" placeholder="${placeholder}" ${attrs}>
+    data-combo="entity" value="${esc(shown)}" data-entity="${esc(selected || "")}" placeholder="${placeholder}" ${attrs}>
     <div class="combo-panel"></div></div>`;
 }
+
+/**
+ * The same combo over one table's columns, for the places that ask for a field by name — join keys
+ * above all, which were free-text boxes you had to type a logical name into from memory.
+ */
+function attributePickerHtml(entity, selected, attrs = "", placeholderText) {
+  const known = entity ? attributesOf(entity).find(a => a.a === selected) : null;
+  const shown = known ? `${known.n} (${known.a})` : (selected || "");
+  const placeholder = !entity ? "Pick a table first"
+    : (attributesOf(entity).length ? (placeholderText || "Search fields…") : "Loading fields…");
+  return `<div class="combo"><input class="fluent-input combo-input" autocomplete="off" role="combobox"
+    data-combo="attribute" data-combo-entity="${esc(entity || "")}" value="${esc(shown)}"
+    data-entity="${esc(selected || "")}" placeholder="${esc(placeholder)}" ${attrs}>
+    <div class="combo-panel"></div></div>`;
+}
+
+/** What a combo offers, and how each option reads. One shape, two sources. */
+function comboCandidates(input) {
+  if (input.dataset.combo === "attribute") {
+    const entity = input.dataset.comboEntity;
+    return attributesOf(entity).map(a => ({ id: a.a, title: a.n, subtitle: `${a.a} · ${a.t}` }));
+  }
+
+  return (metadata.entities || []).map(e => ({ id: e.logicalName, title: e.label, subtitle: e.logicalName }));
+}
+
+const comboDisplay = (input, id) => {
+  const found = comboCandidates(input).find(c => c.id === id);
+  return found ? `${found.title} (${found.id})` : (id || "");
+};
 
 /**
  * Wires every entity combo inside `scope`.
@@ -1526,23 +1563,45 @@ function bindEntityCombos(scope) {
     const shownText = () => NATIVE_INPUT_VALUE.get.call(input);
     const setShownText = text => NATIVE_INPUT_VALUE.set.call(input, text);
 
+    /* The panel is fixed, so it has to be told where the input is. Doing it on open also keeps it
+       correct inside the horizontally scrolling tables that clipped it before. */
+    const place = () => {
+      const box = input.getBoundingClientRect();
+      const room = window.innerHeight - box.bottom;
+      panel.style.left = `${box.left}px`;
+      panel.style.width = `${Math.max(box.width, 240)}px`;
+      // Flip above when the input sits near the bottom of the window.
+      if (room < 200 && box.top > room) {
+        panel.style.top = "auto";
+        panel.style.bottom = `${window.innerHeight - box.top + 2}px`;
+        panel.style.maxHeight = `${box.top - 12}px`;
+      } else {
+        panel.style.bottom = "auto";
+        panel.style.top = `${box.bottom + 2}px`;
+        panel.style.maxHeight = `${Math.max(140, room - 12)}px`;
+      }
+    };
+
+    const noun = () => input.dataset.combo === "attribute" ? "field" : "table";
+
     const draw = () => {
       const term = shownText();
-      const found = (metadata.entities || []).filter(e => matchesSearch(term, e.label, e.logicalName));
+      const found = comboCandidates(input).filter(c => matchesSearch(term, c.title, c.subtitle));
       const shown = found.slice(0, ENTITY_RESULT_LIMIT);
       panel.innerHTML = shown.length
-        ? shown.map((e, i) => `<div class="combo-option ${i === active ? "active" : ""}" data-pick="${esc(e.logicalName)}">
-            <div class="cn">${highlight(e.label, term)}</div><div class="cl">${highlight(e.logicalName, term)}</div></div>`).join("")
+        ? shown.map((c, i) => `<div class="combo-option ${i === active ? "active" : ""}" data-pick="${esc(c.id)}">
+            <div class="cn">${highlight(c.title, term)}</div><div class="cl">${highlight(c.subtitle, term)}</div></div>`).join("")
           + (found.length > shown.length ? `<div class="combo-more">${found.length - shown.length} more — keep typing to narrow</div>` : "")
-        : `<div class="combo-more">No table matches “${esc(term)}”.</div>`;
+        : `<div class="combo-more">No ${noun()} matches “${esc(term)}”.</div>`;
+      place();
       panel.classList.add("open");
       panel.querySelectorAll("[data-pick]").forEach(option =>
         option.addEventListener("mousedown", event => { event.preventDefault(); choose(option.dataset.pick); }));
     };
 
-    const choose = logicalName => {
-      input.dataset.entity = logicalName;
-      setShownText(entityDisplay(logicalName));
+    const choose = id => {
+      input.dataset.entity = id;
+      setShownText(comboDisplay(input, id));
       panel.classList.remove("open");
       // Both, because some callers listen for one and some for the other.
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1552,16 +1611,18 @@ function bindEntityCombos(scope) {
     Object.defineProperty(input, "value", {
       configurable: true,
       get: () => input.dataset.entity || "",
-      set: logicalName => { input.dataset.entity = logicalName || ""; setShownText(entityDisplay(logicalName)); }
+      set: id => { input.dataset.entity = id || ""; setShownText(comboDisplay(input, id)); }
     });
 
     input.addEventListener("focus", () => { active = -1; input.select(); draw(); });
     input.addEventListener("input", () => { active = -1; draw(); });
     input.addEventListener("blur", () => setTimeout(() => {
       panel.classList.remove("open");
-      // Typing something and wandering off must not leave half a table name on screen.
-      setShownText(entityDisplay(input.dataset.entity));
+      // Typing something and wandering off must not leave half a name on screen.
+      setShownText(comboDisplay(input, input.dataset.entity));
     }, 140));
+    // A fixed panel does not travel with its input, so it closes rather than floating loose.
+    window.addEventListener("scroll", () => panel.classList.remove("open"), true);
     input.addEventListener("keydown", event => {
       const options = [...panel.querySelectorAll("[data-pick]")];
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -1591,11 +1652,6 @@ function watchForEntityCombos() {
     }
   }).observe(document.body, { childList: true, subtree: true });
 }
-
-const entityDisplay = logicalName => {
-  const record = entityRecord(logicalName);
-  return record ? `${record.label} (${record.logicalName})` : (logicalName || "");
-};
 
 /* The datalist is gone. The metadata loader still calls this, and a no-op is cheaper than threading
    the removal through every load path. */
@@ -1796,6 +1852,42 @@ document.addEventListener("keydown", blockKeyboardWhileBusy, true);
    Deliberately not every step: rebuilding the overlay discards whatever is typed into the current
    one, and the steps left out are the ones a user types into rather than picks from. */
 const METADATA_DRIVEN_WIZARD_STEPS = ["columns", "filters", "details"];
+
+/**
+ * Re-labels attribute combos once their table's fields arrive.
+ *
+ * A picker rendered before its metadata landed shows the raw logical name, and the step it sits on
+ * is not always one worth rebuilding — the join rows live beside an entity picker someone may be
+ * typing into. Relabelling in place fixes the display without disturbing anything.
+ */
+function refreshComboLabels() {
+  document.querySelectorAll('.combo > .combo-input[data-combo="attribute"]').forEach(input => {
+    if (document.activeElement === input) return;
+    const chosen = input.dataset.entity;
+    if (chosen) NATIVE_INPUT_VALUE.set.call(input, comboDisplay(input, chosen));
+  });
+}
+
+/**
+ * Re-offers join keys once the relationships they come from have arrived.
+ *
+ * Choosing a table usually beats its relationship metadata back, so the suggestion had nothing to
+ * work with and quietly did nothing — it worked only when the metadata happened to be cached. The
+ * inputs are written directly rather than by re-rendering the step, which sits next to an entity
+ * picker somebody may be typing into.
+ */
+function refreshJoinKeySuggestions(entity) {
+  const draft = (typeof wiz === "object" && wiz && wiz.draft) ? wiz.draft : null;
+  if (!draft || draft.mainEntity !== entity || !document.getElementById("wizOverlay")) return;
+
+  (draft.joins || []).forEach((join, index) => {
+    suggestJoinKeys(draft, join);
+    ["leftKey", "rightKey"].forEach(key => {
+      const input = document.querySelector(`[data-ji="${index}"][data-jk="${key}"]`);
+      if (input && !input.dataset.entity && join[key]) input.value = join[key];
+    });
+  });
+}
 
 function refreshOpenWizard() {
   if (!document.getElementById("wizOverlay")) return;
@@ -3284,11 +3376,16 @@ function tabDataSources(body, r) {
   const jrow = (j,i) => `<tr><td class="handle">${ic("tree")}</td>
     <td><select class="fluent-select" data-i="${i}" data-k="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
     <td>${entityPickerHtml(j.entity, `data-i="${i}" data-k="entity"`)}</td>
-    <td><input class="fluent-input" data-i="${i}" data-k="leftKey" value="${esc(j.leftKey)}"></td>
-    <td><input class="fluent-input" data-i="${i}" data-k="rightKey" value="${esc(j.rightKey)}"></td>
+    <td>${attributePickerHtml(r.mainEntity, j.leftKey, `data-i="${i}" data-k="leftKey"`, "Search primary fields…")}</td>
+    <td>${attributePickerHtml(j.entity, j.rightKey, `data-i="${i}" data-k="rightKey"`, "Search related fields…")}</td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   jcard.appendChild(listTable(jcols, r.joins, jrow, () => { r.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); renderTab(); }, "Add join"));
   body.appendChild(jcard); bindInputs(jcard, r.joins);
+  // Picking the related table is when the keys can be offered from the relationship itself.
+  jcard.querySelectorAll('[data-k="entity"]').forEach(picker => picker.addEventListener("change", () => {
+    suggestJoinKeys({ mainEntity: r.mainEntity }, r.joins[+picker.dataset.i]);
+    renderTab();
+  }));
 
   const xcard = el(`<div class="section-card"><h3>External data sources</h3><div class="hint">Systems your administrator connected under <b>External Connectors</b>. Map the matching key and choose which way parameters flow (CRM ↔ source). Stored in <span class="kbd">qdb_externalconnector</span> refs.</div></div>`);
   const xcols = [{t:"System"},{t:"Operation"},{t:"Direction"},{t:"CRM key"},{t:"Ext. key"},{t:"Params passed"}];
@@ -4093,6 +4190,29 @@ async function applyStart(d) {
   }
 }
 
+/**
+ * Fills a join's keys from the relationship that already exists between the two tables.
+ *
+ * Dataverse knows how these tables relate. Making someone type both sides of a foreign key from
+ * memory is asking them to restate metadata, and to get it wrong silently. Only fills what is
+ * empty, so a deliberate choice is never overwritten, and stays quiet when no relationship exists —
+ * a guessed key would be worse than a blank one.
+ */
+function suggestJoinKeys(d, join) {
+  if (!d.mainEntity || !join.entity || (join.leftKey && join.rightKey)) return;
+
+  /* Only when the answer is unambiguous. Two tables often relate several ways — contact carries a
+     handful of separate lookups to account — and picking the first would quietly join on the wrong
+     one, which is worse than leaving the author to choose. */
+  const candidates = relationsOf(d.mainEntity).filter(r => r.entity === join.entity);
+  const primary = entityRecord(d.mainEntity);
+  if (candidates.length !== 1 || !primary) return;
+
+  // A one-to-many: the child carries the foreign key, the parent is matched on its own id.
+  if (!join.leftKey) join.leftKey = primary.primaryId;
+  if (!join.rightKey) join.rightKey = candidates[0].foreignKey;
+}
+
 /* A shape contributes its layout and export defaults now, and its column rule later — once the
    author has chosen a table. Nothing here names an entity, which is the whole point. */
 function applyShape(d, shapeId) {
@@ -4210,11 +4330,14 @@ function wizDataCanvas(host, d) {
   redraw();
 }
 function wizDataForm(host, d) {
+  /* The keys were free-text boxes: you had to know a column's logical name and type it correctly,
+     with no way to look it up and no complaint if you got it wrong. They are pickers over the two
+     tables being joined — left over the primary, right over whichever table the row names. */
   const joinRows = d.joins.length ? d.joins.map((j,i)=>`<tr>
       <td><select class="fluent-select" data-ji="${i}" data-jk="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
       <td>${entityPickerHtml(j.entity, `data-ji="${i}" data-jk="entity"`)}</td>
-      <td><input class="fluent-input" data-ji="${i}" data-jk="leftKey" value="${esc(j.leftKey)}" placeholder="${esc(d.mainEntity)} key"></td>
-      <td><input class="fluent-input" data-ji="${i}" data-jk="rightKey" value="${esc(j.rightKey)}" placeholder="related key"></td>
+      <td>${attributePickerHtml(d.mainEntity, j.leftKey, `data-ji="${i}" data-jk="leftKey"`, "Search primary fields…")}</td>
+      <td>${attributePickerHtml(j.entity, j.rightKey, `data-ji="${i}" data-jk="rightKey"`, "Search related fields…")}</td>
       <td><button class="del" data-jdel="${i}">${ic("trash")}</button></td></tr>`).join("")
     : `<tr class="empty-row"><td colspan="5">No joins — the report reads a single entity.</td></tr>`;
   const extCards = d.externalSources.length ? d.externalSources.map((x,i)=>`<div class="ext-src">
@@ -4258,7 +4381,13 @@ function wizDataForm(host, d) {
   $("#wz_newds").onclick = () => openEntityForm("datasource");
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
   host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => { d.sourceType = c.dataset.src; host.querySelectorAll("[data-src]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); });
-  host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.joins[+inp.dataset.ji][inp.dataset.jk] = inp.value; if(inp.dataset.jk==="joinType"||inp.dataset.jk==="entity") wizDataForm(host,d); }));
+  host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => {
+    const join = d.joins[+inp.dataset.ji];
+    join[inp.dataset.jk] = inp.value;
+    // Choosing the table is the moment the engine can offer the keys that actually relate them.
+    if (inp.dataset.jk === "entity") suggestJoinKeys(d, join);
+    if (inp.dataset.jk === "joinType" || inp.dataset.jk === "entity") wizDataForm(host, d);
+  }));
   host.querySelectorAll("[data-jdel]").forEach(b => b.onclick = () => { d.joins.splice(+b.dataset.jdel,1); wizDataForm(host,d); });
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
