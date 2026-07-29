@@ -690,6 +690,9 @@
 
   /* panel / dialog */
   .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50; display: flex; }
+  /* A dialog opened FROM the wizard has to sit above it. The wizard is a full-screen overlay at 60,
+     so a default scrim at 50 opens behind it — present in the DOM, invisible on screen. */
+  .scrim.above-wizard { z-index: 70; }
   .panel {
     margin-left: auto; width: 420px; max-width: 92vw; background: var(--surface); height: 100%;
     box-shadow: var(--shadow-64); display: flex; flex-direction: column; animation: slideIn .18s ease;
@@ -4377,7 +4380,11 @@ function wizDataForm(host, d) {
     <div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
       <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Join type</th><th>Related entity</th><th>Left key (primary)</th><th>Right key (related)</th><th></th></tr></thead><tbody>${joinRows}</tbody></table></div>
-      <button class="btn sm btn-add" id="wz_addjoin">${ic("add")}Add joined entity</button></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn sm btn-add" id="wz_addjoin">${ic("add")}Add joined entity</button>
+        <button class="btn sm" id="wz_joindata" ${d.joins.some(isRunnableJoin)?"":"disabled"}>${ic("play")}View data</button>
+        <span class="canvas-hint">Runs the joined query against your data — the only way to see whether these keys really match.</span>
+      </div></div>
 
     <div class="section-card" style="max-width:900px"><h3>External data sources</h3>
       <div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>Your <b>administrator configures each system once</b> under <b>External Connectors</b> (Core Banking, MIS, SQL, REST…). Here you just pick a connected system, map the matching key, and choose which way parameters flow — <b>CRM → source</b> (e.g. send customer number to Core Banking) or <b>source → CRM</b> (e.g. bring balances back to match a CRM record).</div></div>
@@ -4399,11 +4406,16 @@ function wizDataForm(host, d) {
     // Choosing the table is the moment the engine can offer the keys that actually relate them.
     if (inp.dataset.jk === "entity") suggestJoinKeys(d, join);
     if (inp.dataset.jk === "joinType" || inp.dataset.jk === "entity") wizDataForm(host, d);
+    // Setting a key does not re-render — the button would otherwise stay disabled after the very
+    // edit that completed the join.
+    else refreshJoinDataButton(d);
   }));
   host.querySelectorAll("[data-jdel]").forEach(b => b.onclick = () => { d.joins.splice(+b.dataset.jdel,1); wizDataForm(host,d); });
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
   $("#wz_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
+  const joinData = $("#wz_joindata");
+  if (joinData) joinData.onclick = () => withBusyButton("#wz_joindata", "Running…", () => openJoinPreview(d));
   $("#wz_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
 }
 function wizColumns(host, d) {
@@ -4621,6 +4633,134 @@ function previewFetchXml(entity, cols) {
   const attributes = [...new Set(cols.map(c => c.key))]
     .map(name => `<attribute name="${esc(name)}"/>`).join("");
   return `<fetch top="${PREVIEW_ROW_LIMIT}"><entity name="${esc(entity)}">${attributes}</entity></fetch>`;
+}
+
+/* ---------- Seeing a join actually work ----------
+   Join keys are the easiest thing in the designer to get wrong and the hardest to notice: a wrong
+   pair still saves, still previews the primary table happily, and only shows up later as a report
+   returning nothing or the wrong number of rows. Running the joined query here answers the one
+   question the configuration cannot — do these two tables actually match on these two columns. */
+
+const JOIN_PREVIEW_LIMIT = 10;
+const JOIN_ALIAS = index => `j${index}`;
+
+/** A join is runnable once it names a table and both sides of the match. */
+const isRunnableJoin = join => !!(join && join.entity && join.leftKey && join.rightKey);
+
+function refreshJoinDataButton(draft) {
+  const button = document.getElementById("wz_joindata");
+  if (button) button.disabled = !(draft.joins || []).some(isRunnableJoin);
+}
+
+/** The FetchXML the configured joins describe: the root table plus one link-entity per join. */
+function joinPreviewFetchXml(draft) {
+  const usable = (draft.joins || []).filter(isRunnableJoin);
+  const rootColumns = previewColumnsFor(draft.mainEntity, usable.map(j => j.leftKey));
+
+  const links = usable.map((join, index) => {
+    const columns = previewColumnsFor(join.entity, [join.rightKey]);
+    return `<link-entity name="${esc(join.entity)}" from="${esc(join.rightKey)}" to="${esc(join.leftKey)}"`
+      + ` link-type="${esc(linkTypeOf(join.joinType))}" alias="${JOIN_ALIAS(index)}">`
+      + columns.map(c => `<attribute name="${esc(c)}"/>`).join("")
+      + `</link-entity>`;
+  }).join("");
+
+  return `<fetch top="${JOIN_PREVIEW_LIMIT}"><entity name="${esc(draft.mainEntity)}">`
+    + rootColumns.map(c => `<attribute name="${esc(c)}"/>`).join("") + links + `</entity></fetch>`;
+}
+
+/** The table's own name, plus the keys being joined on — the columns that show whether it worked. */
+function previewColumnsFor(entity, keys) {
+  const name = primaryNameOf(entity);
+  const wanted = [name].concat(keys).filter(Boolean);
+  const known = attributesOf(entity);
+  const exists = a => !known.length || known.some(x => x.a === a) || a === name;
+  return [...new Set(wanted.filter(exists))];
+}
+
+const linkTypeOf = joinType => {
+  const label = String(joinType || "").toLowerCase();
+  if (label.startsWith("left")) return "outer";
+  if (label.startsWith("right")) return "outer";
+  return "inner";
+};
+
+/**
+ * Runs the joined query and shows what came back.
+ *
+ * A right join is reported rather than silently run as something else: FetchXML has no right join,
+ * so honouring it would mean swapping the tables around, and a preview that quietly reshapes the
+ * query is not evidence of anything.
+ */
+async function openJoinPreview(draft) {
+  const usable = (draft.joins || []).filter(isRunnableJoin);
+  if (!draft.mainEntity) { toast("Pick a main entity first", "warn"); return; }
+  if (!usable.length) { toast("Add a join with both keys set, then view the data", "warn"); return; }
+
+  const fetchXml = joinPreviewFetchXml(draft);
+  let rows = null;
+  let failure = null;
+  try {
+    rows = await dvList(draft.mainEntity, "?fetchXml=" + encodeURIComponent(fetchXml));
+  } catch (error) {
+    failure = error.message || String(error);
+  }
+
+  showJoinPreview(draft, usable, fetchXml, rows, failure);
+}
+
+function showJoinPreview(draft, joins, fetchXml, rows, failure) {
+  const columns = joinPreviewColumns(draft, joins);
+  const body = failure
+    ? `<div class="info-banner" style="border-left-color:var(--error)">${ic("info")}<div><b>The query was rejected.</b>
+        That usually means the two keys are not comparable — a lookup matched against a text column,
+        or a column that is not on the table it was chosen from.<div style="margin-top:6px">${esc(failure)}</div></div></div>`
+    : rows.length
+      ? `<div class="page-sub" style="margin-bottom:10px">${rows.length} row${rows.length===1?"":"s"}${rows.length===JOIN_PREVIEW_LIMIT?` (first ${JOIN_PREVIEW_LIMIT})`:""} · joined as configured</div>
+         <div class="grid-wrap" style="max-height:340px;overflow:auto"><table class="grid"><thead><tr>${
+           columns.map(c=>`<th>${esc(c.label)}<div class="hint-inline">${esc(c.source)}</div></th>`).join("")
+         }</tr></thead><tbody>${
+           rows.map(row=>`<tr>${columns.map(c=>`<td>${cell(readPreviewCell(row, c.key))}</td>`).join("")}</tr>`).join("")
+         }</tbody></table></div>`
+      : `<div class="info-banner">${ic("info")}<div><b>The query ran and matched nothing.</b>
+          The join is valid but no row on the primary table has a match — either the keys pair the
+          wrong columns, or there genuinely is no related data yet.</div></div>`;
+
+  // Opened from inside the wizard overlay, so it needs to sit above it.
+  const scrim = el(`<div class="scrim above-wizard"><div class="dialog" role="dialog" aria-modal="true" style="width:860px;max-width:94vw">
+    <div class="dialog-head"><div><h3>Joined data</h3><div class="page-sub" style="margin-top:2px">${esc(draft.mainEntity)}${
+      joins.map(j=>` · ${esc(j.joinType)} ${esc(j.entity)}`).join("")}</div></div><button class="close-x">✕</button></div>
+    <div class="dialog-body">${body}
+      <details style="margin-top:14px"><summary class="page-sub" style="cursor:pointer">The query that ran</summary>
+        <pre style="white-space:pre-wrap;word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:11.5px;margin-top:8px">${esc(fetchXml)}</pre>
+      </details></div>
+    <div class="dialog-foot"><button class="btn" data-close>Close</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+  const close = () => scrim.remove();
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
+}
+
+/** One column per attribute the preview asked for, labelled with the table it came from. */
+function joinPreviewColumns(draft, joins) {
+  const label = (entity, attribute) => (attributesOf(entity).find(a => a.a === attribute) || {}).n || attribute;
+  const columns = previewColumnsFor(draft.mainEntity, joins.map(j => j.leftKey))
+    .map(a => ({ key: a, label: label(draft.mainEntity, a), source: draft.mainEntity }));
+
+  joins.forEach((join, index) => {
+    previewColumnsFor(join.entity, [join.rightKey]).forEach(a =>
+      columns.push({ key: `${JOIN_ALIAS(index)}.${a}`, label: label(join.entity, a), source: join.entity }));
+  });
+
+  return columns;
+}
+
+/** Aliased join columns arrive as "j0.attribute"; formatted values win where the platform sent one. */
+function readPreviewCell(row, key) {
+  const formatted = row[key + FORMATTED_SUFFIX];
+  return formatted !== undefined && formatted !== null ? formatted : row[key];
 }
 
 /** Keyed by attribute, because that is what every preview renderer looks the value up by. */
