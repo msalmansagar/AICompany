@@ -381,8 +381,6 @@
   }
   .fluent-select { appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%23605e5c' fill='none' stroke-width='1.4'/></svg>"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 26px; cursor: pointer; }
   .hint-inline { font-size: 11.5px; color: var(--text-secondary); }
-  .fluent-input.badjson { border-color: var(--error); border-bottom-width: 2px; }
-  .fluent-input.badjson:focus { border-color: var(--error); }
 
   /* toggle */
   .toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
@@ -1183,87 +1181,43 @@ const REL_TYPES = ["1:N (One-to-many)","N:1 (Many-to-one)","N:N (Many-to-many)",
    what the schema can store, and `live` says whether the engine actually applies it: a step that is
    stored but passed through is labelled as such in the dropdown rather than looking supported.
    Adding a type here means adding it to the option set too, or it will not persist. */
+/* The transform catalogue, aligned to the qdb_transformtype option set.
+
+   `name` is the option set's own label, which is what ReportTransformationPipeline switches on —
+   the friendly `label` is presentation only, and matching the two by text is how the filter
+   operators came to be silently rewritten.
+
+   `live` says whether the pipeline actually implements the type. Five of these used to claim true
+   while the switch fell through to "pass through", so a step could be configured, saved, and quietly
+   do nothing. The list below is exactly what the engine implements — if you add a case there, set
+   the flag here. */
 const TRANSFORMS = [
-  { label:"Rename column",             name:"RenameColumns",         code:100000000, live:true  },
-  { label:"Merge columns",             name:"MergeColumns",          code:100000001, live:true  },
-  { label:"Split value",               name:"SplitValues",           code:100000002, live:true  },
-  { label:"Lookup name resolution",    name:"LookupResolution",      code:100000003, live:false },
-  { label:"Option set label",          name:"ChoiceLabelResolution", code:100000004, live:true  },
-  { label:"Currency format",           name:"CurrencyFormat",        code:100000005, live:true  },
-  { label:"Date format",               name:"DateFormat",            code:100000006, live:true  },
-  { label:"Number format",             name:"NumberFormat",          code:100000007, live:true  },
-  { label:"Formula",                   name:"Formula",               code:100000008, live:true  },
-  { label:"Conditional value",         name:"ConditionalValue",      code:100000009, live:true  },
-  { label:"Value mapping",             name:"Mapping",               code:100000010, live:true  },
-  { label:"Aggregation",               name:"Aggregation",           code:100000011, live:false },
-  { label:"Grouping",                  name:"Grouping",              code:100000012, live:false },
-  { label:"Pivot",                     name:"Pivot",                 code:100000013, live:false },
-  { label:"JSON flatten",              name:"JsonFlatten",           code:100000014, live:true  },
-  { label:"External data map",         name:"ExternalMapping",       code:100000015, live:false },
-  { label:"Data masking",              name:"Masking",               code:100000016, live:true  },
-  { label:"Null handling",             name:"NullHandling",          code:100000017, live:true  }
+  { label:"Rename column",          name:"RenameColumns",         code:100000000, live:true,  desc:"Give a column a different heading" },
+  { label:"Merge columns",          name:"MergeColumns",          code:100000001, live:true,  desc:"Combine several columns into one" },
+  { label:"Split value",            name:"SplitValues",           code:100000002, live:false, desc:"One column into many" },
+  { label:"Lookup name resolution", name:"LookupResolution",      code:100000003, live:false, desc:"GUID → display name" },
+  { label:"Option set label",       name:"ChoiceLabelResolution", code:100000004, live:false, desc:"Choice value → label" },
+  { label:"Currency format",        name:"CurrencyFormat",        code:100000005, live:true,  desc:"Show numbers as money" },
+  { label:"Date format",            name:"DateFormat",            code:100000006, live:true,  desc:"Show dates in a chosen format" },
+  { label:"Number format",          name:"NumberFormat",          code:100000007, live:true,  desc:"Decimal places and thousands separators" },
+  { label:"Formula",                name:"Formula",               code:100000008, live:false, desc:"Computed column (see the Formulas tab)" },
+  { label:"Conditional value",      name:"ConditionalValue",      code:100000009, live:false, desc:"Value depending on a condition" },
+  { label:"Value mapping",          name:"Mapping",               code:100000010, live:true,  desc:"Show stored codes as friendly text" },
+  { label:"Aggregation",            name:"Aggregation",           code:100000011, live:false, desc:"Sum / average / count (use a column aggregate instead)" },
+  { label:"Grouping",               name:"Grouping",              code:100000012, live:false, desc:"Collapse rows by a key" },
+  { label:"Pivot",                  name:"Pivot",                 code:100000013, live:false, desc:"Rows → columns" },
+  { label:"JSON flatten",           name:"JsonFlatten",           code:100000014, live:false, desc:"Expand a JSON column" },
+  { label:"External data map",      name:"ExternalMapping",       code:100000015, live:false, desc:"Map fields from an outside system" },
+  { label:"Data masking",           name:"Masking",               code:100000016, live:true,  desc:"Hide all but the last few characters" },
+  { label:"Null handling",          name:"NullHandling",          code:100000017, live:true,  desc:"What to show where a value is missing" }
 ];
 const TRANSFORM_TYPES = TRANSFORMS.map(t => t.live ? t.label : `${t.label} — stored, not applied yet`);
 const transformByLabel = label => TRANSFORMS.find(t => label === t.label || label === `${t.label} — stored, not applied yet`);
 const transformByCode = code => TRANSFORMS.find(t => t.code === code);
-const ETL_OPS = [
-  { op:"Filter rows", desc:"Keep only rows meeting a condition" },
-  { op:"Derive column", desc:"New column from a formula (NCalc)" },
-  { op:"Aggregation", desc:"Sum / average / count / min / max" },
-  { op:"Grouping", desc:"Collapse rows by a key" },
-  { op:"Join / Lookup merge", desc:"Enrich from another source by key" },
-  { op:"Lookup name resolution", desc:"GUID → display name" },
-  { op:"Option set label resolution", desc:"Value → label" },
-  { op:"Value mapping", desc:"Code → friendly value" },
-  { op:"Clean & trim", desc:"Strip whitespace, fix casing" },
-  { op:"Deduplicate", desc:"Remove duplicate rows" },
-  { op:"Sort", desc:"Order rows" },
-  { op:"Pivot", desc:"Rows → columns" },
-  { op:"Unpivot", desc:"Columns → rows" },
-  { op:"Split value", desc:"One column into many" },
-  { op:"Merge columns", desc:"Combine columns" },
-  { op:"Cast data type", desc:"Change a column's type" },
-  { op:"Fill nulls", desc:"Default for missing values" },
-  { op:"Currency convert", desc:"FX conversion between currencies" },
-  { op:"Currency format", desc:"Format as currency" },
-  { op:"Date format", desc:"Format dates" },
-  { op:"Data masking", desc:"Hide sensitive values" }
-];
-const CONFIG_SCHEMAS = {
-  "Rename column": '{ "from": "qdb_requestedamount", "to": "Amount" }',
-  "Merge columns": '{ "columns": ["FirstName","LastName"], "separator": " ", "target": "FullName" }',
-  "Split value": '{ "column": "FullName", "delimiter": " ", "into": ["FirstName","LastName"] }',
-  "Lookup name resolution": '{ "column": "qdb_branchid", "display": "name" }',
-  "Option set label resolution": '{ "column": "statuscode", "optionSet": "qdb_status", "locale": "en" }',
-  "Currency format": '{ "column": "Amount", "symbol": "QAR", "decimals": 2, "thousands": true }',
-  "Date format": '{ "column": "Created On", "format": "dd/MM/yyyy", "timezone": "Asia/Qatar" }',
-  "Number format": '{ "column": "Term", "decimals": 0, "thousands": true, "suffix": "" }',
-  "Conditional value": '{ "column": "Risk", "rules": [{"when":"score > 700","then":"Low"},{"when":"score > 500","then":"Medium"}], "else": "High" }',
-  "Value mapping": '{ "column": "code", "map": {"A":"Active","P":"Pending","C":"Closed"}, "default": "Unknown" }',
-  "Aggregation": '{ "op": "Sum", "column": "Amount", "groupBy": ["Branch"], "as": "TotalAmount" }',
-  "Grouping": '{ "by": ["Branch","Product"], "subtotals": true }',
-  "Pivot": '{ "rows": ["Branch"], "columns": "Product", "values": "Amount", "agg": "Sum" }',
-  "JSON flatten": '{ "column": "payload", "paths": {"customer.name":"CustomerName","customer.id":"CustomerId"} }',
-  "External data map": '{ "connector": "Core Banking API", "matchOn": {"crm":"qdb_customernumber","source":"customerNumber"}, "bring": ["outstanding","currency"] }',
-  "Data masking": '{ "column": "IBAN", "type": "partial", "show": "last4", "maskChar": "*" }',
-  "Null handling": '{ "column": "Amount", "strategy": "default", "value": 0 }',
-  "Filter rows": '{ "logic": "AND", "conditions": [{"field":"statuscode","op":"eq","value":"Active"}] }',
-  "Derive column": '{ "target": "AvgTicket", "expression": "[Amount] / [Count]", "type": "Currency" }',
-  "Join / Lookup merge": '{ "with": "Facilities", "on": {"left":"applicationid","right":"qdb_applicationid"}, "type": "left", "select": ["qdb_limit","qdb_outstanding"] }',
-  "Unpivot": '{ "keep": ["Branch"], "unpivot": ["Jan","Feb","Mar"], "nameColumn": "Month", "valueColumn": "Amount" }',
-  "Deduplicate": '{ "keys": ["qdb_customernumber"], "keep": "first" }',
-  "Sort": '{ "by": [{"column":"Amount","dir":"desc"}] }',
-  "Cast data type": '{ "column": "AmountText", "to": "Decimal" }',
-  "Fill nulls": '{ "column": "Branch", "value": "Unassigned" }',
-  "Clean & trim": '{ "column": "Name", "ops": ["trim","collapseSpaces","titleCase"] }',
-  "Currency convert": '{ "column": "Amount", "from": "USD", "to": "QAR", "rate": 3.64 }'
-};
-// Accepts the decorated dropdown label as well as the bare one.
-function configTemplate(type) {
-  const known = transformByLabel(type);
-  return CONFIG_SCHEMAS[known ? known.label : type] || CONFIG_SCHEMAS[type] || "{ }";
-}
-function isValidJson(s) { if (!s || !s.trim()) return true; try { JSON.parse(s); return true; } catch { return false; } }
+/* The wizard used to offer its own list of 21 operations, eleven of which matched no transform type
+   at all — and the save mapped anything unmatched to "Rename column", so choosing "Deduplicate"
+   stored a rename that renamed nothing. Both surfaces now offer the same catalogue. */
+const ETL_OPS = TRANSFORMS.map(t => ({ op: t.live ? t.label : `${t.label} — stored, not applied yet`, desc: t.desc }));
 const LAYOUT_CATALOG = [
   { type:"Tabular Report", best:"Simple lists", ex:"Customer List, Loan List" },
   { type:"Grouped Report", best:"Hierarchical data", ex:"Customers → Loans" },
@@ -3844,18 +3798,30 @@ function tabDrilldown(body, r) {
 /* ---- Transformations ---- */
 function tabTransform(body, r) {
   const card = el(`<div class="section-card"><h3>Transformation pipeline</h3><div class="hint">Steps run in sequence on the result set. Masking is applied before export. Stored in <span class="kbd">qdb_reporttransformation</span>.</div></div>`);
-  const cols = [{t:"Seq",num:true},{t:"Transformation"},{t:"Target column"},{t:"Config (JSON)"}];
+  const columns = transformColumnsOfReport(r);
+  const cols = [{t:"Seq",num:true},{t:"Transformation"},{t:"Target column"},{t:"Settings"}];
+  // Settings are controls, not a JSON string — see TRANSFORM_CONFIG_SPECS. The row summarises them
+  // and expands, because a table cell cannot hold a column list and a value map.
   const rowHtml = (t,i) => `<tr>
     <td class="handle">${ic("flow")}</td>
     <td><input class="fluent-input" type="number" data-i="${i}" data-k="seq" data-num value="${t.seq}" style="width:56px"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="type">${opts(TRANSFORM_TYPES, t.type)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="target" value="${esc(t.target)}" placeholder="—"></td>
-    <td><input class="fluent-input ${isValidJson(t.config)?"":"badjson"}" data-i="${i}" data-k="config" value="${esc(t.config)}" placeholder="${esc(configTemplate(t.type))}"></td>
-    <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  card.appendChild(listTable(cols, r.transformations, rowHtml, () => { r.transformations.push({type:TRANSFORM_TYPES[0],target:"",config:configTemplate(TRANSFORM_TYPES[0]),seq:r.transformations.length+1}); renderTab(); }, "Add transformation"));
+    <td><button class="btn sm" data-tcfg="${i}">${r._txOpen===i?"Hide settings":"Settings"}</button>
+      <div class="hint-inline">${esc(transformConfigSummary(t.type, t.config, columns))}</div></td>
+    <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>
+    ${r._txOpen===i?`<tr><td></td><td colspan="5" style="background:var(--surface-alt)"><div id="tx_cfg" style="padding:10px 4px;max-width:520px">${transformConfigHtml(t.type, t.config, columns, "txrow")}</div></td></tr>`:""}`;
+  card.appendChild(listTable(cols, r.transformations, rowHtml, () => { r.transformations.push({type:TRANSFORM_TYPES[0],target:"",config:"",seq:r.transformations.length+1}); renderTab(); }, "Add transformation"));
   body.appendChild(card); bindInputs(card, r.transformations);
-  card.querySelectorAll('[data-k="type"]').forEach(s => s.addEventListener("change", () => { const t = r.transformations[+s.dataset.i]; if (!t.config) { t.config = configTemplate(s.value); } renderTab(); }));
-  card.querySelectorAll('[data-k="config"]').forEach(inp => inp.addEventListener("input", () => inp.classList.toggle("badjson", !isValidJson(inp.value))));
+  card.querySelectorAll('[data-k="type"]').forEach(select => select.addEventListener("change", () => {
+    // Settings belong to the type that defined them; carrying them across would describe nothing.
+    r.transformations[+select.dataset.i].config = "";
+    renderTab();
+  }));
+  card.querySelectorAll("[data-tcfg]").forEach(b => b.onclick = () => { const i=+b.dataset.tcfg; r._txOpen = r._txOpen===i ? null : i; renderTab(); });
+  const open = r._txOpen != null ? r.transformations[r._txOpen] : null;
+  const host = card.querySelector("#tx_cfg");
+  if (open && host) bindTransformConfig(host, open.type, "txrow", open, renderTab);
 }
 
 /* ---- Formulas ---- */
@@ -5576,6 +5542,274 @@ function wizETL(host, d) {
 }
 /* Same fix as the join canvas: a step could be added here but only configured in List view, so the
    quick buttons produced a chain of boxes that all said "all columns" until you left. */
+/* ---------- Transformation configuration ----------
+   Every step's settings were a JSON box. The shape differed per type, nothing checked it, and a
+   misspelt key produced a step that saved cleanly and did nothing — the same silence as an
+   unimplemented type. These specs mirror ReportTransformationPipeline exactly: change a case there
+   and change the spec here, or the designer starts describing a transform the engine does not run. */
+const TRANSFORM_CONFIG_SPECS = {
+  RenameColumns: [
+    { key:"renames", kind:"columnMap", label:"Rename these columns", valueLabel:"New heading" }
+  ],
+  NullHandling: [
+    { key:"default", kind:"text", label:"Show this where a value is missing", placeholder:"—" },
+    { key:"columns", kind:"columnMap", label:"Or per column", valueLabel:"Show instead" }
+  ],
+  Masking: [
+    { key:"columns", kind:"columnList", label:"Columns to mask" },
+    { key:"keepLast", kind:"number", label:"Characters left visible at the end", fallback:4, min:0 },
+    { key:"mask", kind:"text", label:"Mask character", fallback:"*", maxLength:1 }
+  ],
+  NumberFormat: [
+    { key:"columns", kind:"columnList", label:"Columns" },
+    { key:"decimals", kind:"number", label:"Decimal places", fallback:2, min:0 },
+    { key:"thousands", kind:"boolean", label:"Thousands separator", fallback:true }
+  ],
+  CurrencyFormat: [
+    { key:"columns", kind:"columnList", label:"Columns" },
+    { key:"symbol", kind:"text", label:"Currency symbol", fallback:"QAR" },
+    { key:"decimals", kind:"number", label:"Decimal places", fallback:2, min:0 }
+  ],
+  DateFormat: [
+    { key:"columns", kind:"columnList", label:"Columns" },
+    { key:"format", kind:"choice", label:"Show dates as", fallback:"yyyy-MM-dd",
+      options:["yyyy-MM-dd","dd/MM/yyyy","dd MMM yyyy","dd MMMM yyyy","MM/dd/yyyy","dd-MM-yyyy HH:mm"] }
+  ],
+  Mapping: [
+    { key:"column", kind:"column", label:"Column" },
+    { key:"map", kind:"valueMap", label:"Show each stored value as" },
+    { key:"default", kind:"text", label:"Anything else shows as", placeholder:"leave empty to keep the raw value" }
+  ],
+  MergeColumns: [
+    { key:"columns", kind:"columnList", label:"Columns to combine, in order" },
+    { key:"into", kind:"text", label:"Key for the new column", placeholder:"fullName" },
+    { key:"label", kind:"text", label:"Heading for the new column", placeholder:"Full name" },
+    { key:"separator", kind:"text", label:"Joined with", fallback:" " }
+  ]
+};
+
+/** The engine name for a transform's friendly label — the specs and the pipeline are keyed by it. */
+const transformSpecFor = label => {
+  const known = transformByLabel(label);
+  return known ? TRANSFORM_CONFIG_SPECS[known.name] : null;
+};
+
+function parseConfigObject(json) {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * The settings for one step, as controls rather than as JSON.
+ *
+ * `prefix` namespaces the inputs so the same editor can appear in the wizard's panel, its list and
+ * the designer tab without their handlers colliding.
+ */
+function transformConfigHtml(label, configJson, columns, prefix) {
+  const spec = transformSpecFor(label);
+  const known = transformByLabel(label);
+  if (!spec) {
+    return `<div class="np-empty">${known && !known.live
+      ? `The engine does not apply <b>${esc(known.label)}</b> yet, so there is nothing to configure — the step is stored and ignored.`
+      : `This type has no settings.`}</div>`;
+  }
+
+  return spec.map(field => `<div class="field"><label class="lbl">${esc(field.label)}</label>
+    ${configFieldHtml(field, configJson, columns, prefix)}</div>`).join("");
+}
+
+function configFieldHtml(field, configJson, columns, prefix) {
+  const config = parseConfigObject(configJson);
+  const stored = config[field.key];
+  const id = `${prefix}_${field.key}`;
+  const pick = (selected) => columns.map(c =>
+    `<option value="${esc(c.key)}" ${c.key === selected ? "selected" : ""}>${esc(c.label)}</option>`).join("");
+
+  if (field.kind === "text") {
+    return `<input class="fluent-input" data-cfg="${esc(id)}" data-cfgkind="text" value="${esc(stored == null ? (field.fallback ?? "") : stored)}"
+      placeholder="${esc(field.placeholder || "")}" ${field.maxLength ? `maxlength="${field.maxLength}"` : ""}>`;
+  }
+  if (field.kind === "number") {
+    return `<input class="fluent-input" type="number" data-cfg="${esc(id)}" data-cfgkind="number"
+      value="${stored == null ? field.fallback : esc(stored)}" ${field.min != null ? `min="${field.min}"` : ""}>`;
+  }
+  if (field.kind === "boolean") {
+    const on = stored == null ? field.fallback : stored !== false;
+    return `<label class="chip" style="cursor:pointer"><input type="checkbox" data-cfg="${esc(id)}" data-cfgkind="boolean" ${on ? "checked" : ""}> Yes</label>`;
+  }
+  if (field.kind === "choice") {
+    const value = stored == null ? field.fallback : stored;
+    const known = field.options.includes(value);
+    return `<select class="fluent-select" data-cfg="${esc(id)}" data-cfgkind="text">
+      ${field.options.map(o => `<option ${o === value ? "selected" : ""}>${esc(o)}</option>`).join("")}
+      ${known ? "" : `<option selected>${esc(value)}</option>`}</select>`;
+  }
+  if (field.kind === "column") {
+    return `<select class="fluent-select" data-cfg="${esc(id)}" data-cfgkind="text">
+      <option value="">— pick a column —</option>${pick(stored)}</select>`;
+  }
+  if (field.kind === "columnList") {
+    const chosen = Array.isArray(stored) ? stored : [];
+    return columns.length
+      ? `<div class="chips" data-cfg="${esc(id)}" data-cfgkind="columnList">${columns.map(c =>
+          `<label class="chip" style="cursor:pointer"><input type="checkbox" value="${esc(c.key)}" ${chosen.includes(c.key) ? "checked" : ""}> ${esc(c.label)}</label>`).join("")}</div>`
+      : `<div class="np-empty">Choose the report's columns first.</div>`;
+  }
+  if (field.kind === "columnMap") {
+    const entries = stored && typeof stored === "object" ? Object.entries(stored) : [];
+    const rows = entries.map(([column, value], at) => `<tr>
+      <td><select class="fluent-select" data-maprow="${at}" data-mapkey><option value="">—</option>${pick(column)}</select></td>
+      <td><input class="fluent-input" data-maprow="${at}" data-mapvalue value="${esc(value)}"></td>
+      <td><button class="del" data-mapdel="${at}">${ic("trash")}</button></td></tr>`).join("");
+    return `<div data-cfg="${esc(id)}" data-cfgkind="map">
+      <table class="subgrid"><thead><tr><th>Column</th><th>${esc(field.valueLabel)}</th><th></th></tr></thead>
+      <tbody>${rows || `<tr class="empty-row"><td colspan="3">Nothing yet.</td></tr>`}</tbody></table>
+      <button class="btn sm" data-mapadd style="margin-top:6px">${ic("add")}Add</button></div>`;
+  }
+
+  // valueMap: the stored value is whatever the column holds, so it is typed, not picked.
+  const pairs = stored && typeof stored === "object" ? Object.entries(stored) : [];
+  const rows = pairs.map(([raw, shown], at) => `<tr>
+    <td><input class="fluent-input" data-maprow="${at}" data-mapkey value="${esc(raw)}" placeholder="0"></td>
+    <td><input class="fluent-input" data-maprow="${at}" data-mapvalue value="${esc(shown)}" placeholder="No"></td>
+    <td><button class="del" data-mapdel="${at}">${ic("trash")}</button></td></tr>`).join("");
+  return `<div data-cfg="${esc(id)}" data-cfgkind="map">
+    <table class="subgrid"><thead><tr><th>Stored value</th><th>Shown as</th><th></th></tr></thead>
+    <tbody>${rows || `<tr class="empty-row"><td colspan="3">Nothing yet.</td></tr>`}</tbody></table>
+    <button class="btn sm" data-mapadd style="margin-top:6px">${ic("add")}Add</button></div>`;
+}
+
+/** Reads the controls back into the JSON the engine parses. Empty values are left out entirely. */
+function readTransformConfig(host, label, prefix) {
+  const spec = transformSpecFor(label);
+  if (!spec) return null;
+
+  const config = {};
+  for (const field of spec) {
+    const node = host.querySelector(`[data-cfg="${prefix}_${field.key}"]`);
+    if (!node) continue;
+    const value = readConfigField(node, field);
+    if (value !== undefined) config[field.key] = value;
+  }
+
+  return JSON.stringify(config);
+}
+
+function readConfigField(node, field) {
+  const kind = node.dataset.cfgkind;
+  if (kind === "number") {
+    const parsed = Number(node.value);
+    return Number.isFinite(parsed) ? parsed : field.fallback;
+  }
+  if (kind === "boolean") return node.checked;
+  if (kind === "columnList") {
+    const chosen = [...node.querySelectorAll("input:checked")].map(input => input.value);
+    return chosen.length ? chosen : undefined;
+  }
+  if (kind === "map") {
+    const map = {};
+    node.querySelectorAll("tbody tr").forEach(row => {
+      const key = row.querySelector("[data-mapkey]");
+      const value = row.querySelector("[data-mapvalue]");
+      if (key && key.value) map[key.value] = value ? value.value : "";
+    });
+    return Object.keys(map).length ? map : undefined;
+  }
+  return node.value === "" ? undefined : node.value;
+}
+
+/**
+ * Wires the editor. Every change rewrites the stored JSON, so what is saved is always what the
+ * controls show — there is no separate "apply" for a value to be lost behind.
+ */
+function bindTransformConfig(host, label, prefix, step, onChange) {
+  const write = () => {
+    const json = readTransformConfig(host, label, prefix);
+    if (json !== null) step.config = json;
+  };
+
+  host.querySelectorAll("[data-cfg]").forEach(node => {
+    if (node.dataset.cfgkind === "map") return;
+    node.addEventListener(node.tagName === "SELECT" || node.type === "checkbox" ? "change" : "input", write);
+  });
+  host.querySelectorAll('[data-cfgkind="columnList"] input').forEach(box => box.addEventListener("change", write));
+  host.querySelectorAll('[data-cfgkind="map"]').forEach(mapNode => {
+    mapNode.querySelectorAll("[data-mapkey],[data-mapvalue]").forEach(input =>
+      input.addEventListener(input.tagName === "SELECT" ? "change" : "input", write));
+    // Rows are added and removed by rebuilding, so the caller re-renders rather than patching HTML.
+    const add = mapNode.querySelector("[data-mapadd]");
+    if (add) add.onclick = () => { addConfigMapRow(step, label, prefix, mapNode); onChange(); };
+    mapNode.querySelectorAll("[data-mapdel]").forEach(button => button.onclick = () => {
+      removeConfigMapRow(step, label, prefix, mapNode, +button.dataset.mapdel); onChange();
+    });
+  });
+}
+
+function configMapKeyOf(prefix, mapNode) { return mapNode.dataset.cfg.slice(prefix.length + 1); }
+
+function addConfigMapRow(step, label, prefix, mapNode) {
+  const config = parseConfigObject(step.config);
+  const key = configMapKeyOf(prefix, mapNode);
+  const map = config[key] && typeof config[key] === "object" ? config[key] : {};
+  // A blank key would be dropped on read, so the placeholder row is keyed until it is filled in.
+  map[""] = map[""] ?? "";
+  config[key] = map;
+  step.config = JSON.stringify(config);
+}
+
+function removeConfigMapRow(step, label, prefix, mapNode, at) {
+  const config = parseConfigObject(step.config);
+  const key = configMapKeyOf(prefix, mapNode);
+  const entries = Object.entries(config[key] || {});
+  entries.splice(at, 1);
+  config[key] = Object.fromEntries(entries);
+  step.config = JSON.stringify(config);
+}
+
+/** What a step is configured to do, in a phrase — so a collapsed row still says something. */
+function transformConfigSummary(label, configJson, columns) {
+  const spec = transformSpecFor(label);
+  const known = transformByLabel(label);
+  if (!spec) return known && !known.live ? "Stored, not applied yet" : "No settings";
+
+  const config = parseConfigObject(configJson);
+  const nameOf = key => (columns.find(c => c.key === key) || { label: key }).label;
+  const parts = [];
+  for (const field of spec) {
+    const value = config[field.key];
+    if (value == null || value === "") continue;
+    if (field.kind === "columnList") parts.push(value.map(nameOf).join(", "));
+    else if (field.kind === "column") parts.push(nameOf(value));
+    else if (field.kind === "columnMap" || field.kind === "valueMap") {
+      const count = Object.keys(value).filter(Boolean).length;
+      if (count) parts.push(`${count} ${count === 1 ? "entry" : "entries"}`);
+    } else if (field.kind === "boolean") parts.push(value ? field.label.toLowerCase() : `no ${field.label.toLowerCase()}`);
+    else parts.push(`${field.label.toLowerCase()}: ${value}`);
+  }
+
+  return parts.length ? parts.join(" · ") : "Not configured yet";
+}
+
+/** The columns a transform can name: the aliases rows actually arrive under. */
+function transformColumnsOfDraft(draft) {
+  const catalogue = availableAttributes(draft.mainEntity, draft.sourceType, draft.dataSourceQuery);
+  return (draft.columns || []).map(key => {
+    const found = catalogue.find(a => a.a === key);
+    return { key, label: found ? columnHeadingFor(found) : key };
+  });
+}
+
+function transformColumnsOfReport(report) {
+  return (report.columns || [])
+    .filter(column => column.attribute || column.sourceAlias)
+    .map(column => ({ key: column.sourceAlias || column.attribute, label: column.name || column.attribute }));
+}
+
 function wizETLFlow(host, d) {
   d._etlpos = d._etlpos || {};
   const pos = (id,x,y) => { if (!d._etlpos[id]) d._etlpos[id] = {x,y}; return d._etlpos[id]; };
@@ -5588,7 +5822,7 @@ function wizETLFlow(host, d) {
   const lp = pos("load", 596, 54); nodes += canvasNode("load", "c-load", "Report output", `<div class="kv"><span>layout</span><b>${esc(d.layoutType)}</b></div>`, lp.x, lp.y, "");
 
   host.innerHTML = `<div class="wtitle">Transform — ETL flow canvas</div><div class="wsub">Click a step to configure it here; drag to arrange the Extract → Transform → Load flow.</div>
-    <div class="canvas-toolbar">${["Filter rows","Aggregation","Derive column","Join / Lookup merge","Deduplicate"].map(q=>`<button class="btn sm" data-fquick="${esc(q)}">${ic("add")}${esc(q)}</button>`).join("")}<span class="canvas-hint">${d.etl.length} step(s)</span></div>
+    <div class="canvas-toolbar">${TRANSFORMS.filter(t=>t.live).slice(0,5).map(t=>`<button class="btn sm" data-fquick="${esc(t.label)}" title="${esc(t.desc)}">${ic("add")}${esc(t.label)}</button>`).join("")}<span class="canvas-hint">${d.etl.length} step(s)</span></div>
     <div class="canvas-grid">
       <div>
         <div class="canvas-wrap" id="et_canvas"><svg class="canvas-svg" id="et_svg"></svg>${nodes}</div>
@@ -5617,7 +5851,7 @@ function wizETLFlow(host, d) {
   canvas.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); d.etl.splice(+b.dataset.tdel,1); d._etlpos={}; d._etlSel=null; wizETLFlow(host,d); });
   // The step is selected as it is added, so its configuration is the next thing in front of you.
   host.querySelectorAll("[data-fquick]").forEach(b=>b.onclick=()=>{ const op=b.dataset.fquick;
-    d.etl.push({op, target:"(all columns)", config:configTemplate(op), seq:d.etl.length+1});
+    d.etl.push({op, target:"(all columns)", config:"", seq:d.etl.length+1});
     d._etlpos={}; d._etlSel="t"+(d.etl.length-1); wizETLFlow(host,d); });
 
   paintSelection();
@@ -5646,17 +5880,14 @@ function etlNodeProps(d, selected, extract) {
 
   const i = +selected.slice(1), step = d.etl[i];
   if (!step) return `<h4>Properties</h4><div class="np-empty">This step no longer exists.</div>`;
-  const catalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
-  const columnNames = d.columns.map(key => { const m = catalogue.find(a => a.a === key); return m ? columnHeadingFor(m) : key; });
+  const columns = transformColumnsOfDraft(d);
   const described = (ETL_OPS.find(o => o.op === step.op) || {}).desc || "";
 
   return `<h4>${esc(step.op)}</h4><div class="np-sub">${esc(described)}</div>
     <div class="field"><label class="lbl">Operation</label><select class="fluent-select" data-ei="${i}" data-ek="op" data-rerender>${ETL_OPS.map(o=>`<option ${o.op===step.op?"selected":""}>${esc(o.op)}</option>`).join("")}</select></div>
-    <div class="field"><label class="lbl">Applies to</label><select class="fluent-select" data-ei="${i}" data-ek="target">${opts(["(all columns)",...columnNames], step.target||"(all columns)")}</select></div>
-    <div class="field"><label class="lbl">Configuration (JSON)</label>
-      <input class="fluent-input ${isValidJson(step.config)?"":"badjson"}" data-ei="${i}" data-ek="config" value="${esc(step.config)}" placeholder="${esc(configTemplate(step.op))}"></div>
-    <div class="field"><label class="lbl">Sequence</label><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${step.seq}"></div>
-    ${isValidJson(step.config) ? "" : `<div class="np-empty" style="color:var(--danger)">This is not valid JSON, so the step would be stored unusable.</div>`}`;
+    <div class="field"><label class="lbl">Applies to</label><select class="fluent-select" data-ei="${i}" data-ek="target">${opts(["(all columns)",...columns.map(c=>c.label)], step.target||"(all columns)")}</select></div>
+    ${transformConfigHtml(step.op, step.config, columns, "etlcv")}
+    <div class="field"><label class="lbl">Sequence</label><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${step.seq}"></div>`;
 }
 
 /**
@@ -5666,25 +5897,29 @@ function etlNodeProps(d, selected, extract) {
 function bindEtlNodeProps(panel, d, rebuild, redraw) {
   panel.querySelectorAll("[data-ei]").forEach(input => input.addEventListener(input.tagName==="SELECT"?"change":"input", () => {
     const step = d.etl[+input.dataset.ei];
-    const value = input.dataset.num ? +input.value : input.value;
-    step[input.dataset.ek] = value;
-    if (input.dataset.ek === "op" && !step.config) step.config = configTemplate(value);
-    if (input.dataset.ek === "config") input.classList.toggle("badjson", !isValidJson(input.value));
-    if (input.dataset.ek === "config") return;
+    step[input.dataset.ek] = input.dataset.num ? +input.value : input.value;
+    // Changing the operation changes which settings exist, so the old ones cannot be carried over.
+    if (input.dataset.ek === "op") step.config = "";
     rebuild();
   }));
+  const step = d.etl[+((panel.querySelector("[data-ei]") || {}).dataset || {}).ei];
+  if (step) bindTransformConfig(panel, step.op, "etlcv", step, rebuild);
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
   const layoutCatalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
-  const colNames = d.columns.map(a=>{const m=layoutCatalogue.find(x=>x.a===a);return m?columnHeadingFor(m):a;});
+  const columns = transformColumnsOfDraft(d);
+  const colNames = columns.map(c => c.label);
+  // The settings no longer fit a table cell, so the row summarises them and expands to edit.
   const stepRows = d.etl.length ? d.etl.map((s,i)=>`<tr>
       <td class="handle">${ic("flow")}</td>
       <td><input class="fluent-input" type="number" data-ei="${i}" data-ek="seq" data-num value="${s.seq}" style="width:52px"></td>
       <td><select class="fluent-select" data-ei="${i}" data-ek="op" data-rerender>${ETL_OPS.map(o=>`<option ${o.op===s.op?"selected":""}>${esc(o.op)}</option>`).join("")}</select><div class="hint-inline">${esc((ETL_OPS.find(o=>o.op===s.op)||{}).desc||"")}</div></td>
       <td><select class="fluent-select" data-ei="${i}" data-ek="target">${opts(["(all columns)",...colNames], s.target||"(all columns)")}</select></td>
-      <td><input class="fluent-input ${isValidJson(s.config)?"":"badjson"}" data-ei="${i}" data-ek="config" value="${esc(s.config)}" placeholder="${esc(configTemplate(s.op))}"></td>
-      <td><button class="del" data-edel="${i}">${ic("trash")}</button></td></tr>`).join("")
+      <td><button class="btn sm" data-ecfg="${i}">${d._etlOpen===i?"Hide settings":"Settings"}</button>
+        <div class="hint-inline">${esc(transformConfigSummary(s.op, s.config, columns))}</div></td>
+      <td><button class="del" data-edel="${i}">${ic("trash")}</button></td></tr>
+      ${d._etlOpen===i?`<tr><td></td><td colspan="5" style="background:var(--surface-alt)"><div id="wz_etlcfg" style="padding:10px 4px;max-width:520px">${transformConfigHtml(s.op, s.config, columns, "etlrow")}</div></td></tr>`:""}`).join("")
     : `<tr class="empty-row"><td colspan="6">No transform steps — data flows straight through. Add steps to clean, reshape, aggregate or enrich.</td></tr>`;
   const stageBox = (n,title,inner,hot) => `<div style="flex:1;min-width:160px;border:1px solid ${hot?"var(--primary)":"var(--border-strong)"};${hot?"background:var(--primary-tint-2);":""}border-radius:6px;padding:12px 14px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--primary);font-weight:700">${n} · ${title}</div><div style="font-size:12px;margin-top:6px">${inner}</div></div>`;
   host.innerHTML = `<div class="wtitle">Transform your data <span class="rel-tag">ETL</span></div><div class="wsub">Build an Extract → Transform → Load pipeline. Steps run top-to-bottom on the combined dataset (CRM joins + external sources) before it reaches the layout.</div>
@@ -5699,11 +5934,20 @@ function wizETLList(host, d) {
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th style="width:24px"></th><th>Seq</th><th>Operation</th><th>Target</th><th>Config</th><th></th></tr></thead><tbody>${stepRows}</tbody></table></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <button class="btn sm" id="wz_addetl">${ic("add")}Add step</button>
-        ${["Filter rows","Aggregation","Derive column","Deduplicate","Join / Lookup merge","Currency convert"].map(q=>`<button class="btn sm" data-quick="${esc(q)}">+ ${esc(q)}</button>`).join("")}
+        ${TRANSFORMS.filter(t=>t.live).slice(0,6).map(t=>`<button class="btn sm" data-quick="${esc(t.label)}">+ ${esc(t.label)}</button>`).join("")}
       </div></div>`;
-  host.querySelectorAll("[data-ei]").forEach(inp=>inp.addEventListener(inp.tagName==="SELECT"?"change":"input",()=>{ const s=d.etl[+inp.dataset.ei]; let v=inp.value; if(inp.dataset.num)v=+v; s[inp.dataset.ek]=v; if(inp.dataset.ek==="op" && !s.config) s.config=configTemplate(v); if(inp.dataset.ek==="config") inp.classList.toggle("badjson", !isValidJson(v)); if(inp.dataset.rerender) wizETLList(host,d); }));
+  host.querySelectorAll("[data-ei]").forEach(inp=>inp.addEventListener(inp.tagName==="SELECT"?"change":"input",()=>{
+    const s=d.etl[+inp.dataset.ei]; s[inp.dataset.ek] = inp.dataset.num ? +inp.value : inp.value;
+    // A different operation has different settings; keeping the old ones would describe the wrong step.
+    if (inp.dataset.ek==="op") s.config="";
+    if (inp.dataset.rerender) wizETLList(host,d);
+  }));
+  host.querySelectorAll("[data-ecfg]").forEach(b=>b.onclick=()=>{ const i=+b.dataset.ecfg; d._etlOpen = d._etlOpen===i ? null : i; wizETLList(host,d); });
+  const openStep = d._etlOpen != null ? d.etl[d._etlOpen] : null;
+  const cfgHost = $("#wz_etlcfg");
+  if (openStep && cfgHost) bindTransformConfig(cfgHost, openStep.op, "etlrow", openStep, () => wizETLList(host,d));
   host.querySelectorAll("[data-edel]").forEach(b=>b.onclick=()=>{ d.etl.splice(+b.dataset.edel,1); wizETLList(host,d); });
-  const add = (op) => { op=op||"Filter rows"; d.etl.push({op, target:"(all columns)", config:configTemplate(op), seq:d.etl.length+1}); wizETLList(host,d); };
+  const add = (op) => { d.etl.push({op: op || TRANSFORMS.find(t=>t.live).label, target:"(all columns)", config:"", seq:d.etl.length+1}); wizETLList(host,d); };
   $("#wz_addetl").onclick = () => add();
   host.querySelectorAll("[data-quick]").forEach(b=>b.onclick=()=>add(b.dataset.quick));
 }
