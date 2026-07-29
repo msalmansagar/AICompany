@@ -4890,7 +4890,9 @@ function relationshipChoiceHtml(draft, join, index) {
       <option value="">— pick the relationship —</option>
       ${candidates.map((relation, at) => `<option value="${at}" ${at === chosen ? "selected" : ""}>${esc(relation.label)} · ${esc(relation.foreignKey)}</option>`).join("")}
     </select>
-    <div class="np-empty" style="margin-top:6px">${esc(join.entity)} relates to ${esc(draft.mainEntity)} ${candidates.length} ways, so the keys are not filled in for you.</div></div>`;
+    <div class="np-empty" style="margin-top:6px">${chosen >= 0
+      ? `Keys set from this relationship. Change them below if you meant a different link.`
+      : `${esc(join.entity)} relates to ${esc(draft.mainEntity)} ${candidates.length} ways, so the keys are not filled in for you — pick the one you mean.`}</div></div>`;
 }
 
 /** The editor for whichever node is selected, or an instruction when none is. */
