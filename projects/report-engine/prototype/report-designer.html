@@ -4623,6 +4623,12 @@ function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
   return groups.filter(group => group.attrs.length);
 }
 
+/** Every field the draft can offer, flat: the primary table plus whatever the view or report joined. */
+function draftColumnCatalogue(draft) {
+  return attributeGroupsFor(draft.mainEntity, draft.sourceType, draft.dataSourceQuery, draft.joins)
+    .flatMap(group => group.attrs);
+}
+
 /**
  * The heading for a picked field. A linked one names its table, since "Email" alone does not say
  * whose — unless the field's own label already does, which would read "Account Name (Account)".
@@ -5828,7 +5834,7 @@ function transformConfigSummary(label, configJson, columns) {
 
 /** The columns a transform can name: the aliases rows actually arrive under. */
 function transformColumnsOfDraft(draft) {
-  const catalogue = availableAttributes(draft.mainEntity, draft.sourceType, draft.dataSourceQuery);
+  const catalogue = draftColumnCatalogue(draft);
   return (draft.columns || []).map(key => {
     const found = catalogue.find(a => a.a === key);
     return { key, label: found ? columnHeadingFor(found) : key };
@@ -5938,7 +5944,7 @@ function bindEtlNodeProps(panel, d, rebuild, redraw) {
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
-  const layoutCatalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const layoutCatalogue = draftColumnCatalogue(d);
   const columns = transformColumnsOfDraft(d);
   const colNames = columns.map(c => c.label);
   // The settings no longer fit a table cell, so the row summarises them and expands to edit.
@@ -6267,9 +6273,9 @@ function themedPaper(meta, bodyHtml, themeId, langCode) {
     <div style="margin-top:14px">${bodyHtml}</div></div>`;
 }
 function wizReview(host, d) {
-  // The same catalogue the picker used, or a column taken from a view's joined table is listed
-  // nowhere on the page that is meant to show everything before it is created.
-  const catalogue = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  // The same catalogue the picker used, or a column taken from a joined table is listed nowhere on
+  // the page that is meant to show everything before the report is created.
+  const catalogue = draftColumnCatalogue(d);
   const cols = d.columns.map(key => { const m = catalogue.find(a => a.a === key); return m ? columnHeadingFor(m) : key; }).join(", ") || "—";
   const joinsTxt = d.joins.length ? d.joins.map(j=>`${j.joinType.replace(" join","")} ${j.entity}`).join(", ") : "—";
   const extTxt = d.externalSources.length ? d.externalSources.map(x=>`${x.connector} (${x.direction})`).join(", ") : "—";
@@ -6291,7 +6297,7 @@ function wizReview(host, d) {
  * empty columns nobody chose to keep.
  */
 function dropColumnsTheSourceCannotSupply(draft) {
-  const available = new Set(availableAttributes(draft.mainEntity, draft.sourceType, draft.dataSourceQuery).map(a => a.a));
+  const available = new Set(draftColumnCatalogue(draft).map(a => a.a));
   const dropped = draft.columns.filter(attribute => !available.has(attribute));
   if (!dropped.length) return;
 
@@ -6324,7 +6330,7 @@ async function wizNext() {
 }
 function wizCreate() {
   const d = wiz.draft, def = newDefinition(null);
-  const cat = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const cat = draftColumnCatalogue(d);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
     query:d.dataSourceQuery||"", primary:true, joinL:"", joinR:"" }];
