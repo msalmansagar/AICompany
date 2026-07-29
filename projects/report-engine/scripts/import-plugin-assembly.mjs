@@ -14,7 +14,9 @@ const SOLUTION = 'qdb_reportengine';
 const ASSEMBLY_NAME = 'Qdb.ReportEngine.CrmPlugin';
 const PLUGIN_TYPES = [
   'Qdb.ReportEngine.CrmPlugin.RunReportPlugin',
-  'Qdb.ReportEngine.CrmPlugin.RunDashboardPlugin'
+  'Qdb.ReportEngine.CrmPlugin.RunDashboardPlugin',
+  // Not a Custom API: this one is bound to qdb_reportdefinition messages by register-audit-steps.mjs.
+  'Qdb.ReportEngine.CrmPlugin.ReportConfigurationAuditPlugin'
 ];
 const ASSEMBLY_PATH = new URL(
   '../src/Qdb.ReportEngine.CrmPlugin/bin/Release/net462/Qdb.ReportEngine.CrmPlugin.dll',
