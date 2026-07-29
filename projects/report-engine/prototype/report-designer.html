@@ -2152,6 +2152,18 @@ function connectorBinding(connectorId) {
     : {};
 }
 
+/**
+ * Which event a control's handler should listen to.
+ *
+ * A search combo is an <input>, and binding it to `input` fires the handler on every keystroke. In
+ * the join rows that meant re-rendering the whole step as the user typed: the box they were typing
+ * into was destroyed and rebuilt, the caret and the scroll position went with it, and the page
+ * appeared to jump away mid-search. A combo only has a meaningful value once something is chosen,
+ * which is exactly when it raises `change`.
+ */
+const comboSafeEvent = input =>
+  (input.tagName === "SELECT" || input.type === "checkbox" || input.dataset.combo) ? "change" : "input";
+
 /** Drops null/undefined so an unset optional never overwrites a value with null. */
 function defined(attributes) {
   const kept = {};
@@ -3312,7 +3324,7 @@ function bindInputs(scope, arr) {
       arr[i][key] = v;
       if (inp.dataset.rerender) renderTab();
     };
-    inp.addEventListener(inp.tagName==="SELECT"||inp.type==="checkbox" ? "change" : "input", handler);
+    inp.addEventListener(comboSafeEvent(inp), handler);
   });
   scope.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { arr.splice(+b.dataset.del,1); renderTab(); });
 }
@@ -3345,7 +3357,7 @@ function tabGeneral(body, r) {
   </div>`);
   body.appendChild(card);
   body.querySelectorAll("[data-g]").forEach(inp => {
-    const ev = (inp.tagName==="SELECT"||inp.type==="checkbox") ? "change" : "input";
+    const ev = comboSafeEvent(inp);
     inp.addEventListener(ev, () => {
       const k = inp.dataset.g; r[k] = inp.type==="checkbox" ? inp.checked : (inp.dataset.num ? +inp.value : inp.value);
     });
@@ -3559,7 +3571,7 @@ function tabLayout(body, r) {
   </div>`);
   body.appendChild(card);
   card.querySelectorAll("[data-l]").forEach(inp => {
-    const ev = (inp.tagName==="SELECT"||inp.type==="checkbox")?"change":"input";
+    const ev = comboSafeEvent(inp);
     inp.addEventListener(ev, () => { L[inp.dataset.l] = inp.type==="checkbox"?inp.checked:inp.value; });
   });
 }
@@ -4381,7 +4393,7 @@ function wizDataForm(host, d) {
   $("#wz_newds").onclick = () => openEntityForm("datasource");
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
   host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => { d.sourceType = c.dataset.src; host.querySelectorAll("[data-src]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); });
-  host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => {
+  host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(comboSafeEvent(inp), () => {
     const join = d.joins[+inp.dataset.ji];
     join[inp.dataset.jk] = inp.value;
     // Choosing the table is the moment the engine can offer the keys that actually relate them.
