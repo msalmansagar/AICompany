@@ -3808,7 +3808,7 @@ function tabTransform(body, r) {
     <td><select class="fluent-select" data-i="${i}" data-k="type">${opts(TRANSFORM_TYPES, t.type)}</select></td>
     <td><input class="fluent-input" data-i="${i}" data-k="target" value="${esc(t.target)}" placeholder="—"></td>
     <td><button class="btn sm" data-tcfg="${i}">${r._txOpen===i?"Hide settings":"Settings"}</button>
-      <div class="hint-inline">${esc(transformConfigSummary(t.type, t.config, columns))}</div></td>
+      <div class="hint-inline"${r._txOpen===i?' id="txrow_summary"':""}>${esc(transformConfigSummary(t.type, t.config, columns))}</div></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>
     ${r._txOpen===i?`<tr><td></td><td colspan="5" style="background:var(--surface-alt)"><div id="tx_cfg" style="padding:10px 4px;max-width:520px">${transformConfigHtml(t.type, t.config, columns, "txrow")}</div></td></tr>`:""}`;
   card.appendChild(listTable(cols, r.transformations, rowHtml, () => { r.transformations.push({type:TRANSFORM_TYPES[0],target:"",config:"",seq:r.transformations.length+1}); renderTab(); }, "Add transformation"));
@@ -3821,7 +3821,7 @@ function tabTransform(body, r) {
   card.querySelectorAll("[data-tcfg]").forEach(b => b.onclick = () => { const i=+b.dataset.tcfg; r._txOpen = r._txOpen===i ? null : i; renderTab(); });
   const open = r._txOpen != null ? r.transformations[r._txOpen] : null;
   const host = card.querySelector("#tx_cfg");
-  if (open && host) bindTransformConfig(host, open.type, "txrow", open, renderTab);
+  if (open && host) bindTransformConfig(host, open.type, "txrow", open, renderTab, columns);
 }
 
 /* ---- Formulas ---- */
@@ -5727,10 +5727,13 @@ function readConfigField(node, field) {
  * Wires the editor. Every change rewrites the stored JSON, so what is saved is always what the
  * controls show — there is no separate "apply" for a value to be lost behind.
  */
-function bindTransformConfig(host, label, prefix, step, onChange) {
+function bindTransformConfig(host, label, prefix, step, onChange, columns = []) {
   const write = () => {
     const json = readTransformConfig(host, label, prefix);
-    if (json !== null) step.config = json;
+    if (json === null) return;
+    step.config = json;
+    const summary = document.getElementById(prefix + "_summary");
+    if (summary) summary.textContent = transformConfigSummary(label, step.config, columns);
   };
 
   host.querySelectorAll("[data-cfg]").forEach(node => {
@@ -5903,7 +5906,7 @@ function bindEtlNodeProps(panel, d, rebuild, redraw) {
     rebuild();
   }));
   const step = d.etl[+((panel.querySelector("[data-ei]") || {}).dataset || {}).ei];
-  if (step) bindTransformConfig(panel, step.op, "etlcv", step, rebuild);
+  if (step) bindTransformConfig(panel, step.op, "etlcv", step, rebuild, transformColumnsOfDraft(d));
 }
 function wizETLList(host, d) {
   const extract = [d.mainEntity, ...d.joins.map(j=>j.entity), ...d.externalSources.map(x=>x.connector)].filter(Boolean);
@@ -5917,7 +5920,7 @@ function wizETLList(host, d) {
       <td><select class="fluent-select" data-ei="${i}" data-ek="op" data-rerender>${ETL_OPS.map(o=>`<option ${o.op===s.op?"selected":""}>${esc(o.op)}</option>`).join("")}</select><div class="hint-inline">${esc((ETL_OPS.find(o=>o.op===s.op)||{}).desc||"")}</div></td>
       <td><select class="fluent-select" data-ei="${i}" data-ek="target">${opts(["(all columns)",...colNames], s.target||"(all columns)")}</select></td>
       <td><button class="btn sm" data-ecfg="${i}">${d._etlOpen===i?"Hide settings":"Settings"}</button>
-        <div class="hint-inline">${esc(transformConfigSummary(s.op, s.config, columns))}</div></td>
+        <div class="hint-inline"${d._etlOpen===i?' id="etlrow_summary"':""}>${esc(transformConfigSummary(s.op, s.config, columns))}</div></td>
       <td><button class="del" data-edel="${i}">${ic("trash")}</button></td></tr>
       ${d._etlOpen===i?`<tr><td></td><td colspan="5" style="background:var(--surface-alt)"><div id="wz_etlcfg" style="padding:10px 4px;max-width:520px">${transformConfigHtml(s.op, s.config, columns, "etlrow")}</div></td></tr>`:""}`).join("")
     : `<tr class="empty-row"><td colspan="6">No transform steps — data flows straight through. Add steps to clean, reshape, aggregate or enrich.</td></tr>`;
@@ -5945,7 +5948,7 @@ function wizETLList(host, d) {
   host.querySelectorAll("[data-ecfg]").forEach(b=>b.onclick=()=>{ const i=+b.dataset.ecfg; d._etlOpen = d._etlOpen===i ? null : i; wizETLList(host,d); });
   const openStep = d._etlOpen != null ? d.etl[d._etlOpen] : null;
   const cfgHost = $("#wz_etlcfg");
-  if (openStep && cfgHost) bindTransformConfig(cfgHost, openStep.op, "etlrow", openStep, () => wizETLList(host,d));
+  if (openStep && cfgHost) bindTransformConfig(cfgHost, openStep.op, "etlrow", openStep, () => wizETLList(host,d), columns);
   host.querySelectorAll("[data-edel]").forEach(b=>b.onclick=()=>{ d.etl.splice(+b.dataset.edel,1); wizETLList(host,d); });
   const add = (op) => { d.etl.push({op: op || TRANSFORMS.find(t=>t.live).label, target:"(all columns)", config:"", seq:d.etl.length+1}); wizETLList(host,d); };
   $("#wz_addetl").onclick = () => add();
