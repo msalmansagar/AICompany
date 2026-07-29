@@ -1514,7 +1514,47 @@ function viewSelection(entity, viewName) {
   const root = fetch.querySelector("entity");
   if (!root) return null;
 
-  return { attributes: directAttributesOf(root), links: linksUnder(root, root.getAttribute("name")) };
+  return {
+    attributes: directAttributesOf(root),
+    links: linksUnder(root, root.getAttribute("name")),
+    conditions: conditionsUnder(root)
+  };
+}
+
+/** FetchXML operator names, as a person would read them. */
+const FETCH_OPERATORS = {
+  eq: "equals", ne: "does not equal", neq: "does not equal", like: "contains", "not-like": "does not contain",
+  "begins-with": "begins with", "not-begin-with": "does not begin with", "ends-with": "ends with",
+  gt: "is after", ge: "is on or after", lt: "is before", le: "is on or before",
+  null: "is empty", "not-null": "is not empty", in: "is one of", "not-in": "is not one of",
+  between: "is between", "eq-userid": "is the current user", "ne-userid": "is not the current user",
+  "eq-businessid": "is the current business unit", "last-x-days": "is in the last X days",
+  "this-month": "is this month", "this-year": "is this year", "olderthan-x-months": "is older than X months"
+};
+
+/**
+ * The conditions a view applies to its own table, flattened with the group each belongs to.
+ *
+ * Conditions inside a link-entity are left out: they narrow the joined table, not the rows the
+ * report lists, and showing them beside the others would read as a filter on the primary table.
+ */
+function conditionsUnder(entity, depth = 0) {
+  return Array.from(entity.children)
+    .filter(child => child.tagName === "filter")
+    .flatMap(filter => {
+      const group = (filter.getAttribute("type") || "and").toUpperCase();
+      const own = Array.from(filter.children)
+        .filter(child => child.tagName === "condition")
+        .map(condition => ({
+          attribute: condition.getAttribute("attribute"),
+          operator: condition.getAttribute("operator") || "eq",
+          value: condition.getAttribute("value")
+            || Array.from(condition.children).filter(v => v.tagName === "value").map(v => v.textContent).join(", "),
+          group,
+          depth
+        }));
+      return own.concat(conditionsUnder(filter, depth + 1));
+    });
 }
 
 /**
@@ -3708,6 +3748,11 @@ function tabColumns(body, r) {
 /* ---- Filters ---- */
 function tabFilters(body, r) {
   body.appendChild(el(`<div class="info-banner">${ic("info")}<div>Full operator set including relative dates (<b>Last X days</b>, <b>This month</b>, <b>This year</b>) and context tokens (<b>Current user / BU / record / entity</b>). Nested AND/OR groups supported. Stored in <span class="kbd">qdb_reportfilter</span>.</div></div>`));
+  const primarySource = primarySourceOf(r);
+  if (primarySource && isCrmViewSource(primarySource.type)) {
+    const panel = viewFiltersHtml(r.mainEntity, primarySource.query);
+    if (panel) body.appendChild(el(panel));
+  }
   const card = el(`<div class="section-card"><h3>Filter designer</h3><div class="hint">Rows in the same group combine with the group's And/Or.</div></div>`);
   const cols = [{t:"And/Or"},{t:"Attribute"},{t:"Operator"},{t:"Value"},{t:"Bind parameter"},{t:"Context token"},{t:"Group"}];
   const rowHtml = (f,i) => `<tr>
@@ -4511,6 +4556,32 @@ function linkedAttributesOf(selection) {
   }));
 }
 
+/**
+ * The narrowing a view already does, shown beside the filters the report adds.
+ *
+ * The two combine with AND — the report's conditions are appended to the view's query rather than
+ * replacing them — so an author who cannot see the view's own conditions cannot predict the result.
+ * A report filtered to "city = Doha" on a view of active accounts returns active Doha accounts, and
+ * nothing on the Filters tab said the first half of that.
+ */
+function viewFiltersHtml(entity, viewName) {
+  const selection = viewSelection(entity, viewName);
+  if (!selection) return "";
+
+  const readable = condition => `<span class="kbd">${esc(condition.attribute)}</span> ${
+    esc(FETCH_OPERATORS[condition.operator] || condition.operator)}${
+    condition.value ? ` <b>${esc(condition.value)}</b>` : ""}`;
+
+  const body = selection.conditions.length
+    ? `<div class="join-visual" style="flex-wrap:wrap;gap:8px">${
+        selection.conditions.map(c => `<span class="ent-chip">${readable(c)}</span>`).join("")}</div>`
+    : `<div class="canvas-hint" style="padding:6px 0">This view narrows nothing on its own — every ${esc(entity)} row reaches your filters.</div>`;
+
+  return `<div class="section-card" style="max-width:900px"><h3>Already filtered by the view</h3>
+    <div class="hint"><b>${esc(viewName)}</b> applies these before your own filters, and the two combine with <b>AND</b>. Anything you add below narrows the result further; it cannot widen it.</div>
+    ${body}</div>`;
+}
+
 /** The source the report reads through. Its type decides what the field pickers may offer. */
 function primarySourceOf(report) {
   const sources = report.dataSources || [];
@@ -4945,9 +5016,8 @@ function wizStart(host, d) {
   extra();
 }
 function wizFilters(host, d) {
-  const attrOpts = (sel) => opts(d.columns.length ? d.columns : [""], sel);
   const fRows = d.filters.length ? d.filters.map((f,i)=>`<tr>
-     <td><select class="fluent-select" data-fi="${i}" data-fk="attribute">${attrOpts(f.attribute)}</select></td>
+     <td>${attributePickerHtml(d.mainEntity, f.attribute, `data-fi="${i}" data-fk="attribute"`, "Search fields…")}</td>
      <td><select class="fluent-select" data-fi="${i}" data-fk="operator">${opts(OPERATORS,f.operator)}</select></td>
      <td><input class="fluent-input" data-fi="${i}" data-fk="value" value="${esc(f.value)}" placeholder="value"></td>
      <td><select class="fluent-select" data-fi="${i}" data-fk="param">${opts(["(none)",...d.parameters.map(p=>p.name)], f.param||"(none)")}</select></td>
@@ -4959,17 +5029,18 @@ function wizFilters(host, d) {
      <td style="text-align:center"><input type="checkbox" data-pi="${i}" data-pk="required" ${p.required?"checked":""}></td>
      <td><button class="del" data-pdel="${i}">${ic("trash")}</button></td></tr>`).join("") : `<tr class="empty-row"><td colspan="5">No parameters — add prompts users fill in at run time.</td></tr>`;
   host.innerHTML = `<div class="wtitle">Filters &amp; parameters <span class="rel-tag">Optional</span></div><div class="wsub">Narrow the data and add runtime prompts. Skip this to include everything — you can build advanced AND/OR groups and context tokens in the designer.</div>
+    ${isCrmViewSource(d.sourceType) ? viewFiltersHtml(d.mainEntity, d.dataSourceQuery) : ""}
     <div class="section-card" style="max-width:840px"><h3>Filters</h3><div class="hint">Rows combine with AND.</div>
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Attribute</th><th>Operator</th><th>Value</th><th>Bind parameter</th><th></th></tr></thead><tbody>${fRows}</tbody></table></div>
       <button class="btn sm btn-add" id="wz_addf">${ic("add")}Add filter</button></div>
     <div class="section-card" style="max-width:840px"><h3>Parameters</h3><div class="hint">Prompts shown when the report runs.</div>
       <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Name</th><th>Prompt</th><th>Type</th><th>Required</th><th></th></tr></thead><tbody>${pRows}</tbody></table></div>
       <button class="btn sm btn-add" id="wz_addp">${ic("add")}Add parameter</button></div>`;
-  host.querySelectorAll("[data-fi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.filters[+inp.dataset.fi][inp.dataset.fk] = inp.value; }));
+  host.querySelectorAll("[data-fi]").forEach(inp => inp.addEventListener(comboSafeEvent(inp), () => { d.filters[+inp.dataset.fi][inp.dataset.fk] = inp.value; }));
   host.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => { d.filters.splice(+b.dataset.fdel,1); wizFilters(host,d); });
   host.querySelectorAll("[data-pi]").forEach(inp => inp.addEventListener(inp.type==="checkbox"||inp.tagName==="SELECT"?"change":"input", () => { const p = d.parameters[+inp.dataset.pi]; p[inp.dataset.pk] = inp.type==="checkbox"?inp.checked:inp.value; }));
   host.querySelectorAll("[data-pdel]").forEach(b => b.onclick = () => { d.parameters.splice(+b.dataset.pdel,1); wizFilters(host,d); });
-  $("#wz_addf").onclick = () => { d.filters.push({attribute:d.columns[0]||"",operator:"Equals",value:"",param:""}); wizFilters(host,d); };
+  $("#wz_addf").onclick = () => { d.filters.push({attribute:"",operator:"Equals",value:"",param:""}); wizFilters(host,d); };
   $("#wz_addp").onclick = () => { d.parameters.push({name:"Param"+(d.parameters.length+1),prompt:"New parameter",type:"Text",required:false}); wizFilters(host,d); };
 }
 function wizLayout(host, d) {

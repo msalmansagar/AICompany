@@ -98,8 +98,10 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
             // A saved view or an author-written FetchXML replaces the generated query; the columns the
             // report declares still drive shaping, so the output stays the shape the designer showed.
-            var fetchXml = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity))
-                ?? query.FetchXml;
+            // The report's own filters are carried across rather than discarded with the query that
+            // held them — otherwise the Filters tab and every runtime prompt would change nothing.
+            var supplied = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity));
+            var fetchXml = supplied is null ? query.FetchXml : FetchXmlFilters.ApplyTo(supplied, query.FetchXml);
             var rows = Retrieve(fetchXml);
 
             return new ReportResult

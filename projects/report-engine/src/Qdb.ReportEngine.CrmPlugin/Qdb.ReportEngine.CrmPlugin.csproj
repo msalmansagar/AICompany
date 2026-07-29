@@ -54,6 +54,7 @@
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDefinition.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportResult.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportQueryBuilder.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlFilters.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportRowShaper.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionFetch.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionAssembler.cs" LinkBase="Shared\Engine" />
