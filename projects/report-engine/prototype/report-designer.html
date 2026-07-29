@@ -4603,7 +4603,13 @@ function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
   const named = entity => entityLabel(entity) || entity;
   if (!isCrmViewSource(sourceType)) {
     return [{ entity: mainEntity, label: named(mainEntity), attrs: attributesOf(mainEntity) }]
-      .concat(joins.filter(j => j.entity).map(j => ({ entity: j.entity, label: named(j.entity), attrs: attributesOf(j.entity) })));
+      .concat(joins.filter(j => j.entity).map(j => ({
+        entity: j.entity, label: named(j.entity), joined: true,
+        // Keyed by table and field: the alias the joined column is projected under, and what keeps
+        // two joined tables that both have "name" apart.
+        attrs: attributesOf(j.entity).map(a => ({ ...a, a: `${j.entity}.${a.a}`, attribute: a.a,
+          joinEntity: j.entity, joinEntityLabel: named(j.entity) }))
+      })));
   }
 
   const available = availableAttributes(mainEntity, sourceType, viewName);
@@ -4622,15 +4628,18 @@ function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
  * whose — unless the field's own label already does, which would read "Account Name (Account)".
  */
 function columnHeadingFor(entry) {
-  if (!entry.linkedEntity) return entry.n;
-  const table = entry.linkedEntityLabel;
+  if (!entry.linkedEntity && !entry.joinEntity) return entry.n;
+  const table = entry.linkedEntityLabel || entry.joinEntityLabel;
   return entry.n.toLowerCase().includes(table.toLowerCase()) ? entry.n : `${entry.n} (${table})`;
 }
 
 /** Splits a picker entry back into what gets stored: the attribute, its table, and its row key. */
 function columnSourceOf(entry, mainEntity) {
-  return entry.linkedEntity
-    ? { attribute: entry.attribute, entity: entry.linkedEntity, sourceAlias: entry.a }
+  // A view's linked field and a report's joined field are stored the same way — attribute, its own
+  // table, and the alias it arrives under. Only where they come from differs.
+  const from = entry.linkedEntity || entry.joinEntity;
+  return from
+    ? { attribute: entry.attribute, entity: from, sourceAlias: entry.a }
     : { attribute: entry.a, entity: mainEntity, sourceAlias: "" };
 }
 const wiz = { step:0, draft:null };
@@ -5126,7 +5135,8 @@ function wizColumnsCanvas(host, d) {
 }
 function wizColumnsList(host, d) {
   d.colMeta = d.colMeta || {};
-  const attrs = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const groups = attributeGroupsFor(d.mainEntity, d.sourceType, d.dataSourceQuery, d.joins);
+  const attrs = groups.flatMap(g => g.attrs.map(a => ({ ...a, group: g.label, groupJoined: !!(g.joined || g.joinedByView) })));
   const viaView = isCrmViewSource(d.sourceType) && attrs.length !== attributesOf(d.mainEntity).length;
   const nameFor = a => (attrs.find(x=>x.a===a)||{n:a}).n;
   const labelRows = d.columns.length ? d.columns.map(a=>{ const meta = d.colMeta[a] || (d.colMeta[a]={label:nameFor(a),labelPos:"left"}); if(!meta.label)meta.label=nameFor(a); if(!meta.labelPos)meta.labelPos="left";
@@ -5136,9 +5146,11 @@ function wizColumnsList(host, d) {
   const matching = attrs.filter(a => d.columns.includes(a.a)
     || matchesSearch(term, a.n, a.a, a.t, a.linkedEntityLabel || "", a.linkedEntity || ""));
   // A linked field is shown under its own table, not under the alias the view happened to give it.
+  // A field from another table says so, whether the view joined it or the report did.
   const fieldHtml = a => `<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${highlight(a.n, term)}${
-      a.linkedEntity ? ` <span class="rel-tag">${esc(a.linkedEntityLabel)}</span>` : ""}</div><div class="at">${
-      highlight(a.linkedEntity ? a.attribute : a.a, term)} · ${esc(a.t)}${a.linkedEntity ? ` · joined via the view` : ""}</div></div></label>`;
+      a.groupJoined ? ` <span class="rel-tag">${esc(a.linkedEntityLabel || a.joinEntityLabel || a.group)}</span>` : ""}</div><div class="at">${
+      highlight(a.attribute || a.a, term)} · ${esc(a.t)}${
+      a.linkedEntity ? " · joined via the view" : (a.joinEntity ? " · joined by this report" : "")}</div></div></label>`;
 
   host.innerHTML = `<div class="wtitle">Choose the columns</div><div class="wsub">Select the report fields. For header / master-detail layouts you can rename each field's <b>label</b> and set its <b>label position</b> (top / left / right).</div>
     ${viaView ? `<div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>These are the fields <b>${esc(d.dataSourceQuery)}</b> selects. The view decides what comes back, so a field outside it would render as an empty column. To use other fields, edit the view in CRM or read via FetchXML instead.</div></div>` : ""}
