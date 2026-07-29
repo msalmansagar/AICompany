@@ -1464,21 +1464,25 @@ async function loadViews(entity) {
   beginBusy(`Loading ${entity} views…`);
   try {
     const system = await dvList("savedquery",
-      `?$select=name,querytype&$filter=returnedtypecode eq '${entity}' and statecode eq 0&$orderby=name`);
+      `?$select=name,querytype,fetchxml&$filter=returnedtypecode eq '${entity}' and statecode eq 0&$orderby=name`);
     let personal = [];
     try {
-      personal = await dvList("userquery", `?$select=name&$filter=returnedtypecode eq '${entity}'`);
+      personal = await dvList("userquery", `?$select=name,fetchxml&$filter=returnedtypecode eq '${entity}'`);
     } catch (error) { /* personal views are not always readable; system views are enough */ }
 
     const views = system.map(v => ({
       name: v.name,
       kind: VIEW_KINDS[v.querytype] || "System view",
-      isMain: v.querytype === MAIN_VIEW_TYPE
-    })).concat(personal.map(v => ({ name: v.name, kind: "Personal view", isMain: false })));
+      isMain: v.querytype === MAIN_VIEW_TYPE,
+      fetchXml: v.fetchxml
+    })).concat(personal.map(v => ({ name: v.name, kind: "Personal view", isMain: false, fetchXml: v.fetchxml })));
 
     // Main views first: they are what someone means by "the view", the rest is plumbing.
-    metadata.viewsByEntity[entity] = views.sort((a, b) =>
-      (b.isMain - a.isMain) || String(a.name).localeCompare(String(b.name)));
+    // Views without a stored query are left out entirely — the engine skips them and then reports
+    // the view as missing, so offering one would only produce a report that cannot run.
+    metadata.viewsByEntity[entity] = views
+      .filter(v => v.fetchXml)
+      .sort((a, b) => (b.isMain - a.isMain) || String(a.name).localeCompare(String(b.name)));
   } catch (error) {
     metadata.viewsByEntity[entity] = [];
   }
@@ -1492,6 +1496,102 @@ function viewsOf(entity) {
   if (!entity) return [];
   if (!metadata.viewsByEntity[entity]) { loadViews(entity); return []; }
   return metadata.viewsByEntity[entity];
+}
+
+/* ---------- What a view actually returns ----------
+   A view replaces the whole query, so the report gets the view's rows and nothing else. A column the
+   view does not select arrives empty — the report renders, the cell is blank, and nothing says why.
+   Reading the view's own FetchXML is what lets the designer offer only the fields that will arrive. */
+
+/** The attributes a view selects on its own entity, plus the tables it reaches through. */
+function viewSelection(entity, viewName) {
+  const view = viewsOf(entity).find(v => v.name === viewName);
+  if (!view || !view.fetchXml) return null;
+
+  const fetch = parseFetchXml(view.fetchXml);
+  if (!fetch) return null;
+
+  const root = fetch.querySelector("entity");
+  if (!root) return null;
+
+  return { attributes: directAttributesOf(root), links: linksUnder(root, root.getAttribute("name")) };
+}
+
+/**
+ * The tables a fetch element reaches, in the shape they are nested.
+ *
+ * A link-entity can hang off another link-entity, not only off the root. Flattening them would
+ * present a second-level join as though its key matched the primary table's, which is a join the
+ * report does not have.
+ */
+function linksUnder(element, parentEntity, depth = 0) {
+  return Array.from(element.children)
+    .filter(child => child.tagName === "link-entity")
+    .flatMap(link => {
+      const entity = link.getAttribute("name");
+      return [{
+        entity,
+        parentEntity,
+        depth,
+        alias: link.getAttribute("alias") || entity,
+        from: link.getAttribute("from"),
+        to: link.getAttribute("to"),
+        linkType: link.getAttribute("link-type") || "inner",
+        attributes: directAttributesOf(link)
+      }].concat(linksUnder(link, entity, depth + 1));
+    });
+}
+
+function parseFetchXml(fetchXml) {
+  const parsed = new DOMParser().parseFromString(fetchXml, "text/xml");
+  return parsed.querySelector("parsererror") ? null : parsed;
+}
+
+/** Attributes belonging to this element, not to a link-entity nested inside it. */
+function directAttributesOf(element) {
+  return Array.from(element.children)
+    .filter(child => child.tagName === "attribute")
+    .map(child => child.getAttribute("name"))
+    .filter(Boolean);
+}
+
+/**
+ * The tables a view already reaches, shown rather than edited.
+ *
+ * A view replaces the whole query, so joins configured on the report never reach Dataverse — the
+ * editor would save happily and change nothing. What the author needs to know is which other tables
+ * their data can come from, and the view answers that itself.
+ */
+function viewJoinsHtml(entity, viewName) {
+  const selection = viewSelection(entity, viewName);
+  const intro = `<div class="hint">A saved view carries its own joins, and its query replaces the report's — so these come from <b>${esc(viewName || "the view")}</b> and are not editable here. To join a different table, edit the view in CRM or read via FetchXML.</div>`;
+
+  if (!selection) {
+    return `<div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3>${intro}
+      <div class="canvas-hint" style="padding:10px 0">${esc(unreadableViewReason(entity, viewName))}</div></div>`;
+  }
+
+  // The left key belongs to whichever table the link hangs off, which is not always the primary.
+  const rows = selection.links.length
+    ? selection.links.map(link => `<tr><td>${esc(link.linkType)} join</td>
+        <td>${link.depth ? `<span style="color:var(--text-secondary)">via ${esc(link.parentEntity)} ▸ </span>` : ""}<span class="kbd">${esc(link.entity)}</span></td>
+        <td><span class="kbd">${esc(link.to)}</span>${link.depth ? ` <span style="color:var(--text-secondary)">on ${esc(link.parentEntity)}</span>` : ""}</td>
+        <td><span class="kbd">${esc(link.from)}</span></td>
+        <td>${link.attributes.length ? link.attributes.map(a => `<span class="kbd">${esc(a)}</span>`).join(" ") : "—"}</td></tr>`).join("")
+    : `<tr class="empty-row"><td colspan="5">This view reads ${esc(entity)} only — no other table is joined.</td></tr>`;
+
+  return `<div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3>${intro}
+    <div class="join-visual"><span class="ent-chip">${esc(entity)} <span style="color:var(--text-secondary)">(primary)</span></span>${
+      selection.links.filter(link => !link.depth).map(link => `<span class="join-badge">${esc(link.linkType)} ▸</span><span class="ent-chip">${esc(link.entity)}</span>`).join("")}</div>
+    <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Join type</th><th>Related entity</th><th>Left key</th><th>Right key (related)</th><th>Fields it brings</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+/** Why a view's joins cannot be shown — the three cases read very differently to an author. */
+function unreadableViewReason(entity, viewName) {
+  if (!viewName) return "Pick a saved view above.";
+  const view = viewsOf(entity).find(v => v.name === viewName);
+  if (!view) return "Reading the view…";
+  return "This view's query could not be read, so its joins cannot be shown.";
 }
 
 /* The source-type label carries a suffix for the types that are stored but not applied, so it is
@@ -3447,6 +3547,38 @@ function tabGeneral(body, r) {
   });
 }
 
+
+/**
+ * The report's own joins, unless the primary source is a saved view.
+ *
+ * A view replaces the whole query, so link-entities built from these rows never reach Dataverse.
+ * Showing an editor there would be configuration that saves and changes nothing; the view's own
+ * joins are shown instead, because those are what the data actually comes from.
+ */
+function appendJoinsSection(body, r) {
+  const primarySource = (r.dataSources || []).find(source => source.primary) || (r.dataSources || [])[0];
+  if (primarySource && isCrmViewSource(primarySource.type)) {
+    body.appendChild(el(viewJoinsHtml(r.mainEntity, primarySource.query)));
+    return;
+  }
+
+  const jcard = el(`<div class="section-card"><h3>Joined CRM entities</h3><div class="hint">Combine multiple entities with inner / left / right joins on matching keys. Stored in <span class="kbd">qdb_reportrelationship</span>.</div></div>`);
+  const jcols = [{t:"Join type"},{t:"Related entity"},{t:"Left key (primary)"},{t:"Right key (related)"}];
+  const jrow = (j,i) => `<tr><td class="handle">${ic("tree")}</td>
+    <td><select class="fluent-select" data-i="${i}" data-k="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
+    <td>${entityPickerHtml(j.entity, `data-i="${i}" data-k="entity"`)}</td>
+    <td>${attributePickerHtml(r.mainEntity, j.leftKey, `data-i="${i}" data-k="leftKey"`, "Search primary fields…")}</td>
+    <td>${attributePickerHtml(j.entity, j.rightKey, `data-i="${i}" data-k="rightKey"`, "Search related fields…")}</td>
+    <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
+  jcard.appendChild(listTable(jcols, r.joins, jrow, () => { r.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); renderTab(); }, "Add join"));
+  body.appendChild(jcard); bindInputs(jcard, r.joins);
+  // Picking the related table is when the keys can be offered from the relationship itself.
+  jcard.querySelectorAll('[data-k="entity"]').forEach(picker => picker.addEventListener("change", () => {
+    suggestJoinKeys({ mainEntity: r.mainEntity }, r.joins[+picker.dataset.i]);
+    renderTab();
+  }));
+}
+
 /* ---- Data Sources ---- */
 function tabDataSources(body, r) {
   body.appendChild(el(`<div class="info-banner">${ic("info")}<div>The engine combines one or more sources. <b>V1</b> uses CRM-native sources (CRM View, FetchXML, QueryExpression, Web API) + static datasets. External sources (SQL, REST, Core Banking, MIS) arrive in V2/V3 via connectors. The <span class="kbd">IQueryStrategySelector</span> auto-routes each source past FetchXML limits.</div></div>`));
@@ -3474,21 +3606,7 @@ function tabDataSources(body, r) {
   }));
 
   r.joins = r.joins || []; r.externalSources = r.externalSources || [];
-  const jcard = el(`<div class="section-card"><h3>Joined CRM entities</h3><div class="hint">Combine multiple entities with inner / left / right joins on matching keys. Stored in <span class="kbd">qdb_reportrelationship</span>.</div></div>`);
-  const jcols = [{t:"Join type"},{t:"Related entity"},{t:"Left key (primary)"},{t:"Right key (related)"}];
-  const jrow = (j,i) => `<tr><td class="handle">${ic("tree")}</td>
-    <td><select class="fluent-select" data-i="${i}" data-k="joinType">${opts(JOIN_TYPES, j.joinType)}</select></td>
-    <td>${entityPickerHtml(j.entity, `data-i="${i}" data-k="entity"`)}</td>
-    <td>${attributePickerHtml(r.mainEntity, j.leftKey, `data-i="${i}" data-k="leftKey"`, "Search primary fields…")}</td>
-    <td>${attributePickerHtml(j.entity, j.rightKey, `data-i="${i}" data-k="rightKey"`, "Search related fields…")}</td>
-    <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  jcard.appendChild(listTable(jcols, r.joins, jrow, () => { r.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); renderTab(); }, "Add join"));
-  body.appendChild(jcard); bindInputs(jcard, r.joins);
-  // Picking the related table is when the keys can be offered from the relationship itself.
-  jcard.querySelectorAll('[data-k="entity"]').forEach(picker => picker.addEventListener("change", () => {
-    suggestJoinKeys({ mainEntity: r.mainEntity }, r.joins[+picker.dataset.i]);
-    renderTab();
-  }));
+  appendJoinsSection(body, r);
 
   const xcard = el(`<div class="section-card"><h3>External data sources</h3><div class="hint">Systems your administrator connected under <b>External Connectors</b>. Map the matching key and choose which way parameters flow (CRM ↔ source). Stored in <span class="kbd">qdb_externalconnector</span> refs.</div></div>`);
   const xcols = [{t:"System"},{t:"Operation"},{t:"Direction"},{t:"CRM key"},{t:"Ext. key"},{t:"Params passed"}];
@@ -3526,7 +3644,36 @@ function tabStyle(body, r) {
 }
 
 /* ---- Columns ---- */
+/**
+ * Names the columns a view-backed report asks for but will never receive.
+ *
+ * Unlike the wizard's checklist this tab takes the attribute as free text, so it cannot offer only
+ * what the view returns. What it can do is say which of the configured columns arrive empty, rather
+ * than leaving the author to discover blank cells at runtime.
+ */
+function warnAboutColumnsTheViewOmits(body, r) {
+  const primarySource = (r.dataSources || []).find(source => source.primary) || (r.dataSources || [])[0];
+  if (!primarySource || !isCrmViewSource(primarySource.type)) return;
+
+  const selection = viewSelection(r.mainEntity, primarySource.query);
+  if (!selection || !selection.attributes.length) return;
+
+  const linked = new Set(selection.links.flatMap(link => link.attributes));
+  const missing = (r.columns || [])
+    .filter(column => column.attribute)
+    .filter(column => !selection.attributes.includes(column.attribute) && !linked.has(column.attribute))
+    .map(column => column.attribute);
+
+  if (!missing.length) return;
+
+  body.appendChild(el(`<div class="info-banner" style="border-left-color:var(--warn,#c19c00)">${ic("info")}<div>
+    <b>${esc(primarySource.query)}</b> does not return ${missing.length === 1 ? "this column" : "these columns"}, so ${missing.length === 1 ? "it renders" : "they render"} empty:
+    ${missing.map(a => `<span class="kbd">${esc(a)}</span>`).join(" ")}.
+    Add ${missing.length === 1 ? "it" : "them"} to the view in CRM, or remove ${missing.length === 1 ? "it" : "them"} here.</div></div>`));
+}
+
 function tabColumns(body, r) {
+  warnAboutColumnsTheViewOmits(body, r);
   const card = el(`<div class="section-card"><h3>Column selector</h3><div class="hint">Choose output columns from the main and related entities. Stored in <span class="kbd">qdb_reportcolumn</span>. Drag to reorder.</div></div>`);
   const cols = [{t:"Display name"},{t:"Entity"},{t:"Attribute"},{t:"Type"},{t:"Format"},{t:"Width",num:true},{t:"Align"},{t:"Aggregate"},{t:"Mask"},{t:"Show"}];
   const rowHtml = (col,i) => `<tr>
@@ -4274,6 +4421,27 @@ function reportableAttributes(entity) {
   return attributesOf(entity).filter(a =>
     a.t !== "Uniqueidentifier" && !UNHELPFUL_FIRST_COLUMNS.test(a.a));
 }
+
+/**
+ * The fields a report can actually show, which is not always every field on the table.
+ *
+ * Reading via a CRM View means the view's query runs instead of a generated one, so only what the
+ * view selects comes back. Offering the whole table there would let someone pick a field that
+ * renders as an empty column with nothing to explain it.
+ *
+ * Falls back to the full list when the view has not loaded yet or its FetchXML cannot be read —
+ * an author blocked from choosing any column at all is worse than one offered too many.
+ */
+function availableAttributes(entity, sourceType, viewName) {
+  const all = attributesOf(entity);
+  if (!isCrmViewSource(sourceType)) return all;
+
+  const selection = viewSelection(entity, viewName);
+  if (!selection || !selection.attributes.length) return all;
+
+  const selected = new Set(selection.attributes);
+  return all.filter(a => selected.has(a.a));
+}
 const wiz = { step:0, draft:null };
 function openWizard() {
   wiz.step = 0;
@@ -4453,6 +4621,19 @@ function wizDataForm(host, d) {
         <div class="field col-2"><label class="lbl">Parameters passed</label><input class="fluent-input" data-xi="${i}" data-xk="pass" value="${esc(x.pass)}" placeholder="branchCode, dateFrom → source"></div>
       </div></div>`).join("") : "";
 
+  // A view brings its own joins and replaces the whole query, so the report's joins are discarded.
+  // Editing them there would be configuration that changes nothing.
+  const joinsCard = isCrmViewSource(d.sourceType)
+    ? viewJoinsHtml(d.mainEntity, d.dataSourceQuery)
+    : `<div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
+      <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
+      <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Join type</th><th>Related entity</th><th>Left key (primary)</th><th>Right key (related)</th><th></th></tr></thead><tbody>${joinRows}</tbody></table></div>
+      <div class="action-row">
+        <button class="btn sm" id="wz_addjoin">${ic("add")}Add joined entity</button>
+        <button class="btn sm" id="wz_joindata" ${d.joins.some(isRunnableJoin)?"":"disabled"}>${ic("play")}View data</button>
+        <span class="canvas-hint">Runs the joined query against your data — the only way to see whether these keys really match.</span>
+      </div></div>`;
+
   host.innerHTML = `<div class="wtitle">What data is this report about?</div><div class="wsub">Pick the table this report reads. Everything else here is optional: reuse another report's query, join in related tables, or blend an outside system.</div>
     <div class="section-card" style="max-width:900px"><h3>Reuse a saved query <span class="rel-tag">optional</span></h3><div class="hint">Every report stores how it reads its data. Pick another report's source to copy its read method and query text — leave this alone and the engine builds the query from the table, columns and filters you choose below.</div>
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:6px">
@@ -4464,14 +4645,7 @@ function wizDataForm(host, d) {
       <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${SOURCES.map(s=>`<div class="choice-card ${d.sourceType===s.label?"sel":""}" data-src="${esc(s.label)}" style="padding:12px"><div class="cc-t">${esc(s.label)}</div><div class="cc-d">${esc(SOURCE_DESCRIPTIONS[s.label] || "")}</div>${s.live?"":`<div class="rel-tag" style="margin-top:6px">stored, not applied yet</div>`}</div>`).join("")}</div>
       ${isCrmViewSource(d.sourceType) ? `<div class="field" style="max-width:440px;margin-top:16px"><label class="lbl">Saved view<span class="req">*</span></label>${viewPickerHtml(d.mainEntity, d.dataSourceQuery, 'id="wz_view"')}<div class="hint" style="margin-top:6px">The view decides <b>which rows</b> come back and in what order — its filters and sort replace the ones you set later. The columns you pick still decide what is <b>shown</b>, so choose fields the view itself selects, or they arrive empty.</div></div>` : ""}</div>
 
-    <div class="section-card" style="max-width:900px"><h3>Related CRM entities (joins)</h3><div class="hint">Combine multiple CRM tables with inner / left / right joins on matching keys.</div>
-      <div class="join-visual"><span class="ent-chip">${esc(d.mainEntity)} <span style="color:var(--text-secondary)">(primary)</span></span>${d.joins.map(j=>`<span class="join-badge">${esc(j.joinType.replace(" join",""))} ▸</span><span class="ent-chip">${esc(j.entity)}</span>`).join("")}</div>
-      <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Join type</th><th>Related entity</th><th>Left key (primary)</th><th>Right key (related)</th><th></th></tr></thead><tbody>${joinRows}</tbody></table></div>
-      <div class="action-row">
-        <button class="btn sm" id="wz_addjoin">${ic("add")}Add joined entity</button>
-        <button class="btn sm" id="wz_joindata" ${d.joins.some(isRunnableJoin)?"":"disabled"}>${ic("play")}View data</button>
-        <span class="canvas-hint">Runs the joined query against your data — the only way to see whether these keys really match.</span>
-      </div></div>
+    ${joinsCard}
 
     <div class="section-card" style="max-width:900px"><h3>External data sources</h3>
       <div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>Your <b>administrator configures each system once</b> under <b>External Connectors</b> (Core Banking, MIS, SQL, REST…). Here you just pick a connected system, map the matching key, and choose which way parameters flow — <b>CRM → source</b> (e.g. send customer number to Core Banking) or <b>source → CRM</b> (e.g. bring balances back to match a CRM record).</div></div>
@@ -4502,7 +4676,13 @@ function wizDataForm(host, d) {
     wizDataForm(host, d);
   });
   const viewInput = host.querySelector("#wz_view");
-  if (viewInput) viewInput.addEventListener(comboSafeEvent(viewInput), () => { d.dataSourceQuery = viewInput.value; });
+  // Re-rendered on commit, not on every keystroke: the joins shown below belong to the chosen view,
+  // and leaving them behind would describe a different view than the one now selected.
+  if (viewInput) viewInput.addEventListener(comboSafeEvent(viewInput), () => {
+    if (viewInput.value === d.dataSourceQuery) return;
+    d.dataSourceQuery = viewInput.value;
+    wizDataForm(host, d);
+  });
   host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(comboSafeEvent(inp), () => {
     const join = d.joins[+inp.dataset.ji];
     join[inp.dataset.jk] = inp.value;
@@ -4516,7 +4696,8 @@ function wizDataForm(host, d) {
   host.querySelectorAll("[data-jdel]").forEach(b => b.onclick = () => { d.joins.splice(+b.dataset.jdel,1); wizDataForm(host,d); });
   host.querySelectorAll("[data-xi]").forEach(inp => inp.addEventListener(inp.tagName==="SELECT"?"change":"input", () => { d.externalSources[+inp.dataset.xi][inp.dataset.xk] = inp.value; if(inp.dataset.xk==="connector") wizDataForm(host,d); }));
   host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { d.externalSources.splice(+b.dataset.xdel,1); wizDataForm(host,d); });
-  $("#wz_addjoin").onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
+  const addJoin = $("#wz_addjoin");
+  if (addJoin) addJoin.onclick = () => { d.joins.push({entity:"",joinType:"Inner join",leftKey:"",rightKey:""}); wizDataForm(host,d); };
   const joinData = $("#wz_joindata");
   if (joinData) joinData.onclick = () => withBusyButton("#wz_joindata", "Running…", () => openJoinPreview(d));
   $("#wz_addext").onclick = () => { d.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); wizDataForm(host,d); };
@@ -4585,7 +4766,8 @@ function wizColumnsCanvas(host, d) {
 }
 function wizColumnsList(host, d) {
   d.colMeta = d.colMeta || {};
-  const attrs = attributesOf(d.mainEntity);
+  const attrs = availableAttributes(d.mainEntity, d.sourceType, d.dataSourceQuery);
+  const viaView = isCrmViewSource(d.sourceType) && attrs.length !== attributesOf(d.mainEntity).length;
   const nameFor = a => (attrs.find(x=>x.a===a)||{n:a}).n;
   const labelRows = d.columns.length ? d.columns.map(a=>{ const meta = d.colMeta[a] || (d.colMeta[a]={label:nameFor(a),labelPos:"left"}); if(!meta.label)meta.label=nameFor(a); if(!meta.labelPos)meta.labelPos="left";
     return `<tr><td style="font-size:12.5px;color:var(--text-secondary)">${esc(nameFor(a))}</td><td><input class="fluent-input" data-lbl="${esc(a)}" value="${esc(meta.label)}" style="height:28px"></td><td><div class="seg" data-lpos="${esc(a)}">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${meta.labelPos===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div></td></tr>`; }).join("") : `<tr class="empty-row"><td colspan="3">Select columns above first.</td></tr>`;
@@ -4595,6 +4777,7 @@ function wizColumnsList(host, d) {
   const fieldHtml = a => `<label class="attr-item ${d.columns.includes(a.a)?"sel":""}" data-attr="${esc(a.a)}"><input type="checkbox" ${d.columns.includes(a.a)?"checked":""}><div><div class="an">${highlight(a.n, term)}</div><div class="at">${highlight(a.a, term)} · ${esc(a.t)}</div></div></label>`;
 
   host.innerHTML = `<div class="wtitle">Choose the columns</div><div class="wsub">Select the report fields. For header / master-detail layouts you can rename each field's <b>label</b> and set its <b>label position</b> (top / left / right).</div>
+    ${viaView ? `<div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>These are the fields <b>${esc(d.dataSourceQuery)}</b> selects. The view decides what comes back, so a field outside it would render as an empty column. To use other fields, edit the view in CRM or read via FetchXML instead.</div></div>` : ""}
     <div class="pick-search">
       <input class="fluent-input" id="wz_colsearch" placeholder="Search ${attrs.length} fields by name or logical name…" value="${esc(term)}" autocomplete="off">
       <span class="count">${matching.length} shown · <b>${d.columns.length}</b> selected</span>
@@ -5361,6 +5544,23 @@ function wizReview(host, d) {
     <div class="section-card" style="max-width:720px">${rows.map(r=>`<div class="review-row"><div class="rk">${esc(r[0])}</div><div class="rv">${esc(r[1])}</div></div>`).join("")}</div>
     <div class="info-banner" style="max-width:720px">${ic("info")}<div>Creating this report saves a <b>Draft</b>. It won't run in production until you publish it.</div></div>`;
 }
+/**
+ * Removes columns the chosen source cannot return, and says so.
+ *
+ * Switching to a view after picking columns leaves selections the view does not select. The picker
+ * would stop offering them while they stayed in the report, so they would survive to runtime as
+ * empty columns nobody chose to keep.
+ */
+function dropColumnsTheSourceCannotSupply(draft) {
+  const available = new Set(availableAttributes(draft.mainEntity, draft.sourceType, draft.dataSourceQuery).map(a => a.a));
+  const dropped = draft.columns.filter(attribute => !available.has(attribute));
+  if (!dropped.length) return;
+
+  draft.columns = draft.columns.filter(attribute => available.has(attribute));
+  dropped.forEach(attribute => delete draft.colMeta[attribute]);
+  toast(`${dropped.length} column${dropped.length > 1 ? "s" : ""} removed — ${esc(draft.dataSourceQuery)} does not return ${dropped.length > 1 ? "them" : "it"}.`, "warn");
+}
+
 async function wizNext() {
   const d = wiz.draft, key = WIZ_STEPS[wiz.step].key;
   if (key === "start") {
@@ -5377,6 +5577,7 @@ async function wizNext() {
       toast("Pick the saved view this report reads", "warn");
       return;
     }
+    dropColumnsTheSourceCannotSupply(d);
   } else if (key === "columns") {
     if (!d.columns.length) { toast("Select at least one column", "warn"); return; }
   }
