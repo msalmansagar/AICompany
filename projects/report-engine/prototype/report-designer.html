@@ -4672,12 +4672,20 @@ function joinPreviewFetchXml(draft) {
     + rootColumns.map(c => `<attribute name="${esc(c)}"/>`).join("") + links + `</entity></fetch>`;
 }
 
-/** The table's own name, plus the keys being joined on — the columns that show whether it worked. */
+/**
+ * The table's own name, plus the keys being joined on — the columns that show whether it worked.
+ *
+ * A key that is the record's own id is left out. It is a GUID: unreadable, identical to the value on
+ * the other side by definition, and it proves nothing a name does not. Where the key is a lookup it
+ * stays, because its display text names the row it points at, which is the match made visible.
+ */
 function previewColumnsFor(entity, keys) {
   const name = primaryNameOf(entity);
-  const wanted = [name].concat(keys).filter(Boolean);
   const known = attributesOf(entity);
+  const isIdentifier = a => (known.find(x => x.a === a) || {}).t === "Unique identifier";
   const exists = a => !known.length || known.some(x => x.a === a) || a === name;
+
+  const wanted = [name].concat(keys.filter(k => !isIdentifier(k))).filter(Boolean);
   return [...new Set(wanted.filter(exists))];
 }
 
