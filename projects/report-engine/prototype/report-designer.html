@@ -3851,7 +3851,6 @@ function dsPanel(r) {
     <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
     <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
     <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(ent, 'id="md_entity"')}</div>
-    <button class="btn sm" id="md_newds" style="margin-bottom:6px">${ic("add")}New data source</button>
     <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
     ${tree}
     <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
@@ -3866,7 +3865,6 @@ function dsPanel(r) {
     dsPanel(r);
   };
   $("#md_srctype").onchange = e => { r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }]; r.dataSources[0].type = e.target.value; };
-  $("#md_newds").onclick = () => openEntityForm("datasource");
   $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; r._fieldSearch = ""; dsPanel(r); };
   const fieldSearch = $("#md_fieldsearch");
   if (fieldSearch) {
@@ -4369,13 +4367,12 @@ function wizDataForm(host, d) {
         <div class="field col-2"><label class="lbl">Parameters passed</label><input class="fluent-input" data-xi="${i}" data-xk="pass" value="${esc(x.pass)}" placeholder="branchCode, dateFrom → source"></div>
       </div></div>`).join("") : "";
 
-  host.innerHTML = `<div class="wtitle">What data is this report about?</div><div class="wsub">Start by picking a <b>reusable data source</b> your team already defined — you don't create one each time. Then refine the entity, joins, and external blends.</div>
-    <div class="section-card" style="max-width:900px"><h3>Data source</h3><div class="hint">Choose an existing data source from the shared registry (Configuration → Data Sources). It sets the entity and read method below.</div>
+  host.innerHTML = `<div class="wtitle">What data is this report about?</div><div class="wsub">Pick the table this report reads. Everything else here is optional: reuse another report's query, join in related tables, or blend an outside system.</div>
+    <div class="section-card" style="max-width:900px"><h3>Reuse a saved query <span class="rel-tag">optional</span></h3><div class="hint">Every report stores how it reads its data. Pick another report's source to copy its read method and query text — leave this alone and the engine builds the query from the table, columns and filters you choose below.</div>
       <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:6px">
         <div class="field" style="max-width:440px;flex:1"><label class="lbl">Reusable data source</label><select class="fluent-select" id="wz_ds">${datasourceOptions(d.dataSourceName)}</select></div>
-        <button class="btn sm" id="wz_newds">${ic("add")}New data source</button>
       </div></div>
-    <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The main table the report is built on — pre-set from the data source, still editable.</div>
+    <div class="section-card" style="max-width:900px"><h3>Primary CRM entity</h3><div class="hint">The table this report reads. This is the one thing the step actually needs.</div>
       <div class="field" style="max-width:340px;margin-bottom:16px"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(d.mainEntity, 'id="wz_entity"')}</div>
       <label class="lbl" style="display:block;margin-bottom:8px">Read via</label>
       <div class="choice-cards" id="wz_sources" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">${SOURCES.map(s=>`<div class="choice-card ${d.sourceType===s.label?"sel":""}" data-src="${esc(s.label)}" style="padding:12px"><div class="cc-t">${esc(s.label)}</div><div class="cc-d">${esc(SOURCE_DESCRIPTIONS[s.label] || "")}</div>${s.live?"":`<div class="rel-tag" style="margin-top:6px">stored, not applied yet</div>`}</div>`).join("")}</div></div>
@@ -4396,11 +4393,18 @@ function wizDataForm(host, d) {
 
   $("#wz_ds").onchange = (e) => {
     const ds = dataSourceCatalog.get().find(x=>x.name===e.target.value);
-    if (ds) { d.dataSourceName = ds.name; d.sourceType = ds.type; }
-    else d.dataSourceName = "";
+    // Reuse means the query and the connector, not only the label. Copying just the name produced a
+    // "reusable" source that reused nothing.
+    if (ds) {
+      d.dataSourceName = ds.name;
+      d.sourceType = ds.type || d.sourceType;
+      d.dataSourceQuery = ds.query || "";
+      d.dataSourceConnectorId = ds.connectorId || "";
+    } else {
+      d.dataSourceName = ""; d.dataSourceQuery = ""; d.dataSourceConnectorId = "";
+    }
     wizDataForm(host,d);
   };
-  $("#wz_newds").onclick = () => openEntityForm("datasource");
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
   host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => { d.sourceType = c.dataset.src; host.querySelectorAll("[data-src]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); });
   host.querySelectorAll("[data-ji]").forEach(inp => inp.addEventListener(comboSafeEvent(inp), () => {
@@ -5279,7 +5283,8 @@ async function wizNext() {
 function wizCreate() {
   const d = wiz.draft, def = newDefinition(null), cat = attributesOf(d.mainEntity);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
-  def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connector:"", query:"", primary:true, joinL:"", joinR:"" }];
+  def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
+    query:d.dataSourceQuery||"", primary:true, joinL:"", joinR:"" }];
   def.columns = d.columns.map(a => { const m = cat.find(x=>x.a===a); const rightAlign = m && ["Currency","Decimal","Whole number"].includes(m.t); const meta = (d.colMeta||{})[a] || {};
     return { name:m?m.n:a, entity:d.mainEntity, attribute:a, type:m?m.t:"Text", format:"", width:120, align:rightAlign?"Right":"Left", agg:(m&&m.t==="Currency")?"Sum":"None", masked:false, visible:true, label:meta.label||(m?m.n:a), labelPos:meta.labelPos||"left" }; });
   def.filters = (d.filters||[]).map(f => ({ attribute:f.attribute, operator:f.operator, value:f.value, param:(f.param&&f.param!=="(none)")?f.param:"", token:"(none)", group:0, andor:"And" }));
@@ -5441,6 +5446,7 @@ const dataSourceCatalog = dataverseCatalog(
     connector: formattedValue(row, "_qdb_externalconnectorid_value") || "(Dataverse)",
     executionOrder: row.qdb_executionorder,
     hasQuery: !!row.qdb_querypayload,
+    query: row.qdb_querypayload || "",
     primary: !!row.qdb_isprimary
   })
 );
