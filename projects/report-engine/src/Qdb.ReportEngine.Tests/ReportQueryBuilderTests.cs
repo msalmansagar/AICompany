@@ -194,6 +194,37 @@ public sealed class ReportQueryBuilderTests
         Assert.Equal("qdb_name", column.Label);
     }
 
+    [Fact]
+    public void Build_CapsTopAtWhatFetchXmlAccepts_RatherThanFailingTheReport()
+    {
+        // Dataverse rejects a top above 5000 with "Parameter name: top", which failed the whole
+        // report. The designer default row limit is 50,000, so every report built from the
+        // generated query hit it.
+        var definition = Report(rowLimit: 50000, columns: [Column("qdb_name", 1)]);
+
+        var query = ReportQueryBuilder.Build(definition, new ReportExecutionRequest());
+
+        Assert.Contains("top=\"5000\"", query.FetchXml);
+    }
+
+    [Fact]
+    public void Build_ReportsTheLimitItApplied_NotTheOneItWasAsked()
+    {
+        // Truncated is computed against this, so returning the uncapped number would call a full
+        // page of rows "not truncated" when it was.
+        var definition = Report(rowLimit: 50000, columns: [Column("qdb_name", 1)]);
+
+        Assert.Equal(5000, ReportQueryBuilder.Build(definition, new ReportExecutionRequest()).RowLimit);
+    }
+
+    [Fact]
+    public void Build_LeavesARowLimitFetchXmlAcceptsAlone()
+    {
+        var definition = Report(rowLimit: 250, columns: [Column("qdb_name", 1)]);
+
+        Assert.Contains("top=\"250\"", ReportQueryBuilder.Build(definition, new ReportExecutionRequest()).FetchXml);
+    }
+
     private static ReportColumn Column(string logical, int sort) =>
         new() { Id = Guid.NewGuid(), ColumnLogicalName = logical, SortOrder = sort, IsVisible = true };
 

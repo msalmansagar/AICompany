@@ -1,3 +1,4 @@
+using System;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Qdb.ReportEngine.Core.Models;
@@ -12,6 +13,13 @@ namespace Qdb.ReportEngine.Execution.Dataverse;
 public static class ReportQueryBuilder
 {
     private const int DefaultRowLimit = 5000;
+
+    /// <summary>
+    /// The largest value FetchXML accepts for <c>top</c>. Dataverse rejects anything above this with
+    /// "Parameter name: top", which failed the whole report — and the designer's own default row
+    /// limit is 50,000, so every report built from the generated query hit it.
+    /// </summary>
+    private const int MaxFetchTop = 5000;
 
     // qdb_operator option-set labels → FetchXML operators.
     private static readonly IReadOnlyDictionary<string, string> Operators =
@@ -73,7 +81,11 @@ public static class ReportQueryBuilder
             AddGroupOrders(entity, columns);
         }
 
-        var rowLimit = request.RowLimitOverride ?? definition.RowLimit ?? DefaultRowLimit;
+        // Capped, not passed through: a limit above what FetchXML allows used to fail the report
+        // rather than return the rows it could. The capped value is what travels on, so Truncated
+        // reflects the limit actually applied instead of one that was never used.
+        var requested = request.RowLimitOverride ?? definition.RowLimit ?? DefaultRowLimit;
+        var rowLimit = Math.Min(Math.Max(requested, 1), MaxFetchTop);
         // Aggregate fetch does not accept a top attribute; the projection query caps rows with top.
         var fetch = isAggregate
             ? new XElement("fetch", new XAttribute("aggregate", "true"), entity)
