@@ -66,6 +66,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             record["qdb_cachehit"] = entry.CacheHit;
             record["qdb_resultsummary"] = Summarise(entry);
             record["qdb_errorcode"] = entry.ErrorCode ?? string.Empty;
+            record["qdb_errordetail"] = entry.ErrorDetail;
             /* Only when there is a report to point at, and only once it is known to exist.
                A dashboard run has no report at all, and binding an empty GUID makes Dataverse reject
                the whole record — which, because the writer fails closed, would withhold the
@@ -149,6 +150,18 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
         public bool Succeeded { get; set; }
 
         public string ErrorCode { get; set; }
+
+        /// <summary>
+        /// What actually went wrong, for whoever has to fix it.
+        ///
+        /// The code alone does not diagnose anything: a query Dataverse rejected and a definition
+        /// that will not assemble both arrive as "unexpected_error", and the message the caller sees
+        /// is deliberately vague because it crosses a trust boundary. This does not — the row is
+        /// written as SYSTEM and read by administrators — so it carries the exception itself. Without
+        /// it, the plugin trace log was the only place the reason existed, and that is off by default
+        /// and rolls over.
+        /// </summary>
+        public string ErrorDetail { get; set; }
 
         /// <summary>
         /// The stage the run reached. Starts at <see cref="ExecutionStage.Failed"/> so a run that

@@ -74,6 +74,7 @@ namespace Qdb.ReportEngine.CrmPlugin
             {
                 failure = ReportFailure.Classify(error);
                 entry.ErrorCode = failure.Code;
+                entry.ErrorDetail = FailureDetail.Describe(error);
                 tracing.Trace("qdb_RunDashboard failed ({0}): {1}", failure.Code, error);
             }
 

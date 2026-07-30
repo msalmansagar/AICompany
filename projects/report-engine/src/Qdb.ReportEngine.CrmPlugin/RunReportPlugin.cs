@@ -79,6 +79,9 @@ namespace Qdb.ReportEngine.CrmPlugin
             {
                 failure = ReportFailure.Classify(error);
                 entry.ErrorCode = failure.Code;
+                // The reason goes into the audit row as well as the trace log: the trace is off by
+                // default and rolls over, so it cannot be the only place a failure is explained.
+                entry.ErrorDetail = FailureDetail.Describe(error);
                 // The full exception goes to the trace log for support; the caller gets the safe text.
                 tracing.Trace("qdb_RunReport failed ({0}): {1}", failure.Code, error);
             }
