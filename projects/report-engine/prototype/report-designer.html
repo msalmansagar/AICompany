@@ -7140,6 +7140,156 @@ function openNewDashboardChooser() {
   scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
   scrim.querySelectorAll("[data-dnew]").forEach(cd => cd.onclick = () => { close(); createDashboard(cd.dataset.dnew); });
 }
+/* ---------- Dashboard composer ----------
+   The one screen the dashboard feature was missing. Everything it saves to already existed —
+   dashboardToDefinition, saveDashboardToServer, writeDashboardSections — and every route into the
+   composer called a renderer that was never written, so a new dashboard opened as a blank page and a
+   saved one reported "renderDashboardComposer is not defined".
+
+   Built to the same contract definitionToDashboard already produces: sections of 1–4 columns, each
+   holding widgets that name a kind, a table, a group-by, a measure and an aggregation. */
+const WIDGET_KINDS = ["Metric", "Chart", "Table", "Gauge", "Badge", "Progress", "InfoCards", "Matrix", "Profile", "Checklist"];
+
+/** Kinds that summarise a number, and so need a measure and an aggregation to mean anything. */
+const MEASURED_WIDGET_KINDS = ["metric", "gauge", "progress", "chart", "matrix"];
+
+const AGGREGATIONS = ["Sum", "Average", "Count", "Max", "Min"];
+
+const widgetIsMeasured = widget => MEASURED_WIDGET_KINDS.includes(String(widget.widget || "").toLowerCase());
+
+function renderDashboardComposer(c) {
+  const d = state.dashboard;
+  if (!d) { openNewDashboardChooser(); return; }
+  d.sections = d.sections || [];
+
+  const cmd = el(`<div class="cmdbar">
+    <button class="cmd" id="dc_back">${ic("back")}Back</button><div class="cmd-sep"></div>
+    <button class="cmd primary" id="dc_save">${ic("save")}Save</button>
+    <button class="cmd" id="dc_addsection">${ic("add")}Add section</button>
+    <div class="cmd-spacer"></div>
+    <span class="rel-tag">${d.savedId ? "Saved" : "Unsaved"}${d.isGoverned ? " · Governed" : ""}</span>
+  </div>`);
+  c.appendChild(cmd);
+
+  const page = el(`<div class="page"><div class="page-head">
+      <input class="fluent-input" id="dc_title" value="${esc(d.title || "")}" placeholder="Dashboard title"
+        style="font-size:20px;font-weight:600;max-width:520px">
+      <div class="page-sub" style="margin-top:6px">${d.sections.length} section(s) · ${
+        d.sections.reduce((n, s) => n + (s.widgets || []).length, 0)} widget(s)</div>
+    </div>
+    <div class="field" style="max-width:320px;margin-bottom:16px">
+      <label class="toggle"><input type="checkbox" id="dc_governed" ${d.isGoverned ? "checked" : ""}>
+      <span class="track"></span><span class="tlabel">Governed — needs approval before production</span></label>
+    </div>
+    <div id="dc_sections"></div></div>`);
+  c.appendChild(page);
+
+  const host = page.querySelector("#dc_sections");
+  if (!d.sections.length) {
+    host.appendChild(el(`<div class="section-card"><div class="np-empty">
+      No sections yet. <b>Add section</b> to start — each section holds 1–4 columns of widgets, and
+      every widget reads a table in this environment.</div></div>`));
+  }
+  d.sections.forEach((section, index) => host.appendChild(sectionCard(section, index, d)));
+
+  $("#dc_back").onclick = () => { state.view = "dashboards"; render(); };
+  $("#dc_addsection").onclick = () => {
+    d.sections.push({ id: newGuid(), title: `Section ${d.sections.length + 1}`, cols: 2, widgets: [] });
+    render();
+  };
+  $("#dc_title").addEventListener("input", () => { d.title = $("#dc_title").value; });
+  $("#dc_governed").addEventListener("change", () => { d.isGoverned = $("#dc_governed").checked; });
+  $("#dc_save").onclick = () => withBusyButton("#dc_save", "Saving…", async () => {
+    d.title = $("#dc_title").value.trim() || "Untitled dashboard";
+    await saveDashboardToServer(d);
+  });
+}
+
+/** One section: its title, how many columns it lays out in, and the widgets inside it. */
+function sectionCard(section, index, dashboard) {
+  section.widgets = section.widgets || [];
+  const card = el(`<div class="section-card">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div class="field" style="flex:1;min-width:220px"><label class="lbl">Section title</label>
+        <input class="fluent-input" data-sti="${index}" value="${esc(section.title || "")}" placeholder="Untitled section"></div>
+      <div class="field" style="max-width:140px"><label class="lbl">Columns</label>
+        <select class="fluent-select" data-sci="${index}">${
+          [1, 2, 3, 4].map(n => `<option ${section.cols === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <button class="btn sm" data-saw="${index}">${ic("add")}Add widget</button>
+      <button class="del" data-sdel="${index}">${ic("trash")}</button>
+    </div>
+    <div class="dc-grid" style="display:grid;grid-template-columns:repeat(${section.cols || 2},1fr);gap:12px"></div></div>`);
+
+  const grid = card.querySelector(".dc-grid");
+  if (!section.widgets.length) {
+    grid.appendChild(el(`<div class="np-empty" style="grid-column:1/-1">No widgets in this section yet.</div>`));
+  }
+  section.widgets.forEach((widget, at) => grid.appendChild(widgetCard(widget, index, at)));
+
+  card.querySelector(`[data-sti="${index}"]`).addEventListener("input", event => { section.title = event.target.value; });
+  card.querySelector(`[data-sci="${index}"]`).addEventListener("change", event => {
+    section.cols = +event.target.value; render();
+  });
+  card.querySelector(`[data-saw="${index}"]`).onclick = () => {
+    section.widgets.push({ id: newGuid(), title: `Widget ${section.widgets.length + 1}`, widget: "metric",
+      entity: "account", groupBy: "", measure: "", agg: "Count", chartType: "Column",
+      cardIcon: "money", badgeText: "", badgeLevel: "" });
+    render();
+  };
+  card.querySelector(`[data-sdel="${index}"]`).onclick = () => { dashboard.sections.splice(index, 1); render(); };
+  return card;
+}
+
+/**
+ * One widget, edited in place.
+ *
+ * The measure and aggregation only appear for kinds that summarise a number — a Table or a Profile
+ * has nothing to sum, and offering the fields anyway would store a measure the renderer ignores,
+ * which is the pattern this project has been removing everywhere else.
+ */
+function widgetCard(widget, sectionIndex, at) {
+  const measured = widgetIsMeasured(widget);
+  const isChart = String(widget.widget || "").toLowerCase() === "chart";
+  const card = el(`<div class="section-card" style="margin:0;padding:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:12.5px">${esc(widget.title || "Untitled widget")}</b>
+      <button class="del" data-wdel="${sectionIndex}:${at}">${ic("trash")}</button></div>
+    <div class="field"><label class="lbl">Title</label>
+      <input class="fluent-input" data-wk="title" data-wi="${sectionIndex}:${at}" value="${esc(widget.title || "")}"></div>
+    <div class="field"><label class="lbl">Type</label>
+      <select class="fluent-select" data-wk="widget" data-wi="${sectionIndex}:${at}">${
+        WIDGET_KINDS.map(k => `<option value="${k.toLowerCase()}" ${
+          String(widget.widget).toLowerCase() === k.toLowerCase() ? "selected" : ""}>${k}</option>`).join("")}</select></div>
+    <div class="field"><label class="lbl">Table</label>${
+      entityPickerHtml(widget.entity, `data-wk="entity" data-wi="${sectionIndex}:${at}"`)}</div>
+    <div class="field"><label class="lbl">Group by</label>${
+      attributePickerHtml(widget.entity, widget.groupBy, `data-wk="groupBy" data-wi="${sectionIndex}:${at}"`, "Search fields…")}</div>
+    ${measured ? `<div class="field"><label class="lbl">Measure</label>${
+      attributePickerHtml(widget.entity, widget.measure, `data-wk="measure" data-wi="${sectionIndex}:${at}"`, "Search fields…")}</div>
+    <div class="field"><label class="lbl">Aggregation</label>
+      <select class="fluent-select" data-wk="agg" data-wi="${sectionIndex}:${at}">${
+        AGGREGATIONS.map(a => `<option ${widget.agg === a ? "selected" : ""}>${a}</option>`).join("")}</select></div>` : ""}
+    ${isChart ? `<div class="field"><label class="lbl">Chart type</label>
+      <select class="fluent-select" data-wk="chartType" data-wi="${sectionIndex}:${at}">${
+        CHART_TYPES.map(t => `<option ${widget.chartType === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : ""}
+    ${measured && !widget.measure && widget.agg !== "Count"
+      ? `<div class="np-empty">A ${esc(widget.agg)} needs a measure — without one this widget has nothing to total.</div>` : ""}`);
+
+  card.querySelectorAll("[data-wk]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    const [si, wi] = input.dataset.wi.split(":").map(Number);
+    const target = state.dashboard.sections[si].widgets[wi];
+    target[input.dataset.wk] = input.value;
+    // Changing the table invalidates fields chosen from the old one, and changing the type changes
+    // which fields exist at all — both need the card rebuilt rather than patched.
+    if (input.dataset.wk === "entity") { target.groupBy = ""; target.measure = ""; }
+    if (["entity", "widget", "agg"].includes(input.dataset.wk)) render();
+  }));
+  card.querySelector(`[data-wdel="${sectionIndex}:${at}"]`).onclick = () => {
+    state.dashboard.sections[sectionIndex].widgets.splice(at, 1); render();
+  };
+  return card;
+}
+
 function renderDashboards(c) {
   const cmd = el(`<div class="cmdbar">
     <button class="cmd primary" id="dbNew">${ic("add")}New dashboard</button>
