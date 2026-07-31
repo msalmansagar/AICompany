@@ -4,8 +4,20 @@
 **Feature ID:** EDP-BIND-001
 **Phase:** BRD Approval Gate
 **Date:** 2026-07-27
-**BRD Reviewed:** `brd-edp-bind-001-entity-binding.md` v1.0
+**BRD Reviewed:** `brd-edp-bind-001-entity-binding.md` **v1.0**
 **Decision by:** MSS Technologies — CEO function
+
+> ## ⚠️ SUPERSEDED — this decision applies to v1.0 scope only
+>
+> **BRD v1.1 (2026-07-31) materially expanded scope** from entity binding to entity binding **plus
+> rule actions** — presentation actions (hide, show, mandatory, lock, set value, messages) and data
+> effects (email, create record, update record). It also folds in the OQ-B1 latency measurement and
+> replaces multi-binding ordering with one binding per entity.
+>
+> **This decision does not carry forward.** Scope must not grow quietly under an old approval, so
+> v1.1 requires a fresh decision. The analysis below remains valid for the parts of v1.0 that v1.1
+> retains, and the conditions C-B1, C-B2, C-B3, C-B5, C-B6 and C-B7 should be re-confirmed rather
+> than assumed. C-B4 was discharged independently and stays discharged.
 
 > **Independence caveat, recorded deliberately.** This decision was rendered by the same
 > agent that authored the BRD. That is the author-approves-own-work pattern this very product
