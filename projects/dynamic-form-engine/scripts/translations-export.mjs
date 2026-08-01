@@ -94,7 +94,13 @@ async function run() {
     }
   }
 
-  // The key columns drive the import. Locking them makes a broken round trip much less likely.
+  // Under sheet protection a cell is locked unless it says otherwise — the OOXML default. So
+  // the language columns have to be unlocked explicitly, or the translator opens a workbook
+  // they cannot type a single character into. Locking the key columns is the easy half.
+  for (const { code } of languages) {
+    sheet.getColumn(`lang_${code}`).protection = { locked: false };
+  }
+
   sheet.getColumn('entity').protection = { locked: true };
   sheet.getColumn('recordId').protection = { locked: true };
   sheet.getColumn('field').protection = { locked: true };

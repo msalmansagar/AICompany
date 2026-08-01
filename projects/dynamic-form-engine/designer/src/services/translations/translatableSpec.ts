@@ -184,7 +184,10 @@ function rowsForRecord(spec: TranslatableEntitySpec, record: WebApiRecord): Tran
       entity: spec.entity,
       recordId,
       field,
-      source: String(record[field]).trim(),
+      // Verbatim, not trimmed. The source snapshot an import stores is compared byte for byte
+      // against this on the next export, so trimming here would make a workbook produced by
+      // one of the two implementations read as stale to the other.
+      source: String(record[field]),
       context: readContext(record),
     }));
 }
