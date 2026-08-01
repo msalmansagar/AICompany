@@ -2798,6 +2798,240 @@ function reportDefinitionAttributes(def) {
   });
 }
 
+/* ============================ PUBLISH TO CRM (ribbon placement) ============================
+   Turns the Ribbon tab's placements into an actual button on the target entity's command bar.
+
+   Until now this tab only described what it would do — the banner named qdb_reportribbonplacement
+   and nothing ever wrote a row, so a placement was configuration that did nothing at all.
+
+   Two things are written:
+     1. qdb_reportribbonplacement — which report belongs on which table and where. The record of
+        intent, and what the placement list reads back.
+     2. appaction rows — the command bar itself, as a three-level menu:
+            Dropdown "Reports"  ->  Group  ->  one button per placed report
+
+   WHY THE COMMANDS ARE GENERATED RATHER THAN READ AT CLICK TIME: the classic ribbon could populate
+   a flyout when the user opened it, so a placement row alone was enough. Modern commands — which is
+   what this org renders — cannot. Each report therefore needs its own command row, which is why
+   publishing is an action here instead of a side effect of saving a row. */
+
+const CRM_COMMAND_LOCATIONS = {
+  "Entity form ribbon": { placementType: 100000000, location: 0, key: "Form" },
+  "Home grid ribbon": { placementType: 100000001, location: 1, key: "MainGrid" },
+  "Subgrid ribbon": { placementType: 100000002, location: 2, key: "SubGrid" }
+};
+// Dashboard and sitemap placements are stored but have no command-bar equivalent to generate.
+const CRM_PLACEMENT_ONLY = { "Dashboard button": 100000003, "Sitemap page": 100000004 };
+
+const RIBBON_HANDLER_WEB_RESOURCE = "qdb_reportengine_ribbon.js";
+const RIBBON_ICON_WEB_RESOURCE = "qdb_reportengine_appicon.svg";
+const RIBBON_HANDLER_FUNCTION = "QdbReportEngine.openReportFromCommand";
+
+const APPACTION_TYPE = { button: 0, dropdown: 1, group: 3 };
+// 21 is a literal string, 7 is PrimaryControl. Type 4 looks like a string and is contextual — it
+// resolves to the record's own id on a form, which reads as a valid report id and opens the wrong thing.
+const APPACTION_PARAMETER = { literalString: 21, primaryControl: 7 };
+
+function crmClientUrl() {
+  const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+  if (!xrm || !xrm.Utility) throw new Error("Publishing needs a CRM session.");
+  return xrm.Utility.getGlobalContext().getClientUrl();
+}
+
+/** Single-object metadata read: dvMetadata returns a collection and these endpoints return an entity. */
+async function crmEntityMetadataId(logicalName) {
+  const url = `${crmClientUrl()}/api/data/v9.2/EntityDefinitions(LogicalName='${logicalName}')?$select=MetadataId`;
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(`No table named "${logicalName}" in this environment.`);
+  return payload.MetadataId;
+}
+
+async function crmPublishAll() {
+  const response = await fetch(`${crmClientUrl()}/api/data/v9.2/PublishAllXml`, {
+    method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: "{}"
+  });
+  if (!response.ok) throw new Error(`Publish failed (${response.status}).`);
+}
+
+async function webResourceId(name) {
+  const found = await dvList("webresource", `?$select=webresourceid&$filter=name eq '${name}'&$top=1`);
+  if (!found.length) throw new Error(`${name} is not deployed to this environment.`);
+  return found[0].webresourceid;
+}
+
+/* The @odata.bind key is the relationship's navigation property, which is NOT the lookup attribute
+   name and is not guessable — here it is "Qdb_reportdefinitionid", capital Q and nothing else.
+   Guessing yields only "undeclared property", so ask the metadata. */
+let reportLookupNavigationProperty = null;
+async function reportPlacementLookupProperty() {
+  if (reportLookupNavigationProperty) return reportLookupNavigationProperty;
+  const relationships = await dvMetadata(
+    "EntityDefinitions(LogicalName='qdb_reportribbonplacement')/ManyToOneRelationships"
+    + "?$select=ReferencingAttribute,ReferencingEntityNavigationPropertyName");
+  const match = relationships.find(r => r.ReferencingAttribute === "qdb_reportdefinitionid");
+  if (!match) throw new Error("qdb_reportribbonplacement has no report lookup relationship.");
+  reportLookupNavigationProperty = match.ReferencingEntityNavigationPropertyName;
+  return reportLookupNavigationProperty;
+}
+
+/** Placement rows are replaced wholesale for this report, so removing one in the UI removes it here. */
+async function writeRibbonPlacements(reportId, reportName, placements) {
+  const lookupProperty = await reportPlacementLookupProperty();
+  const existing = await dvList("qdb_reportribbonplacement",
+    `?$select=qdb_reportribbonplacementid&$filter=_qdb_reportdefinitionid_value eq ${reportId}`);
+  for (const row of existing) await dvDelete("qdb_reportribbonplacement", row.qdb_reportribbonplacementid);
+
+  for (const placement of placements) {
+    const mapping = CRM_COMMAND_LOCATIONS[placement.loc];
+    const placementType = mapping ? mapping.placementType : CRM_PLACEMENT_ONLY[placement.loc];
+    if (!placementType || !placement.entity) continue;
+    await dvCreate("qdb_reportribbonplacement", defined({
+      qdb_name: reportName,
+      qdb_entitylogicalname: placement.entity.trim().toLowerCase(),
+      qdb_placementtype: placementType,
+      qdb_isenabled: true,
+      qdb_formidtext: placement.form || null,
+      qdb_securityroleidtext: placement.role || null,
+      [`${lookupProperty}@odata.bind`]: `/qdb_reportdefinitions(${reportId})`
+    }));
+  }
+}
+
+const commandUniqueName = (kind, entity, key, suffix) =>
+  `qdb_ReportEngine.${kind}.${entity}.${key}${suffix ? "." + suffix : ""}`;
+
+async function upsertCommand(uniqueName, record, mutableFields) {
+  const existing = await dvList("appaction", `?$select=appactionid&$filter=uniquename eq '${uniqueName}'&$top=1`);
+  if (existing.length) {
+    await dvUpdate("appaction", existing[0].appactionid, mutableFields);
+    return existing[0].appactionid;
+  }
+  return dvCreate("appaction", record);
+}
+
+/** Everything a command needs regardless of its level in the menu. */
+function commandContext(entity, location, metadataId) {
+  return {
+    location,
+    context: 1,
+    contextvalue: entity,
+    "ContextEntity@odata.bind": `/entities(${metadataId})`,
+    hidden: false,
+    isdisabled: false,
+    visibilitytype: 0
+  };
+}
+
+/* Rebuilt from the placement rows every publish, so a report removed from a table loses its menu
+   item rather than lingering as a command that opens something no longer meant to be there. */
+async function syncCommandsForTable(entity, mapping, resources) {
+  const metadataId = await crmEntityMetadataId(entity);
+  const placements = await dvList("qdb_reportribbonplacement",
+    `?$select=qdb_name,_qdb_reportdefinitionid_value&$filter=qdb_entitylogicalname eq '${entity}'`
+    + ` and qdb_isenabled eq true and qdb_placementtype eq ${mapping.placementType}`
+    + ` and _qdb_reportdefinitionid_value ne null&$orderby=qdb_name asc`);
+
+  const staleFilter = `?$select=appactionid&$filter=startswith(uniquename,'qdb_ReportEngine.Report')`
+    + ` and contains(uniquename,'.${entity}.${mapping.key}')`;
+  if (!placements.length) {
+    for (const row of await dvList("appaction", staleFilter)) await dvDelete("appaction", row.appactionid);
+    return 0;
+  }
+
+  const base = commandContext(entity, mapping.location, metadataId);
+  const dropdownName = commandUniqueName("Reports", entity, mapping.key);
+  const dropdownId = await upsertCommand(dropdownName, Object.assign({}, base, {
+    name: dropdownName, uniquename: dropdownName, type: APPACTION_TYPE.dropdown,
+    buttonlabeltext: "Reports", buttontooltiptitle: "Reports",
+    buttontooltipdescription: "Run a Report Engine report",
+    "IconWebResourceId@odata.bind": `/webresourceset(${resources.iconId})`,
+    sequence: 100100050
+  }), {
+    buttonlabeltext: "Reports", type: APPACTION_TYPE.dropdown, hidden: false, isdisabled: false,
+    "IconWebResourceId@odata.bind": `/webresourceset(${resources.iconId})`,
+    onclickeventtype: 0, onclickeventjavascriptfunctionname: null, onclickeventjavascriptparameters: null
+  });
+
+  const groupName = commandUniqueName("ReportsGroup", entity, mapping.key);
+  const groupId = await upsertCommand(groupName, Object.assign({}, base, {
+    name: groupName, uniquename: groupName, type: APPACTION_TYPE.group,
+    buttonlabeltext: "Reports", grouptitle: "Reports", sequence: 100100051,
+    "ParentAppActionId@odata.bind": `/appactions(${dropdownId})`
+  }), { grouptitle: "Reports", type: APPACTION_TYPE.group, hidden: false, isdisabled: false });
+
+  let sequence = 100100052;
+  for (const placement of placements) {
+    const reportId = placement._qdb_reportdefinitionid_value;
+    const parameters = JSON.stringify([
+      { type: APPACTION_PARAMETER.literalString, value: reportId },
+      { type: APPACTION_PARAMETER.primaryControl, value: null }
+    ]);
+    const itemName = commandUniqueName("Report", entity, mapping.key, reportId);
+    await upsertCommand(itemName, Object.assign({}, base, {
+      name: itemName, uniquename: itemName, type: APPACTION_TYPE.button,
+      buttonlabeltext: placement.qdb_name || "Report",
+      buttontooltiptitle: placement.qdb_name || "Report",
+      buttontooltipdescription: "Run this report",
+      "IconWebResourceId@odata.bind": `/webresourceset(${resources.iconId})`,
+      sequence: sequence++,
+      onclickeventtype: 2,
+      onclickeventjavascriptfunctionname: RIBBON_HANDLER_FUNCTION,
+      onclickeventjavascriptparameters: parameters,
+      "OnClickEventJavaScriptWebResourceId@odata.bind": `/webresourceset(${resources.handlerId})`,
+      "ParentAppActionId@odata.bind": `/appactions(${groupId})`
+    }), {
+      buttonlabeltext: placement.qdb_name || "Report", hidden: false, isdisabled: false,
+      onclickeventjavascriptfunctionname: RIBBON_HANDLER_FUNCTION,
+      onclickeventjavascriptparameters: parameters,
+      // Re-parenting belongs in the update too: an item written against an earlier shape otherwise
+      // stays attached to its old parent and never appears in the menu.
+      "ParentAppActionId@odata.bind": `/appactions(${groupId})`
+    });
+  }
+  return placements.length;
+}
+
+/** The Ribbon tab's "Publish to CRM" action: save the placements, then build the command bars. */
+async function publishRibbonToCrm(report) {
+  if (!report.savedId) {
+    toast("Save the report first — a placement needs a report to point at.", "err");
+    return;
+  }
+  const targets = report.ribbon.filter(p => p.entity && p.entity.trim());
+  if (!targets.length) {
+    toast("Add a placement with a target table first.", "err");
+    return;
+  }
+
+  beginBusy("Publishing to CRM…");
+  try {
+    const resources = {
+      handlerId: await webResourceId(RIBBON_HANDLER_WEB_RESOURCE),
+      iconId: await webResourceId(RIBBON_ICON_WEB_RESOURCE)
+    };
+    await writeRibbonPlacements(report.savedId, report.name, targets);
+
+    const tables = new Map();
+    for (const placement of targets) {
+      const mapping = CRM_COMMAND_LOCATIONS[placement.loc];
+      if (mapping) tables.set(`${placement.entity.trim().toLowerCase()}|${mapping.key}`, { entity: placement.entity.trim().toLowerCase(), mapping });
+    }
+
+    let itemCount = 0;
+    for (const { entity, mapping } of tables.values()) itemCount += await syncCommandsForTable(entity, mapping, resources);
+
+    await crmPublishAll();
+    toast(tables.size
+      ? `Published — ${itemCount} report button(s) across ${tables.size} command bar(s). Refresh CRM to see them.`
+      : "Placements saved. Dashboard and sitemap placements do not create a command bar button.", "ok");
+  } catch (error) {
+    toast("Publish failed — " + error.message, "err");
+  } finally {
+    endBusy("Publishing to CRM…");
+  }
+}
+
 // A report loaded from Dataverse (has savedId) updates in place; a new one is created.
 /**
  * Saves the report and replaces its children.
@@ -3930,6 +4164,19 @@ function tabRibbon(body, r) {
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.ribbon, rowHtml, () => { r.ribbon.push({loc:"Home grid ribbon",entity:"",form:"",role:"",bu:"",record:false,selected:false,userbu:true}); renderTab(); }, "Add placement"));
   body.appendChild(card); bindInputs(card, r.ribbon);
+
+  /* Publishing is a separate, explicit action rather than part of Save: it writes command-bar
+     components and republishes customisations for the whole environment, which is not something a
+     routine save should do behind the author's back. */
+  const publish = el(`<div class="section-card" style="max-width:660px">
+    <h3>Publish to CRM</h3>
+    <div class="hint">Creates a <b>Reports</b> menu on each target table's command bar, with one item
+      per report placed there. Re-run it after changing placements. Dashboard and sitemap placements
+      are stored but do not create a button.</div>
+    <div style="margin-top:12px"><button class="btn primary" id="ribbonPublish">${ic("publish")}Publish to CRM</button></div>
+  </div>`);
+  body.appendChild(publish);
+  $("#ribbonPublish").onclick = () => publishRibbonToCrm(r);
 }
 
 /* ---- Export ---- */
