@@ -1,0 +1,115 @@
+// Which strings on a form can be translated, and how each record is reached from the form.
+//
+// This list is NOT hand-written from the UI: it is derived from every field the publish
+// generator passes through ITranslationResolver.Resolve. If the generator resolves it, a
+// translation for it is honoured at publish time — so the generator's call sites are the
+// authoritative definition and this file mirrors them. Placeholders and tooltips are absent
+// on purpose: the publisher never resolves them, so translating them would do nothing.
+//
+// Kept in step with scripts/translations-lib.mjs, which runs the same round trip headlessly.
+
+import type { WebApiRecord } from '../IWebApiAdapter';
+
+/** Every field name the publisher resolves. A record contributes a row per field it holds. */
+export const TRANSLATABLE_FIELDS = [
+  'qdb_title', 'qdb_label', 'qdb_description',
+  'qdb_confirmation_message', 'qdb_confirm_message',
+  'qdb_submit_confirmation_label', 'qdb_submit_confirmation_message',
+  'qdb_heading', 'qdb_sub_heading', 'qdb_section_title',
+  'qdb_item_title', 'qdb_item_description', 'qdb_note_text', 'qdb_icon_alt_text',
+  'qdb_infocard_back_label', 'qdb_infocard_continue_label',
+  'qdb_infocard_skip_label', 'qdb_infocard_start_label',
+] as const;
+
+/**
+ * Buckets of record ids gathered while walking the form, so each level can filter on the
+ * level above it. The form itself seeds the walk.
+ */
+export type CollectionScope = 'form' | 'tabs' | 'sections' | 'fields' | 'screens' | 'cardSections';
+
+export interface TranslatableEntitySpec {
+  /** Logical name — the adapter resolves the entity set, so irregular plurals are not our problem. */
+  readonly entity: string;
+  readonly idField: string;
+  /** Which bucket of parent ids this entity is filtered by. */
+  readonly scope: CollectionScope;
+  /** Lookup column holding the parent id. Absent only for the form itself. */
+  readonly parentField?: string;
+  /** Bucket this entity's own ids fill, when a deeper level filters on them. */
+  readonly fills?: CollectionScope;
+}
+
+/** Ordered parent-first: every spec's scope is filled by a spec above it. */
+export const TRANSLATABLE_ENTITIES: readonly TranslatableEntitySpec[] = [
+  { entity: 'qdb_form_definition', idField: 'qdb_form_definitionid', scope: 'form' },
+  { entity: 'qdb_form_tab', idField: 'qdb_form_tabid', scope: 'form', parentField: '_qdb_form_definition_id_value', fills: 'tabs' },
+  { entity: 'qdb_form_section', idField: 'qdb_form_sectionid', scope: 'tabs', parentField: '_qdb_form_tab_id_value', fills: 'sections' },
+  { entity: 'qdb_form_field', idField: 'qdb_form_fieldid', scope: 'sections', parentField: '_qdb_form_section_id_value', fills: 'fields' },
+  { entity: 'qdb_form_option_value', idField: 'qdb_form_option_valueid', scope: 'fields', parentField: '_qdb_form_field_id_value' },
+  { entity: 'qdb_form_validation_rule', idField: 'qdb_form_validation_ruleid', scope: 'fields', parentField: '_qdb_form_field_id_value' },
+  { entity: 'qdb_grid_column_config', idField: 'qdb_grid_column_configid', scope: 'fields', parentField: '_qdb_form_field_id_value' },
+  { entity: 'qdb_form_button', idField: 'qdb_form_buttonid', scope: 'form', parentField: '_qdb_form_definition_id_value' },
+  { entity: 'qdb_form_scoped_button', idField: 'qdb_form_scoped_buttonid', scope: 'form', parentField: '_qdb_form_definition_id_value' },
+  { entity: 'qdb_info_card_screen', idField: 'qdb_info_card_screenid', scope: 'form', parentField: '_qdb_form_definition_id_value', fills: 'screens' },
+  { entity: 'qdb_info_card_section', idField: 'qdb_info_card_sectionid', scope: 'screens', parentField: '_qdb_info_card_screen_id_value', fills: 'cardSections' },
+  { entity: 'qdb_info_card_item', idField: 'qdb_info_card_itemid', scope: 'cardSections', parentField: '_qdb_info_card_section_id_value' },
+];
+
+/** One translatable string: the key the round trip matches on, plus context for the translator. */
+export interface TranslatableString {
+  readonly entity: string;
+  readonly recordId: string;
+  readonly field: string;
+  readonly source: string;
+  /** Where it sits — "Name" means nothing to a translator without it. */
+  readonly context: string;
+}
+
+/** Identity of a translation. Record ids are lower-cased: Dataverse casing is not stable. */
+export function translationKey(
+  entity: string,
+  recordId: string,
+  field: string,
+  language: string,
+): string {
+  return `${entity}|${String(recordId).toLowerCase()}|${field}|${language}`;
+}
+
+/** One row per translatable string that actually holds source text. */
+export function buildTranslatableRows(
+  recordsByEntity: ReadonlyMap<string, readonly WebApiRecord[]>,
+): TranslatableString[] {
+  const rows: TranslatableString[] = [];
+  for (const spec of TRANSLATABLE_ENTITIES) {
+    for (const record of recordsByEntity.get(spec.entity) ?? []) {
+      rows.push(...rowsForRecord(spec, record));
+    }
+  }
+  return rows;
+}
+
+function rowsForRecord(spec: TranslatableEntitySpec, record: WebApiRecord): TranslatableString[] {
+  const recordId = String(record[spec.idField] ?? '');
+  if (!recordId) return [];
+
+  return TRANSLATABLE_FIELDS
+    .filter(field => hasText(record[field]))
+    .map(field => ({
+      entity: spec.entity,
+      recordId,
+      field,
+      source: String(record[field]).trim(),
+      context: readContext(record),
+    }));
+}
+
+function hasText(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function readContext(record: WebApiRecord): string {
+  const schemaName = record['qdb_schema_name'];
+  if (hasText(schemaName)) return schemaName;
+  const formCode = record['qdb_form_code'];
+  return hasText(formCode) ? formCode : '';
+}
