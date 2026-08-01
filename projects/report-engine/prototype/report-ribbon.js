@@ -131,6 +131,44 @@ var QdbReportEngine = window.QdbReportEngine || {};
    */
   namespace.noop = function () {};
 
+  /**
+   * Entry point for the MODERN command bar (an appaction row), which is what this org actually
+   * renders — classic RibbonDiffXml custom actions compile into the ribbon and are never drawn.
+   *
+   * A modern command cannot populate a menu at click time the way a classic FlyoutAnchor could, so
+   * the single "Reports" button opens the runtime viewer scoped to this table. The property that
+   * mattered is preserved exactly: which reports appear is still driven by qdb_reportribbonplacement
+   * rows, so adding a report to a table remains a data change, not a solution change.
+   */
+  namespace.openReportPicker = function (primaryControl) {
+    const entityLogicalName = entityNameFrom(primaryControl);
+    const recordId = currentRecordId(primaryControl);
+    const parameters = ["entity=" + encodeURIComponent(entityLogicalName || "")];
+    if (recordId) parameters.push("recordId=" + encodeURIComponent(recordId));
+
+    Xrm.Navigation.navigateTo(
+      { pageType: "webresource", webresourceName: RUNTIME_WEB_RESOURCE, data: parameters.join("&") },
+      { target: 2, position: 1, width: { value: 90, unit: "%" }, height: { value: 90, unit: "%" } }
+    ).catch(function (error) {
+      Xrm.Navigation.openErrorDialog({ message: "Could not open reports: " + (error && error.message) });
+    });
+  };
+
+  /** A form control reports its own table; a grid control reports the table it is bound to. */
+  function entityNameFrom(primaryControl) {
+    try {
+      if (primaryControl && primaryControl.data && primaryControl.data.entity) {
+        return primaryControl.data.entity.getEntityName();
+      }
+      if (primaryControl && typeof primaryControl.getEntityName === "function") {
+        return primaryControl.getEntityName();
+      }
+    } catch (error) {
+      console.error("[ReportEngine] could not resolve the table from the command context", error);
+    }
+    return null;
+  }
+
   function reportIdFromControlId(sourceControlId) {
     var id = String(sourceControlId || "");
     return id.indexOf(BUTTON_ID_PREFIX) === 0 ? id.substring(BUTTON_ID_PREFIX.length) : null;
