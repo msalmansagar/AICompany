@@ -59,7 +59,7 @@ primary name is `qdb_dashboardname` and there is also `qdb_dashboardcode`. A `$s
 |---|---|
 | **Sitemap area** | ✅ **DONE and verified on screen** — `scripts/provision-report-app.mjs` |
 | **Native CRM dashboard** | ✅ **DONE and verified on screen** — `scripts/provision-report-dashboard.mjs` |
-| **Ribbon buttons** | ❌ not started — design still as agreed below |
+| **Ribbon buttons** | 🟡 **deployed on `account`; needs one visual confirmation** — see below |
 
 #### ✅ The "Report Engine" model-driven app exists
 `node scripts/provision-report-app.mjs <env>` creates app `qdb_ReportEngine`
@@ -108,7 +108,43 @@ Also learned, worth keeping:
 - The fallback URL carries `_canOverride=true` — the signed-in user's **personal default dashboard**
   outranks the sitemap's `DefaultDashboard`. Harmless once the dashboard is actually published.
 
-#### Ribbon design — AGREED with the user 2026-07-31, still to build
+#### 🟡 The ribbon — built and deployed on `account`, one visual check outstanding
+
+Three new pieces, all committed:
+- **`prototype/report-ribbon.js`** → web resource `qdb_reportengine_ribbon.js`. Handlers
+  `populateFormFlyout` / `populateGridFlyout` (build the menu) and `openReport` (open the viewer).
+- **`scripts/seed-ribbon-placements.mjs`** — seeds `qdb_reportribbonplacement`; **6 rows now on
+  `account`** (3 reports × form + grid). The table was empty before, so nothing could have shown.
+- **`scripts/deploy-ribbon.mjs`** — applies the RibbonDiffXml. `node deploy-ribbon.mjs <env> [entity]`.
+
+**Confirmed ingested by the platform** — `ribbondiffs` holds both custom actions against `account`:
+`qdb.account.Form.ReportsFlyout.CustomAction` and `qdb.account.HomeGrid.ReportsFlyout.CustomAction`.
+
+**⏳ NOT yet seen on screen.** The browser session expired before the flyout could be opened, so the
+menu has never actually been clicked. **First job next session:** open an account form and the
+account home grid, click **Reports**, confirm the three seeded reports appear and that choosing one
+opens the viewer. Until then treat the ribbon as deployed-but-unproven — this project has a long
+history of things that deploy cleanly and do not work.
+
+Implementation notes worth keeping:
+- **There is no supported Web API for RibbonDiffXml.** `ribboncustomization` has *no* `ribbondiffxml`
+  column and the underlying `ribbondiff` rows are not safely writable. Export → edit
+  `customizations.xml` → import → publish is the only reliable route.
+- The script uses a **small dedicated solution** (`qdb_reportengineribbon`, just the target entity
+  with `DoNotIncludeSubcomponents`) instead of round-tripping `qdb_reportengine`. Export/import is
+  seconds rather than minutes and a bad import cannot damage the engine's own components.
+- **Use `ImportSolutionAsync`, not `ImportSolution`.** The synchronous message holds the connection
+  open for the whole import and reliably trips Node's default header timeout — the client fails while
+  the server carries on and *succeeds*, so a retry then dies on "Cannot start another [Import]
+  because there is a previous [Import] running". That is what happened here: the first, apparently
+  failed, run had actually imported fine. Poll `asyncoperations` for statecode 3 / statuscode 30.
+- **The populate handler must be synchronous.** The ribbon reads `PopulationXML` the instant the
+  handler returns, so `Xrm.WebApi` would always answer too late. `report-ribbon.js` uses a deliberate
+  synchronous `XMLHttpRequest`; this is not an oversight, do not "fix" it into an async call.
+- The report id rides in each generated button's `Id` (`qdb.report.<guid>`) because every item shares
+  one command; `openReport` recovers it from `CommandProperties.SourceControlId`.
+
+#### Ribbon design — AGREED with the user 2026-07-31
 
 **One dynamically-populated flyout per entity. Not one button per report, and not the OOB Run
 Report button.** RibbonDiffXml edits in the QDB solution are confirmed acceptable.

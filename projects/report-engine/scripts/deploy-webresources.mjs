@@ -26,6 +26,7 @@ const SCRIPT = 3;
 const WEB_RESOURCES = [
   { name: 'qdb_reportengine_designer.html', display: 'Report Engine — Designer', file: 'report-designer.html', type: HTML },
   { name: 'qdb_reportengine_runtime.html', display: 'Report Engine — Runtime Viewer', file: 'report-runtime.html', type: HTML },
+  { name: 'qdb_reportengine_ribbon.js', display: 'Report Engine — Ribbon handlers', file: 'report-ribbon.js', type: SCRIPT },
   { name: 'qdb_reportengine_xlsx.js', display: 'Report Engine — SheetJS (Apache-2.0)', file: 'vendor/xlsx.mini.min.js', type: SCRIPT },
   { name: 'qdb_reportengine_jspdf.js', display: 'Report Engine — jsPDF (MIT)', file: 'vendor/jspdf.umd.min.js', type: SCRIPT },
   { name: 'qdb_reportengine_jspdf_autotable.js', display: 'Report Engine — jsPDF AutoTable (MIT)', file: 'vendor/jspdf.plugin.autotable.min.js', type: SCRIPT }

@@ -44,3 +44,6 @@ Thumbs.db
 
 # Plugin strong-name key — private key, escrowed in the team secret store, never committed.
 *.snk
+
+# Scratch space for the ribbon solution export/import round trip.
+projects/report-engine/.ribbon-build/
