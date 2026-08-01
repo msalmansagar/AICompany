@@ -135,11 +135,17 @@ async function ensureDashboard() {
   return formId;
 }
 
+/* THE ONE THAT MATTERS: a component-scoped PublishXml is NOT enough for a new dashboard.
+   With only the <dashboards> publish, the record saves, publishes and reports healthy, yet CRM never
+   lists it in the dashboard picker and silently renders a different dashboard instead — which reads
+   as a broken deployment. Proven by cloning a working OOB dashboard byte-for-byte: the clone was
+   invisible too, so the Form XML was never the cause. PublishAllXml makes both appear immediately. */
 async function publishDashboard(formId) {
   await api('POST', 'PublishXml', {
     ParameterXml: `<importexportxml><dashboards><dashboard>${formId}</dashboard></dashboards></importexportxml>`
   });
-  console.log('  ✓ dashboard published');
+  await api('POST', 'PublishAllXml', {});
+  console.log('  ✓ dashboard published (component publish + PublishAllXml)');
 }
 
 /** Puts the dashboard inside the Report Engine app so it is offered in that app's dashboard picker. */

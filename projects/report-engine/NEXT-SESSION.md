@@ -58,7 +58,7 @@ primary name is `qdb_dashboardname` and there is also `qdb_dashboardcode`. A `$s
 | Target | Status |
 |---|---|
 | **Sitemap area** | ✅ **DONE and verified on screen** — `scripts/provision-report-app.mjs` |
-| **Native CRM dashboard** | ⚠️ **record deploys clean but CRM will not render or list it** — see below |
+| **Native CRM dashboard** | ✅ **DONE and verified on screen** — `scripts/provision-report-dashboard.mjs` |
 | **Ribbon buttons** | ❌ not started — design still as agreed below |
 
 #### ✅ The "Report Engine" model-driven app exists
@@ -78,36 +78,35 @@ in the same run that creates. Also: `webresourceid` (icon) is **required** and i
 a lookup; `Prefer: return=representation` is rejected; a web resource **cannot** be an app component
 (0x80050112); `ValidateApp` is a GET function; and `<SiteMap>` has no `SiteMapName` attribute.
 
-#### ⚠️ The native dashboard — deployed, but CRM silently substitutes another
-`scripts/provision-report-dashboard.mjs` creates systemform **`0c625f7d-9b8d-f111-ab0f-70a8a55bc6a5`**
-("Report Engine — Report Catalog"), publishes it, and links it to the app. All of that reports
-success, and the record is healthy:
+#### ✅ The native dashboard — `scripts/provision-report-dashboard.mjs`
+Creates systemform **`0c625f7d-9b8d-f111-ab0f-70a8a55bc6a5`** ("Report Engine — Report Catalog"),
+a single full-width web-resource cell hosting `qdb_reportengine_runtime.html`, publishes it and links
+it to the app. **Verified on screen:** the Dashboards nav item in the Report Engine app opens it and
+the report catalogue renders inside with the real 7 reports.
 
-- `type=0`, `formactivationstate=1`, `componentstate=0`, `objecttypecode=none`, published — **every
-  discriminating field is identical to the working OOB "Overview" dashboard**, compared field by field.
-- It **is** an app component (`appmodulecomponents` has it as `componenttype 60` against the app's
-  `appmoduleidunique`).
+🔑 **A component-scoped `PublishXml` is NOT enough for a new dashboard — you must call
+`PublishAllXml`.** This cost most of the session. With only the `<dashboards>` publish the record
+saves, publishes, reports healthy and matches a working OOB dashboard on every field, yet CRM never
+lists it in the picker and silently renders **"Tier 1 Dashboard"** instead. Every route fell back the
+same way: `pagetype=dashboard&id=…`, `&type=system`, and
+`Xrm.Navigation.navigateTo({pageType:'dashboard', dashboardId:…})`.
 
-**But it never renders.** Navigating to `pagetype=dashboard&id=<it>`, adding `&type=system`, and
-calling `Xrm.Navigation.navigateTo({pageType:'dashboard', dashboardId:<it>})` **all silently fall back
-to "Tier 1 Dashboard"**, and the dashboard picker (44 entries) does not list it at all.
+**What proved it was not the Form XML:** cloning a working OOB dashboard *byte-for-byte* under a new
+name produced a dashboard that was **equally invisible**. That ruled out the markup in one step,
+after a lot of wasted effort tuning it. One `PublishAllXml` made both appear immediately.
 
-Already tried and ruled out: the classic `/workplace/home_dashboards.aspx` subarea (not app-aware —
-it lists the org's dashboards and never the app's, so do not use it); a `DefaultDashboard="{guid}"`
-subarea (stored correctly, still overridden); hard reloads for the sitemap/dashboard client cache
-(the *sitemap* cache is real — the Dashboards nav item only appeared after a reload); and rebuilding
-the Form XML to mirror a working dashboard exactly — `columns="1111"`, filler `<row />` elements to
-match the cell's rowspan, and a `<DisplayConditions FallbackForm="true"><Everyone /></DisplayConditions>`
-block. **None of these changed the result.**
-
-Note the fallback URL carries `_canOverride=true`, i.e. the signed-in user has a **personal default
-dashboard** ("Tier 1 Dashboard") that outranks the sitemap's. That is a plausible contributor but
-does not explain the dashboard being absent from the picker.
-
-**Next thing to try:** build the dashboard through the maker UI once (make.powerapps.com → new
-dashboard → one web-resource tile), then diff its `formxml` and `systemform` row against ours. The
-same "copy a known-good record" technique is what unstuck the appmodule, and the remaining
-difference is likely one attribute in the Form XML that is accepted on save but required at render.
+Also learned, worth keeping:
+- The dashboard **Form XML schema is stricter than the entity-form one** and rejects on save:
+  `IsUserDefined` on a tab; `name`, `layout`, `celllabelalignment`, `celllabelposition` on a section.
+  A dashboard cell's `Url` is the **bare web-resource name**, not `$webresource:…`.
+- Three things are accepted on save but load-bearing at render: `columns="1111"` on the section,
+  filler `<row />` elements matching the cell's rowspan, and a `<DisplayConditions>` block.
+- The classic `/workplace/home_dashboards.aspx` subarea is **not app-aware** — it lists the org's
+  dashboards and never the app's own. Use `Url="/main.aspx?pagetype=dashboard"` with
+  `DefaultDashboard="{guid}"` instead, which is what the sitemap now does.
+- The **sitemap itself is client-cached**: the Dashboards nav item only appeared after a full reload.
+- The fallback URL carries `_canOverride=true` — the signed-in user's **personal default dashboard**
+  outranks the sitemap's `DefaultDashboard`. Harmless once the dashboard is actually published.
 
 #### Ribbon design — AGREED with the user 2026-07-31, still to build
 
