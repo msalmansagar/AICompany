@@ -7,9 +7,14 @@
 // A DEDICATED app is created rather than editing an app QDB already uses: it is purely additive,
 // leaves existing apps untouched, and can be removed without unpicking someone else's navigation.
 //
-// Two subareas, because the product has two audiences:
+// Three subareas, because the product has two audiences and two surfaces:
 //   Run a report    -> qdb_reportengine_runtime.html   (needs Read on a report definition)
+//   Dashboards      -> the app's native CRM dashboards (see provision-report-dashboard.mjs)
 //   Report Designer -> qdb_reportengine_designer.html  (needs Write — authoring, not consumption)
+//
+// The Dashboards subarea is what makes the native dashboard reachable. Without it the app has no
+// dashboard route at all, and CRM silently falls back to whichever dashboard it considers default
+// (in this org, "Tier 1 Dashboard") — which looks like the new dashboard failed to deploy.
 //
 // Idempotent: reuses the sitemap and app if they already exist and re-publishes them.
 //
@@ -45,6 +50,9 @@ const RUNTIME_WEB_RESOURCE = 'qdb_reportengine_runtime.html';
 const DESIGNER_WEB_RESOURCE = 'qdb_reportengine_designer.html';
 const APP_ICON_WEB_RESOURCE = 'qdb_reportengine_appicon.svg';
 
+// Must match provision-report-dashboard.mjs — the two scripts find each other by this name.
+const DASHBOARD_NAME = 'Report Engine — Report Catalog';
+
 const WEB_RESOURCE_TYPE_SVG = 11;
 const DUPLICATE_APP_NAME_ERROR = '0x80050135';
 
@@ -58,14 +66,19 @@ const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32
 
 /* PassParams carries the CRM context (user, org, language) onto the web-resource URL, which the
    viewer needs to resolve the caller. The Privilege elements hide a subarea from users who could
-   not use it anyway — convenience, not enforcement; the plugin remains the security boundary. */
-const SITEMAP_XML = `<SiteMap IntroducedVersion="9.0.0.0">
+   not use it anyway — convenience, not enforcement; the plugin remains the security boundary.
+
+   The Dashboards subarea names its dashboard explicitly via DefaultDashboard. Pointing it at the
+   classic /workplace/home_dashboards.aspx instead does NOT work: that page is not app-aware, so it
+   offers the org's whole system-dashboard list and never surfaces this app's own dashboard — which
+   reads as "the dashboard failed to deploy" when the record is in fact perfectly healthy. */
+const buildSiteMapXml = defaultDashboardId => `<SiteMap IntroducedVersion="9.0.0.0">
   <Area Id="qdb_rpt_area" Title="Report Engine" ShowGroups="true">
     <Group Id="qdb_rpt_grp_run" Title="Reports">
       <SubArea Id="qdb_rpt_sub_viewer" Title="Run a report" Url="$webresource:${RUNTIME_WEB_RESOURCE}" AvailableOffline="false" PassParams="true" Client="All">
         <Privilege Entity="qdb_reportdefinition" Privilege="Read" />
       </SubArea>
-    </Group>
+${defaultDashboardId ? `      <SubArea Id="qdb_rpt_sub_dashboards" Title="Dashboards" Url="/main.aspx?pagetype=dashboard" DefaultDashboard="{${defaultDashboardId}}" AvailableOffline="false" Client="All" />\n` : ''}    </Group>
     <Group Id="qdb_rpt_grp_author" Title="Authoring">
       <SubArea Id="qdb_rpt_sub_designer" Title="Report Designer" Url="$webresource:${DESIGNER_WEB_RESOURCE}" AvailableOffline="false" PassParams="true" Client="All">
         <Privilege Entity="qdb_reportdefinition" Privilege="Write" />
@@ -122,15 +135,28 @@ async function findOne(entitySet, query) {
   return (found.value || [])[0] || null;
 }
 
-async function ensureSiteMap() {
+/* Looked up by name rather than passed in, so the two provisioning scripts stay independent and
+   can run in either order — the Dashboards subarea simply appears once the dashboard exists. */
+async function findDashboardId() {
+  const dashboard = await findOne('systemforms',
+    `$select=formid&$filter=name eq '${DASHBOARD_NAME.replace(/'/g, "''")}' and type eq 0`);
+  if (!dashboard) {
+    console.log('  ! native dashboard not found — run provision-report-dashboard.mjs, then re-run this');
+    return null;
+  }
+  return dashboard.formid;
+}
+
+async function ensureSiteMap(defaultDashboardId) {
+  const siteMapXml = buildSiteMapXml(defaultDashboardId);
   const existing = await findOne('sitemaps', `$select=sitemapid&$filter=sitemapnameunique eq '${SITEMAP_UNIQUE_NAME}'`);
   if (existing) {
-    await api('PATCH', `sitemaps(${existing.sitemapid})`, { sitemapxml: SITEMAP_XML });
+    await api('PATCH', `sitemaps(${existing.sitemapid})`, { sitemapxml: siteMapXml });
     console.log(`  = sitemap ${SITEMAP_UNIQUE_NAME} updated (${existing.sitemapid})`);
     return existing.sitemapid;
   }
   const siteMapId = await createReturningId('sitemaps',
-    { sitemapnameunique: SITEMAP_UNIQUE_NAME, sitemapxml: SITEMAP_XML, isappaware: true },
+    { sitemapnameunique: SITEMAP_UNIQUE_NAME, sitemapxml: siteMapXml, isappaware: true },
     { 'MSCRM.SolutionUniqueName': SOLUTION });
   console.log(`  + sitemap ${SITEMAP_UNIQUE_NAME} created (${siteMapId})`);
   return siteMapId;
@@ -216,7 +242,7 @@ token = await getToken(
   env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 
 console.log(`\n== Provision "${APP_NAME}" app → ${baseUrl} ==\n`);
-const siteMapId = await ensureSiteMap();
+const siteMapId = await ensureSiteMap(await findDashboardId());
 const appId = await ensureApp(await ensureAppIcon());
 await linkSiteMap(appId, siteMapId);
 await publish(appId, siteMapId);
