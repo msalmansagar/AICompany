@@ -1,41 +1,93 @@
 /**
  * Shared plumbing for the translation round trip (export → Excel → import).
  *
- * The set of translatable strings is not a hand-written list: it is every field the publish
- * generator passes through ITranslationResolver.Resolve. If the generator resolves it, a
- * translation for it will be honoured at publish time — so that is the authoritative
- * definition, and this list is derived from those call sites.
+ * The set of translatable strings is not a hand-written list: it is every (entity, field) pair
+ * the publish generator passes through ITranslationResolver.Resolve — FormJsonGenerator.cs and
+ * FieldBuilder.cs. If the generator resolves it, a translation for it will be honoured at
+ * publish time, so those call sites are the authoritative definition and this mirrors them.
+ *
+ * Fields belong to an entity, not to the form as a whole. Kept in step with
+ * designer/src/services/translations/translatableSpec.ts, which runs the same walk in the UI.
  */
 const TENANT_ID = 'd79e793c-f6de-4204-8508-7980a63df957';
 const CLIENT_ID = '08e80e93-0bab-45ef-8372-2e554fa9af9b';
 const DATAVERSE_URL = 'https://org5869857f.crm4.dynamics.com';
 export const API = `${DATAVERSE_URL}/api/data/v9.2`;
 
-/** Every field name the publisher resolves. A record contributes a row per field it holds. */
-export const TRANSLATABLE_FIELDS = [
-  'qdb_title', 'qdb_label', 'qdb_description',
-  'qdb_confirmation_message', 'qdb_confirm_message',
-  'qdb_submit_confirmation_label', 'qdb_submit_confirmation_message',
-  'qdb_heading', 'qdb_sub_heading', 'qdb_section_title',
-  'qdb_item_title', 'qdb_item_description', 'qdb_note_text', 'qdb_icon_alt_text',
-  'qdb_infocard_back_label', 'qdb_infocard_continue_label',
-  'qdb_infocard_skip_label', 'qdb_infocard_start_label',
-];
-
-/** Entities the publisher resolves translations for, and how each is reached from the form. */
+/** Entities the publisher resolves translations for, how each is reached, and which fields. */
 export const TRANSLATABLE_ENTITIES = [
-  { entity: 'qdb_form_definition', idField: 'qdb_form_definitionid', scope: 'form' },
-  { entity: 'qdb_form_tab', idField: 'qdb_form_tabid', scope: 'form', parent: '_qdb_form_definition_id_value' },
-  { entity: 'qdb_form_section', idField: 'qdb_form_sectionid', scope: 'tabs', parent: '_qdb_form_tab_id_value' },
-  { entity: 'qdb_form_field', idField: 'qdb_form_fieldid', scope: 'sections', parent: '_qdb_form_section_id_value' },
-  { entity: 'qdb_form_option_value', idField: 'qdb_form_option_valueid', scope: 'fields', parent: '_qdb_form_field_id_value' },
-  { entity: 'qdb_form_validation_rule', idField: 'qdb_form_validation_ruleid', scope: 'fields', parent: '_qdb_form_field_id_value' },
-  { entity: 'qdb_grid_column_config', idField: 'qdb_grid_column_configid', scope: 'fields', parent: '_qdb_form_field_id_value' },
-  { entity: 'qdb_form_button', idField: 'qdb_form_buttonid', scope: 'form', parent: '_qdb_form_definition_id_value' },
-  { entity: 'qdb_form_scoped_button', idField: 'qdb_form_scoped_buttonid', scope: 'form', parent: '_qdb_form_definition_id_value' },
-  { entity: 'qdb_info_card_screen', idField: 'qdb_info_card_screenid', scope: 'form', parent: '_qdb_form_definition_id_value' },
-  { entity: 'qdb_info_card_section', idField: 'qdb_info_card_sectionid', scope: 'screens', parent: '_qdb_info_card_screen_id_value' },
-  { entity: 'qdb_info_card_item', idField: 'qdb_info_card_itemid', scope: 'cardSections', parent: '_qdb_info_card_section_id_value' },
+  {
+    entity: 'qdb_form_definition', idField: 'qdb_form_definitionid', scope: 'form',
+    fields: [
+      'qdb_title', 'qdb_description', 'qdb_confirmation_message',
+      'qdb_submit_confirmation_label', 'qdb_submit_confirmation_message',
+      'qdb_infocard_back_label', 'qdb_infocard_continue_label',
+      'qdb_infocard_skip_label', 'qdb_infocard_start_label',
+    ],
+  },
+  {
+    entity: 'qdb_form_tab', idField: 'qdb_form_tabid', scope: 'form',
+    parent: '_qdb_form_definition_id_value',
+    fields: [
+      'qdb_label', 'qdb_description',
+      'qdb_submit_confirmation_label', 'qdb_submit_confirmation_message',
+    ],
+  },
+  {
+    entity: 'qdb_form_section', idField: 'qdb_form_sectionid', scope: 'tabs',
+    parent: '_qdb_form_tab_id_value',
+    fields: ['qdb_label', 'qdb_description'],
+  },
+  {
+    entity: 'qdb_form_field', idField: 'qdb_form_fieldid', scope: 'sections',
+    parent: '_qdb_form_section_id_value',
+    fields: [
+      'qdb_label', 'qdb_placeholder', 'qdb_tooltip', 'qdb_prefix', 'qdb_suffix',
+      'qdb_true_label', 'qdb_false_label', 'qdb_static_content',
+      'qdb_info_card_title', 'qdb_info_card_body', 'qdb_info_card_download_label',
+      'qdb_file_download_label',
+    ],
+  },
+  {
+    entity: 'qdb_form_option_value', idField: 'qdb_form_option_valueid', scope: 'fields',
+    parent: '_qdb_form_field_id_value',
+    fields: ['qdb_label', 'qdb_description', 'qdb_notes'],
+  },
+  {
+    entity: 'qdb_form_validation_rule', idField: 'qdb_form_validation_ruleid', scope: 'fields',
+    parent: '_qdb_form_field_id_value',
+    fields: ['qdb_error_message'],
+  },
+  {
+    entity: 'qdb_grid_column_config', idField: 'qdb_grid_column_configid', scope: 'fields',
+    parent: '_qdb_form_field_id_value',
+    fields: ['qdb_column_label'],
+  },
+  {
+    entity: 'qdb_form_button', idField: 'qdb_form_buttonid', scope: 'form',
+    parent: '_qdb_form_definition_id_value',
+    fields: ['qdb_label', 'qdb_confirmation_message'],
+  },
+  {
+    entity: 'qdb_form_scoped_button', idField: 'qdb_form_scoped_buttonid', scope: 'form',
+    parent: '_qdb_form_definition_id_value',
+    fields: ['qdb_label', 'qdb_confirm_message'],
+  },
+  {
+    entity: 'qdb_info_card_screen', idField: 'qdb_info_card_screenid', scope: 'form',
+    parent: '_qdb_form_definition_id_value',
+    fields: ['qdb_heading', 'qdb_sub_heading', 'qdb_icon_alt_text'],
+  },
+  {
+    entity: 'qdb_info_card_section', idField: 'qdb_info_card_sectionid', scope: 'screens',
+    parent: '_qdb_info_card_screen_id_value',
+    fields: ['qdb_section_title', 'qdb_note_text'],
+  },
+  {
+    entity: 'qdb_info_card_item', idField: 'qdb_info_card_itemid', scope: 'cardSections',
+    parent: '_qdb_info_card_section_id_value',
+    fields: ['qdb_item_title', 'qdb_item_description'],
+  },
 ];
 
 export async function acquireToken() {
@@ -138,7 +190,7 @@ export function buildRows(byEntity) {
   const rows = [];
   for (const spec of TRANSLATABLE_ENTITIES) {
     for (const record of byEntity.get(spec.entity) ?? []) {
-      for (const field of TRANSLATABLE_FIELDS) {
+      for (const field of spec.fields) {
         const value = record[field];
         if (typeof value !== 'string' || !value.trim()) continue;
         rows.push({
