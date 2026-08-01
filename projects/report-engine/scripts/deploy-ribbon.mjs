@@ -28,22 +28,54 @@ const workDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../.ribb
 
 const targetEntity = process.argv[3] || 'account';
 
-/* Ribbon locations. Form and home grid differ in what context they can supply, which is why they
-   use different populate commands — a form knows its record, a grid knows the ticked rows. */
+/* Ribbon locations — all three use the ExportData group, which is where the platform's own
+   "Run Report" and "Word Templates" flyouts live on this entity.
+   THIS MATTERS: an earlier attempt placed the flyout in MainTab.Actions (form) and MainTab.Workflow
+   (grid). It compiled into the ribbon correctly and simply never rendered — no button, no error,
+   nothing in the overflow. Putting it beside the OOB Reports flyout is what makes it appear, and it
+   is also where a user would look for it.
+
+   The three locations differ in what context they can supply, hence three populate commands: a form
+   knows its record, a grid knows the ticked rows. */
 const RIBBON_LOCATIONS = [
-  { key: 'Form', location: `Mscrm.Form.${targetEntity}.MainTab.Actions.Controls._children`, populateCommand: 'PopulateForm' },
-  { key: 'HomeGrid', location: `Mscrm.HomepageGrid.${targetEntity}.MainTab.Workflow.Controls._children`, populateCommand: 'PopulateGrid' }
+  { key: 'Form', location: `Mscrm.Form.${targetEntity}.MainTab.ExportData.Controls._children`, populateCommand: 'PopulateForm' },
+  { key: 'HomeGrid', location: `Mscrm.HomepageGrid.${targetEntity}.MainTab.ExportData.Controls._children`, populateCommand: 'PopulateGrid' },
+  { key: 'SubGrid', location: `Mscrm.SubGrid.${targetEntity}.MainTab.ExportData.Controls._children`, populateCommand: 'PopulateSubgrid' }
 ];
 
+/* Copied from the OOB Reports flyout on this entity. Alt and the images are not decoration: every
+   control that renders in this group carries them, and ours — which carried none — did not appear.
+   ModernImage is what Unified Interface actually draws. */
+const RIBBON_ICON_ATTRIBUTES = 'Image16by16="/_imgs/ribbon/RunReport_16.png"'
+  + ' Image32by32="/_imgs/ribbon/runreport32.png" ModernImage="Report"';
+
 const commandId = name => `qdb.ReportEngine.Command.${name}`;
+
+/* DIAGNOSTIC, remove once the flyout is confirmed rendering. A plain static Button placed in the
+   same group as the flyout, so a single look at the ribbon separates two very different causes:
+   if neither appears, the placement/group/TemplateAlias is wrong; if only this one appears, the
+   flyout's PopulateDynamically is what Unified Interface is refusing to render. */
+const INCLUDE_STATIC_PROBE = true;
+
+function staticProbeCustomAction({ key, location }) {
+  const buttonId = `qdb.${targetEntity}.${key}.ReportsProbe`;
+  return `<CustomAction Id="${buttonId}.CustomAction" Location="${location}" Sequence="42">`
+    + '<CommandUIDefinition>'
+    + `<Button Id="${buttonId}" Command="${commandId('Flyout')}" Sequence="42"`
+    + ' LabelText="Reports (probe)" Alt="Reports (probe)" ToolTipTitle="Reports (probe)"'
+    + ' ToolTipDescription="Diagnostic button — proves the ribbon placement itself works"'
+    + ` TemplateAlias="o1" ${RIBBON_ICON_ATTRIBUTES} />`
+    + '</CommandUIDefinition></CustomAction>';
+}
 
 function flyoutCustomAction({ key, location, populateCommand }) {
   const anchorId = `qdb.${targetEntity}.${key}.ReportsFlyout`;
   return `<CustomAction Id="${anchorId}.CustomAction" Location="${location}" Sequence="41">`
     + '<CommandUIDefinition>'
     + `<FlyoutAnchor Id="${anchorId}" Command="${commandId('Flyout')}" Sequence="41"`
-    + ' LabelText="Reports" ToolTipTitle="Reports"'
+    + ' LabelText="Reports" Alt="Reports" ToolTipTitle="Reports"'
     + ' ToolTipDescription="Run a Report Engine report" TemplateAlias="o1"'
+    + ` ${RIBBON_ICON_ATTRIBUTES}`
     + ` PopulateDynamically="true" PopulateQueryCommand="${commandId(populateCommand)}">`
     + `<Menu Id="${anchorId}.Menu" />`
     + '</FlyoutAnchor></CommandUIDefinition></CustomAction>';
@@ -65,15 +97,19 @@ function commandDefinition(name, actionsXml) {
    actually builds the menu when the user clicks. */
 function ribbonDiffXml() {
   const commands = [
-    commandDefinition('Flyout', ''),
+    commandDefinition('Flyout', javaScriptAction('noop', [])),
     commandDefinition('PopulateForm', javaScriptAction('populateFormFlyout', ['CommandProperties', 'PrimaryControl'])),
     commandDefinition('PopulateGrid', javaScriptAction('populateGridFlyout', ['CommandProperties', 'SelectedEntityTypeName'])),
+    commandDefinition('PopulateSubgrid', javaScriptAction('populateSubgridFlyout', ['CommandProperties', 'SelectedEntityTypeName'])),
     commandDefinition('OpenReport',
       javaScriptAction('openReport', ['CommandProperties', 'PrimaryControl', 'SelectedControlSelectedItemIds']))
   ].join('');
 
+  const customActions = RIBBON_LOCATIONS.map(flyoutCustomAction).join('')
+    + (INCLUDE_STATIC_PROBE ? RIBBON_LOCATIONS.map(staticProbeCustomAction).join('') : '');
+
   return '<RibbonDiffXml><CustomActions>'
-    + RIBBON_LOCATIONS.map(flyoutCustomAction).join('')
+    + customActions
     + '</CustomActions>'
     + '<Templates><RibbonTemplates Id="Mscrm.Templates"></RibbonTemplates></Templates>'
     + `<CommandDefinitions>${commands}</CommandDefinitions>`

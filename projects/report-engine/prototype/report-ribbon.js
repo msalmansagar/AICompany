@@ -123,6 +123,14 @@ var QdbReportEngine = window.QdbReportEngine || {};
     populate(commandProperties, selectedEntityTypeName, PLACEMENT_TYPE.subgrid);
   };
 
+  /**
+   * The flyout anchor's own command deliberately does nothing — opening the menu is the
+   * PopulateQueryCommand's job. It exists because a CommandDefinition with an entirely empty
+   * <Actions /> and no rules gives the Unified Interface command bar nothing to evaluate, and the
+   * control is then dropped without any error.
+   */
+  namespace.noop = function () {};
+
   function reportIdFromControlId(sourceControlId) {
     var id = String(sourceControlId || "");
     return id.indexOf(BUTTON_ID_PREFIX) === 0 ? id.substring(BUTTON_ID_PREFIX.length) : null;
