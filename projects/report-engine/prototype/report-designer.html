@@ -2875,11 +2875,18 @@ async function reportPlacementLookupProperty() {
   return reportLookupNavigationProperty;
 }
 
-/** Placement rows are replaced wholesale for this report, so removing one in the UI removes it here. */
+/* Placement rows are replaced wholesale for this report, so removing one in the UI removes it here.
+   Returns the tables the report used to be placed on. The caller needs them: a table dropped from
+   the Ribbon tab is no longer in the list to publish, so nothing would rebuild its command bar and
+   the menu would keep an item for a report that is no longer meant to be there. */
 async function writeRibbonPlacements(reportId, reportName, placements) {
   const lookupProperty = await reportPlacementLookupProperty();
   const existing = await dvList("qdb_reportribbonplacement",
-    `?$select=qdb_reportribbonplacementid&$filter=_qdb_reportdefinitionid_value eq ${reportId}`);
+    `?$select=qdb_reportribbonplacementid,qdb_entitylogicalname,qdb_placementtype`
+    + `&$filter=_qdb_reportdefinitionid_value eq ${reportId}`);
+  const previousTables = existing
+    .filter(row => row.qdb_entitylogicalname)
+    .map(row => ({ entity: row.qdb_entitylogicalname, placementType: row.qdb_placementtype }));
   for (const row of existing) await dvDelete("qdb_reportribbonplacement", row.qdb_reportribbonplacementid);
 
   for (const placement of placements) {
@@ -2896,6 +2903,7 @@ async function writeRibbonPlacements(reportId, reportName, placements) {
       [`${lookupProperty}@odata.bind`]: `/qdb_reportdefinitions(${reportId})`
     }));
   }
+  return previousTables;
 }
 
 const commandUniqueName = (kind, entity, key, suffix) =>
@@ -3010,12 +3018,22 @@ async function publishRibbonToCrm(report) {
       handlerId: await webResourceId(RIBBON_HANDLER_WEB_RESOURCE),
       iconId: await webResourceId(RIBBON_ICON_WEB_RESOURCE)
     };
-    await writeRibbonPlacements(report.savedId, report.name, targets);
+    const previousTables = await writeRibbonPlacements(report.savedId, report.name, targets);
 
+    /* Every command bar this report touches NOW, plus every one it touched BEFORE. Without the
+       second set, dropping a table from the tab leaves its menu advertising a report that no longer
+       claims to be there. */
     const tables = new Map();
+    const remember = (entity, mapping) => {
+      if (mapping && entity) tables.set(`${entity}|${mapping.key}`, { entity, mapping });
+    };
     for (const placement of targets) {
-      const mapping = CRM_COMMAND_LOCATIONS[placement.loc];
-      if (mapping) tables.set(`${placement.entity.trim().toLowerCase()}|${mapping.key}`, { entity: placement.entity.trim().toLowerCase(), mapping });
+      remember(placement.entity.trim().toLowerCase(), CRM_COMMAND_LOCATIONS[placement.loc]);
+    }
+    const mappingByPlacementType = Object.values(CRM_COMMAND_LOCATIONS)
+      .reduce((all, mapping) => Object.assign(all, { [mapping.placementType]: mapping }), {});
+    for (const previous of previousTables) {
+      remember(previous.entity, mappingByPlacementType[previous.placementType]);
     }
 
     let itemCount = 0;
