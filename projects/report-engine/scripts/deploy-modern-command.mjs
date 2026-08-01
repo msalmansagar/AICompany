@@ -40,13 +40,19 @@ const CONTEXT_ENTITY = 1;
 const ONCLICK_JAVASCRIPT = 2;
 const VISIBILITY_ALWAYS = 0;
 
-// JavaScript parameter type codes: 7 is PrimaryControl (copied from the platform's own commands),
-// 4 is a literal string. The handler identifies the report id by shape rather than by position, so
-// a wrong guess about the string code shows up as a clear error instead of silently wrong context.
-const PARAMETER_TYPE = { string: 4, primaryControl: 7 };
+/* JavaScript parameter type codes. 21 is a LITERAL STRING — confirmed by the platform's own
+   Deactivate command, which passes "deactivate" as type 21; no shipped command passes a string as
+   type 4. 7 is PrimaryControl.
+
+   Type 4 was the first guess and it is a CONTEXTUAL parameter, not a literal. That failed in two
+   different ways depending on where you clicked: on a form it resolved to the record's own id — a
+   guid, so it looked like a valid report id and the viewer fell back to showing the whole
+   catalogue — and on a grid with nothing selected it resolved to null. Same defect, two symptoms
+   that appear unrelated. */
+const PARAMETER_TYPE = { literalString: 21, primaryControl: 7 };
 
 const reportParameters = reportId => JSON.stringify([
-  { type: PARAMETER_TYPE.string, value: reportId },
+  { type: PARAMETER_TYPE.literalString, value: reportId },
   { type: PARAMETER_TYPE.primaryControl, value: null }
 ]);
 

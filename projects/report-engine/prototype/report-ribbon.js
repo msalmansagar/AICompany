@@ -145,17 +145,15 @@ var QdbReportEngine = window.QdbReportEngine || {};
    * that encoding wrong silently changes what arrives here. Finding the report id by shape rather
    * than by position means the handler keeps working whichever way the platform passes them.
    */
-  namespace.openReportFromCommand = function () {
-    const args = Array.prototype.slice.call(arguments);
-    const reportId = args.find(value => typeof value === "string" && GUID_PATTERN.test(value.trim()));
-    const primaryControl = args.find(value => value && typeof value === "object");
-
-    if (!reportId) {
-      console.error("[ReportEngine] no report id in command arguments", args);
-      Xrm.Navigation.openErrorDialog({ message: "This report command is missing its report id." });
+  namespace.openReportFromCommand = function (reportId, primaryControl) {
+    if (typeof reportId !== "string" || !GUID_PATTERN.test(reportId.trim())) {
+      console.error("[ReportEngine] first command parameter is not a report id", reportId);
+      Xrm.Navigation.openErrorDialog({
+        message: "This report command is not passing its report id. Re-run deploy-modern-command.mjs."
+      });
       return;
     }
-    openReportById(reportId.replace(/[{}]/g, ""), primaryControl);
+    openReportById(reportId.trim().replace(/[{}]/g, ""), primaryControl);
   };
 
   /** Opens one report in the runtime viewer, carrying whatever record context is available. */
