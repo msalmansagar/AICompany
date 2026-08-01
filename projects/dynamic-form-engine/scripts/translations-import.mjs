@@ -21,6 +21,18 @@ import { API, acquireToken, headers, get, loadTranslations, translationKey } fro
 const DRY_RUN = process.argv.includes('--dry-run');
 const FIXED_COLUMNS = ['Entity', 'Record Id', 'Field', 'Where', 'Source (en)', 'Source changed?'];
 
+/**
+ * Excel hands back a string, a rich-text run list, a hyperlink or a formula result depending on
+ * how the cell was filled. Rich text is what a translator gets by pasting from Word, and
+ * reading it as empty would count as "left blank" and silently discard their work.
+ */
+function cellText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') return String(value);
+  if (Array.isArray(value.richText)) return value.richText.map((run) => run.text ?? '').join('');
+  return String(value.text ?? value.result ?? '');
+}
+
 async function upsert(H, existing, row, language, value) {
   const key = translationKey(row.entity, row.recordId, row.field, language);
   const found = existing.get(key);
@@ -79,13 +91,13 @@ async function run() {
       entity: String(cells[1] ?? '').trim(),
       recordId: String(cells[2] ?? '').trim(),
       field: String(cells[3] ?? '').trim(),
-      source: String(cells[5] ?? '').trim(),
+      // Not trimmed: this is stored as the source snapshot and compared byte for byte against
+      // the CRM value on the next export. Trimming here flags every padded label as stale.
+      source: String(cells[5] ?? ''),
       values: {},
     };
     languages.forEach((code, i) => {
-      const raw = cells[FIXED_COLUMNS.length + 1 + i];
-      const text = raw && typeof raw === 'object' ? (raw.text ?? raw.result ?? '') : raw;
-      row.values[code] = String(text ?? '').trim();
+      row.values[code] = cellText(cells[FIXED_COLUMNS.length + 1 + i]).trim();
     });
     if (row.entity && row.recordId && row.field) rows.push(row);
   });
