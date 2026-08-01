@@ -13,6 +13,11 @@
  * STALE DETECTION: each translation records the source text it was made from. When the
  * English later changes, the export flags that row — otherwise the translation silently
  * stays wrong and nobody notices until a user sees it.
+ *
+ * Translations made before that snapshot existed carry no source text, so they cannot be
+ * compared to anything. Those are reported UNKNOWN rather than left blank: blank means
+ * "compared, still current", and letting an uncomparable row claim that is the exact silence
+ * this is here to prevent. UNKNOWN clears itself the first time the row goes through an import.
  */
 import ExcelJS from 'exceljs';
 import { resolve } from 'node:path';
@@ -23,6 +28,8 @@ import {
 
 const SOURCE_LANGUAGE = 'en';
 const KEY_COLUMNS = 3;
+const CHANGED_FONT = { bold: true, color: { argb: 'FFC00000' } };
+const UNVERIFIED_FONT = { color: { argb: 'FF9C6500' } };
 
 async function run() {
   const formRef = process.argv[2];
@@ -53,29 +60,29 @@ async function run() {
     { header: 'Field', key: 'field', width: 30 },
     { header: 'Where', key: 'context', width: 24 },
     { header: `Source (${SOURCE_LANGUAGE})`, key: 'source', width: 46 },
-    { header: 'Source changed?', key: 'stale', width: 16 },
+    { header: 'Source changed?', key: 'stale', width: 24 },
     ...languages.map((code) => ({ header: code, key: `lang_${code}`, width: 46 })),
   ];
 
   sheet.getRow(1).font = { bold: true };
 
-  let staleCount = 0;
+  let changedCount = 0;
+  let unverifiedCount = 0;
   for (const row of rows) {
-    const values = { ...row, stale: '' };
-    const notes = [];
+    const state = sourceState(row, languages, existing);
+    const added = sheet.addRow({
+      ...row,
+      ...languageValues(row, languages, existing),
+      stale: describeState(state),
+    });
 
-    for (const code of languages) {
-      const found = existing.get(translationKey(row.entity, row.recordId, row.field, code));
-      values[`lang_${code}`] = found?.qdb_translated_value ?? '';
-
-      // Flag only where a translation exists and the source has moved on since.
-      const snapshot = found?.qdb_source_value;
-      if (found?.qdb_translated_value && snapshot && snapshot !== row.source) notes.push(code);
+    if (state.changed.length) {
+      added.getCell('stale').font = CHANGED_FONT;
+      changedCount++;
+    } else if (state.unverified.length) {
+      added.getCell('stale').font = UNVERIFIED_FONT;
+      unverifiedCount++;
     }
-
-    if (notes.length) { values.stale = `YES (${notes.join(', ')})`; staleCount++; }
-    const added = sheet.addRow(values);
-    if (notes.length) added.getCell('stale').font = { bold: true, color: { argb: 'FFC00000' } };
   }
 
   // Arabic reads right to left; without this a translator sees the text mis-ordered.
@@ -96,9 +103,51 @@ async function run() {
   await workbook.xlsx.writeFile(outPath);
 
   console.log(`\nWrote ${outPath}`);
-  if (staleCount) console.log(`${staleCount} row(s) flagged — their English changed after the translation was made.`);
+  if (changedCount) console.log(`${changedCount} row(s) flagged — their English changed after the translation was made.`);
+  if (unverifiedCount) {
+    console.log(`${unverifiedCount} row(s) UNKNOWN — translated before source snapshots existed, so staleness cannot be`);
+    console.log('  determined. Importing the row once records a snapshot and clears it.');
+  }
   console.log('\nFill in the language columns, then:');
   console.log(`  node --env-file=scripts/.env scripts/translations-import.mjs "${outPath}" --dry-run`);
+}
+
+/**
+ * Per language, how each existing translation stands against the current English.
+ * A language with no translation at all is absent from both lists — there is nothing
+ * to be stale about, and the empty cell already says "translate me".
+ */
+function sourceState(row, languages, existing) {
+  const changed = [];
+  const unverified = [];
+
+  for (const code of languages) {
+    const found = existing.get(translationKey(row.entity, row.recordId, row.field, code));
+    if (!found?.qdb_translated_value) continue;
+
+    const snapshot = found.qdb_source_value;
+    if (!snapshot) unverified.push(code);
+    else if (snapshot !== row.source) changed.push(code);
+  }
+
+  return { changed, unverified };
+}
+
+/** Both states can appear on one row when the org has more than one language. */
+function describeState({ changed, unverified }) {
+  const parts = [];
+  if (changed.length) parts.push(`YES (${changed.join(', ')})`);
+  if (unverified.length) parts.push(`UNKNOWN (${unverified.join(', ')})`);
+  return parts.join('  ');
+}
+
+function languageValues(row, languages, existing) {
+  const values = {};
+  for (const code of languages) {
+    const found = existing.get(translationKey(row.entity, row.recordId, row.field, code));
+    values[`lang_${code}`] = found?.qdb_translated_value ?? '';
+  }
+  return values;
 }
 
 run().catch((e) => { console.error('\nEXPORT FAILED:', e.message); process.exit(1); });
