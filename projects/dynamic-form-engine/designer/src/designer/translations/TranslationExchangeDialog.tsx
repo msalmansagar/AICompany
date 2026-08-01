@@ -17,6 +17,7 @@ import {
   Spinner,
   MessageBar,
   MessageBarBody,
+  MessageBarActions,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -49,6 +50,12 @@ export interface TranslationExchangeDialogProps {
   formId: string;
   formCode: string;
   onClose: () => void;
+  /**
+   * Routes into the normal publish flow. Importing only writes translation records — the
+   * runtime keeps serving the JSON generated at the last publish until the form is published
+   * again, which is the step that regenerates it for every language.
+   */
+  onPublish: () => void;
 }
 
 export function TranslationExchangeDialog({
@@ -56,6 +63,7 @@ export function TranslationExchangeDialog({
   formId,
   formCode,
   onClose,
+  onPublish,
 }: TranslationExchangeDialogProps): React.ReactElement {
   const styles = useStyles();
   const crm = useContext(CrmContext);
@@ -213,12 +221,25 @@ export function TranslationExchangeDialog({
                   </div>
                   {checked && !applied && <ImportReport summary={checked} title="Would change" />}
                   {applied && <ImportReport summary={applied} title="Applied" />}
-                  {applied && (
-                    <MessageBar intent="success">
-                      <MessageBarBody>
-                        Republish the form to regenerate its JSON in the new language.
-                      </MessageBarBody>
-                    </MessageBar>
+                  {applied && applied.created + applied.updated > 0 && (
+                    <>
+                      <MessageBar intent="success">
+                        <MessageBarBody>
+                          Saved. Publish to regenerate the form JSON for every language — until
+                          then the runtime still serves the version from the last publish.
+                          Publishing also makes any unpublished draft edits on this form live.
+                        </MessageBarBody>
+                        <MessageBarActions>
+                          <Button appearance="primary" size="small" onClick={onPublish}>
+                            Publish now
+                          </Button>
+                        </MessageBarActions>
+                      </MessageBar>
+                      <Text size={200} className={styles.hint}>
+                        Once published, open the form and switch the language — it opens in the
+                        default language, where these labels are meant to stay untranslated.
+                      </Text>
+                    </>
                   )}
                 </>
               )}

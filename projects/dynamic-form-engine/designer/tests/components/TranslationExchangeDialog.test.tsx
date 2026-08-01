@@ -26,7 +26,7 @@ function org(): FakeWebApi {
   });
 }
 
-function renderDialog(webApi: FakeWebApi = org()) {
+function renderDialog(webApi: FakeWebApi = org(), onPublish: () => void = () => undefined) {
   const crm = { getWebApi: () => webApi } as never;
   return render(
     <FluentProvider theme={webLightTheme}>
@@ -36,6 +36,7 @@ function renderDialog(webApi: FakeWebApi = org()) {
           formId={FORM_ID}
           formCode="loan"
           onClose={() => undefined}
+          onPublish={onPublish}
         />
       </CrmContext.Provider>
     </FluentProvider>,
@@ -184,6 +185,57 @@ describe('TranslationExchangeDialog', () => {
       () => expect(document.body.textContent).toContain('1 cell(s) filled in'),
       LOADS_EXCELJS,
     );
+  });
+
+  it('apply_offersPublish_becauseTheRuntimeStillServesTheOldJson', async () => {
+    const onPublish = vi.fn();
+    renderDialog(org(), onPublish);
+
+    await uploadWorkbook([
+      ['qdb_form_definition', FORM_ID, 'qdb_title', '', 'Loan Application', '', 'طلب قرض'],
+    ]);
+    const check = await screen.findByRole('button', { name: /check without saving/i }, LOADS_EXCELJS);
+    await userEvent.click(check);
+    await userEvent.click(await screen.findByRole('button', { name: /^apply$/i }, LOADS_EXCELJS));
+
+    const publish = await screen.findByRole('button', { name: /publish now/i }, LOADS_EXCELJS);
+    await userEvent.click(publish);
+
+    expect(onPublish).toHaveBeenCalled();
+  });
+
+  it('apply_doesNotOfferPublish_whenNothingChanged', async () => {
+    const api = new FakeWebApi({
+      qdb_form_definition: [
+        { qdb_form_definitionid: FORM_ID, qdb_title: 'Loan Application', qdb_form_code: 'loan' },
+      ],
+      [ENTITY_NAMES.LANGUAGE_CONFIG]: [
+        { qdb_language_code: 'en', qdb_is_default: true },
+        { qdb_language_code: 'ar', qdb_is_default: false },
+      ],
+      [ENTITY_NAMES.TRANSLATION]: [
+        {
+          qdb_translationid: 'tr-1',
+          qdb_entity_name: 'qdb_form_definition',
+          qdb_record_id: FORM_ID,
+          qdb_field_name: 'qdb_title',
+          qdb_language_code: 'ar',
+          qdb_translated_value: 'طلب قرض',
+          qdb_source_value: 'Loan Application',
+        },
+      ],
+    });
+    renderDialog(api);
+
+    await uploadWorkbook([
+      ['qdb_form_definition', FORM_ID, 'qdb_title', '', 'Loan Application', '', 'طلب قرض'],
+    ]);
+    const check = await screen.findByRole('button', { name: /check without saving/i }, LOADS_EXCELJS);
+    await userEvent.click(check);
+    await userEvent.click(await screen.findByRole('button', { name: /^apply$/i }, LOADS_EXCELJS));
+
+    await waitFor(() => expect(document.body.textContent).toContain('No changes'), LOADS_EXCELJS);
+    expect(screen.queryByRole('button', { name: /publish now/i })).toBeNull();
   });
 
   it('download_showsTheFailure_whenTheLanguageConfigCannotBeRead', async () => {

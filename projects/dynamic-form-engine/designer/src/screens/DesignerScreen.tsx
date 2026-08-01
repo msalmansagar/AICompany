@@ -619,6 +619,13 @@ export function DesignerScreen(): React.ReactElement {
           formId={form.id}
           formCode={form.code}
           onClose={() => setIsTranslationsOpen(false)}
+          // Same route as the Publish command, so the contrast gate, the draft flush and the
+          // validation screen all still apply — importing translations must not become a way
+          // to publish without them.
+          onPublish={() => {
+            setIsTranslationsOpen(false);
+            void handlePublish();
+          }}
         />
       )}
 
