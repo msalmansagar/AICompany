@@ -175,15 +175,27 @@ export function translationKey(entity, recordId, field, language) {
   return `${entity}|${String(recordId).toLowerCase()}|${field}|${language}`;
 }
 
-/** Active languages configured in the org, excluding the source language. */
+/**
+ * Active languages configured in the org, source language excluded, in display order.
+ *
+ * The table is qdb_language_config. An earlier version asked for qdb_language, which does not
+ * exist in this org, and fell back to a hardcoded ['ar'] — so the fallback was the only code
+ * path that ever ran and a third configured language would never have reached a workbook.
+ * The query is no longer wrapped: a workbook missing a language is worse than a failed export.
+ */
 export async function activeLanguages(H, sourceLanguage) {
-  try {
-    const found = await get(H, 'qdb_languages?$select=qdb_language_code,qdb_name');
-    const codes = found.value
-      .map((l) => l.qdb_language_code)
-      .filter((c) => c && c.toLowerCase() !== sourceLanguage.toLowerCase());
-    return [...new Set(codes)];
-  } catch {
-    return ['ar'];
-  }
+  const filter = encodeURIComponent('qdb_is_active eq true');
+  const found = await get(
+    H,
+    'qdb_language_configs'
+      + '?$select=qdb_language_code,qdb_rtl_direction,qdb_display_order'
+      + `&$filter=${filter}&$orderby=qdb_display_order`,
+  );
+
+  const seen = new Set();
+  return found.value
+    .filter((l) => l.qdb_language_code)
+    .filter((l) => l.qdb_language_code.toLowerCase() !== sourceLanguage.toLowerCase())
+    .filter((l) => !seen.has(l.qdb_language_code) && seen.add(l.qdb_language_code))
+    .map((l) => ({ code: l.qdb_language_code, isRtl: Boolean(l.qdb_rtl_direction) }));
 }

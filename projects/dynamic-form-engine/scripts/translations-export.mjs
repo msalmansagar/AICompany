@@ -47,7 +47,8 @@ async function run() {
   const languages = await activeLanguages(H, SOURCE_LANGUAGE);
   const existing = await loadTranslations(H, [...new Set(rows.map((r) => r.recordId))]);
 
-  console.log(`Strings: ${rows.length}   languages: ${languages.join(', ') || '(none configured)'}`);
+  const codes = languages.map((l) => l.code);
+  console.log(`Strings: ${rows.length}   languages: ${codes.join(', ') || '(none configured)'}`);
 
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Translations', {
@@ -61,7 +62,7 @@ async function run() {
     { header: 'Where', key: 'context', width: 24 },
     { header: `Source (${SOURCE_LANGUAGE})`, key: 'source', width: 46 },
     { header: 'Source changed?', key: 'stale', width: 24 },
-    ...languages.map((code) => ({ header: code, key: `lang_${code}`, width: 46 })),
+    ...codes.map((code) => ({ header: code, key: `lang_${code}`, width: 46 })),
   ];
 
   sheet.getRow(1).font = { bold: true };
@@ -69,10 +70,10 @@ async function run() {
   let changedCount = 0;
   let unverifiedCount = 0;
   for (const row of rows) {
-    const state = sourceState(row, languages, existing);
+    const state = sourceState(row, codes, existing);
     const added = sheet.addRow({
       ...row,
-      ...languageValues(row, languages, existing),
+      ...languageValues(row, codes, existing),
       stale: describeState(state),
     });
 
@@ -85,9 +86,10 @@ async function run() {
     }
   }
 
-  // Arabic reads right to left; without this a translator sees the text mis-ordered.
-  for (const code of languages) {
-    if (code.toLowerCase().startsWith('ar')) {
+  // Right-to-left languages read wrong in a left-aligned column. Which ones those are is
+  // configuration in qdb_language_config, not something to infer from the language code.
+  for (const { code, isRtl } of languages) {
+    if (isRtl) {
       sheet.getColumn(`lang_${code}`).alignment = { readingOrder: 'rtl', horizontal: 'right' };
     }
   }
