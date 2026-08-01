@@ -24,6 +24,7 @@ import {
   TableRegular,
   PaintBrushRegular,
   Settings24Regular,
+  LocalLanguageRegular,
 } from '@fluentui/react-icons';
 import { useDesignerStore, selectCanUndo, selectCanRedo } from '@/state/designerStore';
 import type { FormStatus } from '@/state/models/DesignerFormModel';
@@ -74,6 +75,7 @@ interface DesignerCommandBarProps {
   onBusinessRules: () => void;
   onSubmissionMapping: () => void;
   onThemeEditor: () => void;
+  onTranslations: () => void;
   onBack: () => void;
 }
 
@@ -91,6 +93,7 @@ export function DesignerCommandBar({
   onBusinessRules,
   onSubmissionMapping,
   onThemeEditor,
+  onTranslations,
   onBack,
 }: DesignerCommandBarProps): React.ReactElement {
   const styles = useStyles();
@@ -172,6 +175,15 @@ export function DesignerCommandBar({
         <Tooltip content="Theme Editor" relationship="label">
           <ToolbarButton icon={<PaintBrushRegular />} onClick={onThemeEditor} aria-label="Theme Editor">
             Theme
+          </ToolbarButton>
+        </Tooltip>
+        <Tooltip content="Export labels for translation, and import them back" relationship="label">
+          <ToolbarButton
+            icon={<LocalLanguageRegular />}
+            onClick={onTranslations}
+            aria-label="Translations"
+          >
+            Translations
           </ToolbarButton>
         </Tooltip>
         <ToolbarDivider />

@@ -21,6 +21,7 @@ import { DesignerCanvas } from '@/designer/canvas/DesignerCanvas';
 import { PropertiesPanel } from '@/designer/properties/PropertiesPanel';
 import { DesignerCommandBar } from '@/designer/commandbar/DesignerCommandBar';
 import { ConflictResolutionDialog } from '@/components/concurrency/ConflictResolutionDialog';
+import { TranslationExchangeDialog } from '@/designer/translations/TranslationExchangeDialog';
 import { CrmContext } from '@/app/App';
 import { FormSaveService, PartialSaveError } from '@/services/FormSaveService';
 import { FormDefinitionService } from '@/services/FormDefinitionService';
@@ -135,6 +136,7 @@ export function DesignerScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
   const [activeOverlayLabel, setActiveOverlayLabel] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isTranslationsOpen, setIsTranslationsOpen] = useState(false);
   const [keyboardAnnouncement, setKeyboardAnnouncement] = useState<string>('');
 
   // One WriteQueue per form session — serialises debounced PATCH operations and
@@ -492,6 +494,9 @@ export function DesignerScreen(): React.ReactElement {
   const handleBusinessRules = useCallback(() => navigateTo('rule-config'), [navigateTo]);
   const handleSubmissionMapping = useCallback(() => navigateTo('submission-mapping'), [navigateTo]);
   const handleThemeEditor = useCallback(() => navigateTo('theme-editor'), [navigateTo]);
+  // A dialog rather than a screen: the export and import belong together, and neither one
+  // changes what is on the canvas.
+  const handleTranslations = useCallback(() => setIsTranslationsOpen(true), []);
 
   const handleConflictReload = useCallback(() => {
     setConflictState(null);
@@ -537,6 +542,7 @@ export function DesignerScreen(): React.ReactElement {
           onBusinessRules={handleBusinessRules}
           onSubmissionMapping={handleSubmissionMapping}
           onThemeEditor={handleThemeEditor}
+          onTranslations={handleTranslations}
           onBack={() => useDesignerStore.getState().navigateTo('form-list')}
         />
         {saveError && (
@@ -606,6 +612,15 @@ export function DesignerScreen(): React.ReactElement {
         {keyboardAnnouncement}
       </div>
     </DndContext>
+
+      {isTranslationsOpen && (
+        <TranslationExchangeDialog
+          isOpen
+          formId={form.id}
+          formCode={form.code}
+          onClose={() => setIsTranslationsOpen(false)}
+        />
+      )}
 
       {conflictState && form && crmService && (
         <ConflictResolutionDialog
