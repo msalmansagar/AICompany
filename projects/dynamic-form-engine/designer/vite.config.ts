@@ -70,6 +70,13 @@ export default defineConfig({
       '@qdb/shared': resolve(__dirname, '../shared/src/server.ts'),
     },
   },
+  optimizeDeps: {
+    // exceljs is only reached through a dynamic import in the Translations dialog, so the dev
+    // server does not see it at startup. Discovering it on that first click triggers a
+    // re-optimise and a full page reload, which throws away the in-flight promise and leaves
+    // the dialog spinning forever. Pre-bundling it up front costs a moment at boot instead.
+    include: ['exceljs'],
+  },
   build: {
     outDir: 'deploy/webresources/qdb_/form-designer',
     emptyOutDir: true,
