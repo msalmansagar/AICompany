@@ -2034,8 +2034,29 @@ const launchParams = new URLSearchParams(location.search);
 const wantsSelfTest = launchParams.get("selftest") === "1"
   || /selftest=1/.test(launchParams.get("data") || "");
 
+/* A caller can name one report to open. Xrm.Navigation.navigateTo hands a web resource its
+   parameters as a single urlencoded `data` value rather than as real query-string entries, so the
+   inner string is parsed too — reading only location.search finds nothing and silently falls back
+   to the catalogue, which is precisely what made a ribbon command look like it ignored its report. */
+function launchParam(name) {
+  const direct = launchParams.get(name);
+  if (direct) return direct;
+  return new URLSearchParams(launchParams.get("data") || "").get(name);
+}
+
+const requestedReportId = launchParam("reportId");
+
 if (inCrm && wantsSelfTest) {
   runSelfTest();
+} else if (inCrm && requestedReportId) {
+  // Opening one named report is the whole point of a ribbon command: never show the catalogue here.
+  openReport(requestedReportId).catch(error => {
+    $("#content").innerHTML = `<div class="page"><div class="empty">
+      <div><b>That report could not be opened.</b></div>
+      <div style="color:var(--text-secondary); margin-top:6px">${esc(String(error && error.message || error))}</div>
+      <div style="margin-top:10px"><button class="btn primary" onclick="location.search=''">Open the catalog</button></div>
+    </div></div>`;
+  });
 } else if (inCrm) {
   loadCatalog();
 } else {
