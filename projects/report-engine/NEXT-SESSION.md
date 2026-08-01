@@ -9,17 +9,49 @@ Read this before touching anything. Everything below is verified state, not assu
 
 ## Start with these three, in order
 
-### 1. Fix the dashboard loader — small, and it blocks everything dashboard
-The composer is built and works (commit `318bcb09`). Opening the saved dashboard
-**"Accounts Overview"** shows its title and **0 sections**, while the org holds **3 sections and 5
-widgets**. So the children are not being associated with their parent.
+### 1. ~~Fix the dashboard loader~~ — INVESTIGATED 2026-08-01, **NOT A DEFECT, CLOSED**
 
-Look at `loadDashboardDefinition` / `definitionToDashboard` in `prototype/report-designer.html`, and
-the child-fetch filters in `src/Qdb.ReportEngine.Execution/Dataverse/DashboardDefinitionFetch.cs`.
-Same shape as the report-side defect where columns were filed against the wrong mapping.
+The reported symptom (opening **"Accounts Overview"** shows its title and **0 sections**) **does not
+reproduce**. The loader, the mapping and the composer are all correct. Nothing was changed.
 
-**Gotcha already hit:** `qdb_dashboard` has **no `qdb_name`** column — it uses `qdb_dashboardcode`.
-A `$select` naming `qdb_name` returns 400, not 404, which reads like "table missing" and is not.
+Verified live on `org5869857f`, signed in through
+`main.aspx?pagetype=webresource&webresourceName=qdb_reportengine_designer.html`, by driving the real
+user path (click the dashboard name in the list) and reading the **rendered screen**:
+
+| Dashboard | Rendered on screen | Org actually holds |
+|---|---|---|
+| Accounts Overview | 2 section(s) · 5 widget(s) | 2 sections, 5 widgets ✓ |
+| Portfolio Overview (edited) | 1 section(s) · 1 widget(s) | 1 section, 1 widget ✓ |
+| Test | 3 section(s) · 3 widget(s) | 3 sections, 3 widgets ✓ |
+
+That is proof *by a change in result* across three dashboards, not one run that returned rows. None
+of the three showed the "No sections yet" empty state.
+
+Also ruled out along the way:
+- **Deployed bytes are current** — `webresourceset` content is **byte-identical** to
+  `prototype/report-designer.html` (527,630 bytes) and contains `renderDashboardComposer`.
+  So this was not the publish-lag trap.
+- **The stored data is correctly parented** — every `qdb_dashboardsection` carries the right
+  `_qdb_dashboardid_value`, every widget the right `_qdb_dashboardsectionid_value`.
+- **The queries are right** — replaying `loadDashboardDefinition`'s exact OData as the app user, and
+  again by calling the page's own `loadDashboardDefinition()` inside the signed-in browser, both
+  return 2 sections / 5 widgets for Accounts Overview.
+
+**What most likely produced the original report:** the "3 sections and 5 widgets" figure does not
+describe any single dashboard — *Test* has 3 sections, *Accounts Overview* has 5 widgets. Two
+dashboards were probably conflated. A contributing factor is real and worth carrying forward:
+
+> **Coordinate clicks drift.** A physical click at the correct-looking screenshot coordinate did
+> nothing, because the viewport had resized (1512x811 → 1432x717) between the screenshot and the
+> click, and `devicePixelRatio` is 2. The same click at the recomputed point worked. The designer
+> runs inside iframe `#FullPageWebResource0` at a **y-offset of 85px**. Compute the target from
+> `getBoundingClientRect()` plus the frame offset, or click via `element.click()` — do not trust a
+> coordinate read off a screenshot. A click that silently does nothing reads exactly like a broken
+> feature.
+
+**Gotcha still true and still worth knowing:** `qdb_dashboard` has **no `qdb_name`** column — the
+primary name is `qdb_dashboardname` and there is also `qdb_dashboardcode`. A `$select` naming
+`qdb_name` returns 400, not 404, which reads like "table missing" and is not.
 
 ### 2. Deploy into CRM — the user asked for **both** surfaces
 Confirmed gap: the wizard's "Use in CRM" step saves placements to `qdb_reportribbonplacement` and
