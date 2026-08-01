@@ -19,25 +19,39 @@ import { readFileSync } from 'node:fs';
 
 const SOLUTION = 'qdb_reportengine';
 const RIBBON_WEB_RESOURCE = 'qdb_reportengine_ribbon.js';
-const HANDLER_FUNCTION = 'QdbReportEngine.openReportPicker';
+const ICON_WEB_RESOURCE = 'qdb_reportengine_appicon.svg';
+const HANDLER_FUNCTION = 'QdbReportEngine.openReportFromCommand';
 
 const targetEntity = process.argv[3] || 'account';
 
 // appaction option-set values, read from the org's own metadata.
 const LOCATION = { form: 0, mainGrid: 1, subGrid: 2 };
 const TYPE_STANDARD_BUTTON = 0;
+// A menu's parent must be a GROUP: the platform rejects a child of a dropdown outright with
+// "Flyout and standard can only be child of group parent button".
+const TYPE_GROUP = 3;
 const CONTEXT_ENTITY = 1;
 const ONCLICK_JAVASCRIPT = 2;
 const VISIBILITY_ALWAYS = 0;
 
-// Matches the shape used by the platform's own commands: a single PrimaryControl parameter.
-const PRIMARY_CONTROL_PARAMETER = JSON.stringify([{ type: 7, value: null }]);
+// JavaScript parameter type codes: 7 is PrimaryControl (copied from the platform's own commands),
+// 4 is a literal string. The handler identifies the report id by shape rather than by position, so
+// a wrong guess about the string code shows up as a clear error instead of silently wrong context.
+const PARAMETER_TYPE = { string: 4, primaryControl: 7 };
+
+const reportParameters = reportId => JSON.stringify([
+  { type: PARAMETER_TYPE.string, value: reportId },
+  { type: PARAMETER_TYPE.primaryControl, value: null }
+]);
 
 const COMMAND_LOCATIONS = [
   { key: 'Form', location: LOCATION.form },
   { key: 'MainGrid', location: LOCATION.mainGrid },
   { key: 'SubGrid', location: LOCATION.subGrid }
 ];
+
+// qdb_placementtype values that correspond to each ribbon location.
+const PLACEMENT_TYPE_FOR_LOCATION = { Form: 100000000, MainGrid: 100000001, SubGrid: 100000002 };
 
 function loadEnv(path) {
   const env = {};
@@ -85,52 +99,126 @@ async function findOne(entitySet, query) {
   return (found.value || [])[0] || null;
 }
 
-const uniqueNameFor = key => `qdb_ReportEngine.Reports.${targetEntity}.${key}`;
+const parentUniqueName = key => `qdb_ReportEngine.Reports.${targetEntity}.${key}`;
+const childUniqueName = (key, reportId) => `qdb_ReportEngine.Report.${targetEntity}.${key}.${reportId}`;
 
-function commandRecord({ key, location }, context) {
+/** Fields shared by the dropdown and its items — context binding, handler library, visibility. */
+function commonFields(location, context) {
   return {
-    name: `qdb.ReportEngine.Reports.${targetEntity}.${key}`,
-    uniquename: uniqueNameFor(key),
-    type: TYPE_STANDARD_BUTTON,
     location,
     context: CONTEXT_ENTITY,
     contextvalue: targetEntity,
     // Navigation properties are PascalCase here and differ from the attribute names — resolved from
     // ManyToOneRelationships rather than guessed, since a wrong key yields only "undeclared property".
     'ContextEntity@odata.bind': `/entities(${context.entityMetadataId})`,
-    buttonlabeltext: 'Reports',
-    buttontooltiptitle: 'Reports',
-    buttontooltipdescription: 'Run a Report Engine report for this table',
-    fonticon: '$clientsvg:Report',
-    sequence: 100100050,
     hidden: false,
     isdisabled: false,
-    visibilitytype: VISIBILITY_ALWAYS,
-    onclickeventtype: ONCLICK_JAVASCRIPT,
-    onclickeventjavascriptfunctionname: HANDLER_FUNCTION,
-    onclickeventjavascriptparameters: PRIMARY_CONTROL_PARAMETER,
-    'OnClickEventJavaScriptWebResourceId@odata.bind': `/webresourceset(${context.webResourceId})`
+    visibilitytype: VISIBILITY_ALWAYS
   };
 }
 
-async function ensureCommand(definition, context) {
-  const uniqueName = uniqueNameFor(definition.key);
+/* The dropdown itself runs nothing — it only opens the menu, so it has no onclick handler.
+   The icon comes from our own SVG web resource: the $clientsvg: glyph names are not a documented,
+   stable list and an invalid one renders as no icon at all, which is what happened first time. */
+function dropdownRecord({ key, location }, context) {
+  return Object.assign(commonFields(location, context), {
+    name: `qdb.ReportEngine.Reports.${targetEntity}.${key}`,
+    uniquename: parentUniqueName(key),
+    type: TYPE_GROUP,
+    buttonlabeltext: 'Reports',
+    buttontooltiptitle: 'Reports',
+    buttontooltipdescription: 'Run a Report Engine report',
+    grouptitle: 'Reports',
+    'IconWebResourceId@odata.bind': `/webresourceset(${context.iconWebResourceId})`,
+    sequence: 100100050
+  });
+}
+
+/** One menu item per placed report. Clicking it opens that report and nothing else. */
+function reportItemRecord({ key, location }, placement, sequence, context) {
+  const reportId = placement._qdb_reportdefinitionid_value;
+  return Object.assign(commonFields(location, context), {
+    name: `qdb.ReportEngine.Report.${targetEntity}.${key}.${reportId}`,
+    uniquename: childUniqueName(key, reportId),
+    type: TYPE_STANDARD_BUTTON,
+    buttonlabeltext: placement.qdb_name || 'Report',
+    buttontooltiptitle: placement.qdb_name || 'Report',
+    buttontooltipdescription: 'Run this report',
+    'IconWebResourceId@odata.bind': `/webresourceset(${context.iconWebResourceId})`,
+    sequence,
+    onclickeventtype: ONCLICK_JAVASCRIPT,
+    onclickeventjavascriptfunctionname: HANDLER_FUNCTION,
+    onclickeventjavascriptparameters: reportParameters(reportId),
+    'OnClickEventJavaScriptWebResourceId@odata.bind': `/webresourceset(${context.webResourceId})`,
+    'ParentAppActionId@odata.bind': `/appactions(${context.parentId})`
+  });
+}
+
+async function upsert(uniqueName, record, mutableFields, label) {
   const existing = await findOne('appactions', `$select=appactionid&$filter=uniquename eq '${uniqueName}'`);
-  const record = commandRecord(definition, context);
   if (existing) {
-    // uniquename and the context binding are immutable in practice; re-apply only the mutable face.
-    await api('PATCH', `appactions(${existing.appactionid})`, {
+    await api('PATCH', `appactions(${existing.appactionid})`, mutableFields);
+    console.log(`  = ${label}`);
+    return existing.appactionid;
+  }
+  const id = await createReturningId('appactions', record, { 'MSCRM.SolutionUniqueName': SOLUTION });
+  console.log(`  + ${label}`);
+  return id;
+}
+
+/** Reports placed on this entity for this ribbon location, in the order they should appear. */
+async function placementsFor(key) {
+  const placementType = PLACEMENT_TYPE_FOR_LOCATION[key];
+  const found = await api('GET', 'qdb_reportribbonplacements'
+    + `?$select=qdb_name,_qdb_reportdefinitionid_value&$filter=qdb_entitylogicalname eq '${targetEntity}'`
+    + ` and qdb_isenabled eq true and qdb_placementtype eq ${placementType}`
+    + ' and _qdb_reportdefinitionid_value ne null&$orderby=qdb_name asc');
+  return found.value || [];
+}
+
+/* A location with no placements must have nothing left behind. Without this, a command from an
+   earlier run survives as an orphan — which is exactly how a stale button wired to a superseded
+   handler stayed on the subgrid, still opening the whole catalogue. */
+async function removeCommandsFor(key) {
+  const stale = await api('GET', 'appactions?$select=appactionid,buttonlabeltext'
+    + `&$filter=startswith(uniquename,'qdb_ReportEngine.Report') and contains(uniquename,'.${targetEntity}.${key}')`);
+  for (const row of (stale.value || [])) {
+    await api('DELETE', `appactions(${row.appactionid})`);
+    console.log(`  - ${key} · removed "${row.buttonlabeltext}"`);
+  }
+}
+
+async function ensureCommandGroup(definition, context) {
+  const placements = await placementsFor(definition.key);
+  if (!placements.length) {
+    console.log(`  ! ${definition.key}: no enabled placements`);
+    await removeCommandsFor(definition.key);
+    return;
+  }
+  const parentId = await upsert(
+    parentUniqueName(definition.key),
+    dropdownRecord(definition, context),
+    // Clearing the handler matters on an upgrade: these rows were standard buttons that opened the
+    // catalogue, and a dropdown that also runs an onclick would still do so.
+    {
+      buttonlabeltext: 'Reports', hidden: false, isdisabled: false, type: TYPE_GROUP,
+      // The icon has to be re-applied on update too — an existing row keeps whatever it had, and a
+      // group created before the icon was wired up stays icon-less otherwise.
+      'IconWebResourceId@odata.bind': `/webresourceset(${context.iconWebResourceId})`,
+      onclickeventtype: 0, onclickeventjavascriptfunctionname: null, onclickeventjavascriptparameters: null
+    },
+    `${definition.key} · Reports (dropdown)`);
+
+  let sequence = 100100051;
+  for (const placement of placements) {
+    const record = reportItemRecord(definition, placement, sequence++, { ...context, parentId });
+    await upsert(childUniqueName(definition.key, placement._qdb_reportdefinitionid_value), record, {
       buttonlabeltext: record.buttonlabeltext, buttontooltiptitle: record.buttontooltiptitle,
-      buttontooltipdescription: record.buttontooltipdescription, fonticon: record.fonticon,
       hidden: false, isdisabled: false,
       onclickeventjavascriptfunctionname: record.onclickeventjavascriptfunctionname,
       onclickeventjavascriptparameters: record.onclickeventjavascriptparameters
-    });
-    console.log(`  = ${definition.key.padEnd(9)} updated (${existing.appactionid})`);
-    return;
+    }, `${definition.key} ·   ${placement.qdb_name}`);
   }
-  const id = await createReturningId('appactions', record, { 'MSCRM.SolutionUniqueName': SOLUTION });
-  console.log(`  + ${definition.key.padEnd(9)} created (${id})`);
 }
 
 const env = loadEnv(process.argv[2]);
@@ -144,15 +232,23 @@ console.log(`\n== Deploy modern "Reports" command on "${targetEntity}" → ${bas
 const entityMetadata = await api('GET', `EntityDefinitions(LogicalName='${targetEntity}')?$select=MetadataId`);
 const webResource = await findOne('webresourceset', `$select=webresourceid&$filter=name eq '${RIBBON_WEB_RESOURCE}'`);
 if (!webResource) throw new Error(`${RIBBON_WEB_RESOURCE} is not deployed — run deploy-webresources.mjs first`);
+const icon = await findOne('webresourceset', `$select=webresourceid&$filter=name eq '${ICON_WEB_RESOURCE}'`);
+if (!icon) throw new Error(`${ICON_WEB_RESOURCE} is not deployed — run provision-report-app.mjs first`);
 
-const context = { entityMetadataId: entityMetadata.MetadataId, webResourceId: webResource.webresourceid };
-for (const definition of COMMAND_LOCATIONS) await ensureCommand(definition, context);
+const context = {
+  entityMetadataId: entityMetadata.MetadataId,
+  webResourceId: webResource.webresourceid,
+  iconWebResourceId: icon.webresourceid
+};
+for (const definition of COMMAND_LOCATIONS) await ensureCommandGroup(definition, context);
 
 await api('POST', 'PublishAllXml', {});
 console.log('  ✓ published');
 
 const all = await api('GET',
-  `appactions?$select=appactionid,uniquename,location,buttonlabeltext&$filter=contains(uniquename,'qdb_ReportEngine.Reports.${targetEntity}')`);
+  `appactions?$select=appactionid,uniquename,location,buttonlabeltext,type&$filter=contains(uniquename,'qdb_ReportEngine.Report')&$orderby=sequence asc`);
 console.log(`\n✓ ${(all.value || []).length} modern command(s) on ${targetEntity}:`);
-for (const row of (all.value || [])) console.log(`    ${row.buttonlabeltext} @ location ${row.location}  (${row.uniquename})`);
+for (const row of (all.value || [])) {
+  console.log(`    ${row.type === TYPE_GROUP ? '▾' : ' •'} ${String(row.buttonlabeltext).padEnd(32)} location ${row.location}`);
+}
 console.log();

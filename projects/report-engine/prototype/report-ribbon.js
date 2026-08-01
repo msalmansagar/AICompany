@@ -131,28 +131,46 @@ var QdbReportEngine = window.QdbReportEngine || {};
    */
   namespace.noop = function () {};
 
+  const GUID_PATTERN = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
+
   /**
-   * Entry point for the MODERN command bar (an appaction row), which is what this org actually
-   * renders — classic RibbonDiffXml custom actions compile into the ribbon and are never drawn.
+   * Entry point for the MODERN command bar (an appaction row), which is what this org renders —
+   * classic RibbonDiffXml custom actions compile into the ribbon and are never drawn.
    *
-   * A modern command cannot populate a menu at click time the way a classic FlyoutAnchor could, so
-   * the single "Reports" button opens the runtime viewer scoped to this table. The property that
-   * mattered is preserved exactly: which reports appear is still driven by qdb_reportribbonplacement
-   * rows, so adding a report to a table remains a data change, not a solution change.
+   * Each report gets its own menu item under the "Reports" dropdown, and each opens exactly that
+   * one report. It deliberately does NOT open the catalogue: picking a report is the menu's job.
+   *
+   * The arguments are read positionally-independently on purpose. A command's JavaScript parameters
+   * are declared by numeric type codes in appaction.onclickeventjavascriptparameters, and getting
+   * that encoding wrong silently changes what arrives here. Finding the report id by shape rather
+   * than by position means the handler keeps working whichever way the platform passes them.
    */
-  namespace.openReportPicker = function (primaryControl) {
-    const entityLogicalName = entityNameFrom(primaryControl);
+  namespace.openReportFromCommand = function () {
+    const args = Array.prototype.slice.call(arguments);
+    const reportId = args.find(value => typeof value === "string" && GUID_PATTERN.test(value.trim()));
+    const primaryControl = args.find(value => value && typeof value === "object");
+
+    if (!reportId) {
+      console.error("[ReportEngine] no report id in command arguments", args);
+      Xrm.Navigation.openErrorDialog({ message: "This report command is missing its report id." });
+      return;
+    }
+    openReportById(reportId.replace(/[{}]/g, ""), primaryControl);
+  };
+
+  /** Opens one report in the runtime viewer, carrying whatever record context is available. */
+  function openReportById(reportId, primaryControl) {
     const recordId = currentRecordId(primaryControl);
-    const parameters = ["entity=" + encodeURIComponent(entityLogicalName || "")];
+    const parameters = ["reportId=" + encodeURIComponent(reportId)];
     if (recordId) parameters.push("recordId=" + encodeURIComponent(recordId));
 
     Xrm.Navigation.navigateTo(
       { pageType: "webresource", webresourceName: RUNTIME_WEB_RESOURCE, data: parameters.join("&") },
       { target: 2, position: 1, width: { value: 90, unit: "%" }, height: { value: 90, unit: "%" } }
     ).catch(function (error) {
-      Xrm.Navigation.openErrorDialog({ message: "Could not open reports: " + (error && error.message) });
+      Xrm.Navigation.openErrorDialog({ message: "Could not open the report: " + (error && error.message) });
     });
-  };
+  }
 
   /** A form control reports its own table; a grid control reports the table it is bound to. */
   function entityNameFrom(primaryControl) {
