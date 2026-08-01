@@ -26,9 +26,15 @@ const targetEntity = process.argv[3] || 'account';
 
 // appaction option-set values, read from the org's own metadata.
 const LOCATION = { form: 0, mainGrid: 1, subGrid: 2 };
+/* A working menu is THREE levels, not two:
+     Dropdown (type 1)  — the button on the command bar, opens the menu
+       └ Group (type 3) — a section inside that menu
+           └ Standard buttons (type 0) — the report items
+   The platform states the constraint as "Flyout and standard can only be child of group parent
+   button", i.e. buttons parent to a group. Building only Group → buttons renders the group as a
+   flat inert label on the command bar with its children nowhere. */
 const TYPE_STANDARD_BUTTON = 0;
-// A menu's parent must be a GROUP: the platform rejects a child of a dropdown outright with
-// "Flyout and standard can only be child of group parent button".
+const TYPE_DROPDOWN = 1;
 const TYPE_GROUP = 3;
 const CONTEXT_ENTITY = 1;
 const ONCLICK_JAVASCRIPT = 2;
@@ -99,7 +105,8 @@ async function findOne(entitySet, query) {
   return (found.value || [])[0] || null;
 }
 
-const parentUniqueName = key => `qdb_ReportEngine.Reports.${targetEntity}.${key}`;
+const dropdownUniqueName = key => `qdb_ReportEngine.Reports.${targetEntity}.${key}`;
+const groupUniqueName = key => `qdb_ReportEngine.ReportsGroup.${targetEntity}.${key}`;
 const childUniqueName = (key, reportId) => `qdb_ReportEngine.Report.${targetEntity}.${key}.${reportId}`;
 
 /** Fields shared by the dropdown and its items — context binding, handler library, visibility. */
@@ -123,14 +130,26 @@ function commonFields(location, context) {
 function dropdownRecord({ key, location }, context) {
   return Object.assign(commonFields(location, context), {
     name: `qdb.ReportEngine.Reports.${targetEntity}.${key}`,
-    uniquename: parentUniqueName(key),
-    type: TYPE_GROUP,
+    uniquename: dropdownUniqueName(key),
+    type: TYPE_DROPDOWN,
     buttonlabeltext: 'Reports',
     buttontooltiptitle: 'Reports',
     buttontooltipdescription: 'Run a Report Engine report',
-    grouptitle: 'Reports',
     'IconWebResourceId@odata.bind': `/webresourceset(${context.iconWebResourceId})`,
     sequence: 100100050
+  });
+}
+
+/** The section inside the dropdown that the report items hang from. */
+function groupRecord({ key, location }, context) {
+  return Object.assign(commonFields(location, context), {
+    name: `qdb.ReportEngine.ReportsGroup.${targetEntity}.${key}`,
+    uniquename: groupUniqueName(key),
+    type: TYPE_GROUP,
+    buttonlabeltext: 'Reports',
+    grouptitle: 'Reports',
+    sequence: 100100051,
+    'ParentAppActionId@odata.bind': `/appactions(${context.dropdownId})`
   });
 }
 
@@ -195,26 +214,35 @@ async function ensureCommandGroup(definition, context) {
     await removeCommandsFor(definition.key);
     return;
   }
-  const parentId = await upsert(
-    parentUniqueName(definition.key),
+  const dropdownId = await upsert(
+    dropdownUniqueName(definition.key),
     dropdownRecord(definition, context),
     // Clearing the handler matters on an upgrade: these rows were standard buttons that opened the
     // catalogue, and a dropdown that also runs an onclick would still do so.
     {
-      buttonlabeltext: 'Reports', hidden: false, isdisabled: false, type: TYPE_GROUP,
+      buttonlabeltext: 'Reports', hidden: false, isdisabled: false, type: TYPE_DROPDOWN,
       // The icon has to be re-applied on update too — an existing row keeps whatever it had, and a
-      // group created before the icon was wired up stays icon-less otherwise.
+      // command created before the icon was wired up stays icon-less otherwise.
       'IconWebResourceId@odata.bind': `/webresourceset(${context.iconWebResourceId})`,
       onclickeventtype: 0, onclickeventjavascriptfunctionname: null, onclickeventjavascriptparameters: null
     },
     `${definition.key} · Reports (dropdown)`);
 
-  let sequence = 100100051;
+  const parentId = await upsert(
+    groupUniqueName(definition.key),
+    groupRecord(definition, { ...context, dropdownId }),
+    { grouptitle: 'Reports', hidden: false, isdisabled: false, type: TYPE_GROUP },
+    `${definition.key} ·   (group)`);
+
+  let sequence = 100100052;
   for (const placement of placements) {
     const record = reportItemRecord(definition, placement, sequence++, { ...context, parentId });
     await upsert(childUniqueName(definition.key, placement._qdb_reportdefinitionid_value), record, {
       buttonlabeltext: record.buttonlabeltext, buttontooltiptitle: record.buttontooltiptitle,
-      hidden: false, isdisabled: false,
+      hidden: false, isdisabled: false, sequence: record.sequence,
+      // Re-parenting must be part of the update, not just the create: an item written against an
+      // earlier shape otherwise stays attached to the old parent and never appears in the menu.
+      'ParentAppActionId@odata.bind': `/appactions(${parentId})`,
       onclickeventjavascriptfunctionname: record.onclickeventjavascriptfunctionname,
       onclickeventjavascriptparameters: record.onclickeventjavascriptparameters
     }, `${definition.key} ·   ${placement.qdb_name}`);
