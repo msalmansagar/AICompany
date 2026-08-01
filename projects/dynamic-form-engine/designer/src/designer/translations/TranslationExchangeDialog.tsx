@@ -176,6 +176,10 @@ export function TranslationExchangeDialog({
                   type="file"
                   accept=".xlsx"
                   onChange={handleFileChosen}
+                  // Clearing the value first means picking the SAME path again still fires
+                  // change. Without it, a translator who edits their file and re-picks it is
+                  // silently checked against the copy read the first time.
+                  onClick={(event) => { event.currentTarget.value = ''; }}
                   style={{ display: 'none' }}
                   aria-label="Filled translation workbook"
                 />
@@ -192,7 +196,8 @@ export function TranslationExchangeDialog({
               {pending && (
                 <>
                   <Text size={200} className={styles.hint}>
-                    {pending.rows.length} row(s), language(s): {pending.languages.join(', ')}
+                    {pending.rows.length} row(s) · {countFilledCells(pending)} cell(s) filled in ·
+                    language(s): {pending.languages.join(', ')}
                   </Text>
                   <div className={styles.row}>
                     <Button onClick={() => runImport(true)} disabled={busy !== null}>
@@ -248,6 +253,14 @@ function ExportReport({ result }: { result: TranslationExport }): React.ReactEle
   );
 }
 
+/** How many cells a translator has actually filled in — the number they can check against. */
+function countFilledCells(workbook: ParsedTranslationWorkbook): number {
+  return workbook.rows.reduce(
+    (total, row) => total + workbook.languages.filter((code) => row.values[code]).length,
+    0,
+  );
+}
+
 function ImportReport({
   summary,
   title,
@@ -255,6 +268,18 @@ function ImportReport({
   summary: ImportSummary;
   title: string;
 }): React.ReactElement {
+  // "0 new, 0 updated" reads as failure. Say plainly that the file held nothing new, so a
+  // translator does not go looking for a bug that is not there.
+  if (summary.created + summary.updated === 0) {
+    return (
+      <Text size={200}>
+        No changes — every filled cell already matches what is in CRM ({summary.unchanged} already
+        current, {summary.blank} blank). If you edited the file, save it in Excel and choose it
+        again.
+      </Text>
+    );
+  }
+
   return (
     <Text size={200}>
       {title}: {summary.created} new, {summary.updated} updated, {summary.unchanged} already

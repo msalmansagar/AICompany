@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import ExcelJS from 'exceljs';
 import { TranslationExchangeDialog } from '@/designer/translations/TranslationExchangeDialog';
 import { CrmContext } from '@/app/App';
 import { ENTITY_NAMES } from '@/constants/entityNames';
@@ -39,6 +40,27 @@ function renderDialog(webApi: FakeWebApi = org()) {
       </CrmContext.Provider>
     </FluentProvider>,
   );
+}
+
+const HEADER = ['Entity', 'Record Id', 'Field', 'Where', 'Source (en)', 'Source changed?', 'ar'];
+
+/** Builds a workbook in the shape the export produces and feeds it to the hidden file input. */
+async function uploadWorkbook(rows: unknown[][]): Promise<void> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Translations');
+  sheet.addRow(HEADER);
+  for (const row of rows) sheet.addRow(row);
+  const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
+
+  const file = new File([buffer], 'filled.xlsx', {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  // jsdom's File has no arrayBuffer() in this environment.
+  Object.defineProperty(file, 'arrayBuffer', { value: async () => buffer });
+
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+  if (!input) throw new Error('file input not rendered');
+  await userEvent.upload(input, file);
 }
 
 describe('TranslationExchangeDialog', () => {
@@ -107,6 +129,61 @@ describe('TranslationExchangeDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: /download workbook/i }));
 
     await waitFor(() => expect(screen.getByText(/could not be read/)).toBeTruthy(), LOADS_EXCELJS);
+  });
+
+  it('check_saysNoChangesPlainly_whenTheFileMatchesCrm', async () => {
+    const api = new FakeWebApi({
+      qdb_form_definition: [
+        { qdb_form_definitionid: FORM_ID, qdb_title: 'Loan Application', qdb_form_code: 'loan' },
+      ],
+      [ENTITY_NAMES.LANGUAGE_CONFIG]: [
+        { qdb_language_code: 'en', qdb_is_default: true },
+        { qdb_language_code: 'ar', qdb_is_default: false },
+      ],
+      [ENTITY_NAMES.TRANSLATION]: [
+        {
+          qdb_translationid: 'tr-1',
+          qdb_entity_name: 'qdb_form_definition',
+          qdb_record_id: FORM_ID,
+          qdb_field_name: 'qdb_title',
+          qdb_language_code: 'ar',
+          qdb_translated_value: 'طلب قرض',
+          qdb_source_value: 'Loan Application',
+        },
+      ],
+    });
+    renderDialog(api);
+
+    await uploadWorkbook([
+      ['qdb_form_definition', FORM_ID, 'qdb_title', '', 'Loan Application', '', 'طلب قرض'],
+    ]);
+
+    // The button only renders once the workbook has been parsed, which loads exceljs.
+    const check = await screen.findByRole(
+      'button',
+      { name: /check without saving/i },
+      LOADS_EXCELJS,
+    );
+    await userEvent.click(check);
+
+    await waitFor(
+      () => expect(document.body.textContent).toContain('No changes'),
+      LOADS_EXCELJS,
+    );
+  });
+
+  it('upload_reportsHowManyCellsAreFilledIn_soAMissedEditIsVisible', async () => {
+    renderDialog();
+
+    await uploadWorkbook([
+      ['qdb_form_definition', FORM_ID, 'qdb_title', '', 'Loan Application', '', 'طلب قرض'],
+      ['qdb_form_tab', TAB_ID, 'qdb_label', '', 'Applicant', '', ''],
+    ]);
+
+    await waitFor(
+      () => expect(document.body.textContent).toContain('1 cell(s) filled in'),
+      LOADS_EXCELJS,
+    );
   });
 
   it('download_showsTheFailure_whenTheLanguageConfigCannotBeRead', async () => {
