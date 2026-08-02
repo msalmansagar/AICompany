@@ -37,8 +37,9 @@
     <div class="avatar" title="Report">R</div>
   </header>
 
-  <!-- No <nav>: there is nowhere else to go, and the content fills the width instead. -->
-  <div class="body">
+  <!-- No <nav>: there is nowhere else to go. body-single drops the grid to one full-width column,
+       which the shared layout otherwise reserves for the navigation rail. -->
+  <div class="body body-single">
     <main class="content" id="content"></main>
   </div>
 </div>

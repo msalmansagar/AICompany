@@ -72,6 +72,10 @@
   [data-theme="glass"] .app-header,[data-theme="vibrant"] .app-header,[data-theme="glass"] .nav,[data-theme="vibrant"] .nav,[data-theme="glass"] .cmdbar,[data-theme="vibrant"] .cmdbar,[data-theme="glass"] .card,[data-theme="vibrant"] .card,[data-theme="glass"] .menu,[data-theme="vibrant"] .menu{-webkit-backdrop-filter:var(--surface-blur); backdrop-filter:var(--surface-blur);}
 
   .body{display:grid; grid-template-columns:220px 1fr; height:calc(100vh - 48px); overflow:hidden;}
+  /* The single-report runtime has no navigation rail, so it needs one full-width column. Without
+     this its content becomes the first grid child and renders inside the 220px nav track — the
+     report is all there and correct, squeezed into a strip with the page blank beside it. */
+  .body.body-single{grid-template-columns:1fr;}
   .nav{background:var(--nav-bg); border-right:1px solid var(--border-strong); padding:8px 6px; overflow:auto;}
   .nav-group-label{font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--text-secondary); font-weight:700; padding:12px 10px 4px;}
   .nav-item{display:flex; align-items:center; gap:10px; width:100%; border:none; background:transparent; color:var(--text); padding:8px 10px; border-radius:var(--radius); cursor:pointer; text-align:left; font-size:13.5px;}
