@@ -318,20 +318,12 @@ function renderRun(){
   const paramFields = params.map(p => {
     const label = `${esc(p.label||p.parameterName)} ${p.isRequired?'<span class="req">*</span>':''}`;
 
-    /* A context-bound parameter is shown, not offered. Hiding it would leave the user unable to see
-       what the report is scoped by; making it editable would imply a choice that is not theirs.
-       It carries no data-param, so the DOM sweep in collectParams cannot pick up the display text. */
-    if (isContextBound(p)) {
-      const preview = contextValuePreview(p);
-      return `<div class="field"><label>${label} <span class="chip">${esc(parameterSource(p))}</span></label>
-        <input type="text" readonly disabled value="${esc(preview || "")}"
-          placeholder="${esc(preview ? "" : "not available in this context")}"/></div>`;
-    }
+    /* A context-bound parameter is not shown at all. It is not the user's to set, and a read-only box
+       holding a raw guid is noise in a filter panel. What the report is scoped by is stated once, by
+       the chip in the header, in words rather than as an id. */
+    if (isContextBound(p)) return "";
 
-    const t = (p.paramType&&p.paramType.label)||"Text";
-    const type = /date/i.test(t)?"date":/number/i.test(t)?"number":"text";
-    return `<div class="field"><label>${label}</label>
-      <input data-param="${esc(p.parameterName)}" type="${type}" value="${esc(p.defaultValue||"")}" placeholder="${esc(t)}"/></div>`;
+    return `<div class="field"><label>${label}</label>${parameterControl(p)}</div>`;
   }).join("");
   const rels = (def.relationships||[]).filter(r => r.childKey);
   const backButton = reportView.showBack ? `<button class="btn" id="back">← Catalog</button>` : "";
@@ -344,10 +336,23 @@ function renderRun(){
      from, with nothing on screen admitting it, is the kind of quietly-wrong that nobody reports as a
      bug — they just distrust the numbers. */
   const scopeChip = reportView.contextRecordId ? `<span class="chip">Opened from a record</span>` : "";
-  const emptyPrompt = reportView.autoRun
-    ? `<span class="spinner"></span> Running…`
-    : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
-       <div>Press <b>Run report</b> to load data.</div>`;
+
+  /* Three states, and they must match what is actually about to happen. Showing "Running…" whenever
+     auto-run is merely ENABLED left a spinner turning forever on a report that had already decided
+     it could not run — the one state that looks like progress and is in fact a dead end. */
+  const missingRequired = (params || []).filter(p =>
+    p.isRequired && (isContextBound(p) ? !contextValuePreview(p) : !p.defaultValue));
+  const emptyPrompt = missingRequired.length
+    ? `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>
+       <div><b>This report needs ${esc(missingRequired.map(p => p.label || p.parameterName).join(", "))}.</b></div>
+       <div style="color:var(--text-secondary); max-width:460px; margin-top:6px">${
+         missingRequired.some(isContextBound)
+           ? "It is scoped to a record, so open it from a record rather than from a list."
+           : "Fill the parameters above, then press Run report."}</div>`
+    : reportView.autoRun
+      ? `<span class="spinner"></span> Running…`
+      : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 4h16v16H4zM4 9h16M9 9v11"/></svg>
+         <div>Press <b>Run report</b> to load data.</div>`;
 
   $("#content").innerHTML = `
     <div class="cmdbar">
@@ -429,9 +434,54 @@ async function contextParameterValues(def){
   return values;
 }
 
+/* The control a parameter is offered as follows its declared type, so an author choosing "Choice" or
+   "Boolean" in the designer gets a list or a toggle rather than a free-text box that quietly accepts
+   anything. Choice options are the pipe- or comma-separated values in the parameter's default. */
+const parameterChoices = parameter => String(parameter.defaultValue || "")
+  .split(/[|,]/).map(choice => choice.trim()).filter(Boolean);
+
+function parameterControl(parameter){
+  const name = esc(parameter.parameterName);
+  const declaredType = (parameter.paramType && parameter.paramType.label) || "Text";
+
+  if (/^bool/i.test(declaredType)) {
+    // Sends "true" only when on; the DOM sweep skips an empty value, so off means "not supplied".
+    return `<label class="toggle"><input type="checkbox" data-param="${name}" data-param-boolean value="true">
+      <span class="track"></span><span class="tlabel">Yes</span></label>`;
+  }
+
+  if (/choice/i.test(declaredType)) {
+    const choices = parameterChoices(parameter);
+    if (!choices.length) {
+      return `<select class="fluent-select" data-param="${name}" disabled>
+        <option>no choices configured — set them as the parameter's default</option></select>`;
+    }
+    const multiple = /multi/i.test(declaredType) ? " multiple" : "";
+    return `<select class="fluent-select" data-param="${name}"${multiple}>
+      ${multiple ? "" : `<option value="">(any)</option>`}
+      ${choices.map(choice => `<option value="${esc(choice)}">${esc(choice)}</option>`).join("")}
+    </select>`;
+  }
+
+  const inputType = /date/i.test(declaredType) ? "date" : /number/i.test(declaredType) ? "number" : "text";
+  return `<input data-param="${name}" type="${inputType}" value="${esc(parameter.defaultValue||"")}" placeholder="${esc(declaredType)}"/>`;
+}
+
+/* A checkbox reports the same .value whether ticked or not, and a multi-select reports only its
+   first selection — so reading .value alone silently sent "true" for an untouched toggle and
+   dropped every choice after the first. */
+function controlValue(control){
+  if (control.hasAttribute("data-param-boolean")) return control.checked ? "true" : "";
+  if (control.multiple) return [...control.selectedOptions].map(o => o.value).filter(Boolean).join(",");
+  return control.value;
+}
+
 async function collectParams(){
   const values = {};
-  document.querySelectorAll("[data-param]").forEach(i => { if(i.value!=="") values[i.dataset.param]=i.value; });
+  document.querySelectorAll("[data-param]").forEach(control => {
+    const value = controlValue(control);
+    if (value !== "") values[control.dataset.param] = value;
+  });
   // Context wins over anything sitting in the DOM: a bound parameter is not the user's to set.
   return Object.assign(values, await contextParameterValues(state.current.def));
 }

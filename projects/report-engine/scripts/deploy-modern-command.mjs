@@ -49,11 +49,21 @@ const VISIBILITY_ALWAYS = 0;
    guid, so it looked like a valid report id and the viewer fell back to showing the whole
    catalogue — and on a grid with nothing selected it resolved to null. Same defect, two symptoms
    that appear unrelated. */
-const PARAMETER_TYPE = { literalString: 21, primaryControl: 7 };
+const PARAMETER_TYPE = { primaryRecordId: 4, literalString: 21 };
 
-const reportParameters = reportId => JSON.stringify([
+/* Type 4 is the CURRENT RECORD'S ID, established by observation rather than documentation: when the
+   report id was mistakenly declared as type 4, a form delivered a guid that was not the report id —
+   it was the record's own — and a grid with no selection delivered null. That is precisely the
+   contextual value needed here.
+
+   Nothing is passed as PrimaryControl. Deriving the record id and table from a control meant relying
+   on a type code whose meaning could only be guessed, and when the guess was wrong the parameter
+   silently arrived empty — which is how the record id came through as "not available in this
+   context". The table is a literal because the deploy already knows which table it is writing for. */
+const reportParameters = (reportId, entityLogicalName) => JSON.stringify([
   { type: PARAMETER_TYPE.literalString, value: reportId },
-  { type: PARAMETER_TYPE.primaryControl, value: null }
+  { type: PARAMETER_TYPE.primaryRecordId, value: null },
+  { type: PARAMETER_TYPE.literalString, value: entityLogicalName }
 ]);
 
 const COMMAND_LOCATIONS = [
@@ -173,7 +183,7 @@ function reportItemRecord({ key, location }, placement, sequence, context) {
     sequence,
     onclickeventtype: ONCLICK_JAVASCRIPT,
     onclickeventjavascriptfunctionname: HANDLER_FUNCTION,
-    onclickeventjavascriptparameters: reportParameters(reportId),
+    onclickeventjavascriptparameters: reportParameters(reportId, targetEntity),
     'OnClickEventJavaScriptWebResourceId@odata.bind': `/webresourceset(${context.webResourceId})`,
     'ParentAppActionId@odata.bind': `/appactions(${context.parentId})`
   });

@@ -147,7 +147,7 @@ var QdbReportEngine = window.QdbReportEngine || {};
    * that encoding wrong silently changes what arrives here. Finding the report id by shape rather
    * than by position means the handler keeps working whichever way the platform passes them.
    */
-  namespace.openReportFromCommand = function (reportId, primaryControl) {
+  namespace.openReportFromCommand = function (reportId, recordId, entityLogicalName) {
     if (typeof reportId !== "string" || !GUID_PATTERN.test(reportId.trim())) {
       console.error("[ReportEngine] first command parameter is not a report id", reportId);
       Xrm.Navigation.openErrorDialog({
@@ -155,15 +155,15 @@ var QdbReportEngine = window.QdbReportEngine || {};
       });
       return;
     }
-    openReportById(reportId.trim().replace(/[{}]/g, ""), primaryControl);
+    openReportById(reportId.trim().replace(/[{}]/g, ""), recordId, entityLogicalName);
   };
 
   /** Opens one report in the runtime viewer, carrying whatever record context is available. */
-  function openReportById(reportId, primaryControl) {
-    const recordId = currentRecordId(primaryControl);
-    const entityLogicalName = entityNameFrom(primaryControl);
+  /* The record id and table arrive as command parameters rather than being dug out of a control:
+     the platform supplies the record id directly, and the deploy already knows the table. */
+  function openReportById(reportId, recordId, entityLogicalName) {
     const parameters = ["reportId=" + encodeURIComponent(reportId)];
-    if (recordId) parameters.push("recordId=" + encodeURIComponent(recordId));
+    if (recordId) parameters.push("recordId=" + encodeURIComponent(String(recordId).replace(/[{}]/g, "")));
     // Carried so a parameter bound to CurrentEntityContext can resolve; ignored by reports that
     // declare no such binding.
     if (entityLogicalName) parameters.push("entity=" + encodeURIComponent(entityLogicalName));
