@@ -27,7 +27,9 @@ const SCRIPT = 3;
 const WEB_RESOURCES = [
   { name: 'qdb_reportengine_core.css', display: 'Report Engine — Shared styles', file: 'report-engine-core.css', type: CSS },
   { name: 'qdb_reportengine_core.js', display: 'Report Engine — Shared rendering engine', file: 'report-engine-core.js', type: SCRIPT },
-  { name: 'qdb_reportengine_report.html', display: 'Report Engine — Single Report', file: 'report-single.html', type: HTML },
+  /* The display name is what CRM puts in the dialog title bar when this opens as a popup — the HTML
+     <title> is not used there. Anything appended to it shows up as chrome above the report. */
+  { name: 'qdb_reportengine_report.html', display: 'Report Engine', file: 'report-single.html', type: HTML },
   { name: 'qdb_reportengine_designer.html', display: 'Report Engine — Designer', file: 'report-designer.html', type: HTML },
   { name: 'qdb_reportengine_runtime.html', display: 'Report Engine — Runtime Viewer', file: 'report-runtime.html', type: HTML },
   { name: 'qdb_reportengine_ribbon.js', display: 'Report Engine — Ribbon handlers', file: 'report-ribbon.js', type: SCRIPT },
