@@ -19,7 +19,9 @@ var QdbReportEngine = window.QdbReportEngine || {};
 (function (namespace) {
   "use strict";
 
-  var RUNTIME_WEB_RESOURCE = "qdb_reportengine_runtime.html";
+  /* The single-report runtime, not the catalogue. A ribbon click has already chosen the report, so
+     the page it opens should show that report and offer no way to wander into the catalogue. */
+  var RUNTIME_WEB_RESOURCE = "qdb_reportengine_report.html";
   var BUTTON_ID_PREFIX = "qdb.report.";
   var OPEN_REPORT_COMMAND = "qdb.ReportEngine.Command.OpenReport";
 

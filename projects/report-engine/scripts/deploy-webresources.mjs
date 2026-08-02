@@ -14,8 +14,9 @@ import { dirname, resolve } from 'node:path';
 
 const SOLUTION_UNIQUE_NAME = 'qdb_reportengine';
 const PROTOTYPE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../prototype');
-// webresourcetype: 1 = HTML, 3 = JScript.
+// webresourcetype: 1 = HTML, 2 = CSS, 3 = JScript.
 const HTML = 1;
+const CSS = 2;
 const SCRIPT = 3;
 
 /* The export libraries ship as script web resources rather than from a CDN. A Dataverse org — and a
@@ -24,6 +25,9 @@ const SCRIPT = 3;
    same origin they are also cached by the browser and reviewable in the customer's own solution.
    They are fetched on demand by the viewer, so opening a report downloads none of them. */
 const WEB_RESOURCES = [
+  { name: 'qdb_reportengine_core.css', display: 'Report Engine — Shared styles', file: 'report-engine-core.css', type: CSS },
+  { name: 'qdb_reportengine_core.js', display: 'Report Engine — Shared rendering engine', file: 'report-engine-core.js', type: SCRIPT },
+  { name: 'qdb_reportengine_report.html', display: 'Report Engine — Single Report', file: 'report-single.html', type: HTML },
   { name: 'qdb_reportengine_designer.html', display: 'Report Engine — Designer', file: 'report-designer.html', type: HTML },
   { name: 'qdb_reportengine_runtime.html', display: 'Report Engine — Runtime Viewer', file: 'report-runtime.html', type: HTML },
   { name: 'qdb_reportengine_ribbon.js', display: 'Report Engine — Ribbon handlers', file: 'report-ribbon.js', type: SCRIPT },
