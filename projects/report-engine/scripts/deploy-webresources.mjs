@@ -69,12 +69,14 @@ async function upsertWebResource({ name, display, file, type }) {
     const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset(${id})`, { method: 'PATCH', headers: headers(), body });
     if (!res.ok) throw new Error(`update ${name} ${res.status}: ${await res.text()}`);
     console.log(`  ✓ updated ${name} (${(content.length / 1024).toFixed(0)} KB)`);
-  } else {
-    // MSCRM.SolutionUniqueName adds the new component to the target solution.
-    const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset`, { method: 'POST', headers: headers({ 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME }), body });
-    if (!res.ok) throw new Error(`create ${name} ${res.status}: ${await res.text()}`);
-    console.log(`  ✓ created ${name} in ${SOLUTION_UNIQUE_NAME} (${(content.length / 1024).toFixed(0)} KB)`);
+    return id;
   }
+  // MSCRM.SolutionUniqueName adds the new component to the target solution.
+  const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset`, { method: 'POST', headers: headers({ 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME }), body });
+  if (!res.ok) throw new Error(`create ${name} ${res.status}: ${await res.text()}`);
+  console.log(`  ✓ created ${name} in ${SOLUTION_UNIQUE_NAME} (${(content.length / 1024).toFixed(0)} KB)`);
+  const created = (res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/);
+  return created ? created[1] : await findWebResourceId(name);
 }
 
 const env = loadEnv(process.argv[2]);
@@ -82,10 +84,22 @@ baseUrl = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm
 token = await getToken(env.DV_TENANT_ID || env.AZURE_TENANT_ID, env.DV_CLIENT_ID || env.AZURE_CLIENT_ID, env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 console.log(`\n== Deploy Report Engine web resources → ${SOLUTION_UNIQUE_NAME} ==\n`);
 
+const publishedIds = [];
 for (const resource of WEB_RESOURCES) {
-  await upsertWebResource(resource);
+  publishedIds.push(await upsertWebResource(resource));
 }
 
-const publish = await fetch(`${baseUrl}/api/data/v9.2/PublishAllXml`, { method: 'POST', headers: headers(), body: '{}' });
+/* Publish ONLY the web resources this run touched, not the whole organisation.
+   PublishAllXml invalidates every published customisation, and main.aspx then has to recompose
+   itself on the next request. On an org with a few thousand tables that takes minutes, and running
+   it once per deploy attempt — as happened repeatedly while chasing a ribbon caching problem — left
+   the web client hanging on its own shell document while the Dataverse API stayed perfectly fast.
+   A component-scoped publish is seconds and touches nothing else. */
+const parameterXml = '<importexportxml><webresources>'
+  + publishedIds.filter(Boolean).map(id => `<webresource>${id}</webresource>`).join('')
+  + '</webresources></importexportxml>';
+const publish = await fetch(`${baseUrl}/api/data/v9.2/PublishXml`, {
+  method: 'POST', headers: headers(), body: JSON.stringify({ ParameterXml: parameterXml })
+});
 if (!publish.ok) throw new Error(`publish ${publish.status}: ${await publish.text()}`);
-console.log('\n✓ published\n✓ web-resource deploy done.\n');
+console.log(`\n✓ published ${publishedIds.filter(Boolean).length} web resource(s)\n✓ web-resource deploy done.\n`);

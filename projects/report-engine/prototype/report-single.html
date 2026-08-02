@@ -1,5 +1,5 @@
 <meta charset="utf-8" />
-<title>Report Engine — Report</title>
+<title>Report Engine</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!--
   The single-report runtime. Opened with a report already chosen — from a ribbon command, a form, a
@@ -16,14 +16,15 @@
 <link rel="stylesheet" href="qdb_reportengine_core.css" />
 
 <div class="app">
+  <!--
+    No product branding, no "running as", no avatar. This page is hosted inside CRM, which already
+    shows the app name and the signed-in user in its own header — repeating them here is a second
+    chrome bar competing with the first, and it costs vertical space the report should have.
+    Only the theme control remains.
+  -->
   <header class="app-header">
     <div class="header-accent"></div>
-    <div class="app-title"><span class="env">Power Apps</span><span class="name">Report</span></div>
     <div class="header-spacer"></div>
-    <button class="runas" id="runAs" title="Reports run as you">
-      <svg width="14" height="14" viewBox="0 0 16 16"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6c0-2.5 2.2-4 5-4s5 1.5 5 4" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
-      <span id="runAsLabel">Running as: app</span>
-    </button>
     <button class="icon-btn" id="themeToggle" title="Change theme">
       <svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 1.5A7.5 7.5 0 001.5 9c0 3.6 3 5.5 5.7 5.1 1-.15 1.3-1.2.7-1.9-.6-.7-.2-1.7.7-1.7H12a4.5 4.5 0 004.5-4.5C16.5 3.9 13 1.5 9 1.5zM5 8a1 1 0 110-2 1 1 0 010 2zm2.6-2.6a1 1 0 110-2 1 1 0 010 2zm3.8 0a1 1 0 110-2 1 1 0 010 2zM13 8a1 1 0 110-2 1 1 0 010 2z" fill="currentColor"/></svg>
     </button>
@@ -34,7 +35,6 @@
       <button class="theme-opt" data-set-theme="glass"><span class="sw sw-glass"></span><span>Glass</span></button>
       <button class="theme-opt" data-set-theme="vibrant"><span class="sw sw-vibrant"></span><span>Vibrant</span></button>
     </div>
-    <div class="avatar" title="Report">R</div>
   </header>
 
   <!-- No <nav>: there is nowhere else to go. body-single drops the grid to one full-width column,
