@@ -189,16 +189,83 @@ function reportItemRecord({ key, location }, placement, sequence, context) {
   });
 }
 
+/* What actually changed this run. Publishing is the expensive part — on a large org a full publish
+   makes every user's shell rebuild — so it must be earned, not performed on every invocation. */
+const changes = { created: 0, updated: 0, deleted: 0, touchedIds: [] };
+
+/* A lookup is written as "Name@odata.bind" but read back as "_name_value", so the two have to be
+   compared through that translation or every run looks like a change and republishes needlessly. */
+function comparableFields(mutableFields) {
+  const scalars = {}, lookups = {};
+  for (const [key, value] of Object.entries(mutableFields)) {
+    if (!key.endsWith('@odata.bind')) { scalars[key] = value; continue; }
+    const attribute = key.slice(0, -'@odata.bind'.length).toLowerCase();
+    const id = String(value).match(/\(([0-9a-fA-F-]{36})\)/);
+    lookups[`_${attribute}_value`] = id ? id[1].toLowerCase() : null;
+  }
+  return { scalars, lookups };
+}
+
+function differsFromStored(stored, mutableFields) {
+  const { scalars, lookups } = comparableFields(mutableFields);
+  for (const [key, value] of Object.entries(scalars)) {
+    const current = stored[key] === undefined ? null : stored[key];
+    if (String(current ?? '') !== String(value ?? '')) return true;
+  }
+  for (const [key, value] of Object.entries(lookups)) {
+    if (String(stored[key] ?? '').toLowerCase() !== String(value ?? '')) return true;
+  }
+  return false;
+}
+
 async function upsert(uniqueName, record, mutableFields, label) {
-  const existing = await findOne('appactions', `$select=appactionid&$filter=uniquename eq '${uniqueName}'`);
+  const { scalars, lookups } = comparableFields(mutableFields);
+  const select = ['appactionid', ...Object.keys(scalars), ...Object.keys(lookups)].join(',');
+  const existing = await findOne('appactions', `$select=${select}&$filter=uniquename eq '${uniqueName}'`);
+
   if (existing) {
+    if (!differsFromStored(existing, mutableFields)) {
+      console.log(`  · ${label} (unchanged)`);
+      return existing.appactionid;
+    }
     await api('PATCH', `appactions(${existing.appactionid})`, mutableFields);
+    changes.updated += 1;
+    changes.touchedIds.push(existing.appactionid);
     console.log(`  = ${label}`);
     return existing.appactionid;
   }
+
   const id = await createReturningId('appactions', record, { 'MSCRM.SolutionUniqueName': SOLUTION });
+  changes.created += 1;
+  changes.touchedIds.push(id);
   console.log(`  + ${label}`);
   return id;
+}
+
+/* A newly created command is invisible until a FULL publish — observed, repeatedly: the rows existed
+   and the command bar did not show them until PublishAllXml ran. Updates to a command that already
+   exists are published narrowly, which returns in seconds instead of minutes.
+
+   The narrow form is NOT proven to take effect: PublishXml accepts an <appactions> element and
+   returns 204, but a 204 on an element it does not recognise looks identical. It is used only where
+   the alternative is a full publish that is itself only sometimes necessary, and --full forces the
+   safe path if a change ever fails to appear. */
+async function publishChanges() {
+  if (!changes.created && !changes.updated && !changes.deleted) {
+    console.log('  · nothing changed — no publish needed');
+    return;
+  }
+  const forceFull = process.argv.includes('--full');
+  if (changes.created || changes.deleted || forceFull) {
+    await api('POST', 'PublishAllXml', {});
+    console.log(`  ✓ published (full — ${forceFull ? 'forced' : 'a command was created or removed'})`);
+    return;
+  }
+  const parameterXml = '<importexportxml><appactions>'
+    + changes.touchedIds.map(id => `<appaction>${id}</appaction>`).join('')
+    + '</appactions></importexportxml>';
+  await api('POST', 'PublishXml', { ParameterXml: parameterXml });
+  console.log(`  ✓ published (${changes.touchedIds.length} changed command(s); re-run with --full if a change does not appear)`);
 }
 
 /** Reports placed on this entity for this ribbon location, in the order they should appear. */
@@ -219,6 +286,7 @@ async function removeCommandsFor(key) {
     + `&$filter=startswith(uniquename,'qdb_ReportEngine.Report') and contains(uniquename,'.${targetEntity}.${key}')`);
   for (const row of (stale.value || [])) {
     await api('DELETE', `appactions(${row.appactionid})`);
+    changes.deleted += 1;
     console.log(`  - ${key} · removed "${row.buttonlabeltext}"`);
   }
 }
@@ -286,8 +354,7 @@ const context = {
 };
 for (const definition of COMMAND_LOCATIONS) await ensureCommandGroup(definition, context);
 
-await api('POST', 'PublishAllXml', {});
-console.log('  ✓ published');
+await publishChanges();
 
 const all = await api('GET',
   `appactions?$select=appactionid,uniquename,location,buttonlabeltext,type&$filter=contains(uniquename,'qdb_ReportEngine.Report')&$orderby=sequence asc`);

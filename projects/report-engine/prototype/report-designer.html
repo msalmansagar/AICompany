@@ -2862,11 +2862,33 @@ async function crmEntityMetadataId(logicalName) {
   return payload.MetadataId;
 }
 
-async function crmPublishAll() {
-  const response = await fetch(`${crmClientUrl()}/api/data/v9.2/PublishAllXml`, {
-    method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: "{}"
+async function crmPublish(path, body) {
+  const response = await fetch(`${crmClientUrl()}/api/data/v9.2/${path}`, {
+    method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body
   });
   if (!response.ok) throw new Error(`Publish failed (${response.status}).`);
+}
+
+/* A newly created command stays invisible until a FULL publish — observed repeatedly: the rows were
+   there and the command bar did not show them until PublishAllXml ran. An existing command that only
+   changed is published narrowly, which returns in seconds rather than minutes and leaves everyone
+   else's session alone. Nothing at all is published when nothing changed.
+
+   The narrow form is not proven to take effect — PublishXml returns 204 for an <appactions> element
+   whether or not it recognises it — so it is used only where the alternative is a full publish that
+   was itself only sometimes needed. */
+async function publishCommandChanges() {
+  const { created, updated, deleted, touchedIds } = commandChanges;
+  if (!created && !updated && !deleted) return "nothing to publish";
+  if (created || deleted) {
+    await crmPublish("PublishAllXml", "{}");
+    return `published ${created + deleted} new or removed command(s)`;
+  }
+  const parameterXml = "<importexportxml><appactions>"
+    + touchedIds.map(id => `<appaction>${id}</appaction>`).join("")
+    + "</appactions></importexportxml>";
+  await crmPublish("PublishXml", JSON.stringify({ ParameterXml: parameterXml }));
+  return `published ${updated} changed command(s)`;
 }
 
 async function webResourceId(name) {
@@ -2924,13 +2946,52 @@ async function writeRibbonPlacements(reportId, reportName, placements) {
 const commandUniqueName = (kind, entity, key, suffix) =>
   `qdb_ReportEngine.${kind}.${entity}.${key}${suffix ? "." + suffix : ""}`;
 
+/* Publishing is the expensive part of this button. On a large organisation a full publish makes
+   every user's shell recompose itself, so it has to be earned: nothing is published unless something
+   actually changed, and the whole run publishes once at the end rather than per table. */
+const commandChanges = { created: 0, updated: 0, deleted: 0, touchedIds: [] };
+
+/* A lookup is written as "Name@odata.bind" and read back as "_name_value". Comparing without that
+   translation makes every run look like a change, which would republish on every click — exactly
+   the cost this is meant to avoid. */
+function comparableCommandFields(mutableFields) {
+  const scalars = {}, lookups = {};
+  for (const [key, value] of Object.entries(mutableFields)) {
+    if (!key.endsWith("@odata.bind")) { scalars[key] = value; continue; }
+    const attribute = key.slice(0, -"@odata.bind".length).toLowerCase();
+    const id = String(value).match(/\(([0-9a-fA-F-]{36})\)/);
+    lookups[`_${attribute}_value`] = id ? id[1].toLowerCase() : null;
+  }
+  return { scalars, lookups };
+}
+
+function commandDiffers(stored, mutableFields) {
+  const { scalars, lookups } = comparableCommandFields(mutableFields);
+  for (const [key, value] of Object.entries(scalars)) {
+    if (String(stored[key] ?? "") !== String(value ?? "")) return true;
+  }
+  for (const [key, value] of Object.entries(lookups)) {
+    if (String(stored[key] ?? "").toLowerCase() !== String(value ?? "")) return true;
+  }
+  return false;
+}
+
 async function upsertCommand(uniqueName, record, mutableFields) {
-  const existing = await dvList("appaction", `?$select=appactionid&$filter=uniquename eq '${uniqueName}'&$top=1`);
+  const { scalars, lookups } = comparableCommandFields(mutableFields);
+  const select = ["appactionid", ...Object.keys(scalars), ...Object.keys(lookups)].join(",");
+  const existing = await dvList("appaction", `?$select=${select}&$filter=uniquename eq '${uniqueName}'&$top=1`);
+
   if (existing.length) {
+    if (!commandDiffers(existing[0], mutableFields)) return existing[0].appactionid;
     await dvUpdate("appaction", existing[0].appactionid, mutableFields);
+    commandChanges.updated += 1;
+    commandChanges.touchedIds.push(existing[0].appactionid);
     return existing[0].appactionid;
   }
-  return dvCreate("appaction", record);
+  const id = await dvCreate("appaction", record);
+  commandChanges.created += 1;
+  commandChanges.touchedIds.push(id);
+  return id;
 }
 
 /** Everything a command needs regardless of its level in the menu. */
@@ -3054,9 +3115,9 @@ async function publishRibbonToCrm(report) {
     let itemCount = 0;
     for (const { entity, mapping } of tables.values()) itemCount += await syncCommandsForTable(entity, mapping, resources);
 
-    await crmPublishAll();
+    const publishOutcome = await publishCommandChanges();
     toast(tables.size
-      ? `Published — ${itemCount} report button(s) across ${tables.size} command bar(s). Refresh CRM to see them.`
+      ? `Saved — ${itemCount} report button(s) across ${tables.size} command bar(s); ${publishOutcome}. Refresh CRM to see them.`
       : "Placements saved. Dashboard and sitemap placements do not create a command bar button.", "ok");
   } catch (error) {
     toast("Publish failed — " + error.message, "err");
