@@ -161,8 +161,12 @@ var QdbReportEngine = window.QdbReportEngine || {};
   /** Opens one report in the runtime viewer, carrying whatever record context is available. */
   function openReportById(reportId, primaryControl) {
     const recordId = currentRecordId(primaryControl);
+    const entityLogicalName = entityNameFrom(primaryControl);
     const parameters = ["reportId=" + encodeURIComponent(reportId)];
     if (recordId) parameters.push("recordId=" + encodeURIComponent(recordId));
+    // Carried so a parameter bound to CurrentEntityContext can resolve; ignored by reports that
+    // declare no such binding.
+    if (entityLogicalName) parameters.push("entity=" + encodeURIComponent(entityLogicalName));
 
     Xrm.Navigation.navigateTo(
       { pageType: "webresource", webresourceName: RUNTIME_WEB_RESOURCE, data: parameters.join("&") },

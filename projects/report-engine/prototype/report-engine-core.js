@@ -22,7 +22,8 @@ const reportView = {
   showBreadcrumb: true,
   showChartMenu: true,     // re-charting is authoring, and authoring belongs in the Designer
   autoRun: false,          // a ribbon click is already the instruction to run
-  contextRecordId: null    // passed in, bound only where a parameter asks for it — never a silent filter
+  contextRecordId: null,   // passed in, bound only where a parameter asks for it — never a silent filter
+  contextEntityName: null  // the table the report was launched from
 };
 
 function toast(msg, kind){ const t=document.createElement("div"); t.className="toast "+(kind||""); t.textContent=msg; $("#toasts").appendChild(t); setTimeout(()=>t.remove(), 4200); }
@@ -202,7 +203,7 @@ async function fetchDefinition(id){
       "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,"
       + "qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit"),
     dvRetrieveMultiple("qdb_reportparameter", parent
-      + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,qdb_defaultvalue"
+      + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,qdb_defaultvalue,qdb_defaultsource"
       + "&$orderby=qdb_displayorder"),
     dvRetrieveMultiple("qdb_reportrelationship", parent
       + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey"),
@@ -222,7 +223,9 @@ async function fetchDefinition(id){
     isGoverned: definition.qdb_isgoverned,
     parameters: parameters.map(p => ({
       parameterName: p.qdb_parametername, label: p.qdb_label, paramType: coded(p, "qdb_paramtype"),
-      isRequired: p.qdb_isrequired, defaultValue: p.qdb_defaultvalue
+      isRequired: p.qdb_isrequired, defaultValue: p.qdb_defaultvalue,
+      // Where the value comes from: typed by the user, or taken from the launch context.
+      defaultSource: coded(p, "qdb_defaultsource")
     })),
     relationships: relationships.map(r => ({
       id: r.qdb_reportrelationshipid, openType: coded(r, "qdb_opentype"),
@@ -301,16 +304,33 @@ async function openReport(id){
    running immediately either errors or returns something meaningless and the user is given no clue
    why — so show the filters and wait for them instead. */
 function canRunWithoutInput(def){
-  return (def.parameters || []).every(p => !p.isRequired || (p.defaultValue !== null && p.defaultValue !== ""));
+  return (def.parameters || []).every(p => {
+    if (!p.isRequired) return true;
+    // A bound parameter needs no typing, but only counts if the launch context actually supplied it.
+    if (isContextBound(p)) return !!contextValuePreview(p);
+    return p.defaultValue !== null && p.defaultValue !== "";
+  });
 }
 
 function renderRun(){
   const { def } = state.current;
   const params = def.parameters||[];
   const paramFields = params.map(p => {
+    const label = `${esc(p.label||p.parameterName)} ${p.isRequired?'<span class="req">*</span>':''}`;
+
+    /* A context-bound parameter is shown, not offered. Hiding it would leave the user unable to see
+       what the report is scoped by; making it editable would imply a choice that is not theirs.
+       It carries no data-param, so the DOM sweep in collectParams cannot pick up the display text. */
+    if (isContextBound(p)) {
+      const preview = contextValuePreview(p);
+      return `<div class="field"><label>${label} <span class="chip">${esc(parameterSource(p))}</span></label>
+        <input type="text" readonly disabled value="${esc(preview || "")}"
+          placeholder="${esc(preview ? "" : "not available in this context")}"/></div>`;
+    }
+
     const t = (p.paramType&&p.paramType.label)||"Text";
     const type = /date/i.test(t)?"date":/number/i.test(t)?"number":"text";
-    return `<div class="field"><label>${esc(p.label||p.parameterName)} ${p.isRequired?'<span class="req">*</span>':''}</label>
+    return `<div class="field"><label>${label}</label>
       <input data-param="${esc(p.parameterName)}" type="${type}" value="${esc(p.defaultValue||"")}" placeholder="${esc(t)}"/></div>`;
   }).join("");
   const rels = (def.relationships||[]).filter(r => r.childKey);
@@ -355,10 +375,65 @@ function renderRun(){
   }
 }
 
-function collectParams(){
+/* A parameter can take its value from the launch context instead of from the user. The sources are
+   the ones qdb_defaultsource has always defined — the column existed and nothing ever read it, so a
+   report configured to scope itself to the current record silently ignored that instruction and
+   returned the unscoped set. */
+let businessUnitIdPromise = null;
+
+function currentUserId(){
+  try { return String(xrm().Utility.getGlobalContext().userSettings.userId).replace(/[{}]/g, ""); }
+  catch(e){ return null; }
+}
+
+/* The business unit is not on the global context, so it costs one read of the signed-in user.
+   Cached for the life of the page — it cannot change while a report is open. */
+function currentBusinessUnitId(){
+  if (businessUnitIdPromise) return businessUnitIdPromise;
+  const userId = currentUserId();
+  businessUnitIdPromise = userId
+    ? xrm().WebApi.retrieveRecord("systemuser", userId, "?$select=_businessunitid_value")
+        .then(row => row["_businessunitid_value"] || null).catch(() => null)
+    : Promise.resolve(null);
+  return businessUnitIdPromise;
+}
+
+const CONTEXT_SOURCES = {
+  CurrentUser: () => currentUserId(),
+  CurrentBusinessUnit: () => currentBusinessUnitId(),
+  CurrentRecordId: () => reportView.contextRecordId,
+  CurrentEntityContext: () => reportView.contextEntityName
+};
+
+const parameterSource = p => (p.defaultSource && (p.defaultSource.label || p.defaultSource.code)) || "Static";
+const isContextBound = p => Object.prototype.hasOwnProperty.call(CONTEXT_SOURCES, parameterSource(p));
+
+/** What a bound parameter will resolve to, as far as is known without a server call. */
+function contextValuePreview(parameter){
+  switch (parameterSource(parameter)) {
+    case "CurrentRecordId": return reportView.contextRecordId;
+    case "CurrentUser": return currentUserId();
+    case "CurrentEntityContext": return reportView.contextEntityName;
+    case "CurrentBusinessUnit": return "(your business unit)";
+    default: return null;
+  }
+}
+
+async function contextParameterValues(def){
+  const values = {};
+  for (const parameter of (def.parameters || [])) {
+    if (!isContextBound(parameter)) continue;
+    const resolved = await CONTEXT_SOURCES[parameterSource(parameter)]();
+    if (resolved) values[parameter.parameterName] = String(resolved).replace(/[{}]/g, "");
+  }
+  return values;
+}
+
+async function collectParams(){
   const values = {};
   document.querySelectorAll("[data-param]").forEach(i => { if(i.value!=="") values[i.dataset.param]=i.value; });
-  return values;
+  // Context wins over anything sitting in the DOM: a bound parameter is not the user's to set.
+  return Object.assign(values, await contextParameterValues(state.current.def));
 }
 
 async function runReport(){
@@ -368,7 +443,7 @@ async function runReport(){
   try {
     // The plugin returns stored columns; computed ones are derived here, then shaped (ADR-RPT-011).
     // Transformations run last so they can format a formula's output too.
-    const executed = await runReportInCrm(def.id, collectParams());
+    const executed = await runReportInCrm(def.id, await collectParams());
     const result = applyTransformations(applyFormulas(executed, def.formulas), def.transformations);
     result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
@@ -1818,6 +1893,7 @@ function bootSingleReport(){
   reportView.showChartMenu = false;
   reportView.autoRun = true;
   reportView.contextRecordId = launchParam("recordId");
+  reportView.contextEntityName = launchParam("entity");
 
   const reportId = launchParam("reportId");
   if (!reportId) {
