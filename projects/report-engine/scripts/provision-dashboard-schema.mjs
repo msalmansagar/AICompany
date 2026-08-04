@@ -62,17 +62,21 @@ async function ensureAttr(entity, logical, body) {
   await meta('POST', `EntityDefinitions(LogicalName='${entity}')/Attributes`, body);
   console.log(`    + ${entity}.${logical}`);
 }
-async function ensureLookup(schemaName, referenced, referencing, lookupSchema, lookupDisp) {
+/* deleteBehaviour is a parameter because the two kinds of relationship here need opposite answers.
+   A section owns its widgets, so deleting it must take them with it — Cascade. A data source is
+   merely referenced by a widget, and cascading there would mean removing a query deletes every
+   widget that read through it, destroying a dashboard as a side effect of editing its plumbing. */
+async function ensureLookup(schemaName, referenced, referencing, lookupSchema, lookupDisp, deleteBehaviour = 'Cascade') {
   const lookupLogical = lookupSchema.toLowerCase();
   if (await attrExists(referencing, lookupLogical)) { console.log(`    skip lookup ${referencing}.${lookupLogical}`); return; }
   await meta('POST', 'RelationshipDefinitions', {
     '@odata.type': 'Microsoft.Dynamics.CRM.OneToManyRelationshipMetadata',
     SchemaName: schemaName, ReferencedEntity: referenced, ReferencingEntity: referencing,
     AssociatedMenuConfiguration: { Behavior: 'UseCollectionName', Group: 'Details', Order: 10000, MenuId: null, Icon: null, ViewId: '00000000-0000-0000-0000-000000000000', AvailableOffline: false },
-    CascadeConfiguration: { Assign: 'NoCascade', Delete: 'Cascade', Merge: 'NoCascade', Reparent: 'NoCascade', Share: 'NoCascade', Unshare: 'NoCascade' },
+    CascadeConfiguration: { Assign: 'NoCascade', Delete: deleteBehaviour, Merge: 'NoCascade', Reparent: 'NoCascade', Share: 'NoCascade', Unshare: 'NoCascade' },
     Lookup: { '@odata.type': 'Microsoft.Dynamics.CRM.LookupAttributeMetadata', SchemaName: lookupSchema, DisplayName: label(lookupDisp), RequiredLevel: { Value: 'None' } }
   });
-  console.log(`    + lookup ${referencing}.${lookupLogical} -> ${referenced}`);
+  console.log(`    + lookup ${referencing}.${lookupLogical} -> ${referenced} (delete: ${deleteBehaviour})`);
 }
 
 const env = loadEnv(process.argv[2]);
@@ -84,6 +88,7 @@ console.log('Entities:');
 await ensureEntity('qdb_Dashboard', 'qdb_dashboard', 'Dashboard', 'Dashboards');
 await ensureEntity('qdb_DashboardSection', 'qdb_dashboardsection', 'Dashboard Section', 'Dashboard Sections');
 await ensureEntity('qdb_DashboardWidget', 'qdb_dashboardwidget', 'Dashboard Widget', 'Dashboard Widgets');
+await ensureEntity('qdb_DashboardDataSource', 'qdb_dashboarddatasource', 'Dashboard Data Source', 'Dashboard Data Sources');
 
 console.log('\nqdb_dashboard fields:');
 await ensureAttr('qdb_dashboard', 'qdb_dashboardcode', stringAttr('qdb_DashboardCode', 'Dashboard Code', 100));
@@ -104,5 +109,26 @@ for (const [logical, schema, disp] of [
 }
 await ensureAttr('qdb_dashboardwidget', 'qdb_sequence', intAttr('qdb_Sequence', 'Sequence'));
 await ensureLookup('qdb_dashboardsection_dashboardwidget', 'qdb_dashboardsection', 'qdb_dashboardwidget', 'qdb_DashboardSectionId', 'Dashboard Section');
+
+/* A dashboard data source is the same idea as qdb_reportdatasource: a named, typed query the
+   dashboard owns and its widgets read through. Only the types the browser can execute are offered
+   in the designer — CRM View, FetchXML, Static Dataset — because a dashboard renders client-side
+   and has no equivalent of the qdb_RunReport plugin to run the rest. The column is a plain string
+   for the same reason kind and aggregation are: the catalogue will grow, and option-set churn on a
+   deployed solution costs more than it saves. */
+console.log('\nqdb_dashboarddatasource fields:');
+await ensureAttr('qdb_dashboarddatasource', 'qdb_sourcetype', stringAttr('qdb_SourceType', 'Source Type', 100));
+await ensureAttr('qdb_dashboarddatasource', 'qdb_entity', stringAttr('qdb_Entity', 'Entity', 100));
+// FetchXML for a real view runs well past the 4,000 a default memo allows.
+await ensureAttr('qdb_dashboarddatasource', 'qdb_querypayload', {
+  '@odata.type': 'Microsoft.Dynamics.CRM.MemoAttributeMetadata', AttributeType: 'Memo',
+  AttributeTypeName: { Value: 'MemoType' }, SchemaName: 'qdb_QueryPayload', MaxLength: 100000,
+  RequiredLevel: { Value: 'None' }, DisplayName: label('Query Payload')
+});
+await ensureAttr('qdb_dashboarddatasource', 'qdb_isprimary', boolAttr('qdb_IsPrimary', 'Is Primary'));
+await ensureAttr('qdb_dashboarddatasource', 'qdb_sequence', intAttr('qdb_Sequence', 'Sequence'));
+await ensureLookup('qdb_dashboard_dashboarddatasource', 'qdb_dashboard', 'qdb_dashboarddatasource', 'qdb_DashboardId', 'Dashboard');
+await ensureLookup('qdb_dashboarddatasource_dashboardwidget', 'qdb_dashboarddatasource', 'qdb_dashboardwidget',
+  'qdb_DataSourceId', 'Data Source', 'RemoveLink');
 
 console.log('\nDone.');

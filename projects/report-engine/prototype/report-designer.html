@@ -2443,6 +2443,14 @@ function dashboardToDefinition(dashboard) {
     code: dashboard.code || null,
     description: dashboard.description || null,
     isGoverned: !!dashboard.isGoverned,
+    dataSources: (dashboard.dataSources || []).map(source => ({
+      id: source.id,
+      name: source.name || "Source",
+      sourceType: source.type || "CRM View",
+      entity: source.entity || null,
+      queryPayload: source.query || null,
+      isPrimary: !!source.primary
+    })),
     sections: (dashboard.sections || []).map(section => ({
       id: newGuid(),
       title: section.title || null,
@@ -2455,7 +2463,8 @@ function dashboardToDefinition(dashboard) {
         measureAttribute: widget.measure || null,
         aggregation: toAggregation(widget.agg),
         title: widget.title || null,
-        chartType: widget.chartType || null
+        chartType: widget.chartType || null,
+        dataSourceId: widget.sourceId || null
       }))
     }))
   };
@@ -2467,7 +2476,32 @@ function dashboardToDefinition(dashboard) {
    qdb_<entity>name — so it is qdb_dashboardname, not qdb_name. Widget kind and aggregation are
    stored as strings deliberately, to avoid option-set churn as the widget catalogue grows. */
 
-async function writeDashboardSections(dashboardId, def) {
+/* Widgets name their source by the id the composer generated, and the server assigns its own on
+   create — so the write returns a map from one to the other for the widget rows to bind through. */
+async function writeDashboardSources(dashboardId, def) {
+  const idByComposerId = {};
+  let sequence = 1;
+  for (const source of def.dataSources || []) {
+    idByComposerId[source.id] = await dvCreate("qdb_dashboarddatasource", defined({
+      qdb_dashboarddatasourcename: source.name,
+      qdb_sourcetype: source.sourceType,
+      qdb_entity: source.entity,
+      qdb_querypayload: source.queryPayload,
+      qdb_isprimary: source.isPrimary,
+      qdb_sequence: sequence++,
+      "qdb_DashboardId@odata.bind": `/qdb_dashboards(${dashboardId})`
+    }));
+  }
+  return idByComposerId;
+}
+
+async function deleteDashboardSources(dashboardId) {
+  const sources = await dvList("qdb_dashboarddatasource",
+    `?$filter=_qdb_dashboardid_value eq ${dashboardId}&$select=qdb_dashboarddatasourceid`);
+  for (const source of sources) await dvDelete("qdb_dashboarddatasource", source.qdb_dashboarddatasourceid);
+}
+
+async function writeDashboardSections(dashboardId, def, sourceIdMap = {}) {
   let sectionSequence = 1;
   for (const section of def.sections || []) {
     const sectionId = await dvCreate("qdb_dashboardsection", defined({
@@ -2488,7 +2522,10 @@ async function writeDashboardSections(dashboardId, def) {
         qdb_aggregation: widget.aggregation,
         qdb_charttype: widget.chartType,
         qdb_sequence: widgetSequence++,
-        "qdb_DashboardSectionId@odata.bind": `/qdb_dashboardsections(${sectionId})`
+        "qdb_DashboardSectionId@odata.bind": `/qdb_dashboardsections(${sectionId})`,
+        ...(sourceIdMap[widget.dataSourceId]
+          ? { "qdb_DataSourceId@odata.bind": `/qdb_dashboarddatasources(${sourceIdMap[widget.dataSourceId]})` }
+          : {})
       }));
     }
   }
@@ -2521,12 +2558,15 @@ async function saveDashboardToServer(dashboard) {
 
   try {
     if (isUpdate) {
+      // Sections hold the widgets that reference a source, so they go before the sources do.
       await deleteDashboardSections(dashboard.savedId);
+      await deleteDashboardSources(dashboard.savedId);
       await dvUpdate("qdb_dashboard", dashboard.savedId, attributes);
     } else {
       dashboard.savedId = await dvCreate("qdb_dashboard", attributes);
     }
-    await writeDashboardSections(dashboard.savedId, def);
+    const sourceIdMap = await writeDashboardSources(dashboard.savedId, def);
+    await writeDashboardSections(dashboard.savedId, def, sourceIdMap);
     toast(isUpdate ? "Dashboard updated in Dataverse" : "Dashboard saved to Dataverse", "ok");
     dashboardCatalog.refresh();
   } catch (error) {
@@ -3591,6 +3631,14 @@ function definitionToDashboard(def) {
     owner: "Saved",
     modified: new Date().toISOString().slice(0, 10),
     isGoverned: !!def.isGoverned,
+    dataSources: (def.dataSources || []).map(source => ({
+      id: source.id,
+      name: source.name || "Source",
+      type: source.sourceType || "CRM View",
+      entity: source.entity || "account",
+      query: source.queryPayload || "",
+      primary: !!source.isPrimary
+    })),
     sections: (def.sections || []).map(section => ({
       id: section.id || newGuid(),
       title: section.title || "",
@@ -3604,6 +3652,7 @@ function definitionToDashboard(def) {
         measure: widget.measureAttribute || "",
         agg: widget.aggregation || "Sum",
         chartType: widget.chartType || "Column",
+        sourceId: widget.dataSourceId || null,
         cardIcon: "money", badgeText: "", badgeLevel: ""
       }))
     }))
@@ -3620,7 +3669,7 @@ async function loadDashboardDefinition(id) {
   for (const section of sections) {
     const widgets = await dvList("qdb_dashboardwidget",
       `?$filter=_qdb_dashboardsectionid_value eq ${section.qdb_dashboardsectionid}`
-      + "&$select=qdb_dashboardwidgetid,qdb_dashboardwidgetname,qdb_kind,qdb_entity,qdb_groupby,qdb_measure,qdb_aggregation,qdb_charttype&$orderby=qdb_sequence");
+      + "&$select=qdb_dashboardwidgetid,qdb_dashboardwidgetname,qdb_kind,qdb_entity,qdb_groupby,qdb_measure,qdb_aggregation,qdb_charttype,_qdb_datasourceid_value&$orderby=qdb_sequence");
     mapped.push({
       id: section.qdb_dashboardsectionid,
       title: section.qdb_dashboardsectionname,
@@ -3628,10 +3677,15 @@ async function loadDashboardDefinition(id) {
       widgets: widgets.map(w => ({
         id: w.qdb_dashboardwidgetid, title: w.qdb_dashboardwidgetname, kind: w.qdb_kind, entity: w.qdb_entity,
         groupByAttribute: w.qdb_groupby, measureAttribute: w.qdb_measure,
-        aggregation: w.qdb_aggregation, chartType: w.qdb_charttype
+        aggregation: w.qdb_aggregation, chartType: w.qdb_charttype,
+        dataSourceId: w._qdb_datasourceid_value || null
       }))
     });
   }
+
+  const sources = await dvList("qdb_dashboarddatasource",
+    `?$filter=_qdb_dashboardid_value eq ${id}`
+    + "&$select=qdb_dashboarddatasourceid,qdb_dashboarddatasourcename,qdb_sourcetype,qdb_entity,qdb_querypayload,qdb_isprimary&$orderby=qdb_sequence");
 
   return {
     id: record.qdb_dashboardid,
@@ -3639,6 +3693,14 @@ async function loadDashboardDefinition(id) {
     code: record.qdb_dashboardcode || "",
     description: record.qdb_description || "",
     isGoverned: !!record.qdb_isgoverned,
+    dataSources: sources.map(source => ({
+      id: source.qdb_dashboarddatasourceid,
+      name: source.qdb_dashboarddatasourcename,
+      sourceType: source.qdb_sourcetype,
+      entity: source.qdb_entity,
+      queryPayload: source.qdb_querypayload,
+      isPrimary: !!source.qdb_isprimary
+    })),
     sections: mapped
   };
 }
@@ -7451,7 +7513,91 @@ function dashTileCols(tile) {
   return shown.concat(extra.filter(c => !seen.has(c.key)));
 }
 
-function dashRows(tile) { return previewRows(dashTileCols(tile), tile.entity); }
+/* ---------- dashboard data sources ----------
+   A widget reads either a table directly or a named data source, which is a saved query the
+   dashboard owns. Only the three types that this screen can actually execute are offered: a widget
+   bound to SQL or Core Banking would save perfectly and draw nothing, because dashboards render in
+   the browser and have no server-side runtime executing sources the way qdb_RunReport does for
+   reports. The rest are named on screen as waiting for that runtime rather than being offered and
+   silently discarded. */
+const DASHBOARD_SOURCE_TYPES = ["CRM View", "FetchXML", "Static Dataset"];
+const DEFERRED_SOURCE_TYPES = ["QueryExpression", "Dataverse Web API", "Custom API / Plugin", "SQL",
+  "External REST API", "Middleware API", "Core Banking API", "MIS API"];
+
+const dashboardSources = dashboard => (dashboard && dashboard.dataSources) || [];
+const findSource = (dashboard, id) => dashboardSources(dashboard).find(source => source.id === id) || null;
+const widgetSource = widget => widget.sourceId ? findSource(state.dashboard, widget.sourceId) : null;
+
+const sourceData = { byKey: {}, pending: {} };
+const sourceKey = (source, cols) =>
+  `${source.id}|${source.type}|${source.entity}|${source.query}|${cols.map(c => c.key).join(",")}`;
+
+/** A static dataset is its own payload — no query to run, so it resolves without a round trip. */
+function staticDatasetRows(source) {
+  try {
+    const parsed = JSON.parse(source.query || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+/* A view and a hand-written FetchXML are used exactly as authored — choosing one is a statement
+   about which rows the widget should see, and rewriting it would quietly overrule that. */
+function executableFetchXml(source) {
+  if (source.type === "FetchXML") return source.query || "";
+  const view = viewsOf(source.entity).find(candidate => candidate.name === source.query);
+  return view ? view.fetchXml : "";
+}
+
+function sourceRows(source, cols) {
+  if (source.type === "Static Dataset") return staticDatasetRows(source);
+  const key = sourceKey(source, cols);
+  if (!sourceData.byKey[key]) { loadSourceRows(key, source, cols); return []; }
+  return sourceData.byKey[key];
+}
+
+async function loadSourceRows(key, source, cols) {
+  if (sourceData.pending[key]) return;
+  const fetchXml = executableFetchXml(source);
+  if (!fetchXml) { sourceData.byKey[key] = []; return; }
+  sourceData.pending[key] = true;
+  beginBusy(`Reading ${source.name}…`);
+  try {
+    const rows = await dvList(source.entity, "?fetchXml=" + encodeURIComponent(fetchXml));
+    sourceData.byKey[key] = rows.map(row => toPreviewRow(row, cols));
+  } catch (error) {
+    // A view the user cannot read, or FetchXML that no longer parses: an empty result is the honest
+    // answer, and the tile says the source returned nothing rather than inventing rows.
+    sourceData.byKey[key] = [];
+  }
+  delete sourceData.pending[key];
+  endBusy(`Reading ${source.name}…`);
+  render();
+}
+
+function dashRows(tile) {
+  const source = widgetSource(tile);
+  return source ? sourceRows(source, dashTileCols(tile)) : previewRows(dashTileCols(tile), tile.entity);
+}
+
+/**
+ * Whether the widget's bindings survive the source it reads through.
+ *
+ * A view selects the columns it selects. Group a widget by a field the view does not return and
+ * every row reads undefined there — which draws as a chart of one slice called "undefined", the
+ * exact failure this project has just finished fixing. Saying so is far better than drawing it.
+ */
+function bindingProblem(widget) {
+  const source = widgetSource(widget);
+  if (!source || source.type === "Static Dataset") return null;
+  const rows = dashRows(widget);
+  if (!rows.length) return null;
+  const missing = [widget.groupBy, widgetIsMeasured(widget) ? widget.measure : null]
+    .filter(Boolean)
+    .filter(attribute => rows[0][attribute] === undefined);
+  return missing.length ? `${source.name} does not return ${missing.join(" or ")}.` : null;
+}
 function defaultBind(entity) {
   const cols = attributesOf(entity);
   const groupBy = (cols.find(c=>["Option set","Lookup"].includes(c.t)) || cols.find(c=>c.t==="Text") || cols[0] || {}).a || "";
@@ -7746,9 +7892,21 @@ function fieldPalette(d) {
   const fields = usefulAttributes(d.entity)
     .filter(field => !state.fieldFilter || field.n.toLowerCase().includes(state.fieldFilter.toLowerCase()));
   const total = usefulAttributes(d.entity).length;
+  const sources = dashboardSources(d);
   const rail = el(`<div>
+    <h4>Data source</h4>
+    <div style="margin-bottom:6px">${sources.length
+      ? `<select class="fluent-select" data-dashsource>${sources.map(source =>
+          `<option value="${esc(source.id)}" ${d.activeSourceId === source.id ? "selected" : ""}>${
+            esc(source.name)}</option>`).join("")}
+         <option value="" ${d.activeSourceId ? "" : "selected"}>Table directly…</option></select>`
+      : entityPickerHtml(d.entity, 'data-dashentity')}</div>
+    <button class="btn sm" data-managesources style="width:100%;margin-bottom:12px">${
+      ic("tree")}${sources.length ? `Manage sources (${sources.length})` : "Add a data source"}</button>
     <h4>Data fields</h4>
-    <div style="margin-bottom:10px">${entityPickerHtml(d.entity, 'data-dashentity')}</div>
+    ${sources.length && d.activeSourceId
+      ? `<div class="hint" style="margin-bottom:8px">Fields of ${esc(d.entity)}, read through this source.</div>`
+      : `<div style="margin-bottom:10px">${entityPickerHtml(d.entity, 'data-dashentity2')}</div>`}
     <div class="palette" style="max-height:340px">
       <div class="palette-search"><input class="fluent-input" id="dp_search" placeholder="Search fields…"
         value="${esc(state.fieldFilter || "")}"></div>
@@ -7768,12 +7926,24 @@ function fieldPalette(d) {
   const host = rail.querySelector("#dp_fields");
   fields.forEach(field => host.appendChild(paletteField(field, d.entity)));
 
-  rail.querySelector("[data-dashentity]").addEventListener("change", event => {
+  rail.querySelectorAll("[data-dashentity], [data-dashentity2]").forEach(picker =>
+    picker.addEventListener("change", event => {
+      recordDashboardChange();
+      d.entity = event.target.value;
+      state.fieldFilter = "";
+      render();
+    }));
+  const sourcePicker = rail.querySelector("[data-dashsource]");
+  if (sourcePicker) sourcePicker.addEventListener("change", () => {
     recordDashboardChange();
-    d.entity = event.target.value;
+    d.activeSourceId = sourcePicker.value || null;
+    // The rail lists the fields of whatever the chosen source reads, so the table follows the source.
+    const chosen = findSource(d, d.activeSourceId);
+    if (chosen) d.entity = chosen.entity;
     state.fieldFilter = "";
     render();
   });
+  rail.querySelector("[data-managesources]").onclick = () => openDataSourceDialog(d);
   /* Re-rendered in place rather than through render(), which would rebuild the rail and take the
      focus out of the box being typed into after the first keystroke. */
   const search = rail.querySelector("#dp_search");
@@ -7920,8 +8090,9 @@ function widgetTile(widget, sectionIndex, at) {
         <button data-remove title="Remove widget">✕</button>
       </span>
     </div>
-    <div class="dt-body">${renderWidget(widget)
-      || `<div class="np-empty">Not bound to a table yet — open its properties.</div>`}</div>
+    <div class="dt-body">${bindingProblem(widget)
+      ? `<div class="np-empty">${esc(bindingProblem(widget))}</div>`
+      : renderWidget(widget) || `<div class="np-empty">Not bound to a table yet — open its properties.</div>`}</div>
   </div>`);
 
   tile.onclick = event => {
@@ -8007,6 +8178,12 @@ function widgetProperties({ widget, selection }, dashboard) {
       <select class="fluent-select" data-w="widget">${WIDGET_CATALOGUE.map(entry =>
         `<option value="${entry.kind}" ${String(widget.widget).toLowerCase() === entry.kind ? "selected" : ""}>${
           esc(entry.label)}</option>`).join("")}</select></div>
+    <div class="field"><label class="lbl">Data source</label>
+      <select class="fluent-select" data-w="sourceId">
+        <option value="" ${widget.sourceId ? "" : "selected"}>Read the table directly</option>
+        ${dashboardSources(dashboard).map(source =>
+          `<option value="${esc(source.id)}" ${widget.sourceId === source.id ? "selected" : ""}>${
+            esc(source.name)}</option>`).join("")}</select></div>
     <div class="field"><label class="lbl">Table</label>${
       entityPickerHtml(widget.entity, 'data-w="entity"')}</div>
     <div class="field"><label class="lbl">Group by</label>${
@@ -8031,10 +8208,123 @@ function widgetProperties({ widget, selection }, dashboard) {
     // Changing the table invalidates fields chosen from the old one, and changing the type changes
     // which fields exist at all — both need the panel rebuilt rather than patched.
     if (input.dataset.w === "entity") { target.groupBy = ""; target.measure = ""; }
+    // A source reads one table, so binding to it moves the widget onto that table.
+    if (input.dataset.w === "sourceId") {
+      const chosen = findSource(dashboard, input.value);
+      target.sourceId = input.value || null;
+      if (chosen && chosen.entity !== target.entity) {
+        target.entity = chosen.entity; target.groupBy = ""; target.measure = "";
+      }
+    }
     render();
   }));
   panel.querySelector("[data-done]").onclick = () => { state.dashSelection = null; render(); };
   return panel;
+}
+
+/**
+ * The dashboard's data sources: named queries its widgets can read through.
+ *
+ * The payload means something different to each type — a view name, FetchXML, a JSON array — so
+ * changing the type clears it. A payload carried across a change becomes a view name read as
+ * FetchXML: stored, wrong, and silent, which is how the report designer had to learn the same rule.
+ */
+function openDataSourceDialog(d) {
+  d.dataSources = d.dataSources || [];
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:820px">
+    <div class="dialog-head"><h3>Data sources</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body"><div id="dsrc_body"></div>
+      <div class="hint" style="margin-top:12px">${esc(DEFERRED_SOURCE_TYPES.join(", "))} need a
+        server-side dashboard runtime and are not offered here yet — a widget bound to one would
+        save and then draw nothing.</div></div>
+    <div class="dialog-foot"><button class="btn primary" data-close>Done</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const close = () => { scrim.remove(); render(); };
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+
+  const body = scrim.querySelector("#dsrc_body");
+  const draw = () => {
+    body.innerHTML = "";
+    if (!d.dataSources.length) {
+      body.appendChild(el(`<div class="np-empty">No data sources yet. Widgets read their table
+        directly until one is added.</div>`));
+    }
+    d.dataSources.forEach((source, index) => body.appendChild(dataSourceRow(source, index, d, draw)));
+    const add = el(`<button class="btn sm btn-add">${ic("add")}Add data source</button>`);
+    add.onclick = () => {
+      recordDashboardChange();
+      d.dataSources.push({ id: newGuid(), name: `Source ${d.dataSources.length + 1}`,
+        type: "CRM View", entity: d.entity || "account", query: "", primary: !d.dataSources.length });
+      draw();
+    };
+    body.appendChild(add);
+  };
+  draw();
+}
+
+function dataSourceRow(source, index, d, redraw) {
+  const row = el(`<div class="section-card" style="margin:0 0 10px;padding:12px">
+    <div class="field-grid">
+      <div class="field"><label class="lbl">Name</label>
+        <input class="fluent-input" data-s="name" value="${esc(source.name || "")}"></div>
+      <div class="field"><label class="lbl">Source type</label>
+        <select class="fluent-select" data-s="type">${DASHBOARD_SOURCE_TYPES.map(type =>
+          `<option ${source.type === type ? "selected" : ""}>${esc(type)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl">Table</label>${
+        entityPickerHtml(source.entity, 'data-s="entity"')}</div>
+      <div class="field col-2"><label class="lbl">${esc(sourcePayloadLabel(source.type))}</label>${
+        sourcePayloadControl(source)}</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:6px">
+      <span class="rel-tag">${esc(sourceStatus(source))}</span>
+      <div class="cmd-spacer" style="flex:1"></div>
+      <button class="del" data-sdel>${ic("trash")}</button>
+    </div></div>`);
+
+  row.querySelectorAll("[data-s]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    recordDashboardChange();
+    source[input.dataset.s] = input.value;
+    if (input.dataset.s === "type" || input.dataset.s === "entity") source.query = "";
+    redraw();
+  }));
+  row.querySelector("[data-sdel]").onclick = () => {
+    recordDashboardChange();
+    // Widgets pointing at a removed source fall back to reading their table directly rather than
+    // holding an id that resolves to nothing.
+    (d.sections || []).forEach(section => (section.widgets || []).forEach(widget => {
+      if (widget.sourceId === source.id) widget.sourceId = null;
+    }));
+    if (d.activeSourceId === source.id) d.activeSourceId = null;
+    d.dataSources.splice(index, 1);
+    redraw();
+  };
+  return row;
+}
+
+const sourcePayloadLabel = type =>
+  ({ "CRM View": "View", "FetchXML": "FetchXML", "Static Dataset": "Rows (JSON array)" })[type] || "Query";
+
+function sourcePayloadControl(source) {
+  if (source.type === "CRM View") return viewPickerHtml(source.entity, source.query, 'data-s="query"');
+  const placeholder = source.type === "FetchXML"
+    ? "<fetch><entity name=\"account\">…</entity></fetch>"
+    : '[{ "name": "Retail", "total": 120 }]';
+  return `<textarea class="fluent-input" data-s="query" rows="3" placeholder="${esc(placeholder)}">${
+    esc(source.query || "")}</textarea>`;
+}
+
+/** Says whether this source can currently produce rows, rather than waiting for a blank widget to say it. */
+function sourceStatus(source) {
+  if (!source.query) return "No query yet — this source returns nothing";
+  if (source.type === "Static Dataset") {
+    const rows = staticDatasetRows(source);
+    return rows.length ? `${rows.length} row(s)` : "Not a JSON array — returns nothing";
+  }
+  if (source.type === "CRM View" && !executableFetchXml(source)) return "View not found on this table";
+  return `Reads ${source.entity}`;
 }
 
 /** The four stored properties of the dashboard itself — too few to deserve a screen of their own. */
@@ -8094,8 +8384,9 @@ function previewSection(section) {
 function previewTile(widget) {
   return el(`<div class="dash-tile">
     <div class="dt-head"><span class="dt-title">${esc(widget.title || "Untitled widget")}</span></div>
-    <div class="dt-body">${renderWidget(widget)
-      || `<div class="np-empty">This widget is not bound to a table yet.</div>`}</div></div>`);
+    <div class="dt-body">${bindingProblem(widget)
+      ? `<div class="np-empty">${esc(bindingProblem(widget))}</div>`
+      : renderWidget(widget) || `<div class="np-empty">This widget is not bound to a table yet.</div>`}</div></div>`);
 }
 function renderDashboards(c) {
   const cmd = el(`<div class="cmdbar">
