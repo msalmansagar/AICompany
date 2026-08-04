@@ -117,9 +117,27 @@ for (const resource of WEB_RESOURCES) {
   results.push(await upsertWebResource(resource));
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+/* A full publish takes minutes, and Dataverse refuses a second one while the first is still running
+   — so two deploys in a row now collide where the old always-scoped publish never did. That is a
+   queueing problem, not a failure: the content is already uploaded and only the publish is pending,
+   so waiting is the correct response rather than exiting and leaving the org serving stale shells. */
+const PUBLISH_RETRY_DELAYS_MS = [30_000, 60_000, 120_000, 120_000];
+
 async function publish(path, body) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, { method: 'POST', headers: headers(), body });
-  if (!res.ok) throw new Error(`publish ${res.status}: ${await res.text()}`);
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, { method: 'POST', headers: headers(), body });
+    if (res.ok) return;
+    const detail = await res.text();
+    const isBusy = res.status === 429 || detail.includes('because there is another');
+    if (!isBusy || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
+      throw new Error(`publish ${res.status}: ${detail}`);
+    }
+    const wait = PUBLISH_RETRY_DELAYS_MS[attempt];
+    console.log(`  · another publish or import is running — retrying in ${wait / 1000}s`);
+    await sleep(wait);
+  }
 }
 
 /* How much to publish is decided by WHAT changed.
