@@ -54,6 +54,12 @@ export interface DesignerTabModel {
   requiresPreviousTabComplete: boolean;
   /** When true the tab navigation bar is hidden while this tab is active. Sections and fields still render. */
   hideTabBar: boolean;
+  /**
+   * When true this tab shows one section at a time instead of all of them. The user advances
+   * with a section-scoped button targeting nextSection, and cannot advance while the visible
+   * section has validation errors. Absent/false keeps the existing all-at-once rendering.
+   */
+  revealsSectionsOneAtATime: boolean;
 }
 
 export interface DesignerSectionModel {

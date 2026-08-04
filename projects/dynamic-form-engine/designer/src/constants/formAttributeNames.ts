@@ -63,6 +63,8 @@ export const FORM_TAB_ATTRS = {
   IS_VISIBLE: 'qdb_is_visible',
   REQUIRES_PREVIOUS_TAB_COMPLETE: 'qdb_requires_previous_tab_complete',
   HIDE_TAB_BAR: 'qdb_hide_tab_bar',
+  /** One section on screen at a time, advanced by a scoped button, instead of all at once. */
+  REVEAL_SECTIONS_ONE_AT_A_TIME: 'qdb_reveal_sections_one_at_a_time',
   // DFE-SUBMITCONFIRM-002 — acknowledgement gate scoped to this tab.
   REQUIRE_SUBMIT_CONFIRMATION: 'qdb_require_submit_confirmation',
   SUBMIT_CONFIRMATION_LABEL: 'qdb_submit_confirmation_label',

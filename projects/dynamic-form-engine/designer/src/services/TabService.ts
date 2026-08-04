@@ -12,6 +12,7 @@ export interface CreateTabDto {
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
   hideTabBar?: boolean;
+  revealsSectionsOneAtATime?: boolean;
   description?: string | null;
   isSummaryTab?: boolean;
   // DFE-SUBMITCONFIRM-002
@@ -27,6 +28,7 @@ export interface UpdateTabDto {
   isVisible?: boolean;
   requiresPreviousTabComplete?: boolean;
   hideTabBar?: boolean;
+  revealsSectionsOneAtATime?: boolean;
   description?: string | null;
   isSummaryTab?: boolean;
   // DFE-SUBMITCONFIRM-002
@@ -48,6 +50,7 @@ export class TabService {
           [FORM_TAB_ATTRS.IS_VISIBLE]: dto.isVisible ?? true,
           [FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]: dto.requiresPreviousTabComplete ?? false,
           [FORM_TAB_ATTRS.HIDE_TAB_BAR]: dto.hideTabBar ?? false,
+          [FORM_TAB_ATTRS.REVEAL_SECTIONS_ONE_AT_A_TIME]: dto.revealsSectionsOneAtATime ?? false,
           [FORM_TAB_ATTRS.IS_SUMMARY_TAB]: dto.isSummaryTab ?? false,
           [FORM_TAB_ATTRS.REQUIRE_SUBMIT_CONFIRMATION]: dto.requireSubmitConfirmation ?? false,
           ...(dto.iconName != null ? { [FORM_TAB_ATTRS.ICON_NAME]: dto.iconName } : {}),
@@ -68,6 +71,9 @@ export class TabService {
     }
     if (dto.iconName !== undefined) data[FORM_TAB_ATTRS.ICON_NAME] = dto.iconName;
     if (dto.hideTabBar !== undefined) data[FORM_TAB_ATTRS.HIDE_TAB_BAR] = dto.hideTabBar;
+    if (dto.revealsSectionsOneAtATime !== undefined) {
+      data[FORM_TAB_ATTRS.REVEAL_SECTIONS_ONE_AT_A_TIME] = dto.revealsSectionsOneAtATime;
+    }
     if (dto.description !== undefined) data[FORM_TAB_ATTRS.DESCRIPTION] = dto.description;
     if (dto.isSummaryTab !== undefined) data[FORM_TAB_ATTRS.IS_SUMMARY_TAB] = dto.isSummaryTab;
     if (dto.requireSubmitConfirmation !== undefined) {
@@ -105,6 +111,7 @@ export class TabService {
       FORM_TAB_ATTRS.IS_VISIBLE,
       FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE,
       FORM_TAB_ATTRS.HIDE_TAB_BAR,
+      FORM_TAB_ATTRS.REVEAL_SECTIONS_ONE_AT_A_TIME,
       FORM_TAB_ATTRS.DESCRIPTION,
       FORM_TAB_ATTRS.IS_SUMMARY_TAB,
     ].join(',');
@@ -134,6 +141,7 @@ export class TabService {
       isVisible: record[FORM_TAB_ATTRS.IS_VISIBLE] !== false,
       requiresPreviousTabComplete: Boolean(record[FORM_TAB_ATTRS.REQUIRES_PREVIOUS_TAB_COMPLETE]),
       hideTabBar: Boolean(record[FORM_TAB_ATTRS.HIDE_TAB_BAR]),
+      revealsSectionsOneAtATime: Boolean(record[FORM_TAB_ATTRS.REVEAL_SECTIONS_ONE_AT_A_TIME]),
       description: record[FORM_TAB_ATTRS.DESCRIPTION] ? String(record[FORM_TAB_ATTRS.DESCRIPTION]) : null,
       isSummaryTab: Boolean(record[FORM_TAB_ATTRS.IS_SUMMARY_TAB]),
       requireSubmitConfirmation: Boolean(record[FORM_TAB_ATTRS.REQUIRE_SUBMIT_CONFIRMATION]),

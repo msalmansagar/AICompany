@@ -116,6 +116,16 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
         />
       </Field>
 
+      <Field
+        hint="Shows one section at a time instead of all of them. The user advances with a section button set to 'Navigate: Next section', and cannot move on while the visible section has errors. Every section except the last needs such a button, or the form dead-ends."
+      >
+        <Switch
+          label="Reveal sections one at a time"
+          checked={tab.revealsSectionsOneAtATime}
+          onChange={(_, data) => updateTab(tabId, { revealsSectionsOneAtATime: data.checked })}
+        />
+      </Field>
+
       {/* DFE-SUBMITCONFIRM-002: acknowledgement gate scoped to this tab. */}
       <Divider />
       <Text size={100} weight="semibold" className={styles.sectionHeading}>Submit Confirmation</Text>

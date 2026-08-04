@@ -75,6 +75,7 @@ export function TabBar({
       isVisible: true,
       requiresPreviousTabComplete: false,
       hideTabBar: false,
+      revealsSectionsOneAtATime: false,
     };
     addTab(newTab);
     onSelectTab(newTab.id);

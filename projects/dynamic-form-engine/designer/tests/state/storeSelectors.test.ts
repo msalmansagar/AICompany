@@ -31,8 +31,8 @@ const STUB_FORM: DesignerFormModel = {
   modifiedOn: new Date(),
 };
 
-const TAB_A: DesignerTabModel = { id: 'tab-a', formId: 'form-sel', label: 'Tab A', iconName: null, sortOrder: 0, isVisible: true, requiresPreviousTabComplete: false, hideTabBar: false };
-const TAB_B: DesignerTabModel = { id: 'tab-b', formId: 'form-sel', label: 'Tab B', iconName: null, sortOrder: 1, isVisible: true, requiresPreviousTabComplete: false, hideTabBar: false };
+const TAB_A: DesignerTabModel = { id: 'tab-a', formId: 'form-sel', label: 'Tab A', iconName: null, sortOrder: 0, isVisible: true, requiresPreviousTabComplete: false, hideTabBar: false, revealsSectionsOneAtATime: false };
+const TAB_B: DesignerTabModel = { id: 'tab-b', formId: 'form-sel', label: 'Tab B', iconName: null, sortOrder: 1, isVisible: true, requiresPreviousTabComplete: false, hideTabBar: false, revealsSectionsOneAtATime: false };
 
 const SECTION_A1: DesignerSectionModel = { id: 'sec-a1', tabId: 'tab-a', label: 'A Section 1', description: null, columnCount: 1, isCollapsible: false, isExpandedByDefault: true, isVisible: true, sortOrder: 0 };
 const SECTION_A2: DesignerSectionModel = { id: 'sec-a2', tabId: 'tab-a', label: 'A Section 2', description: null, columnCount: 1, isCollapsible: false, isExpandedByDefault: true, isVisible: true, sortOrder: 1 };

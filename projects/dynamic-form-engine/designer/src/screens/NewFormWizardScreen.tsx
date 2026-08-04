@@ -484,6 +484,7 @@ export function NewFormWizardScreen(): React.ReactElement {
           isVisible: true,
           requiresPreviousTabComplete: false,
           hideTabBar: false,
+          revealsSectionsOneAtATime: false,
         });
 
         const sectionId = await sectionService.createSection({

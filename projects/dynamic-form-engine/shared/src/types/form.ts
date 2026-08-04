@@ -236,6 +236,10 @@ export interface TabDefinition {
   // but still renders the tab's sections and fields at full width.
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
+  // When true the renderer shows one section at a time instead of all of them, advanced by a
+  // section-scoped button targeting nextSection/previousSection. Absent/undefined is all at once.
+  // Web-only for now; the mobile renderer ignores it and shows every section.
+  revealsSectionsOneAtATime?: boolean;
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
@@ -277,6 +281,9 @@ export type NavigationTargetType =
   | 'section'
   | 'nextStep'
   | 'previousStep'
+  // Step through the sections of one tab, when that tab reveals them one at a time.
+  | 'nextSection'
+  | 'previousSection'
   | 'externalUrl'
   | 'anotherForm';
 

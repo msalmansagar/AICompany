@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import type { NavigateActionConfig, TabDefinition, RuleEvaluationResult } from '@qdb/shared';
-import { resolveNavigationTabIndex, arePrecedingTabsComplete } from './scopedButtonNavigation';
+import type { NavigateActionConfig, TabDefinition, SectionDefinition, RuleEvaluationResult } from '@qdb/shared';
+import {
+  resolveNavigationTabIndex,
+  arePrecedingTabsComplete,
+  resolveNavigationSectionIndex,
+  isSectionComplete,
+} from './scopedButtonNavigation';
 
 const tabs = [
   { id: 'tab-a', isVisible: true },
@@ -103,5 +108,88 @@ describe('arePrecedingTabsComplete (BR-002 / DEF-003)', () => {
     expect(
       arePrecedingTabsComplete({ tabs: completionTabs, ruleState: emptyRuleState, fieldValues: {}, targetTabIndex: 0 }),
     ).toBe(true);
+  });
+});
+
+// ── Section stepping (reveal sections one at a time) ──────────────────────────
+
+const sections = [
+  { id: 'sec-1', isVisible: true, fields: [] },
+  { id: 'sec-2', isVisible: true, fields: [] },
+  { id: 'sec-3', isVisible: true, fields: [] },
+] as unknown as SectionDefinition[];
+
+const allSectionsVisible = () => true;
+
+describe('resolveNavigationSectionIndex', () => {
+  it('advances_to_the_next_section', () => {
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'nextSection' }), sections, activeSectionIndex: 0, isSectionVisible: allSectionsVisible }),
+    ).toBe(1);
+  });
+
+  it('goes_back_to_the_previous_section', () => {
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'previousSection' }), sections, activeSectionIndex: 2, isSectionVisible: allSectionsVisible }),
+    ).toBe(1);
+  });
+
+  it('returns_null_past_the_last_section', () => {
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'nextSection' }), sections, activeSectionIndex: 2, isSectionVisible: allSectionsVisible }),
+    ).toBeNull();
+  });
+
+  it('returns_null_before_the_first_section', () => {
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'previousSection' }), sections, activeSectionIndex: 0, isSectionVisible: allSectionsVisible }),
+    ).toBeNull();
+  });
+
+  it('steps_over_a_section_hidden_by_a_rule', () => {
+    const skipMiddle = (_s: SectionDefinition, index: number) => index !== 1;
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'nextSection' }), sections, activeSectionIndex: 0, isSectionVisible: skipMiddle }),
+    ).toBe(2);
+  });
+
+  it('ignores_tab_stepping_targets', () => {
+    expect(
+      resolveNavigationSectionIndex({ action: nav({ target: 'nextStep' }), sections, activeSectionIndex: 0, isSectionVisible: allSectionsVisible }),
+    ).toBeNull();
+  });
+});
+
+describe('isSectionComplete', () => {
+  const emptyRules = { fieldVisibility: {}, fieldRequired: {}, tabVisibility: {}, sectionVisibility: {} } as unknown as RuleEvaluationResult;
+
+  const sectionWith = (fields: unknown[]): SectionDefinition =>
+    ({ id: 'sec', isVisible: true, fields } as unknown as SectionDefinition);
+
+  it('passes_when_a_required_field_has_a_value', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: true }]);
+    expect(isSectionComplete({ section, ruleState: emptyRules, fieldValues: { cr: '123' } })).toBe(true);
+  });
+
+  it('fails_when_a_required_field_is_empty', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: true }]);
+    expect(isSectionComplete({ section, ruleState: emptyRules, fieldValues: { cr: '  ' } })).toBe(false);
+  });
+
+  it('ignores_an_optional_empty_field', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: false }]);
+    expect(isSectionComplete({ section, ruleState: emptyRules, fieldValues: {} })).toBe(true);
+  });
+
+  it('does_not_block_on_a_required_field_hidden_by_a_rule', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: true }]);
+    const hidden = { ...emptyRules, fieldVisibility: { f1: false } } as unknown as RuleEvaluationResult;
+    expect(isSectionComplete({ section, ruleState: hidden, fieldValues: {} })).toBe(true);
+  });
+
+  it('blocks_on_a_field_made_required_by_a_rule', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: false }]);
+    const required = { ...emptyRules, fieldRequired: { f1: true } } as unknown as RuleEvaluationResult;
+    expect(isSectionComplete({ section, ruleState: required, fieldValues: {} })).toBe(false);
   });
 });

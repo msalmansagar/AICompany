@@ -51,6 +51,7 @@ function makeTab(overrides: Partial<DesignerTabModel> = {}): DesignerTabModel {
     isVisible: true,
     requiresPreviousTabComplete: false,
     hideTabBar: false,
+    revealsSectionsOneAtATime: false,
     ...overrides,
   };
 }

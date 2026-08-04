@@ -331,6 +331,7 @@ export function DesignerScreen(): React.ReactElement {
             isVisible: true,
             requiresPreviousTabComplete: false,
             hideTabBar: false,
+            revealsSectionsOneAtATime: false,
           };
           addTab(newTab);
           return;
@@ -662,6 +663,7 @@ function EmptyCanvasPrompt(): React.ReactElement {
       isVisible: true,
       requiresPreviousTabComplete: false,
       hideTabBar: false,
+      revealsSectionsOneAtATime: false,
     });
   }, [addTab, tabOrder.length]);
 

@@ -149,6 +149,9 @@ export type NavigationTargetType =
   | 'section'
   | 'nextStep'
   | 'previousStep'
+  // Step through the sections of one tab, when that tab reveals them one at a time.
+  | 'nextSection'
+  | 'previousSection'
   | 'externalUrl'
   | 'anotherForm';
 
@@ -553,6 +556,9 @@ export interface TabDefinition {
   // navigation bar but still renders this tab's sections and fields.
   // Absent/undefined is treated as false (bar shown).
   hideTabBar?: boolean;
+  // When true the renderer shows one section at a time instead of all of them, advanced by a
+  // section-scoped button targeting nextSection/previousSection. Absent/undefined is all at once.
+  revealsSectionsOneAtATime?: boolean;
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
   buttons?: ScopedButton[];
