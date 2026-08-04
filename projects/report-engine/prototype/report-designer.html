@@ -1319,6 +1319,16 @@ const metadata = {
   pending: {}
 };
 
+/* Tables that belong to the platform rather than to the business. Advanced-find validity alone
+   leaves a couple of thousand of them in every picker — Field Service, Marketing, Portals, Power
+   Automate and scheduling — and an author looking for "Account" has to find it among them.
+   Prefixes are listed separately on purpose: "msdyn_" does not cover "msdyncrm_". */
+const PLATFORM_TABLE_PREFIXES = [
+  "msdyn_", "msdyncrm_", "msdynmkt_", "adx_", "mspp_", "flow", "bookableresource"
+];
+const isPlatformTable = logicalName =>
+  PLATFORM_TABLE_PREFIXES.some(prefix => String(logicalName || "").toLowerCase().startsWith(prefix));
+
 /** Entities a report can be built over: those the org exposes to advanced find. */
 async function loadEntityMetadata() {
   if (metadata.entitiesLoading) return;
@@ -1751,7 +1761,17 @@ function comboCandidates(input) {
     return viewsOf(scope).map(v => ({ id: v.name, title: v.name, subtitle: v.kind }));
   }
 
-  return (metadata.entities || []).map(e => ({ id: e.logicalName, title: e.label, subtitle: e.logicalName }));
+  return offerableEntities(input.dataset.entity)
+    .map(e => ({ id: e.logicalName, title: e.label, subtitle: e.logicalName }));
+}
+
+/* Platform tables are hidden from what a picker OFFERS, not from what the designer knows. Filtering
+   the metadata itself would strip the label off any report already built on one, and a report whose
+   table simply vanished from its own picker would look corrupted rather than filtered.
+   Whatever is already selected is therefore always kept in the list. */
+function offerableEntities(selectedLogicalName) {
+  return (metadata.entities || []).filter(e =>
+    !isPlatformTable(e.logicalName) || e.logicalName === selectedLogicalName);
 }
 
 const comboDisplay = (input, id) => {
