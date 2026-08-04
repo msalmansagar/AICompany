@@ -1965,6 +1965,7 @@ function newDefinition(seed) {
 const state = {
   view: "reports",
   tab: "general",
+  dashTab: "general",
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -2434,6 +2435,8 @@ function dashboardToDefinition(dashboard) {
   return {
     id: "00000000-0000-0000-0000-000000000000",
     title: dashboard.title || "Untitled dashboard",
+    code: dashboard.code || null,
+    description: dashboard.description || null,
     isGoverned: !!dashboard.isGoverned,
     sections: (dashboard.sections || []).map(section => ({
       id: newGuid(),
@@ -2504,7 +2507,12 @@ async function saveDashboardToServer(dashboard) {
   beginBusy("Saving dashboard…");
   const def = dashboardToDefinition(dashboard);
   const isUpdate = !!dashboard.savedId;
-  const attributes = defined({ qdb_dashboardname: def.title, qdb_isgoverned: !!def.isGoverned });
+  const attributes = defined({
+    qdb_dashboardname: def.title,
+    qdb_dashboardcode: def.code,
+    qdb_description: def.description,
+    qdb_isgoverned: !!def.isGoverned
+  });
 
   try {
     if (isUpdate) {
@@ -3573,10 +3581,11 @@ function definitionToDashboard(def) {
     id: def.id,
     savedId: def.id,
     title: def.title || "Untitled dashboard",
+    code: def.code || "",
+    description: def.description || "",
     owner: "Saved",
     modified: new Date().toISOString().slice(0, 10),
     isGoverned: !!def.isGoverned,
-    _seq: 0, _sel: null, _preview: false,
     sections: (def.sections || []).map(section => ({
       id: section.id || newGuid(),
       title: section.title || "",
@@ -3597,7 +3606,8 @@ function definitionToDashboard(def) {
 }
 
 async function loadDashboardDefinition(id) {
-  const record = await dvRetrieve("qdb_dashboard", id, "?$select=qdb_dashboardid,qdb_dashboardname,qdb_isgoverned");
+  const record = await dvRetrieve("qdb_dashboard", id,
+    "?$select=qdb_dashboardid,qdb_dashboardname,qdb_dashboardcode,qdb_description,qdb_isgoverned");
   const sections = await dvList("qdb_dashboardsection",
     `?$filter=_qdb_dashboardid_value eq ${id}&$select=qdb_dashboardsectionid,qdb_dashboardsectionname,qdb_columns&$orderby=qdb_sequence`);
 
@@ -3618,7 +3628,14 @@ async function loadDashboardDefinition(id) {
     });
   }
 
-  return { id: record.qdb_dashboardid, title: record.qdb_dashboardname, isGoverned: !!record.qdb_isgoverned, sections: mapped };
+  return {
+    id: record.qdb_dashboardid,
+    title: record.qdb_dashboardname,
+    code: record.qdb_dashboardcode || "",
+    description: record.qdb_description || "",
+    isGoverned: !!record.qdb_isgoverned,
+    sections: mapped
+  };
 }
 
 const dashboardCatalog = dataverseCatalog(
@@ -5846,12 +5863,20 @@ function readPreviewCell(row, key) {
 }
 
 /** Keyed by attribute, because that is what every preview renderer looks the value up by. */
+/* A lookup asked for as "ownerid" comes back as "_ownerid_value" — the attribute name and the column
+   name in the response are simply not the same thing for lookups. Reading only the attribute name
+   yielded undefined, which surfaced as a chart slice literally labelled "undefined".
+   The display name lives in the formatted annotation; the raw value is a GUID and is the last
+   resort, because a GUID on a chart axis tells the reader nothing. */
+function previewCellValue(row, key) {
+  const lookupKey = `_${key}_value`;
+  const candidates = [row[key + FORMATTED_SUFFIX], row[lookupKey + FORMATTED_SUFFIX], row[key], row[lookupKey]];
+  return candidates.find(value => value !== undefined && value !== null);
+}
+
 function toPreviewRow(row, cols) {
   const shaped = {};
-  for (const col of cols) {
-    const formatted = row[col.key + FORMATTED_SUFFIX];
-    shaped[col.key] = formatted !== undefined && formatted !== null ? formatted : row[col.key];
-  }
+  for (const col of cols) shaped[col.key] = previewCellValue(row, col.key);
   return shaped;
 }
 
@@ -6461,11 +6486,21 @@ function renderChart(chartType, data, asMoney) {
   // Pie / Donut
   const cx=90, cy=90, r=82, ir = chartType==="Donut" ? 44 : 0;
   let a0 = -Math.PI/2;
+  /* A slice covering the whole circle cannot be drawn as an arc: its start and end points are the
+     same, and SVG then draws nothing at all — so a chart of a single category rendered blank. Two
+     half-circle arcs describe the same shape with distinct endpoints. The donut's inner circle is
+     wound the opposite way so the default nonzero fill rule punches it out. */
+  const fullDisc = () => {
+    const ring = (radius, sweep) => `M${cx-radius},${cy} A${radius},${radius} 0 1 ${sweep} ${cx+radius},${cy}`
+      + ` A${radius},${radius} 0 1 ${sweep} ${cx-radius},${cy} Z`;
+    return ir > 0 ? `${ring(r, 1)} ${ring(ir, 0)}` : ring(r, 1);
+  };
   const arcs = data.map(d => {
     const frac = d.v/total, a1 = a0 + frac*2*Math.PI, large = frac>0.5?1:0;
     const x0=cx+r*Math.cos(a0), y0=cy+r*Math.sin(a0), x1=cx+r*Math.cos(a1), y1=cy+r*Math.sin(a1);
     let path;
-    if (ir>0) { const ix0=cx+ir*Math.cos(a0), iy0=cy+ir*Math.sin(a0), ix1=cx+ir*Math.cos(a1), iy1=cy+ir*Math.sin(a1);
+    if (frac >= 0.999) { path = fullDisc(); }
+    else if (ir>0) { const ix0=cx+ir*Math.cos(a0), iy0=cy+ir*Math.sin(a0), ix1=cx+ir*Math.cos(a1), iy1=cy+ir*Math.sin(a1);
       path = `M${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} L${ix1.toFixed(1)},${iy1.toFixed(1)} A${ir},${ir} 0 ${large} 0 ${ix0.toFixed(1)},${iy0.toFixed(1)} Z`;
     } else { path = `M${cx},${cy} L${x0.toFixed(1)},${y0.toFixed(1)} A${r},${r} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)} Z`; }
     a0 = a1;
@@ -7518,11 +7553,12 @@ function openDashboardComposer(d) { state.dashboard = d; state.view = "dashboard
 /* A new dashboard exists only in the composer until it is saved. It used to be pushed onto an
    in-memory list as well, which is why a dashboard could look created and then not be there. */
 function createDashboard() {
+  state.dashTab = "general";
   openDashboardComposer({
-    id: "d_new", title: "New Dashboard", owner: state.userName || "",
-    _seq: 0, _sel: null, _preview: false, sections: []
+    id: "d_new", title: "New Dashboard", code: "", description: "",
+    owner: state.userName || "", sections: []
   });
-  toast("Blank dashboard created — add widgets from the palette");
+  toast("Blank dashboard created — name it, then add sections and widgets");
 }
 function openNewDashboardChooser() {
   const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:560px">
@@ -7536,7 +7572,7 @@ function openNewDashboardChooser() {
   const close = () => scrim.remove();
   scrim.querySelector(".close-x").onclick = close; scrim.querySelector("[data-close]").onclick = close;
   scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
-  scrim.querySelectorAll("[data-dnew]").forEach(cd => cd.onclick = () => { close(); createDashboard(cd.dataset.dnew); });
+  scrim.querySelectorAll("[data-dnew]").forEach(cd => cd.onclick = () => { close(); createDashboard(); });
 }
 /* ---------- Dashboard composer ----------
    The one screen the dashboard feature was missing. Everything it saves to already existed —
@@ -7555,6 +7591,21 @@ const AGGREGATIONS = ["Sum", "Average", "Count", "Max", "Min"];
 
 const widgetIsMeasured = widget => MEASURED_WIDGET_KINDS.includes(String(widget.widget || "").toLowerCase());
 
+/* The composer is tabbed for the same reason the report designer is: a dashboard has several
+   unrelated concerns, and a single scrolling page makes the reader hold all of them at once.
+   Only the tabs whose data this environment actually stores are listed — a Security or Placement tab
+   would have nowhere to save to until those tables exist. */
+const DASH_TABS = [
+  ["general", "General"], ["layout", "Layout"], ["widgets", "Widgets"], ["preview", "Preview"]
+];
+
+const totalWidgets = dashboard =>
+  (dashboard.sections || []).reduce((count, section) => count + (section.widgets || []).length, 0);
+
+function dashBadgeFor(tab, dashboard) {
+  return { layout: (dashboard.sections || []).length, widgets: totalWidgets(dashboard) }[tab];
+}
+
 function renderDashboardComposer(c) {
   const d = state.dashboard;
   if (!d) { openNewDashboardChooser(); return; }
@@ -7563,58 +7614,216 @@ function renderDashboardComposer(c) {
   const cmd = el(`<div class="cmdbar">
     <button class="cmd" id="dc_back">${ic("back")}Back</button><div class="cmd-sep"></div>
     <button class="cmd primary" id="dc_save">${ic("save")}Save</button>
-    <button class="cmd" id="dc_addsection">${ic("add")}Add section</button>
+    <button class="cmd" id="dc_saveclose">${ic("saveclose")}Save &amp; Close</button>
+    <button class="cmd" id="dc_clone">${ic("copy")}Clone</button>
+    <div class="cmd-sep"></div>
+    <button class="cmd" id="dc_testrun">${ic("play")}Test run</button>
     <div class="cmd-spacer"></div>
     <span class="rel-tag">${d.savedId ? "Saved" : "Unsaved"}${d.isGoverned ? " · Governed" : ""}</span>
   </div>`);
-  c.appendChild(cmd);
 
-  const page = el(`<div class="page"><div class="page-head">
-      <input class="fluent-input" id="dc_title" value="${esc(d.title || "")}" placeholder="Dashboard title"
-        style="font-size:20px;font-weight:600;max-width:520px">
-      <div class="page-sub" style="margin-top:6px">${d.sections.length} section(s) · ${
-        d.sections.reduce((n, s) => n + (s.widgets || []).length, 0)} widget(s)</div>
+  const pivot = el(`<div class="pivot" role="tablist">${DASH_TABS.map(([key, label]) => {
+    const badge = dashBadgeFor(key, d);
+    return `<button class="pivot-tab ${state.dashTab === key ? "active" : ""}" data-dtab="${key}" role="tab">${
+      esc(label)}${badge != null ? `<span class="badge">${badge}</span>` : ""}</button>`;
+  }).join("")}</div>`);
+
+  const scroll = el(`<div class="scroll"><div class="tab-body" id="dashTabBody"></div></div>`);
+  c.appendChild(cmd); c.appendChild(pivot); c.appendChild(scroll);
+  renderDashTab();
+
+  pivot.querySelectorAll(".pivot-tab").forEach(t => t.onclick = () => { state.dashTab = t.dataset.dtab; render(); });
+  $("#dc_back").onclick = () => { state.view = "dashboards"; render(); };
+  $("#dc_save").onclick = () => withBusyButton("#dc_save", "Saving…", () => saveDashboardToServer(d));
+  $("#dc_saveclose").onclick = () => withBusyButton("#dc_saveclose", "Saving…", async () => {
+    await saveDashboardToServer(d); state.view = "dashboards"; render();
+  });
+  // Cloning reads the stored children, so an unsaved dashboard has nothing to copy.
+  $("#dc_clone").onclick = () => {
+    if (!d.savedId) { toast("Save the dashboard before cloning it", "warn"); return; }
+    withBusyButton("#dc_clone", "Cloning…", () => cloneSavedDashboard(d.savedId));
+  };
+  $("#dc_testrun").onclick = () => { state.dashTab = "preview"; render(); };
+}
+
+function renderDashTab() {
+  const body = $("#dashTabBody");
+  const tab = { general: dashTabGeneral, layout: dashTabLayout, widgets: dashTabWidgets, preview: dashTabPreview }[state.dashTab]
+    || dashTabGeneral;
+  body.innerHTML = "";
+  tab(body, state.dashboard);
+}
+
+/* ---- General ---- */
+function dashTabGeneral(body, d) {
+  const card = el(`<div class="section-card">
+    <h3>Dashboard properties</h3>
+    <div class="hint">Identity and governance. Stored in <span class="kbd">qdb_dashboard</span>.</div>
+    <div class="field-grid">
+      <div class="field col-2"><label class="lbl">Dashboard name<span class="req">*</span></label>
+        <input class="fluent-input" data-d="title" value="${esc(d.title || "")}" placeholder="Dashboard title"></div>
+      <div class="field"><label class="lbl">Dashboard code</label>
+        <input class="fluent-input" data-d="code" value="${esc(d.code || "")}" placeholder="e.g. DSH-PORTFOLIO">
+        <span class="hint-inline">A stable key for referring to this dashboard from outside the designer.</span></div>
+      <div class="field col-2"><label class="lbl">Description</label>
+        <textarea class="fluent-input" data-d="description" rows="2">${esc(d.description || "")}</textarea></div>
     </div>
-    <div class="field" style="max-width:320px;margin-bottom:16px">
-      <label class="toggle"><input type="checkbox" id="dc_governed" ${d.isGoverned ? "checked" : ""}>
+    <div class="field" style="max-width:420px;margin-top:4px">
+      <label class="toggle"><input type="checkbox" data-d="isGoverned" ${d.isGoverned ? "checked" : ""}>
       <span class="track"></span><span class="tlabel">Governed — needs approval before production</span></label>
     </div>
-    <div id="dc_sections"></div></div>`);
-  c.appendChild(page);
+  </div>
+  <div class="section-card">
+    <h3>Contents</h3>
+    <div class="hint">${(d.sections || []).length} section(s) holding ${totalWidgets(d)} widget(s).
+      Build them on the <b>Layout</b> and <b>Widgets</b> tabs.</div>
+  </div>`);
+  body.appendChild(card);
 
-  const host = page.querySelector("#dc_sections");
+  card.querySelectorAll("[data-d]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    d[input.dataset.d] = input.type === "checkbox" ? input.checked : input.value;
+  }));
+}
+
+/* ---- Layout ----
+   Sections only: what they are called, how wide they lay out, and what order they appear in. The
+   widgets inside them are the next tab's job, so neither screen is a wall of controls. */
+function dashTabLayout(body, d) {
+  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>A dashboard is a stack of sections.
+    Each lays its widgets out in 1–4 columns, and renders in the order below.</div></div>`));
+
+  const card = el(`<div class="section-card"><h3>Sections</h3>
+    <div class="hint">Order here is the order on the rendered dashboard.</div>
+    <div id="dl_rows" style="margin-top:12px"></div></div>`);
+  body.appendChild(card);
+
+  const host = card.querySelector("#dl_rows");
   if (!d.sections.length) {
-    host.appendChild(el(`<div class="section-card"><div class="np-empty">
-      No sections yet. <b>Add section</b> to start — each section holds 1–4 columns of widgets, and
-      every widget reads a table in this environment.</div></div>`));
+    host.appendChild(el(`<div class="np-empty">No sections yet — add one to start.</div>`));
   }
-  d.sections.forEach((section, index) => host.appendChild(sectionCard(section, index, d)));
+  d.sections.forEach((section, index) => host.appendChild(sectionLayoutRow(section, index, d)));
 
-  $("#dc_back").onclick = () => { state.view = "dashboards"; render(); };
-  $("#dc_addsection").onclick = () => {
+  const add = el(`<button class="btn sm btn-add">${ic("add")}Add section</button>`);
+  add.onclick = () => {
     d.sections.push({ id: newGuid(), title: `Section ${d.sections.length + 1}`, cols: 2, widgets: [] });
     render();
   };
-  $("#dc_title").addEventListener("input", () => { d.title = $("#dc_title").value; });
-  $("#dc_governed").addEventListener("change", () => { d.isGoverned = $("#dc_governed").checked; });
-  $("#dc_save").onclick = () => withBusyButton("#dc_save", "Saving…", async () => {
-    d.title = $("#dc_title").value.trim() || "Untitled dashboard";
-    await saveDashboardToServer(d);
-  });
+  card.appendChild(add);
 }
 
-/** One section: its title, how many columns it lays out in, and the widgets inside it. */
+/** One row of the Layout tab: a section's title, its column count, its position and its removal. */
+function sectionLayoutRow(section, index, dashboard) {
+  const count = (section.widgets || []).length;
+  const row = el(`<div class="section-card" style="margin:0 0 10px;padding:12px">
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="flex:1;min-width:220px;margin:0"><label class="lbl">Section title</label>
+        <input class="fluent-input" data-sti value="${esc(section.title || "")}" placeholder="Untitled section"></div>
+      <div class="field" style="max-width:130px;margin:0"><label class="lbl">Columns</label>
+        <select class="fluent-select" data-sci>${
+          [1, 2, 3, 4].map(n => `<option ${section.cols === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+      <span class="rel-tag">${count} widget${count === 1 ? "" : "s"}</span>
+      <button class="btn sm" data-sup ${index === 0 ? "disabled" : ""} title="Move up">↑</button>
+      <button class="btn sm" data-sdown ${index === dashboard.sections.length - 1 ? "disabled" : ""} title="Move down">↓</button>
+      <button class="del" data-sdel>${ic("trash")}</button>
+    </div></div>`);
+
+  row.querySelector("[data-sti]").addEventListener("input", event => { section.title = event.target.value; });
+  row.querySelector("[data-sci]").addEventListener("change", event => { section.cols = +event.target.value; render(); });
+  row.querySelector("[data-sup]").onclick = () => moveSection(dashboard, index, -1);
+  row.querySelector("[data-sdown]").onclick = () => moveSection(dashboard, index, 1);
+  /* Removing a section takes its widgets with it. Nothing is written until Save, so this is
+     recoverable by leaving without saving — and the toast says so rather than a blocking prompt. */
+  row.querySelector("[data-sdel]").onclick = () => {
+    dashboard.sections.splice(index, 1);
+    toast(count ? `Section removed with ${count} widget(s) — not saved yet` : "Section removed");
+    render();
+  };
+  return row;
+}
+
+/* Sequence is written from array order on save, so reordering here is what the stored dashboard
+   ends up with — no separate sequence field for the user to keep in step. */
+function moveSection(dashboard, index, offset) {
+  const target = index + offset;
+  if (target < 0 || target >= dashboard.sections.length) return;
+  const [section] = dashboard.sections.splice(index, 1);
+  dashboard.sections.splice(target, 0, section);
+  render();
+}
+
+/* ---- Widgets ---- */
+function dashTabWidgets(body, d) {
+  if (!d.sections.length) {
+    body.appendChild(el(`<div class="section-card"><div class="np-empty">
+      There are no sections to put widgets in yet. Add one on the <b>Layout</b> tab first.</div></div>`));
+    return;
+  }
+  d.sections.forEach((section, index) => body.appendChild(sectionCard(section, index, d)));
+}
+
+/* ---- Preview ----
+   Runs the widgets against this environment's real data. The renderer it calls already existed in
+   full — every widget kind, the chart palette, the gauge — and had never been called from anywhere,
+   so a dashboard could be composed but never seen. */
+function dashTabPreview(body, d) {
+  const widgetCount = totalWidgets(d);
+  if (!widgetCount) {
+    body.appendChild(el(`<div class="section-card"><div class="np-empty">
+      Nothing to preview yet — add a widget on the <b>Widgets</b> tab.</div></div>`));
+    return;
+  }
+
+  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>Live data from this environment,
+    laid out as the dashboard will render. Tiles fill in as their tables load.</div></div>`));
+
+  const page = el(`<div class="section-card"><h3>${esc(d.title || "Untitled dashboard")}</h3>
+    <div class="hint">${d.sections.length} section(s) · ${widgetCount} widget(s)</div>
+    <div id="dp_sections" style="margin-top:14px"></div></div>`);
+  body.appendChild(page);
+
+  const host = page.querySelector("#dp_sections");
+  d.sections.forEach(section => host.appendChild(previewSection(section)));
+}
+
+function previewSection(section) {
+  const widgets = section.widgets || [];
+  const wrap = el(`<div style="margin-bottom:20px">
+    ${section.title ? `<div class="lbl" style="margin-bottom:8px">${esc(section.title)}</div>` : ""}
+    <div class="dash-grid preview" style="display:grid;grid-template-columns:repeat(${
+      section.cols || 2},1fr);gap:12px"></div></div>`);
+  const grid = wrap.querySelector(".dash-grid");
+  if (!widgets.length) {
+    grid.appendChild(el(`<div class="np-empty" style="grid-column:1/-1">This section has no widgets.</div>`));
+  }
+  widgets.forEach(widget => grid.appendChild(previewTile(widget)));
+  return wrap;
+}
+
+/* A tile that names what it is bound to even before its data arrives, so an empty one reads as
+   "still loading" or "bound to nothing" rather than as a broken widget. */
+function previewTile(widget) {
+  const binding = [widget.entity, widget.groupBy].filter(Boolean).join(" · ");
+  return el(`<div class="dash-tile" style="grid-column:auto;padding:12px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px">
+      <b style="font-size:12.5px">${esc(widget.title || "Untitled widget")}</b>
+      <span class="rel-tag">${esc(widget.widget || "metric")}</span></div>
+    ${binding ? `<div class="page-sub" style="margin:-4px 0 8px;font-size:11px">${esc(binding)}</div>` : ""}
+    ${renderWidget(widget) || `<div class="np-empty">This widget is not bound to a table yet.</div>`}</div>`);
+}
+
+/**
+ * One section's widgets, on the Widgets tab.
+ *
+ * The section's own title, column count and deletion belong to the Layout tab — repeating them here
+ * would give the same setting two homes and leave the reader guessing which one counts.
+ */
 function sectionCard(section, index, dashboard) {
   section.widgets = section.widgets || [];
   const card = el(`<div class="section-card">
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
-      <div class="field" style="flex:1;min-width:220px"><label class="lbl">Section title</label>
-        <input class="fluent-input" data-sti="${index}" value="${esc(section.title || "")}" placeholder="Untitled section"></div>
-      <div class="field" style="max-width:140px"><label class="lbl">Columns</label>
-        <select class="fluent-select" data-sci="${index}">${
-          [1, 2, 3, 4].map(n => `<option ${section.cols === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <h3 style="margin:0;flex:1;min-width:200px">${esc(section.title || "Untitled section")}</h3>
+      <span class="rel-tag">${section.cols || 2} column${(section.cols || 2) === 1 ? "" : "s"}</span>
       <button class="btn sm" data-saw="${index}">${ic("add")}Add widget</button>
-      <button class="del" data-sdel="${index}">${ic("trash")}</button>
     </div>
     <div class="dc-grid" style="display:grid;grid-template-columns:repeat(${section.cols || 2},1fr);gap:12px"></div></div>`);
 
@@ -7624,17 +7833,12 @@ function sectionCard(section, index, dashboard) {
   }
   section.widgets.forEach((widget, at) => grid.appendChild(widgetCard(widget, index, at)));
 
-  card.querySelector(`[data-sti="${index}"]`).addEventListener("input", event => { section.title = event.target.value; });
-  card.querySelector(`[data-sci="${index}"]`).addEventListener("change", event => {
-    section.cols = +event.target.value; render();
-  });
   card.querySelector(`[data-saw="${index}"]`).onclick = () => {
     section.widgets.push({ id: newGuid(), title: `Widget ${section.widgets.length + 1}`, widget: "metric",
       entity: "account", groupBy: "", measure: "", agg: "Count", chartType: "Column",
       cardIcon: "money", badgeText: "", badgeLevel: "" });
     render();
   };
-  card.querySelector(`[data-sdel="${index}"]`).onclick = () => { dashboard.sections.splice(index, 1); render(); };
   return card;
 }
 
