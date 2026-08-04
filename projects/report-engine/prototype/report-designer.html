@@ -1170,6 +1170,22 @@ const SOURCE_DESCRIPTIONS = {
 const sourceByLabel = label => SOURCES.find(s => label === s.label || label === `${s.label} — stored, not applied yet`);
 const sourceByCode = code => SOURCES.find(s => s.code === code);
 const PARAM_TYPES = ["Text","Number","Date range","Lookup","Option set","Multi-select option set","Boolean"];
+
+/* The designer offered these types and never stored them: qdb_paramtype came back NULL for every
+   parameter, so the runtime saw no type and rendered everything as a text box — an "Option set"
+   parameter was indistinguishable from free text once saved. The labels here are the designer's own
+   wording; the codes are the option set's. */
+const PARAM_TYPE_CODES = {
+  "Text": 100000000,
+  "Number": 100000001,
+  "Date range": 100000002,
+  "Lookup": 100000003,
+  "Option set": 100000004,
+  "Multi-select option set": 100000005,
+  "Boolean": 100000006
+};
+const PARAM_TYPE_BY_CODE = Object.fromEntries(
+  Object.entries(PARAM_TYPE_CODES).map(([label, code]) => [code, label]));
 const CONTEXT_TOKENS = ["(none)","Current user","Current business unit","Current record ID","Current entity"];
 
 /* The Context token column has been on the Parameters tab all along and was never persisted, so a
@@ -2579,7 +2595,8 @@ function reportToDefinition(report) {
       defaultValue: p.def || null,
       displayOrder: i + 1,
       lookupTargetEntity: p.lookup || null,
-      defaultSource: CONTEXT_TOKEN_CODES[p.token] ?? null
+      defaultSource: CONTEXT_TOKEN_CODES[p.token] ?? null,
+      paramType: PARAM_TYPE_CODES[p.type] ?? null
     })),
     formulas: (report.formulas || []).map((f, i) => ({
       id: newGuid(), formulaAlias: f.target || f.name, expression: f.expression, evaluationOrder: i + 1, isConditional: false
@@ -2709,7 +2726,8 @@ async function writeReportChildren(reportId, def, written = []) {
       qdb_defaultvalue: parameter.defaultValue,
       qdb_displayorder: parameter.displayOrder,
       qdb_lookuptargetentity: parameter.lookupTargetEntity,
-      qdb_defaultsource: parameter.defaultSource
+      qdb_defaultsource: parameter.defaultSource,
+      qdb_paramtype: parameter.paramType
     }, parent)));
   }
 
@@ -3309,6 +3327,7 @@ function definitionToReport(def) {
     required: !!p.isRequired, def: p.defaultValue || "",
     // Round-trips the binding: without this a saved "Current record ID" reopened as "(none)" and the
     // next save quietly discarded it.
+    type: PARAM_TYPE_BY_CODE[p.paramType] || "Text",
     token: CONTEXT_TOKEN_BY_CODE[p.defaultSource] || "(none)",
     lookup: p.lookupTargetEntity || "" }));
   report.formulas = (def.formulas || []).map(f => ({ name: f.formulaAlias, expression: f.expression || "", type: "Number", target: f.formulaAlias }));
@@ -3363,7 +3382,7 @@ async function loadReportDefinition(id) {
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
     dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload,qdb_executionorder,_qdb_externalconnectorid_value&$orderby=qdb_executionorder"),
     dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
-    dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity,qdb_defaultsource&$orderby=qdb_displayorder"),
+    dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity,qdb_defaultsource,qdb_paramtype&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
     dvList("qdb_reportlayout", byReport(id) + "&$select=qdb_themecolor,qdb_layoutjson"),
     dvList("qdb_reporttransformation", byReport(id)
@@ -3431,7 +3450,7 @@ async function loadReportDefinition(id) {
     parameters: parameters.map(p => ({
       parameterName: p.qdb_parametername, label: p.qdb_label, isRequired: !!p.qdb_isrequired,
       defaultValue: p.qdb_defaultvalue, displayOrder: p.qdb_displayorder, lookupTargetEntity: p.qdb_lookuptargetentity,
-      defaultSource: p.qdb_defaultsource
+      defaultSource: p.qdb_defaultsource, paramType: p.qdb_paramtype
     })),
     formulas: formulas.map(f => ({
       formulaAlias: f.qdb_formulaalias, expression: f.qdb_expression, evaluationOrder: f.qdb_evaluationorder

@@ -9,6 +9,7 @@
 //
 // Usage: node deploy-webresources.mjs <path-to-.env>
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -63,8 +64,24 @@ async function findWebResourceId(name) {
   if (!res.ok) throw new Error(`lookup ${name} ${res.status}: ${await res.text()}`);
   return (await res.json()).value?.[0]?.webresourceid ?? null;
 }
+/* The shells load the shared engine by a plain relative name, and CRM serves web resources with a
+   long cache lifetime — so a browser that has once fetched qdb_reportengine_core.js keeps handing
+   back that copy however many times the file is redeployed. The page then runs old code against new
+   data and looks simply broken: correct on the server, stale on the screen.
+   Stamping the reference with a hash of the engine's own bytes makes the URL change whenever the
+   engine changes, and stay identical when it does not. */
+function stampSharedAssetVersions(html) {
+  const versionOf = file => createHash('sha256')
+    .update(readFileSync(resolve(PROTOTYPE_DIR, file))).digest('hex').slice(0, 10);
+  return html
+    .replace(/qdb_reportengine_core\.js(\?v=[0-9a-f]+)?/g, `qdb_reportengine_core.js?v=${versionOf('report-engine-core.js')}`)
+    .replace(/qdb_reportengine_core\.css(\?v=[0-9a-f]+)?/g, `qdb_reportengine_core.css?v=${versionOf('report-engine-core.css')}`);
+}
+
 async function upsertWebResource({ name, display, file, type }) {
-  const content = readFileSync(resolve(PROTOTYPE_DIR, file)).toString('base64');
+  const raw = readFileSync(resolve(PROTOTYPE_DIR, file));
+  const stamped = type === HTML ? Buffer.from(stampSharedAssetVersions(raw.toString('utf8')), 'utf8') : raw;
+  const content = stamped.toString('base64');
   const id = await findWebResourceId(name);
   const body = JSON.stringify({ name, displayname: display, description: display, webresourcetype: type ?? 1, content });
   if (id) {
