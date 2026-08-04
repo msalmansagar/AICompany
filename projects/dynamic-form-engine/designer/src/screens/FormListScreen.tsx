@@ -198,16 +198,16 @@ export function FormListScreen(): React.ReactElement {
       const validationRuleService = new ValidationRuleService(webApi);
       const businessRuleService = new BusinessRuleService(webApi);
 
-      // Use getFormWithEtag so the returned @odata.etag is stored in concurrencyStore
-      // immediately — FormSaveService.save() requires it for the conditional PATCH.
+      // Use getFormWithEtag so the returned @odata.etag can be stored in concurrencyStore —
+      // FormSaveService.save() requires it for the conditional PATCH. It is stored AFTER
+      // loadForm below, not here: loadForm resets the concurrency store to clear state from a
+      // previously opened form, which would wipe an etag stored at this point and leave every
+      // save failing with MissingEtagError.
       const [{ model: form, etag }, tabs, businessRules] = await Promise.all([
         formService.getFormWithEtag(formId),
         tabService.listTabsForForm(formId),
         businessRuleService.listRulesForForm(formId),
       ]);
-      if (etag) {
-        useConcurrencyStore.getState().setRecordEtag(formId, etag);
-      }
 
       const sectionsArrays = await Promise.all(tabs.map(tab => sectionService.listSectionsForTab(tab.id)));
       const sections = sectionsArrays.flat();
@@ -252,6 +252,13 @@ export function FormListScreen(): React.ReactElement {
       }
 
       loadForm({ form, tabs, sections, fields, validationRules: allValidationRules, businessRules, designPayload });
+
+      // After loadForm, which resets the concurrency store. Keyed on form.id rather than the
+      // formId argument so it matches the lookup in DesignerScreen, which reads it from the
+      // loaded model.
+      if (etag) {
+        useConcurrencyStore.getState().setRecordEtag(form.id, etag);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open form');
       setIsOpeningForm(false);

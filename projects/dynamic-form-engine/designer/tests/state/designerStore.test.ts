@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useDesignerStore, DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import type { DesignerFormModel, DesignerTabModel, DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
 
 // ---------------------------------------------------------------------------
@@ -301,5 +302,44 @@ describe('useDesignerStore', () => {
     expect(state.tabs['real-guid-tab-001'].id).toBe('real-guid-tab-001');
     expect(state.tabOrder).toContain('real-guid-tab-001');
     expect(state.tabOrder).not.toContain('tmp_tab_001');
+  });
+});
+
+// ── loadForm vs the concurrency store ────────────────────────────────────────
+
+describe('loadForm and the record etag', () => {
+  it('loadForm_clearsEtagsStoredBeforeIt', () => {
+    // Regression: FormListScreen used to store the etag before calling loadForm. loadForm
+    // resets the concurrency store, so the etag was wiped and every save then failed with
+    // MissingEtagError — the designer could not save at all. The etag must be stored AFTER.
+    useConcurrencyStore.getState().setRecordEtag('form-1', 'W/"123"');
+
+    useDesignerStore.getState().loadForm({
+      form: makeForm(),
+      tabs: [],
+      sections: [],
+      fields: [],
+      validationRules: [],
+      businessRules: [],
+      designPayload: DEFAULT_DESIGN_PAYLOAD,
+    });
+
+    expect(useConcurrencyStore.getState().recordEtags['form-1']).toBeUndefined();
+  });
+
+  it('anEtagStoredAfterLoadForm_survives', () => {
+    useDesignerStore.getState().loadForm({
+      form: makeForm(),
+      tabs: [],
+      sections: [],
+      fields: [],
+      validationRules: [],
+      businessRules: [],
+      designPayload: DEFAULT_DESIGN_PAYLOAD,
+    });
+
+    useConcurrencyStore.getState().setRecordEtag('form-1', 'W/"123"');
+
+    expect(useConcurrencyStore.getState().recordEtags['form-1']).toBe('W/"123"');
   });
 });
