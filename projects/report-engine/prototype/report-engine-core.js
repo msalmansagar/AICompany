@@ -198,13 +198,19 @@ async function fetchCatalog(){
 
 async function fetchDefinition(id){
   const parent = `?$filter=_qdb_reportdefinitionid_value eq ${id}`;
-  const [definition, parameters, relationships, formulas, transformations, layouts] = await Promise.all([
+  const [definition, parameters, filters, relationships, formulas, transformations, layouts] = await Promise.all([
     xrm().WebApi.retrieveRecord("qdb_reportdefinition", id,
       "?$select=qdb_reportdefinitionid,qdb_name,qdb_reportcode,qdb_description,"
       + "qdb_mainentitylogicalname,qdb_isgoverned,qdb_rowlimit"),
     dvRetrieveMultiple("qdb_reportparameter", parent
-      + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,qdb_defaultvalue,qdb_defaultsource"
+      + "&$select=qdb_reportparameterid,qdb_parametername,qdb_label,qdb_paramtype,qdb_isrequired,"
+      + "qdb_defaultvalue,qdb_defaultsource,qdb_lookuptargetentity"
       + "&$orderby=qdb_displayorder"),
+    /* Filtering happens in the plugin, so the viewer never needed the filters — but a runtime-prompt
+       filter names both the column it filters and the parameter that fills it, and that pairing is
+       what lets a parameter offer the values its column can actually hold. */
+    dvRetrieveMultiple("qdb_reportfilter", parent
+      + "&$select=qdb_fieldalias,qdb_value,qdb_isruntimeprompt&$orderby=qdb_sequence"),
     dvRetrieveMultiple("qdb_reportrelationship", parent
       + "&$select=qdb_reportrelationshipid,qdb_opentype,qdb_parentkey,qdb_childalias,qdb_childkey"),
     dvRetrieveMultiple("qdb_reportformula", parent
@@ -225,7 +231,11 @@ async function fetchDefinition(id){
       parameterName: p.qdb_parametername, label: p.qdb_label, paramType: coded(p, "qdb_paramtype"),
       isRequired: p.qdb_isrequired, defaultValue: p.qdb_defaultvalue,
       // Where the value comes from: typed by the user, or taken from the launch context.
-      defaultSource: coded(p, "qdb_defaultsource")
+      defaultSource: coded(p, "qdb_defaultsource"),
+      lookupTargetEntity: p.qdb_lookuptargetentity
+    })),
+    filters: filters.map(f => ({
+      fieldAlias: f.qdb_fieldalias, value: f.qdb_value, isRuntimePrompt: f.qdb_isruntimeprompt
     })),
     relationships: relationships.map(r => ({
       id: r.qdb_reportrelationshipid, openType: coded(r, "qdb_opentype"),
@@ -375,6 +385,8 @@ function renderRun(){
   if (reportView.showBack) $("#back").onclick = () => withBusy(loadCatalog);
   $("#run").onclick = () => withBusyButton("#run", "Running…", runReport);
   wireMenu("#exportBtn","#exportMenu", b => exportReport(b.dataset.export));
+  // Pickers fill in after paint; a failure to load options must not stop the report rendering.
+  populateParameterOptions(def).catch(e => console.error("[ReportEngine] option load failed", e));
   if (reportView.showChartMenu) {
     wireMenu("#chartBtn","#chartMenu", b => withBusyButton("#chartBtn", "Charting…", async () => chartReport(b.dataset.chart)));
   }
@@ -436,9 +448,81 @@ async function contextParameterValues(def){
 
 /* The control a parameter is offered as follows its declared type, so an author choosing "Choice" or
    "Boolean" in the designer gets a list or a toggle rather than a free-text box that quietly accepts
-   anything. Choice options are the pipe- or comma-separated values in the parameter's default. */
+   anything. */
 const parameterChoices = parameter => String(parameter.defaultValue || "")
   .split(/[|,]/).map(choice => choice.trim()).filter(Boolean);
+
+/* Above this many rows a picker stops being a list and becomes a haystack, so it is offered as a
+   type-ahead instead — the same choice the designer already makes for its own entity pickers. */
+const DROPDOWN_ROW_LIMIT = 200;
+
+/* Metadata does not go through Xrm.WebApi: it resolves a logical name to a record collection, and
+   EntityDefinitions is neither, so it answers "the entity cannot be found". Read it off the Web API
+   on the signed-in session instead. $top is rejected on these endpoints — never add paging. */
+async function readMetadata(path){
+  const url = `${xrm().Utility.getGlobalContext().getClientUrl()}/api/data/v9.2/${path}`;
+  const response = await fetch(url, { headers: { Accept: "application/json", "OData-Version": "4.0" } });
+  if (!response.ok) throw new Error(`metadata ${response.status}`);
+  return response.json();
+}
+
+/** The column a runtime-prompt filter fills from this parameter — the anchor for everything below. */
+function filterFieldForParameter(definition, parameter){
+  const filter = (definition.filters || []).find(f =>
+    f.isRuntimePrompt && String(f.value || "").toLowerCase() === String(parameter.parameterName || "").toLowerCase());
+  return filter ? filter.fieldAlias : null;
+}
+
+/* Where a parameter's options come from, in priority order:
+     1. values the author typed into Default — an explicit, curated list always wins
+     2. the option set of the column the parameter filters
+     3. rows of the table that column points at
+   Deriving from the column means the values offered are exactly the values it can hold, with nothing
+   to configure and nothing that can drift out of step with the schema. */
+async function parameterOptionSource(definition, parameter){
+  const typed = parameterChoices(parameter);
+  if (typed.length) return { kind: "list", options: typed.map(v => ({ value: v, label: v })) };
+
+  const field = filterFieldForParameter(definition, parameter);
+  const entity = definition.mainEntityLogicalName;
+  if (!field || !entity) return { kind: "none" };
+
+  const attribute = await readMetadata(
+    `EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${field}')?$select=AttributeType`);
+
+  if (/Picklist|State|Status/i.test(attribute.AttributeType)) {
+    const picklist = await readMetadata(
+      `EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${field}')`
+      + `/Microsoft.Dynamics.CRM.${attribute.AttributeType}AttributeMetadata?$select=LogicalName&$expand=OptionSet`);
+    const options = ((picklist.OptionSet || {}).Options || []).map(o => ({
+      value: String(o.Value), label: (o.Label && o.Label.UserLocalizedLabel && o.Label.UserLocalizedLabel.Label) || String(o.Value)
+    }));
+    return { kind: "list", options };
+  }
+
+  if (/Lookup|Customer|Owner/i.test(attribute.AttributeType)) {
+    const lookup = await readMetadata(
+      `EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${field}')`
+      + `/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets`);
+    const target = parameter.lookupTargetEntity || (lookup.Targets || [])[0];
+    if (!target) return { kind: "none" };
+    return await lookupRowOptions(target);
+  }
+  return { kind: "none" };
+}
+
+/** Rows of the target table, capped — and honest about the cap rather than silently truncating. */
+async function lookupRowOptions(target){
+  const meta = await readMetadata(
+    `EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute`);
+  const rows = await dvRetrieveMultiple(target,
+    `?$select=${meta.PrimaryIdAttribute},${meta.PrimaryNameAttribute}`
+    + `&$orderby=${meta.PrimaryNameAttribute}&$top=${DROPDOWN_ROW_LIMIT + 1}`);
+  const options = rows.slice(0, DROPDOWN_ROW_LIMIT).map(r => ({
+    value: r[meta.PrimaryIdAttribute], label: r[meta.PrimaryNameAttribute] || "(no name)"
+  }));
+  return { kind: rows.length > DROPDOWN_ROW_LIMIT ? "typeahead" : "list", options, target };
+}
 
 function parameterControl(parameter){
   const name = esc(parameter.parameterName);
@@ -450,21 +534,60 @@ function parameterControl(parameter){
       <span class="track"></span><span class="tlabel">Yes</span></label>`;
   }
 
-  if (/choice/i.test(declaredType)) {
-    const choices = parameterChoices(parameter);
-    if (!choices.length) {
-      return `<select class="fluent-select" data-param="${name}" disabled>
-        <option>no choices configured — set them as the parameter's default</option></select>`;
-    }
-    const multiple = /multi/i.test(declaredType) ? " multiple" : "";
-    return `<select class="fluent-select" data-param="${name}"${multiple}>
-      ${multiple ? "" : `<option value="">(any)</option>`}
-      ${choices.map(choice => `<option value="${esc(choice)}">${esc(choice)}</option>`).join("")}
-    </select>`;
+  /* Options come from the server, so the control is painted now and filled when they arrive. The
+     host carries the name; nothing inside it is a data-param until there is something real to pick,
+     so a half-loaded picker cannot contribute a value to a run. */
+  if (/choice|lookup/i.test(declaredType)) {
+    return `<span data-param-host="${name}" data-param-multi="${/multi/i.test(declaredType) ? "1" : ""}">
+      <input class="fluent-input" placeholder="Loading options…" disabled></span>`;
   }
 
   const inputType = /date/i.test(declaredType) ? "date" : /number/i.test(declaredType) ? "number" : "text";
   return `<input data-param="${name}" type="${inputType}" value="${esc(parameter.defaultValue||"")}" placeholder="${esc(declaredType)}"/>`;
+}
+
+/* Fills every picker on screen. Each is resolved independently so one unreadable column cannot stop
+   the others, and a failure says so in the control rather than leaving it on "Loading…" forever. */
+/* A type-ahead shows names but a filter needs ids, so the mapping is kept here and applied on read.
+   Putting ids in the datalist instead would show the user raw guids to choose between. */
+const lookupLabelToValue = new Map();
+
+async function populateParameterOptions(definition){
+  const hosts = [...document.querySelectorAll("[data-param-host]")];
+  await Promise.all(hosts.map(async host => {
+    const name = host.dataset.paramHost;
+    const multiple = host.dataset.paramMulti === "1";
+    const parameter = (definition.parameters || []).find(p => p.parameterName === name);
+    try {
+      const source = await parameterOptionSource(definition, parameter);
+      if (source.kind === "typeahead") {
+        lookupLabelToValue.set(name, new Map(source.options.map(o => [o.label, o.value])));
+      }
+      host.innerHTML = optionControlHtml(name, source, multiple);
+    } catch (error) {
+      console.error("[ReportEngine] could not load options for " + name, error);
+      host.innerHTML = `<input class="fluent-input" data-param="${esc(name)}" placeholder="type a value"/>`;
+    }
+  }));
+}
+
+function optionControlHtml(name, source, multiple){
+  if (source.kind === "none") {
+    return `<input class="fluent-input" data-param="${esc(name)}" placeholder="type a value"/>`;
+  }
+  const options = source.options.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join("");
+
+  /* Past a couple of hundred rows a list is unusable, so it becomes a type-ahead over a datalist.
+     The typed text is the label, so the id is resolved back on read — see controlValue. */
+  if (source.kind === "typeahead") {
+    const listId = `opts_${esc(name)}`;
+    const byLabel = source.options.map(o => `<option value="${esc(o.label)}"></option>`).join("");
+    return `<input class="fluent-input" data-param="${esc(name)}" data-param-lookup list="${listId}"
+        placeholder="start typing — more than ${DROPDOWN_ROW_LIMIT} to choose from"/>
+      <datalist id="${listId}">${byLabel}</datalist>`;
+  }
+  return `<select class="fluent-select" data-param="${esc(name)}"${multiple ? " multiple" : ""}>
+    ${multiple ? "" : `<option value="">(any)</option>`}${options}</select>`;
 }
 
 /* A checkbox reports the same .value whether ticked or not, and a multi-select reports only its
@@ -473,6 +596,12 @@ function parameterControl(parameter){
 function controlValue(control){
   if (control.hasAttribute("data-param-boolean")) return control.checked ? "true" : "";
   if (control.multiple) return [...control.selectedOptions].map(o => o.value).filter(Boolean).join(",");
+  if (control.hasAttribute("data-param-lookup")) {
+    // The user picked a name; the filter needs the id. An unrecognised name filters nothing rather
+    // than being sent through as text and matching no record for reasons nobody can see.
+    const byLabel = lookupLabelToValue.get(control.dataset.param);
+    return (byLabel && byLabel.get(control.value.trim())) || "";
+  }
   return control.value;
 }
 
