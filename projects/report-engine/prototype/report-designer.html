@@ -4122,9 +4122,22 @@ function tabFilters(body, r) {
 }
 
 /* ---- Parameters ---- */
+/* An empty "Lookup entity" box read as "nothing is configured, so where do these records come from?"
+   — a reasonable reading of a blank field. It is optional by design: the runtime takes the table from
+   the column the parameter filters, so the records offered are always ones that column can hold.
+   The box says which column that is, and stays available as an override. */
+function lookupEntityHint(parameter, report) {
+  if (parameter.type !== "Lookup") return "—";
+  const boundFilter = (report.filters || []).find(f => f.param && f.param === parameter.name);
+  return boundFilter && boundFilter.attribute
+    ? `auto — from ${boundFilter.attribute}`
+    : "auto — add a filter, or name a table here";
+}
+
 function tabParameters(body, r) {
-  const card = el(`<div class="section-card"><h3>Parameter designer</h3><div class="hint">Runtime prompts shown to the person running the report. Stored in <span class="kbd">qdb_reportparameter</span>.</div></div>`);
-  const cols = [{t:"Name"},{t:"Prompt"},{t:"Type"},{t:"Required"},{t:"Default"},{t:"Context token"},{t:"Lookup entity"}];
+  const card = el(`<div class="section-card"><h3>Parameter designer</h3><div class="hint">Runtime prompts shown to the person running the report. Stored in <span class="kbd">qdb_reportparameter</span>.
+    <br><b>Option set</b> and <b>Lookup</b> parameters fill their own list: the choices come from the column the parameter filters, so they always match what that column accepts. Type values into <b>Default</b> (separated by <span class="kbd">|</span>) to offer a fixed list instead, or name a table under <b>Lookup entity</b> to override where records come from.</div></div>`);
+  const cols = [{t:"Name"},{t:"Prompt"},{t:"Type"},{t:"Required"},{t:"Default"},{t:"Context token"},{t:"Lookup entity (optional)"}];
   const rowHtml = (p,i) => `<tr>
     <td class="handle">${ic("param")}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="name" value="${esc(p.name)}"></td>
@@ -4133,7 +4146,7 @@ function tabParameters(body, r) {
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="required" ${p.required?"checked":""}></td>
     <td><input class="fluent-input" data-i="${i}" data-k="def" value="${esc(p.def)}" placeholder="—"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="token">${opts(CONTEXT_TOKENS, p.token)}</select></td>
-    <td><input class="fluent-input" data-i="${i}" data-k="lookup" value="${esc(p.lookup)}" placeholder="${p.type==="Lookup"?"e.g. account":"—"}"></td>
+    <td><input class="fluent-input" data-i="${i}" data-k="lookup" value="${esc(p.lookup)}" placeholder="${esc(lookupEntityHint(p, r))}"></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.parameters, rowHtml, () => { r.parameters.push({name:"NewParam",prompt:"New parameter",type:"Text",required:false,def:"",token:"(none)",lookup:""}); renderTab(); }, "Add parameter"));
   body.appendChild(card); bindInputs(card, r.parameters);
