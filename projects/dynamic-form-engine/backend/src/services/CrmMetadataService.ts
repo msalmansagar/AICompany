@@ -313,6 +313,8 @@ export class CrmMetadataService extends CrmBaseService {
         isVisible: tab.qdb_is_visible ?? true,
         requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
         hideTabBar: tab.qdb_hide_tab_bar ?? false,
+        // Null on tabs that predate the column; only a real true is carried through.
+        revealsSectionsOneAtATime: tab.qdb_reveal_sections_one_at_a_time ? true : undefined,
         sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
         ...(tabButtons.length > 0 ? { buttons: tabButtons } : {}),
         // DFE-TABZONE-001: header/footer zone fields (omitted when none).
@@ -1322,6 +1324,7 @@ interface RawTab {
   qdb_is_visible?: boolean;
   qdb_requires_previous_tab_complete?: boolean;
   qdb_hide_tab_bar?: boolean;
+  qdb_reveal_sections_one_at_a_time?: boolean;
   // DFE-FBE-001
   qdb_description?: string;
   qdb_is_summary_tab?: boolean;

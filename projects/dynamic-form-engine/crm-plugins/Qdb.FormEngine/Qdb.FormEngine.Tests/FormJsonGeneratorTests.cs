@@ -495,6 +495,51 @@ namespace Qdb.FormEngine.Tests
             Assert.Equal("equals", br.Conditions[0].Operator);
         }
 
+        [Fact]
+        public void Generate_WithSectionRevealOn_EmitsTheFlag()
+        {
+            // Arrange
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithTabRevealFlag(formId, true);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.True(result.Tabs[0].RevealsSectionsOneAtATime);
+        }
+
+        [Fact]
+        public void Generate_WithSectionRevealOff_OmitsTheFlag()
+        {
+            // Arrange — a tab that predates the column reads false and must stay byte-identical.
+            var formId = Guid.NewGuid();
+            var rawData = BuildFormRawDataWithTabRevealFlag(formId, false);
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            Assert.Null(result.Tabs[0].RevealsSectionsOneAtATime);
+        }
+
+        private static FormRawData BuildFormRawDataWithTabRevealFlag(Guid formId, bool revealsOneAtATime)
+        {
+            var rawData = BuildMinimalFormRawData(formId);
+
+            var tabId = Guid.NewGuid();
+            var tabEntity = new Entity("qdb_form_tab", tabId);
+            tabEntity["qdb_form_definition_id"] = new EntityReference("qdb_form_definition", formId);
+            tabEntity["qdb_label"] = "Tab One";
+            tabEntity["qdb_display_order"] = 1;
+            tabEntity["qdb_is_visible"] = true;
+            tabEntity["qdb_requires_previous_tab_complete"] = false;
+            tabEntity["qdb_hide_tab_bar"] = false;
+            tabEntity["qdb_reveal_sections_one_at_a_time"] = revealsOneAtATime;
+            rawData.Tabs.Add(tabEntity);
+
+            return rawData;
+        }
         private static FormRawData BuildMinimalFormRawData(Guid formId)
         {
             var formEntity = new Entity("qdb_form_definition", formId);

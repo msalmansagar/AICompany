@@ -144,7 +144,8 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_tab")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_icon_name", "qdb_display_order", "qdb_is_visible",
-                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "qdb_form_definition_id",
+                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar",
+                    "qdb_reveal_sections_one_at_a_time", "qdb_form_definition_id",
                     "qdb_description", "qdb_is_summary_tab",
                     "qdb_require_submit_confirmation", "qdb_submit_confirmation_label",
                     "qdb_submit_confirmation_message"),

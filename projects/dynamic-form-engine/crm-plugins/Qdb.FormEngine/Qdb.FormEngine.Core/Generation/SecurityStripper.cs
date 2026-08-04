@@ -84,6 +84,7 @@ namespace Qdb.FormEngine.Core.Generation
                 IsVisible = tab.IsVisible,
                 RequiresPreviousTabComplete = tab.RequiresPreviousTabComplete,
                 HideTabBar = tab.HideTabBar,
+                RevealsSectionsOneAtATime = tab.RevealsSectionsOneAtATime,
                 Buttons = tab.Buttons,
                 SubmitConfirmation = tab.SubmitConfirmation,
                 Sections = StripSections(tab.Sections, referencedSchemaNames)

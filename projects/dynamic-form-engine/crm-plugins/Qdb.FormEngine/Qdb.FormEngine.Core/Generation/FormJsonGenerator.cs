@@ -115,6 +115,9 @@ namespace Qdb.FormEngine.Core.Generation
                 IsVisible = EntityHelper.GetBoolOrTrue(tab, "qdb_is_visible"),
                 RequiresPreviousTabComplete = tab.GetAttributeValue<bool>("qdb_requires_previous_tab_complete"),
                 HideTabBar = tab.GetAttributeValue<bool>("qdb_hide_tab_bar"),
+                // Null on every tab that predates the column, so only a real true is emitted.
+                RevealsSectionsOneAtATime =
+                    tab.GetAttributeValue<bool>("qdb_reveal_sections_one_at_a_time") ? true : (bool?)null,
                 Sections = BuildSections(rawData, tabId, fieldBuilder),
                 Buttons = BuildScopedButtons(rawData, "tab", tabId),
                 SubmitConfirmation = BuildTabSubmitConfirmation(rawData, tab, tabId)

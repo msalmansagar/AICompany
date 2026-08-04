@@ -60,6 +60,9 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("requiresPreviousTabComplete")] public bool RequiresPreviousTabComplete { get; set; }
         [JsonProperty("hideTabBar")] public bool HideTabBar { get; set; }
+        // Omitted when false so every form that predates the feature stays byte-identical.
+        [JsonProperty("revealsSectionsOneAtATime", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? RevealsSectionsOneAtATime { get; set; }
         [JsonProperty("sections")] public List<SectionDefinition> Sections { get; set; }
         // DFE-BTN-001: tab-scoped buttons. Omitted when empty so button-less forms are byte-identical.
         [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
