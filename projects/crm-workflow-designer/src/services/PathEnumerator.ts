@@ -1,6 +1,14 @@
 import type { WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
+import { branchChildrenOf } from '@/services/branchFields';
 
 export type PathEndReason = 'end' | 'no-outcomes' | 'cycle';
+
+/** One step that runs alongside the step carrying it, for the collapsed element. */
+export interface SimConcurrentBranch {
+  entryStepName: string;
+  /** Whether the branch is gated by its own condition. */
+  isConditional: boolean;
+}
 
 export interface SimPathStep {
   stepId: string;
@@ -14,6 +22,14 @@ export interface SimPathStep {
     routeName?: string;
     routeCondition?: string;
   } | null;
+  /**
+   * Present only on a parallel split (DP-1). The whole region collapses into this
+   * one element: every branch runs, so enumerating them as separate paths would
+   * misrepresent concurrency as choice, and interleaving them would explode
+   * combinatorially (ADR-1-004). Absent on every ordinary step, so consumers that
+   * do not know about concurrency keep working unchanged.
+   */
+  concurrentBranches?: SimConcurrentBranch[];
 }
 
 export interface SimPath {
@@ -48,7 +64,14 @@ export function enumerateAllPaths(
   routes?: Record<string, WorkflowRoute>,
   routeOrder?: Record<string, string[]>
 ): SimPath[] {
-  const context: EnumerationContext = { steps, outcomes, outcomeOrder, routes, routeOrder, result: [] };
+  const context: EnumerationContext = {
+    steps,
+    outcomes,
+    outcomeOrder,
+    routes,
+    routeOrder,
+    result: [],
+  };
   depthFirstSearch({ stepId: entryStepId, pathSoFar: [], visited: new Set() }, context);
   return context.result;
 }
@@ -63,9 +86,10 @@ function depthFirstSearch(frame: TraversalFrame, context: EnumerationContext): v
   }
 
   const branchVisited = new Set(frame.visited).add(frame.stepId);
+
   const stepOutcomes = resolveStepOutcomes(frame.stepId, context);
   if (stepOutcomes.length === 0) {
-    context.result.push({ id: nextPathId(context), steps: [...frame.pathSoFar, buildPathStep(step, null)], endReason: 'no-outcomes' });
+    context.result.push({ id: nextPathId(context), steps: [...frame.pathSoFar, buildPathStep(step, null, context)], endReason: 'no-outcomes' });
     return;
   }
 
@@ -77,6 +101,24 @@ function depthFirstSearch(frame: TraversalFrame, context: EnumerationContext): v
       traversePlainOutcome({ step, outcome, pathSoFar: frame.pathSoFar, visited: branchVisited }, context);
     }
   }
+}
+
+/**
+ * The steps that run alongside this one. They are attached to the path element
+ * rather than enumerated as separate paths: they all start together, so listing
+ * them as alternatives would misrepresent concurrency as choice, and interleaving
+ * them would multiply out factorially. Branch count never affects path count.
+ */
+function concurrentBranchesOf(
+  stepId: string,
+  context: EnumerationContext
+): SimConcurrentBranch[] | undefined {
+  const childIds = branchChildrenOf(stepId, context.steps);
+  if (childIds.length === 0) return undefined;
+  return childIds.map((childId) => ({
+    entryStepName: context.steps[childId]?.name ?? childId,
+    isConditional: context.steps[childId]?.applyBranchFilter ?? false,
+  }));
 }
 
 function resolveStepOutcomes(stepId: string, context: EnumerationContext): WorkflowOutcome[] {
@@ -107,7 +149,7 @@ function enumerateRouteBranches(
       routeId: route.crmId,
       routeName: route.name || (isFallback ? 'else' : route.crmId),
       routeCondition: isFallback ? 'else' : route.filter,
-    });
+    }, context);
     advanceOrEnd({ nextStepId: route.nextStepId, pathSoFar: args.pathSoFar, pathStep, visited: args.visited }, context);
   }
 }
@@ -117,7 +159,7 @@ function traversePlainOutcome(
   args: { step: WorkflowStep; outcome: WorkflowOutcome; pathSoFar: SimPathStep[]; visited: Set<string> },
   context: EnumerationContext
 ): void {
-  const pathStep = buildPathStep(args.step, { outcomeId: args.outcome.crmId, outcomeName: args.outcome.name });
+  const pathStep = buildPathStep(args.step, { outcomeId: args.outcome.crmId, outcomeName: args.outcome.name }, context);
   advanceOrEnd({ nextStepId: args.outcome.nextStepId, pathSoFar: args.pathSoFar, pathStep, visited: args.visited }, context);
 }
 
@@ -138,13 +180,18 @@ function nextPathId(context: EnumerationContext): string {
   return `path_${context.result.length}`;
 }
 
-function buildPathStep(step: WorkflowStep, outcomeTaken: SimPathStep['outcomeTaken']): SimPathStep {
+function buildPathStep(
+  step: WorkflowStep,
+  outcomeTaken: SimPathStep['outcomeTaken'],
+  context?: EnumerationContext
+): SimPathStep {
   return {
     stepId: step.crmId,
     stepName: step.name,
     assigneeName: resolveAssigneeName(step),
     assignType: resolveAssignType(step),
     outcomeTaken,
+    concurrentBranches: context ? concurrentBranchesOf(step.crmId, context) : undefined,
   };
 }
 

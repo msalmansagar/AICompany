@@ -336,7 +336,7 @@ function resolvePropertiesPanel(
   }
 
   if (selectedId.startsWith('outcome_')) {
-    return <OutcomePropertiesPanel outcomeId={selectedId} />;
+    return <OutcomePropertiesPanel outcomeId={selectedId} adapter={adapter} />;
   }
 
   if (selectedId.startsWith('route_edge_')) {

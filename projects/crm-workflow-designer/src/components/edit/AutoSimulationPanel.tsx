@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { analyzeComplexity } from '@/services/ComplexityAnalyzer';
 import type { ComplexityMetric, ComplexityLevel } from '@/services/ComplexityAnalyzer';
-import type { SimPath } from '@/services/PathEnumerator';
+import type { SimPath, SimConcurrentBranch } from '@/services/PathEnumerator';
 
 interface AutoSimulationPanelProps {
   onClose: () => void;
@@ -121,6 +121,7 @@ function PathDetail({ path, index }: { path: SimPath; index: number }) {
               assignType={step.assignType}
               assigneeName={step.assigneeName}
             />
+            {step.concurrentBranches && <ConcurrentBranches branches={step.concurrentBranches} />}
             {step.outcomeTaken && (
               <div style={outcomeTagStyle}>
                 <span style={outcomeArrowStyle}>↓</span>
@@ -183,6 +184,24 @@ function MetricCard({ metric }: { metric: ComplexityMetric }) {
         <span style={{ color: '#d97706', fontSize: 9 }}>● {metric.yellowRange}</span>
         <span style={{ color: '#dc2626', fontSize: 9 }}>● {metric.redRange}</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * DP-1: the branches of a parallel region, shown as one block. They all run — the
+ * path list must not present them as alternatives, and interleaving them would
+ * explode combinatorially (ADR-1-004).
+ */
+function ConcurrentBranches({ branches }: { branches: SimConcurrentBranch[] }) {
+  return (
+    <div style={concurrentBlockStyle}>
+      <div style={concurrentTitleStyle}>⧉ These {branches.length} step{branches.length === 1 ? '' : 's'} run at the same time</div>
+      {branches.map((branch) => (
+        <div key={branch.entryStepName} style={concurrentBranchStyle}>
+          {branch.entryStepName}{branch.isConditional ? ' — only if its condition is met' : ''}
+        </div>
+      ))}
     </div>
   );
 }
@@ -515,6 +534,29 @@ const connectorStyle: React.CSSProperties = {
   color: '#e2e8f0',
   lineHeight: 1,
   margin: '3px 0 3px 14px',
+};
+
+const concurrentBlockStyle: React.CSSProperties = {
+  margin: '6px 0',
+  padding: '8px 10px',
+  background: '#f5f3ff',
+  border: '1px dashed #a78bfa',
+  borderRadius: 6,
+  minWidth: 240,
+  maxWidth: 380,
+};
+
+const concurrentTitleStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: '#6d28d9',
+  marginBottom: 4,
+};
+
+const concurrentBranchStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: '#4c1d95',
+  lineHeight: 1.5,
 };
 
 const stepCardStyle: React.CSSProperties = {

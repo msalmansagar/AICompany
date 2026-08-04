@@ -21,8 +21,9 @@ namespace EDP.RuleRuntime.Crm
     ///   InputsJson    (string) — input values as JSON (test without a record).
     ///   TargetRef     (EntityReference) — a record supplying input field values.
     /// Output parameters:
-    ///   Success (bool), Matched (bool), OutputsJson (string),
-    ///   TraceJson (string), DiagnosticsJson (string), ElapsedMs (int).
+    ///   Success (bool), Matched (bool), OutputsJson (string), ReasonCodesJson (string),
+    ///   TraceJson (string), DiagnosticsJson (string), ElapsedMs (int),
+    ///   ExecutionId (string) — the execution-log id this decision was traced to.
     /// </summary>
     public sealed class EvaluateDecisionPlugin : IPlugin
     {
@@ -43,7 +44,8 @@ namespace EDP.RuleRuntime.Crm
 
                 Guid? ruleVersionId = string.IsNullOrWhiteSpace(ruleVersionIdStr) ? (Guid?)null : Guid.Parse(ruleVersionIdStr);
 
-                if (!string.IsNullOrEmpty(pcrmJson) && pcrmJson.Length > MaxPcrmJsonLength)     // F-08
+                // pcrmJson! — the && short-circuit guarantees non-null; net462 lacks [NotNullWhen] on IsNullOrEmpty.
+                if (!string.IsNullOrEmpty(pcrmJson) && pcrmJson!.Length > MaxPcrmJsonLength)    // F-08
                     throw new InvalidPluginExecutionException($"PcrmJson exceeds the {MaxPcrmJsonLength} character limit.");
                 if (string.IsNullOrWhiteSpace(inputsJson) && targetRef == null)                 // QA-B1: avoid a null-ref crash
                     throw new InvalidPluginExecutionException("Provide InputsJson (ad-hoc inputs) or TargetRef (a record to evaluate).");
@@ -56,10 +58,14 @@ namespace EDP.RuleRuntime.Crm
                     ? pcrmJson!
                     : decisionService.ResolvePcrm(ruleVersionId ?? throw new InvalidPluginExecutionException("Provide PcrmJson or RuleVersionId."));
 
-                var result = !string.IsNullOrWhiteSpace(inputsJson)
+                var outcome = !string.IsNullOrWhiteSpace(inputsJson)
                     ? decisionService.EvaluateInputs(pcrm, RuleDecisionService.ParseInputsJson(inputsJson), ruleVersionId, context.InitiatingUserId, DateTime.UtcNow)
                     : decisionService.Evaluate(pcrm, service.Retrieve(targetRef!.LogicalName, targetRef.Id, new ColumnSet(true)), ruleVersionId, context.InitiatingUserId, DateTime.UtcNow);
+                var result = outcome.Result;
 
+                // Addresses this decision for a later ExplainDecision call. Empty when the
+                // best-effort trace was dropped — the decision itself is unaffected (ADR-13).
+                context.OutputParameters["ExecutionId"] = outcome.ExecutionLogId?.ToString() ?? string.Empty;
                 context.OutputParameters["Success"] = result.Success;
                 context.OutputParameters["Matched"] = result.Matched;
                 context.OutputParameters["OutputsJson"] = JsonSerializer.Serialize(result.Outputs);

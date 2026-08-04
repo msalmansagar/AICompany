@@ -60,7 +60,11 @@ export const openApiDocument = {
         properties: {
           correlationId: { type: 'string' },
           requestId: { type: 'string' },
-          executionId: { type: ['string', 'null'] },
+          executionId: {
+            type: ['string', 'null'],
+            description:
+              'Execution-log id of a durable decision — pass it as executionLogId to /v1/decisions/explain. Null on non-durable operations (test) or when the best-effort trace was dropped.',
+          },
           elapsedMs: { type: ['number', 'null'] },
         },
       },
@@ -99,6 +103,7 @@ export const openApiDocument = {
       ExplainRequest: {
         type: 'object',
         required: ['executionLogId'],
+        description: 'Explain a past decision, addressed by the executionId returned from /v1/decisions/evaluate.',
         properties: {
           meta: { type: 'object', properties: { correlationId: { type: 'string' } } },
           executionLogId: { type: 'string', format: 'uuid' },

@@ -30,8 +30,13 @@ namespace EDP.RuleRuntime.Crm.Sinks
     /// <summary>Durable, synchronous governance audit (ADR-13 tier 1). Failures propagate.</summary>
     public interface IAuditSink { void WriteAudit(AuditEvent auditEvent); }
 
-    /// <summary>Best-effort execution trace (ADR-13 tier 2). Must NEVER throw to the caller.</summary>
-    public interface ITraceSink { void WriteTrace(TraceRecord trace); }
+    /// <summary>
+    /// Best-effort execution trace (ADR-13 tier 2). Must NEVER throw to the caller.
+    /// Returns the id of the durable trace record, or null when the trace was dropped
+    /// or the sink keeps no durable record — callers use it to address the decision later
+    /// (ExplainDecision), never to decide whether the decision itself succeeded.
+    /// </summary>
+    public interface ITraceSink { Guid? WriteTrace(TraceRecord trace); }
 
     /// <summary>Writes an append-only audit record to qdb_edp_ruleaudit. Durable: throws on failure.</summary>
     public sealed class DataverseAuditSink : IAuditSink
@@ -74,7 +79,7 @@ namespace EDP.RuleRuntime.Crm.Sinks
             _onDrop = onDrop;
         }
 
-        public void WriteTrace(TraceRecord t)
+        public Guid? WriteTrace(TraceRecord t)
         {
             try
             {
@@ -93,12 +98,13 @@ namespace EDP.RuleRuntime.Crm.Sinks
                 if (t.RuleVersionId.HasValue)
                     record["qdb_edp_ruleversionid"] = new EntityReference("qdb_edp_ruleversion", t.RuleVersionId.Value);
 
-                _service.Create(record);
+                return _service.Create(record);
             }
             catch (Exception ex)
             {
                 // Swallow — trace loss under load is acceptable and logged; a decision never fails on trace.
                 _onDrop?.Invoke(ex.Message);
+                return null;
             }
         }
     }

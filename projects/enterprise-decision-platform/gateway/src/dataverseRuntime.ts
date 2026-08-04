@@ -49,7 +49,8 @@ export class DataverseRuntime implements DecisionRuntime {
       trace: args.includeTrace ? safeJson(body.TraceJson) ?? null : undefined,
       diagnostics: safeJson(body.DiagnosticsJson) ?? null,
       elapsedMs: typeof body.ElapsedMs === 'number' ? body.ElapsedMs : null,
-      executionId: typeof body.ExecutionId === 'string' ? body.ExecutionId : null,
+      // Empty means the best-effort trace was dropped (ADR-13) — there is no log to explain.
+      executionId: typeof body.ExecutionId === 'string' && body.ExecutionId.length > 0 ? body.ExecutionId : null,
     };
   }
 

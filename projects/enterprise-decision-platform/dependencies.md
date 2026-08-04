@@ -425,3 +425,59 @@ Direct repository pages fetched: gorules/jdm-editor, gorules/jdm-editor package.
 
 *End of Phase 2 Dependency Research — EDP-BRE-001*
 *Phase 3 (Detailed Architecture) is authorised to proceed.*
+
+---
+
+# Addendum — Wave 1 Gateway Dependencies (2026-07-27)
+
+Scope note: these apply to the **Decision Gateway** (`gateway/`), which is an accepted
+**optional** tier under ADR-05. The zero-infra core invariant is untouched — nothing here
+enters the CRM plugin sandbox, so the sandbox-safety constraints above do not apply.
+
+## `@fastify/rate-limit` — **ADOPT (below star threshold, justified)**
+
+| Attribute | Value |
+|---|---|
+| **Repo** | https://github.com/fastify/fastify-rate-limit |
+| **Version adopted** | `9.1.0` (the 9.x line is the Fastify 4 compatible one; 11.x requires Fastify 5) |
+| **License** | MIT — commercial embedding permitted |
+| **Stars** | **599** (2026-07-27) — **below the 1,000-star adopt threshold** |
+| **Maintenance** | Last push 2026-07-22 (5 days before adoption); 6 open issues; not archived |
+
+### Why adopt despite missing the threshold
+
+The 1,000-star rule exists as a proxy for "battle-tested and maintained". That proxy is weak
+here, and three specific facts substitute for it:
+
+1. **It is the official rate limiter of the framework we already depend on**, published under
+   the `fastify` organisation and versioned in lockstep with Fastify itself. Its user base is
+   a subset of Fastify's (~34k stars), not an independent community that could evaporate.
+2. **The alternative is worse.** Hand-rolling a limiter means owning a sliding-window counter,
+   header conventions (`x-ratelimit-*`, `retry-after`), and per-route store lifecycles — all
+   easy to get subtly wrong, and none of it differentiating for a decision platform.
+3. **Small, inspectable surface.** We read the implementation during integration (which is how
+   two integration defects were caught before merge — see below), so this is not a black box.
+
+Precedent within this engagement: `gorules/jdm-editor` was adopted at **308 stars** under
+ADOPT-WITH-CAUTION. A sub-threshold adoption with recorded rationale is established practice
+here, not an exception being invented.
+
+### Integration notes (both found by reading the source, not the docs)
+
+- `errorResponseBuilder`'s return value is **thrown**, so it must be an `Error` carrying
+  `statusCode`. Returning a plain response object yields a 500, not a 429.
+- The plugin attaches its hook **per route** via `onRoute`. Route-level `onRequest` hooks run
+  *after* instance-level ones, so an instance-level auth hook would short-circuit before the
+  limiter counted anything. Gateway authentication is a `preHandler` for exactly this reason.
+- The TypeScript definition of `errorResponseBuilderContext` omits `statusCode`, which the
+  runtime does provide. We use the 429 literal rather than a type assertion.
+
+### Residual risk
+
+In-memory counters mean **per-replica** quotas. Multi-replica deployment needs the plugin's
+shared-store option (Redis) — deferred until a deployment topology is chosen, and recorded as
+a limitation in `gateway/README.md`.
+
+---
+
+*Addendum ends. No new dependency enters the CRM plugin sandbox.*

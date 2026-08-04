@@ -1,5 +1,6 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
-import { validateSlaConfig } from '@/validators/slaValidator';
+import { analyseBranchRegions } from '@/validators/branchRegions';
+import type { BranchFinding } from '@/validators/branchRegions';
 
 export type ViolationCode =
   | 'NO_PROCESS'
@@ -18,8 +19,12 @@ export type ViolationCode =
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
-  | 'MISSING_FALLBACK_ROUTE'
-  | 'INVALID_SLA';
+  | 'MISSING_FALLBACK_ROUTE'  | 'BRANCH_SELF_PARENT'
+  | 'BRANCH_PARENT_CYCLE'
+  | 'BRANCH_PARENT_MISSING'
+  | 'BRANCH_FILTER_MISSING'
+  | 'BRANCH_NO_JOIN_GUARD'
+  | 'ORPHAN_JOIN_GUARD';
 
 export interface Violation {
   code: ViolationCode;
@@ -32,6 +37,21 @@ export interface Violation {
   affectedNodeIds?: string[];
   severity: 'error' | 'warning';
 }
+
+/**
+ * Which concurrency defects block a publish. The two "guard" findings are
+ * warnings: the engine tolerates both — a parent without a guard simply finishes
+ * early, a guard without branches simply finds none — so they are modelling
+ * smells rather than broken processes.
+ */
+const BRANCH_SEVERITY: Record<BranchFinding['code'], Violation['severity']> = {
+  BRANCH_SELF_PARENT: 'error',
+  BRANCH_PARENT_CYCLE: 'error',
+  BRANCH_PARENT_MISSING: 'error',
+  BRANCH_FILTER_MISSING: 'error',
+  BRANCH_NO_JOIN_GUARD: 'warning',
+  ORPHAN_JOIN_GUARD: 'warning',
+};
 
 export class ValidationService {
   private static readonly MAX_OUTCOMES_PER_STEP = 5;
@@ -57,7 +77,6 @@ export class ValidationService {
     this.checkNoTerminalOutcome(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
-    this.checkInvalidSlaConfig(steps, violations);
     this.checkMissingFetchXml(state, violations);
     this.checkInvalidNextStep(state, violations);
     this.checkDeadLoops(state, violations);
@@ -65,8 +84,54 @@ export class ValidationService {
     this.checkDuplicateOutcomeNames(state, violations);
     this.checkTooManyOutcomes(state, violations);
     this.checkMissingFallbackRoute(state, violations);
+    this.checkBranchRegions(state, violations);
 
     return violations;
+  }
+
+  /**
+   * Structural defects in the process's concurrency configuration. The analysis
+   * lives in `branchRegions.ts` as a pure function; this method owns the wording.
+   *
+   * There is no longer a publish block for concurrency. DP-1's block existed because
+   * the designer wrote fields the platform never read; these fields are the ones the
+   * engine actually acts on, so a concurrent process is executable.
+   */
+  private checkBranchRegions(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes'>,
+    violations: Violation[]
+  ): void {
+    for (const finding of analyseBranchRegions(state)) {
+      violations.push({
+        code: finding.code,
+        message: this.describeBranchFinding(state, finding),
+        nodeId: finding.stepId,
+        nodeType: 'step',
+        affectedNodeIds: finding.affectedStepIds,
+        severity: BRANCH_SEVERITY[finding.code],
+      });
+    }
+  }
+
+  private describeBranchFinding(
+    state: Pick<WorkflowDesignerState, 'steps'>,
+    finding: BranchFinding
+  ): string {
+    const name = state.steps[finding.stepId]?.name || finding.stepId;
+    switch (finding.code) {
+      case 'BRANCH_SELF_PARENT':
+        return `Step "${name}" runs concurrently beneath itself. Pick a different step, or make it an ordinary sequential step.`;
+      case 'BRANCH_PARENT_CYCLE':
+        return `Step "${name}" is part of a loop of concurrent branches, each running beneath the next. One of them has to become an ordinary step.`;
+      case 'BRANCH_PARENT_MISSING':
+        return `Step "${name}" runs concurrently beneath a step that no longer exists.`;
+      case 'BRANCH_FILTER_MISSING':
+        return `Step "${name}" only runs when a condition is met, but no condition is set — so the branch would never start. Set the condition, or make the branch unconditional.`;
+      case 'BRANCH_NO_JOIN_GUARD':
+        return `Step "${name}" starts concurrent branches, but none of its outcomes waits for them. It can be completed while its branches are still open — tick "wait for concurrent branches" on the outcome that should wait.`;
+      case 'ORPHAN_JOIN_GUARD':
+        return `Step "${name}" waits for concurrent branches, but no step runs beneath it — there is nothing to wait for.`;
+    }
   }
 
   private checkStartNode(
@@ -83,8 +148,13 @@ export class ValidationService {
     }
   }
 
+  /**
+   * Every step something can lead to. Routes and outcomes are the obvious sources;
+   * a branch is the non-obvious one — no outcome points at it, because the engine
+   * creates its task from its parent's. Without this it reads as unreachable.
+   */
   private buildReachableStepIds(
-    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>
   ): Set<string> {
     const reachable = new Set<string>();
     for (const outcome of Object.values(state.outcomes)) {
@@ -94,6 +164,9 @@ export class ValidationService {
     }
     for (const route of Object.values(state.routes)) {
       if (route.nextStepId) reachable.add(route.nextStepId);
+    }
+    for (const step of Object.values(state.steps)) {
+      if (step.parentStepId) reachable.add(step.crmId);
     }
     return reachable;
   }
@@ -205,26 +278,6 @@ export class ValidationService {
           code: 'INVALID_ASSIGNMENT',
           message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
           nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-    }
-  }
-
-  private checkInvalidSlaConfig(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    for (const step of steps) {
-      if (!step.slaEnabled) continue;
-      const errors = validateSlaConfig(step);
-      const firstError = Object.values(errors)[0];
-      if (firstError) {
-        violations.push({
-          code: 'INVALID_SLA',
-          message: `Step "${step.name || `#${step.sequenceNo}`}" has an incomplete SLA configuration: ${firstError}`,
-          nodeId: step.crmId,
-          nodeType: 'step',
           severity: 'error',
         });
       }

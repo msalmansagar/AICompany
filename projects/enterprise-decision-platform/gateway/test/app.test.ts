@@ -7,6 +7,8 @@ import { RuntimeError } from '../src/dataverseRuntime.js';
 const baseConfig: GatewayConfig = {
   port: 0,
   apiKeys: ['secret-key'],
+  // Generous enough that the limiter is active for every test below without throttling them.
+  rateLimit: { max: 1000, windowSeconds: 60 },
   dataverse: { url: 'https://example.crm.dynamics.com', tenantId: 't', clientId: 'c', clientSecret: 's' },
 };
 
@@ -74,21 +76,21 @@ const V1 = '00000000-0000-0000-0000-000000000001';
 
 describe('EDP gateway — decision surface', () => {
   it('health check needs no auth', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'ok' });
   });
 
   it('rejects a request without a valid API key', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', payload: { rule: { versionId: V1 }, input: {} } });
     expect(res.statusCode).toBe(401);
     expect(res.json().error.code).toBe('unauthorized');
   });
 
   it('evaluate: rejects an invalid envelope (no rule reference)', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { input: {} } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('invalid_request');
@@ -96,7 +98,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('evaluate: by explicit version id, maps the response envelope', async () => {
     const runtime = new FakeRuntime();
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { meta: { correlationId: 'corr-9' }, rule: { versionId: V1 }, input: { revenue: 1500000 } } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -109,7 +111,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('evaluate: resolves a rule by name and includes trace when asked', async () => {
     const runtime = new FakeRuntime({ resolvedVersionId: 'ver-abc' });
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { name: 'Account Credit Tier' }, input: { revenue: 500000 }, options: { includeTrace: true } } });
     expect(res.statusCode).toBe(200);
     expect(runtime.resolveCalls[0]).toEqual({ name: 'Account Credit Tier' });
@@ -118,7 +120,7 @@ describe('EDP gateway — decision surface', () => {
   });
 
   it('evaluate: 404 when the rule has no published version', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime({ throwOnResolve: true }) });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime({ throwOnResolve: true }) });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/evaluate', headers: KEY, payload: { rule: { name: 'Missing' }, input: {} } });
     expect(res.statusCode).toBe(404);
     expect(res.json().error.code).toBe('rule_not_found');
@@ -126,7 +128,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('test: runs the decision with no durable execution id', async () => {
     const runtime = new FakeRuntime();
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/decisions/test', headers: KEY, payload: { rule: { versionId: V1 }, input: { revenue: 1500000 } } });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ matched: true, meta: { executionId: null } });
@@ -135,7 +137,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('validate: resolves then returns valid + diagnostics', async () => {
     const runtime = new FakeRuntime({ resolvedVersionId: 'ver-v' });
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/rules/validate', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -146,7 +148,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('rule-sets: evaluates by id and passes the native aggregate through', async () => {
     const runtime = new FakeRuntime();
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/rule-sets/evaluate', headers: KEY, payload: { ruleSetId: V1, input: { revenue: 2000 } } });
     expect(res.statusCode).toBe(200);
     expect(res.json().result).toMatchObject({ policy: 'FirstMatch', matchedCount: 1 });
@@ -154,7 +156,7 @@ describe('EDP gateway — decision surface', () => {
   });
 
   it('rule-sets: rejects a non-uuid set id', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'POST', url: '/v1/rule-sets/evaluate', headers: KEY, payload: { ruleSetId: 'not-a-guid', input: {} } });
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('invalid_request');
@@ -162,7 +164,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('schema: resolves then returns inputs + outputs', async () => {
     const runtime = new FakeRuntime({ resolvedVersionId: 'ver-s' });
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/rules/schema', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -173,7 +175,7 @@ describe('EDP gateway — decision surface', () => {
 
   it('history: passes the rule id/name straight to the runtime', async () => {
     const runtime = new FakeRuntime();
-    const app = buildApp({ config: baseConfig, runtime });
+    const app = await buildApp({ config: baseConfig, runtime });
     const res = await app.inject({ method: 'POST', url: '/v1/rules/history', headers: KEY, payload: { rule: { name: 'Account Credit Tier' } } });
     expect(res.statusCode).toBe(200);
     expect(res.json().result).toEqual([{ version: 1, state: 'Published' }]);
@@ -182,7 +184,7 @@ describe('EDP gateway — decision surface', () => {
   });
 
   it('explain: requires a uuid execution-log id', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const bad = await app.inject({ method: 'POST', url: '/v1/decisions/explain', headers: KEY, payload: { executionLogId: 'nope' } });
     expect(bad.statusCode).toBe(400);
     const ok = await app.inject({ method: 'POST', url: '/v1/decisions/explain', headers: KEY, payload: { executionLogId: V1 } });
@@ -191,7 +193,7 @@ describe('EDP gateway — decision surface', () => {
   });
 
   it('serves the OpenAPI document without auth', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'GET', url: '/openapi.json' });
     expect(res.statusCode).toBe(200);
     const doc = res.json();
@@ -201,9 +203,75 @@ describe('EDP gateway — decision surface', () => {
   });
 
   it('serves the docs page without auth', async () => {
-    const app = buildApp({ config: baseConfig, runtime: new FakeRuntime() });
+    const app = await buildApp({ config: baseConfig, runtime: new FakeRuntime() });
     const res = await app.inject({ method: 'GET', url: '/docs' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/html');
+  });
+});
+
+describe('rate limiting', () => {
+  const throttled: GatewayConfig = { ...baseConfig, rateLimit: { max: 2, windowSeconds: 60 } };
+  const evaluate = { rule: { name: 'r' }, input: {} };
+
+  const post = (app: Awaited<ReturnType<typeof buildApp>>, key?: string) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/decisions/evaluate',
+      headers: key ? { 'x-api-key': key } : {},
+      payload: evaluate,
+    });
+
+  it('rejects a caller past its quota with the gateway error envelope', async () => {
+    const app = await buildApp({ config: throttled, runtime: new FakeRuntime() });
+
+    await post(app, 'secret-key');
+    await post(app, 'secret-key');
+    const blocked = await post(app, 'secret-key');
+
+    expect(blocked.statusCode).toBe(429);
+    expect(blocked.json().error).toMatchObject({ code: 'rate_limited' });
+    expect(blocked.json().meta.requestId).toBeDefined();
+  });
+
+  it('never throttles the liveness probe', async () => {
+    const app = await buildApp({ config: throttled, runtime: new FakeRuntime() });
+
+    for (let i = 0; i < 5; i++) await app.inject({ method: 'GET', url: '/health' });
+    const res = await app.inject({ method: 'GET', url: '/health' });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not let invented API keys mint fresh quota', async () => {
+    const app = await buildApp({ config: throttled, runtime: new FakeRuntime() });
+
+    // Unauthenticated callers share one address bucket, so rotating keys cannot widen it.
+    await post(app, 'invented-1');
+    await post(app, 'invented-2');
+    const blocked = await post(app, 'invented-3');
+
+    expect(blocked.statusCode).toBe(429);
+  });
+
+  it('gives a valid caller its own quota, unaffected by other callers', async () => {
+    const app = await buildApp({ config: { ...throttled, apiKeys: ['key-a', 'key-b'] }, runtime: new FakeRuntime() });
+
+    await post(app, 'key-a');
+    await post(app, 'key-a');
+    const exhausted = await post(app, 'key-a');
+    const other = await post(app, 'key-b');
+
+    expect(exhausted.statusCode).toBe(429);
+    expect(other.statusCode).toBe(200);
+  });
+
+  it('is disabled when max is zero', async () => {
+    const app = await buildApp({ config: { ...baseConfig, rateLimit: { max: 0, windowSeconds: 60 } }, runtime: new FakeRuntime() });
+
+    for (let i = 0; i < 10; i++) await post(app, 'secret-key');
+    const res = await post(app, 'secret-key');
+
+    expect(res.statusCode).toBe(200);
   });
 });

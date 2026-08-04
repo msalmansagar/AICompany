@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A modern visual guide to building decision graphs." />
+  <title>Decision Graphs — Modern Visual Guide</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --surface:#ffffff;
+      --surface-2:#f8fafc;
+      --surface-3:#eef2ff;
+      --text:#172033;
+      --muted:#64748b;
+      --border:#e2e8f0;
+      --primary:#6d4aff;
+      --primary-2:#8b5cf6;
+      --primary-soft:#f1edff;
+      --cyan:#0ea5e9;
+      --green:#10b981;
+      --amber:#f59e0b;
+      --rose:#f43f5e;
+      --shadow:0 18px 50px rgba(39,48,82,.10);
+      --shadow-soft:0 8px 28px rgba(39,48,82,.08);
+      --radius-xl:24px;
+      --radius-lg:18px;
+      --radius-md:12px;
+      --max:1240px;
+    }
+
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at top right,rgba(109,74,255,.12),transparent 28rem),
+        linear-gradient(180deg,#fbfcff 0%,var(--bg) 58%);
+      line-height:1.6;
+    }
+
+    a{color:inherit;text-decoration:none}
+    button{font:inherit}
+    code{
+      font-family:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+      background:#eef2ff;
+      color:#4f36d6;
+      padding:.15rem .42rem;
+      border-radius:7px;
+      font-size:.92em;
+    }
+
+    .app{
+      display:grid;
+      grid-template-columns:280px minmax(0,1fr);
+      min-height:100vh;
+    }
+
+    .sidebar{
+      position:sticky;
+      top:0;
+      height:100vh;
+      padding:24px 18px;
+      border-right:1px solid rgba(226,232,240,.9);
+      background:rgba(255,255,255,.78);
+      backdrop-filter:blur(16px);
+      overflow:auto;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:4px 8px 22px;
+    }
+
+    .brand-mark{
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+      box-shadow:0 10px 22px rgba(109,74,255,.28);
+      font-weight:800;
+    }
+
+    .brand strong{display:block;font-size:15px}
+    .brand span{display:block;color:var(--muted);font-size:12px}
+
+    .nav-title{
+      margin:14px 10px 8px;
+      color:#94a3b8;
+      text-transform:uppercase;
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.12em;
+    }
+
+    .nav a{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:4px 0;
+      padding:10px 12px;
+      border-radius:10px;
+      color:#526079;
+      font-size:14px;
+      transition:.2s ease;
+    }
+
+    .nav a:hover,.nav a.active{
+      background:var(--primary-soft);
+      color:#4f36d6;
+      transform:translateX(2px);
+    }
+
+    .nav .dot{
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:#cbd5e1;
+    }
+
+    .nav a.active .dot,.nav a:hover .dot{background:var(--primary)}
+
+    .sidebar-note{
+      margin:24px 4px 8px;
+      padding:16px;
+      border:1px solid #ddd6fe;
+      border-radius:16px;
+      background:linear-gradient(145deg,#f7f4ff,#fff);
+      color:#5b4f7d;
+      font-size:12px;
+    }
+
+    main{min-width:0;padding:28px 34px 72px}
+    .container{max-width:var(--max);margin:0 auto}
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:26px;
+    }
+
+    .crumbs{color:var(--muted);font-size:13px}
+    .crumbs strong{color:var(--text)}
+    .icon-btn{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.85);
+      color:#55627a;
+      border-radius:12px;
+      padding:9px 12px;
+      cursor:pointer;
+      box-shadow:var(--shadow-soft);
+    }
+
+    .hero{
+      position:relative;
+      overflow:hidden;
+      padding:46px;
+      border-radius:var(--radius-xl);
+      background:
+        linear-gradient(135deg,rgba(21,28,52,.97),rgba(72,52,172,.95)),
+        #211b43;
+      color:#fff;
+      box-shadow:var(--shadow);
+    }
+
+    .hero:after{
+      content:"";
+      position:absolute;
+      width:340px;
+      height:340px;
+      right:-120px;
+      top:-150px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(255,255,255,.22),transparent 64%);
+    }
+
+    .eyebrow{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 11px;
+      border:1px solid rgba(255,255,255,.18);
+      border-radius:999px;
+      background:rgba(255,255,255,.08);
+      color:#ddd6fe;
+      font-size:12px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+    }
+
+    h1{
+      margin:18px 0 12px;
+      max-width:800px;
+      font-size:clamp(34px,5vw,62px);
+      line-height:1.06;
+      letter-spacing:-.045em;
+    }
+
+    .hero p{
+      max-width:760px;
+      margin:0;
+      color:#d8dced;
+      font-size:17px;
+    }
+
+    .hero-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      margin-top:26px;
+    }
+
+    .btn{
+      border:0;
+      border-radius:12px;
+      padding:12px 16px;
+      cursor:pointer;
+      font-weight:750;
+      transition:.2s ease;
+    }
+
+    .btn:hover{transform:translateY(-2px)}
+    .btn-primary{background:#fff;color:#3c2aa3}
+    .btn-secondary{
+      color:#fff;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.08);
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:14px;
+      margin-top:18px;
+    }
+
+    .stat{
+      padding:18px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:rgba(255,255,255,.92);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .stat strong{display:block;font-size:22px}
+    .stat span{color:var(--muted);font-size:13px}
+
+    section{scroll-margin-top:24px;margin-top:30px}
+    .section-card{
+      padding:28px;
+      border:1px solid var(--border);
+      border-radius:var(--radius-lg);
+      background:rgba(255,255,255,.94);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .section-heading{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:20px;
+      margin-bottom:22px;
+    }
+
+    .section-heading h2{
+      margin:0 0 6px;
+      font-size:27px;
+      letter-spacing:-.025em;
+    }
+
+    .section-heading p{
+      margin:0;
+      max-width:770px;
+      color:var(--muted);
+    }
+
+    .section-no{
+      flex:none;
+      width:42px;
+      height:42px;
+      display:grid;
+      place-items:center;
+      border-radius:13px;
+      background:var(--primary-soft);
+      color:var(--primary);
+      font-weight:800;
+    }
+
+    .canvas{
+      position:relative;
+      min-height:370px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      scrollbar-width:thin;
+      scrollbar-color:#b8a9ff #eef2f7;
+      border:1px solid #dbe3f0;
+      border-radius:18px;
+      background-color:#fbfcff;
+      background-image:
+        radial-gradient(#cbd5e1 1px,transparent 1px);
+      background-size:20px 20px;
+      overscroll-behavior-x:contain;
+    }
+
+    .canvas-stage-shell{
+      position:relative;
+      width:1210px;
+      height:370px;
+      transition:width .22s ease,height .22s ease;
+    }
+
+    .canvas-stage{
+      position:absolute;
+      inset:0 auto auto 0;
+      width:1210px;
+      height:370px;
+      transform-origin:top left;
+      transition:transform .22s ease;
+    }
+
+    .canvas::-webkit-scrollbar{height:10px}
+    .canvas::-webkit-scrollbar-track{background:#eef2f7;border-radius:999px}
+    .canvas::-webkit-scrollbar-thumb{background:#b8a9ff;border-radius:999px;border:2px solid #eef2f7}
+
+    .canvas-toolbar{
+      position:sticky;
+      top:14px;
+      left:14px;
+      z-index:8;
+      width:max-content;
+      display:flex;
+      gap:10px;
+      margin:14px 0 -62px 14px;
+    }
+
+    .toolset{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:7px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:rgba(255,255,255,.92);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .tool{
+      width:32px;
+      height:32px;
+      border:0;
+      border-radius:9px;
+      background:#fff;
+      color:#64748b;
+      cursor:pointer;
+    }
+
+    .tool:hover{background:var(--primary-soft);color:var(--primary)}
+    .tool:disabled{opacity:.38;cursor:not-allowed;background:#fff;color:#94a3b8}
+    .zoom-level{
+      min-width:52px;
+      padding:0 7px;
+      color:#475569;
+      font-size:12px;
+      font-weight:800;
+      text-align:center;
+      user-select:none;
+    }
+
+    .graph-node{
+      position:absolute;
+      width:190px;
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:#fff;
+      box-shadow:0 10px 28px rgba(38,48,82,.12);
+      user-select:none;
+      cursor:grab;
+      z-index:3;
+    }
+
+    .graph-node:active{cursor:grabbing}
+    .graph-node.selected{
+      border-color:var(--primary);
+      box-shadow:0 0 0 4px rgba(109,74,255,.12),0 12px 32px rgba(38,48,82,.13);
+    }
+
+    .node-top{
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .node-icon{
+      width:34px;
+      height:34px;
+      display:grid;
+      place-items:center;
+      border-radius:10px;
+      color:#fff;
+      font-weight:800;
+    }
+
+    .node-icon.input{background:var(--cyan)}
+    .node-icon.table{background:var(--primary)}
+    .node-icon.expression{background:var(--amber)}
+    .node-icon.output{background:var(--green)}
+    .node-icon.switch{background:var(--rose)}
+
+    .graph-node strong{display:block;font-size:14px}
+    .graph-node small{display:block;color:var(--muted);font-size:11px}
+    .port{
+      position:absolute;
+      top:50%;
+      width:12px;
+      height:12px;
+      border:2px solid #fff;
+      border-radius:50%;
+      background:#94a3b8;
+      transform:translateY(-50%);
+      box-shadow:0 0 0 1px #cbd5e1;
+    }
+    .port.in{left:-7px}
+    .port.out{right:-7px}
+
+    .line{
+      position:absolute;
+      height:3px;
+      transform-origin:left center;
+      border-radius:999px;
+      background:linear-gradient(90deg,#8b5cf6,#38bdf8);
+      z-index:1;
+    }
+
+    .line:after{
+      content:"";
+      position:absolute;
+      right:-1px;
+      top:50%;
+      width:8px;
+      height:8px;
+      border-top:3px solid #38bdf8;
+      border-right:3px solid #38bdf8;
+      transform:translateY(-50%) rotate(45deg);
+    }
+
+    .node-grid{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:16px;
+    }
+
+    .node-card{
+      padding:20px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+      transition:.2s ease;
+    }
+
+    .node-card:hover{
+      transform:translateY(-3px);
+      box-shadow:var(--shadow-soft);
+    }
+
+    .node-card .node-icon{margin-bottom:14px}
+    .node-card h3{margin:0 0 5px;font-size:17px}
+    .node-card p{margin:0;color:var(--muted);font-size:13px}
+    .node-card .use{
+      margin-top:14px;
+      padding-top:13px;
+      border-top:1px solid var(--border);
+      color:#475569;
+      font-size:12px;
+    }
+
+    .steps{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:14px;
+    }
+
+    .step{
+      padding:20px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--surface-2);
+    }
+
+    .step b{
+      display:grid;
+      place-items:center;
+      width:30px;
+      height:30px;
+      margin-bottom:14px;
+      border-radius:10px;
+      color:#fff;
+      background:linear-gradient(135deg,var(--primary),var(--primary-2));
+    }
+
+    .step strong{display:block;margin-bottom:4px}
+    .step span{color:var(--muted);font-size:13px}
+
+    .switch-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:16px;
+    }
+
+    .switch-card{
+      padding:22px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:var(--surface-2);
+    }
+
+    .switch-card h3{margin:0 0 6px}
+    .switch-card p{margin:0;color:var(--muted)}
+    .branch-list{display:grid;gap:10px;margin-top:16px}
+
+    .branch{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .branch span{color:var(--muted);font-size:12px}
+    .badge{
+      padding:5px 9px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+
+    .badge.first{background:#ede9fe;color:#5b21b6}
+    .badge.collect{background:#dcfce7;color:#166534}
+
+    .merge-grid{
+      display:grid;
+      grid-template-columns:1fr auto 1fr;
+      align-items:center;
+      gap:18px;
+    }
+
+    .json-box{
+      min-height:170px;
+      padding:16px;
+      border-radius:14px;
+      background:#171c2c;
+      color:#dbe4ff;
+      overflow:auto;
+      font-family:"SFMono-Regular",Consolas,monospace;
+      font-size:13px;
+      line-height:1.55;
+    }
+
+    .merge-arrow{
+      width:52px;
+      height:52px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:var(--primary-soft);
+      color:var(--primary);
+      font-size:24px;
+      font-weight:800;
+    }
+
+    .callout{
+      display:flex;
+      gap:14px;
+      margin-top:16px;
+      padding:16px 18px;
+      border-radius:14px;
+      border:1px solid #fde68a;
+      background:#fffbeb;
+      color:#755510;
+    }
+
+    .callout strong{display:block}
+
+    .flow{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:14px;
+    }
+
+    .flow-step{
+      position:relative;
+      padding:20px;
+      border:1px solid var(--border);
+      border-radius:16px;
+      background:#fff;
+    }
+
+    .flow-step:not(:last-child):after{
+      content:"→";
+      position:absolute;
+      right:-13px;
+      top:50%;
+      z-index:2;
+      width:26px;
+      height:26px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      background:var(--primary-soft);
+      color:var(--primary);
+      transform:translateY(-50%);
+      font-weight:800;
+    }
+
+    .flow-step strong{display:block;margin-bottom:5px}
+    .flow-step span{color:var(--muted);font-size:13px}
+
+    .practice-grid{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:14px;
+    }
+
+    .practice{
+      padding:18px;
+      border:1px solid var(--border);
+      border-radius:15px;
+      background:#fff;
+    }
+
+    .practice i{
+      width:34px;
+      height:34px;
+      display:grid;
+      place-items:center;
+      margin-bottom:12px;
+      border-radius:10px;
+      background:var(--primary-soft);
+      color:var(--primary);
+      font-style:normal;
+      font-weight:900;
+    }
+
+    .practice strong{display:block;margin-bottom:4px}
+    .practice span{color:var(--muted);font-size:13px}
+
+    .shortcut-table{
+      overflow:hidden;
+      border:1px solid var(--border);
+      border-radius:16px;
+    }
+
+    .shortcut-row{
+      display:grid;
+      grid-template-columns:220px 1fr;
+      border-bottom:1px solid var(--border);
+    }
+
+    .shortcut-row:last-child{border-bottom:0}
+    .shortcut-row div{padding:14px 16px}
+    .shortcut-row div:first-child{background:#f8fafc;font-weight:700}
+    kbd{
+      display:inline-block;
+      min-width:28px;
+      padding:4px 8px;
+      border:1px solid #cbd5e1;
+      border-bottom-width:3px;
+      border-radius:7px;
+      background:#fff;
+      color:#334155;
+      font-size:12px;
+      text-align:center;
+    }
+
+    footer{
+      margin-top:30px;
+      padding:20px 4px;
+      color:var(--muted);
+      font-size:12px;
+      text-align:center;
+    }
+
+    @media(max-width:1100px){
+      .app{grid-template-columns:1fr}
+      .sidebar{display:none}
+      main{padding:20px}
+      .node-grid{grid-template-columns:repeat(2,1fr)}
+      .stats{grid-template-columns:repeat(2,1fr)}
+    }
+
+    @media(max-width:760px){
+      main{padding:14px}
+      .hero{padding:30px 24px}
+      .stats,.node-grid,.steps,.switch-grid,.flow,.practice-grid,.merge-grid{
+        grid-template-columns:1fr;
+      }
+      .section-card{padding:22px 18px}
+      .section-heading{flex-direction:column-reverse}
+      .flow-step:not(:last-child):after{
+        content:"↓";
+        right:auto;
+        left:50%;
+        top:auto;
+        bottom:-20px;
+        transform:translateX(-50%);
+      }
+      .merge-arrow{margin:auto;transform:rotate(90deg)}
+      .shortcut-row{grid-template-columns:1fr}
+      .shortcut-row div:first-child{border-bottom:1px solid var(--border)}
+      .canvas{min-height:560px;overflow-x:auto;overflow-y:hidden}
+      .canvas::before{width:1210px;height:560px}
+    }
+
+    @media print{
+      .sidebar,.topbar,.hero-actions,.canvas-toolbar{display:none!important}
+      .app{display:block}
+      main{padding:0}
+      body{background:#fff}
+      .hero,.section-card,.stat{box-shadow:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">DG</div>
+        <div>
+          <strong>Decision Graphs</strong>
+          <span>Modern visual guide</span>
+        </div>
+      </div>
+
+      <div class="nav-title">On this page</div>
+      <nav class="nav" id="sideNav">
+        <a href="#overview" class="active"><span class="dot"></span>Overview</a>
+        <a href="#canvas"><span class="dot"></span>The canvas</a>
+        <a href="#adding"><span class="dot"></span>Adding nodes</a>
+        <a href="#types"><span class="dot"></span>Node types</a>
+        <a href="#switch"><span class="dot"></span>Switch node</a>
+        <a href="#connections"><span class="dot"></span>Connections</a>
+        <a href="#merge"><span class="dot"></span>Data merging</a>
+        <a href="#flow"><span class="dot"></span>Data flow</a>
+        <a href="#organize"><span class="dot"></span>Organization</a>
+        <a href="#shortcuts"><span class="dot"></span>Shortcuts</a>
+      </nav>
+
+      <div class="sidebar-note">
+        A decision graph models business logic visually. Nodes process data, while connections define the direction of execution.
+      </div>
+    </aside>
+
+    <main>
+      <div class="container">
+        <div class="topbar">
+          <div class="crumbs">Learn / Authoring / <strong>Decision graphs</strong></div>
+          <button class="icon-btn" onclick="window.print()">Print guide</button>
+        </div>
+
+        <header class="hero" id="overview">
+          <span class="eyebrow">Visual rule authoring</span>
+          <h1>Understand and build decision graphs</h1>
+          <p>
+            Use a visual canvas to model business logic. Place nodes, connect them from left to right,
+            and control how data is transformed, routed, merged, and returned.
+          </p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#canvas">Explore the canvas</a>
+            <a class="btn btn-secondary" href="#types">View node types</a>
+          </div>
+        </header>
+
+        <div class="stats">
+          <div class="stat"><strong>1</strong><span>Required input node</span></div>
+          <div class="stat"><strong>4</strong><span>Main processing node types</span></div>
+          <div class="stat"><strong>2</strong><span>Switch execution modes</span></div>
+          <div class="stat"><strong>Left → Right</strong><span>Standard flow direction</span></div>
+        </div>
+
+        <section id="canvas" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>The decision canvas</h2>
+              <p>
+                A new decision starts as a blank workspace. Data normally enters through an Input node,
+                passes through one or more processing nodes, and ends at an Output node or endpoint nodes.
+              </p>
+            </div>
+            <div class="section-no">01</div>
+          </div>
+
+          <div class="canvas" id="demoCanvas">
+            <div class="canvas-toolbar" aria-label="Canvas controls">
+              <div class="toolset">
+                <button class="tool" id="zoomOutBtn" onclick="zoomCanvas(-0.1)" title="Zoom out" aria-label="Zoom out">−</button>
+                <span class="zoom-level" id="zoomLevel" aria-live="polite">100%</span>
+                <button class="tool" id="zoomInBtn" onclick="zoomCanvas(0.1)" title="Zoom in" aria-label="Zoom in">＋</button>
+                <button class="tool" onclick="fitCanvas()" title="Fit graph to width" aria-label="Fit graph to width">⊙</button>
+              </div>
+              <div class="toolset">
+                <button class="tool" onclick="resetCanvas()" title="Reset zoom and layout" aria-label="Reset zoom and layout">↻</button>
+              </div>
+            </div>
+
+            <div class="canvas-stage-shell" id="canvasStageShell">
+              <div class="canvas-stage" id="canvasStage">
+            <div class="line" style="left:220px;top:190px;width:130px;"></div>
+            <div class="line" style="left:540px;top:190px;width:130px;"></div>
+            <div class="line" style="left:860px;top:190px;width:130px;"></div>
+
+            <div class="graph-node" data-x="30" data-y="145" style="left:30px;top:145px;">
+              <span class="port out"></span>
+              <div class="node-top">
+                <div class="node-icon input">I</div>
+                <div><strong>Input</strong><small>Decision data enters</small></div>
+              </div>
+            </div>
+
+            <div class="graph-node" data-x="350" data-y="145" style="left:350px;top:145px;">
+              <span class="port in"></span><span class="port out"></span>
+              <div class="node-top">
+                <div class="node-icon table">T</div>
+                <div><strong>Discount Rules</strong><small>Decision table</small></div>
+              </div>
+            </div>
+
+            <div class="graph-node" data-x="670" data-y="145" style="left:670px;top:145px;">
+              <span class="port in"></span><span class="port out"></span>
+              <div class="node-top">
+                <div class="node-icon expression">ƒ</div>
+                <div><strong>Calculate Total</strong><small>Expression</small></div>
+              </div>
+            </div>
+
+            <div class="graph-node" data-x="990" data-y="145" style="left:990px;top:145px;">
+              <span class="port in"></span>
+              <div class="node-top">
+                <div class="node-icon output">O</div>
+                <div><strong>Output</strong><small>Final result</small></div>
+              </div>
+            </div>
+              </div>
+            </div>
+          </div>
+          <p style="margin:12px 2px 0;color:var(--muted);font-size:12px;">
+            Scroll horizontally inside the canvas on narrower screens to view the complete graph.
+          </p>
+        </section>
+
+        <section id="adding" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Add and connect nodes</h2>
+              <p>Building a graph follows a simple drag, drop, and connect workflow.</p>
+            </div>
+            <div class="section-no">02</div>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <b>1</b>
+              <strong>Choose a node</strong>
+              <span>Drag the required node type from the palette.</span>
+            </div>
+            <div class="step">
+              <b>2</b>
+              <strong>Place it on the canvas</strong>
+              <span>Drop it where the business logic belongs in the sequence.</span>
+            </div>
+            <div class="step">
+              <b>3</b>
+              <strong>Create a connection</strong>
+              <span>Drag from an output port on the right to an input port on the left.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="types" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Processing node types</h2>
+              <p>Each node has a specific responsibility in the decision pipeline.</p>
+            </div>
+            <div class="section-no">03</div>
+          </div>
+
+          <div class="node-grid">
+            <article class="node-card">
+              <div class="node-icon table">T</div>
+              <h3>Decision Table</h3>
+              <p>Spreadsheet-style rules containing conditions and outcomes.</p>
+              <div class="use"><strong>Use when:</strong> several business rules need to be reviewed together.</div>
+            </article>
+
+            <article class="node-card">
+              <div class="node-icon expression">ƒ</div>
+              <h3>Expression</h3>
+              <p>Transforms, calculates, or reshapes data using expressions.</p>
+              <div class="use"><strong>Use when:</strong> values must be calculated or mapped.</div>
+            </article>
+
+            <article class="node-card">
+              <div class="node-icon input">JS</div>
+              <h3>Function</h3>
+              <p>Runs custom JavaScript for advanced calculations or integrations.</p>
+              <div class="use"><strong>Use when:</strong> logic is too complex for standard expressions.</div>
+            </article>
+
+            <article class="node-card">
+              <div class="node-icon switch">S</div>
+              <h3>Switch</h3>
+              <p>Routes data to one or more branches according to conditions.</p>
+              <div class="use"><strong>Use when:</strong> different inputs require different paths.</div>
+            </article>
+          </div>
+        </section>
+
+        <section id="switch" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Control routing with a switch</h2>
+              <p>Each switch branch has a condition. The execution mode controls how many matching branches run.</p>
+            </div>
+            <div class="section-no">04</div>
+          </div>
+
+          <div class="switch-grid">
+            <article class="switch-card">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                <h3>First hit</h3>
+                <span class="badge first">Default</span>
+              </div>
+              <p>Only the first matching branch executes. Put the most specific conditions first.</p>
+              <div class="branch-list">
+                <div class="branch"><strong>High risk</strong><span>score ≥ 80</span></div>
+                <div class="branch"><strong>Medium risk</strong><span>score ≥ 50</span></div>
+                <div class="branch"><strong>Low risk</strong><span>fallback</span></div>
+              </div>
+            </article>
+
+            <article class="switch-card">
+              <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                <h3>Collect</h3>
+                <span class="badge collect">Multiple</span>
+              </div>
+              <p>All matching branches execute, and their results are combined.</p>
+              <div class="branch-list">
+                <div class="branch"><strong>Loyalty benefit</strong><span>tier = Gold</span></div>
+                <div class="branch"><strong>Volume benefit</strong><span>amount ≥ 1000</span></div>
+                <div class="branch"><strong>Campaign benefit</strong><span>campaign active</span></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="connections" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Understand connections</h2>
+              <p>
+                Connections show execution direction. One node may receive data from several upstream nodes,
+                and one output may feed several downstream nodes.
+              </p>
+            </div>
+            <div class="section-no">05</div>
+          </div>
+
+          <div class="steps">
+            <div class="step">
+              <b>→</b>
+              <strong>Output to input</strong>
+              <span>Connect the right-side output port to the left-side input port.</span>
+            </div>
+            <div class="step">
+              <b>+</b>
+              <strong>Multiple incoming paths</strong>
+              <span>Data from all connected sources is merged before processing.</span>
+            </div>
+            <div class="step">
+              <b>↗</b>
+              <strong>Multiple outgoing paths</strong>
+              <span>The same node output is passed to every connected downstream node.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="merge" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>How data merges</h2>
+              <p>When several nodes feed one node, their output objects are combined into a single input object.</p>
+            </div>
+            <div class="section-no">06</div>
+          </div>
+
+          <div class="merge-grid">
+            <div>
+              <h3 style="margin-top:0">Upstream outputs</h3>
+              <div class="json-box">Discounts:
+{
+  "discount": 0.15,
+  "reason": "loyalty"
+}
+
+Shipping:
+{
+  "shipping": 9.99,
+  "method": "standard"
+}</div>
+            </div>
+
+            <div class="merge-arrow">→</div>
+
+            <div>
+              <h3 style="margin-top:0">Merged input</h3>
+              <div class="json-box">{
+  "discount": 0.15,
+  "reason": "loyalty",
+  "shipping": 9.99,
+  "method": "standard"
+}</div>
+            </div>
+          </div>
+
+          <div class="callout">
+            <div>⚠</div>
+            <div>
+              <strong>Field-name conflicts</strong>
+              When two sources contain the same field name, the value from a later connection overwrites the earlier value.
+              Use unique names or an <code>outputPath</code> to namespace node results.
+            </div>
+          </div>
+        </section>
+
+        <section id="flow" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Decision evaluation flow</h2>
+              <p>The graph executes in sequence and returns results from the output node or all endpoint nodes.</p>
+            </div>
+            <div class="section-no">07</div>
+          </div>
+
+          <div class="flow">
+            <div class="flow-step">
+              <strong>1. Input enters</strong>
+              <span>The Input node receives the decision payload.</span>
+            </div>
+            <div class="flow-step">
+              <strong>2. Nodes process</strong>
+              <span>Connected tables, expressions, functions, and switches execute.</span>
+            </div>
+            <div class="flow-step">
+              <strong>3. Results move forward</strong>
+              <span>Each node passes its result to downstream connections.</span>
+            </div>
+            <div class="flow-step">
+              <strong>4. Output returns</strong>
+              <span>The final output or all endpoint results are returned.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="organize" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Organize complex graphs</h2>
+              <p>Consistent graph structure makes decisions easier to read, review, and maintain.</p>
+            </div>
+            <div class="section-no">08</div>
+          </div>
+
+          <div class="practice-grid">
+            <div class="practice">
+              <i>1</i>
+              <strong>Arrange left to right</strong>
+              <span>Keep the direction of execution visually consistent across the graph.</span>
+            </div>
+            <div class="practice">
+              <i>2</i>
+              <strong>Group related logic</strong>
+              <span>Place rules, calculations, and routing steps that belong together nearby.</span>
+            </div>
+            <div class="practice">
+              <i>3</i>
+              <strong>Use meaningful names</strong>
+              <span>Rename nodes so their purpose is clear without opening their configuration.</span>
+            </div>
+          </div>
+        </section>
+
+        <section id="shortcuts" class="section-card">
+          <div class="section-heading">
+            <div>
+              <h2>Keyboard shortcuts</h2>
+              <p>Use common shortcuts to edit graphs faster.</p>
+            </div>
+            <div class="section-no">09</div>
+          </div>
+
+          <div class="shortcut-table">
+            <div class="shortcut-row">
+              <div><kbd>Delete</kbd></div>
+              <div>Remove the selected node.</div>
+            </div>
+            <div class="shortcut-row">
+              <div><kbd>Ctrl</kbd> + <kbd>C</kbd></div>
+              <div>Copy the selected node.</div>
+            </div>
+            <div class="shortcut-row">
+              <div><kbd>Ctrl</kbd> + <kbd>V</kbd></div>
+              <div>Paste the copied node.</div>
+            </div>
+          </div>
+        </section>
+
+        <footer>
+          Modern educational adaptation based on the GoRules decision-graph authoring concepts.
+        </footer>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const nodes = [...document.querySelectorAll(".graph-node")];
+    const canvas = document.getElementById("demoCanvas");
+    const canvasStage = document.getElementById("canvasStage");
+    const canvasStageShell = document.getElementById("canvasStageShell");
+    const zoomLevel = document.getElementById("zoomLevel");
+    const zoomInBtn = document.getElementById("zoomInBtn");
+    const zoomOutBtn = document.getElementById("zoomOutBtn");
+    const STAGE_WIDTH = 1210;
+    const STAGE_HEIGHT = 370;
+    const MIN_ZOOM = 0.5;
+    const MAX_ZOOM = 1.6;
+    let canvasZoom = 1;
+    let activeNode = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function applyCanvasZoom(nextZoom, keepCenter = true){
+      const previousZoom = canvasZoom;
+      canvasZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(nextZoom.toFixed(2))));
+
+      const centerX = canvas.scrollLeft + canvas.clientWidth / 2;
+      const logicalCenterX = previousZoom ? centerX / previousZoom : STAGE_WIDTH / 2;
+
+      canvasStage.style.transform = `scale(${canvasZoom})`;
+      canvasStageShell.style.width = `${STAGE_WIDTH * canvasZoom}px`;
+      canvasStageShell.style.height = `${STAGE_HEIGHT * canvasZoom}px`;
+      zoomLevel.textContent = `${Math.round(canvasZoom * 100)}%`;
+      zoomInBtn.disabled = canvasZoom >= MAX_ZOOM;
+      zoomOutBtn.disabled = canvasZoom <= MIN_ZOOM;
+
+      if(keepCenter){
+        requestAnimationFrame(() => {
+          canvas.scrollLeft = Math.max(0, logicalCenterX * canvasZoom - canvas.clientWidth / 2);
+        });
+      }
+    }
+
+    function zoomCanvas(delta){
+      applyCanvasZoom(canvasZoom + delta);
+    }
+
+    function fitCanvas(){
+      const availableWidth = Math.max(320, canvas.clientWidth - 24);
+      applyCanvasZoom(Math.min(1, availableWidth / STAGE_WIDTH), false);
+      requestAnimationFrame(() => { canvas.scrollLeft = 0; });
+    }
+
+    nodes.forEach(node => {
+      node.addEventListener("pointerdown", event => {
+        activeNode = node;
+        nodes.forEach(item => item.classList.remove("selected"));
+        node.classList.add("selected");
+        const rect = node.getBoundingClientRect();
+        offsetX = (event.clientX - rect.left) / canvasZoom;
+        offsetY = (event.clientY - rect.top) / canvasZoom;
+        node.setPointerCapture(event.pointerId);
+      });
+
+      node.addEventListener("pointermove", event => {
+        if(activeNode !== node) return;
+        const stageRect = canvasStage.getBoundingClientRect();
+        const x = (event.clientX - stageRect.left) / canvasZoom - offsetX;
+        const y = (event.clientY - stageRect.top) / canvasZoom - offsetY;
+        const maxX = STAGE_WIDTH - node.offsetWidth;
+        const maxY = STAGE_HEIGHT - node.offsetHeight;
+        node.style.left = Math.max(0, Math.min(maxX, x)) + "px";
+        node.style.top = Math.max(62, Math.min(maxY, y)) + "px";
+      });
+
+      node.addEventListener("pointerup", () => activeNode = null);
+      node.addEventListener("pointercancel", () => activeNode = null);
+    });
+
+    function resetNodes(){
+      nodes.forEach(node => {
+        node.style.left = node.dataset.x + "px";
+        node.style.top = node.dataset.y + "px";
+        node.classList.remove("selected");
+      });
+    }
+
+    function resetCanvas(){
+      resetNodes();
+      applyCanvasZoom(1, false);
+      requestAnimationFrame(() => { canvas.scrollLeft = 0; });
+    }
+
+    applyCanvasZoom(1, false);
+
+    const sections = [...document.querySelectorAll("main section, header.hero")];
+    const links = [...document.querySelectorAll(".nav a")];
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if(entry.isIntersecting){
+          links.forEach(link => link.classList.toggle(
+            "active",
+            link.getAttribute("href") === "#" + entry.target.id
+          ));
+        }
+      });
+    }, {rootMargin:"-25% 0px -65% 0px",threshold:0});
+
+    sections.forEach(section => observer.observe(section));
+  </script>
+</body>
+</html>

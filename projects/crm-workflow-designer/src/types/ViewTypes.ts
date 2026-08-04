@@ -31,6 +31,11 @@ export interface CrmStep {
   parentEntityId: string | null;
   parentEntityName: string | null;
   processId: string;
+  /** Concurrency (CWFD-005): set when this step runs as a branch of another. */
+  parentStepId: string | null;
+  parentStepName: string | null;
+  applyBranchFilter: boolean;
+  branchFilter: string;
 }
 
 export interface CrmOutcome {

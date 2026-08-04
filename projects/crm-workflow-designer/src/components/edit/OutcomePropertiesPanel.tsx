@@ -1,13 +1,17 @@
 import { useState } from 'react';
+import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { OUTCOME_HOOKS, ROUTE_HOOKS, emptyWorkflowHooks } from '@/services/workflowHooks';
+import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowRoute } from '@/types/WorkflowTypes';
 import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface OutcomePropertiesPanelProps {
   outcomeId: string | null;
+  adapter: ICrmAdapter;
 }
 
-export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProps) {
+export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomePropertiesPanelProps) {
   const {
     outcomes,
     routes,
@@ -77,6 +81,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
       subject: '',
       sequenceNumber: maxSeq + 1,
       filter: '',
+      workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
       outcomeId: outcome.crmId,
       nextStepId: newRouteTarget,
     });
@@ -102,6 +107,7 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
         subject: '',
         sequenceNumber: 1,
         filter: '',
+        workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId: outcome.crmId,
         nextStepId: outcome.nextStepId ?? null,
       });
@@ -142,6 +148,42 @@ export function OutcomePropertiesPanel({ outcomeId }: OutcomePropertiesPanelProp
           <div style={targetChipStyle}>
             {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
           </div>
+        </div>
+
+        <WorkflowHooksSection
+          value={outcome.workflowHooks}
+          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
+          kinds={OUTCOME_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
+        />
+
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle}>Concurrent branches</label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={outcome.checkParallelTasks}
+            onClick={() => setOutcome({ ...outcome, checkParallelTasks: !outcome.checkParallelTasks })}
+            style={{ ...toggleStyle, ...(outcome.checkParallelTasks ? toggleOnStyle : toggleOffStyle) }}
+          >
+            {outcome.checkParallelTasks
+              ? '⧉ Wait — all branches must finish first'
+              : 'Off — this step can finish while branches run'}
+          </button>
+          {!outcome.checkParallelTasks && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={outcome.updateParallelTaskRef}
+              onClick={() => setOutcome({ ...outcome, updateParallelTaskRef: !outcome.updateParallelTaskRef })}
+              style={{ ...toggleStyle, ...(outcome.updateParallelTaskRef ? toggleOnStyle : toggleOffStyle) }}
+            >
+              {outcome.updateParallelTaskRef
+                ? '↪ Carry open branches to the next step'
+                : 'Off — open branches stay where they are'}
+            </button>
+          )}
         </div>
 
         <div style={fieldGroupStyle}>

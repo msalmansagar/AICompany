@@ -1,9 +1,11 @@
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 // Client-side orchestration that derives a workflow process from a published SOP.
 // Replaces the qdb_CreateProcessFromSop Custom API (not registered in Dataverse).
 import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import type { ISopAdapter } from './ISopAdapter';
-import { copySlaFields } from './slaStepFields';
+import { copyEscalationFields } from './escalationFields';
+import { emptyBranchFields, emptyOutcomeConcurrency } from './branchFields';
 import type { CreateProcessFromSopRequest, StepAssignment } from '@/types/SopTypes';
 
 export async function deriveProcessFromSop(
@@ -28,6 +30,7 @@ export async function deriveProcessFromSop(
     parentEntityName: null,
     versionMajor: 1,
     versionMinor: 0,
+    workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
     workflowState: 'draft',
     snapshot: null,
     sopId: request.sopId,
@@ -42,7 +45,11 @@ export async function deriveProcessFromSop(
     const workflowStepId = await adapter.createStep({
       // Inherit the SOP step's SLA/escalation config onto the derived process step
       // (a one-time snapshot; independently editable afterward).
-      ...copySlaFields(sopStep),
+      ...copyEscalationFields(sopStep),
+      // SOP template steps carry no control-flow semantics yet (that is DP-1b), so a
+      // derived step starts exclusive — the same meaning derivation has always produced.
+      ...emptyBranchFields(),
+    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
       name: sopStep.name,
       schemaName: '',
       sequenceNo: sopStep.sequenceNo,
@@ -84,6 +91,8 @@ export async function deriveProcessFromSop(
       name: sopOutcome.name,
       sequenceNumber: sopOutcome.sequenceNo,
       applyFilter: false,
+      ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
       stepId: workflowStepId,
       nextStepId: nextWorkflowStepId,
     });
@@ -95,6 +104,7 @@ export async function deriveProcessFromSop(
         subject: sopOutcome.name,
         sequenceNumber: sopOutcome.sequenceNo,
         filter: '',
+        workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId,
         nextStepId: nextWorkflowStepId,
       });

@@ -6,7 +6,7 @@ import { SopCanvas } from '@/components/SopCanvas/SopCanvas';
 import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/CreateProcessWizardModal';
 import { SOP_STATUS } from '@/types/SopTypes';
 import type { SopSummary, Sop, SopStep } from '@/types/SopTypes';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
 import type { ISopAdapter } from '@/services/ISopAdapter';
 import { confirm } from '@/components/ui/ConfirmDialog';
 import { notify } from '@/components/ui/Notify';
@@ -168,7 +168,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
           name: 'Step 1', description: '',
           sequenceNo: 1, sopId: tmpId,
           roleId: null, roleName: null, roleStatus: null,
-          ...emptySlaFields(),
+          ...emptyEscalationFields(),
           stepType: 'step' as const,
         },
         { x: 300, y: 80 }

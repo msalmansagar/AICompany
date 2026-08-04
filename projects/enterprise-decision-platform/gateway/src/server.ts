@@ -9,7 +9,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.warn('[edp-gateway] No EDP_GATEWAY_API_KEYS configured — caller authentication is DISABLED (dev only).');
   }
-  const app = buildApp({ config, runtime: new DataverseRuntime(config.dataverse) });
+  const app = await buildApp({ config, runtime: new DataverseRuntime(config.dataverse) });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   // eslint-disable-next-line no-console
   console.log(`[edp-gateway] listening on :${config.port}`);

@@ -1,9 +1,11 @@
+import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
 import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { SimPath } from '@/services/PathEnumerator';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
+import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 import type { Violation } from '@/services/ValidationService';
 
 export type AutoSimSpeed = 'slow' | 'normal' | 'fast';
@@ -315,7 +317,9 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const nextSeqNo = state.stepOrder.length + 1;
 
           const newStep: WorkflowStep = {
-            ...emptySlaFields(),
+            ...emptyEscalationFields(),
+            ...emptyBranchFields(),
+    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
             crmId: newStepId,
             name: 'New Step',
             sequenceNo: nextSeqNo,
@@ -358,6 +362,8 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
             name: 'Next',
             sequenceNumber: maxSeq + 1,
             applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
             stepId: fromStepId,
             nextStepId: newStepId,
           };

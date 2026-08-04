@@ -1,5 +1,5 @@
 // src/types/SopTypes.ts
-import type { SlaFields } from './WorkflowTypes';
+import type { EscalationFields } from './WorkflowTypes';
 
 export type SopExecutionChannel = 'crm' | 'manual';
 
@@ -90,7 +90,7 @@ export interface Sop {
   recordTypeName: string | null;
 }
 
-export interface SopStep extends SlaFields {
+export interface SopStep extends EscalationFields {
   id: string;
   name: string;
   description: string;
@@ -144,7 +144,7 @@ export interface UpdateSopRequest {
   recordTypeId?: string | null;
 }
 
-export interface CreateSopStepRequest extends SlaFields {
+export interface CreateSopStepRequest extends EscalationFields {
   name: string;
   description: string;
   sequenceNo: number;
@@ -155,7 +155,7 @@ export interface CreateSopStepRequest extends SlaFields {
   decisionLabel?: string | null;
 }
 
-export type UpdateSopStepRequest = Partial<SlaFields> & {
+export type UpdateSopStepRequest = Partial<EscalationFields> & {
   name?: string;
   description?: string;
   sequenceNo?: number;

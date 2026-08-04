@@ -10,6 +10,8 @@ import {
 } from '@fluentui/react-components';
 import { useQuery } from '@tanstack/react-query';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
+import { WorkflowHooksSection } from '@/components/edit/WorkflowHooksSection';
+import { PROCESS_HOOKS } from '@/services/workflowHooks';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowProcess } from '@/types/WorkflowTypes';
 
@@ -156,6 +158,17 @@ export function ProcessPanel({ process }: ProcessPanelProps) {
             />
           )}
         </Field>
+      </Section>
+
+      <Section title="Workflows">
+        <WorkflowHooksSection
+          value={process.workflowHooks}
+          onChange={(workflowHooks) => setProcess({ ...process, workflowHooks })}
+          kinds={PROCESS_HOOKS}
+          adapter={adapter}
+          surface="light"
+          scopeNote="Runs for every task in this process. Steps, outcomes and routes may add their own, and the engine runs all of them."
+        />
       </Section>
     </div>
   );

@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { deriveProcessFromSop } from '@/services/deriveProcessFromSop';
-import { emptySlaFields } from '@/services/slaStepFields';
+import { emptyEscalationFields } from '@/services/escalationFields';
 import type { ISopAdapter } from '@/services/ISopAdapter';
 import type { SopStep } from '@/types/SopTypes';
-import type { SlaFields, WorkflowStep } from '@/types/WorkflowTypes';
+import type { EscalationFields, WorkflowStep } from '@/types/WorkflowTypes';
 import type { CreateProcessFromSopRequest } from '@/types/SopTypes';
 
-// The defining promise of DP-2b: a SOP step's SLA/escalation config is snapshotted
-// (copied, not linked — ADR-2b-002) onto each process step derived from it.
+// The defining promise of DP-2b, re-based by CWFD-005: a SOP step's escalation
+// policy is snapshotted (copied, not linked — ADR-2b-002) onto each derived step.
 
 function makeSopStep(overrides: Partial<SopStep>): SopStep {
   return {
@@ -22,7 +22,7 @@ function makeSopStep(overrides: Partial<SopStep>): SopStep {
     stepType: 'step',
     executionChannel: null,
     decisionLabel: null,
-    ...emptySlaFields(),
+    ...emptyEscalationFields(),
     ...overrides,
   };
 }
@@ -64,72 +64,61 @@ function makeRequest(sopSteps: SopStep[]): CreateProcessFromSopRequest {
   };
 }
 
-function pickSla(step: SlaFields): SlaFields {
+function pickEscalation(step: EscalationFields): EscalationFields {
   return {
-    slaEnabled: step.slaEnabled,
-    slaDuration: step.slaDuration,
-    slaDurationUnit: step.slaDurationUnit,
-    slaBasis: step.slaBasis,
-    slaWarningPct: step.slaWarningPct,
-    escalationEnabled: step.escalationEnabled,
-    escalationAction: step.escalationAction,
-    escalationTargetType: step.escalationTargetType,
-    escalationUserId: step.escalationUserId,
-    escalationUserName: step.escalationUserName,
-    escalationTeamId: step.escalationTeamId,
-    escalationTeamName: step.escalationTeamName,
-    escalationRoleId: step.escalationRoleId,
-    escalationRoleName: step.escalationRoleName,
+    escalationConfigId: step.escalationConfigId,
+    escalationConfigName: step.escalationConfigName,
+    applyEscalationFilter: step.applyEscalationFilter,
   };
 }
 
-describe('deriveProcessFromSop — SLA inheritance', () => {
-  it('copies a fully-configured SLA/escalation onto the derived process step', async () => {
+describe('deriveProcessFromSop — escalation inheritance', () => {
+  it('copies a named escalation policy onto the derived process step', async () => {
     const sopStep = makeSopStep({
-      slaEnabled: true,
-      slaDuration: 8,
-      slaDurationUnit: 'Hours',
-      slaBasis: 'TaskAssigned',
-      slaWarningPct: 75,
-      escalationEnabled: true,
-      escalationAction: 'Notify',
-      escalationTargetType: 'SpecificUser',
-      escalationUserId: 'user-1',
-      escalationUserName: 'Amina',
+      escalationConfigId: 'config-1',
+      escalationConfigName: 'Overdue Credit Review',
     });
     const { adapter, createdSteps } = makeRecordingAdapter([sopStep]);
 
     await deriveProcessFromSop(adapter, makeRequest([sopStep]));
 
     expect(createdSteps).toHaveLength(1);
-    expect(pickSla(createdSteps[0])).toEqual(pickSla(sopStep));
+    expect(pickEscalation(createdSteps[0])).toEqual(pickEscalation(sopStep));
   });
 
-  it('propagates a disabled SLA as disabled defaults (no accidental enable)', async () => {
-    const sopStep = makeSopStep({ slaEnabled: false });
+  it('copies a by-condition policy without inventing a named one', async () => {
+    const sopStep = makeSopStep({ applyEscalationFilter: true });
     const { adapter, createdSteps } = makeRecordingAdapter([sopStep]);
 
     await deriveProcessFromSop(adapter, makeRequest([sopStep]));
 
-    expect(createdSteps[0].slaEnabled).toBe(false);
-    expect(createdSteps[0].slaDuration).toBeNull();
-    expect(createdSteps[0].escalationEnabled).toBe(false);
-    expect(pickSla(createdSteps[0])).toEqual(emptySlaFields());
+    expect(createdSteps[0].applyEscalationFilter).toBe(true);
+    expect(createdSteps[0].escalationConfigId).toBeNull();
   });
 
-  it('inherits SLA per-step across a mixed SOP (some steps SLA-on, some off)', async () => {
-    const withSla = makeSopStep({
-      id: 'sop-step-1', sequenceNo: 1,
-      slaEnabled: true, slaDuration: 3, slaDurationUnit: 'BusinessDays', slaBasis: 'TaskCreated',
-    });
-    const withoutSla = makeSopStep({ id: 'sop-step-2', sequenceNo: 2, name: 'Approve' });
-    const { adapter, createdSteps } = makeRecordingAdapter([withSla, withoutSla]);
+  it('propagates a non-escalating step as defaults, never accidentally enabling one', async () => {
+    const sopStep = makeSopStep({});
+    const { adapter, createdSteps } = makeRecordingAdapter([sopStep]);
 
-    await deriveProcessFromSop(adapter, makeRequest([withSla, withoutSla]));
+    await deriveProcessFromSop(adapter, makeRequest([sopStep]));
+
+    expect(pickEscalation(createdSteps[0])).toEqual(emptyEscalationFields());
+  });
+
+  it('inherits escalation per-step across a mixed SOP', async () => {
+    const escalating = makeSopStep({
+      id: 'sop-step-1',
+      sequenceNo: 1,
+      escalationConfigId: 'config-1',
+      escalationConfigName: 'Overdue Credit Review',
+    });
+    const plain = makeSopStep({ id: 'sop-step-2', sequenceNo: 2, name: 'Approve' });
+    const { adapter, createdSteps } = makeRecordingAdapter([escalating, plain]);
+
+    await deriveProcessFromSop(adapter, makeRequest([escalating, plain]));
 
     expect(createdSteps).toHaveLength(2);
-    expect(pickSla(createdSteps[0])).toEqual(pickSla(withSla));
-    expect(createdSteps[0].slaDuration).toBe(3);
-    expect(pickSla(createdSteps[1])).toEqual(emptySlaFields());
+    expect(createdSteps[0].escalationConfigId).toBe('config-1');
+    expect(pickEscalation(createdSteps[1])).toEqual(emptyEscalationFields());
   });
 });

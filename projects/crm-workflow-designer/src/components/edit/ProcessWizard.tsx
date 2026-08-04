@@ -1,3 +1,4 @@
+import { emptyWorkflowHooks, PROCESS_HOOKS } from '@/services/workflowHooks';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type {
@@ -146,6 +147,7 @@ export function ProcessWizard({
       parentEntityName: null,
       versionMajor: 1,
       versionMinor: 0,
+      workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
       workflowState: 'draft',
       snapshot: null,
     };

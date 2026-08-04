@@ -2,3 +2,8 @@
 # (core.autocrlf=true here) breaks the shebang with "bad interpreter".
 *.sh            text eol=lf
 .githooks/*     text eol=lf
+
+# EDP guide web resources are byte-compared against the content stored in Dataverse
+# (deploy/bre-guides.js --verify). A CRLF checkout would report false drift on every guide
+# and push CRLF content to the org, so pin them to LF like the org itself stores them.
+projects/enterprise-decision-platform/deploy/guides/*.html   text eol=lf

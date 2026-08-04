@@ -1,10 +1,16 @@
+import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
 import { confirm } from '@/components/ui/ConfirmDialog';
-import { SlaEscalationSection } from './SlaEscalationSection';
+import { EscalationSection } from './EscalationSection';
+import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { BranchSection } from './BranchSection';
+import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
+import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
+import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 
 interface StepPropertiesPanelProps {
   stepId: string | null;
@@ -47,6 +53,8 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   const [assigneeOptions, setAssigneeOptions] = useState<AssigneeOption[]>([]);
   const [isLoadingAssignees, setIsLoadingAssignees] = useState(false);
+  const [showBranchFilterBuilder, setShowBranchFilterBuilder] = useState(false);
+  const fetchXmlContext = useFetchXmlEntityContext(adapter);
   const [addingDecision, setAddingDecision] = useState(false);
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
@@ -128,6 +136,22 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     .map((id) => steps[id])
     .filter(Boolean);
 
+  // A step cannot run beneath one of its own branches — that would be a cycle.
+  const isDescendantOfThisStep = (candidateId: string): boolean => {
+    const seen = new Set<string>();
+    let current: string | null = candidateId;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      if (current === step.crmId) return true;
+      current = steps[current]?.parentStepId ?? null;
+    }
+    return false;
+  };
+
+  const candidateParents = otherSteps
+    .filter((candidate) => !isDescendantOfThisStep(candidate.crmId))
+    .map((candidate) => ({ id: candidate.crmId, name: candidate.name, sequenceNo: candidate.sequenceNo }));
+
   const handleAddDecision = () => {
     const maxSeq = Object.values(outcomes).reduce((m, o) => Math.max(m, o.sequenceNumber), 0);
     const outcomeId = `tmp_${crypto.randomUUID()}`;
@@ -136,6 +160,8 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
       name: newDecisionName.trim() || 'Outcome',
       sequenceNumber: maxSeq + 1,
       applyFilter: false,
+      ...emptyOutcomeConcurrency(),
+      workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
       stepId: step.crmId,
       nextStepId: newDecisionTarget === '__end__' ? null : newDecisionTarget,
     });
@@ -313,11 +339,31 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <SlaEscalationSection
+        <BranchSection
+          value={step}
+          onChange={(patch) => setStep({ ...step, ...patch })}
+          candidateParents={candidateParents}
+          childCount={branchChildrenOf(step.crmId, steps).length}
+          onEditCondition={() => setShowBranchFilterBuilder(true)}
+        />
+
+        <div style={dividerStyle} />
+
+        <WorkflowHooksSection
+          value={step.workflowHooks}
+          onChange={(workflowHooks) => setStep({ ...step, workflowHooks })}
+          kinds={STEP_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for every task this step creates. The engine also runs any workflow set on the outcome and on the process, so more than one can fire."
+        />
+
+        <div style={dividerStyle} />
+
+        <EscalationSection
           value={step}
           onChange={(patch) => setStep({ ...step, ...patch })}
           adapter={adapter}
-        />
+          />
 
         <div style={dividerStyle} />
 
@@ -325,6 +371,21 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           Delete Step
         </button>
       </div>
+
+      {showBranchFilterBuilder && (
+        <FetchXmlBuilderDialog
+          open={showBranchFilterBuilder}
+          entityLogicalName={fetchXmlContext.entityLogicalName}
+          objectTypeCode={fetchXmlContext.objectTypeCode}
+          clientUrl={fetchXmlContext.clientUrl}
+          initialFetchXml={step.branchFilter}
+          onApply={(xml) => {
+            setStep({ ...step, branchFilter: xml });
+            setShowBranchFilterBuilder(false);
+          }}
+          onDismiss={() => setShowBranchFilterBuilder(false)}
+        />
+      )}
     </div>
   );
 }
