@@ -55,7 +55,14 @@ async function ensureEntity(schema, logical, disp, dispPlural) {
     OwnershipType: 'UserOwned', HasActivities: false, HasNotes: false, IsActivity: false,
     Attributes: [{ '@odata.type': 'Microsoft.Dynamics.CRM.StringAttributeMetadata', AttributeType: 'String', AttributeTypeName: { Value: 'StringType' }, SchemaName: schema.replace(/^qdb_/, 'qdb_') + 'Name', IsPrimaryName: true, MaxLength: 200, RequiredLevel: { Value: 'None' }, FormatName: { Value: 'Text' }, DisplayName: label('Name') }]
   });
-  console.log(`  CREATED entity ${logical}`);
+  /* A table created in this same run rejects its first attribute with 400 "An unexpected error
+     occurred" until it has been published — the message names nothing, so the cause reads as a bad
+     attribute definition rather than a table that is not ready yet. Publishing the one table costs
+     a second and is scoped to it. */
+  await meta('POST', 'PublishXml', {
+    ParameterXml: `<importexportxml><entities><entity>${logical}</entity></entities></importexportxml>`
+  });
+  console.log(`  CREATED entity ${logical} (published so its attributes can be added)`);
 }
 async function ensureAttr(entity, logical, body) {
   if (await attrExists(entity, logical)) { console.log(`    skip ${entity}.${logical}`); return; }

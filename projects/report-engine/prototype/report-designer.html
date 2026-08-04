@@ -1385,6 +1385,7 @@ async function loadAttributeMetadata(entity) {
   endBusy(`Loading ${entity} fields…`);
   render();
   refreshOpenWizard();
+  refreshOpenDataSourceDialog();
   refreshComboLabels();
 }
 
@@ -1498,6 +1499,7 @@ async function loadViews(entity) {
   endBusy(`Loading ${entity} views…`);
   render();
   refreshOpenWizard();
+  refreshOpenDataSourceDialog();
 }
 
 function viewsOf(entity) {
@@ -8231,7 +8233,7 @@ function widgetProperties({ widget, selection }, dashboard) {
  */
 function openDataSourceDialog(d) {
   d.dataSources = d.dataSources || [];
-  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:820px">
+  const scrim = el(`<div class="scrim" id="dsrcOverlay"><div class="dialog" role="dialog" aria-modal="true" style="width:820px">
     <div class="dialog-head"><h3>Data sources</h3><button class="close-x">✕</button></div>
     <div class="dialog-body"><div id="dsrc_body"></div>
       <div class="hint" style="margin-top:12px">${esc(DEFERRED_SOURCE_TYPES.join(", "))} need a
@@ -8262,7 +8264,17 @@ function openDataSourceDialog(d) {
     };
     body.appendChild(add);
   };
+  /* Views and fields arrive after the dialog is on screen, and the loaders finish by calling
+     render() — which rebuilds the page behind this dialog and leaves it reading "Loading views…"
+     for ever. The wizard needed the same hook for the same reason. */
+  redrawDataSourceDialog = draw;
   draw();
+}
+
+let redrawDataSourceDialog = null;
+
+function refreshOpenDataSourceDialog() {
+  if (document.getElementById("dsrcOverlay") && redrawDataSourceDialog) redrawDataSourceDialog();
 }
 
 function dataSourceRow(source, index, d, redraw) {
