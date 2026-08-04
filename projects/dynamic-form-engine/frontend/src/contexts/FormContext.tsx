@@ -43,6 +43,12 @@ export interface FormContextValue {
    */
   activeSectionIndex: number;
   setActiveSectionIndex: (index: number) => void;
+  /**
+   * Shows errors against specific fields without running a full validation pass. Used when a
+   * section step is refused, so the user sees which fields are holding them rather than a
+   * button that appears to do nothing.
+   */
+  reportValidationErrors: (errors: Record<string, string[]>) => void;
   submissionReference: string | null;
   isSubmitted: boolean;
   // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
@@ -352,6 +358,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       setActiveTabIndex,
       activeSectionIndex,
       setActiveSectionIndex,
+      reportValidationErrors: setValidationErrors,
       submissionReference,
       isSubmitted,
       submitAcknowledged,

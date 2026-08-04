@@ -15,7 +15,7 @@ import {
   resolveNavigationTabIndex,
   arePrecedingTabsComplete,
   resolveNavigationSectionIndex,
-  isSectionComplete,
+  incompleteFieldsOf,
 } from './scopedButtonNavigation';
 
 // Scrolls to a section once it is present in the DOM. After a cross-tab switch the
@@ -34,7 +34,7 @@ function scrollToSectionWhenReady(sectionId: string, attempts = 0): void {
 export function useScopedButtonAction(): (button: ScopedButton) => void {
   const {
     formDefinition, ruleState, fieldValues, activeTabIndex, setActiveTabIndex,
-    activeSectionIndex, setActiveSectionIndex, submitForm, saveDraft,
+    activeSectionIndex, setActiveSectionIndex, reportValidationErrors, submitForm, saveDraft,
   } =
     useFormContext();
 
@@ -133,8 +133,16 @@ export function useScopedButtonAction(): (button: ScopedButton) => void {
         // so an incomplete section cannot trap them.
         if (nav.target === 'nextSection') {
           const current = sections[Math.min(activeSectionIndex, sections.length - 1)];
-          if (current && !isSectionComplete({ section: current, ruleState, fieldValues })) {
-            logger.warn('scoped_button_section_step_blocked_incomplete', { buttonId, sectionId: current.id });
+          const blocking = current
+            ? incompleteFieldsOf({ section: current, ruleState, fieldValues })
+            : [];
+          if (blocking.length > 0) {
+            // Name them on the fields themselves. Refusing without a word reads as a button
+            // that does not work, and the user has nothing to act on.
+            reportValidationErrors(
+              Object.fromEntries(blocking.map((field) => [field.id, [`${field.label} is required`]])),
+            );
+            logger.warn('scoped_button_section_step_blocked_incomplete', { buttonId, sectionId: current?.id });
             return;
           }
         }
@@ -151,7 +159,7 @@ export function useScopedButtonAction(): (button: ScopedButton) => void {
     },
     [
       formDefinition, ruleState, fieldValues, activeTabIndex, setActiveTabIndex,
-      activeSectionIndex, setActiveSectionIndex, submitForm, saveDraft,
+      activeSectionIndex, setActiveSectionIndex, reportValidationErrors, submitForm, saveDraft,
     ],
   );
 }

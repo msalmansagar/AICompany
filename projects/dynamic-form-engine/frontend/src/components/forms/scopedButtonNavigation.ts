@@ -10,6 +10,7 @@ import type {
   NavigateActionConfig,
   TabDefinition,
   SectionDefinition,
+  FieldDefinition,
   RuleEvaluationResult,
   FormFieldValues,
 } from '@qdb/shared';
@@ -106,20 +107,28 @@ export interface SectionCompletionInput {
 }
 
 /**
- * True when every effectively-visible, effectively-required field in the section has a value.
+ * The fields stopping this section from being left: effectively visible, effectively required,
+ * and empty. A field hidden by a business rule is never among them, even if marked required —
+ * the user cannot fill in what they cannot see.
  *
- * Gates forward section stepping the way arePrecedingTabsComplete gates tab stepping. A field
- * hidden by a business rule never blocks, even if it is marked required — the user cannot fill
- * in something they cannot see.
+ * Returned rather than reduced to a boolean so the caller can name them to the user. A step
+ * that silently refuses reads as a broken button.
  */
-export function isSectionComplete(input: SectionCompletionInput): boolean {
+export function incompleteFieldsOf(input: SectionCompletionInput): FieldDefinition[] {
   const { section, ruleState, fieldValues } = input;
-  for (const field of section.fields) {
+  return section.fields.filter((field) => {
     const visible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
     const required = ruleState.fieldRequired[field.id] ?? field.isRequired;
-    if (visible && required && isEmptyValue(fieldValues[field.schemaName])) return false;
-  }
-  return true;
+    return visible && required && isEmptyValue(fieldValues[field.schemaName]);
+  });
+}
+
+/**
+ * True when nothing in the section blocks leaving it. Gates forward section stepping the way
+ * arePrecedingTabsComplete gates tab stepping.
+ */
+export function isSectionComplete(input: SectionCompletionInput): boolean {
+  return incompleteFieldsOf(input).length === 0;
 }
 
 export interface CompletionInput {

@@ -5,6 +5,7 @@ import {
   arePrecedingTabsComplete,
   resolveNavigationSectionIndex,
   isSectionComplete,
+  incompleteFieldsOf,
 } from './scopedButtonNavigation';
 
 const tabs = [
@@ -191,5 +192,43 @@ describe('isSectionComplete', () => {
     const section = sectionWith([{ id: 'f1', schemaName: 'cr', isVisible: true, isRequired: false }]);
     const required = { ...emptyRules, fieldRequired: { f1: true } } as unknown as RuleEvaluationResult;
     expect(isSectionComplete({ section, ruleState: required, fieldValues: {} })).toBe(false);
+  });
+});
+
+describe('incompleteFieldsOf', () => {
+  const emptyRules = { fieldVisibility: {}, fieldRequired: {}, tabVisibility: {}, sectionVisibility: {} } as unknown as RuleEvaluationResult;
+
+  const sectionWith = (fields: unknown[]): SectionDefinition =>
+    ({ id: 'sec', isVisible: true, fields } as unknown as SectionDefinition);
+
+  it('names_the_field_that_is_blocking', () => {
+    const section = sectionWith([
+      { id: 'f1', schemaName: 'cr', label: 'CR number', isVisible: true, isRequired: true },
+      { id: 'f2', schemaName: 'name', label: 'Name', isVisible: true, isRequired: true },
+    ]);
+
+    const blocking = incompleteFieldsOf({ section, ruleState: emptyRules, fieldValues: { name: 'Ahmed' } });
+
+    expect(blocking.map((f) => f.label)).toEqual(['CR number']);
+  });
+
+  it('returns_nothing_when_the_section_is_complete', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', label: 'CR', isVisible: true, isRequired: true }]);
+
+    expect(incompleteFieldsOf({ section, ruleState: emptyRules, fieldValues: { cr: '1' } })).toEqual([]);
+  });
+
+  it('omits_a_required_field_a_rule_has_hidden', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', label: 'CR', isVisible: true, isRequired: true }]);
+    const hidden = { ...emptyRules, fieldVisibility: { f1: false } } as unknown as RuleEvaluationResult;
+
+    expect(incompleteFieldsOf({ section, ruleState: hidden, fieldValues: {} })).toEqual([]);
+  });
+
+  it('includes_a_field_a_rule_has_made_required', () => {
+    const section = sectionWith([{ id: 'f1', schemaName: 'cr', label: 'CR', isVisible: true, isRequired: false }]);
+    const required = { ...emptyRules, fieldRequired: { f1: true } } as unknown as RuleEvaluationResult;
+
+    expect(incompleteFieldsOf({ section, ruleState: required, fieldValues: {} }).map((f) => f.id)).toEqual(['f1']);
   });
 });
