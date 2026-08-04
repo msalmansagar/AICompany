@@ -35,6 +35,14 @@ export interface FormContextValue {
   draftId: string | null;
   activeTabIndex: number;
   setActiveTabIndex: (index: number) => void;
+  /**
+   * Index into the active tab's VISIBLE sections, for a tab that reveals them one at a time.
+   * Meaningless on a tab that shows all sections, where the renderer ignores it. Resets to the
+   * first section whenever the active tab changes, so returning to a tab does not drop the
+   * user into the middle of it.
+   */
+  activeSectionIndex: number;
+  setActiveSectionIndex: (index: number) => void;
   submissionReference: string | null;
   isSubmitted: boolean;
   // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
@@ -87,6 +95,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [submissionReference, setSubmissionReference] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   // DFE-SUBMITCONFIRM-001: acknowledgement gate state (only meaningful when the form
@@ -112,6 +121,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     prevFormCodeRef.current = formCode;
     isFirstLoadRef.current = true;
   }
+
+  // Leaving a tab abandons its section position: coming back should start at the beginning
+  // rather than resuming somewhere the user has no context for.
+  useEffect(() => {
+    setActiveSectionIndex(0);
+  }, [activeTabIndex]);
 
   // â”€â”€ Load form metadata and initial data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -335,6 +350,8 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       draftId,
       activeTabIndex,
       setActiveTabIndex,
+      activeSectionIndex,
+      setActiveSectionIndex,
       submissionReference,
       isSubmitted,
       submitAcknowledged,
@@ -348,7 +365,7 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }),
     [
       formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
-      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
+      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex, activeSectionIndex,
       submissionReference, isSubmitted, submitAcknowledged, tabAcknowledgements,
       setTabAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
