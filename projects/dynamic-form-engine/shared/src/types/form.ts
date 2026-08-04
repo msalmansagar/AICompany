@@ -238,7 +238,6 @@ export interface TabDefinition {
   hideTabBar?: boolean;
   // When true the renderer shows one section at a time instead of all of them, advanced by a
   // section-scoped button targeting nextSection/previousSection. Absent/undefined is all at once.
-  // Web-only for now; the mobile renderer ignores it and shows every section.
   revealsSectionsOneAtATime?: boolean;
   sections: SectionDefinition[];
   // DFE-BTN-001: tab-scoped buttons (additive; defaults to [] for existing forms)
