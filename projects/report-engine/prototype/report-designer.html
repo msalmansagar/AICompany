@@ -592,7 +592,9 @@
 
   /* ============ Dashboard composer (grid of data-bound widget tiles) ============ */
   .dash-shell { flex: 1; min-height: 0; display: flex; }
-  .dash-palette { width: 176px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--nav-bg); padding: 12px 10px; overflow-y: auto; }
+  /* Wide enough to read a field name. At 176px "Account Number" and "Account Name (Arabic)" both
+     truncated to "Account N...", which makes a list you are meant to choose from unusable. */
+  .dash-palette { width: 244px; flex-shrink: 0; border-right: 1px solid var(--border); background: var(--nav-bg); padding: 12px 10px; overflow-y: auto; }
   .dash-palette h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); margin-bottom: 8px; }
   .dash-add { display: flex; align-items: center; gap: 9px; width: 100%; border: 1px solid var(--border-strong); background: var(--surface); border-radius: 7px; padding: 8px 10px; margin-bottom: 7px; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--text); text-align: left; }
   .dash-add:hover { border-color: var(--primary); color: var(--primary); }
@@ -1965,7 +1967,10 @@ function newDefinition(seed) {
 const state = {
   view: "reports",
   tab: "general",
-  dashTab: "general",
+  // The dashboard canvas: whether it is showing the reader's view, and which widget is being edited.
+  dashPreview: false,
+  dashSelection: null,
+  fieldFilter: "",
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -3653,6 +3658,7 @@ const dashboardCatalog = dataverseCatalog(
 async function openSavedDashboard(id) {
   beginBusy("Opening dashboard…");
   try {
+    resetDashboardEditingState();
     openDashboardComposer(definitionToDashboard(await loadDashboardDefinition(id)));
   } catch (error) {
     toast("Couldn't open saved dashboard — " + error.message, "err");
@@ -7428,8 +7434,10 @@ const WIDGET_DEFAULTS = {
    needlessly wide query. */
 const DASH_TILE_COLUMN_LIMIT = 8;
 
+/* The same curated list the field rail offers. Taking the first few of everything put deprecated
+   process columns and identifiers into table widgets, where they rendered as columns of "undefined". */
 function dashEntityCols(entity) {
-  return attributesOf(entity).slice(0, DASH_TILE_COLUMN_LIMIT).map(c => ({ name:c.n, key:c.a, type:c.t }));
+  return usefulAttributes(entity).slice(0, DASH_TILE_COLUMN_LIMIT).map(c => ({ name:c.n, key:c.a, type:c.t }));
 }
 
 /** The tile's own bindings always come back, even if they fall outside the display slice. */
@@ -7553,12 +7561,21 @@ function openDashboardComposer(d) { state.dashboard = d; state.view = "dashboard
 /* A new dashboard exists only in the composer until it is saved. It used to be pushed onto an
    in-memory list as well, which is why a dashboard could look created and then not be there. */
 function createDashboard() {
-  state.dashTab = "general";
+  resetDashboardEditingState();
   openDashboardComposer({
     id: "d_new", title: "New Dashboard", code: "", description: "",
     owner: state.userName || "", sections: []
   });
-  toast("Blank dashboard created — name it, then add sections and widgets");
+  toast("Blank dashboard created — pick a section width to start");
+}
+
+/* Undo history and the selected widget belong to the dashboard being edited, so carrying either into
+   the next one would let an undo reach back into a dashboard that is no longer open. */
+function resetDashboardEditingState() {
+  state.dashPreview = false;
+  state.dashSelection = null;
+  dashHistory.past.length = 0;
+  dashHistory.future.length = 0;
 }
 function openNewDashboardChooser() {
   const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:560px">
@@ -7574,224 +7591,499 @@ function openNewDashboardChooser() {
   scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
   scrim.querySelectorAll("[data-dnew]").forEach(cd => cd.onclick = () => { close(); createDashboard(); });
 }
-/* ---------- Dashboard composer ----------
-   The one screen the dashboard feature was missing. Everything it saves to already existed —
-   dashboardToDefinition, saveDashboardToServer, writeDashboardSections — and every route into the
-   composer called a renderer that was never written, so a new dashboard opened as a blank page and a
-   saved one reported "renderDashboardComposer is not defined".
+/* ---------- Dashboard canvas ----------
+   Composing a dashboard happens ON the dashboard, not in a form describing one. The sections and
+   their empty slots are the working surface: drag a field from the rail onto a slot and the widget
+   appears where it will live, already bound and already rendering live data.
 
-   Built to the same contract definitionToDashboard already produces: sections of 1–4 columns, each
-   holding widgets that name a kind, a table, a group-by, a measure and an aggregation. */
-const WIDGET_KINDS = ["Metric", "Chart", "Table", "Gauge", "Badge", "Progress", "InfoCards", "Matrix", "Profile", "Checklist"];
+   The stylesheet for this screen was written long before this code — .dash-shell, .dash-palette,
+   .ds-section, .ds-ph, .ds-ph.drop-field — and had no JavaScript producing any of it. The markup
+   below is built to the DOM that stylesheet already describes rather than to a new one. */
+
+const WIDGET_CATALOGUE = [
+  { kind: "metric", label: "Metric", icon: "chart" },
+  { kind: "gauge", label: "Gauge", icon: "pie" },
+  { kind: "badge", label: "Status badge", icon: "info" },
+  { kind: "progress", label: "Progress", icon: "chart" },
+  { kind: "chart", label: "Chart", icon: "pie" },
+  { kind: "infocards", label: "Info cards", icon: "copy" },
+  { kind: "profile", label: "Profile", icon: "key" },
+  { kind: "checklist", label: "Checklist", icon: "check" },
+  { kind: "matrix", label: "Matrix", icon: "tree" },
+  { kind: "table", label: "Table", icon: "doc" }
+];
 
 /** Kinds that summarise a number, and so need a measure and an aggregation to mean anything. */
 const MEASURED_WIDGET_KINDS = ["metric", "gauge", "progress", "chart", "matrix"];
-
 const AGGREGATIONS = ["Sum", "Average", "Count", "Max", "Min"];
-
 const widgetIsMeasured = widget => MEASURED_WIDGET_KINDS.includes(String(widget.widget || "").toLowerCase());
-
-/* The composer is tabbed for the same reason the report designer is: a dashboard has several
-   unrelated concerns, and a single scrolling page makes the reader hold all of them at once.
-   Only the tabs whose data this environment actually stores are listed — a Security or Placement tab
-   would have nowhere to save to until those tables exist. */
-const DASH_TABS = [
-  ["general", "General"], ["layout", "Layout"], ["widgets", "Widgets"], ["preview", "Preview"]
-];
 
 const totalWidgets = dashboard =>
   (dashboard.sections || []).reduce((count, section) => count + (section.widgets || []).length, 0);
 
-function dashBadgeFor(tab, dashboard) {
-  return { layout: (dashboard.sections || []).length, widgets: totalWidgets(dashboard) }[tab];
+/* The rail lists one table's fields, because a slicer that filters "all widgets" only means anything
+   if the widgets share a table. A widget may still be pointed at another one from its properties. */
+function primaryEntity(dashboard) {
+  if (dashboard.entity) return dashboard.entity;
+  const first = (dashboard.sections || []).flatMap(s => s.widgets || []).find(w => w.entity);
+  return first ? first.entity : "account";
 }
 
+/* ---------- undo ----------
+   Direct manipulation without undo is a trap: dropping a field is one gesture and losing a widget is
+   one gesture, and they look the same to the hand. Snapshots are small — a dashboard is sections of
+   widgets, not documents — so the whole thing is captured rather than diffed. */
+const dashHistory = { past: [], future: [] };
+const DASH_HISTORY_LIMIT = 50;
+
+const dashSnapshot = dashboard => JSON.stringify({
+  title: dashboard.title, entity: dashboard.entity, sections: dashboard.sections
+});
+
+function recordDashboardChange() {
+  if (!state.dashboard) return;
+  dashHistory.past.push(dashSnapshot(state.dashboard));
+  if (dashHistory.past.length > DASH_HISTORY_LIMIT) dashHistory.past.shift();
+  dashHistory.future.length = 0;
+}
+
+function applySnapshot(snapshot) {
+  const restored = JSON.parse(snapshot);
+  Object.assign(state.dashboard, restored);
+  state.dashSelection = null;
+  render();
+}
+
+function undoDashboardChange() {
+  if (!dashHistory.past.length) return;
+  dashHistory.future.push(dashSnapshot(state.dashboard));
+  applySnapshot(dashHistory.past.pop());
+}
+
+function redoDashboardChange() {
+  if (!dashHistory.future.length) return;
+  dashHistory.past.push(dashSnapshot(state.dashboard));
+  applySnapshot(dashHistory.future.pop());
+}
+
+/* ---------- the composer ---------- */
 function renderDashboardComposer(c) {
   const d = state.dashboard;
   if (!d) { openNewDashboardChooser(); return; }
   d.sections = d.sections || [];
+  d.entity = primaryEntity(d);
 
-  const cmd = el(`<div class="cmdbar">
-    <button class="cmd" id="dc_back">${ic("back")}Back</button><div class="cmd-sep"></div>
-    <button class="cmd primary" id="dc_save">${ic("save")}Save</button>
-    <button class="cmd" id="dc_saveclose">${ic("saveclose")}Save &amp; Close</button>
-    <button class="cmd" id="dc_clone">${ic("copy")}Clone</button>
+  c.appendChild(composerCommandBar(d));
+
+  if (state.dashPreview) { c.appendChild(dashboardPreview(d)); return; }
+
+  const shell = el(`<div class="dash-shell">
+    <div class="dash-palette"></div>
+    <div class="dash-main"><div class="ds-sections"></div></div>
+  </div>`);
+  shell.querySelector(".dash-palette").appendChild(fieldPalette(d));
+  const canvas = shell.querySelector(".ds-sections");
+  if (!d.sections.length) canvas.appendChild(emptyCanvasHint());
+  d.sections.forEach((section, index) => canvas.appendChild(sectionElement(section, index, d)));
+
+  const selected = selectedWidget(d);
+  if (selected) shell.appendChild(widgetProperties(selected, d));
+  c.appendChild(shell);
+}
+
+function composerCommandBar(d) {
+  const bar = el(`<div class="cmdbar">
+    <button class="cmd" id="dc_back">${ic("back")}Back</button>
     <div class="cmd-sep"></div>
-    <button class="cmd" id="dc_testrun">${ic("play")}Test run</button>
+    <button class="cmd" id="dc_undo" ${dashHistory.past.length ? "" : "disabled"}>${ic("back")}Undo</button>
+    <button class="cmd" id="dc_redo" ${dashHistory.future.length ? "" : "disabled"}>${ic("refresh")}Redo</button>
+    <input class="fluent-input" id="dc_title" value="${esc(d.title || "")}" placeholder="Dashboard title"
+      style="max-width:320px;margin:0 12px;font-weight:600">
+    <button class="cmd" id="dc_props">${ic("edit")}Properties</button>
     <div class="cmd-spacer"></div>
-    <span class="rel-tag">${d.savedId ? "Saved" : "Unsaved"}${d.isGoverned ? " · Governed" : ""}</span>
+    <button class="cmd" id="dc_preview">${ic("play")}${state.dashPreview ? "Edit" : "Preview"}</button>
+    <button class="cmd primary" id="dc_save">${ic("save")}Save</button>
   </div>`);
 
-  const pivot = el(`<div class="pivot" role="tablist">${DASH_TABS.map(([key, label]) => {
-    const badge = dashBadgeFor(key, d);
-    return `<button class="pivot-tab ${state.dashTab === key ? "active" : ""}" data-dtab="${key}" role="tab">${
-      esc(label)}${badge != null ? `<span class="badge">${badge}</span>` : ""}</button>`;
-  }).join("")}</div>`);
+  bar.querySelector("#dc_back").onclick = () => { state.view = "dashboards"; render(); };
+  bar.querySelector("#dc_undo").onclick = undoDashboardChange;
+  bar.querySelector("#dc_redo").onclick = redoDashboardChange;
+  bar.querySelector("#dc_title").addEventListener("input", event => { d.title = event.target.value; });
+  bar.querySelector("#dc_props").onclick = () => openDashboardProperties(d);
+  bar.querySelector("#dc_preview").onclick = () => { state.dashPreview = !state.dashPreview; render(); };
+  bar.querySelector("#dc_save").onclick = () => withBusyButton("#dc_save", "Saving…", () => saveDashboardToServer(d));
+  return bar;
+}
 
-  const scroll = el(`<div class="scroll"><div class="tab-body" id="dashTabBody"></div></div>`);
-  c.appendChild(cmd); c.appendChild(pivot); c.appendChild(scroll);
-  renderDashTab();
+function emptyCanvasHint() {
+  return el(`<div class="np-empty" style="padding:38px">
+    Nothing here yet — pick a section width under <b>Add section</b> on the left, then drag a field
+    onto a placeholder or use <b>Add widget</b>.</div>`);
+}
 
-  pivot.querySelectorAll(".pivot-tab").forEach(t => t.onclick = () => { state.dashTab = t.dataset.dtab; render(); });
-  $("#dc_back").onclick = () => { state.view = "dashboards"; render(); };
-  $("#dc_save").onclick = () => withBusyButton("#dc_save", "Saving…", () => saveDashboardToServer(d));
-  $("#dc_saveclose").onclick = () => withBusyButton("#dc_saveclose", "Saving…", async () => {
-    await saveDashboardToServer(d); state.view = "dashboards"; render();
+/* ---------- left rail ----------
+   A table on this organisation carries several hundred attributes, and offering all of them puts
+   "(Deprecated) Process Stage" and "Unique identifier" at the top of the list while the fields
+   someone actually reports on sit below the fold. What is dropped here is plumbing — shadow currency
+   columns, platform-solution fields, identifiers — not anything a dashboard would be built from. */
+const PALETTE_PLUMBING = new Set([
+  "importsequencenumber", "timezoneruleversionnumber", "utcconversiontimezonecode", "versionnumber",
+  "overriddencreatedon", "processid", "stageid", "traversedpath", "onholdtime", "lastonholdtime",
+  "createdonbehalfby", "modifiedonbehalfby", "owninguser", "owningteam", "owningbusinessunit",
+  "exchangerate", "entityimage", "entityimageid", "entityimage_timestamp", "entityimage_url"
+]);
+
+const isPlumbingField = field =>
+  PALETTE_PLUMBING.has(field.a)
+  || field.a.endsWith("_base")
+  || field.t === "Unique identifier"
+  || isPlatformTable(field.a)
+  || /\(deprecated\)/i.test(field.n);
+
+const usefulAttributes = entity => attributesOf(entity).filter(field => !isPlumbingField(field));
+
+function fieldPalette(d) {
+  const fields = usefulAttributes(d.entity)
+    .filter(field => !state.fieldFilter || field.n.toLowerCase().includes(state.fieldFilter.toLowerCase()));
+  const total = usefulAttributes(d.entity).length;
+  const rail = el(`<div>
+    <h4>Data fields</h4>
+    <div style="margin-bottom:10px">${entityPickerHtml(d.entity, 'data-dashentity')}</div>
+    <div class="palette" style="max-height:340px">
+      <div class="palette-search"><input class="fluent-input" id="dp_search" placeholder="Search fields…"
+        value="${esc(state.fieldFilter || "")}"></div>
+      <div class="palette-scroll" id="dp_fields"></div>
+      <div class="palette-count">${total
+        ? `${fields.length} of ${total} fields`
+        : "Loading fields…"}</div>
+    </div>
+    <div class="hint" style="margin:10px 0 14px">Drag a field onto a placeholder — it becomes a widget
+      automatically (numbers → metric, categories → chart).</div>
+    <h4>Add section</h4>
+    <div class="ds-addsec">${[1, 2, 3, 4].map(n =>
+      `<button data-addsec="${n}"><span class="ds-secicon">${"■ ".repeat(n).trim()}</span>${
+        n} column${n === 1 ? "" : "s"}</button>`).join("")}</div>
+  </div>`);
+
+  const host = rail.querySelector("#dp_fields");
+  fields.forEach(field => host.appendChild(paletteField(field, d.entity)));
+
+  rail.querySelector("[data-dashentity]").addEventListener("change", event => {
+    recordDashboardChange();
+    d.entity = event.target.value;
+    state.fieldFilter = "";
+    render();
   });
-  // Cloning reads the stored children, so an unsaved dashboard has nothing to copy.
-  $("#dc_clone").onclick = () => {
-    if (!d.savedId) { toast("Save the dashboard before cloning it", "warn"); return; }
-    withBusyButton("#dc_clone", "Cloning…", () => cloneSavedDashboard(d.savedId));
-  };
-  $("#dc_testrun").onclick = () => { state.dashTab = "preview"; render(); };
+  /* Re-rendered in place rather than through render(), which would rebuild the rail and take the
+     focus out of the box being typed into after the first keystroke. */
+  const search = rail.querySelector("#dp_search");
+  search.addEventListener("input", () => {
+    state.fieldFilter = search.value;
+    const matches = usefulAttributes(d.entity)
+      .filter(field => field.n.toLowerCase().includes(state.fieldFilter.toLowerCase()));
+    host.innerHTML = "";
+    matches.forEach(field => host.appendChild(paletteField(field, d.entity)));
+    rail.querySelector(".palette-count").textContent = `${matches.length} of ${total} fields`;
+  });
+  rail.querySelectorAll("[data-addsec]").forEach(button => button.onclick = () => {
+    recordDashboardChange();
+    d.sections.push({ id: newGuid(), title: "", cols: +button.dataset.addsec, widgets: [] });
+    render();
+  });
+  return rail;
 }
 
-function renderDashTab() {
-  const body = $("#dashTabBody");
-  const tab = { general: dashTabGeneral, layout: dashTabLayout, widgets: dashTabWidgets, preview: dashTabPreview }[state.dashTab]
-    || dashTabGeneral;
-  body.innerHTML = "";
-  tab(body, state.dashboard);
+function paletteField(field, entity) {
+  const item = el(`<div class="palette-item" draggable="true" title="${esc(field.n)}">
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(field.n)}</span>
+    <span class="pt">${esc(field.t || "")}</span></div>`);
+  item.addEventListener("dragstart", event => {
+    event.dataTransfer.setData(FIELD_DRAG_TYPE, JSON.stringify({ attribute: field.a, name: field.n, type: field.t, entity }));
+    event.dataTransfer.effectAllowed = "copy";
+  });
+  return item;
 }
 
-/* ---- General ---- */
-function dashTabGeneral(body, d) {
-  const card = el(`<div class="section-card">
-    <h3>Dashboard properties</h3>
-    <div class="hint">Identity and governance. Stored in <span class="kbd">qdb_dashboard</span>.</div>
-    <div class="field-grid">
-      <div class="field col-2"><label class="lbl">Dashboard name<span class="req">*</span></label>
-        <input class="fluent-input" data-d="title" value="${esc(d.title || "")}" placeholder="Dashboard title"></div>
-      <div class="field"><label class="lbl">Dashboard code</label>
-        <input class="fluent-input" data-d="code" value="${esc(d.code || "")}" placeholder="e.g. DSH-PORTFOLIO">
-        <span class="hint-inline">A stable key for referring to this dashboard from outside the designer.</span></div>
-      <div class="field col-2"><label class="lbl">Description</label>
-        <textarea class="fluent-input" data-d="description" rows="2">${esc(d.description || "")}</textarea></div>
-    </div>
-    <div class="field" style="max-width:420px;margin-top:4px">
-      <label class="toggle"><input type="checkbox" data-d="isGoverned" ${d.isGoverned ? "checked" : ""}>
-      <span class="track"></span><span class="tlabel">Governed — needs approval before production</span></label>
-    </div>
-  </div>
-  <div class="section-card">
-    <h3>Contents</h3>
-    <div class="hint">${(d.sections || []).length} section(s) holding ${totalWidgets(d)} widget(s).
-      Build them on the <b>Layout</b> and <b>Widgets</b> tabs.</div>
-  </div>`);
-  body.appendChild(card);
+/* A private MIME type, so a placeholder accepts a field from this rail and ignores text dragged in
+   from anywhere else on the machine. */
+const FIELD_DRAG_TYPE = "application/x-qdb-field";
 
-  card.querySelectorAll("[data-d]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
-    d[input.dataset.d] = input.type === "checkbox" ? input.checked : input.value;
-  }));
-}
+/* Numbers are worth totalling, categories are worth counting per value, and anything else is best
+   shown as itself. Getting this right most of the time is what makes the drag feel like it knows
+   what you meant; the widget's kind stays editable either way. */
+const NUMERIC_FIELD_TYPES = ["Currency", "Decimal", "Whole number", "Float"];
+const CATEGORY_FIELD_TYPES = ["Option set", "Lookup", "Two options", "Owner"];
 
-/* ---- Layout ----
-   Sections only: what they are called, how wide they lay out, and what order they appear in. The
-   widgets inside them are the next tab's job, so neither screen is a wall of controls. */
-function dashTabLayout(body, d) {
-  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>A dashboard is a stack of sections.
-    Each lays its widgets out in 1–4 columns, and renders in the order below.</div></div>`));
-
-  const card = el(`<div class="section-card"><h3>Sections</h3>
-    <div class="hint">Order here is the order on the rendered dashboard.</div>
-    <div id="dl_rows" style="margin-top:12px"></div></div>`);
-  body.appendChild(card);
-
-  const host = card.querySelector("#dl_rows");
-  if (!d.sections.length) {
-    host.appendChild(el(`<div class="np-empty">No sections yet — add one to start.</div>`));
+function widgetFromField(field) {
+  const base = { id: newGuid(), entity: field.entity, chartType: "Donut", cardIcon: "money", badgeText: "", badgeLevel: "" };
+  if (NUMERIC_FIELD_TYPES.includes(field.type)) {
+    return { ...base, title: field.name, widget: "metric", groupBy: "", measure: field.attribute, agg: "Sum" };
   }
-  d.sections.forEach((section, index) => host.appendChild(sectionLayoutRow(section, index, d)));
-
-  const add = el(`<button class="btn sm btn-add">${ic("add")}Add section</button>`);
-  add.onclick = () => {
-    d.sections.push({ id: newGuid(), title: `Section ${d.sections.length + 1}`, cols: 2, widgets: [] });
-    render();
-  };
-  card.appendChild(add);
+  if (CATEGORY_FIELD_TYPES.includes(field.type)) {
+    return { ...base, title: `By ${field.name}`, widget: "chart", groupBy: field.attribute, measure: "", agg: "Count" };
+  }
+  return { ...base, title: field.name, widget: "table", groupBy: field.attribute, measure: "", agg: "Count" };
 }
 
-/** One row of the Layout tab: a section's title, its column count, its position and its removal. */
-function sectionLayoutRow(section, index, dashboard) {
-  const count = (section.widgets || []).length;
-  const row = el(`<div class="section-card" style="margin:0 0 10px;padding:12px">
-    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-      <div class="field" style="flex:1;min-width:220px;margin:0"><label class="lbl">Section title</label>
-        <input class="fluent-input" data-sti value="${esc(section.title || "")}" placeholder="Untitled section"></div>
-      <div class="field" style="max-width:130px;margin:0"><label class="lbl">Columns</label>
-        <select class="fluent-select" data-sci>${
-          [1, 2, 3, 4].map(n => `<option ${section.cols === n ? "selected" : ""}>${n}</option>`).join("")}</select></div>
-      <span class="rel-tag">${count} widget${count === 1 ? "" : "s"}</span>
-      <button class="btn sm" data-sup ${index === 0 ? "disabled" : ""} title="Move up">↑</button>
-      <button class="btn sm" data-sdown ${index === dashboard.sections.length - 1 ? "disabled" : ""} title="Move down">↓</button>
-      <button class="del" data-sdel>${ic("trash")}</button>
-    </div></div>`);
+/* ---------- canvas ---------- */
+function sectionElement(section, index, d) {
+  section.widgets = section.widgets || [];
+  const columns = section.cols || 2;
+  const wrap = el(`<div class="ds-section">
+    <div class="ds-sec-head">
+      <input class="ds-sec-name" value="${esc(section.title || "")}" placeholder="Section title (optional)">
+      <div class="ds-sec-tools">
+        <div class="ds-cols">${[1, 2, 3, 4].map(n =>
+          `<button class="${columns === n ? "on" : ""}" data-cols="${n}">${n}</button>`).join("")}</div>
+        <button data-up ${index === 0 ? "disabled" : ""} title="Move up">▲</button>
+        <button data-down ${index === d.sections.length - 1 ? "disabled" : ""} title="Move down">▼</button>
+        <button data-duplicate title="Duplicate section">${ic("copy")}</button>
+        <button data-remove title="Remove section">✕</button>
+      </div>
+    </div>
+    <div class="ds-cols-grid" style="grid-template-columns:repeat(${columns},1fr)"></div>
+  </div>`);
 
-  row.querySelector("[data-sti]").addEventListener("input", event => { section.title = event.target.value; });
-  row.querySelector("[data-sci]").addEventListener("change", event => { section.cols = +event.target.value; render(); });
-  row.querySelector("[data-sup]").onclick = () => moveSection(dashboard, index, -1);
-  row.querySelector("[data-sdown]").onclick = () => moveSection(dashboard, index, 1);
-  /* Removing a section takes its widgets with it. Nothing is written until Save, so this is
-     recoverable by leaving without saving — and the toast says so rather than a blocking prompt. */
-  row.querySelector("[data-sdel]").onclick = () => {
-    dashboard.sections.splice(index, 1);
-    toast(count ? `Section removed with ${count} widget(s) — not saved yet` : "Section removed");
+  const grid = wrap.querySelector(".ds-cols-grid");
+  section.widgets.forEach((widget, at) => grid.appendChild(widgetTile(widget, index, at)));
+  /* Every free column keeps a placeholder, so the layout you are building is visible as shape even
+     before it has content — an empty 3-column section reads as three columns, not as nothing. */
+  for (let slot = section.widgets.length; slot < columns; slot++) grid.appendChild(placeholder(index));
+
+  wrap.querySelector(".ds-sec-name").addEventListener("input", event => { section.title = event.target.value; });
+  wrap.querySelectorAll("[data-cols]").forEach(button => button.onclick = () => {
+    recordDashboardChange(); section.cols = +button.dataset.cols; render();
+  });
+  wrap.querySelector("[data-up]").onclick = () => moveSection(d, index, -1);
+  wrap.querySelector("[data-down]").onclick = () => moveSection(d, index, 1);
+  wrap.querySelector("[data-duplicate]").onclick = () => {
+    recordDashboardChange();
+    const copy = JSON.parse(JSON.stringify(section));
+    copy.id = newGuid();
+    copy.widgets.forEach(widget => { widget.id = newGuid(); });
+    d.sections.splice(index + 1, 0, copy);
     render();
   };
-  return row;
+  wrap.querySelector("[data-remove]").onclick = () => {
+    recordDashboardChange();
+    d.sections.splice(index, 1);
+    state.dashSelection = null;
+    toast(section.widgets.length ? `Section removed with ${section.widgets.length} widget(s) — undo is available` : "Section removed");
+    render();
+  };
+  return wrap;
 }
 
 /* Sequence is written from array order on save, so reordering here is what the stored dashboard
-   ends up with — no separate sequence field for the user to keep in step. */
+   ends up with — there is no separate sequence for the user to keep in step. */
 function moveSection(dashboard, index, offset) {
   const target = index + offset;
   if (target < 0 || target >= dashboard.sections.length) return;
+  recordDashboardChange();
   const [section] = dashboard.sections.splice(index, 1);
   dashboard.sections.splice(target, 0, section);
   render();
 }
 
-/* ---- Widgets ---- */
-function dashTabWidgets(body, d) {
-  if (!d.sections.length) {
-    body.appendChild(el(`<div class="section-card"><div class="np-empty">
-      There are no sections to put widgets in yet. Add one on the <b>Layout</b> tab first.</div></div>`));
-    return;
-  }
-  d.sections.forEach((section, index) => body.appendChild(sectionCard(section, index, d)));
+function placeholder(sectionIndex) {
+  const slot = el(`<button class="ds-ph" data-ph="${sectionIndex}">${ic("add")}<span>Add widget</span></button>`);
+  slot.onclick = () => openWidgetChooser(sectionIndex);
+
+  slot.addEventListener("dragover", event => {
+    if (!event.dataTransfer.types.includes(FIELD_DRAG_TYPE)) return;
+    event.preventDefault();
+    slot.classList.add("drop-field");
+  });
+  slot.addEventListener("dragleave", () => slot.classList.remove("drop-field"));
+  slot.addEventListener("drop", event => {
+    event.preventDefault();
+    slot.classList.remove("drop-field");
+    const payload = event.dataTransfer.getData(FIELD_DRAG_TYPE);
+    if (!payload) return;
+    recordDashboardChange();
+    const widget = widgetFromField(JSON.parse(payload));
+    state.dashboard.sections[sectionIndex].widgets.push(widget);
+    toast(`${widget.title} added as a ${widget.widget}`);
+    render();
+  });
+  return slot;
 }
 
-/* ---- Preview ----
-   Runs the widgets against this environment's real data. The renderer it calls already existed in
-   full — every widget kind, the chart palette, the gauge — and had never been called from anywhere,
-   so a dashboard could be composed but never seen. */
-function dashTabPreview(body, d) {
-  const widgetCount = totalWidgets(d);
-  if (!widgetCount) {
-    body.appendChild(el(`<div class="section-card"><div class="np-empty">
-      Nothing to preview yet — add a widget on the <b>Widgets</b> tab.</div></div>`));
-    return;
+/** A tile on the canvas renders its real data, so the canvas and the preview are the same picture. */
+function widgetTile(widget, sectionIndex, at) {
+  const chosen = state.dashSelection
+    && state.dashSelection.section === sectionIndex && state.dashSelection.widget === at;
+  const tile = el(`<div class="dash-tile ${chosen ? "sel" : ""}">
+    <div class="dt-head">
+      <span class="dt-title">${esc(widget.title || "Untitled widget")}</span>
+      <span class="dt-tools">
+        <button data-remove title="Remove widget">✕</button>
+      </span>
+    </div>
+    <div class="dt-body">${renderWidget(widget)
+      || `<div class="np-empty">Not bound to a table yet — open its properties.</div>`}</div>
+  </div>`);
+
+  tile.onclick = event => {
+    if (event.target.closest("[data-remove]")) return;
+    state.dashSelection = { section: sectionIndex, widget: at };
+    render();
+  };
+  tile.querySelector("[data-remove]").onclick = () => {
+    recordDashboardChange();
+    state.dashboard.sections[sectionIndex].widgets.splice(at, 1);
+    state.dashSelection = null;
+    render();
+  };
+  return tile;
+}
+
+/* ---------- add a widget ---------- */
+function openWidgetChooser(sectionIndex) {
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:640px">
+    <div class="dialog-head"><h3>Add a widget</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body"><div class="choice-cards" style="grid-template-columns:1fr 1fr 1fr">${
+      WIDGET_CATALOGUE.map(entry =>
+        `<div class="choice-card" data-kind="${entry.kind}" style="padding:16px">
+          <div class="cc-t">${ic(entry.icon)} ${esc(entry.label)}</div></div>`).join("")}</div></div>
+    <div class="dialog-foot"><button class="btn" data-close>Cancel</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const close = () => scrim.remove();
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.addEventListener("click", event => { if (event.target === scrim) close(); });
+  scrim.querySelectorAll("[data-kind]").forEach(card => card.onclick = () => {
+    close();
+    addWidgetOfKind(sectionIndex, card.dataset.kind);
+  });
+}
+
+/* A new widget is bound to the dashboard's table and to a sensible field straight away, so it draws
+   something immediately. An empty widget that must be configured before it shows anything makes the
+   canvas lie about what you just did. */
+function addWidgetOfKind(sectionIndex, kind) {
+  const dashboard = state.dashboard;
+  const entity = primaryEntity(dashboard);
+  const suggested = defaultBind(entity);
+  recordDashboardChange();
+  const section = dashboard.sections[sectionIndex];
+  section.widgets.push({
+    id: newGuid(),
+    title: (WIDGET_CATALOGUE.find(w => w.kind === kind) || {}).label || "Widget",
+    widget: kind, entity,
+    groupBy: suggested.groupBy, measure: suggested.measure,
+    agg: MEASURED_WIDGET_KINDS.includes(kind) && suggested.measure ? "Sum" : "Count",
+    chartType: "Donut", cardIcon: "money", badgeText: "", badgeLevel: ""
+  });
+  state.dashSelection = { section: sectionIndex, widget: section.widgets.length - 1 };
+  render();
+}
+
+/* ---------- properties ---------- */
+function selectedWidget(dashboard) {
+  const selection = state.dashSelection;
+  if (!selection) return null;
+  const section = dashboard.sections[selection.section];
+  const widget = section && (section.widgets || [])[selection.widget];
+  return widget ? { widget, selection } : null;
+}
+
+/**
+ * The selected widget's settings, in a panel beside the canvas.
+ *
+ * The form still exists — a measure and an aggregation have to come from somewhere — but it is
+ * behind a click on the thing being changed rather than being the way the dashboard is built.
+ */
+function widgetProperties({ widget, selection }, dashboard) {
+  const measured = widgetIsMeasured(widget);
+  const isChart = String(widget.widget || "").toLowerCase() === "chart";
+  const panel = el(`<div class="dash-props">
+    <h4>${esc(widget.title || "Widget")}</h4>
+    <div class="field"><label class="lbl">Title</label>
+      <input class="fluent-input" data-w="title" value="${esc(widget.title || "")}"></div>
+    <div class="field"><label class="lbl">Type</label>
+      <select class="fluent-select" data-w="widget">${WIDGET_CATALOGUE.map(entry =>
+        `<option value="${entry.kind}" ${String(widget.widget).toLowerCase() === entry.kind ? "selected" : ""}>${
+          esc(entry.label)}</option>`).join("")}</select></div>
+    <div class="field"><label class="lbl">Table</label>${
+      entityPickerHtml(widget.entity, 'data-w="entity"')}</div>
+    <div class="field"><label class="lbl">Group by</label>${
+      attributePickerHtml(widget.entity, widget.groupBy, 'data-w="groupBy"', "Search fields…")}</div>
+    ${measured ? `<div class="field"><label class="lbl">Measure</label>${
+      attributePickerHtml(widget.entity, widget.measure, 'data-w="measure"', "Search fields…")}</div>
+      <div class="field"><label class="lbl">Aggregation</label>
+        <select class="fluent-select" data-w="agg">${AGGREGATIONS.map(a =>
+          `<option ${widget.agg === a ? "selected" : ""}>${a}</option>`).join("")}</select></div>` : ""}
+    ${isChart ? `<div class="field"><label class="lbl">Chart type</label>
+      <select class="fluent-select" data-w="chartType">${CHART_TYPES.map(t =>
+        `<option ${widget.chartType === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : ""}
+    ${measured && !widget.measure && widget.agg !== "Count"
+      ? `<div class="np-empty">A ${esc(widget.agg)} needs a measure — without one this widget has nothing to total.</div>` : ""}
+    <button class="btn sm" data-done style="margin-top:8px">Done</button>
+  </div>`);
+
+  panel.querySelectorAll("[data-w]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    recordDashboardChange();
+    const target = dashboard.sections[selection.section].widgets[selection.widget];
+    target[input.dataset.w] = input.value;
+    // Changing the table invalidates fields chosen from the old one, and changing the type changes
+    // which fields exist at all — both need the panel rebuilt rather than patched.
+    if (input.dataset.w === "entity") { target.groupBy = ""; target.measure = ""; }
+    render();
+  }));
+  panel.querySelector("[data-done]").onclick = () => { state.dashSelection = null; render(); };
+  return panel;
+}
+
+/** The four stored properties of the dashboard itself — too few to deserve a screen of their own. */
+function openDashboardProperties(d) {
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:560px">
+    <div class="dialog-head"><h3>Dashboard properties</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body">
+      <div class="field"><label class="lbl">Dashboard name<span class="req">*</span></label>
+        <input class="fluent-input" data-p="title" value="${esc(d.title || "")}"></div>
+      <div class="field"><label class="lbl">Dashboard code</label>
+        <input class="fluent-input" data-p="code" value="${esc(d.code || "")}" placeholder="e.g. DSH-PORTFOLIO"></div>
+      <div class="field"><label class="lbl">Description</label>
+        <textarea class="fluent-input" data-p="description" rows="2">${esc(d.description || "")}</textarea></div>
+      <label class="toggle"><input type="checkbox" data-p="isGoverned" ${d.isGoverned ? "checked" : ""}>
+        <span class="track"></span><span class="tlabel">Governed — needs approval before production</span></label>
+    </div>
+    <div class="dialog-foot"><button class="btn primary" data-close>Done</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const close = () => { scrim.remove(); render(); };
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.querySelectorAll("[data-p]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    d[input.dataset.p] = input.type === "checkbox" ? input.checked : input.value;
+  }));
+}
+
+/* ---------- preview ----------
+   The same tiles without the editing chrome, so switching modes shows the dashboard as its readers
+   will meet it rather than a second rendering of it. */
+function dashboardPreview(d) {
+  const scroll = el(`<div class="scroll"><div class="ds-sections" id="dv_sections"></div></div>`);
+  const host = scroll.querySelector("#dv_sections");
+  if (!totalWidgets(d)) {
+    host.appendChild(el(`<div class="np-empty" style="padding:38px">
+      Nothing to preview yet — switch back to <b>Edit</b> and add a widget.</div>`));
+    return scroll;
   }
-
-  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>Live data from this environment,
-    laid out as the dashboard will render. Tiles fill in as their tables load.</div></div>`));
-
-  const page = el(`<div class="section-card"><h3>${esc(d.title || "Untitled dashboard")}</h3>
-    <div class="hint">${d.sections.length} section(s) · ${widgetCount} widget(s)</div>
-    <div id="dp_sections" style="margin-top:14px"></div></div>`);
-  body.appendChild(page);
-
-  const host = page.querySelector("#dp_sections");
   d.sections.forEach(section => host.appendChild(previewSection(section)));
+  return scroll;
 }
 
 function previewSection(section) {
   const widgets = section.widgets || [];
-  const wrap = el(`<div style="margin-bottom:20px">
-    ${section.title ? `<div class="lbl" style="margin-bottom:8px">${esc(section.title)}</div>` : ""}
-    <div class="dash-grid preview" style="display:grid;grid-template-columns:repeat(${
-      section.cols || 2},1fr);gap:12px"></div></div>`);
-  const grid = wrap.querySelector(".dash-grid");
+  const wrap = el(`<div class="ds-section">
+    ${section.title ? `<div class="ds-sec-title">${esc(section.title)}</div>` : ""}
+    <div class="ds-cols-grid" style="grid-template-columns:repeat(${section.cols || 2},1fr)"></div></div>`);
+  const grid = wrap.querySelector(".ds-cols-grid");
   if (!widgets.length) {
     grid.appendChild(el(`<div class="np-empty" style="grid-column:1/-1">This section has no widgets.</div>`));
   }
@@ -7799,99 +8091,12 @@ function previewSection(section) {
   return wrap;
 }
 
-/* A tile that names what it is bound to even before its data arrives, so an empty one reads as
-   "still loading" or "bound to nothing" rather than as a broken widget. */
 function previewTile(widget) {
-  const binding = [widget.entity, widget.groupBy].filter(Boolean).join(" · ");
-  return el(`<div class="dash-tile" style="grid-column:auto;padding:12px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px">
-      <b style="font-size:12.5px">${esc(widget.title || "Untitled widget")}</b>
-      <span class="rel-tag">${esc(widget.widget || "metric")}</span></div>
-    ${binding ? `<div class="page-sub" style="margin:-4px 0 8px;font-size:11px">${esc(binding)}</div>` : ""}
-    ${renderWidget(widget) || `<div class="np-empty">This widget is not bound to a table yet.</div>`}</div>`);
+  return el(`<div class="dash-tile">
+    <div class="dt-head"><span class="dt-title">${esc(widget.title || "Untitled widget")}</span></div>
+    <div class="dt-body">${renderWidget(widget)
+      || `<div class="np-empty">This widget is not bound to a table yet.</div>`}</div></div>`);
 }
-
-/**
- * One section's widgets, on the Widgets tab.
- *
- * The section's own title, column count and deletion belong to the Layout tab — repeating them here
- * would give the same setting two homes and leave the reader guessing which one counts.
- */
-function sectionCard(section, index, dashboard) {
-  section.widgets = section.widgets || [];
-  const card = el(`<div class="section-card">
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-      <h3 style="margin:0;flex:1;min-width:200px">${esc(section.title || "Untitled section")}</h3>
-      <span class="rel-tag">${section.cols || 2} column${(section.cols || 2) === 1 ? "" : "s"}</span>
-      <button class="btn sm" data-saw="${index}">${ic("add")}Add widget</button>
-    </div>
-    <div class="dc-grid" style="display:grid;grid-template-columns:repeat(${section.cols || 2},1fr);gap:12px"></div></div>`);
-
-  const grid = card.querySelector(".dc-grid");
-  if (!section.widgets.length) {
-    grid.appendChild(el(`<div class="np-empty" style="grid-column:1/-1">No widgets in this section yet.</div>`));
-  }
-  section.widgets.forEach((widget, at) => grid.appendChild(widgetCard(widget, index, at)));
-
-  card.querySelector(`[data-saw="${index}"]`).onclick = () => {
-    section.widgets.push({ id: newGuid(), title: `Widget ${section.widgets.length + 1}`, widget: "metric",
-      entity: "account", groupBy: "", measure: "", agg: "Count", chartType: "Column",
-      cardIcon: "money", badgeText: "", badgeLevel: "" });
-    render();
-  };
-  return card;
-}
-
-/**
- * One widget, edited in place.
- *
- * The measure and aggregation only appear for kinds that summarise a number — a Table or a Profile
- * has nothing to sum, and offering the fields anyway would store a measure the renderer ignores,
- * which is the pattern this project has been removing everywhere else.
- */
-function widgetCard(widget, sectionIndex, at) {
-  const measured = widgetIsMeasured(widget);
-  const isChart = String(widget.widget || "").toLowerCase() === "chart";
-  const card = el(`<div class="section-card" style="margin:0;padding:12px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <b style="font-size:12.5px">${esc(widget.title || "Untitled widget")}</b>
-      <button class="del" data-wdel="${sectionIndex}:${at}">${ic("trash")}</button></div>
-    <div class="field"><label class="lbl">Title</label>
-      <input class="fluent-input" data-wk="title" data-wi="${sectionIndex}:${at}" value="${esc(widget.title || "")}"></div>
-    <div class="field"><label class="lbl">Type</label>
-      <select class="fluent-select" data-wk="widget" data-wi="${sectionIndex}:${at}">${
-        WIDGET_KINDS.map(k => `<option value="${k.toLowerCase()}" ${
-          String(widget.widget).toLowerCase() === k.toLowerCase() ? "selected" : ""}>${k}</option>`).join("")}</select></div>
-    <div class="field"><label class="lbl">Table</label>${
-      entityPickerHtml(widget.entity, `data-wk="entity" data-wi="${sectionIndex}:${at}"`)}</div>
-    <div class="field"><label class="lbl">Group by</label>${
-      attributePickerHtml(widget.entity, widget.groupBy, `data-wk="groupBy" data-wi="${sectionIndex}:${at}"`, "Search fields…")}</div>
-    ${measured ? `<div class="field"><label class="lbl">Measure</label>${
-      attributePickerHtml(widget.entity, widget.measure, `data-wk="measure" data-wi="${sectionIndex}:${at}"`, "Search fields…")}</div>
-    <div class="field"><label class="lbl">Aggregation</label>
-      <select class="fluent-select" data-wk="agg" data-wi="${sectionIndex}:${at}">${
-        AGGREGATIONS.map(a => `<option ${widget.agg === a ? "selected" : ""}>${a}</option>`).join("")}</select></div>` : ""}
-    ${isChart ? `<div class="field"><label class="lbl">Chart type</label>
-      <select class="fluent-select" data-wk="chartType" data-wi="${sectionIndex}:${at}">${
-        CHART_TYPES.map(t => `<option ${widget.chartType === t ? "selected" : ""}>${t}</option>`).join("")}</select></div>` : ""}
-    ${measured && !widget.measure && widget.agg !== "Count"
-      ? `<div class="np-empty">A ${esc(widget.agg)} needs a measure — without one this widget has nothing to total.</div>` : ""}`);
-
-  card.querySelectorAll("[data-wk]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
-    const [si, wi] = input.dataset.wi.split(":").map(Number);
-    const target = state.dashboard.sections[si].widgets[wi];
-    target[input.dataset.wk] = input.value;
-    // Changing the table invalidates fields chosen from the old one, and changing the type changes
-    // which fields exist at all — both need the card rebuilt rather than patched.
-    if (input.dataset.wk === "entity") { target.groupBy = ""; target.measure = ""; }
-    if (["entity", "widget", "agg"].includes(input.dataset.wk)) render();
-  }));
-  card.querySelector(`[data-wdel="${sectionIndex}:${at}"]`).onclick = () => {
-    state.dashboard.sections[sectionIndex].widgets.splice(at, 1); render();
-  };
-  return card;
-}
-
 function renderDashboards(c) {
   const cmd = el(`<div class="cmdbar">
     <button class="cmd primary" id="dbNew">${ic("add")}New dashboard</button>
