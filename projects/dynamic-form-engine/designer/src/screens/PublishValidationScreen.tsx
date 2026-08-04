@@ -21,6 +21,7 @@ import { PublishService } from '@/services/PublishService';
 import { PUBLISH_JOB_STATUS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
 import { validateForPublish, type ValidationIssue } from '@/validation/publishValidation';
+import { ScopedButtonDesignService, type ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 
 type RenderCacheStatus = 'idle' | 'generating' | 'complete' | 'failed';
 
@@ -37,6 +38,7 @@ const PUBLISH_GATE_DESCRIPTIONS: Record<string, string> = {
   'PV-010': 'Lookup fields have target entity configured',
   'PV-011': 'Form has a target CRM entity configured',
   'PV-012': 'Form has at least one required field',
+  'PV-013': 'Sections revealed one at a time can all be advanced past',
 };
 
 const ALL_GATE_CODES = Object.keys(PUBLISH_GATE_DESCRIPTIONS);
@@ -182,10 +184,27 @@ export function PublishValidationScreen(): React.ReactElement {
 
   useEffect(() => {
     const state = useDesignerStore.getState();
-    const result = validateForPublish(state);
-    setIssues(result.issues);
-    setIsValidating(false);
-  }, []);
+    const formId = state.form?.id;
+
+    // Section buttons live outside the store, so PV-013 needs them fetched. A failure here
+    // must not block publishing on a check we could not make — validate without them and let
+    // the other gates stand.
+    async function validate(): Promise<void> {
+      let sectionButtons: Record<string, ScopedButtonRecord[]> | undefined;
+      if (crmService && formId) {
+        try {
+          sectionButtons = await new ScopedButtonDesignService(crmService.getWebApi())
+            .listSectionButtonsByForm(formId);
+        } catch {
+          sectionButtons = undefined;
+        }
+      }
+      setIssues(validateForPublish(state, sectionButtons).issues);
+      setIsValidating(false);
+    }
+
+    void validate();
+  }, [crmService]);
 
   const handleBack = useCallback(() => {
     navigateTo('designer');

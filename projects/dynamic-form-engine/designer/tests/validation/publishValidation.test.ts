@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { validateForPublish } from '@/validation/publishValidation';
 import type { DesignerFormModel, DesignerTabModel, DesignerSectionModel, DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { DEFAULT_STYLE } from '@/state/models/DesignerStyleModel';
+import type { ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 
 // ---------------------------------------------------------------------------
 // The type accepted by validateForPublish is DesignerState.
@@ -305,4 +306,94 @@ describe('validateForPublish', () => {
     expect(pv012?.severity).toBe('warning');
   });
 
+});
+
+// ── PV-013: a section the user cannot get past ───────────────────────────────
+
+function advanceButton(overrides: Partial<ScopedButtonRecord> = {}): ScopedButtonRecord {
+  return {
+    id: 'btn-1',
+    label: 'Continue',
+    placementScope: 'section',
+    displayOrder: 1,
+    isPrimary: true,
+    isVisible: true,
+    actionType: 'navigate',
+    actionConfigJson: '{"target":"nextSection"}',
+    ...overrides,
+  } as ScopedButtonRecord;
+}
+
+/** A one-at-a-time tab with two sections; only the first needs a way forward. */
+function twoSectionState(): PartialPublishState {
+  const first = makeSection({ id: 'section-1', label: 'Applicant' });
+  const second = makeSection({ id: 'section-2', label: 'Company', sortOrder: 1 });
+  const tab = makeTab({ revealsSectionsOneAtATime: true });
+
+  return makeValidState({
+    tabs: { [tab.id]: tab },
+    sections: { 'section-1': first, 'section-2': second },
+    sectionOrder: { [tab.id]: ['section-1', 'section-2'] },
+  });
+}
+
+function revealIssues(
+  state: PartialPublishState,
+  buttons?: Record<string, ScopedButtonRecord[]>,
+): string[] {
+  return validateForPublish(state, buttons).issues
+    .filter((issue) => issue.code === 'PV-013')
+    .map((issue) => issue.message);
+}
+
+describe('PV-013 — section reveal dead ends', () => {
+  it('blocks_publish_when_a_section_has_no_way_forward', () => {
+    const issues = revealIssues(twoSectionState(), { 'section-1': [], 'section-2': [] });
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('Applicant');
+  });
+
+  it('makes_the_whole_result_invalid', () => {
+    const result = validateForPublish(twoSectionState(), { 'section-1': [], 'section-2': [] });
+
+    expect(result.isValid).toBe(false);
+  });
+
+  it('exempts_the_last_section', () => {
+    expect(revealIssues(twoSectionState(), { 'section-1': [advanceButton()], 'section-2': [] })).toEqual([]);
+  });
+
+  it('ignores_a_tab_that_shows_all_sections_at_once', () => {
+    const tab = makeTab({ revealsSectionsOneAtATime: false });
+    const state = makeValidState({
+      tabs: { [tab.id]: tab },
+      sections: { 'section-1': makeSection({ id: 'section-1' }), 'section-2': makeSection({ id: 'section-2' }) },
+      sectionOrder: { [tab.id]: ['section-1', 'section-2'] },
+    });
+
+    expect(revealIssues(state, { 'section-1': [], 'section-2': [] })).toEqual([]);
+  });
+
+  it('does_not_count_an_invisible_button', () => {
+    const buttons = { 'section-1': [advanceButton({ isVisible: false })], 'section-2': [] };
+
+    expect(revealIssues(twoSectionState(), buttons)).toHaveLength(1);
+  });
+
+  it('does_not_count_a_button_that_advances_a_tab', () => {
+    const buttons = { 'section-1': [advanceButton({ actionConfigJson: '{"target":"nextStep"}' })], 'section-2': [] };
+
+    expect(revealIssues(twoSectionState(), buttons)).toHaveLength(1);
+  });
+
+  it('survives_unparseable_action_config', () => {
+    const buttons = { 'section-1': [advanceButton({ actionConfigJson: 'not json' })], 'section-2': [] };
+
+    expect(revealIssues(twoSectionState(), buttons)).toHaveLength(1);
+  });
+
+  it('skips_the_check_when_buttons_could_not_be_loaded', () => {
+    expect(revealIssues(twoSectionState())).toEqual([]);
+  });
 });

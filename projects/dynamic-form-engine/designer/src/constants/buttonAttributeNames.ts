@@ -19,6 +19,7 @@ export const SCOPED_BUTTON_ATTRS = {
   // OData lookup value fields (read side).
   TAB_VALUE: '_qdb_tab_id_value',
   SECTION_VALUE: '_qdb_section_id_value',
+  FORM_VALUE: '_qdb_form_definition_id_value',
 } as const;
 
 /** Single-valued navigation property names (schema-cased) for @odata.bind on create. */

@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import type { DesignerState } from '@/state/designerStore';
 import { FIELD_TYPE } from '@/constants/fieldTypes';
+import type { ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 
 export interface ValidationIssue {
   code: string;
@@ -137,14 +138,68 @@ function validateSubmissionMapping(state: DesignerState, issues: ValidationIssue
  * Returns a result containing all issues found.
  * isValid is true only when there are zero error-severity issues.
  */
-export function validateForPublish(state: DesignerState): PublishValidationResult {
+export function validateForPublish(
+  state: DesignerState,
+  sectionButtons?: Record<string, ScopedButtonRecord[]>,
+): PublishValidationResult {
   const issues: ValidationIssue[] = [];
 
   validateFormBasics(state, issues);
   validateTabStructure(state, issues);
   validateFields(state, issues);
   validateSubmissionMapping(state, issues);
+  validateSectionReveal(state, sectionButtons, issues);
 
   const isValid = issues.every(issue => issue.severity !== 'error');
   return { isValid, issues };
+}
+
+/**
+ * PV-013 — a tab revealing its sections one at a time shows the user only the section in front
+ * of them, so a section with no button that advances is a dead end: they can neither continue
+ * nor submit. The last section is exempt, being expected to carry a submit or next-tab button.
+ *
+ * Skipped when sectionButtons was not supplied, so a caller that could not load them does not
+ * block publishing on a check it was unable to make.
+ */
+function validateSectionReveal(
+  state: DesignerState,
+  sectionButtons: Record<string, ScopedButtonRecord[]> | undefined,
+  issues: ValidationIssue[],
+): void {
+  if (!sectionButtons) return;
+
+  for (const tabId of state.tabOrder) {
+    const tab = state.tabs[tabId];
+    if (!tab?.revealsSectionsOneAtATime) continue;
+
+    const sectionIds = (state.sectionOrder[tabId] ?? []).filter((id) => state.sections[id]);
+    for (const sectionId of sectionIds.slice(0, -1)) {
+      if (hasAdvanceButton(sectionButtons[sectionId.toLowerCase()] ?? sectionButtons[sectionId] ?? [])) continue;
+      issues.push({
+        code: 'PV-013',
+        message:
+          `Section "${state.sections[sectionId].label}" on tab "${tab.label}" has no button that `
+          + 'advances to the next section, so the user cannot get past it. Add a button with '
+          + 'action "Navigate: Next section".',
+        severity: 'error',
+      });
+    }
+  }
+}
+
+/**
+ * An invisible button does not count — it cannot be pressed, so it does not rescue the user.
+ * A conditionally-visible one does: whether its condition holds is a runtime question, and
+ * blocking publish over it would be a false alarm the author cannot silence.
+ */
+function hasAdvanceButton(buttons: readonly ScopedButtonRecord[]): boolean {
+  return buttons.some((button) => {
+    if (!button.isVisible || button.actionType !== 'navigate') return false;
+    try {
+      return (JSON.parse(button.actionConfigJson) as { target?: string }).target === 'nextSection';
+    } catch {
+      return false;
+    }
+  });
 }
