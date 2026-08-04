@@ -146,8 +146,11 @@ function xrm(){
   return found.xrm;
 }
 
-async function dvRetrieveMultiple(logicalName, query){
-  const response = await xrm().WebApi.retrieveMultipleRecords(logicalName, query);
+/* maxPageSize is a separate argument, not a $top in the query: Xrm.WebApi rejects $top, and the
+   rejection surfaces as a thrown error rather than as ignored paging — which is how a lookup picker
+   ended up silently degrading to a plain text box. */
+async function dvRetrieveMultiple(logicalName, query, maxPageSize){
+  const response = await xrm().WebApi.retrieveMultipleRecords(logicalName, query, maxPageSize);
   return response.entities || [];
 }
 
@@ -515,9 +518,10 @@ async function parameterOptionSource(definition, parameter){
 async function lookupRowOptions(target){
   const meta = await readMetadata(
     `EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute`);
+  // One more than the limit, so "is there more than fits in a list" is answerable without counting.
   const rows = await dvRetrieveMultiple(target,
-    `?$select=${meta.PrimaryIdAttribute},${meta.PrimaryNameAttribute}`
-    + `&$orderby=${meta.PrimaryNameAttribute}&$top=${DROPDOWN_ROW_LIMIT + 1}`);
+    `?$select=${meta.PrimaryIdAttribute},${meta.PrimaryNameAttribute}&$orderby=${meta.PrimaryNameAttribute}`,
+    DROPDOWN_ROW_LIMIT + 1);
   const options = rows.slice(0, DROPDOWN_ROW_LIMIT).map(r => ({
     value: r[meta.PrimaryIdAttribute], label: r[meta.PrimaryNameAttribute] || "(no name)"
   }));
@@ -565,8 +569,13 @@ async function populateParameterOptions(definition){
       }
       host.innerHTML = optionControlHtml(name, source, multiple);
     } catch (error) {
+      /* Degrading to a text box keeps the report usable, but doing it silently made a broken picker
+         indistinguishable from a parameter that was always meant to be typed. The reason travels
+         with the control. */
+      const reason = String((error && error.message) || error);
       console.error("[ReportEngine] could not load options for " + name, error);
-      host.innerHTML = `<input class="fluent-input" data-param="${esc(name)}" placeholder="type a value"/>`;
+      host.innerHTML = `<input class="fluent-input" data-param="${esc(name)}"
+        placeholder="type a value — options unavailable" title="${esc(reason)}"/>`;
     }
   }));
 }
