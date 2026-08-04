@@ -58,11 +58,14 @@ let baseUrl, token;
 function headers(extra = {}) {
   return { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra };
 }
-async function findWebResourceId(name) {
+/* Content comes back too, so an unchanged file can be left alone entirely. Dataverse exposes no
+   hash, so comparing means fetching — a megabyte or so per run, against writes and a publish that
+   would otherwise happen for nothing. */
+async function findWebResource(name) {
   const filter = encodeURIComponent(`name eq '${name}'`);
-  const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset?$filter=${filter}&$select=webresourceid`, { headers: headers() });
+  const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset?$filter=${filter}&$select=webresourceid,content`, { headers: headers() });
   if (!res.ok) throw new Error(`lookup ${name} ${res.status}: ${await res.text()}`);
-  return (await res.json()).value?.[0]?.webresourceid ?? null;
+  return (await res.json()).value?.[0] ?? null;
 }
 /* The shells load the shared engine by a plain relative name, and CRM serves web resources with a
    long cache lifetime — so a browser that has once fetched qdb_reportengine_core.js keeps handing
@@ -82,20 +85,26 @@ async function upsertWebResource({ name, display, file, type }) {
   const raw = readFileSync(resolve(PROTOTYPE_DIR, file));
   const stamped = type === HTML ? Buffer.from(stampSharedAssetVersions(raw.toString('utf8')), 'utf8') : raw;
   const content = stamped.toString('base64');
-  const id = await findWebResourceId(name);
+  const existing = await findWebResource(name);
   const body = JSON.stringify({ name, displayname: display, description: display, webresourcetype: type ?? 1, content });
-  if (id) {
-    const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset(${id})`, { method: 'PATCH', headers: headers(), body });
+
+  if (existing && existing.content === content) {
+    console.log(`  · unchanged ${name}`);
+    return { id: existing.webresourceid, changed: false, type };
+  }
+  if (existing) {
+    const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset(${existing.webresourceid})`, { method: 'PATCH', headers: headers(), body });
     if (!res.ok) throw new Error(`update ${name} ${res.status}: ${await res.text()}`);
     console.log(`  ✓ updated ${name} (${(content.length / 1024).toFixed(0)} KB)`);
-    return id;
+    return { id: existing.webresourceid, changed: true, type };
   }
   // MSCRM.SolutionUniqueName adds the new component to the target solution.
   const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset`, { method: 'POST', headers: headers({ 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME }), body });
   if (!res.ok) throw new Error(`create ${name} ${res.status}: ${await res.text()}`);
   console.log(`  ✓ created ${name} in ${SOLUTION_UNIQUE_NAME} (${(content.length / 1024).toFixed(0)} KB)`);
   const created = (res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/);
-  return created ? created[1] : await findWebResourceId(name);
+  const id = created ? created[1] : (await findWebResource(name)).webresourceid;
+  return { id, changed: true, type };
 }
 
 const env = loadEnv(process.argv[2]);
@@ -103,22 +112,36 @@ baseUrl = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm
 token = await getToken(env.DV_TENANT_ID || env.AZURE_TENANT_ID, env.DV_CLIENT_ID || env.AZURE_CLIENT_ID, env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 console.log(`\n== Deploy Report Engine web resources → ${SOLUTION_UNIQUE_NAME} ==\n`);
 
-const publishedIds = [];
+const results = [];
 for (const resource of WEB_RESOURCES) {
-  publishedIds.push(await upsertWebResource(resource));
+  results.push(await upsertWebResource(resource));
 }
 
-/* Publish ONLY the web resources this run touched, not the whole organisation.
-   PublishAllXml invalidates every published customisation, and main.aspx then has to recompose
-   itself on the next request. On an org with a few thousand tables that takes minutes, and running
-   it once per deploy attempt — as happened repeatedly while chasing a ribbon caching problem — left
-   the web client hanging on its own shell document while the Dataverse API stayed perfectly fast.
-   A component-scoped publish is seconds and touches nothing else. */
-const parameterXml = '<importexportxml><webresources>'
-  + publishedIds.filter(Boolean).map(id => `<webresource>${id}</webresource>`).join('')
-  + '</webresources></importexportxml>';
-const publish = await fetch(`${baseUrl}/api/data/v9.2/PublishXml`, {
-  method: 'POST', headers: headers(), body: JSON.stringify({ ParameterXml: parameterXml })
-});
-if (!publish.ok) throw new Error(`publish ${publish.status}: ${await publish.text()}`);
-console.log(`\n✓ published ${publishedIds.filter(Boolean).length} web resource(s)\n✓ web-resource deploy done.\n`);
+async function publish(path, body) {
+  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, { method: 'POST', headers: headers(), body });
+  if (!res.ok) throw new Error(`publish ${res.status}: ${await res.text()}`);
+}
+
+/* How much to publish is decided by WHAT changed.
+   A component-scoped publish is seconds and disturbs nobody, but it does not rotate the version
+   token CRM puts in the iframe URL — so a changed HTML shell stays cached in every open client and
+   the update appears not to have happened. Scripts and styles are exempt: the shells reference them
+   with a hash of their own bytes, so a new engine already arrives under a new URL.
+   PublishAllXml is therefore reserved for a changed shell, where nothing else will do, and skipped
+   entirely when nothing changed — which is most runs. */
+const changed = results.filter(r => r.changed);
+const changedShells = changed.filter(r => r.type === HTML);
+
+if (!changed.length) {
+  console.log('\n· nothing changed — no publish needed\n');
+} else if (changedShells.length) {
+  await publish('PublishAllXml', '{}');
+  console.log(`\n✓ full publish — ${changedShells.length} shell(s) changed, which a scoped publish leaves cached`);
+  console.log('  the organisation will be slow to load for a few minutes while it recomposes\n');
+} else {
+  const parameterXml = '<importexportxml><webresources>'
+    + changed.map(r => `<webresource>${r.id}</webresource>`).join('')
+    + '</webresources></importexportxml>';
+  await publish('PublishXml', JSON.stringify({ ParameterXml: parameterXml }));
+  console.log(`\n✓ published ${changed.length} changed web resource(s) — scoped, no org-wide impact\n`);
+}
