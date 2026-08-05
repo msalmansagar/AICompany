@@ -1,0 +1,417 @@
+/**
+ * Portal shell — responsive layer.
+ *
+ * WHY A STYLESHEET AND NOT INLINE STYLES:
+ * inline `style={{}}` cannot express media or container queries. A page builder
+ * therefore cannot be made responsive with inline styles alone — the responsive
+ * rules must live in real CSS and components attach via className.
+ *
+ * TWO KINDS OF QUERY, DELIBERATELY:
+ *   - @media     → the SHELL. Depends on the device viewport (nav collapses).
+ *   - @container → COMPONENTS. Depends on the region they were dropped into,
+ *                  because an admin can place the same card in a 260px sidebar
+ *                  or a 1200px main column. Viewport width cannot know that.
+ *
+ * RTL: no physical left/right anywhere — inline-start/inline-end only.
+ */
+
+/* ---------------------------------------------------------------- shell -- */
+
+.qdb-shell {
+  display: grid;
+  grid-template-areas:
+    'header header'
+    'nav    main'
+    'footer footer';
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: auto 1fr auto;
+  min-block-size: 100vh;
+  background: var(--color-canvas, #f3f6f9);
+  font-family: var(--font-family-base, sans-serif);
+  /* The shell must never be the source of horizontal scrolling. */
+  max-inline-size: 100%;
+  overflow-x: hidden;
+}
+
+.qdb-shell__header {
+  grid-area: header;
+  background: var(--color-surface, #fff);
+  border-block-end: 1px solid var(--color-border, #e1e4e8);
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+}
+
+.qdb-shell__nav {
+  grid-area: nav;
+  background: var(--color-surface, #fff);
+  border-inline-end: 1px solid var(--color-border, #e1e4e8);
+  padding-block: 16px;
+  /* Grid items default to min-width:auto, which is the max-content of their
+     children. Without this the horizontal nav scroller below forces the whole
+     grid track wider than the viewport and the page scrolls sideways. */
+  min-inline-size: 0;
+}
+
+.qdb-shell__main {
+  grid-area: main;
+  padding: 24px;
+  min-inline-size: 0; /* lets grid children shrink instead of overflowing */
+  container-type: inline-size;
+  container-name: qdb-main;
+}
+
+.qdb-shell__footer {
+  grid-area: footer;
+  background: var(--color-surface, #fff);
+  border-block-start: 1px solid var(--color-border, #e1e4e8);
+}
+
+/* Tablet — narrow the rail rather than dropping it. */
+@media (max-width: 1024px) {
+  .qdb-shell {
+    grid-template-columns: 200px 1fr;
+  }
+  .qdb-shell__main {
+    padding: 16px;
+  }
+}
+
+/* Mobile — stack, and turn the rail into a horizontal scroller. */
+@media (max-width: 768px) {
+  .qdb-shell {
+    grid-template-areas:
+      'header'
+      'nav'
+      'main'
+      'footer';
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto;
+  }
+
+  .qdb-shell__nav {
+    border-inline-end: none;
+    border-block-end: 1px solid var(--color-border, #e1e4e8);
+    padding-block: 8px;
+    position: sticky;
+    inset-block-start: 57px;
+    z-index: 9;
+    /* Clip the pill scroller to the track so it can't widen the grid. */
+    overflow: hidden;
+  }
+}
+
+/* ----------------------------------------------------------------- nav --- */
+
+.qdb-nav__heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #616161);
+  text-transform: uppercase;
+  padding-inline: 20px;
+  padding-block-end: 10px;
+  text-align: start;
+}
+
+.qdb-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qdb-nav__link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 10px;
+  padding-inline: 20px;
+  color: #242424;
+  background: transparent;
+  border-inline-start: 3px solid transparent;
+  text-decoration: none;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.qdb-nav__link[data-active='true'] {
+  color: var(--color-brand, #0f6cbd);
+  background: rgba(15, 108, 189, 0.08);
+  border-inline-start-color: var(--color-brand, #0f6cbd);
+}
+
+.qdb-nav__badge {
+  margin-inline-start: auto;
+  background: var(--color-brand, #0f6cbd);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  padding-block: 1px;
+  padding-inline: 7px;
+}
+
+@media (max-width: 768px) {
+  .qdb-nav__heading {
+    display: none;
+  }
+
+  .qdb-nav__list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-inline: 12px;
+    scrollbar-width: none;
+  }
+  .qdb-nav__list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .qdb-nav__link {
+    border-inline-start: none;
+    border-radius: 999px;
+    border: 1px solid var(--color-border, #e1e4e8);
+    padding-block: 7px;
+    padding-inline: 14px;
+    font-size: 13px;
+  }
+
+  .qdb-nav__link[data-active='true'] {
+    border-color: var(--color-brand, #0f6cbd);
+  }
+
+  /* Inside a pill the badge must sit next to the label, not pushed away. */
+  .qdb-nav__badge {
+    margin-inline-start: 4px;
+  }
+}
+
+/* -------------------------------------------------------------- header --- */
+
+.qdb-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-block: 14px;
+  padding-inline: 24px;
+}
+
+.qdb-header__logo {
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: 8px;
+  background: var(--color-brand, #0f6cbd);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.qdb-header__titles {
+  text-align: start;
+  min-inline-size: 0;
+}
+
+.qdb-header__title {
+  font-weight: 600;
+  font-size: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qdb-header__subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted, #616161);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qdb-header__user {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/**
+ * Language switcher. Always shows the OTHER language in its own script —
+ * an Arabic-only user must be able to recognise the English affordance and
+ * vice versa, so the label is never translated.
+ */
+.qdb-lang-toggle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-brand, #0f6cbd);
+  text-decoration: none;
+  border: 1px solid var(--color-border, #e1e4e8);
+  border-radius: 999px;
+  padding-block: 5px;
+  padding-inline: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.qdb-lang-toggle:hover {
+  background: rgba(15, 108, 189, 0.08);
+  border-color: var(--color-brand, #0f6cbd);
+}
+
+.qdb-header__avatar {
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 50%;
+  background: var(--color-canvas, #f3f6f9);
+  border: 1px solid var(--color-border, #e1e4e8);
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .qdb-header {
+    padding-inline: 14px;
+    gap: 10px;
+  }
+  .qdb-header__subtitle {
+    display: none;
+  }
+  /* Name hidden, avatar kept — the tap target survives. */
+  .qdb-header__username {
+    display: none;
+  }
+}
+
+/* -------------------------------------------------------------- footer --- */
+
+.qdb-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-block: 14px;
+  padding-inline: 24px;
+  font-size: 12px;
+  color: var(--color-text-muted, #616161);
+}
+
+.qdb-footer__links {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .qdb-footer {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+    gap: 10px;
+    padding-inline: 14px;
+  }
+  .qdb-footer__links {
+    margin-inline-start: 0;
+    justify-content: center;
+  }
+}
+
+/* ------------------------------------------------------ content blocks --- */
+
+.qdb-page-title {
+  margin-block-end: 20px;
+  text-align: start;
+}
+
+.qdb-page-title h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.qdb-page-title p {
+  margin: 4px 0 0;
+  color: var(--color-text-muted, #616161);
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .qdb-page-title h1 {
+    font-size: 20px;
+  }
+}
+
+/**
+ * Card row uses auto-fit, so it reflows with no query at all — this is the
+ * most robust responsive primitive available and should be the default.
+ */
+.qdb-card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-block-end: 20px;
+}
+
+.qdb-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: start;
+}
+
+.qdb-card__value {
+  font-size: 28px;
+  font-weight: 600;
+  margin-block: 4px;
+}
+
+.qdb-card__label {
+  font-size: 12px;
+  color: var(--color-text-muted, #616161);
+}
+
+.qdb-card__trend {
+  font-size: 12px;
+  color: var(--color-brand, #0f6cbd);
+}
+
+/**
+ * CONTAINER query, not a media query: shrink the stat when the REGION is
+ * narrow, regardless of device. This is what makes a component safe to drop
+ * anywhere in a page builder.
+ */
+@container qdb-main (max-width: 520px) {
+  .qdb-card__value {
+    font-size: 22px;
+  }
+  .qdb-card {
+    padding: 12px;
+  }
+}
+
+.qdb-rich-card {
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e1e4e8);
+  border-radius: 8px;
+  padding: 20px;
+  text-align: start;
+  margin-block-end: 16px;
+}
+
+.qdb-rich-card h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.qdb-rich-card p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #333;
+}
+
+@container qdb-main (max-width: 520px) {
+  .qdb-rich-card {
+    padding: 14px;
+  }
+}
