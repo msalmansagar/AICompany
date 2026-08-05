@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>QDB CMS Engine — Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+<style>
+  body { overflow: auto; height: auto; }
+  .lander { max-width: 1180px; margin: 0 auto; padding: 40px 24px 64px; }
+  .lander h1 { font-size: 30px; letter-spacing: -.4px; }
+  .lede { color: var(--text-secondary); font-size: 15px; margin-top: 8px; max-width: 78ch; line-height: 1.65; }
+  .lander h2 { font-size: 17px; margin: 34px 0 14px; }
+  .file-card {
+    display: block; text-decoration: none; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 18px 20px;
+    box-shadow: var(--shadow-8); transition: transform .12s, box-shadow .12s, border-color .12s;
+  }
+  .file-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-16); border-color: var(--primary); }
+  .fc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .fc-num { width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: #fff;
+    display: grid; place-items: center; font-weight: 800; font-size: 13px; flex-shrink: 0; }
+  .fc-name { font-weight: 700; font-size: 15px; }
+  .fc-desc { color: var(--text-secondary); font-size: 13px; line-height: 1.55; }
+  .fc-screens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .fc-screens span { font-size: 11.5px; background: var(--surface-alt); border: 1px solid var(--border);
+    border-radius: 11px; padding: 2px 9px; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="lander">
+  <h1>QDB CMS Engine</h1>
+  <div class="lede">
+    A UX prototype for a metadata-driven content management engine that runs <b>inside Dynamics</b> —
+    a Dataverse web resource for the designer, a plugin for anything that must be auditable, and no
+    hosted middle tier. Same architecture as the Report Engine (ADR-RPT-011).
+    13 screens across six files, one design system. Self-contained: no build step, no network calls.
+  </div>
+
+  <div class="banner" data-tone="warn" style="margin-top:22px">
+    <span>⚠️</span>
+    <div><b>Serve over http, not <code class="mono">file://</code></b> — the shared scripts will not load
+    otherwise. From this folder: <code class="mono">npx serve .</code> or
+    <code class="mono">python -m http.server</code>.</div>
+  </div>
+
+  <div class="banner" data-tone="info">
+    <span>ℹ️</span>
+    <div>Field names throughout match the Dataverse schema the engine would really use —
+    <code class="mono">qdb_cmspage</code>, <code class="mono">qdb_cmspageversion</code>,
+    <code class="mono">qdb_cmspublishlog</code>, <code class="mono">qdb_PublishPage</code> — so the
+    prototype and the eventual build describe the same system. Use the <b>theme toggle</b> in the top bar
+    for dark mode and the <b>locale picker</b> to flip the designer canvas to Arabic RTL.</div>
+  </div>
+
+  <h2>Start here</h2>
+  <div class="grid" data-cols="2">
+
+    <a class="file-card" href="01-workspace.html#dashboard">
+      <div class="fc-top"><span class="fc-num">01</span><span class="fc-name">Workspace</span></div>
+      <div class="fc-desc">The daily surface. Publishing health, what changed, what is waiting, and the
+        full page inventory with its stored payload.</div>
+      <div class="fc-screens"><span>Dashboard</span><span>Pages</span><span>Page detail</span>
+        <span>Versions</span><span>Stored payload</span></div>
+    </a>
+
+    <a class="file-card" href="02-designer.html#designer">
+      <div class="fc-top"><span class="fc-num">02</span><span class="fc-name">Designer</span></div>
+      <div class="fc-desc">The visual editor. Click a block to select it; the inspector edits its fields
+        in both languages. Colours are token slugs, never hex. Shows exactly what a save and a publish write.</div>
+      <div class="fc-screens"><span>Canvas</span><span>Palette</span><span>Inspector</span>
+        <span>Viewports</span><span>Preview</span></div>
+    </a>
+
+    <a class="file-card" href="03-content.html#media">
+      <div class="fc-top"><span class="fc-num">03</span><span class="fc-name">Content</span></div>
+      <div class="fc-desc">Media library where pages store an asset key rather than a URL, and the
+        translation workbench with missing and stale detection.</div>
+      <div class="fc-screens"><span>Media library</span><span>Asset detail</span>
+        <span>Translations</span><span>String editor</span></div>
+    </a>
+
+    <a class="file-card" href="04-design.html#tokens">
+      <div class="fc-top"><span class="fc-num">04</span><span class="fc-name">Design system</span></div>
+      <div class="fc-desc">Theme tokens and their five-level cascade, plus the component registry whose
+        props schema builds the designer's field panel.</div>
+      <div class="fc-screens"><span>Theme tokens</span><span>Cascade</span>
+        <span>Components</span><span>Props schema</span></div>
+    </a>
+
+    <a class="file-card" href="05-structure.html#nav">
+      <div class="fc-top"><span class="fc-num">05</span><span class="fc-name">Structure</span></div>
+      <div class="fc-desc">Navigation as its own versioned record, with broken-link and orphan-page
+        detection, and a site map showing what the menu actually reaches.</div>
+      <div class="fc-screens"><span>Navigation</span><span>Health</span>
+        <span>Bilingual preview</span><span>Site map</span></div>
+    </a>
+
+    <a class="file-card" href="06-governance.html#review">
+      <div class="fc-top"><span class="fc-num">06</span><span class="fc-name">Governance</span></div>
+      <div class="fc-desc">Review queue, append-only version history with restore, the plugin-written
+        publish log, and the role matrix that keeps shell editing away from content authors.</div>
+      <div class="fc-screens"><span>Review queue</span><span>Versions</span><span>Diff</span>
+        <span>Publish log</span><span>Roles</span></div>
+    </a>
+
+  </div>
+
+  <h2>The three decisions this prototype is arguing for</h2>
+  <div class="grid" data-cols="3">
+    <div class="card">
+      <h3>Publish is a plugin</h3>
+      <div class="fc-desc" style="margin-top:8px">Not a browser write. If the designer wrote both the
+        version and the audit row, an author could keep the write and drop the log. Routing publish
+        through <code class="mono">qdb_PublishPage</code> makes the log unavoidable — the same call that
+        goes live writes it.</div>
+    </div>
+    <div class="card">
+      <h3>Colour is a token slug</h3>
+      <div class="fc-desc" style="margin-top:8px">Authors never see a colour picker. Only approved
+        colours can reach a page, and a rebrand — or a per-service palette — changes token values with
+        no page edited and nothing deployed.</div>
+    </div>
+    <div class="card">
+      <h3>One tree, two languages</h3>
+      <div class="fc-desc" style="margin-top:8px">English and Arabic live on the same node, not in
+        separate trees. Structure is shared by construction, so a missing translation shows as a missing
+        string rather than as a different page.</div>
+    </div>
+  </div>
+
+  <h2>Not in this prototype</h2>
+  <div class="card">
+    <div class="fc-desc">
+      No real Dataverse connection, no authentication, no drag-and-drop reordering (blocks are added by
+      clicking the palette), and photography is represented by CSS gradients. Arabic copy is unreviewed.
+      The designer here is a <b>faithful mock</b> of the editor's behaviour — the working Puck-based
+      implementation lives in <code class="mono">projects/portal-shell/spikes/puck</code>.
+    </div>
+  </div>
+</div>
+</body>
+</html>

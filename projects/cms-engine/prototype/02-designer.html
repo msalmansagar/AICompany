@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Designer — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <span class="pill" data-tone="warn" id="dirtyPill">Unsaved changes</span>
+        <span class="sp"></span>
+        <div class="row" style="gap:4px">
+          <button class="btn" data-v="subtle" id="vpDesktop" aria-pressed="true" title="Desktop">🖥</button>
+          <button class="btn" data-v="subtle" id="vpTablet"  aria-pressed="false" title="Tablet">▭</button>
+          <button class="btn" data-v="subtle" id="vpMobile"  aria-pressed="false" title="Mobile">▯</button>
+        </div>
+        <button class="btn" id="btnPreview">Preview</button>
+        <button class="btn" id="btnSave">Save draft</button>
+        <button class="btn" data-v="primary" id="btnPublish">Publish</button>
+      </div>
+      <div class="scroll">
+
+        <section class="screen active" id="designer" data-title="Designer — About Reyada">
+          <div class="banner" data-tone="info">
+            <span>🧩</span>
+            <div><b>Click any block on the canvas</b> to select it — the inspector on the right shows that
+            block's fields. Colours are chosen as <b>token slugs</b>, never hex, so a page can never carry an
+            unapproved brand colour. Every string has an <b>EN and an AR field side by side</b>: one tree,
+            two languages, structure shared by construction.</div>
+          </div>
+
+          <div class="dsgn">
+            <!-- ------------------------------------------------- palette -->
+            <div class="palette" id="palette"></div>
+
+            <!-- -------------------------------------------------- canvas -->
+            <div class="canvas">
+              <div class="canvas-frame" id="frame"></div>
+            </div>
+
+            <!-- ----------------------------------------------- inspector -->
+            <div class="insp" id="inspector"></div>
+          </div>
+
+          <div class="grid" data-cols="2" style="margin-top:16px">
+            <div class="card">
+              <h3>What a save writes</h3>
+              <div class="sub">Draft saves append a version; nothing is edited in place</div>
+              <div class="code" id="saveCode"></div>
+            </div>
+            <div class="card">
+              <h3>What a publish writes</h3>
+              <div class="sub">Routed through the plugin so the audit row cannot be skipped</div>
+              <div class="code" id="pubCode"></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   The page being designed. This is the same tree shape the engine stores
+   in qdb_contentjson — editing here mutates it and re-renders the canvas.
+   ===================================================================== */
+let TREE = [
+  { id: "b1", type: "Heading", props: { textEn: "About Reyada", textAr: "عن ريادة", level: "1", color: "rey-ink", align: "start" } },
+  { id: "b2", type: "Text",    props: { bodyEn: "Reyada Advisory connects Qatari businesses with vetted expert advisors across legal, financial, certification and growth disciplines — backed by Qatar Development Bank.", bodyAr: "تربط ريادة الاستشارية الشركات القطرية بمستشارين خبراء معتمدين في المجالات القانونية والمالية والشهادات والنمو — بدعم من بنك قطر للتنمية.", color: "rey-muted", align: "start" } },
+  { id: "b3", type: "Image",   props: { asset: "hero-advisory", height: "200px" } },
+  { id: "b4", type: "Columns", props: {}, children: [
+      { id: "b4a", type: "StatCard", props: { labelEn: "Advisors", labelAr: "المستشارون", value: "180+", accent: "rey-green" } },
+      { id: "b4b", type: "StatCard", props: { labelEn: "Services", labelAr: "الخدمات",     value: "42",   accent: "rey-navy" } },
+      { id: "b4c", type: "StatCard", props: { labelEn: "Businesses", labelAr: "الشركات",   value: "2,400", accent: "rey-purple" } },
+  ]},
+  { id: "b5", type: "Button",  props: { labelEn: "Explore services", labelAr: "استكشف الخدمات", variant: "primary", href: "/services" } },
+];
+
+let selected = "b1";
+let locale = "en";
+
+const PALETTE = [
+  { grp: "Layout",      items: [["Section","section"],["Columns","columns"],["Spacer","text"]] },
+  { grp: "Content",     items: [["Heading","heading"],["Text","text"],["Image","image"]] },
+  { grp: "Actions",     items: [["Button","button"]] },
+  { grp: "Interactive", items: [["Tabs","section"],["Accordion","columns"]] },
+  { grp: "Data",        items: [["StatCard","stat"],["Callout","info"]] },
+];
+
+const TOKEN_OPTS = [
+  ["rey-green","Brand green"], ["rey-navy","Navy"], ["rey-purple","Purple"],
+  ["rey-ink","Text"], ["rey-muted","Text muted"],
+];
+const TOKEN_HEX = Object.fromEntries(TOKENS.map(t => [t.slug, t.value]));
+const MEDIA_CSS = Object.fromEntries(MEDIA.map(m => [m.key, m.css]));
+
+/* ------------------------------------------------------------- palette */
+function renderPalette() {
+  $("#palette").innerHTML = PALETTE.map(g => `
+    <div class="pal-grp">${esc(g.grp)}</div>
+    ${g.items.map(([name, ic]) => `
+      <div class="pal-item" draggable="true" onclick="addBlock('${name}')">
+        ${icon(ic, 15)}<span>${esc(name)}</span><span class="drag">${icon("drag", 14)}</span>
+      </div>`).join("")}`).join("");
+}
+
+function addBlock(type) {
+  const id = "b" + Date.now().toString(36);
+  const seeds = {
+    Heading:  { textEn: "New heading", textAr: "عنوان جديد", level: "2", color: "rey-ink", align: "start" },
+    Text:     { bodyEn: "New paragraph.", bodyAr: "فقرة جديدة.", color: "rey-muted", align: "start" },
+    Image:    { asset: "tech-ai", height: "180px" },
+    Button:   { labelEn: "Button", labelAr: "زر", variant: "primary", href: "#" },
+    StatCard: { labelEn: "Metric", labelAr: "مؤشر", value: "0", accent: "rey-green" },
+    Callout:  { titleEn: "Note", titleAr: "ملاحظة", bodyEn: "Worth knowing.", bodyAr: "معلومة مهمة.", accent: "rey-navy" },
+  };
+  TREE.push({ id, type, props: seeds[type] || {} });
+  selected = id;
+  render();
+  toast(`${type} added — draft not yet saved`);
+}
+
+/* -------------------------------------------------------------- canvas */
+const tv = (p, en, ar) => locale === "ar" ? (p[ar] || p[en]) : (p[en] || p[ar]);
+const cvar = (slug) => TOKEN_HEX[slug] || "#1a2129";
+
+function blockHtml(b) {
+  const p = b.props;
+  const sel = b.id === selected;
+  const wrap = (inner) =>
+    `<div class="blk" data-sel="${sel}" data-name="${esc(b.type)}"
+       onclick="event.stopPropagation();select('${b.id}')"
+       style="padding:6px 28px">${inner}</div>`;
+
+  switch (b.type) {
+    case "Heading": {
+      const size = { "1": 30, "2": 23, "3": 18 }[p.level] || 23;
+      return wrap(`<div style="font-size:${size}px;font-weight:700;color:${cvar(p.color)};
+        text-align:${p.align};margin:10px 0">${esc(tv(p,'textEn','textAr'))}</div>`);
+    }
+    case "Text":
+      return wrap(`<div style="font-size:14px;line-height:1.75;color:${cvar(p.color)};
+        text-align:${p.align};margin:0 0 12px">${esc(tv(p,'bodyEn','bodyAr'))}</div>`);
+    case "Image":
+      return wrap(`<div style="height:${p.height};border-radius:8px;margin:0 0 14px;
+        background:${MEDIA_CSS[p.asset] || "#ddd"};background-size:cover"></div>`);
+    case "Button": {
+      const bg = p.variant === "primary" ? "#3d8a72" : p.variant === "navy" ? "#1b3a63" : "#fff";
+      const fg = p.variant === "outline" ? "#1a2129" : "#fff";
+      return wrap(`<div style="margin:0 0 14px"><span style="display:inline-block;background:${bg};
+        color:${fg};border:1px solid ${p.variant==='outline'?'#e5e8eb':'transparent'};
+        border-radius:6px;padding:10px 20px;font-size:13.5px;font-weight:600">
+        ${esc(tv(p,'labelEn','labelAr'))}</span></div>`);
+    }
+    case "StatCard":
+      return `<div class="blk" data-sel="${sel}" data-name="StatCard"
+        onclick="event.stopPropagation();select('${b.id}')"
+        style="border:1px solid #e5e8eb;border-radius:9px;padding:14px">
+        <div style="font-size:12px;color:#5d6b7a">${esc(tv(p,'labelEn','labelAr'))}</div>
+        <div style="font-size:24px;font-weight:700;color:${cvar(p.accent)}">${esc(p.value)}</div></div>`;
+    case "Callout":
+      return wrap(`<div style="background:#e9f0fb;border-inline-start:3px solid ${cvar(p.accent)};
+        border-radius:8px;padding:14px;margin:0 0 14px">
+        <b style="display:block;margin-bottom:3px">${esc(tv(p,'titleEn','titleAr'))}</b>
+        <span style="font-size:13.5px;color:#5d6b7a">${esc(tv(p,'bodyEn','bodyAr'))}</span></div>`);
+    case "Columns":
+      return `<div class="blk" data-sel="${sel}" data-name="Columns"
+        onclick="event.stopPropagation();select('${b.id}')" style="padding:6px 28px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(120px,100%),1fr));
+          gap:12px;margin:0 0 14px">${(b.children||[]).map(blockHtml).join("")}</div></div>`;
+    default:
+      return wrap(`<div class="muted">${esc(b.type)}</div>`);
+  }
+}
+
+function renderCanvas() {
+  const dir = locale === "ar" ? "rtl" : "ltr";
+  $("#frame").setAttribute("dir", dir);
+  $("#frame").innerHTML =
+    `<div style="padding:22px 0 8px 28px;font-size:10.5px;font-weight:700;letter-spacing:.1em;color:#3d8a72">
+       REYADA ADVISORY</div>` +
+    TREE.map(blockHtml).join("") +
+    `<div style="margin:18px 28px;border:2px dashed #d7dde3;border-radius:8px;padding:22px;
+       text-align:center;color:#8b98a5;font-size:13px">Drop a block here</div>`;
+}
+
+/* ----------------------------------------------------------- inspector */
+function findBlock(id, list = TREE) {
+  for (const b of list) {
+    if (b.id === id) return b;
+    if (b.children) { const f = findBlock(id, b.children); if (f) return f; }
+  }
+  return null;
+}
+
+function select(id) { selected = id; render(); }
+
+function fieldText(b, key, label) {
+  return `<div class="fld"><label>${esc(label)}</label>
+    <input type="text" value="${esc(b.props[key] ?? "")}"
+      oninput="setProp('${b.id}','${key}',this.value)" /></div>`;
+}
+function fieldArea(b, key, label) {
+  return `<div class="fld"><label>${esc(label)}</label>
+    <textarea oninput="setProp('${b.id}','${key}',this.value)">${esc(b.props[key] ?? "")}</textarea></div>`;
+}
+function fieldToken(b, key, label) {
+  return `<div class="fld"><label>${esc(label)} <span class="muted">— token, not hex</span></label>
+    <div class="swatches">${TOKEN_OPTS.map(([slug, name]) => `
+      <button title="${esc(name)} · --${slug}" aria-pressed="${b.props[key] === slug}"
+        style="background:${TOKEN_HEX[slug]}"
+        onclick="setProp('${b.id}','${key}','${slug}')"></button>`).join("")}</div>
+    <div class="hint mono">--${esc(b.props[key] || "")}</div></div>`;
+}
+function fieldChoice(b, key, label, opts) {
+  return `<div class="fld"><label>${esc(label)}</label>
+    <select onchange="setProp('${b.id}','${key}',this.value)">
+      ${opts.map(o => `<option value="${o}" ${b.props[key]===o?"selected":""}>${esc(o)}</option>`).join("")}
+    </select></div>`;
+}
+function fieldMedia(b) {
+  return `<div class="fld"><label>Asset <span class="muted">— from library</span></label>
+    <div class="swatches">${MEDIA.slice(0,6).map(m => `
+      <button title="${esc(m.name)}" aria-pressed="${b.props.asset === m.key}"
+        style="background:${m.css};background-size:cover"
+        onclick="setProp('${b.id}','asset','${m.key}')"></button>`).join("")}</div>
+    <div class="hint mono">${esc(b.props.asset || "")}</div></div>`;
+}
+
+function renderInspector() {
+  const b = findBlock(selected);
+  if (!b) { $("#inspector").innerHTML = `<div class="empty">Nothing selected</div>`; return; }
+
+  let f = "";
+  if (b.type === "Heading") {
+    f = fieldText(b,"textEn","Text (EN)") + fieldText(b,"textAr","Text (AR)")
+      + fieldChoice(b,"level","Level",["1","2","3"])
+      + fieldToken(b,"color","Colour")
+      + fieldChoice(b,"align","Align",["start","center","end"]);
+  } else if (b.type === "Text") {
+    f = fieldArea(b,"bodyEn","Body (EN)") + fieldArea(b,"bodyAr","Body (AR)")
+      + fieldToken(b,"color","Colour")
+      + fieldChoice(b,"align","Align",["start","center","end"]);
+  } else if (b.type === "Image") {
+    f = fieldMedia(b) + fieldChoice(b,"height","Height",["140px","180px","200px","280px"]);
+  } else if (b.type === "Button") {
+    f = fieldText(b,"labelEn","Label (EN)") + fieldText(b,"labelAr","Label (AR)")
+      + fieldChoice(b,"variant","Variant",["primary","navy","outline"])
+      + fieldText(b,"href","Link");
+  } else if (b.type === "StatCard") {
+    f = fieldText(b,"labelEn","Label (EN)") + fieldText(b,"labelAr","Label (AR)")
+      + fieldText(b,"value","Value") + fieldToken(b,"accent","Accent");
+  } else if (b.type === "Callout") {
+    f = fieldText(b,"titleEn","Title (EN)") + fieldText(b,"titleAr","Title (AR)")
+      + fieldArea(b,"bodyEn","Body (EN)") + fieldArea(b,"bodyAr","Body (AR)")
+      + fieldToken(b,"accent","Accent");
+  } else {
+    f = `<div class="muted" style="font-size:12.5px">This block has no editable fields in the prototype.</div>`;
+  }
+
+  $("#inspector").innerHTML = `
+    <div class="insp-title">${esc(b.type)} <span class="mono muted">#${esc(b.id)}</span></div>
+    ${f}
+    <button class="btn" data-v="danger" style="width:100%;margin-top:6px"
+      onclick="removeBlock('${b.id}')">${icon("trash",14)} Delete block</button>`;
+}
+
+function setProp(id, key, value) {
+  const b = findBlock(id);
+  if (!b) return;
+  b.props[key] = value;
+  renderCanvas();
+  // The inspector is not re-rendered on every keystroke: doing so would steal
+  // focus from the input the author is typing in.
+  if (key === "color" || key === "accent" || key === "asset" ||
+      key === "level" || key === "align" || key === "variant" || key === "height") {
+    renderInspector();
+  }
+  $("#dirtyPill").style.display = "";
+}
+
+function removeBlock(id) {
+  TREE = TREE.filter(b => b.id !== id);
+  selected = TREE[0]?.id || "";
+  render();
+  toast("Block deleted");
+}
+
+/* ------------------------------------------------------------- codegen */
+function renderCode() {
+  $("#saveCode").innerHTML =
+`<span class="c">// Author clicks "Save draft"</span>
+Xrm.WebApi.<span class="k">createRecord</span>(<span class="s">"qdb_cmspageversion"</span>, {
+  <span class="k">"qdb_pageid@odata.bind"</span>: <span class="s">"/qdb_cmspages(bc1fde87…)"</span>,
+  <span class="k">qdb_versionnumber</span>: <span class="n">7</span>,
+  <span class="k">qdb_contentjson</span>: <span class="s">"&lt;gzip+base64&gt;"</span>,
+  <span class="k">qdb_islatest</span>: <span class="n">true</span>
+})
+
+<span class="c">// Versions are append-only. No row is ever edited in place,</span>
+<span class="c">// so every prior state stays restorable.</span>`;
+
+  $("#pubCode").innerHTML =
+`<span class="c">// Author clicks "Publish"</span>
+Xrm.WebApi.online.<span class="k">execute</span>({
+  <span class="k">PageId</span>: <span class="s">"bc1fde87…"</span>,
+  <span class="k">TargetVersion</span>: <span class="n">7</span>,
+  getMetadata: () =&gt; ({ operationName: <span class="s">"qdb_PublishPage"</span>,
+                        operationType: <span class="n">0</span> })
+})
+
+<span class="c">// Plugin, async, PostOperation(40):</span>
+<span class="c">//   1. qdb_status → Published (860010002)</span>
+<span class="c">//   2. gzip + Base64 → qdb_cmsrendercache</span>
+<span class="c">//   3. create qdb_cmspublishlog   ← append-only audit</span>
+<span class="c">//</span>
+<span class="c">// Publish is a plugin, not a browser write, so the audit row</span>
+<span class="c">// cannot be skipped: the same call that publishes writes it.</span>`;
+}
+
+/* ---------------------------------------------------------------- init */
+function render() { renderCanvas(); renderInspector(); }
+
+Shell.init("02-designer.html", "designer");
+renderPalette(); render(); renderCode();
+
+$("#localePick").addEventListener("change", e => { locale = e.target.value; render(); });
+
+$("#btnSave").addEventListener("click", () => {
+  $("#dirtyPill").style.display = "none";
+  toast("Draft saved — qdb_cmspageversion v7 created");
+});
+$("#btnPublish").addEventListener("click", () => {
+  $("#dirtyPill").style.display = "none";
+  toast("qdb_PublishPage queued — audit row written");
+});
+$("#btnPreview").addEventListener("click", () =>
+  drawer("Preview — About Reyada", `
+    <div class="banner" data-tone="info"><span>👁</span><div>Rendered from the current draft,
+      not the published version.</div></div>
+    <div style="border:1px solid var(--border-strong);border-radius:8px;overflow:hidden">
+      <div style="background:#fff;color:#1a2129" dir="${locale === 'ar' ? 'rtl' : 'ltr'}">
+        ${TREE.map(b => blockHtml(b)).join("").replace(/class="blk"/g, 'class=""')}
+      </div></div>`));
+
+[["vpDesktop","720px"],["vpTablet","560px"],["vpMobile","390px"]].forEach(([id, w]) => {
+  $("#" + id).addEventListener("click", () => {
+    ["vpDesktop","vpTablet","vpMobile"].forEach(x =>
+      $("#" + x).setAttribute("aria-pressed", String(x === id)));
+    $("#frame").style.maxInlineSize = w;
+  });
+});
+</script>
+</body>
+</html>

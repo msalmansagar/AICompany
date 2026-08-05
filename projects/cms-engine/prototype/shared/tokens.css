@@ -1,0 +1,180 @@
+/* =====================================================================
+   QDB CMS Engine — design tokens and application shell.
+   Fluent / Power Platform design language, shared by every prototype page.
+   Themes: light (default), dark.
+   ===================================================================== */
+
+:root {
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+
+  --primary: #0078d4;
+  --primary-hover: #106ebe;
+  --primary-tint: #deecf9;
+  --primary-tint-2: #eff6fc;
+
+  /* Reyada brand, used where the CMS previews QDB content */
+  --brand: #3d8a72;
+  --brand-dark: #2f7d68;
+  --brand-tint: #e6f2ee;
+  --navy: #1b3a63;
+  --navy-tint: #e9f0fb;
+
+  --bg: #f3f2f1;
+  --surface: #ffffff;
+  --surface-alt: #faf9f8;
+  --nav-bg: #f3f2f1;
+
+  --border: #edebe9;
+  --border-strong: #e1dfdd;
+  --border-input: #8a8886;
+
+  --text: #201f1e;
+  --text-secondary: #605e5c;
+  --text-disabled: #a19f9d;
+
+  --success: #107c10;  --success-bg: #dff6dd;
+  --warning: #ca7c11;  --warning-bg: #fff4ce;
+  --error:   #a4262c;  --error-bg:   #fde7e9;
+  --info:    #0078d4;  --info-bg:    #eff6fc;
+  --neutral-chip: #f3f2f1;
+
+  --shadow-8:  0 1.6px 3.6px rgba(0,0,0,.13), 0 .3px .9px rgba(0,0,0,.11);
+  --shadow-16: 0 3.2px 7.2px rgba(0,0,0,.13), 0 .6px 1.8px rgba(0,0,0,.11);
+  --shadow-64: 0 12.8px 28.8px rgba(0,0,0,.22), 0 2.4px 7.2px rgba(0,0,0,.18);
+
+  --radius: 4px;
+  --radius-lg: 8px;
+  --nav-w: 260px;
+  --nav-w-collapsed: 48px;
+}
+
+[data-theme="dark"] {
+  --bg: #1b1a19;
+  --surface: #252423;
+  --surface-alt: #2d2c2b;
+  --nav-bg: #1b1a19;
+  --border: #3b3a39;
+  --border-strong: #484644;
+  --text: #f3f2f1;
+  --text-secondary: #c8c6c4;
+  --text-disabled: #797775;
+  --primary-tint: #10314a;
+  --primary-tint-2: #0d2537;
+  --brand-tint: #17332b;
+  --navy-tint: #16273d;
+  --neutral-chip: #3b3a39;
+  --success-bg: #12301a; --warning-bg: #3a2c0d; --error-bg: #3a1418; --info-bg: #0d2537;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+a { color: var(--primary); }
+
+/* ============================================================== shell === */
+
+.app { display: grid; grid-template-rows: 48px 1fr; height: 100vh; }
+
+.topbar {
+  background: var(--primary);
+  color: #fff;
+  display: flex; align-items: center; gap: 14px;
+  padding-inline: 12px;
+  box-shadow: var(--shadow-8);
+  z-index: 20;
+}
+[data-theme="dark"] .topbar { background: #0b3a5d; }
+
+.topbar .waffle {
+  inline-size: 32px; block-size: 32px; border-radius: var(--radius);
+  display: grid; place-items: center; cursor: pointer;
+}
+.topbar .waffle:hover { background: rgba(255,255,255,.12); }
+.topbar .product { font-size: 15px; font-weight: 600; white-space: nowrap; }
+.topbar .env {
+  font-size: 11px; background: rgba(255,255,255,.18); border-radius: 10px;
+  padding: 2px 9px; white-space: nowrap;
+}
+.topbar .sp { margin-inline-start: auto; }
+.topbar select {
+  background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.3);
+  border-radius: var(--radius); padding: 4px 8px; font-size: 12.5px; font-family: inherit;
+}
+.topbar select option { color: var(--text); background: var(--surface); }
+.topbar .avatar {
+  inline-size: 30px; block-size: 30px; border-radius: 50%;
+  background: rgba(255,255,255,.25); display: grid; place-items: center;
+  font-size: 12px; font-weight: 700;
+}
+
+.shell { display: grid; grid-template-columns: var(--nav-w) 1fr; min-block-size: 0; }
+.shell[data-collapsed="true"] { grid-template-columns: var(--nav-w-collapsed) 1fr; }
+
+/* ---------------------------------------------------------------- nav -- */
+
+.sitemap {
+  background: var(--nav-bg); border-inline-end: 1px solid var(--border);
+  overflow-y: auto; overflow-x: hidden; padding-block: 8px;
+}
+.sitemap .grp {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-secondary); padding: 14px 16px 6px; white-space: nowrap;
+}
+.sitemap a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 16px; color: var(--text); text-decoration: none;
+  font-size: 13.5px; border-inline-start: 3px solid transparent; white-space: nowrap;
+}
+.sitemap a:hover { background: var(--surface-alt); }
+.sitemap a[aria-current="page"] {
+  background: var(--surface); border-inline-start-color: var(--primary);
+  font-weight: 600; color: var(--primary);
+}
+.sitemap svg { flex-shrink: 0; }
+.shell[data-collapsed="true"] .sitemap .grp,
+.shell[data-collapsed="true"] .sitemap a span { display: none; }
+.shell[data-collapsed="true"] .sitemap a { justify-content: center; padding-inline: 0; }
+
+/* --------------------------------------------------------------- main -- */
+
+.work { min-inline-size: 0; display: grid; grid-template-rows: auto 1fr; min-block-size: 0; }
+
+.cmdbar {
+  background: var(--surface); border-block-end: 1px solid var(--border);
+  padding: 8px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.cmdbar .title { font-size: 18px; font-weight: 600; margin-inline-end: 10px; }
+.cmdbar .sp { margin-inline-start: auto; }
+
+.scroll { overflow: auto; padding: 20px; min-block-size: 0; }
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* ------------------------------------------------------------ toolbar -- */
+
+.btn {
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  border-radius: var(--radius); padding: 6px 13px; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  white-space: nowrap; font-family: inherit;
+}
+.btn:hover { background: var(--surface-alt); }
+.btn[data-v="primary"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn[data-v="primary"]:hover { background: var(--primary-hover); }
+.btn[data-v="brand"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn[data-v="subtle"] { border-color: transparent; background: transparent; }
+.btn[data-v="subtle"]:hover { background: var(--surface-alt); }
+.btn[data-v="danger"] { color: var(--error); border-color: var(--border-strong); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn svg { flex-shrink: 0; }
