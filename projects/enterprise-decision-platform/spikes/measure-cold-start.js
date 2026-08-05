@@ -438,8 +438,8 @@ function flattenProbe(probe) {
 // If a ping at half the observed threshold holds the sandbox warm, a keep-warm job is a real
 // option and the posture question becomes a cost question rather than an engineering one.
 async function testKeepWarm(versionId, thresholdMinutes, coldLimitMs) {
-  const pingEveryMinutes = Math.max(1, Math.floor(thresholdMinutes / 2));
-  const pingCount = 3;
+  const pingEveryMinutes = Number(argValue('--keepwarm-every')) || Math.max(1, Math.floor(thresholdMinutes / 2));
+  const pingCount = Number(argValue('--keepwarm-pings')) || 3;
   log(`P2 — keep-warm: ping every ${pingEveryMinutes} min across ${pingEveryMinutes * pingCount} min (past the ${thresholdMinutes} min threshold)`);
 
   await measure(() => testRule(versionId));
@@ -479,6 +479,17 @@ async function main() {
     summary.baseline = state.baseline || await measureWarmBaseline(fixture.versionId);
     state.baseline = summary.baseline;
     saveState(state);
+
+    // Once the threshold is known, the staircase has nothing left to say and the only open
+    // question is whether pinging prevents the cold hit. --keepwarm-only goes straight there.
+    if (process.argv.includes('--keepwarm-only')) {
+      const coldLimitMs = summary.baseline.testRule.p50 * COLD_FACTOR_THRESHOLD;
+      summary.keepWarm = await testKeepWarm(fixture.versionId, Number(argValue('--threshold')) || 30, coldLimitMs);
+      summary.completed = true;
+      log('DONE');
+      return;
+    }
+
     summary.staircase = await findIdleThreshold(fixture.versionId, summary.baseline.testRule.p50, state);
 
     const firstColdStep = summary.staircase.steps.find(step => step.isCold);
