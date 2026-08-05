@@ -16,15 +16,15 @@ import { COPY } from './landing.copy';
 const en = COPY.en;
 const ar = COPY.ar;
 
-const RAIL_MEDIA = [
-  'linear-gradient(rgba(20,34,48,.55),rgba(20,34,48,.55)), linear-gradient(135deg,#5b6b7a,#8d9aa6)',
-  'linear-gradient(rgba(20,34,48,.55),rgba(20,34,48,.55)), linear-gradient(135deg,#8a6a3f,#c2a274)',
-  'linear-gradient(rgba(20,34,48,.6),rgba(20,34,48,.6)), linear-gradient(135deg,#2a3f55,#4f6f8c)',
-  'linear-gradient(rgba(20,34,48,.55),rgba(20,34,48,.55)), linear-gradient(135deg,#6b7f8f,#a8bac6)',
-  'linear-gradient(rgba(20,34,48,.55),rgba(20,34,48,.55)), linear-gradient(135deg,#4a6270,#7d95a3)',
+const RAIL_MEDIA = [ // asset ids from media.library.ts, not raw CSS
+  'rail-slate',
+  'rail-bronze',
+  'rail-navy',
+  'rail-steel',
+  'rail-teal',
 ];
 
-const STEP_ART = ['#e4f2ec', '#e7ecf5', '#f2ead8', '#f3e9f7'];
+const STEP_ART = ['rey-green-soft', 'rey-navy-soft', 'rey-strip', 'rey-purple-soft'];
 
 export const landingData: Data = {
   root: {
@@ -52,6 +52,7 @@ export const landingData: Data = {
             subEn: en.heroSub, subAr: ar.heroSub,
             placeholderEn: en.searchPlaceholder, placeholderAr: ar.searchPlaceholder,
             searchEn: en.search, searchAr: ar.search,
+            accent: 'rey-green',
           },
         },
         {

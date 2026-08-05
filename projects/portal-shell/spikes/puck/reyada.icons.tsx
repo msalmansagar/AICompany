@@ -45,6 +45,16 @@ const PATHS: Record<string, string> = {
 /** Icons whose meaning depends on reading direction. */
 const DIRECTIONAL = new Set(['chevron', 'doubleChevron', 'services', 'rocket', 'external']);
 
+/**
+ * The registry, as select options for the editor.
+ *
+ * Exposing this means an icon is *chosen*, never typed — which removes the
+ * whole class of "icon silently missing because the name was misspelled".
+ */
+export const ICON_NAMES: string[] = Object.keys(PATHS).sort();
+
+export const ICON_OPTIONS = ICON_NAMES.map((name) => ({ label: name, value: name }));
+
 interface IconProps {
   name: keyof typeof PATHS | string;
   size?: number;
@@ -56,7 +66,28 @@ interface IconProps {
 
 export function Icon({ name, size = 16, strokeWidth = 1.7, dir = 'ltr', style, className }: IconProps) {
   const d = PATHS[name];
-  if (!d) return null;
+
+  // An unknown name previously rendered `null` — the icon simply vanished with
+  // no error, which is invisible in review. Render a dashed placeholder box
+  // instead so a bad reference is obvious on the page.
+  if (!d) {
+    return (
+      <span
+        role="img"
+        aria-label={`unknown icon: ${name}`}
+        title={`unknown icon: ${name}`}
+        style={{
+          display: 'inline-block',
+          inlineSize: size,
+          blockSize: size,
+          border: '1px dashed #c0392b',
+          borderRadius: 3,
+          flexShrink: 0,
+          ...style,
+        }}
+      />
+    );
+  }
 
   const shouldFlip = dir === 'rtl' && DIRECTIONAL.has(name);
 

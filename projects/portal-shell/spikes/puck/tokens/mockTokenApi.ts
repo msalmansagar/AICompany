@@ -11,16 +11,26 @@
  *   DIRECTION         = 860005008
  */
 
+import { colorTokenMap } from '../theme.tokens';
+
 export interface TokenResolutionContext {
   renderTarget: 'portal' | 'admin' | 'mobile';
   locale: 'ar' | 'en';
 }
 
-/** Level 1 (global) values — the platform defaults. */
+/**
+ * Level 1 (global) values — the platform defaults.
+ *
+ * The Reyada palette is merged in here rather than living in a stylesheet, so
+ * every brand colour arrives through the same resolution path as typography
+ * and direction. That is what makes per-service and per-locale palettes
+ * possible without touching a page or a component.
+ */
 const GLOBAL_TOKENS: Record<string, string> = {
   'text-direction': 'ltr',
   'font-family-base': "'Segoe UI', Tahoma, sans-serif",
   'font-size-body': '16px',
+  ...colorTokenMap(),
 };
 
 /**

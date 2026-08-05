@@ -11,15 +11,14 @@ import type { Data } from '@puckeditor/core';
  * data change, not a code change.
  */
 
-const MEDIA = {
-  ai: 'linear-gradient(135deg,#0b1a2b 0%,#12304d 45%,#1b4f6b 100%)',
-  meeting: 'linear-gradient(135deg,#b08d5f 0%,#d9c3a0 50%,#8f6f4a 100%)',
-  security: 'linear-gradient(135deg,#081527 0%,#0f3350 50%,#1c6b8f 100%)',
-  academy: 'linear-gradient(135deg,#efe7d8 0%,#e2d5c0 55%,#cbb99b 100%)',
-  legal: 'linear-gradient(135deg,#cbb9a4 0%,#e6dccd 100%)',
-  certification: 'linear-gradient(135deg,#dfe6ec 0%,#f2f5f8 100%)',
-  advisory:
-    'linear-gradient(rgba(10,28,45,0.62),rgba(10,28,45,0.62)), linear-gradient(135deg,#20415c 0%,#3b6d8c 60%,#5b93ad 100%)',
+const MEDIA = { // asset ids from media.library.ts
+  ai: 'tech-ai',
+  meeting: 'meeting-warm',
+  security: 'security',
+  academy: 'academy',
+  legal: 'legal',
+  certification: 'certification',
+  advisory: 'advisory-dark',
 };
 
 const DATE_EN = 'Jun 15 2025 - Jun 16 2025';

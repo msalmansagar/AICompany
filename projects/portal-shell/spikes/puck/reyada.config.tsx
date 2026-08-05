@@ -1,5 +1,7 @@
 import type { Config } from '@puckeditor/core';
 import { Icon } from './reyada.icons';
+import { iconField, mediaField } from './puck.fields';
+import { resolveMedia } from './media.library';
 
 /**
  * Reyada Advisory portal — bilingual Puck configuration.
@@ -105,7 +107,7 @@ export const reyadaConfig: Config = {
           arrayFields: {
             labelEn: { type: 'text', label: 'التسمية (EN)' },
             labelAr: { type: 'text', label: 'التسمية (AR)' },
-            icon: { type: 'text', label: 'الأيقونة' },
+            icon: iconField('الأيقونة'),
             active: { type: 'radio', options: [{ label: 'نعم', value: 'yes' }, { label: 'لا', value: 'no' }] },
             hasChevron: { type: 'radio', options: [{ label: 'نعم', value: 'yes' }, { label: 'لا', value: 'no' }] },
           },
@@ -236,7 +238,7 @@ export const reyadaConfig: Config = {
           type: 'array',
           label: 'الفعاليات',
           arrayFields: {
-            media: { type: 'text', label: 'الصورة (CSS)' },
+            media: mediaField('الصورة'),
             tone: { type: 'text', label: 'اللون' },
             badgeEn: { type: 'text', label: 'التصنيف (EN)' },
             badgeAr: { type: 'text', label: 'التصنيف (AR)' },
@@ -269,7 +271,7 @@ export const reyadaConfig: Config = {
             <div className="rey-events">
               {(events ?? []).map((e: Record<string, string>, i: number) => (
                 <article className="rey-event" key={i}>
-                  <div className="rey-event__media" style={{ background: e.media }} />
+                  <div className="rey-event__media" style={{ background: resolveMedia(e.media) }} />
                   <span className="rey-badge" data-tone={e.tone}>
                     <Icon name={BADGE_ICON[e.tone] ?? 'exhibition'} size={14} dir={dir} />
                     {t(locale, e.badgeEn, e.badgeAr)}
@@ -303,7 +305,7 @@ export const reyadaConfig: Config = {
         titleAr: { type: 'text', label: 'العنوان (AR)' },
         subtitleEn: { type: 'text', label: 'الوصف (EN)' },
         subtitleAr: { type: 'text', label: 'الوصف (AR)' },
-        media: { type: 'text', label: 'الصورة (CSS)' },
+        media: mediaField('الصورة'),
         programEn: { type: 'text', label: 'البرنامج (EN)' },
         programAr: { type: 'text', label: 'البرنامج (AR)' },
         descEn: { type: 'textarea', label: 'النص (EN)' },
@@ -327,7 +329,7 @@ export const reyadaConfig: Config = {
               {t(locale, p.subtitleEn, p.subtitleAr)}
             </p>
             <div className="rey-academy__item">
-              <div className="rey-academy__media" style={{ background: p.media }} />
+              <div className="rey-academy__media" style={{ background: resolveMedia(p.media) }} />
               <div>
                 <h3 className="rey-academy__title">{t(locale, p.programEn, p.programAr)}</h3>
                 <p className="rey-academy__desc">{t(locale, p.descEn, p.descAr)}</p>
@@ -372,7 +374,7 @@ export const reyadaConfig: Config = {
           type: 'array',
           label: 'الخدمات',
           arrayFields: {
-            media: { type: 'text', label: 'الصورة (CSS)' },
+            media: mediaField('الصورة'),
             titleEn: { type: 'text', label: 'العنوان (EN)' },
             titleAr: { type: 'text', label: 'العنوان (AR)' },
             badgeEn: { type: 'text', label: 'الشارة (EN)' },
@@ -393,7 +395,7 @@ export const reyadaConfig: Config = {
             <div className="rey-services">
               {(services ?? []).map((s: Record<string, string>, i: number) => (
                 <article className="rey-service" key={i}>
-                  <div className="rey-service__media" style={{ background: s.media }} />
+                  <div className="rey-service__media" style={{ background: resolveMedia(s.media) }} />
                   {s.badgeEn ? (
                     <span className="rey-badge" data-tone="sme">
                       <Icon name="exhibition" size={13} dir={dir} />
@@ -413,7 +415,7 @@ export const reyadaConfig: Config = {
     AdvisoryPromo: {
       label: 'الاستشارات الفورية (Promo)',
       fields: {
-        media: { type: 'text', label: 'الصورة (CSS)' },
+        media: mediaField('الصورة'),
         titleEn: { type: 'text', label: 'العنوان (EN)' },
         titleAr: { type: 'text', label: 'العنوان (AR)' },
         bodyEn: { type: 'textarea', label: 'النص (EN)' },
@@ -426,7 +428,7 @@ export const reyadaConfig: Config = {
         const dir = dirOf(locale);
         return (
           <section className="rey-card">
-            <div className="rey-promo__media" style={{ background: media }}>
+            <div className="rey-promo__media" style={{ background: resolveMedia(media) }}>
               <h2 className="rey-promo__title">{t(locale, titleEn, titleAr)}</h2>
               <Icon name="headset" size={54} dir={dir} className="rey-promo__icon" />
             </div>

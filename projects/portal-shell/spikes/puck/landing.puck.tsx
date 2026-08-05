@@ -1,5 +1,8 @@
 import type { Config } from '@puckeditor/core';
 import { Icon } from './reyada.icons';
+import { iconField, mediaField, colorField, surfaceField } from './puck.fields';
+import { resolveMedia } from './media.library';
+import { colorVar } from './theme.tokens';
 
 /**
  * Landing page + login, composed entirely in Puck.
@@ -132,6 +135,9 @@ export const landingConfig: Config = {
         subEn: { type: 'textarea', label: 'الوصف (EN)' },
         subAr: { type: 'textarea', label: 'الوصف (AR)' },
         ...pair('placeholder'), ...pair('search'),
+        // Colour is chosen as a TOKEN SLUG, never as a hex value — only
+        // approved brand colours can reach the page.
+        accent: colorField('لون التمييز (Highlight)'),
       },
       defaultProps: {
         leadEn: 'Find the Perfect ', leadAr: 'اعثر على ',
@@ -160,9 +166,13 @@ export const landingConfig: Config = {
             ))}
             <h1>
               {t(locale, p.leadEn, p.leadAr)}
-              <span className="lp__hi">{t(locale, p.highlight1En, p.highlight1Ar)}</span>
+              <span className="lp__hi" style={{ color: colorVar(p.accent, 'rey-green') }}>
+                {t(locale, p.highlight1En, p.highlight1Ar)}
+              </span>
               {t(locale, p.middleEn, p.middleAr)}
-              <span className="lp__hi">{t(locale, p.highlight2En, p.highlight2Ar)}</span>
+              <span className="lp__hi" style={{ color: colorVar(p.accent, 'rey-green') }}>
+                {t(locale, p.highlight2En, p.highlight2Ar)}
+              </span>
               {t(locale, p.tailEn, p.tailAr)}
             </h1>
             <p>{t(locale, p.subEn, p.subAr)}</p>
@@ -194,7 +204,7 @@ export const landingConfig: Config = {
             tagsEn: { type: 'text', label: 'الوسوم (EN, comma-separated)' },
             tagsAr: { type: 'text', label: 'الوسوم (AR)' },
             ...pair('sub'), ...pair('providers'),
-            media: { type: 'text', label: 'الخلفية (CSS)' },
+            media: mediaField('الخلفية'),
           },
         },
         activeDot: { type: 'number', label: 'النقطة النشطة' },
@@ -206,7 +216,7 @@ export const landingConfig: Config = {
           <>
             <div className="lp-rail">
               {list.map((c: Record<string, string>, i: number) => (
-                <article className="lp-service" key={i} style={{ background: c.media }}>
+                <article className="lp-service" key={i} style={{ background: resolveMedia(c.media) }}>
                   <div className="lp-service__tags">
                     {splitTags(t(locale, c.tagsEn, c.tagsAr)).map((tag) => (
                       <span className="lp-tag" data-tone={TAG_TONE[tag]} key={tag}>{tag}</span>
@@ -242,7 +252,7 @@ export const landingConfig: Config = {
           label: 'الخطوات',
           arrayFields: {
             ...pair('step'), ...pair('title'),
-            art: { type: 'text', label: 'لون الرسم' },
+            art: surfaceField('لون الرسم'),
             accent: { type: 'radio', options: [{ label: 'نعم', value: 'yes' }, { label: 'لا', value: 'no' }] },
           },
         },
@@ -268,7 +278,7 @@ export const landingConfig: Config = {
                     </span>
                     <span className="lp-step__title">{t(locale, s.titleEn, s.titleAr)}</span>
                     <span className="lp-step__num">{i + 1}</span>
-                    <span className="lp-step__art" style={{ background: s.art }} />
+                    <span className="lp-step__art" style={{ background: colorVar(s.art, 'rey-canvas') }} />
                   </div>
                 ))}
               </div>
@@ -293,7 +303,7 @@ export const landingConfig: Config = {
             items: { type: 'array', label: 'النقاط', arrayFields: { ...pair('label') } },
             ...pair('cta'),
             variant: { type: 'radio', options: [{ label: 'Navy', value: 'navy' }, { label: 'Green', value: 'primary' }] },
-            icon: { type: 'text', label: 'الأيقونة' },
+            icon: iconField('الأيقونة'),
           },
         },
       },
@@ -402,7 +412,7 @@ export const landingConfig: Config = {
             ...pair('title'),
             descEn: { type: 'textarea', label: 'الوصف (EN)' },
             descAr: { type: 'textarea', label: 'الوصف (AR)' },
-            icon: { type: 'text', label: 'الأيقونة' },
+            icon: iconField('الأيقونة'),
           },
         },
       },
@@ -453,7 +463,7 @@ export const landingConfig: Config = {
             ...pair('title'),
             descEn: { type: 'textarea', label: 'الوصف (EN)' },
             descAr: { type: 'textarea', label: 'الوصف (AR)' },
-            icon: { type: 'text', label: 'الأيقونة' },
+            icon: iconField('الأيقونة'),
           },
         },
       },
