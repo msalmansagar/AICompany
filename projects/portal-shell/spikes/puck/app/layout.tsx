@@ -4,6 +4,7 @@ import './fonts.css';
 import './portal.css';
 import './reyada.css';
 import './landing.css';
+import './studio.css';
 import type { ReactNode } from 'react';
 
 export const metadata = { title: 'Puck RTL Spike' };
