@@ -22,10 +22,30 @@ npm run dev      # http://localhost:3100
 | `/portal?dir=rtl` · `?dir=ltr` | Bilingual portal shell composed entirely of Puck root slots |
 | `/portal?...&mode=edit` | The same shell, editable |
 | `/reyada?dir=ltr` · `?dir=rtl` | Reyada Advisory dashboard, bilingual, matching the supplied design |
-| `/landing?dir=ltr` | Marketplace landing page |
-| `/login?dir=ltr` | Sign-in stub — submitting lands on `/reyada` |
+| **`/landing-puck?mode=edit`** | **Landing page composed in Puck — 10 editable sections** |
+| **`/login-puck?mode=edit`** | **Login page composed in Puck — 2 editable components** |
+| `/landing?dir=ltr` | Same landing page hand-written in React, kept for comparison |
+| `/login?dir=ltr` | Same login page hand-written in React |
 
-Flow: `/landing` → sign-in → `/login` → submit → `/reyada?dir=ltr`.
+Flow: `/landing-puck` → sign-in → `/login-puck` → submit → `/reyada?dir=ltr`.
+
+### Why two versions of each page
+
+`/landing` and `/login` were written directly in React first. That was a
+mistake for an evaluation spike — you cannot judge Puck's capability from
+pages Puck did not build. `/landing-puck` and `/login-puck` are the same two
+pages composed as Puck components, and they are the ones to look at.
+
+Both are kept so the difference is inspectable: identical output, identical
+CSS, one editable by an admin and one not. Converting required **no styling
+changes at all**, because `app/landing.css` was written against classNames
+rather than inline styles.
+
+Editable in `/landing-puck`: every heading fragment (including which words are
+highlighted green), body copy, nav links, the five service cards with their
+tags, the four process steps, both "Choose Your Path" cards with their
+checklists, provider cards, academy cards, benefit cards, and all four footer
+columns with their links — in English and Arabic, on one tree.
 
 ## Read the findings, not just the code
 
