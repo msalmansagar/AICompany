@@ -141,9 +141,28 @@ a { color: var(--primary); }
   font-weight: 600; color: var(--primary);
 }
 .sitemap svg { flex-shrink: 0; }
-.shell[data-collapsed="true"] .sitemap .grp,
 .shell[data-collapsed="true"] .sitemap a span { display: none; }
 .shell[data-collapsed="true"] .sitemap a { justify-content: center; padding-inline: 0; }
+
+/* The group headings carry the only grouping in the expanded rail. Hiding them
+   outright would run 13 icons together as one undifferentiated column, so keep
+   the element as a thin rule instead of removing it. */
+.shell[data-collapsed="true"] .sitemap .grp {
+  font-size: 0;
+  padding: 0;
+  margin: 8px 12px;
+  border-block-start: 1px solid var(--border-strong);
+}
+.shell[data-collapsed="true"] .sitemap .grp:first-child {
+  border-block-start: none;
+  margin-block-start: 4px;
+}
+
+.topbar .waffle { border: none; color: inherit; }
+.topbar .waffle:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+
+/* 48px is tight once the active-item border is accounted for. */
+.shell[data-collapsed="true"] { grid-template-columns: 52px 1fr; }
 
 /* --------------------------------------------------------------- main -- */
 

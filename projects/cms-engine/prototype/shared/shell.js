@@ -45,8 +45,10 @@ const Shell = {
     this.file = file;
     document.documentElement.dataset.theme = localStorage.getItem("qdb.cms.theme") || "light";
 
-    this.renderTopbar();
     this.renderSitemap();
+    this.renderTopbar();
+    // Restore before first paint so a collapsed rail does not flash open.
+    this.toggleNav(localStorage.getItem("qdb.cms.nav") === "collapsed");
 
     window.addEventListener("hashchange", () => this.route());
     this.route(defaultScreen);
@@ -56,7 +58,9 @@ const Shell = {
     const bar = $(".topbar");
     if (!bar) return;
     bar.innerHTML = `
-      <div class="waffle">${icon("grid", 18)}</div>
+      <button class="waffle" id="navToggle" type="button"
+        aria-label="Collapse navigation" aria-expanded="true"
+        aria-controls="sitemap">${icon("grid", 18)}</button>
       <div class="product">QDB CMS Engine</div>
       <div class="env">org5869857f · Sandbox</div>
       <div class="sp"></div>
@@ -75,15 +79,46 @@ const Shell = {
       $("#themeBtn").innerHTML = icon(next === "dark" ? "sun" : "moon", 15);
     });
     $("#themeBtn").innerHTML = icon(document.documentElement.dataset.theme === "dark" ? "sun" : "moon", 15);
+
+    $("#navToggle").addEventListener("click", () => this.toggleNav());
+  },
+
+  /**
+   * Collapses the sitemap to an icon rail.
+   *
+   * State is persisted because the prototype is a set of separate documents —
+   * without it every navigation would silently re-expand the rail and the
+   * setting would feel broken rather than reset.
+   */
+  toggleNav(force) {
+    const shell = $(".shell");
+    const btn = $("#navToggle");
+    if (!shell) return;
+
+    const collapsed = force !== undefined
+      ? force
+      : shell.getAttribute("data-collapsed") !== "true";
+
+    shell.setAttribute("data-collapsed", String(collapsed));
+    localStorage.setItem("qdb.cms.nav", collapsed ? "collapsed" : "expanded");
+
+    if (btn) {
+      btn.setAttribute("aria-expanded", String(!collapsed));
+      btn.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation");
+    }
   },
 
   renderSitemap() {
     const nav = $(".sitemap");
     if (!nav) return;
-    nav.innerHTML = SITEMAP.map(g => `
+    nav.id = "sitemap";
+    // title= is what makes the collapsed rail usable: an icon with no label is
+    // a guessing game, and a tooltip costs nothing.
+    nav.innerHTML = SITEMAP.map((g, gi) => `
       <div class="grp">${esc(g.grp)}</div>
       ${g.items.map(i => `
-        <a href="${i.file === this.file ? "#" + i.id : i.file + "#" + i.id}" data-screen="${i.id}">
+        <a href="${i.file === this.file ? "#" + i.id : i.file + "#" + i.id}"
+           data-screen="${i.id}" data-group="${gi}" title="${esc(g.grp)} — ${esc(i.label)}">
           ${icon(i.icon, 17)}<span>${esc(i.label)}</span>
         </a>`).join("")}
     `).join("");
@@ -102,7 +137,12 @@ const Shell = {
     $$(".sitemap a").forEach(a =>
       a.setAttribute("aria-current", a.dataset.screen === this.current ? "page" : "false"));
 
-    const t = $("#" + CSS.escape(this.current));
+    // A file with no .screen sections (the designer, which Puck owns entirely)
+    // leaves `current` empty. Querying "#" is a SyntaxError, and because that
+    // threw from here it silently aborted everything after Shell.init in the
+    // caller's script block — an invisible failure with a very confusing
+    // symptom. Guard rather than assume every page is screen-based.
+    const t = this.current ? $("#" + CSS.escape(this.current)) : null;
     const bar = $(".cmdbar .title");
     if (bar && t) bar.textContent = t.dataset.title || "";
     $(".scroll")?.scrollTo(0, 0);

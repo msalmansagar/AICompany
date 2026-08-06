@@ -109,6 +109,18 @@
 
   .cdn-err { background:#fdecec; border:1px solid #f3c0c0; color:#8a1f1f;
     padding:18px 20px; margin:20px; border-radius:8px; font-size:13.5px; line-height:1.6; }
+
+  /* Focus mode — hand the whole viewport to the designer.
+     The CMS chrome costs 89px of a locked 100vh, which left the canvas ~621px
+     tall against 1379px of page content: workable, but a lot of scrolling
+     through a small window. Focus mode reclaims all of it. */
+  .app[data-focus="true"] .topbar,
+  .app[data-focus="true"] .sitemap { display: none; }
+  .app[data-focus="true"] { grid-template-rows: auto minmax(0, 1fr); }
+  .app[data-focus="true"] .shell { grid-template-columns: minmax(0, 1fr); }
+  .app[data-focus="true"] .cmdbar { padding-block: 5px; }
+  .app[data-focus="true"] .cmdbar .title { font-size: 14px; }
+  .app[data-focus="true"] #modeHint { display: none; }
 </style>
 </head>
 <body>
@@ -124,6 +136,7 @@
           <button class="btn" id="modeEdit" data-v="primary">Edit</button>
           <button class="btn" id="modeView">View</button>
         </div>
+        <button class="btn" id="focusBtn" title="Give the designer the whole screen">⤢ Focus</button>
         <span class="sp"></span>
         <span class="muted" id="modeHint" style="font-size:12px">Drag from the left · click a block to edit · undo/redo and viewports in the Puck header</span>
       </div>
@@ -138,8 +151,33 @@
 <script src="shared/mock-data.js"></script>
 <script src="shared/shell.js"></script>
 <script>
-  // The shell needs a .screen to route to; this file has a single view.
+  // This file has no .screen sections — Puck owns the whole work area.
   Shell.init("02-designer.html", "designer");
+</script>
+
+<script>
+  // Separate script block on purpose: a throw in Shell.init must not be able
+  // to take the focus-mode listener down with it, which is exactly what
+  // happened before the guard was added to route().
+  // Focus mode lives outside React so it survives editor re-mounts.
+  (function () {
+    const app = document.querySelector(".app");
+    const btn = document.querySelector("#focusBtn");
+    btn.addEventListener("click", () => {
+      const on = app.getAttribute("data-focus") === "true";
+      app.setAttribute("data-focus", String(!on));
+      btn.textContent = on ? "⤢ Focus" : "⤡ Exit focus";
+      btn.setAttribute("data-v", on ? "" : "primary");
+      // Puck measures its canvas on resize; without this the iframe keeps the
+      // old height and the extra space stays blank.
+      window.dispatchEvent(new Event("resize"));
+    });
+    // Escape leaves focus mode — a full-screen surface with no visible way out
+    // is a trap.
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && app.getAttribute("data-focus") === "true") btn.click();
+    });
+  })();
 </script>
 
 <script type="module">
@@ -212,6 +250,119 @@ const mediaField = (label) => ({
 
 const MEDIA_CSS = Object.fromEntries(MEDIA.map(m => [m.key, m.css]));
 
+/**
+ * Dialog block.
+ *
+ * A real component rather than a bare render function because auto-open needs
+ * useEffect — the dialog must exist in the DOM before showModal() can be
+ * called on it, so it cannot be done during render.
+ */
+const DialogBlock = ({ dialogId, titleEn, titleAr, width, openOn, openDelay,
+                       dismissible, items: Items, puck }) => {
+  const ref = React.useRef(null);
+  const title = puck?.metadata?.locale === "ar" ? (titleAr || titleEn) : (titleEn || titleAr);
+  const editing = !!puck?.isEditing;
+
+  React.useEffect(() => {
+    // Never auto-open inside the editor: a modal would cover the canvas and
+    // trap the author every time the page re-rendered.
+    if (editing || openOn !== "load") return;
+    const t = setTimeout(() => {
+      const el = ref.current;
+      if (el && !el.open && el.showModal) el.showModal();
+    }, Number(openDelay) || 0);
+    return () => clearTimeout(t);
+  }, [editing, openOn, openDelay]);
+
+  // Blocking Escape is a deliberate, rarely-correct choice — it is right for a
+  // consent gate and wrong for almost everything else, so it is opt-in.
+  const onCancel = (e) => { if (dismissible === "no") e.preventDefault(); };
+
+  if (editing) {
+    const note = openOn === "load"
+      ? `opens automatically on page load${Number(openDelay) ? ` after ${Number(openDelay) / 1000}s` : ""}`
+      : "hidden until a button opens it";
+    return h("div", { style: {
+      border: "2px dashed #8a5a11", borderRadius: 10, padding: 14,
+      background: "#fff9ec", marginBlockEnd: 16 } },
+      h("div", { style: { fontSize: 11.5, fontWeight: 700, color: "#8a5a11",
+        textTransform: "uppercase", letterSpacing: ".06em", marginBlockEnd: 8 } },
+        `Dialog · #${dialogId} — ${note}`),
+      h("strong", { style: { display: "block", marginBlockEnd: 10, fontSize: 17 } }, title),
+      h(Items, { minEmptyHeight: 90 }));
+  }
+
+  return h("dialog", { id: dialogId, ref, onCancel, style: {
+    inlineSize: `min(${width}, 92vw)`, border: "none", borderRadius: 12,
+    padding: 0, boxShadow: "0 12.8px 28.8px rgba(0,0,0,.22)" } },
+    h("div", { style: { padding: "20px 22px" } },
+      h("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBlockEnd: 14 } },
+        h("strong", { style: { fontSize: 18 } }, title),
+        dismissible === "no" ? null : h("button", { type: "button", "aria-label": "Close",
+          style: { marginInlineStart: "auto", border: "1px solid #e5e8eb",
+            background: "#fff", borderRadius: 6, padding: "6px 12px", cursor: "pointer",
+            fontFamily: "inherit", fontSize: 13, fontWeight: 600 },
+          onClick: (e) => e.currentTarget.closest("dialog")?.close() }, "Close")),
+      h(Items)));
+};
+
+/**
+ * Searchable icon picker.
+ *
+ * A plain `select` over 40+ icons is unusable — you cannot see what you are
+ * choosing. This is a real React component so hooks are legal inside it;
+ * Puck's custom-field `render` is a render prop, not a component, so calling
+ * useState directly in it would be unsafe.
+ */
+const IconPicker = ({ value, onChange }) => {
+  const [q, setQ] = useState("");
+  const names = Object.keys(ICON_PATHS).sort()
+    .filter(n => !q || n.toLowerCase().includes(q.toLowerCase()));
+  return h("div", null,
+    h("input", {
+      type: "search", value: q, placeholder: `Search ${Object.keys(ICON_PATHS).length} icons…`,
+      onChange: (e) => setQ(e.target.value),
+      style: { inlineSize: "100%", padding: "7px 9px", fontSize: 13, marginBlockEnd: 8,
+        border: "1px solid #e1dfdd", borderRadius: 4, fontFamily: "inherit" },
+    }),
+    h("div", { style: { display: "grid",
+      gridTemplateColumns: "repeat(auto-fill,minmax(38px,1fr))", gap: 5,
+      maxBlockSize: 190, overflowY: "auto" } },
+      names.map(n => h("button", {
+        key: n, type: "button", title: n, "aria-label": n, "aria-pressed": value === n,
+        onClick: () => onChange(n),
+        style: { blockSize: 36, display: "grid", placeItems: "center", cursor: "pointer",
+          borderRadius: 5, background: value === n ? "#deecf9" : "#fff",
+          border: value === n ? "2px solid #0078d4" : "1px solid #e1dfdd" },
+        dangerouslySetInnerHTML: { __html: icon(n, 17) },
+      }))),
+    h("div", { className: "pf-hint" }, value || "none selected"),
+    names.length === 0 ? h("div", { className: "pf-hint" }, "No icon matches that search.") : null);
+};
+
+const iconField = (label) => ({
+  type: "custom", label,
+  render: (props) => h(IconPicker, props),
+});
+
+/** Media picker that also offers "none", for optional backgrounds. */
+const bgImageField = (label) => ({
+  type: "custom", label,
+  render: ({ value, onChange }) =>
+    h("div", null,
+      h("div", { className: "pf-swatches" },
+        [h("button", {
+          key: "none", type: "button", title: "No image", "aria-label": "No image",
+          "aria-pressed": !value, onClick: () => onChange(""),
+          style: { background: "repeating-linear-gradient(45deg,#eee 0 6px,#fff 6px 12px)" },
+        })].concat(MEDIA.map(m => h("button", {
+          key: m.key, type: "button", title: m.name, "aria-label": m.name,
+          "aria-pressed": value === m.key, onClick: () => onChange(m.key),
+          style: { background: m.css, backgroundSize: "cover" },
+        })))),
+      h("div", { className: "pf-hint" }, value || "no background image")),
+});
+
 /* --------------------------------------------------------------- helpers */
 const isAr = (p) => p?.metadata?.locale === "ar";
 const tx = (p, en, ar) => isAr(p) ? (ar || en) : (en || ar);
@@ -233,7 +384,7 @@ const config = {
     layout:      { title: "Layout",      components: ["Section", "Columns", "Spacer", "Divider"] },
     content:     { title: "Content",     components: ["Heading", "Text", "Image", "IconBlock"] },
     actions:     { title: "Actions",     components: ["Button", "ButtonGroup"] },
-    interactive: { title: "Interactive", components: ["Tabs", "Accordion"] },
+    interactive: { title: "Interactive", components: ["Tabs", "Accordion", "Dialog"] },
     data:        { title: "Data",        components: ["StatCard", "Callout"] },
   },
 
@@ -252,18 +403,45 @@ const config = {
     Section: {
       label: "Section",
       fields: {
-        background: tokenField("Background — token", SURFACE_TOKENS),
+        background: tokenField("Background colour — token", SURFACE_TOKENS),
+        bgImage: bgImageField("Background image"),
+        bgSize: { type: "radio", label: "Image fit",
+          options: [{ label: "Cover", value: "cover" }, { label: "Contain", value: "contain" }] },
+        overlay: { type: "select", label: "Overlay",
+          options: [
+            { label: "None", value: "none" },
+            { label: "Dark 40% — for light text", value: "dark" },
+            { label: "Light 55% — for dark text", value: "light" },
+          ] },
         padding: { type: "radio", label: "Padding",
           options: [{ label: "S", value: "20px" }, { label: "M", value: "40px" }, { label: "L", value: "68px" }] },
         maxWidth: { type: "radio", label: "Width",
           options: [{ label: "Narrow", value: "680px" }, { label: "Wide", value: "1100px" }, { label: "Full", value: "100%" }] },
         items: { type: "slot" },
       },
-      defaultProps: { background: "surface", padding: "40px", maxWidth: "1100px" },
-      render: ({ background, padding, maxWidth, items: Items }) =>
-        h("section", { style: { background: v(background, "surface"), paddingBlock: padding } },
+      defaultProps: { background: "surface", bgImage: "", bgSize: "cover",
+        overlay: "none", padding: "40px", maxWidth: "1100px" },
+      render: ({ background, bgImage, bgSize, overlay, padding, maxWidth, items: Items }) => {
+        // Layers, painted back to front: colour token, then image, then overlay.
+        // The overlay exists because text over an arbitrary photograph is a
+        // contrast accident waiting to happen — offering it as a field is
+        // cheaper than discovering the problem after publish.
+        const layers = [];
+        if (overlay === "dark")  layers.push("linear-gradient(rgba(10,20,32,.45),rgba(10,20,32,.45))");
+        if (overlay === "light") layers.push("linear-gradient(rgba(255,255,255,.55),rgba(255,255,255,.55))");
+        if (bgImage) layers.push(MEDIA_CSS[bgImage] || "none");
+        layers.push(v(background, "surface"));
+
+        return h("section", { style: {
+          background: layers.join(", "),
+          backgroundSize: bgImage ? `auto, ${bgSize}, auto` : "auto",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          paddingBlock: padding,
+        } },
           h("div", { style: { maxWidth, margin: "0 auto", paddingInline: "22px" } },
-            h(Items, { minEmptyHeight: 110 }))),
+            h(Items, { minEmptyHeight: 110 })));
+      },
     },
 
     Columns: {
@@ -354,8 +532,7 @@ const config = {
     IconBlock: {
       label: "Icon",
       fields: {
-        name: { type: "select", label: "Icon",
-          options: Object.keys(ICON_PATHS).sort().map(k => ({ label: k, value: k })) },
+        name: iconField("Icon"),
         color: tokenField("Colour — token", INK_TOKENS),
         background: tokenField("Circle — token", SURFACE_TOKENS),
         size: { type: "radio", label: "Size",
@@ -391,28 +568,49 @@ const config = {
             { label: "Navy", value: "navy" },
             { label: "Outline", value: "outline" },
           ] },
-        iconName: { type: "select", label: "Icon",
-          options: [{ label: "none", value: "" }].concat(
-            Object.keys(ICON_PATHS).sort().map(k => ({ label: k, value: k }))) },
-        href: { type: "text", label: "Link" },
+        iconName: iconField("Icon"),
+        action: { type: "select", label: "On click",
+          options: [
+            { label: "Go to link", value: "link" },
+            { label: "Open in new tab", value: "newTab" },
+            { label: "Open a dialog (popup)", value: "popup" },
+          ] },
+        href: { type: "text", label: "Link — for link / new tab" },
+        popupTarget: { type: "text", label: "Dialog ID — for popup" },
         fullWidth: { type: "radio", label: "Width",
           options: [{ label: "Auto", value: "auto" }, { label: "Full", value: "full" }] },
       },
       defaultProps: { labelEn: "Button", labelAr: "زر", variant: "primary",
-        iconName: "chevron", href: "#", fullWidth: "auto" },
-      render: ({ labelEn, labelAr, variant, iconName, href, fullWidth, puck }) => {
+        iconName: "chevron", action: "link", href: "#", popupTarget: "", fullWidth: "auto" },
+      render: ({ labelEn, labelAr, variant, iconName, action, href, popupTarget, fullWidth, puck }) => {
         const label = tx(puck, labelEn, labelAr);
         const props = { className: "qdb-btn", "data-v": variant, "data-full": fullWidth === "full" };
         const kids = [
           label,
           iconName ? h("span", { key: "i", dangerouslySetInnerHTML: { __html: icon(iconName, 15) } }) : null,
         ];
+
         // Inert while editing: a real anchor would navigate the author out of
-        // the canvas. Shipping the guard inside the component is why Button
-        // exists rather than raw links.
-        return puck?.isEditing
-          ? h("span", props, kids)
-          : h("a", { ...props, href: href || "#" }, kids);
+        // the canvas, and a dialog would trap them in a modal. Shipping the
+        // guard inside the component is why Button exists rather than raw links.
+        if (puck?.isEditing) return h("span", props, kids);
+
+        if (action === "popup") {
+          return h("button", { ...props, type: "button",
+            onClick: (e) => {
+              // showModal() gives focus trapping, Escape-to-close and inert
+              // background for free — all things a div-based modal has to
+              // reimplement, usually incompletely.
+              const dlg = e.currentTarget.ownerDocument.getElementById(popupTarget);
+              if (dlg && dlg.showModal) dlg.showModal();
+            } }, kids);
+        }
+        if (action === "newTab") {
+          // noopener is not optional: without it the opened page gets a
+          // reference back through window.opener.
+          return h("a", { ...props, href: href || "#", target: "_blank", rel: "noopener noreferrer" }, kids);
+        }
+        return h("a", { ...props, href: href || "#" }, kids);
       },
     },
 
@@ -490,6 +688,34 @@ const config = {
               h("div", { className: "qdb-acc__body" }, tx(puck, it.bodyEn, it.bodyAr))))),
     },
 
+    Dialog: {
+      label: "Dialog (popup)",
+      fields: {
+        dialogId: { type: "text", label: "Dialog ID — a Button targets this" },
+        ...pairFields("title", "Title"),
+        width: { type: "radio", label: "Width",
+          options: [{ label: "S", value: "420px" }, { label: "M", value: "620px" }, { label: "L", value: "860px" }] },
+        openOn: { type: "select", label: "Opens",
+          options: [
+            { label: "Only when a button opens it", value: "button" },
+            { label: "Automatically on page load", value: "load" },
+          ] },
+        openDelay: { type: "select", label: "Delay — for page load",
+          options: [
+            { label: "Immediately", value: "0" },
+            { label: "After 1 second", value: "1000" },
+            { label: "After 3 seconds", value: "3000" },
+          ] },
+        dismissible: { type: "radio", label: "Escape / backdrop closes it",
+          options: [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }] },
+        items: { type: "slot" },
+      },
+      defaultProps: { dialogId: "dlg-1", titleEn: "More information",
+        titleAr: "مزيد من المعلومات", width: "620px",
+        openOn: "button", openDelay: "0", dismissible: "yes" },
+      render: (props) => h(DialogBlock, props),
+    },
+
     /* -------------------------------------------------------------- data */
     StatCard: {
       label: "Stat card",
@@ -497,8 +723,7 @@ const config = {
         ...pairFields("label", "Label"),
         value: { type: "text", label: "Value" },
         ...pairFields("trend", "Trend"),
-        iconName: { type: "select", label: "Icon",
-          options: Object.keys(ICON_PATHS).sort().map(k => ({ label: k, value: k })) },
+        iconName: iconField("Icon"),
         accent: tokenField("Accent — token", INK_TOKENS),
       },
       defaultProps: { labelEn: "Metric", labelAr: "المؤشر", value: "12",
@@ -521,8 +746,7 @@ const config = {
       fields: {
         ...pairFields("title", "Title"),
         ...pairFields("body", "Body", "textarea"),
-        iconName: { type: "select", label: "Icon",
-          options: Object.keys(ICON_PATHS).sort().map(k => ({ label: k, value: k })) },
+        iconName: iconField("Icon"),
         accent: tokenField("Accent — token", INK_TOKENS),
         background: tokenField("Background — token", SURFACE_TOKENS),
       },
@@ -548,7 +772,9 @@ const config = {
 const seed = {
   root: { props: {
     content: [
-      { type: "Section", props: { id: "sec-1", background: "surface", padding: "40px", maxWidth: "1100px",
+      { type: "Section", props: { id: "sec-1", background: "surface",
+        bgImage: "hero-advisory", bgSize: "cover", overlay: "light",
+        padding: "68px", maxWidth: "1100px",
         items: [
           { type: "Heading", props: { id: "h-1", textEn: "About Reyada", textAr: "عن ريادة",
             level: "1", color: "ink", align: "start" } },
@@ -593,10 +819,27 @@ const seed = {
             bodyAr: "شارك رقم سجلك التجاري لفتح أسعار استشارية مدعومة ومطابقة ذات أولوية." } },
           { type: "ButtonGroup", props: { id: "bg-1", align: "start", items: [
             { type: "Button", props: { id: "b-1", labelEn: "Explore services", labelAr: "استكشف الخدمات",
-              variant: "primary", iconName: "chevron", href: "/services", fullWidth: "auto" } },
-            { type: "Button", props: { id: "b-2", labelEn: "Become a provider", labelAr: "كن مزوداً",
-              variant: "outline", iconName: "", href: "/for-providers", fullWidth: "auto" } },
+              variant: "primary", iconName: "chevron", action: "link",
+              href: "/services", popupTarget: "", fullWidth: "auto" } },
+            { type: "Button", props: { id: "b-2", labelEn: "Eligibility criteria", labelAr: "شروط الأهلية",
+              variant: "outline", iconName: "info", action: "popup",
+              href: "#", popupTarget: "dlg-eligibility", fullWidth: "auto" } },
+            { type: "Button", props: { id: "b-3", labelEn: "QDB main site", labelAr: "موقع بنك قطر للتنمية",
+              variant: "outline", iconName: "external", action: "newTab",
+              href: "https://www.qdb.qa", popupTarget: "", fullWidth: "auto" } },
           ] } },
+
+          { type: "Dialog", props: { id: "dlg-1", dialogId: "dlg-eligibility", width: "620px",
+            openOn: "button", openDelay: "0", dismissible: "yes",
+            titleEn: "Eligibility criteria", titleAr: "شروط الأهلية", items: [
+              { type: "Text", props: { id: "dt-1", color: "muted", align: "start", size: "15px",
+                bodyEn: "Advisory services are open to businesses holding a valid Qatari commercial registration, with the CR active at the time of application.",
+                bodyAr: "الخدمات الاستشارية متاحة للشركات الحاصلة على سجل تجاري قطري ساري المفعول، على أن يكون السجل نشطاً وقت تقديم الطلب." } },
+              { type: "Callout", props: { id: "dc-1", titleEn: "Subsidised rates",
+                titleAr: "أسعار مدعومة", iconName: "award", accent: "g", background: "gs",
+                bodyEn: "SMEs registered with QDB receive subsidised advisory rates on most services.",
+                bodyAr: "تحصل المنشآت الصغيرة والمتوسطة المسجلة لدى بنك قطر للتنمية على أسعار استشارية مدعومة لمعظم الخدمات." } },
+            ] } },
         ] } },
     ],
   } },
