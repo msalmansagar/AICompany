@@ -4664,7 +4664,7 @@ function renderManualDesigner(c) {
   const cmd = el(`<div class="cmdbar">
     <button class="cmd" id="md_back">${ic("back")}Back</button><div class="cmd-sep"></div>
     <button class="cmd primary" id="md_save">${ic("save")}Save</button>
-    <button class="cmd" id="md_settings">${ic("edit")}All report settings</button>
+    <button class="cmd" id="md_settings">${ic("edit")}Report settings</button>
     <button class="cmd" id="md_wizard">${ic("play")}Open in wizard style</button>
     <div class="cmd-spacer"></div>
     <span class="pill draft" style="margin-right:8px">Manual designer · Draft</span>
@@ -4693,7 +4693,10 @@ function renderManualDesigner(c) {
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
   $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; saveReportToServer(r); };
-  $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
+  /* Report properties, layout, style and export are two-column forms. They open at the width a form
+     needs instead of navigating away to the tabbed screen, which was the last thing still pulling
+     the author off the canvas. */
+  $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; openReportSettings(r); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
   $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
 }
@@ -4705,19 +4708,161 @@ function renderManualDesigner(c) {
    The panels here are stacked cards rather than the spreadsheet rows the tabbed screen uses. That is
    the whole reason they fit: a filter row is seven controls wide and needs the width of the window,
    while the same seven stacked in a card need 250px. It also puts one filter in one box instead of
-   spreading it across a row the eye has to track back to its heading. */
+   spreading it across a row the eye has to track back to its heading.
+
+   Fifteen tabs become eight sections because several of them were one subject split three ways:
+   transformations, formulas and drilldown are all "what happens to the data on the way out", and
+   security, ribbon and export are all "who gets it and how". Grouping them keeps the strip readable
+   and puts related settings within sight of each other instead of three clicks apart.
+
+   The three form-shaped panels — report properties, layout, style — stay dialogs rather than being
+   crushed into 250px, since a two-column form does not become better by being made one column. */
+
+/** One editable list, described rather than hand-written: eleven panels differ only in their fields. */
+const RAIL_PANELS = {
+  dataSources: {
+    title: "Data sources", hint: "Where the report reads from.",
+    list: r => r.dataSources, label: s => s.name || "Source",
+    add: () => ({ name: "New source", type: "FetchXML", connector: "", query: "", primary: false, joinL: "", joinR: "" }),
+    fields: [
+      { k: "name", label: "Name" },
+      { k: "type", label: "Read via", options: () => SOURCE_TYPES },
+      { k: "query", label: "Query" },
+      { k: "primary", label: "Primary source", type: "check" }
+    ]
+  },
+  externalSources: {
+    title: "External sources", hint: "Systems connected under External Connectors.",
+    list: r => r.externalSources, label: x => x.operation || x.connector || "External",
+    add: () => ({ connectorId: "", connector: "", operation: "", crmKey: "", extKey: "", direction: "CRM → Source", pass: "" }),
+    fields: [
+      { k: "operation", label: "Operation" },
+      { k: "direction", label: "Direction", options: () => ["CRM → Source", "Source → CRM", "Both ways"] },
+      { k: "crmKey", label: "CRM key" },
+      { k: "extKey", label: "External key" }
+    ]
+  },
+  columns: {
+    title: "Output columns", hint: "What the report returns. Drag fields onto the canvas to add more.",
+    list: r => r.columns, label: c => c.name || "Column",
+    add: r => ({ name: "New Column", entity: r.mainEntity, attribute: "", type: "Text", format: "",
+      width: 120, align: "Left", agg: "None", masked: false, visible: true }),
+    fields: [
+      { k: "name", label: "Display name" },
+      { k: "attribute", label: "Attribute", type: "attr" },
+      { k: "type", label: "Type", options: () => COL_TYPES },
+      { k: "align", label: "Align", options: () => ALIGN },
+      { k: "agg", label: "Aggregate", options: () => AGG },
+      { k: "masked", label: "Masked", type: "check" },
+      { k: "visible", label: "Visible", type: "check" }
+    ]
+  },
+  filters: {
+    title: "Filters", hint: "Applied before the report runs.",
+    list: r => r.filters, label: f => f.attribute || "New filter",
+    add: () => ({ attribute: "", operator: "Equals", value: "", param: "", token: "(none)", group: 0, andor: "And" }),
+    fields: [
+      { k: "attribute", label: "Field", type: "attr" },
+      { k: "operator", label: "Operator", options: () => OPERATORS },
+      { k: "value", label: "Value" },
+      { k: "andor", label: "Combine with", options: () => ["And", "Or"] }
+    ]
+  },
+  parameters: {
+    title: "Parameters", hint: "Prompts shown when the report runs.",
+    list: r => r.parameters, label: p => p.name || "Parameter",
+    add: () => ({ name: "NewParam", prompt: "New parameter", type: "Text", required: false, def: "", token: "(none)", lookup: "" }),
+    fields: [
+      { k: "name", label: "Name" },
+      { k: "prompt", label: "Prompt" },
+      { k: "type", label: "Type", options: () => PARAM_TYPES },
+      { k: "def", label: "Default value" },
+      { k: "required", label: "Required", type: "check" }
+    ]
+  },
+  relationships: {
+    title: "Drilldown", hint: "Where a click on a row goes next.",
+    list: r => r.relationships, label: d => d.child || "Drilldown",
+    add: r => ({ parent: r.mainEntity, child: "", type: "1:N (One-to-many)", schema: "", level: (r.relationships || []).length + 1, opens: true, sub: "" }),
+    fields: [
+      { k: "child", label: "Target table", type: "entity" },
+      { k: "type", label: "Relationship", options: () => REL_TYPES },
+      { k: "schema", label: "Schema name" },
+      { k: "opens", label: "Opens on click", type: "check" }
+    ]
+  },
+  transformations: {
+    title: "Transformations", hint: "Applied to the rows before they are rendered.",
+    list: r => r.transformations, label: t => t.target || t.type || "Transformation",
+    add: r => ({ type: TRANSFORM_TYPES[0], target: "", config: "", seq: (r.transformations || []).length + 1 }),
+    fields: [
+      { k: "type", label: "Type", options: () => TRANSFORM_TYPES },
+      { k: "target", label: "Target column", type: "attr" },
+      { k: "config", label: "Configuration" }
+    ]
+  },
+  formulas: {
+    title: "Formulas", hint: "Computed columns evaluated per row.",
+    list: r => r.formulas, label: f => f.name || "Formula",
+    add: () => ({ name: "NewFormula", expression: "", type: "Decimal", target: "" }),
+    fields: [
+      { k: "name", label: "Name" },
+      { k: "expression", label: "Expression" },
+      { k: "type", label: "Result type", options: () => COL_TYPES }
+    ]
+  },
+  formatting: {
+    title: "Conditional formatting", hint: "Highlights rows and cells that meet a condition.",
+    list: r => r.formatting, label: f => f.column || "Rule",
+    add: r => ({ column: (r.columns[0] || {}).name || "", condition: "value > 0", style: "Bold" }),
+    fields: [
+      { k: "column", label: "Column", options: r => (r.columns || []).map(c => c.name) },
+      { k: "condition", label: "Condition" },
+      { k: "style", label: "Style", options: () => ["Bold, red text", "Green background", "Amber highlight", "Strikethrough", "Bold"] }
+    ]
+  },
+  security: {
+    title: "Security", hint: "Enforced server-side; these are convenience only.",
+    list: r => r.security, label: s => s.ref || s.ptype || "Principal",
+    add: () => ({ ptype: "Security role", ref: "", view: true, run: true, export: false, edit: false, approve: false }),
+    fields: [
+      { k: "ptype", label: "Principal type", options: () => PRINCIPAL_TYPES },
+      { k: "ref", label: "Name" },
+      { k: "run", label: "Can run", type: "check" },
+      { k: "export", label: "Can export", type: "check" },
+      { k: "edit", label: "Can edit", type: "check" }
+    ]
+  },
+  ribbon: {
+    title: "Ribbon placement", hint: "Where the report appears in CRM.",
+    list: r => r.ribbon, label: b => b.loc || "Placement",
+    add: r => ({ loc: "Home grid ribbon", entity: r.mainEntity, form: "", role: "", bu: "", record: false, selected: false, userbu: true }),
+    fields: [
+      { k: "loc", label: "Location", options: () => ["Home grid ribbon", "Entity form ribbon", "Subgrid ribbon", "Dashboard button", "Sitemap page"] },
+      { k: "entity", label: "Table", type: "entity" },
+      { k: "record", label: "Pass record id", type: "check" },
+      { k: "selected", label: "Pass selected rows", type: "check" }
+    ]
+  }
+};
+
 const RAIL_SECTIONS = [
   { key: "fields", label: "Fields", icon: "tree" },
-  { key: "data", label: "Data", icon: "flow" },
-  { key: "filters", label: "Filters", icon: "filter" },
-  { key: "parameters", label: "Params", icon: "param" }
+  { key: "data", label: "Data", icon: "flow", panels: ["dataSources", "externalSources"] },
+  { key: "columns", label: "Columns", icon: "doc", panels: ["columns"] },
+  { key: "filters", label: "Filters", icon: "filter", panels: ["filters"] },
+  { key: "params", label: "Params", icon: "param", panels: ["parameters"] },
+  { key: "logic", label: "Logic", icon: "fx", panels: ["transformations", "formulas", "relationships"] },
+  { key: "format", label: "Format", icon: "paint", panels: ["formatting"] },
+  { key: "access", label: "Access", icon: "shield", panels: ["security", "ribbon"] }
 ];
 
 function renderRailStrip(r) {
   const strip = $("#md_strip");
+  if (!strip) return;
   strip.innerHTML = "";
   RAIL_SECTIONS.forEach(section => {
-    const count = railSectionCount(section.key, r);
+    const count = railSectionCount(section, r);
     const button = el(`<button class="md-railbtn ${state.railSection === section.key ? "on" : ""}"
       title="${esc(section.label)}">${ic(section.icon)}<span>${esc(section.label)}</span>${
       count ? `<span class="rb-count">${count}</span>` : ""}</button>`);
@@ -4727,109 +4872,80 @@ function renderRailStrip(r) {
   renderRail(r);
 }
 
-function railSectionCount(key, r) {
-  return { data: (r.dataSources || []).length, filters: (r.filters || []).length,
-    parameters: (r.parameters || []).length }[key];
+/** What a section holds, summed across its panels, so the strip says what the report contains. */
+function railSectionCount(section, r) {
+  if (!section.panels) return 0;
+  return section.panels.reduce((total, key) => total + ((RAIL_PANELS[key].list(r) || []).length), 0);
 }
 
 function renderRail(r) {
   const host = $("#md_ds");
   if (!host) return;
   if (state.railSection === "fields") { dsPanel(r); return; }
+  const section = RAIL_SECTIONS.find(s => s.key === state.railSection) || RAIL_SECTIONS[1];
   host.innerHTML = "";
-  const section = { data: railDataSources, filters: railFilters, parameters: railParameters }[state.railSection];
-  (section || railDataSources)(host, r);
+  section.panels.forEach(key => railPanel(host, r, key, RAIL_PANELS[key]));
 }
 
-/** Adds a row to one of the report's lists and redraws the rail, so its count keeps up. */
-function railAdd(r, list, item) {
-  list.push(item);
-  renderRailStrip(r);
+function railPanel(host, r, key, spec) {
+  if (!spec.list(r)) r[railListName(key)] = [];
+  const list = spec.list(r);
+  host.appendChild(el(`<div><h4 class="${host.children.length ? "mt" : ""}">${esc(spec.title)}</h4>
+    <div class="hint" style="margin-bottom:10px">${esc(spec.hint)}</div></div>`));
+
+  if (!list.length) host.appendChild(el(`<div class="np-empty" style="margin-bottom:8px">None yet.</div>`));
+  list.forEach((item, index) => host.appendChild(railCard(r, spec, item, () => {
+    list.splice(index, 1);
+    renderRailStrip(r);
+  })));
+
+  const add = el(`<button class="btn sm btn-add" style="width:100%">${ic("add")}Add</button>`);
+  add.onclick = () => {
+    list.push(typeof spec.add === "function" ? spec.add(r) : spec.add);
+    renderRailStrip(r);
+  };
+  host.appendChild(add);
 }
 
-function railCard(title, onRemove) {
+/* The report holds each list under its own name, and the panel key matches it everywhere except
+   where the tabbed screen chose a different word for the same thing. */
+const RAIL_LIST_NAMES = { relationships: "relationships", externalSources: "externalSources" };
+const railListName = key => RAIL_LIST_NAMES[key] || key;
+
+function railCard(r, spec, item, onRemove) {
   const card = el(`<div class="rail-card">
-    <div class="rc-head"><b>${esc(title)}</b><button class="del" data-rcdel>${ic("trash")}</button></div>
+    <div class="rc-head"><b>${esc(spec.label(item))}</b><button class="del" data-rcdel>${ic("trash")}</button></div>
     <div class="rc-body"></div></div>`);
+  const body = card.querySelector(".rc-body");
+  spec.fields.forEach(field => body.appendChild(el(railField(r, field, item))));
   card.querySelector("[data-rcdel]").onclick = onRemove;
+  bindRailCard(card, item, r);
   return card;
 }
 
-function railHeader(host, title, hint) {
-  host.appendChild(el(`<div><h4>${esc(title)}</h4><div class="hint" style="margin-bottom:10px">${esc(hint)}</div></div>`));
-}
-
-function railAddButton(host, label, onClick) {
-  const button = el(`<button class="btn sm btn-add" style="width:100%">${ic("add")}${esc(label)}</button>`);
-  button.onclick = onClick;
-  host.appendChild(button);
+function railField(r, field, item) {
+  const value = item[field.k];
+  if (field.type === "check") {
+    return `<label class="toggle" style="margin-bottom:6px"><input type="checkbox" data-k="${field.k}"
+      ${value ? "checked" : ""}><span class="track"></span><span class="tlabel">${esc(field.label)}</span></label>`;
+  }
+  const control = field.type === "attr"
+    ? attributePickerHtml(item.entity || r.mainEntity, value, `data-k="${field.k}"`, "Search fields…")
+    : field.type === "entity"
+      ? entityPickerHtml(value, `data-k="${field.k}"`)
+      : field.options
+        ? `<select class="fluent-select" data-k="${field.k}">${opts(field.options(r), value)}</select>`
+        : `<input class="fluent-input" data-k="${field.k}" value="${esc(value == null ? "" : value)}">`;
+  return `<div class="mini-field"><label>${esc(field.label)}</label>${control}</div>`;
 }
 
 /* Edits write straight through to the report. The card is not redrawn on each keystroke, which
-   would take the focus out of the box being typed into. */
-function bindRailCard(card, target) {
+   would take the focus out of the box being typed into; only the heading is kept in step. */
+function bindRailCard(card, target, r) {
   card.querySelectorAll("[data-k]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
     target[input.dataset.k] = input.type === "checkbox" ? input.checked : input.value;
+    if (renderManualDesigner._refresh) renderManualDesigner._refresh();
   }));
-}
-
-function railDataSources(host, r) {
-  r.dataSources = r.dataSources || [];
-  railHeader(host, "Data sources", "Where the report reads from.");
-  r.dataSources.forEach((source, index) => {
-    const card = railCard(source.name || "Source", () => { r.dataSources.splice(index, 1); renderRailStrip(r); });
-    card.querySelector(".rc-body").appendChild(el(`<div>
-      <div class="mini-field"><label>Name</label>
-        <input class="fluent-input" data-k="name" value="${esc(source.name || "")}"></div>
-      <div class="mini-field"><label>Read via</label>
-        <select class="fluent-select" data-k="type">${opts(SOURCE_TYPES, source.type)}</select></div>
-      <div class="mini-field"><label>Query</label>
-        <input class="fluent-input" data-k="query" value="${esc(source.query || "")}"></div></div>`));
-    bindRailCard(card, source);
-    host.appendChild(card);
-  });
-  railAddButton(host, "Add data source", () => railAdd(r, r.dataSources,
-    { name: "New source", type: "FetchXML", connector: "", query: "", primary: false, joinL: "", joinR: "" }));
-}
-
-function railFilters(host, r) {
-  r.filters = r.filters || [];
-  railHeader(host, "Filters", "Applied before the report runs.");
-  r.filters.forEach((filter, index) => {
-    const card = railCard(filter.attribute || "New filter", () => { r.filters.splice(index, 1); renderRailStrip(r); });
-    card.querySelector(".rc-body").appendChild(el(`<div>
-      <div class="mini-field"><label>Field</label>${
-        attributePickerHtml(r.mainEntity, filter.attribute, 'data-k="attribute"', "Search fields…")}</div>
-      <div class="mini-field"><label>Operator</label>
-        <select class="fluent-select" data-k="operator">${opts(OPERATORS, filter.operator)}</select></div>
-      <div class="mini-field"><label>Value</label>
-        <input class="fluent-input" data-k="value" value="${esc(filter.value || "")}"></div></div>`));
-    bindRailCard(card, filter);
-    host.appendChild(card);
-  });
-  railAddButton(host, "Add filter", () => railAdd(r, r.filters,
-    { attribute: "", operator: "Equals", value: "", param: "", token: "(none)", group: 0, andor: "And" }));
-}
-
-function railParameters(host, r) {
-  r.parameters = r.parameters || [];
-  railHeader(host, "Parameters", "Prompts shown when the report runs.");
-  r.parameters.forEach((parameter, index) => {
-    const card = railCard(parameter.name || "Parameter", () => { r.parameters.splice(index, 1); renderRailStrip(r); });
-    card.querySelector(".rc-body").appendChild(el(`<div>
-      <div class="mini-field"><label>Name</label>
-        <input class="fluent-input" data-k="name" value="${esc(parameter.name || "")}"></div>
-      <div class="mini-field"><label>Prompt</label>
-        <input class="fluent-input" data-k="prompt" value="${esc(parameter.prompt || "")}"></div>
-      <div class="mini-field"><label>Type</label>
-        <select class="fluent-select" data-k="type">${opts(PARAM_TYPES, parameter.type)}</select></div>
-      <label class="toggle"><input type="checkbox" data-k="required" ${parameter.required ? "checked" : ""}>
-        <span class="track"></span><span class="tlabel">Required</span></label></div>`));
-    bindRailCard(card, parameter);
-    host.appendChild(card);
-  });
-  railAddButton(host, "Add parameter", () => railAdd(r, r.parameters,
-    { name: "NewParam", prompt: "New parameter", type: "Text", required: false, def: "", token: "(none)", lookup: "" }));
 }
 
 /** Renders the active panel, reusing the tab renderers the tabbed screen already uses. */
@@ -4843,6 +4959,40 @@ function renderTabInto(host, r) {
   host.innerHTML = "";
   if (panel) panel(host, r);
 }
+
+/* The form-shaped panels — report properties, layout, style and export — open as a dialog with the
+   width a two-column form needs, rather than being squeezed into the rail one field wide. They are
+   the tabbed screen's own renderers, unchanged. */
+const SETTINGS_PANELS = [
+  ["general", "Report"], ["layout", "Layout"], ["style", "Style & language"], ["export", "Export"]
+];
+
+function openReportSettings(r) {
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:900px;max-width:94vw">
+    <div class="dialog-head"><h3>Report settings</h3><button class="close-x">✕</button></div>
+    <div class="pivot" id="rs_tabs" role="tablist"></div>
+    <div class="dialog-body" style="max-height:60vh;overflow:auto"><div id="tabBody"></div></div>
+    <div class="dialog-foot"><button class="btn primary" data-close>Done</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const draw = () => {
+    const tabs = scrim.querySelector("#rs_tabs");
+    tabs.innerHTML = SETTINGS_PANELS.map(([key, label]) =>
+      `<button class="pivot-tab ${state.tab === key ? "active" : ""}" data-rs="${key}">${esc(label)}</button>`).join("");
+    tabs.querySelectorAll("[data-rs]").forEach(button => button.onclick = () => {
+      state.tab = button.dataset.rs; draw();
+    });
+    renderTabInto(scrim.querySelector("#tabBody"), r);
+  };
+  if (!SETTINGS_PANELS.some(([key]) => key === state.tab)) state.tab = "general";
+  draw();
+
+  const close = () => { scrim.remove(); render(); };
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+}
+
 
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
 function childTableFor(r, entity) { return r.design.tables.find(t=>t.role==="child" && t.entity===entity); }
