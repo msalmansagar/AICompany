@@ -910,9 +910,17 @@
   .col-chip select { flex-shrink:0; }
   /* WYSIWYG report canvas */
   .md-grid3 { display:grid; grid-template-columns:270px 1fr 300px; flex:1; min-height:0; }
-  /* Collapsing the properties pane gives its 300px to the canvas rather than leaving a gap —
-     the point of hiding it is to see more of the report, not to see more background. */
-  .md-grid3.props-collapsed { grid-template-columns:270px 1fr; }
+  /* Collapsing the properties pane gives its width to the canvas rather than leaving a gap — the
+     point of hiding it is to see more of the report. A narrow rail stays behind so the arrow that
+     brings it back is where the pane was; collapsing it to nothing would leave no way to reopen it. */
+  .md-grid3.props-collapsed { grid-template-columns:270px 1fr 34px; }
+  .md-grid3.props-collapsed #md_props { padding:10px 5px; overflow:hidden; }
+  .props-bar { display:flex; align-items:center; gap:7px; margin-bottom:10px; }
+  .props-bar h4 { margin:0; }
+  .props-toggle { border:1px solid var(--border-strong); background:var(--surface); color:var(--text-secondary);
+    width:22px; height:22px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:10px;
+    line-height:1; padding:0; flex-shrink:0; }
+  .props-toggle:hover { border-color:var(--primary); color:var(--primary); }
   .md-canvas { overflow:auto; padding:24px; background:var(--bg); border-right:1px solid var(--border); }
   .cv-section { position:relative; border:1px solid transparent; border-radius:6px; padding:4px 8px 8px; margin:8px 0; }
   .cv-section:hover { border-color:var(--border); }
@@ -4638,16 +4646,25 @@ function renderManualDesigner(c) {
     <button class="cmd" id="md_settings">${ic("edit")}All report settings</button>
     <button class="cmd" id="md_wizard">${ic("play")}Open in wizard style</button>
     <div class="cmd-spacer"></div>
-    <button class="cmd" id="md_toggleprops">${ic("param")}${state.propsCollapsed ? "Show" : "Hide"} properties</button>
     <span class="pill draft" style="margin-right:8px">Manual designer · Draft</span>
   </div>`);
+  /* The arrow sits on the pane it controls rather than in the command bar: that is where someone
+     looks to close a panel, and it means the control is next to the thing it acts on. */
   const grid = el(`<div class="md-grid3 ${state.propsCollapsed ? "props-collapsed" : ""}">
     <div class="md-pane" id="md_ds"></div>
     <div class="md-canvas" id="md_canvas"></div>
-    ${state.propsCollapsed ? "" : `<div class="md-pane" id="md_props"></div>`}
+    <div class="md-pane" id="md_props">
+      <div class="props-bar">
+        <button class="props-toggle" id="md_toggleprops"
+          title="${state.propsCollapsed ? "Show properties" : "Hide properties"}"
+          aria-expanded="${!state.propsCollapsed}">${state.propsCollapsed ? "◀" : "▶"}</button>
+        ${state.propsCollapsed ? "" : `<h4>Properties</h4>`}
+      </div>
+      <div id="md_props_body"></div>
+    </div>
   </div>`);
   c.appendChild(cmd); c.appendChild(grid);
-  // Nothing to fill when the pane is not on screen, and renderProps would throw on the missing host.
+  // Nothing worth filling when only the rail is showing.
   const refresh = () => { dsPanel(r); renderCanvas(r); if (!state.propsCollapsed) renderProps(r); };
   renderManualDesigner._refresh = refresh;
   refresh();
@@ -4882,10 +4899,14 @@ function bindCanvas(r) {
   });
 }
 function renderProps(r) {
-  const host = $("#md_props"); const D = r.design; const sel = r._sel;
+  // The pane's own header carries the collapse arrow and is not rebuilt per selection, so the
+  // selection's fields go into the body below it rather than replacing the whole pane.
+  const host = $("#md_props_body") || $("#md_props");
+  const D = r.design; const sel = r._sel;
   const posBtns = (val) => `<div class="seg" data-seg="labelPos">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${(val||"left")===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div>`;
   const alignBtns = (val) => `<div class="seg" data-seg="align">${["Left","Center","Right"].map(a=>`<button class="${(val||"Left")===a?"on":""}" data-val="${a}">${a}</button>`).join("")}</div>`;
-  if (!sel) { host.innerHTML = `<h4>Properties</h4><div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`; return; }
+  // No heading here: the pane's bar already says Properties, and repeating it read as two titles.
+  if (!sel) { host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`; return; }
   if (sel.t==="header") { const H=D.header;
     host.innerHTML = `<h4>Report header</h4>
       <div class="mini-field"><label>Title</label><input class="fluent-input" id="p_title" value="${esc(H.title)}"></div>
