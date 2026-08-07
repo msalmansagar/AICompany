@@ -921,6 +921,17 @@
     width:22px; height:22px; border-radius:4px; cursor:pointer; font-family:inherit; font-size:10px;
     line-height:1; padding:0; flex-shrink:0; }
   .props-toggle:hover { border-color:var(--primary); color:var(--primary); }
+  /* The configuration panels are wide editable tables — Columns is ten fields across — so they are
+     docked along the bottom, the only edge with the width to show a row without scrolling it. The
+     canvas stays visible above, which is the point: change a filter and watch the report change. */
+  .md-dock { border-top:1px solid var(--border); background:var(--surface); display:flex;
+    flex-direction:column; min-height:0; flex-shrink:0; }
+  .md-dock-resize { height:6px; cursor:row-resize; flex-shrink:0; }
+  .md-dock-resize:hover, .md-dock-resize.dragging { background:var(--primary-tint); }
+  .md-dock-tabs { display:flex; align-items:center; gap:2px; padding:0 10px; flex-shrink:0;
+    border-bottom:1px solid var(--border); overflow-x:auto; }
+  .md-dock .tab-body { flex:1; overflow:auto; padding:12px 16px; min-height:0; }
+  .md-dock.collapsed .tab-body, .md-dock.collapsed .md-dock-resize { display:none; }
   .md-canvas { overflow:auto; padding:24px; background:var(--bg); border-right:1px solid var(--border); }
   .cv-section { position:relative; border:1px solid transparent; border-radius:6px; padding:4px 8px 8px; margin:8px 0; }
   .cv-section:hover { border-color:var(--border); }
@@ -1986,6 +1997,9 @@ const state = {
   fieldFilter: "",
   // The manual designer's properties pane, hidden to give the canvas the room.
   propsCollapsed: false,
+  // The configuration dock along the bottom of the manual designer.
+  dockCollapsed: false,
+  dockHeight: 300,
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -4054,14 +4068,11 @@ function renderDesigner(c) {
 }
 
 /* ---------------- TAB CONTENT ---------------- */
+/* Both the tabbed screen and the dock along the bottom of the canvas host their panels in an element
+   carrying this id, and the panels re-enter here after adding or deleting a row — so this stays the
+   single way a panel is drawn rather than each surface growing its own copy. */
 function renderTab() {
-  const body = $("#tabBody"); const r = state.report;
-  const fn = {
-    general:tabGeneral, datasources:tabDataSources, columns:tabColumns, filters:tabFilters, parameters:tabParameters,
-    drilldown:tabDrilldown, transform:tabTransform, formulas:tabFormulas, layout:tabLayout, formatting:tabFormatting,
-    security:tabSecurity, ribbon:tabRibbon, export:tabExport, style:tabStyle, preview:tabPreview
-  }[state.tab];
-  body.innerHTML = ""; fn(body, r);
+  renderTabInto($("#tabBody"), state.report);
 }
 
 /* helper: editable list table */
@@ -4663,7 +4674,7 @@ function renderManualDesigner(c) {
       <div id="md_props_body"></div>
     </div>
   </div>`);
-  c.appendChild(cmd); c.appendChild(grid);
+  c.appendChild(cmd); c.appendChild(grid); c.appendChild(configDock(r));
   // Nothing worth filling when only the rail is showing.
   const refresh = () => { dsPanel(r); renderCanvas(r); if (!state.propsCollapsed) renderProps(r); };
   renderManualDesigner._refresh = refresh;
@@ -4673,6 +4684,87 @@ function renderManualDesigner(c) {
   $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
   $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
+}
+
+/* ---------- configuration dock ----------
+   A trial of three of the ten table-shaped tabs, Columns included because at ten fields across it is
+   the one that decides whether the bottom edge is the right home for them.
+
+   The panels themselves are reused unchanged: renderTab() fills whatever carries the id tabBody and
+   dispatches on state.tab, and the panels re-enter it after adding or deleting a row. Giving the
+   dock body that id means every existing tab works here with no second implementation to keep in
+   step — which is what a drawer or a slide-over would also have had to do. */
+const DOCK_TABS = [["datasources", "Data Sources"], ["columns", "Columns"], ["filters", "Filters"]];
+const DOCK_MIN_HEIGHT = 120;
+const DOCK_MAX_FRACTION = 0.75;
+
+function configDock(r) {
+  if (!DOCK_TABS.some(([key]) => key === state.tab)) state.tab = DOCK_TABS[0][0];
+  const dock = el(`<div class="md-dock ${state.dockCollapsed ? "collapsed" : ""}"
+      style="${state.dockCollapsed ? "" : `height:${state.dockHeight}px`}">
+    <div class="md-dock-resize" title="Drag to resize"></div>
+    <div class="md-dock-tabs">
+      <button class="props-toggle" id="dock_toggle" style="margin-right:8px"
+        title="${state.dockCollapsed ? "Show settings" : "Hide settings"}"
+        aria-expanded="${!state.dockCollapsed}">${state.dockCollapsed ? "▲" : "▼"}</button>
+      ${DOCK_TABS.map(([key, label]) => {
+        const badge = badgeFor(key, r);
+        return `<button class="pivot-tab ${state.tab === key ? "active" : ""}" data-docktab="${key}">${
+          esc(label)}${badge != null ? `<span class="badge">${badge}</span>` : ""}</button>`;
+      }).join("")}
+      <span class="cmd-spacer" style="flex:1"></span>
+      <span class="rel-tag">Trial — 3 of 10 panels</span>
+    </div>
+    <div class="tab-body" id="tabBody"></div>
+  </div>`);
+
+  if (!state.dockCollapsed) renderTabInto(dock.querySelector("#tabBody"), r);
+
+  dock.querySelector("#dock_toggle").onclick = () => { state.dockCollapsed = !state.dockCollapsed; render(); };
+  dock.querySelectorAll("[data-docktab]").forEach(button => button.onclick = () => {
+    state.tab = button.dataset.docktab;
+    state.dockCollapsed = false;
+    render();
+  });
+  attachDockResize(dock);
+  return dock;
+}
+
+/** Renders the active panel, reusing the tab renderers the tabbed screen already uses. */
+function renderTabInto(host, r) {
+  const panel = {
+    general: tabGeneral, datasources: tabDataSources, columns: tabColumns, filters: tabFilters,
+    parameters: tabParameters, drilldown: tabDrilldown, transform: tabTransform, formulas: tabFormulas,
+    layout: tabLayout, formatting: tabFormatting, security: tabSecurity, ribbon: tabRibbon,
+    export: tabExport, style: tabStyle, preview: tabPreview
+  }[state.tab];
+  host.innerHTML = "";
+  if (panel) panel(host, r);
+}
+
+/* Dragging the top edge, rather than a set of preset heights: how much room a panel needs depends on
+   how many rows it has, and only the person looking at it knows that. */
+function attachDockResize(dock) {
+  const handle = dock.querySelector(".md-dock-resize");
+  handle.addEventListener("mousedown", startEvent => {
+    startEvent.preventDefault();
+    const startY = startEvent.clientY;
+    const startHeight = dock.getBoundingClientRect().height;
+    handle.classList.add("dragging");
+
+    const onMove = moveEvent => {
+      const proposed = startHeight + (startY - moveEvent.clientY);
+      state.dockHeight = Math.max(DOCK_MIN_HEIGHT, Math.min(window.innerHeight * DOCK_MAX_FRACTION, proposed));
+      dock.style.height = `${state.dockHeight}px`;
+    };
+    const onUp = () => {
+      handle.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
 }
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
 function childTableFor(r, entity) { return r.design.tables.find(t=>t.role==="child" && t.entity===entity); }
