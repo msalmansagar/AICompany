@@ -910,6 +910,9 @@
   .col-chip select { flex-shrink:0; }
   /* WYSIWYG report canvas */
   .md-grid3 { display:grid; grid-template-columns:270px 1fr 300px; flex:1; min-height:0; }
+  /* Collapsing the properties pane gives its 300px to the canvas rather than leaving a gap —
+     the point of hiding it is to see more of the report, not to see more background. */
+  .md-grid3.props-collapsed { grid-template-columns:270px 1fr; }
   .md-canvas { overflow:auto; padding:24px; background:var(--bg); border-right:1px solid var(--border); }
   .cv-section { position:relative; border:1px solid transparent; border-radius:6px; padding:4px 8px 8px; margin:8px 0; }
   .cv-section:hover { border-color:var(--border); }
@@ -1973,6 +1976,8 @@ const state = {
   dashPreview: false,
   dashSelection: null,
   fieldFilter: "",
+  // The manual designer's properties pane, hidden to give the canvas the room.
+  propsCollapsed: false,
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -2710,13 +2715,22 @@ function reportToDefinition(report) {
       })),
     // Conditional formatting rides in the layout JSON: it has no table of its own, and the as-built
     // schema already consolidates presentation concerns there rather than adding a row per rule.
-    layout: report.layout ? {
+    /* The canvas arrangement — which fields sit in which section, their labels and alignment — was
+       built by dragging and then never written anywhere: reportToDefinition simply did not carry it,
+       so a report designed on the canvas came back empty and the work was silently lost on the first
+       save. It travels in the layout JSON for the same reason the formatting rules do: it is
+       presentation, and the alternative is a row per field in a new table for something only the
+       designer reads.
+       The row is now written when there is a design even if there is no layout, or a manual report
+       would still have nowhere to store it. */
+    layout: (report.layout || report.design) ? {
       id: newGuid(),
-      themeColor: report.layout.themeColor || "#0078d4",
+      themeColor: (report.layout && report.layout.themeColor) || "#0078d4",
       layoutJson: JSON.stringify(Object.assign({}, report.layout, {
         conditionalFormatting: (report.formatting || [])
           .filter(rule => rule.column && rule.condition)
-          .map(rule => ({ column: rule.column, condition: rule.condition, style: rule.style }))
+          .map(rule => ({ column: rule.column, condition: rule.condition, style: rule.style })),
+        canvasDesign: report.design || null
       }))
     } : null
   };
@@ -3442,10 +3456,48 @@ function definitionToReport(def) {
       // out — otherwise reopening a report would quietly drop every rule on the next save.
       if (Array.isArray(stored.conditionalFormatting)) report.formatting = stored.conditionalFormatting;
       delete stored.conditionalFormatting;
+      // Same reasoning as the formatting rules: it rides in the layout JSON but belongs on the
+      // report, and leaving it inside would make the next save nest one design within another.
+      if (stored.canvasDesign) report.design = stored.canvasDesign;
+      delete stored.canvasDesign;
       report.layout = stored;
     } catch (e) { /* keep default layout */ }
   }
+  /* A report authored anywhere but the canvas has no stored design, and the canvas renders only
+     from one — so without this every existing report opens as a blank page saying "drag a field
+     here" despite already having columns. Deriving one from those columns means the canvas shows
+     the report that exists rather than an empty sheet. */
+  if (!report.design) report.design = designFromColumns(report);
   return report;
+}
+
+/** Lays a report's declared columns out as one section, the arrangement the canvas can render. */
+function designFromColumns(report) {
+  const design = newDesign();
+  design.header.title = report.name || "";
+  const columns = (report.columns || []).filter(column => column.attribute);
+  if (!columns.length) return design;
+
+  design.tables.push({
+    id: "t1",
+    name: report.name || "Detail",
+    entity: report.mainEntity,
+    role: "master",
+    parentId: null,
+    displayAs: "table",
+    showTotals: false,
+    columns: columns.map(column => ({
+      name: column.name,
+      attr: column.attribute,
+      type: column.type,
+      entity: column.entity || report.mainEntity,
+      transform: "None",
+      label: column.name,
+      labelPos: "left",
+      align: column.align || (["Currency", "Decimal", "Whole number"].includes(column.type) ? "Right" : "Left")
+    }))
+  });
+  return design;
 }
 
 /** Reassembles the stored graph into the ReportDefinition shape definitionToReport expects. */
@@ -3598,7 +3650,12 @@ async function openSavedReport(id) {
     await resolveColumnTypes(report);
     state.report = report;
     state.selectedReportId = state.report.id;
-    state.view = "designer"; state.tab = "general"; render();
+    /* A report opens on the canvas that renders it, not on a form describing it. The tabbed screen
+       is still one click away under All report settings, and stays the home of everything the
+       canvas has no place for yet. */
+    report._manual = true;
+    report._dsExpanded = report._dsExpanded || {};
+    state.view = "manualdesigner"; state.tab = "general"; render();
   } catch (error) {
     toast("Couldn't open saved report — " + error.message, "err");
   } finally {
@@ -4580,21 +4637,25 @@ function renderManualDesigner(c) {
     <button class="cmd primary" id="md_save">${ic("save")}Save</button>
     <button class="cmd" id="md_settings">${ic("edit")}All report settings</button>
     <button class="cmd" id="md_wizard">${ic("play")}Open in wizard style</button>
-    <div class="cmd-spacer"></div><span class="pill draft" style="margin-right:8px">Manual designer · Draft</span>
+    <div class="cmd-spacer"></div>
+    <button class="cmd" id="md_toggleprops">${ic("param")}${state.propsCollapsed ? "Show" : "Hide"} properties</button>
+    <span class="pill draft" style="margin-right:8px">Manual designer · Draft</span>
   </div>`);
-  const grid = el(`<div class="md-grid3">
+  const grid = el(`<div class="md-grid3 ${state.propsCollapsed ? "props-collapsed" : ""}">
     <div class="md-pane" id="md_ds"></div>
     <div class="md-canvas" id="md_canvas"></div>
-    <div class="md-pane" id="md_props"></div>
+    ${state.propsCollapsed ? "" : `<div class="md-pane" id="md_props"></div>`}
   </div>`);
   c.appendChild(cmd); c.appendChild(grid);
-  const refresh = () => { dsPanel(r); renderCanvas(r); renderProps(r); };
+  // Nothing to fill when the pane is not on screen, and renderProps would throw on the missing host.
+  const refresh = () => { dsPanel(r); renderCanvas(r); if (!state.propsCollapsed) renderProps(r); };
   renderManualDesigner._refresh = refresh;
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
   $("#md_save").onclick = () => { r.name = r.design.header.title || r.name; saveReportToServer(r); };
   $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; state.view = "designer"; state.tab = "filters"; render(); toast("All settings — filters, parameters, drilldown, sub-reports, Use-in-CRM & more", "info"); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
+  $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
 }
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
 function childTableFor(r, entity) { return r.design.tables.find(t=>t.role==="child" && t.entity===entity); }
