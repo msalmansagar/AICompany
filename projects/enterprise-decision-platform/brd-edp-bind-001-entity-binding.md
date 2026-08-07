@@ -268,7 +268,7 @@ attributable, authored in the existing designer.
 | FR-B21 | Directives apply to form fields without saving the record | Must |
 | FR-B22 | A rule may surface a field or form message, and may block save | Must |
 | FR-B23 | Concurrent-safe — a slow response must never overwrite newer user input | Must |
-| FR-B24 | **The form must never block on the call.** Failure degrades gracefully — never a blocking script error | Must **[v1.1 — strengthened]** |
+| FR-B24 | **The form must never block on the call. RELEASE GATE.** The form renders and is usable before directives arrive and applies them on arrival; a late or failed evaluation degrades to the un-directed form — never a spinner, never a blocking script error | Must — **release gate [v1.2, OQ-B6]** |
 | FR-B25 | Honours the user's language | Should |
 
 ### 7.4 Presentation actions **[v1.1 — new group]**
@@ -372,7 +372,7 @@ engine**. The cost is irreducible platform overhead, which is precisely why FR-B
 | BR-B10 | **Duplicate effects on retry** — a retried plugin sends a second email | High **[v1.1]** | FR-B51 idempotency as a gate |
 | BR-B3 | Save-path latency degrades user experience | High | NFR-B1 measured before release |
 | BR-B4 | Client round trip feels slow | Medium | Reduced to one call per form event (FR-B36); measured at 480 ms; form never blocks (NFR-B8) |
-| BR-B11 | **Cold start** — 6.1 s on the first call after sandbox idle | High **[v1.1]** | OQ-B6; options are accept, keep-warm, or pre-fetch on form open |
+| BR-B11 | **Cold start** — **3–14 s**, several times a day per environment, and **it cannot be prevented** | High **[v1.2]** | OQ-B6 measured: keep-warm was tested and failed; there is no reliable idle threshold. Mitigation is FR-B24 as a release gate — tolerate it, do not try to avoid it |
 | BR-B12 | **Hidden fields mistaken for security** | Medium **[v1.1]** | FR-B45 states plainly that presentation is not a security boundary; field-level security remains the control |
 | BR-B5 | Write-back or effect fails on insufficient user privilege | Medium | Validate at binding save; intelligible failure |
 | BR-B6 | Binding becomes an ungoverned back door to production behaviour change | High | Full lifecycle, SoD, audit, separate privileges |
@@ -386,12 +386,12 @@ engine**. The cost is irreducible platform overhead, which is precisely why FR-B
 | ID | Question | Status |
 |---|---|---|
 | **OQ-B1** | Is the ADR-06 server round trip commercially acceptable versus in-browser formulas? | **Largely answered [v1.1].** Measured at 480 ms p50. Per-field-change is ruled out; per-form-event is comfortably acceptable. Residual: will customers accept form-load latency where North52 offers instant in-browser? Flowon ships no client-side execution at all, which suggests the market tolerates it |
-| **OQ-B6** | **Cold start posture** — accept 6.1 s on first use after idle, keep the sandbox warm, or pre-fetch on form open? | **Open [v1.1]** — now the largest client-side unknown |
+| **OQ-B6** | **Cold start posture** — accept, keep the sandbox warm, or pre-fetch on form open? | **ANSWERED [v1.2]** — `spikes/oq-b6-cold-start-posture.md`. **Keep-warm was tested directly and failed**; pre-fetch cannot work because the form open *is* the first call. There is no reliable idle threshold (19.3 min cold, 20.0 min warm; two 15.0 min gaps differing 3.4×). Posture = **tolerate, do not prevent** → FR-B24 promoted to a release gate |
 | OQ-B2 | Synchronous server bindings in H1, or async-only? | Decided in the v1.0 gate: async default, sync only where a binding must block. Carried forward |
 | OQ-B3 | Who owns the production binding privilege? | Provisional: administrators only. Confirm with the governance owner |
 | OQ-B4 | Is blocking a record save in scope? | Decided: yes. Now FR-B17 |
-| OQ-B5 | Does this wait for W0-1, or does W0-1 get prioritised? | **Open.** The queue behind that decision would reach four |
-| **OQ-B7** | **Phase 1 only, or both phases authorised now?** | **Open [v1.1]** — see §12 |
+| OQ-B5 | Does this wait for W0-1, or does W0-1 get prioritised? | **ANSWERED 2026-08-07 (human).** **W0-1 is prioritised next**, ahead of new build. It still needs a vault + staging decision from the sponsor before engineering can proceed |
+| **OQ-B7** | **Phase 1 only, or both phases authorised now?** | **ANSWERED 2026-08-07 (human): Phase 1 only.** Binding + presentation actions + write-back + blocking validation. Phase 2 data effects deferred until Phase 1 is proven in a customer environment |
 
 ---
 
@@ -412,11 +412,13 @@ architectural risk lives, and it will be safer to design once bindings exist and
 
 ## 13. Acceptance criteria for BRD exit
 
-- [ ] Decision recorded on **v1.1 scope** — the 2026-07-27 decision covered v1.0 and does not carry forward
-- [ ] OQ-B6 (cold start) and OQ-B7 (phasing) answered or explicitly deferred with an owner
-- [ ] FR-B14 (recursion), FR-B46 (plane separation), FR-B51 (idempotency) and FR-B54 (simulation excludes effects) accepted as **release gates**
-- [ ] §6.2 exclusions confirmed, in particular that orchestration is not being taken on
-- [ ] BO-B6 (decision plane stays pure) accepted as a standing objective
+- [x] Decision recorded on **v1.1 scope** — ratified by the human sponsor 2026-08-07, Phase 1 only
+- [x] OQ-B6 (cold start) answered by measurement; OQ-B7 (phasing) answered — Phase 1 only
+- [x] FR-B14 (recursion), FR-B46 (plane separation), FR-B51 (idempotency) and FR-B54 (simulation excludes effects) accepted as **release gates** — **plus FR-B24, added as a release gate by the OQ-B6 result**
+- [x] §6.2 exclusions confirmed, in particular that orchestration is not being taken on
+- [x] BO-B6 (decision plane stays pure) accepted as a standing objective
+
+**BRD exit criteria met. Phase 1 authorised to proceed to architecture.**
 
 ## 14. Success metrics
 
@@ -448,12 +450,17 @@ architectural risk lives, and it will be safer to design once bindings exist and
 | Role | Decision | Date | Record |
 |---|---|---|---|
 | CEO function — **v1.0 scope** | APPROVE WITH CONDITIONS | 2026-07-27 | `ceo-decision-edp-bind-001.md` — **does not carry forward to v1.1** |
-| **v1.1 scope** | **PENDING** | — | Requires a fresh decision |
-| Human ratification | **PENDING** | — | Required before the build phase begins |
+| **v1.1 scope — Phase 1** | **APPROVED** | 2026-08-07 | `ceo-decision-edp-bind-001.md` §9 |
+| **Human ratification** | **RATIFIED** | 2026-08-07 | Sponsor decision — **the SoD caveat on the v1.0 decision is discharged** |
 
-**Recommended decision:** approve **Phase 1** (binding + presentation actions), defer Phase 2 (data
-effects) pending Phase 1 in a customer environment, and treat FR-B14, FR-B46, FR-B51 and FR-B54 as
-non-negotiable release gates rather than requirements among others.
+**Decision taken:** **Phase 1 approved** (binding + presentation actions + governed write-back +
+blocking validation). **Phase 2 (data effects) deferred** pending Phase 1 proven in a customer
+environment. FR-B14, FR-B46, FR-B51, FR-B54 — and now **FR-B24** — stand as non-negotiable release
+gates rather than requirements among others.
+
+> The v1.0 decision was rendered by the same agent that authored the BRD, which is the
+> author-approves-own-work pattern this product forbids for rule versions. **That caveat is now
+> discharged: the v1.1 decision above was taken by the human sponsor, not by the author.**
 
 > The v1.0 decision was rendered by the same agent that authored the BRD — the author-approves-own-work
 > pattern this product forbids for rule versions. That caveat applies equally here and is why human

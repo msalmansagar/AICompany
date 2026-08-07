@@ -177,3 +177,80 @@ In scope as submitted. Exclusions confirmed as listed. No expansion authorised.
 Next workflow step per `.claude/workflows`: `github-researcher` (adopt-over-build) before any
 implementation, then Architecture, producing ADRs for the recursion guard and the write-back
 identity model.
+
+---
+
+# 9. v1.1 DECISION — RATIFIED BY THE HUMAN SPONSOR
+
+**Date:** 2026-08-07 · **BRD reviewed:** `brd-edp-bind-001-entity-binding.md` **v1.1**
+**Decision by:** human sponsor — **not** by the agent that authored the BRD
+
+> **This is the operative decision.** The 2026-07-27 decision above covers v1.0 scope only and does
+> not carry forward.
+
+## 9.1 Decision
+
+**Phase 1: APPROVED.** Entity binding + presentation actions + governed write-back + blocking
+validation.
+
+**Phase 2 (data effects — email, create record, update record): DEFERRED**, pending Phase 1 proven
+in a customer environment. Phase 2 requires its own architecture pass before it is authorised; this
+decision does not authorise it.
+
+**Architecture phase: AUTHORISED for Phase 1, both surfaces.** C-B7 is discharged — OQ-B1 was
+answered by measurement (PR #65, merged), so the client-side surface is no longer blocked.
+
+**Implementation: not authorised by this decision.** Architecture output returns for review, per the
+same rule applied at v1.0.
+
+## 9.2 The separation-of-duties caveat is discharged
+
+The v1.0 decision was rendered by the same agent that authored the BRD — the author-approves-own-work
+pattern this product forbids for rule versions, disclosed openly at the time as an SoD caveat.
+
+**That caveat is discharged.** The decision in §9.1 was taken by the human sponsor. The product's own
+governance principle has been applied to the product's own engagement.
+
+## 9.3 Open questions closed by this decision
+
+| Question | Resolution |
+|---|---|
+| **OQ-B7** — Phase 1 only, or both? | **Phase 1 only.** As recommended in BRD §12 |
+| **OQ-B5** — wait for W0-1, or prioritise it? | **W0-1 is prioritised next**, ahead of new build. Four merged changes queue behind it. Still gated on a vault + staging decision from the sponsor |
+| **OQ-B6** — cold-start posture | **Answered by measurement, not by this decision.** See §9.4 |
+| **OQ-B1** — round trip acceptable? | Answered by measurement (PR #65). C-B7 discharged |
+
+Still open and unchanged: **OQ-B2** (async default, carried forward), **OQ-B3** (production binding
+privilege — confirm with the governance owner, condition C-B5).
+
+## 9.4 OQ-B6 changes a requirement, and the change is accepted
+
+`spikes/oq-b6-cold-start-posture.md` (PR #66) measured the cold-start posture rather than assuming
+it. **Keep-warm — the mitigation OQ-B6 presumed — was tested directly and failed.** There is no
+reliable idle threshold: 19.3 minutes idle went cold while 20.0 minutes stayed warm, and two gaps of
+exactly 15.0 minutes differed by 3.4×. Severity is 3–14 seconds, so the 6.1 s previously on record
+was mid-range rather than worst case. The runtime contributed 16 ms to a 3,347 ms cold call, so none
+of it is ours to optimise.
+
+**Accepted consequence: FR-B24 is promoted from a requirement to a release gate.** The form must
+render and be usable before directives arrive, apply them on arrival, and degrade to the un-directed
+form when they are late. Every alternative mitigation was measured and failed, which leaves this as
+the only control.
+
+**Keep-warm may be run as a cheap frequency reducer. It must not appear in any requirement,
+commitment or SLA as a control**, because it was measured and it does not hold.
+
+## 9.5 Conditions
+
+Conditions **C-B1, C-B2, C-B3, C-B5, C-B6** are **re-confirmed** against v1.1 scope and remain in
+force. **C-B4** stays discharged. **C-B7** is discharged.
+
+| ID | Condition | Due | Owner |
+|---|---|---|---|
+| **C-B8** | **FR-B24 verified as a release gate** — an automated test proving the form is interactive before directives arrive, and that a timed-out evaluation leaves the un-directed form rather than a spinner or an error | Before release | QA |
+| **C-B9** | Architecture states explicitly how the client binding renders first and applies directives on arrival. This is a different interaction model from evaluate-then-render and must be settled at architecture, not discovered during build | Before implementation | Architect |
+| **C-B10** | Phase 2 is not begun, designed or scoped under this decision. It returns as a separate authorisation | — | Orchestrator |
+
+## 9.6 Gate decision
+
+**BRD APPROVED for Phase 1. Proceed to `github-researcher`, then Architecture.**
