@@ -926,11 +926,11 @@
      never carries more than three working regions. The panels are stacked cards rather than
      spreadsheet rows — a Columns row is ten fields wide and fits nowhere, while the same ten fields
      stacked in a card fit a 250px rail comfortably. */
-  .md-grid4 { display:grid; grid-template-columns:52px 250px 1fr 300px; flex:1; min-height:0; }
-  .md-grid4.props-collapsed { grid-template-columns:52px 250px 1fr 34px; }
+  .md-grid4 { display:grid; grid-template-columns:66px 250px 1fr 300px; flex:1; min-height:0; }
+  .md-grid4.props-collapsed { grid-template-columns:66px 250px 1fr 34px; }
   .md-railstrip { border-right:1px solid var(--border); background:var(--nav-bg); display:flex;
     flex-direction:column; align-items:center; padding:8px 0; gap:4px; }
-  .md-railbtn { width:40px; height:40px; border:1px solid transparent; background:transparent;
+  .md-railbtn { width:58px; height:44px; border:1px solid transparent; background:transparent;
     border-radius:7px; cursor:pointer; color:var(--text-secondary); display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:2px; font-family:inherit; font-size:8.5px; }
   .md-railbtn:hover { background:var(--surface-alt); color:var(--text); }
@@ -1055,7 +1055,7 @@
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   /* ============ Responsive ============ */
   @media (max-width: 1180px) {
-    .md-grid4 { grid-template-columns: 48px 220px 1fr 260px; }
+    .md-grid4 { grid-template-columns: 66px 220px 1fr 260px; }
   }
   @media (max-width: 960px) {
     /* Manual designer + wizard: stack panes vertically */
@@ -4846,15 +4846,22 @@ const RAIL_PANELS = {
   }
 };
 
+/* One section per panel, named as the panel is named. Grouping transformations, formulas and
+   drilldown under "Logic" was tidier and meant nobody could find drilldown without guessing which
+   group owned it — and the strip had room for twelve buttons while using eight, so the tidiness
+   bought nothing. A name someone already knows beats a category someone has to infer. */
 const RAIL_SECTIONS = [
   { key: "fields", label: "Fields", icon: "tree" },
   { key: "data", label: "Data", icon: "flow", panels: ["dataSources", "externalSources"] },
   { key: "columns", label: "Columns", icon: "doc", panels: ["columns"] },
   { key: "filters", label: "Filters", icon: "filter", panels: ["filters"] },
   { key: "params", label: "Params", icon: "param", panels: ["parameters"] },
-  { key: "logic", label: "Logic", icon: "fx", panels: ["transformations", "formulas", "relationships"] },
-  { key: "format", label: "Format", icon: "paint", panels: ["formatting"] },
-  { key: "access", label: "Access", icon: "shield", panels: ["security", "ribbon"] }
+  { key: "drilldown", label: "Drilldown", icon: "tree", panels: ["relationships"] },
+  { key: "transform", label: "Transform", icon: "flow", panels: ["transformations"] },
+  { key: "formulas", label: "Formulas", icon: "fx", panels: ["formulas"] },
+  { key: "format", label: "Formatting", icon: "paint", panels: ["formatting"] },
+  { key: "security", label: "Security", icon: "shield", panels: ["security"] },
+  { key: "ribbon", label: "Ribbon", icon: "ribbon", panels: ["ribbon"] }
 ];
 
 function renderRailStrip(r) {
