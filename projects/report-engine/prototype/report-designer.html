@@ -909,12 +909,10 @@
   .ds-col { transition: background .1s; }
   .col-chip select { flex-shrink:0; }
   /* WYSIWYG report canvas */
-  .md-grid3 { display:grid; grid-template-columns:270px 1fr 300px; flex:1; min-height:0; }
   /* Collapsing the properties pane gives its width to the canvas rather than leaving a gap — the
      point of hiding it is to see more of the report. A narrow rail stays behind so the arrow that
      brings it back is where the pane was; collapsing it to nothing would leave no way to reopen it. */
-  .md-grid3.props-collapsed { grid-template-columns:270px 1fr 34px; }
-  .md-grid3.props-collapsed #md_props { padding:10px 5px; overflow:hidden; }
+  .md-grid4.props-collapsed #md_props { padding:10px 5px; overflow:hidden; }
   .props-bar { display:flex; align-items:center; gap:7px; margin-bottom:10px; }
   .props-bar h4 { margin:0; }
   .props-toggle { border:1px solid var(--border-strong); background:var(--surface); color:var(--text-secondary);
@@ -924,14 +922,27 @@
   /* The configuration panels are wide editable tables — Columns is ten fields across — so they are
      docked along the bottom, the only edge with the width to show a row without scrolling it. The
      canvas stays visible above, which is the point: change a filter and watch the report change. */
-  .md-dock { border-top:1px solid var(--border); background:var(--surface); display:flex;
-    flex-direction:column; min-height:0; flex-shrink:0; }
-  .md-dock-resize { height:6px; cursor:row-resize; flex-shrink:0; }
-  .md-dock-resize:hover, .md-dock-resize.dragging { background:var(--primary-tint); }
-  .md-dock-tabs { display:flex; align-items:center; gap:2px; padding:0 10px; flex-shrink:0;
-    border-bottom:1px solid var(--border); overflow-x:auto; }
-  .md-dock .tab-body { flex:1; overflow:auto; padding:12px 16px; min-height:0; }
-  .md-dock.collapsed .tab-body, .md-dock.collapsed .md-dock-resize { display:none; }
+  /* An icon strip switches what the rail shows, so the canvas keeps its full height and the screen
+     never carries more than three working regions. The panels are stacked cards rather than
+     spreadsheet rows — a Columns row is ten fields wide and fits nowhere, while the same ten fields
+     stacked in a card fit a 250px rail comfortably. */
+  .md-grid4 { display:grid; grid-template-columns:52px 250px 1fr 300px; flex:1; min-height:0; }
+  .md-grid4.props-collapsed { grid-template-columns:52px 250px 1fr 34px; }
+  .md-railstrip { border-right:1px solid var(--border); background:var(--nav-bg); display:flex;
+    flex-direction:column; align-items:center; padding:8px 0; gap:4px; }
+  .md-railbtn { width:40px; height:40px; border:1px solid transparent; background:transparent;
+    border-radius:7px; cursor:pointer; color:var(--text-secondary); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2px; font-family:inherit; font-size:8.5px; }
+  .md-railbtn:hover { background:var(--surface-alt); color:var(--text); }
+  .md-railbtn.on { background:var(--surface); border-color:var(--border-strong); color:var(--primary); font-weight:700; }
+  .md-railbtn .rb-count { font-size:8px; opacity:.75; }
+  .rail-card { border:1px solid var(--border-strong); border-radius:8px; background:var(--surface);
+    padding:9px 10px; margin-bottom:8px; }
+  .rail-card .rc-head { display:flex; align-items:center; gap:6px; margin-bottom:7px; }
+  .rail-card .rc-head b { font-size:12px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rail-card .mini-field { margin-bottom:6px; }
+  .rail-card .mini-field label { display:block; font-size:10.5px; color:var(--text-secondary); margin-bottom:2px; }
+  .rail-card .fluent-input, .rail-card .fluent-select { font-size:12px; padding:4px 6px; width:100%; }
   .md-canvas { overflow:auto; padding:24px; background:var(--bg); border-right:1px solid var(--border); }
   .cv-section { position:relative; border:1px solid transparent; border-radius:6px; padding:4px 8px 8px; margin:8px 0; }
   .cv-section:hover { border-color:var(--border); }
@@ -1044,12 +1055,12 @@
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
   /* ============ Responsive ============ */
   @media (max-width: 1180px) {
-    .md-grid3 { grid-template-columns: 240px 1fr 270px; }
+    .md-grid4 { grid-template-columns: 48px 220px 1fr 260px; }
   }
   @media (max-width: 960px) {
     /* Manual designer + wizard: stack panes vertically */
-    .md-grid3, .md-grid { grid-template-columns: 1fr; grid-auto-rows: auto; overflow: auto; }
-    .md-grid3 > .md-pane, .md-grid3 > .md-canvas, .md-grid > .md-pane {
+    .md-grid4, .md-grid { grid-template-columns: 1fr; grid-auto-rows: auto; overflow: auto; }
+    .md-grid4 > .md-pane, .md-grid4 > .md-canvas, .md-grid > .md-pane {
       border-right: none; border-bottom: 1px solid var(--border-strong); min-height: 240px; max-height: 62vh;
     }
     .md-canvas { padding: 16px; }
@@ -1997,9 +2008,8 @@ const state = {
   fieldFilter: "",
   // The manual designer's properties pane, hidden to give the canvas the room.
   propsCollapsed: false,
-  // The configuration dock along the bottom of the manual designer.
-  dockCollapsed: false,
-  dockHeight: 300,
+  // Which panel the left rail is showing in the manual designer.
+  railSection: "fields",
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -4661,7 +4671,8 @@ function renderManualDesigner(c) {
   </div>`);
   /* The arrow sits on the pane it controls rather than in the command bar: that is where someone
      looks to close a panel, and it means the control is next to the thing it acts on. */
-  const grid = el(`<div class="md-grid3 ${state.propsCollapsed ? "props-collapsed" : ""}">
+  const grid = el(`<div class="md-grid4 ${state.propsCollapsed ? "props-collapsed" : ""}">
+    <div class="md-railstrip" id="md_strip"></div>
     <div class="md-pane" id="md_ds"></div>
     <div class="md-canvas" id="md_canvas"></div>
     <div class="md-pane" id="md_props">
@@ -4674,9 +4685,10 @@ function renderManualDesigner(c) {
       <div id="md_props_body"></div>
     </div>
   </div>`);
-  c.appendChild(cmd); c.appendChild(grid); c.appendChild(configDock(r));
+  c.appendChild(cmd); c.appendChild(grid);
+  renderRailStrip(r);
   // Nothing worth filling when only the rail is showing.
-  const refresh = () => { dsPanel(r); renderCanvas(r); if (!state.propsCollapsed) renderProps(r); };
+  const refresh = () => { renderRail(r); renderCanvas(r); if (!state.propsCollapsed) renderProps(r); };
   renderManualDesigner._refresh = refresh;
   refresh();
   $("#md_back").onclick = () => { state.view = "reports"; render(); };
@@ -4686,48 +4698,138 @@ function renderManualDesigner(c) {
   $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
 }
 
-/* ---------- configuration dock ----------
-   A trial of three of the ten table-shaped tabs, Columns included because at ten fields across it is
-   the one that decides whether the bottom edge is the right home for them.
+/* ---------- left rail ----------
+   An icon strip decides what the rail shows. The canvas keeps its full height, and the screen never
+   carries more than three working regions at once.
 
-   The panels themselves are reused unchanged: renderTab() fills whatever carries the id tabBody and
-   dispatches on state.tab, and the panels re-enter it after adding or deleting a row. Giving the
-   dock body that id means every existing tab works here with no second implementation to keep in
-   step — which is what a drawer or a slide-over would also have had to do. */
-const DOCK_TABS = [["datasources", "Data Sources"], ["columns", "Columns"], ["filters", "Filters"]];
-const DOCK_MIN_HEIGHT = 120;
-const DOCK_MAX_FRACTION = 0.75;
+   The panels here are stacked cards rather than the spreadsheet rows the tabbed screen uses. That is
+   the whole reason they fit: a filter row is seven controls wide and needs the width of the window,
+   while the same seven stacked in a card need 250px. It also puts one filter in one box instead of
+   spreading it across a row the eye has to track back to its heading. */
+const RAIL_SECTIONS = [
+  { key: "fields", label: "Fields", icon: "tree" },
+  { key: "data", label: "Data", icon: "flow" },
+  { key: "filters", label: "Filters", icon: "filter" },
+  { key: "parameters", label: "Params", icon: "param" }
+];
 
-function configDock(r) {
-  if (!DOCK_TABS.some(([key]) => key === state.tab)) state.tab = DOCK_TABS[0][0];
-  const dock = el(`<div class="md-dock ${state.dockCollapsed ? "collapsed" : ""}"
-      style="${state.dockCollapsed ? "" : `height:${state.dockHeight}px`}">
-    <div class="md-dock-resize" title="Drag to resize"></div>
-    <div class="md-dock-tabs">
-      <button class="props-toggle" id="dock_toggle" style="margin-right:8px"
-        title="${state.dockCollapsed ? "Show settings" : "Hide settings"}"
-        aria-expanded="${!state.dockCollapsed}">${state.dockCollapsed ? "▲" : "▼"}</button>
-      ${DOCK_TABS.map(([key, label]) => {
-        const badge = badgeFor(key, r);
-        return `<button class="pivot-tab ${state.tab === key ? "active" : ""}" data-docktab="${key}">${
-          esc(label)}${badge != null ? `<span class="badge">${badge}</span>` : ""}</button>`;
-      }).join("")}
-      <span class="cmd-spacer" style="flex:1"></span>
-      <span class="rel-tag">Trial — 3 of 10 panels</span>
-    </div>
-    <div class="tab-body" id="tabBody"></div>
-  </div>`);
-
-  if (!state.dockCollapsed) renderTabInto(dock.querySelector("#tabBody"), r);
-
-  dock.querySelector("#dock_toggle").onclick = () => { state.dockCollapsed = !state.dockCollapsed; render(); };
-  dock.querySelectorAll("[data-docktab]").forEach(button => button.onclick = () => {
-    state.tab = button.dataset.docktab;
-    state.dockCollapsed = false;
-    render();
+function renderRailStrip(r) {
+  const strip = $("#md_strip");
+  strip.innerHTML = "";
+  RAIL_SECTIONS.forEach(section => {
+    const count = railSectionCount(section.key, r);
+    const button = el(`<button class="md-railbtn ${state.railSection === section.key ? "on" : ""}"
+      title="${esc(section.label)}">${ic(section.icon)}<span>${esc(section.label)}</span>${
+      count ? `<span class="rb-count">${count}</span>` : ""}</button>`);
+    button.onclick = () => { state.railSection = section.key; render(); };
+    strip.appendChild(button);
   });
-  attachDockResize(dock);
-  return dock;
+  renderRail(r);
+}
+
+function railSectionCount(key, r) {
+  return { data: (r.dataSources || []).length, filters: (r.filters || []).length,
+    parameters: (r.parameters || []).length }[key];
+}
+
+function renderRail(r) {
+  const host = $("#md_ds");
+  if (!host) return;
+  if (state.railSection === "fields") { dsPanel(r); return; }
+  host.innerHTML = "";
+  const section = { data: railDataSources, filters: railFilters, parameters: railParameters }[state.railSection];
+  (section || railDataSources)(host, r);
+}
+
+/** Adds a row to one of the report's lists and redraws the rail, so its count keeps up. */
+function railAdd(r, list, item) {
+  list.push(item);
+  renderRailStrip(r);
+}
+
+function railCard(title, onRemove) {
+  const card = el(`<div class="rail-card">
+    <div class="rc-head"><b>${esc(title)}</b><button class="del" data-rcdel>${ic("trash")}</button></div>
+    <div class="rc-body"></div></div>`);
+  card.querySelector("[data-rcdel]").onclick = onRemove;
+  return card;
+}
+
+function railHeader(host, title, hint) {
+  host.appendChild(el(`<div><h4>${esc(title)}</h4><div class="hint" style="margin-bottom:10px">${esc(hint)}</div></div>`));
+}
+
+function railAddButton(host, label, onClick) {
+  const button = el(`<button class="btn sm btn-add" style="width:100%">${ic("add")}${esc(label)}</button>`);
+  button.onclick = onClick;
+  host.appendChild(button);
+}
+
+/* Edits write straight through to the report. The card is not redrawn on each keystroke, which
+   would take the focus out of the box being typed into. */
+function bindRailCard(card, target) {
+  card.querySelectorAll("[data-k]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    target[input.dataset.k] = input.type === "checkbox" ? input.checked : input.value;
+  }));
+}
+
+function railDataSources(host, r) {
+  r.dataSources = r.dataSources || [];
+  railHeader(host, "Data sources", "Where the report reads from.");
+  r.dataSources.forEach((source, index) => {
+    const card = railCard(source.name || "Source", () => { r.dataSources.splice(index, 1); renderRailStrip(r); });
+    card.querySelector(".rc-body").appendChild(el(`<div>
+      <div class="mini-field"><label>Name</label>
+        <input class="fluent-input" data-k="name" value="${esc(source.name || "")}"></div>
+      <div class="mini-field"><label>Read via</label>
+        <select class="fluent-select" data-k="type">${opts(SOURCE_TYPES, source.type)}</select></div>
+      <div class="mini-field"><label>Query</label>
+        <input class="fluent-input" data-k="query" value="${esc(source.query || "")}"></div></div>`));
+    bindRailCard(card, source);
+    host.appendChild(card);
+  });
+  railAddButton(host, "Add data source", () => railAdd(r, r.dataSources,
+    { name: "New source", type: "FetchXML", connector: "", query: "", primary: false, joinL: "", joinR: "" }));
+}
+
+function railFilters(host, r) {
+  r.filters = r.filters || [];
+  railHeader(host, "Filters", "Applied before the report runs.");
+  r.filters.forEach((filter, index) => {
+    const card = railCard(filter.attribute || "New filter", () => { r.filters.splice(index, 1); renderRailStrip(r); });
+    card.querySelector(".rc-body").appendChild(el(`<div>
+      <div class="mini-field"><label>Field</label>${
+        attributePickerHtml(r.mainEntity, filter.attribute, 'data-k="attribute"', "Search fields…")}</div>
+      <div class="mini-field"><label>Operator</label>
+        <select class="fluent-select" data-k="operator">${opts(OPERATORS, filter.operator)}</select></div>
+      <div class="mini-field"><label>Value</label>
+        <input class="fluent-input" data-k="value" value="${esc(filter.value || "")}"></div></div>`));
+    bindRailCard(card, filter);
+    host.appendChild(card);
+  });
+  railAddButton(host, "Add filter", () => railAdd(r, r.filters,
+    { attribute: "", operator: "Equals", value: "", param: "", token: "(none)", group: 0, andor: "And" }));
+}
+
+function railParameters(host, r) {
+  r.parameters = r.parameters || [];
+  railHeader(host, "Parameters", "Prompts shown when the report runs.");
+  r.parameters.forEach((parameter, index) => {
+    const card = railCard(parameter.name || "Parameter", () => { r.parameters.splice(index, 1); renderRailStrip(r); });
+    card.querySelector(".rc-body").appendChild(el(`<div>
+      <div class="mini-field"><label>Name</label>
+        <input class="fluent-input" data-k="name" value="${esc(parameter.name || "")}"></div>
+      <div class="mini-field"><label>Prompt</label>
+        <input class="fluent-input" data-k="prompt" value="${esc(parameter.prompt || "")}"></div>
+      <div class="mini-field"><label>Type</label>
+        <select class="fluent-select" data-k="type">${opts(PARAM_TYPES, parameter.type)}</select></div>
+      <label class="toggle"><input type="checkbox" data-k="required" ${parameter.required ? "checked" : ""}>
+        <span class="track"></span><span class="tlabel">Required</span></label></div>`));
+    bindRailCard(card, parameter);
+    host.appendChild(card);
+  });
+  railAddButton(host, "Add parameter", () => railAdd(r, r.parameters,
+    { name: "NewParam", prompt: "New parameter", type: "Text", required: false, def: "", token: "(none)", lookup: "" }));
 }
 
 /** Renders the active panel, reusing the tab renderers the tabbed screen already uses. */
@@ -4742,30 +4844,6 @@ function renderTabInto(host, r) {
   if (panel) panel(host, r);
 }
 
-/* Dragging the top edge, rather than a set of preset heights: how much room a panel needs depends on
-   how many rows it has, and only the person looking at it knows that. */
-function attachDockResize(dock) {
-  const handle = dock.querySelector(".md-dock-resize");
-  handle.addEventListener("mousedown", startEvent => {
-    startEvent.preventDefault();
-    const startY = startEvent.clientY;
-    const startHeight = dock.getBoundingClientRect().height;
-    handle.classList.add("dragging");
-
-    const onMove = moveEvent => {
-      const proposed = startHeight + (startY - moveEvent.clientY);
-      state.dockHeight = Math.max(DOCK_MIN_HEIGHT, Math.min(window.innerHeight * DOCK_MAX_FRACTION, proposed));
-      dock.style.height = `${state.dockHeight}px`;
-    };
-    const onUp = () => {
-      handle.classList.remove("dragging");
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
-    };
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
-  });
-}
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
 function childTableFor(r, entity) { return r.design.tables.find(t=>t.role==="child" && t.entity===entity); }
 function addFieldByClick(r, f) {
