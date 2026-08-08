@@ -5178,7 +5178,7 @@ function renderCanvas(r) {
     if (lp==="top") inner = `<div style="color:#605e5c;font-size:11px;overflow-wrap:anywhere">${label}</div><div style="font-weight:600;overflow-wrap:anywhere">${val}</div>`;
     else if (lp==="right") inner = `<div style="display:flex;gap:6px;align-items:baseline;justify-content:flex-end;min-width:0"><div style="font-weight:600;min-width:0;overflow-wrap:anywhere">${val}</div><div style="color:#605e5c;font-size:12px;white-space:nowrap">${label}</div></div>`;
     else inner = `<div style="display:flex;gap:6px;align-items:baseline;min-width:0"><div style="color:#605e5c;font-size:12px;white-space:nowrap">${label}:</div><div style="font-weight:600;min-width:0;overflow-wrap:anywhere">${val}</div></div>`;
-    return `<div class="cv-field${fieldSel(t.id,ci)}" data-selfield="${t.id}" data-ci="${ci}">${inner}</div>`;
+    return `<div class="cv-field${fieldSel(t.id,ci)}" data-selfield="${t.id}" data-ci="${ci}"${fontStyleAttr(c.font)}>${inner}</div>`;
   };
   const secTag = (t, idx) => `<div class="cv-sectag${(sel.t==="section"&&sel.tid===t.id)?" sel":""}" data-selsec="${t.id}"><span>${t.role==="master"?"HEADER / MASTER":"DETAIL"} · ${esc(t.name)}${t.role==="child"?` <span style="opacity:.7">↳ ${esc((D.tables.find(x=>x.id===t.parentId)||{}).name||"unlinked")}</span>`:""}</span><span class="cv-secbtns"><button data-taddcol="${t.id}" title="Add field placeholder">+ field</button><button data-tmv="${idx}" data-dir="-1" ${idx===0?"disabled":""} title="Up">▲</button><button data-tmv="${idx}" data-dir="1" ${idx===D.tables.length-1?"disabled":""} title="Down">▼</button><button data-tdel="${t.id}" title="Delete section">✕</button></span></div>`;
   const sectionGroupData = (t) => {
@@ -5217,20 +5217,20 @@ function renderCanvas(r) {
     }
     const filled = t.columns.filter(c=>!c.placeholder);
     const rows = previewRows(filled.map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity).slice(0,3);
-    const th = t.columns.map((c,ci)=> c.placeholder ? `<th class="cv-slot" data-slot="${t.id}" data-ci="${ci}" data-selcol="${t.id}" style="min-width:74px">drop field</th>` : `<th class="cv-col${(sel.t==="col"&&sel.tid===t.id&&sel.ci===ci)?" sel":""}" data-selcol="${t.id}" data-ci="${ci}" style="text-align:${align(c).toLowerCase()}">${esc(c.label||c.name)}</th>`).join("");
+    const th = t.columns.map((c,ci)=> c.placeholder ? `<th class="cv-slot" data-slot="${t.id}" data-ci="${ci}" data-selcol="${t.id}" style="min-width:74px">drop field</th>` : `<th class="cv-col${(sel.t==="col"&&sel.tid===t.id&&sel.ci===ci)?" sel":""}" data-selcol="${t.id}" data-ci="${ci}" style="text-align:${align(c).toLowerCase()};${fontCss(c.font)}">${esc(c.label||c.name)}</th>`).join("");
     const vc = filled.find(c=>["Currency","Decimal","Whole number"].includes(c.type));
     const tot = t.showTotals && vc ? (() => { const sub=rows.reduce((s,rw)=>s+(+rw[vc.attr]||0),0), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12px"><tr><td style="padding:1px 12px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:1px 12px;color:#605e5c">Tax</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:3px 12px;border-top:1px solid var(--ac)">Total</td><td style="text-align:right;border-top:1px solid var(--ac)">${money(sub+tax)}</td></tr></table></div>`; })() : "";
-    const body = t.columns.length ? `<table class="rp-table"><thead><tr>${th}</tr></thead><tbody>${rows.map(rw=>`<tr>${t.columns.map(c=> c.placeholder ? `<td style="color:var(--text-disabled);text-align:center">—</td>` : `<td style="text-align:${align(c).toLowerCase()}">${esc(applyFieldTransform(c.type,c.transform,rw[c.attr]))}</td>`).join("")}</tr>`).join("")}</tbody></table>${tot}` : `<div class="drop-empty">Drag fields here, or use “+ field” to add empty placeholders</div>`;
+    const body = t.columns.length ? `<table class="rp-table"><thead><tr>${th}</tr></thead><tbody>${rows.map(rw=>`<tr>${t.columns.map(c=> c.placeholder ? `<td style="color:var(--text-disabled);text-align:center">—</td>` : `<td style="text-align:${align(c).toLowerCase()};${fontCss(c.font)}">${esc(applyFieldTransform(c.type,c.transform,rw[c.attr]))}</td>`).join("")}</tr>`).join("")}</tbody></table>${tot}` : `<div class="drop-empty">Drag fields here, or use “+ field” to add empty placeholders</div>`;
     return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}${body}</div>`;
   };
   const mode = r._renderMode || "report";
   const kpiHtml = (mode!=="report") ? (() => { const mt = D.tables.find(t=>t.columns.some(c=>!c.placeholder)); if(!mt)return ""; const cc = mt.columns.filter(c=>!c.placeholder).map(c=>({name:c.name,key:c.attr,type:c.type})); return kpiTiles(cc, previewRows(cc, mt.entity||r.mainEntity)); })() : "";
   host.innerHTML = `<div style="max-width:820px;margin:0 auto">${renderModeTabs(mode)}</div><div class="report-paper ${mode!=="report"?"render-"+mode:""}" style="${themeStyle(r.theme)};max-width:820px;margin:0 auto">
-    ${H.show?`<div class="rp-head cv-el${sel.t==="header"?" sel":""}" data-sel="header"><div style="display:flex;gap:12px;align-items:center">${H.logo?logoBox(H.logoData):""}<div><div class="rp-title">${esc(H.title||"Report title")}</div><div style="font-size:11px;color:#605e5c">${esc(H.subtitle||"")}</div></div></div><div class="rp-meta">${H.showDate?"16/07/2026<br>":""}${H.showBy?"By "+esc(r.owner):""}</div></div>`:""}
+    ${H.show?`<div class="rp-head cv-el${sel.t==="header"?" sel":""}" data-sel="header"><div style="display:flex;gap:12px;align-items:center">${H.logo?logoBox(H.logoData):""}<div><div class="rp-title"${fontStyleAttr(H.font)}>${esc(H.title||"Report title")}</div><div style="font-size:11px;color:#605e5c">${esc(H.subtitle||"")}</div></div></div><div class="rp-meta">${H.showDate?"16/07/2026<br>":""}${H.showBy?"By "+esc(r.owner):""}</div></div>`:""}
     ${kpiHtml}
     ${D.tables.map((t,idx)=>sectionHtml(t,idx)).join("")}
     <div class="canvas-drop${D.tables.length?"":" big"}" id="md_newdrop">${ic("add")} ${D.tables.length?"Drop a field here to add a new section":"Drag a field here, or click a field in the datasource, to start your report"}</div>
-    ${F.show?`<div class="rp-foot cv-el${sel.t==="footer"?" sel":""}" data-sel="footer"><span>${esc(F.text||"")}</span><span>${F.pageNumber?"Page 1 of 1":""}</span></div>`:""}
+    ${F.show?`<div class="rp-foot cv-el${sel.t==="footer"?" sel":""}" data-sel="footer"${fontStyleAttr(F.font)}><span>${esc(F.text||"")}</span><span>${F.pageNumber?"Page 1 of 1":""}</span></div>`:""}
   </div>`;
   bindCanvas(r);
 }
@@ -5282,6 +5282,67 @@ function bindCanvas(r) {
     elm.addEventListener("dragend", () => { colDrag = null; host.querySelectorAll(".col-over").forEach(x=>x.classList.remove("col-over")); });
   });
 }
+/* ---------- fonts ----------
+   Type set on the canvas has to survive to the reader, so the same shape is understood by the
+   designer canvas, the Test run preview and the runtime engine. It rides in the canvas design, which
+   is already stored in the layout JSON and already parsed by the runtime's readLayout — the runtime
+   simply never looked at it.
+
+   "Default" means take it from the theme rather than pin it here, so a report that was never styled
+   still follows its theme and does not freeze today's defaults into every element. */
+const FONT_FAMILIES = ["Theme default", "Segoe UI", "Arial", "Helvetica", "Georgia",
+  "Times New Roman", "Tahoma", "Verdana", "Calibri", "Courier New"];
+const FONT_SIZES = ["Default", 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32];
+const FONT_WEIGHTS = ["Default", "Light", "Regular", "Semibold", "Bold"];
+const FONT_WEIGHT_VALUES = { Light: 300, Regular: 400, Semibold: 600, Bold: 700 };
+const DEFAULT_TEXT_COLOUR = "#201f1e";
+
+/** The one place a font becomes CSS. Kept identical in report-engine-core.js for the runtime. */
+function fontCss(font) {
+  if (!font) return "";
+  const parts = [];
+  if (font.family && font.family !== "Theme default") parts.push(`font-family:${font.family}`);
+  if (font.size && font.size !== "Default") parts.push(`font-size:${font.size}px`);
+  if (font.weight && font.weight !== "Default") parts.push(`font-weight:${FONT_WEIGHT_VALUES[font.weight] || 400}`);
+  if (font.italic) parts.push("font-style:italic");
+  if (font.underline) parts.push("text-decoration:underline");
+  if (font.color && font.color !== DEFAULT_TEXT_COLOUR) parts.push(`color:${font.color}`);
+  return parts.join(";");
+}
+
+const fontStyleAttr = font => { const css = fontCss(font); return css ? ` style="${css}"` : ""; };
+
+function fontControlsHtml(font) {
+  const f = font || {};
+  return `<h4 class="mt">Font</h4>
+    <div class="mini-field"><label>Typeface</label>
+      <select class="fluent-select" data-font="family">${opts(FONT_FAMILIES, f.family || "Theme default")}</select></div>
+    <div style="display:flex;gap:6px">
+      <div class="mini-field" style="flex:1"><label>Size</label>
+        <select class="fluent-select" data-font="size">${opts(FONT_SIZES, f.size || "Default")}</select></div>
+      <div class="mini-field" style="flex:1"><label>Weight</label>
+        <select class="fluent-select" data-font="weight">${opts(FONT_WEIGHTS, f.weight || "Default")}</select></div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;margin:2px 0 8px">
+      <label class="toggle"><input type="checkbox" data-font="italic" ${f.italic ? "checked" : ""}>
+        <span class="track"></span><span class="tlabel">Italic</span></label>
+      <label class="toggle"><input type="checkbox" data-font="underline" ${f.underline ? "checked" : ""}>
+        <span class="track"></span><span class="tlabel">Underline</span></label>
+    </div>
+    <div class="mini-field"><label>Colour</label>
+      <input type="color" class="fluent-input" data-font="color" value="${esc(f.color || DEFAULT_TEXT_COLOUR)}"
+        style="height:30px;padding:2px"></div>`;
+}
+
+/** Writes onto target.font, creating it on first use so an unstyled element stores nothing. */
+function bindFontControls(host, target, paint) {
+  host.querySelectorAll("[data-font]").forEach(input => input.addEventListener("change", () => {
+    target.font = target.font || {};
+    target.font[input.dataset.font] = input.type === "checkbox" ? input.checked : input.value;
+    paint();
+  }));
+}
+
 function renderProps(r) {
   // The pane's own header carries the collapse arrow and is not rebuilt per selection, so the
   // selection's fields go into the body below it rather than replacing the whole pane.
@@ -5296,7 +5357,7 @@ function renderProps(r) {
       <div class="mini-field"><label>Title</label><input class="fluent-input" id="p_title" value="${esc(H.title)}"></div>
       <div class="mini-field"><label>Subtitle</label><input class="fluent-input" id="p_subtitle" value="${esc(H.subtitle)}"></div>
       <div class="mini-field"><label>Logo image</label><div style="display:flex;gap:8px;align-items:center">${H.logoData?`<img src="${H.logoData}" style="width:34px;height:34px;object-fit:contain;border:1px solid var(--border-strong);border-radius:4px">`:`<div class="rp-logo" style="width:34px;height:34px;font-size:14px">RE</div>`}<input type="file" accept="image/*" id="p_logofile" style="font-size:12px">${H.logoData?`<button class="btn sm" id="p_logorm">Remove</button>`:""}</div></div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><label class="toggle"><input type="checkbox" id="p_logo" ${H.logo?"checked":""}><span class="track"></span><span class="tlabel">Show logo</span></label><label class="toggle"><input type="checkbox" id="p_date" ${H.showDate?"checked":""}><span class="track"></span><span class="tlabel">Date</span></label><label class="toggle"><input type="checkbox" id="p_by" ${H.showBy?"checked":""}><span class="track"></span><span class="tlabel">Generated by</span></label></div>`;
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px"><label class="toggle"><input type="checkbox" id="p_logo" ${H.logo?"checked":""}><span class="track"></span><span class="tlabel">Show logo</span></label><label class="toggle"><input type="checkbox" id="p_date" ${H.showDate?"checked":""}><span class="track"></span><span class="tlabel">Date</span></label><label class="toggle"><input type="checkbox" id="p_by" ${H.showBy?"checked":""}><span class="track"></span><span class="tlabel">Generated by</span></label></div>${fontControlsHtml(H.font)}`;
     bindProps(r); return;
   }
   if (sel.t==="footer") { const F=D.footer;
@@ -5323,19 +5384,25 @@ function renderProps(r) {
       <div class="mini-field"><label>Label</label><input class="fluent-input" id="p_flabel" value="${esc(c.label||c.name)}"></div>
       <div class="mini-field"><label>Label position</label>${posBtns(c.labelPos)}</div>
       <div class="mini-field"><label>Transform</label><select class="fluent-select" id="p_ftf">${transformsFor(c.type).map(o=>`<option ${o===(c.transform||"None")?"selected":""}>${esc(o)}</option>`).join("")}</select></div>
-      <button class="btn sm" id="p_fdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Remove field</button>`;
+      <button class="btn sm" id="p_fdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Remove field</button>${fontControlsHtml(c.font)}`;
     bindProps(r); return;
   }
   host.innerHTML = `<h4>Table column</h4><div class="page-sub" style="margin-bottom:10px">${esc(c.name)} · ${esc(c.type)}</div>
     <div class="mini-field"><label>Header label</label><input class="fluent-input" id="p_flabel" value="${esc(c.label||c.name)}"></div>
     <div class="mini-field"><label>Text align</label>${alignBtns(c.align)}</div>
     <div class="mini-field"><label>Transform</label><select class="fluent-select" id="p_ftf">${transformsFor(c.type).map(o=>`<option ${o===(c.transform||"None")?"selected":""}>${esc(o)}</option>`).join("")}</select></div>
-    <button class="btn sm" id="p_fdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Remove column</button>`;
+    <button class="btn sm" id="p_fdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Remove column</button>${fontControlsHtml(c.font)}`;
   bindProps(r);
 }
 function bindProps(r) {
   const D = r.design; const sel = r._sel; const host = $("#md_props"); const refresh = renderManualDesigner._refresh;
   const q = id => host.querySelector(id); const paint = () => renderCanvas(r);
+  /* One binding for every selection: the font block is the same control set wherever it appears, and
+     the only thing that differs is which object it writes to. */
+  const fontTarget = sel.t === "header" ? D.header
+    : sel.t === "footer" ? D.footer
+    : ((D.tables.find(x => x.id === sel.tid) || {}).columns || [])[sel.ci];
+  if (fontTarget) bindFontControls(host, fontTarget, paint);
   if (sel.t==="header") { const H=D.header;
     q("#p_title").oninput = e => { H.title=e.target.value; paint(); }; q("#p_subtitle").oninput = e => { H.subtitle=e.target.value; paint(); };
     q("#p_logo").onchange = e => { H.logo=e.target.checked; paint(); }; q("#p_date").onchange = e => { H.showDate=e.target.checked; paint(); }; q("#p_by").onchange = e => { H.showBy=e.target.checked; paint(); };

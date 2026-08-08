@@ -262,6 +262,46 @@ async function fetchDefinition(id){
  * richer source — it carries groupBy, chart type and card icon — so it wins where present, with the
  * stored option-set label as the fallback for reports saved before the JSON existed.
  */
+/* ---------- fonts ----------
+   Kept identical to the copy in report-designer.html on purpose: the designer is a standalone page
+   and does not load this file, so the two cannot share the function. If one changes the other must,
+   or type will look different in the designer from how it prints. */
+const FONT_WEIGHT_VALUES = { Light: 300, Regular: 400, Semibold: 600, Bold: 700 };
+const DEFAULT_TEXT_COLOUR = "#201f1e";
+
+function fontCss(font) {
+  if (!font) return "";
+  const parts = [];
+  if (font.family && font.family !== "Theme default") parts.push(`font-family:${font.family}`);
+  if (font.size && font.size !== "Default") parts.push(`font-size:${font.size}px`);
+  if (font.weight && font.weight !== "Default") parts.push(`font-weight:${FONT_WEIGHT_VALUES[font.weight] || 400}`);
+  if (font.italic) parts.push("font-style:italic");
+  if (font.underline) parts.push("text-decoration:underline");
+  if (font.color && font.color !== DEFAULT_TEXT_COLOUR) parts.push(`color:${font.color}`);
+  return parts.join(";");
+}
+
+/**
+ * Maps a column to the font it was given on the canvas.
+ *
+ * Keyed by attribute and by lower-cased label because a result column identifies itself by alias at
+ * run time and by attribute in the design, and the two agree for most reports but not all.
+ */
+function designFontLookup(layout) {
+  const design = layout && layout.canvasDesign;
+  const lookup = {};
+  if (!design) return lookup;
+  for (const table of design.tables || []) {
+    for (const column of table.columns || []) {
+      if (!column.font || column.placeholder) continue;
+      if (column.attr) lookup[column.attr] = column.font;
+      if (column.label) lookup[String(column.label).toLowerCase()] = column.font;
+      if (column.name) lookup[String(column.name).toLowerCase()] = column.font;
+    }
+  }
+  return lookup;
+}
+
 function readLayout(record){
   if (!record) return { type: "Tabular Report" };
   let parsed = {};
@@ -668,9 +708,18 @@ function renderGrid(result){
   const cols = result.columns;
   const drillCol = rels.length ? rels[0] : null;
   const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
-  const head = cols.map(c=>`<th>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
+  /* The grid is what most reports actually render through — the designed layouts are the exception —
+     so the fonts chosen on the canvas have to be honoured here or they reach almost nobody. A result
+     column names itself by alias at run time and by attribute in the design; the lookup carries both
+     plus the label, because the three agree for most reports and not all. */
+  const gridFont = designFontLookup(state.current.def.layout);
+  const gridFontOf = c => {
+    const css = fontCss(gridFont[c.alias] || gridFont[String(c.label || "").toLowerCase()]);
+    return css ? ` style="${css}"` : "";
+  };
+  const head = cols.map(c=>`<th${gridFontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
   const rows = result.rows.map(row => {
-    const tds = cols.map(c => { const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text; const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!==""; return `<td class="${num?"num":""}">${esc(t)}</td>`; }).join("");
+    const tds = cols.map(c => { const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text; const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!==""; return `<td class="${num?"num":""}"${gridFontOf(c)}>${esc(t)}</td>`; }).join("");
     const key = hasKey ? (row.cells[drillCol.parentKey]||{}).text : null;
     const drill = hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(drillCol))} ↗</button></td>` : "";
     return `<tr>${tds}${drill}</tr>`;
@@ -1664,8 +1713,13 @@ function buildPreviewBody(type, cols, rows, opts) {
   const sum = list => valCol ? list.reduce((s,r)=>s+(+r[valCol.key]||0),0) : 0;
   const fmtTotal = n => (valCol && valCol.type==="Currency") ? money(n) : (+n).toLocaleString(undefined,{maximumFractionDigits:2});
   const groups = catCol ? [...new Set(rows.map(r=>r[catCol.key]))] : [];
-  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}">${esc(T(c.name))}</th>`).join("");
-  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
+  /* Type chosen on the design canvas reaches the reader here. The canvas design travels inside the
+     layout JSON and readLayout already parses it — this is the first thing to read it, so a font set
+     in the designer is no longer something only the designer can see. */
+  const columnFont = designFontLookup(layout);
+  const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
+  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
+  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
   const tile = (t,v) => `<div style="flex:1;min-width:130px;border:1px solid #e1dfdd;border-radius:6px;padding:12px 14px"><div style="font-size:11px;color:#605e5c;text-transform:uppercase;letter-spacing:.5px">${esc(T(t))}</div><div style="font-size:22px;font-weight:700;color:${ac};margin-top:4px">${v}</div></div>`;
   const barChart = items => { const max = Math.max(...items.map(x=>x.v),1); return `<div style="display:flex;flex-direction:column;gap:8px">${items.map(x=>`<div style="display:flex;align-items:center;gap:10px"><div style="width:90px;font-size:11.5px">${esc(T(x.label))}</div><div style="flex:1;background:${acb};border-radius:3px"><div style="width:${Math.round(x.v/max*100)}%;background:${ac};height:16px;border-radius:3px"></div></div><div style="width:120px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums">${valCol?money(x.v):x.v}</div></div>`).join("")}</div>`; };
   const grandRow = () => valCol ? `<tr class="grand-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Grand total"):(c===valCol?fmtTotal(sum(rows)):"")}</td>`).join("")}</tr>` : "";
