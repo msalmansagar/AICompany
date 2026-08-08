@@ -5030,6 +5030,33 @@ function openReportSettings(r) {
 
 function masterTable(r) { return r.design.tables.find(t=>t.role==="master") || r.design.tables[0]; }
 function childTableFor(r, entity) { return r.design.tables.find(t=>t.role==="child" && t.entity===entity); }
+/* The canvas and the Columns list are one decision seen twice: what the report returns. Only the
+   Columns list becomes qdb_reportcolumn, so a field put on the paper and nowhere else was drawn by
+   the designer — which fetches its own preview rows — and left out of the engine's select list.
+   Correct on screen, missing at run time. Adding a field to the canvas now adds it to both. */
+function ensureReportColumn(r, field) {
+  r.columns = r.columns || [];
+  const entity = field.entity || r.mainEntity;
+  const existing = r.columns.find(column =>
+    column.attribute === field.attr && (column.entity || r.mainEntity) === entity);
+  if (existing) { existing.visible = true; return; }
+  r.columns.push({
+    name: field.name, entity, attribute: field.attr, type: field.type || "Text",
+    format: "", width: 120,
+    align: ["Currency", "Decimal", "Whole number"].includes(field.type) ? "Right" : "Left",
+    agg: "None", masked: false, visible: true
+  });
+}
+
+/* Taking a field off the paper hides it rather than dropping it from the report. A column can be
+   selected without being shown — that is what visible is for — and a filter or a total can depend on
+   one that is not on the page. Deleting it here would silently break them. */
+function hideReportColumn(r, column) {
+  if (!column || column.placeholder) return;
+  const match = (r.columns || []).find(candidate => candidate.attribute === column.attr);
+  if (match) match.visible = false;
+}
+
 function addFieldByClick(r, f) {
   const D = r.design;
   let t = null;
@@ -5038,7 +5065,9 @@ function addFieldByClick(r, f) {
   if (!t) { t = { id:newTableId(D), name:f.name+" section", entity:f.entity, role:"master", parentId:null, displayAs:"header", showTotals:false, columns:[] }; D.tables.push(t); }
   if (!t.entity) t.entity = f.entity;
   if (!t.columns.some(c => c.attr === f.attr)) t.columns.push({ name:f.name, attr:f.attr, type:f.type, entity:f.entity, transform:"None", label:f.name, labelPos:"left", align:["Currency","Decimal","Whole number"].includes(f.type)?"Right":"Left" });
+  ensureReportColumn(r, f);
   renderManualDesigner._refresh();
+  renderRailStrip(r);
 }
 function dsPanel(r) {
   const host = $("#md_ds"); const ent = r.mainEntity;
@@ -5215,7 +5244,8 @@ function bindCanvas(r) {
   host.querySelectorAll("[data-selcol]").forEach(n => n.onclick = e => { e.stopPropagation(); pick({t:"col", tid:n.dataset.selcol, ci:+n.dataset.ci}); });
   host.querySelectorAll("[data-tmv]").forEach(b => b.onclick = e => { e.stopPropagation(); const i=+b.dataset.tmv, j=i+(+b.dataset.dir); if(j<0||j>=D.tables.length)return; const [m]=D.tables.splice(i,1); D.tables.splice(j,0,m); refresh(); });
   host.querySelectorAll("[data-tdel]").forEach(b => b.onclick = e => { e.stopPropagation(); D.tables=D.tables.filter(x=>x.id!==b.dataset.tdel); r._sel=null; refresh(); });
-  const addFieldTo = (t, f) => { if(!t.entity)t.entity=f.entity; if(!t.columns.some(c=>c.attr===f.attr)) t.columns.push({name:f.name, attr:f.attr, type:f.type, entity:f.entity, transform:"None", label:f.name, labelPos:"left", align:["Currency","Decimal","Whole number"].includes(f.type)?"Right":"Left"}); };
+  // Dropping a field is the same act as clicking one, so it keeps the Columns list in step too.
+  const addFieldTo = (t, f) => { if(!t.entity)t.entity=f.entity; if(!t.columns.some(c=>c.attr===f.attr)) t.columns.push({name:f.name, attr:f.attr, type:f.type, entity:f.entity, transform:"None", label:f.name, labelPos:"left", align:["Currency","Decimal","Whole number"].includes(f.type)?"Right":"Left"}); ensureReportColumn(r, f); renderRailStrip(r); };
   const fillSlot = (t, ci, f) => { const c = t.columns[ci]; if(!t.entity)t.entity=f.entity; c.placeholder=false; c.attr=f.attr; c.entity=f.entity; c.type=f.type; c.name=f.name; if(!c.label)c.label=f.name; c.align = c.align || (["Currency","Decimal","Whole number"].includes(f.type)?"Right":"Left"); c.labelPos = c.labelPos||"left"; c.transform = c.transform||"None"; };
   host.querySelectorAll("[data-taddcol]").forEach(b => b.onclick = e => { e.stopPropagation(); const t = D.tables.find(x=>x.id===b.dataset.taddcol); t.columns.push({placeholder:true, name:"Field", type:"Text", label:"", labelPos:"left", align:"Left", transform:"None"}); refresh(); });
   host.querySelectorAll(".cv-slot[data-slot]").forEach(z => {
@@ -5331,7 +5361,10 @@ function bindProps(r) {
   const c = t.columns[sel.ci]; if (!c) return;
   q("#p_flabel").oninput = e => { c.label=e.target.value; paint(); };
   q("#p_ftf").onchange = e => { c.transform=e.target.value; paint(); };
-  q("#p_fdel").onclick = () => { t.columns.splice(sel.ci,1); r._sel=null; refresh(); };
+  q("#p_fdel").onclick = () => {
+    hideReportColumn(r, t.columns[sel.ci]);
+    t.columns.splice(sel.ci, 1); r._sel = null; refresh(); renderRailStrip(r);
+  };
   const seg = host.querySelector("[data-seg]");
   if (seg) host.querySelectorAll("[data-seg] button").forEach(b => b.onclick = () => { if(seg.dataset.seg==="labelPos") c.labelPos=b.dataset.val; else c.align=b.dataset.val; renderCanvas(r); renderProps(r); });
 }
