@@ -1,14 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Dialog,
-  DialogSurface,
-  DialogBody,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Spinner,
-} from '@fluentui/react-components';
 import { FetchXmlIframeBuilder, type FetchXmlIframeHandle } from './FetchXmlIframeBuilder';
 import { FetchXmlQueryBuilder } from './FetchXmlQueryBuilder';
 import { validateFetchXml } from './fetchXmlFormatter';
@@ -130,79 +120,78 @@ export function FetchXmlBuilderDialog({
     setBuilderPath('query-builder');
   }
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={(_, data) => { if (!data.open) onDismiss(); }}>
-      <DialogSurface style={dialogSurfaceStyle}>
-        <DialogBody>
-          <DialogTitle>FetchXML Filter Builder</DialogTitle>
-          <DialogContent>
-            {builderPath === 'probing' && (
-              <div style={centerStyle}>
-                <Spinner size="medium" label="Detecting available builder..." />
+    <div
+      className="dialog-backdrop"
+      onClick={(e) => { if (e.target === e.currentTarget) onDismiss(); }}
+    >
+      <div
+        className="dialog"
+        style={{ width: 'min(900px, 92vw)' }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="FetchXML filter builder"
+      >
+        <div className="dialog-head">
+          <h2>FetchXML filter builder</h2>
+        </div>
+
+        <div className="dialog-body">
+          {builderPath === 'probing' && (
+            <div className="empty-state">
+              <span className="spinner" />
+              <span>Detecting available builder…</span>
+            </div>
+          )}
+
+          {builderPath === 'iframe' && (
+            <FetchXmlIframeBuilder
+              ref={iframeHandleRef}
+              clientUrl={clientUrl}
+              objectTypeCode={objectTypeCode}
+              initialFetchXml={currentFetchXml}
+              onError={handleIframeError}
+            />
+          )}
+
+          {builderPath === 'query-builder' && (
+            isLoadingAttributes ? (
+              <div className="empty-state">
+                <span className="spinner" />
+                <span>Loading entity attributes…</span>
               </div>
-            )}
-
-            {builderPath === 'iframe' && (
-              <FetchXmlIframeBuilder
-                ref={iframeHandleRef}
-                clientUrl={clientUrl}
-                objectTypeCode={objectTypeCode}
+            ) : (
+              <FetchXmlQueryBuilder
+                attributes={attributes}
                 initialFetchXml={currentFetchXml}
-                onError={handleIframeError}
+                onChange={handleFetchXmlChange}
               />
-            )}
+            )
+          )}
 
-            {builderPath === 'query-builder' && (
-              isLoadingAttributes ? (
-                <div style={centerStyle}>
-                  <Spinner size="small" label="Loading entity attributes..." />
-                </div>
-              ) : (
-                <FetchXmlQueryBuilder
-                  attributes={attributes}
-                  initialFetchXml={currentFetchXml}
-                  onChange={handleFetchXmlChange}
-                />
-              )
-            )}
+          {validationError && (
+            <div className="notice error" style={{ marginTop: 10 }} role="alert">
+              {validationError}
+            </div>
+          )}
+        </div>
 
-            {validationError && (
-              <p style={errorStyle} role="alert">
-                {validationError}
-              </p>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button appearance="secondary" onClick={onDismiss}>
-              Cancel
-            </Button>
-            <Button
-              appearance="primary"
-              onClick={handleApply}
-              disabled={!!validationError || builderPath === 'probing'}
-            >
-              Apply
-            </Button>
-          </DialogActions>
-        </DialogBody>
-      </DialogSurface>
-    </Dialog>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={onDismiss}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={handleApply}
+            disabled={!!validationError || builderPath === 'probing'}
+          >
+            Apply
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
-
-const dialogSurfaceStyle: React.CSSProperties = {
-  width: 'min(900px, 92vw)',
-  maxWidth: '92vw',
-};
-
-const centerStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
-  padding: 32,
-};
-
-const errorStyle: React.CSSProperties = {
-  color: 'var(--error)',
-  fontSize: 12,
-  marginTop: 8,
-};

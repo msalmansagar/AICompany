@@ -392,6 +392,65 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
 .dialog-body { padding: 16px 20px; overflow: auto; min-height: 0; }
 .dialog-foot { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
 
+/* ============ react-querybuilder ============ */
+
+/* The FetchXML builder's condition editor ships its own stylesheet, which is
+   unthemed. These pull its controls onto the tokens so the popup matches the
+   rest of the app rather than looking like a third-party widget dropped in. */
+
+.queryBuilder { font-family: var(--font); font-size: 13px; color: var(--text); }
+
+.queryBuilder .ruleGroup {
+  background: var(--surface-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+}
+.queryBuilder .ruleGroup .ruleGroup { background: var(--surface); }
+
+.queryBuilder .rule { gap: 6px; padding: 4px 0; }
+
+.queryBuilder select,
+.queryBuilder input:not([type="checkbox"]):not([type="radio"]) {
+  height: 30px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.queryBuilder select:focus,
+.queryBuilder input:focus { border-color: var(--primary); }
+
+.queryBuilder button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.queryBuilder button:hover { background: var(--surface-alt); }
+.queryBuilder .ruleGroup-addRule,
+.queryBuilder .ruleGroup-addGroup {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 600;
+}
+.queryBuilder .rule-remove,
+.queryBuilder .ruleGroup-remove {
+  border-color: var(--error);
+  color: var(--error);
+}
+.queryBuilder .rule-remove:hover,
+.queryBuilder .ruleGroup-remove:hover { background: var(--error-bg); }
+
 /* ============ Toasts ============ */
 
 .toast-wrap {
