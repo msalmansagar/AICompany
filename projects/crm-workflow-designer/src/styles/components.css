@@ -287,6 +287,8 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
 .btn.primary:disabled { background: var(--text-disabled); border-color: var(--text-disabled); color: #fff; }
 .btn.danger { color: var(--error); border-color: var(--error); }
 .btn.danger:hover { background: var(--error-bg); }
+.btn.primary.danger-fill { background: var(--error); border-color: var(--error); color: #fff; }
+.btn.primary.danger-fill:hover { filter: brightness(1.08); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -311,7 +313,68 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
 .notice.success { background: var(--success-bg); color: var(--success); border-color: transparent; }
 .notice.info { background: var(--info-bg); color: var(--info); border-color: transparent; }
 
-.empty-state { color: var(--text-secondary); text-align: center; padding: 40px 20px; font-size: 13px; }
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  color: var(--text-secondary); text-align: center; padding: 72px 20px; font-size: 13px;
+}
+.empty-state .es-title { font-size: 16px; font-weight: 600; color: var(--text); }
+
+/* Counts under a grid, in the words the status column uses. */
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+.legend b { color: var(--text); }
+
+/* A sortable column header. The arrows sit at low opacity until the column sorts. */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable .sort-arrows { display: inline-flex; flex-direction: column; gap: 1px; margin-left: 4px; opacity: .3; vertical-align: middle; }
+th.sortable.sorted .sort-arrows { opacity: 1; }
+th.sortable .sort-arrows svg { display: block; fill: var(--text-secondary); }
+th.sortable.sorted .sort-arrows svg.active { fill: var(--primary); }
+
+/* Row selection checkbox, styled to match the Fluent grid rather than the OS. */
+.row-check { width: 36px; }
+.row-check .box {
+  width: 16px; height: 16px; border-radius: 2px; border: 1px solid var(--border-input);
+  background: var(--surface); display: flex; align-items: center; justify-content: center;
+}
+tr.selected .row-check .box { border-color: var(--primary); background: var(--primary); }
+.row-check .box svg { stroke: var(--text-on-primary); }
+
+/* Blocking overlay while a grid action runs. */
+.busy-overlay {
+  position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+  background: var(--bg); opacity: .78;
+}
+.busy-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  background: var(--surface-raised); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px 32px; box-shadow: var(--shadow-16);
+}
+.spinner {
+  width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary);
+  border-radius: 50%; animation: pe-spin .7s linear infinite;
+}
+.spinner.sm { width: 18px; height: 18px; border-width: 2px; }
+
+/* The strip under a grid naming what is selected. */
+.selection-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 20px; border-top: 1px solid var(--border); background: var(--surface-alt);
+  font-size: 12px; color: var(--text-secondary); flex-shrink: 0;
+}
+.link-btn {
+  border: none; background: transparent; color: var(--primary); cursor: pointer;
+  font-family: inherit; font-size: 12px; padding: 0;
+}
+.link-btn:hover { text-decoration: underline; }
+
+/* A dismissible message bar above the content. */
+.message-bar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 20px; font-size: 13px; flex-shrink: 0;
+  background: var(--error-bg); color: var(--error); border-bottom: 1px solid var(--error);
+}
+.message-bar .dismiss {
+  border: none; background: transparent; color: inherit; cursor: pointer; font-size: 14px; padding: 0 4px;
+}
 
 /* ============ Dialog ============ */
 

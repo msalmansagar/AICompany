@@ -116,20 +116,21 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
     <div style={shellStyle}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* Header */}
-      <div style={headerStyle}>
-        <div style={headerLeftStyle}>
-          <button type="button" style={backBtnStyle} onClick={onBack}>
-            ← SOPs
-          </button>
-          <div>
-            <div style={pageTitleStyle}>Roles Management</div>
-            <div style={pageSubtitleStyle}>Manage assignable roles for SOP steps</div>
-          </div>
-        </div>
-        <button type="button" style={newRoleBtnStyle} onClick={handleNew}>
-          + New Role
+      <div className="cmdbar">
+        <button type="button" className="cmd primary" onClick={handleNew}>
+          + New role
         </button>
+        <span className="cmd-spacer" />
+        <button type="button" className="cmd" onClick={onBack}>
+          ← SOPs
+        </button>
+      </div>
+
+      <div className="page-head" style={{ padding: '16px 20px 0', marginBottom: 0 }}>
+        <div>
+          <h1>Roles Management</h1>
+          <div className="page-sub">Assignable roles for SOP steps</div>
+        </div>
       </div>
 
       {/* Content */}
@@ -321,29 +322,6 @@ function RoleEditDialog({
 const shellStyle: React.CSSProperties = {
   width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
   background: 'var(--surface-alt)', fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '16px 24px', background: 'var(--surface)',
-  borderBottom: '1px solid var(--border)', flexShrink: 0,
-};
-
-const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16 };
-
-const backBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: 'transparent',
-  border: '1px solid var(--border)', borderRadius: 5,
-  fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer',
-};
-
-const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: 'var(--text)' };
-const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
-
-const newRoleBtnStyle: React.CSSProperties = {
-  height: 32, padding: '0 16px', background: 'var(--primary)',
-  border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer',
 };
 
 const contentStyle: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: '24px' };

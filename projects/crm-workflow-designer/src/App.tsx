@@ -260,7 +260,9 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
         ) : undefined
       }
     >
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+      {/* A column, so a screen can stack a command bar, its page and a status
+          strip as siblings the way the design system expects. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
         {appMode === 'edit' ? (
           <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
         ) : appMode === 'view' ? (
@@ -288,7 +290,6 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
             onNewProcess={handleNewProcess}
             onOpenProcess={(id) => void handleOpenProcess(id)}
             onEditProcess={(id) => void handleEditProcess(id)}
-            onOpenSopDesigner={sopAdapter ? () => handleNavigate('sop-library') : undefined}
             search={search}
             onSearchChange={setSearch}
             statusFilter={STATUS_BY_DESTINATION[destination] ?? 'all'}

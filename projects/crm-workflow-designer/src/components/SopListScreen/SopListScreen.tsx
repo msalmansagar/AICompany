@@ -189,7 +189,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   }
 
   return (
-    <div style={shellStyle}>
+    <>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Full-screen overlay while fetching canvas data */}
@@ -203,110 +203,97 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
         </div>
       )}
 
-      {/* Header */}
-      <div style={headerStyle}>
-        <div style={headerLeftStyle}>
-          <button type="button" style={backBtnStyle} onClick={onBack}>
-            ← Processes
-          </button>
-          <div>
-            <div style={pageTitleStyle}>SOP Designer</div>
-            <div style={pageSubtitleStyle}>Standard Operating Procedures</div>
-          </div>
-        </div>
-        <div style={headerRightStyle}>
-          <button type="button" style={rolesBtn} onClick={onManageRoles}>
-            Manage Roles
-          </button>
-          <button type="button" style={newSopBtnStyle} onClick={() => setShowCreateDialog(true)}>
-            + New SOP
-          </button>
-        </div>
+      <div className="cmdbar">
+        <button type="button" className="cmd primary" onClick={() => setShowCreateDialog(true)}>
+          + New SOP
+        </button>
+        <span className="cmd-sep" />
+        <button type="button" className="cmd" onClick={onManageRoles}>
+          Manage roles
+        </button>
+        <span className="cmd-spacer" />
+        <button type="button" className="cmd" onClick={onBack}>
+          ← Processes
+        </button>
       </div>
 
-      {/* Content */}
-      <div style={contentStyle}>
-        {isLoading && (
-          <div style={spinnerCenterStyle}>
-            <span style={spinnerStyle} /> Loading SOPs…
+      {loadError && <div className="message-bar" role="alert">{loadError}</div>}
+
+      <div className="scroll">
+        <div className="page">
+          <div className="page-head">
+            <div>
+              <h1>SOP Designer</h1>
+              <div className="page-sub">
+                Standard operating procedures · the templates workflow processes are derived from
+              </div>
+            </div>
           </div>
-        )}
 
-        {loadError && (
-          <div style={errorBannerStyle}>{loadError}</div>
-        )}
-
-        {!isLoading && !loadError && sops.length === 0 && (
-          <div style={emptyStateStyle}>
-            <div style={emptyIconStyle}>📋</div>
-            <div style={emptyTitleStyle}>No SOPs yet</div>
-            <div style={emptySubStyle}>Create your first Standard Operating Procedure.</div>
-            <button type="button" style={emptyNewBtnStyle} onClick={() => setShowCreateDialog(true)}>
-              + New SOP
-            </button>
+          <div className="grid-wrap">
+            {isLoading ? (
+              <div className="empty-state">
+                <span className="spinner" />
+                <span>Loading SOPs…</span>
+              </div>
+            ) : sops.length === 0 ? (
+              <div className="empty-state">
+                <span className="es-title">No SOPs yet</span>
+                <span>Create your first standard operating procedure.</span>
+                <button type="button" className="btn primary" onClick={() => setShowCreateDialog(true)}>
+                  + New SOP
+                </button>
+              </div>
+            ) : (
+              <table className="grid" role="grid">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th className="num">Derived processes</th>
+                    <th style={{ textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sops.map((sop) => (
+                    <tr key={sop.id}>
+                      <td style={{ fontWeight: 600 }}>{sop.name}</td>
+                      <td><StatusBadge status={sop.status} /></td>
+                      <td style={{ color: 'var(--text-secondary)' }}>v{sop.version || '1.0'}</td>
+                      <td className="num">{sop.derivedProcessCount}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: 6 }}>
+                          <button type="button" className="btn sm" onClick={() => void handleEditSop(sop.id)}>
+                            Edit
+                          </button>
+                          {sop.status === SOP_STATUS.PUBLISHED && (
+                            <button
+                              type="button"
+                              className="btn sm primary"
+                              onClick={() => void handleOpenCreateProcessWizard(sop)}
+                            >
+                              Create process
+                            </button>
+                          )}
+                          {sop.status === SOP_STATUS.DRAFT && (
+                            <button
+                              type="button"
+                              className="btn sm danger"
+                              onClick={() => void handleDeleteSop(sop)}
+                            >
+                              Retire
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-        )}
-
-        {!isLoading && sops.length > 0 && (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={theadRowStyle}>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Version</th>
-                <th style={thStyle}>Derived Processes</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sops.map((sop) => (
-                <tr key={sop.id} style={tbodyRowStyle}>
-                  <td style={tdStyle}>
-                    <span style={sopNameStyle}>{sop.name}</span>
-                  </td>
-                  <td style={tdStyle}>
-                    <StatusBadge status={sop.status} />
-                  </td>
-                  <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: 12 }}>
-                    v{sop.version || '1.0'}
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text)' }}>
-                    {sop.derivedProcessCount}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <div style={actionGroupStyle}>
-                      <button
-                        type="button"
-                        style={editBtnStyle}
-                        onClick={() => void handleEditSop(sop.id)}
-                      >
-                        Edit
-                      </button>
-                      {sop.status === SOP_STATUS.PUBLISHED && (
-                        <button
-                          type="button"
-                          style={createProcessBtnStyle}
-                          onClick={() => void handleOpenCreateProcessWizard(sop)}
-                        >
-                          Create Process
-                        </button>
-                      )}
-                      {sop.status === SOP_STATUS.DRAFT && (
-                        <button
-                          type="button"
-                          style={deleteBtnStyle}
-                          onClick={() => void handleDeleteSop(sop)}
-                        >
-                          Retire
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        </div>
       </div>
 
       {showCreateDialog && (
@@ -328,7 +315,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
           }}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -411,128 +398,6 @@ function CreateSopDialog({
 }
 
 // --- Styles ---
-
-const shellStyle: React.CSSProperties = {
-  width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-  background: 'var(--surface-alt)', fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '16px 24px', background: 'var(--surface)',
-  borderBottom: '1px solid var(--border)', flexShrink: 0,
-};
-
-const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16 };
-const headerRightStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
-
-const backBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px',
-  background: 'transparent', border: '1px solid var(--border)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--text-secondary)', cursor: 'pointer',
-};
-
-const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: 'var(--text)' };
-const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
-
-const rolesBtn: React.CSSProperties = {
-  height: 32, padding: '0 14px',
-  background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 6, fontSize: 13, fontWeight: 500,
-  color: 'var(--text)', cursor: 'pointer',
-};
-
-const newSopBtnStyle: React.CSSProperties = {
-  height: 32, padding: '0 16px',
-  background: 'var(--accent-route)', border: 'none',
-  borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer',
-};
-
-const contentStyle: React.CSSProperties = {
-  flex: 1, overflowY: 'auto', padding: '24px',
-};
-
-const spinnerCenterStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 10, fontSize: 13, color: 'var(--text-secondary)', padding: '60px 0',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block', width: 16, height: 16,
-  border: '2px solid var(--border)', borderTopColor: 'var(--accent-route)',
-  borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-};
-
-const errorBannerStyle: React.CSSProperties = {
-  padding: '12px 16px', background: 'var(--error-bg)',
-  border: '1px solid var(--error)', borderRadius: 6,
-  color: 'var(--error)', fontSize: 13,
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center',
-  justifyContent: 'center', gap: 12, padding: '80px 0',
-};
-
-const emptyIconStyle: React.CSSProperties = { fontSize: 48 };
-const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
-const emptySubStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)' };
-const emptyNewBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: 'var(--accent-route)',
-  border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer', marginTop: 4,
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%', borderCollapse: 'collapse',
-  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
-  overflow: 'hidden',
-};
-
-const theadRowStyle: React.CSSProperties = { background: 'var(--surface-alt)' };
-
-const thStyle: React.CSSProperties = {
-  padding: '10px 16px', textAlign: 'left',
-  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
-  borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
-};
-
-const tbodyRowStyle: React.CSSProperties = {
-  borderBottom: '1px solid var(--border)',
-};
-
-const tdStyle: React.CSSProperties = { padding: '12px 16px', verticalAlign: 'middle' };
-
-const sopNameStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: 'var(--text)',
-};
-
-const actionGroupStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 6,
-};
-
-const editBtnStyle: React.CSSProperties = {
-  height: 28, padding: '0 12px',
-  background: 'var(--primary-tint-2)', border: '1px solid var(--primary-tint)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--primary-pressed)', cursor: 'pointer',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 28, padding: '0 12px',
-  background: 'var(--error-bg)', border: '1px solid var(--error)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--error)', cursor: 'pointer',
-};
-
-const createProcessBtnStyle: React.CSSProperties = {
-  height: 28, padding: '0 12px',
-  background: 'var(--accent-branch-bg)', border: '1px solid var(--accent-branch)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--accent-branch)', cursor: 'pointer',
-};
 
 const overlayStyle: React.CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
