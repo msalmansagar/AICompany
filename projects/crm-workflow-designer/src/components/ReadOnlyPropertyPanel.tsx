@@ -70,10 +70,10 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
 
   if (!data) {
     return (
-      <div style={panelStyle}>
-        <div style={emptyState}>
+      <div className="panel">
+        <div className="empty-state">
           <p style={emptyTitle}>No workflow loaded</p>
-          <p style={emptyHint}>Open a workflow to see its details here.</p>
+          <p className="hint-inline">Open a workflow to see its details here.</p>
         </div>
       </div>
     );
@@ -81,17 +81,17 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
 
   if (!selected) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <ProcessInfo process={data.process} stepCount={data.steps.length} />
-        <div style={emptyState}>
-          <p style={emptyHint}>Click a step, gateway ◈, or route edge to inspect it.</p>
+        <div className="empty-state">
+          <p className="hint-inline">Click a step, gateway ◈, or route edge to inspect it.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <ProcessInfo process={data.process} stepCount={data.steps.length} />
       {selected.type === 'step' && <StepDetails step={selected.step} />}
       {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
@@ -257,15 +257,15 @@ function ResolvedConditionList({ conditions }: { conditions: ResolvedCondition[]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={sectionStyle}>
-      <div style={sectionTitle}>{title}</div>
-      <div style={sectionBody}>{children}</div>
+    <div className="section-body" style={{ paddingTop: 0 }}>
+      <div className="panel-section">{title}</div>
+      <div className="section-body" style={{ paddingTop: 4 }}>{children}</div>
     </div>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={subLabel}>{children}</div>;
+  return <div className="hint-inline">{children}</div>;
 }
 
 function Divider() {
@@ -305,48 +305,6 @@ function Field({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  minWidth: 280,
-  maxWidth: 280,
-  background: 'var(--surface-alt)',
-  borderLeft: '1px solid var(--border)',
-  overflowY: 'auto',
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-};
-
-const sectionStyle: React.CSSProperties = {
-  borderBottom: '1px solid var(--border)',
-  padding: '12px 14px',
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: '0.07em',
-  textTransform: 'uppercase',
-  color: 'var(--text-disabled)',
-  marginBottom: 8,
-};
-
-const sectionBody: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
-const subLabel: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  marginTop: 2,
-  marginBottom: 2,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
 const fieldRow: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
@@ -370,21 +328,11 @@ const dividerStyle: React.CSSProperties = {
   margin: '6px 0',
 };
 
-const emptyState: React.CSSProperties = {
-  padding: '16px 14px',
-};
-
 const emptyTitle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: 'var(--text)',
   margin: '0 0 4px',
-};
-
-const emptyHint: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--text-disabled)',
-  margin: 0,
 };
 
 const routeListStyle: React.CSSProperties = {

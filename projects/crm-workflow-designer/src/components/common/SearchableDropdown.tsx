@@ -78,12 +78,12 @@ export function SearchableDropdown({
   }, [selectedName]);
 
   return (
-    <div style={wrapperStyle} ref={containerRef}>
-      <label style={labelStyle}>
+    <div className="field" style={{ position: 'relative' }} ref={containerRef}>
+      <label className="lbl">
         {label}
-        {required && <span style={requiredMark}> *</span>}
+        {required && <span className="req"> *</span>}
       </label>
-      <div style={inputWrapStyle}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
         <input
           type="text"
           value={isOpen ? inputText : selectedName}
@@ -92,7 +92,7 @@ export function SearchableDropdown({
           onFocus={handleFocus}
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          style={{ ...inputStyle, ...(disabled ? inputDisabledStyle : {}) }}
+          className="fluent-input"
           aria-label={label}
           aria-expanded={isOpen}
           aria-autocomplete="list"
@@ -102,7 +102,8 @@ export function SearchableDropdown({
         {value && !isOpen && (
           <button
             type="button"
-            style={clearBtnStyle}
+            className="icon-btn"
+            style={{ width: 24, height: 24, position: 'absolute', right: 4 }}
             onMouseDown={(e) => { e.preventDefault(); onChange('', ''); setInputText(''); }}
             tabIndex={-1}
             aria-label="Clear"
@@ -113,16 +114,16 @@ export function SearchableDropdown({
       </div>
 
       {isOpen && !disabled && (
-        <ul style={listStyle} role="listbox">
+        <ul className="dropdown-list" role="listbox">
           {filteredOptions.length === 0 ? (
-            <li style={noResultsStyle}>No results</li>
+            <li className="dropdown-empty">No results</li>
           ) : (
             filteredOptions.map((option) => (
               <li
                 key={option.id}
                 role="option"
                 aria-selected={option.id === value}
-                style={option.id === value ? { ...listItemStyle, ...listItemActiveStyle } : listItemStyle}
+                className={option.id === value ? 'dropdown-option active' : 'dropdown-option'}
                 onMouseDown={(e) => { e.preventDefault(); handleSelect(option); }}
               >
                 {option.name}
@@ -135,96 +136,4 @@ export function SearchableDropdown({
   );
 }
 
-const wrapperStyle: React.CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 5,
-};
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--text)',
-};
-
-const requiredMark: React.CSSProperties = { color: 'var(--error)' };
-
-const inputWrapStyle: React.CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 36,
-  padding: '0 32px 0 10px',
-  background: 'var(--surface)',
-  border: '1.5px solid var(--border-strong)',
-  borderRadius: 6,
-  color: 'var(--text)',
-  fontSize: 13,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-  transition: 'border-color 0.15s',
-};
-
-const inputDisabledStyle: React.CSSProperties = {
-  background: 'var(--surface-alt)',
-  color: 'var(--text-disabled)',
-  cursor: 'not-allowed',
-  borderColor: 'var(--border)',
-};
-
-const clearBtnStyle: React.CSSProperties = {
-  position: 'absolute',
-  right: 8,
-  background: 'none',
-  border: 'none',
-  color: 'var(--text-disabled)',
-  fontSize: 16,
-  cursor: 'pointer',
-  padding: '0 2px',
-  lineHeight: 1,
-  display: 'flex',
-  alignItems: 'center',
-};
-
-const listStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 'calc(100% + 2px)',
-  left: 0,
-  right: 0,
-  maxHeight: 240,
-  overflowY: 'auto',
-  background: 'var(--surface)',
-  border: '1.5px solid var(--border-strong)',
-  borderRadius: 6,
-  margin: 0,
-  padding: '4px 0',
-  listStyle: 'none',
-  zIndex: 99999,
-  boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
-};
-
-const listItemStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  fontSize: 13,
-  color: 'var(--text)',
-  cursor: 'pointer',
-  lineHeight: 1.4,
-};
-
-const listItemActiveStyle: React.CSSProperties = {
-  background: 'var(--primary-tint-2)',
-  color: 'var(--primary-pressed)',
-  fontWeight: 500,
-};
-
-const noResultsStyle: React.CSSProperties = {
-  padding: '8px 12px',
-  fontSize: 12,
-  color: 'var(--text-disabled)',
-  fontStyle: 'italic',
-};

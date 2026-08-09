@@ -20,15 +20,15 @@ export function WorkflowToolbox() {
   }
 
   return (
-    <div style={toolboxStyle} aria-label="Component Toolbox">
-      <div style={headerStyle}>Toolbox</div>
-      <div style={sectionStyle}>
+    <div className="palette" aria-label="Component toolbox">
+      <div className="palette-group">Toolbox</div>
+      <div>
         {TOOLBOX_ITEMS.map((item) => (
           <div
             key={item.type}
             draggable
             onDragStart={(e) => onDragStart(e, item.type)}
-            style={itemStyle(item.color)}
+            className="palette-item"
             title={`Drag to add ${item.label}`}
             role="button"
             tabIndex={0}
@@ -40,51 +40,6 @@ export function WorkflowToolbox() {
       </div>
     </div>
   );
-}
-
-const toolboxStyle: React.CSSProperties = {
-  width: 180,
-  flexShrink: 0,
-  background: 'var(--surface-alt)',
-  borderRight: '1px solid var(--border)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
-const headerStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  color: 'var(--text-secondary)',
-  borderBottom: '1px solid var(--border)',
-  background: 'var(--surface-alt)',
-};
-
-const sectionStyle: React.CSSProperties = {
-  padding: '10px 8px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
-function itemStyle(color: string): React.CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '7px 10px',
-    borderRadius: 6,
-    background: 'var(--surface)',
-    border: `1px solid ${color}22`,
-    cursor: 'grab',
-    fontSize: 12,
-    color: 'var(--text)',
-    userSelect: 'none',
-    transition: 'box-shadow 0.15s',
-  };
 }
 
 function dotStyle(color: string, shape: ToolboxItem['shape']): React.CSSProperties {

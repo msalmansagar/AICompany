@@ -107,11 +107,11 @@ export function Step3StepAssignments({
 
   return (
     <div style={containerStyle}>
-      <p style={hintStyle}>
+      <p className="hint-inline">
         Assign each SOP step to a user, team, or leave unassigned. These become the task owners in the derived process.
       </p>
 
-      <div style={tableStyle}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map((row, index) => (
           <AssignmentRowCard
             key={row.sopStepId}
@@ -147,7 +147,7 @@ function AssignmentRowCard({
   onChange(patch: Partial<AssignmentRow>): void;
 }) {
   return (
-    <div style={rowCardStyle}>
+    <div className="section-card" style={{ marginBottom: 0, padding: 12 }}>
       <div style={rowHeaderStyle}>
         <span style={seqBadgeStyle}>{row.sequenceNo}</span>
         <span style={stepNameStyle}>{row.stepName}</span>
@@ -155,17 +155,17 @@ function AssignmentRowCard({
 
       <div style={rowFieldsStyle}>
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Task Subject</label>
+          <label className="lbl">Task Subject</label>
           <input
             type="text"
             value={row.taskSubject}
             onChange={(e) => onChange({ taskSubject: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
           />
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Assign To</label>
+          <label className="lbl">Assign To</label>
           <select
             value={row.assignToType ?? ''}
             onChange={(e) => {
@@ -178,7 +178,7 @@ function AssignmentRowCard({
                 roundRobinTeamId: '',
               });
             }}
-            style={selectStyle}
+            className="fluent-select"
           >
             <option value="">— Unassigned —</option>
             <option value={ASSIGN_USER}>User</option>
@@ -188,11 +188,11 @@ function AssignmentRowCard({
 
         {row.assignToType === ASSIGN_USER && (
           <div style={fieldGroupStyle}>
-            <label style={labelStyle}>Assigned User</label>
+            <label className="lbl">Assigned User</label>
             <select
               value={row.assignedUserId}
               onChange={(e) => onChange({ assignedUserId: e.target.value })}
-              style={selectStyle}
+              className="fluent-select"
             >
               <option value="">— Select user —</option>
               {users.map((u) => (
@@ -205,11 +205,11 @@ function AssignmentRowCard({
         {row.assignToType === ASSIGN_TEAM && (
           <>
             <div style={fieldGroupStyle}>
-              <label style={labelStyle}>Team</label>
+              <label className="lbl">Team</label>
               <select
                 value={row.teamId}
                 onChange={(e) => onChange({ teamId: e.target.value })}
-                style={selectStyle}
+                className="fluent-select"
               >
                 <option value="">— Select team —</option>
                 {teams.map((t) => (
@@ -233,11 +233,11 @@ function AssignmentRowCard({
 
             {row.enableRoundRobin && (
               <div style={fieldGroupStyle}>
-                <label style={labelStyle}>Round Robin Team</label>
+                <label className="lbl">Round Robin Team</label>
                 <select
                   value={row.roundRobinTeamId}
                   onChange={(e) => onChange({ roundRobinTeamId: e.target.value })}
-                  style={selectStyle}
+                  className="fluent-select"
                 >
                   <option value="">— Select round robin team —</option>
                   {roundRobinTeams.map((t) => (
@@ -254,14 +254,6 @@ function AssignmentRowCard({
 }
 
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
-const hintStyle: React.CSSProperties = { margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 };
-const tableStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto' };
-
-const rowCardStyle: React.CSSProperties = {
-  border: '1px solid var(--border)', borderRadius: 8,
-  padding: '12px 14px', background: 'var(--surface)',
-};
-
 const rowHeaderStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
 };
@@ -280,22 +272,6 @@ const rowFieldsStyle: React.CSSProperties = {
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
-
-const inputStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 5, color: 'var(--text)', fontSize: 12,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 6px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 5, color: 'var(--text)', fontSize: 12,
-  cursor: 'pointer', width: '100%',
-};
-
 const checkboxRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 6,
 };

@@ -31,7 +31,7 @@ export function AutoSimulationPanel({ onClose }: AutoSimulationPanelProps) {
 
   return (
     <div style={overlayStyle}>
-      <div style={panelStyle}>
+      <div className="panel">
 
         {/* Header */}
         <div style={headerStyle}>
@@ -48,9 +48,9 @@ export function AutoSimulationPanel({ onClose }: AutoSimulationPanelProps) {
         {/* Summary bar */}
         <div style={summaryBarStyle}>
           <Stat label="Total Paths" value={autoSimPaths.length} />
-          <div style={statDividerStyle} />
+          <div className="stat-divider" />
           <Stat label="Longest" value={`${longestPath} steps`} />
-          <div style={statDividerStyle} />
+          <div className="stat-divider" />
           <Stat label="Shortest" value={`${shortestPath === Infinity ? 0 : shortestPath} steps`} />
         </div>
 
@@ -239,9 +239,9 @@ function assignHeaderColor(assignType: string): { bg: string; text: string } {
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
-    <div style={statStyle}>
-      <span style={statValueStyle}>{value}</span>
-      <span style={statLabelStyle}>{label}</span>
+    <div className="stat">
+      <span className="stat-value">{value}</span>
+      <span className="stat-label">{label}</span>
     </div>
   );
 }
@@ -274,16 +274,6 @@ const overlayStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'stretch',
   backdropFilter: 'blur(4px)',
-};
-
-const panelStyle: React.CSSProperties = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'var(--surface)',
-  overflow: 'hidden',
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-  boxShadow: '0 0 0 1px var(--border)',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -401,34 +391,6 @@ const summaryBarStyle: React.CSSProperties = {
   background: 'var(--surface-alt)',
   flexShrink: 0,
   gap: 0,
-};
-
-const statStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  padding: '0 16px',
-};
-
-const statDividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 30,
-  background: 'var(--surface-alt)',
-};
-
-const statValueStyle: React.CSSProperties = {
-  fontSize: 17,
-  fontWeight: 700,
-  color: 'var(--text)',
-  lineHeight: 1,
-};
-
-const statLabelStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: 'var(--text-disabled)',
-  fontWeight: 500,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  marginTop: 2,
 };
 
 const bodyStyle: React.CSSProperties = {

@@ -274,7 +274,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
 function LoadingOverlay() {
   return (
     <Panel position="top-center" style={overlayPanelStyle}>
-      <span style={spinnerStyle} />
+      <span className="spinner" />
       <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading workflow…</span>
     </Panel>
   );
@@ -286,8 +286,8 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) 
       <strong style={{ fontSize: 12, color: 'var(--error)', display: 'block', marginBottom: 4 }}>
         Failed to load workflow
       </strong>
-      <pre style={errorPreStyle}>{message}</pre>
-      <button type="button" style={retryBtn} onClick={onRetry}>Retry</button>
+      <pre className="hint-inline" style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)' }}>{message}</pre>
+      <button type="button" className="btn" onClick={onRetry}>Retry</button>
     </Panel>
   );
 }
@@ -295,14 +295,14 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) 
 function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolean }) {
   return (
     <Panel position="top-center" style={{ marginTop: 80 }}>
-      <div style={emptyCard}>
+      <div className="empty-state">
         <div style={emptyHeading}>Workflow Designer</div>
         {hasNoSteps ? (
-          <p style={emptyText}>This process has no workflow steps.</p>
+          <p className="hint-inline">This process has no workflow steps.</p>
         ) : (
-          <p style={emptyText}>Open an existing workflow to visualise it.</p>
+          <p className="hint-inline">Open an existing workflow to visualise it.</p>
         )}
-        <button type="button" style={openBtn} onClick={onOpen}>
+        <button type="button" className="btn primary" onClick={onOpen}>
           Open Workflow
         </button>
       </div>
@@ -368,45 +368,6 @@ const errorPanelStyle: React.CSSProperties = {
   marginTop: 12,
 };
 
-const errorPreStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontFamily: 'monospace',
-  color: 'var(--error)',
-  margin: '0 0 8px',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  maxHeight: 200,
-  overflowY: 'auto',
-};
-
-const retryBtn: React.CSSProperties = {
-  padding: '4px 12px',
-  background: 'var(--error)',
-  color: 'var(--text-on-primary)',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block',
-  width: 14,
-  height: 14,
-  border: '2px solid var(--border)',
-  borderTopColor: 'var(--primary)',
-  borderRadius: '50%',
-};
-
-const emptyCard: React.CSSProperties = {
-  background: 'var(--surface)',
-  borderRadius: 12,
-  padding: '40px 48px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-  textAlign: 'center',
-  maxWidth: 400,
-};
-
 const emptyHeading: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 700,
@@ -414,19 +375,3 @@ const emptyHeading: React.CSSProperties = {
   marginBottom: 8,
 };
 
-const emptyText: React.CSSProperties = {
-  color: 'var(--text-secondary)',
-  fontSize: 13,
-  margin: '0 0 24px',
-};
-
-const openBtn: React.CSSProperties = {
-  padding: '10px 24px',
-  background: 'var(--primary)',
-  color: 'var(--text-on-primary)',
-  border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

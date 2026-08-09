@@ -33,33 +33,33 @@ export function Step1ProcessIdentity({ sop, initialValues, onValidated }: Step1P
       </div>
 
       <div style={fieldGroupStyle}>
-        <label style={labelStyle}>
-          Process Name <span style={requiredStyle}>*</span>
+        <label className="lbl">
+          Process Name <span className="req">*</span>
         </label>
         <input
           type="text"
           value={processName}
           onChange={(e) => { setProcessName(e.target.value); setNameError(''); }}
           placeholder="Enter process name"
-          style={{ ...inputStyle, ...(nameError ? inputErrorStyle : {}) }}
+          className={nameError ? "fluent-input invalid" : "fluent-input"}
           autoFocus
         />
-        {nameError && <span style={errorTextStyle}>{nameError}</span>}
+        {nameError && <span className="hint-inline" style={{ color: 'var(--error)' }}>{nameError}</span>}
       </div>
 
       <div style={fieldGroupStyle}>
-        <label style={labelStyle}>Description (optional)</label>
+        <label className="lbl">Description (optional)</label>
         <textarea
           value={processDescription}
           onChange={(e) => setProcessDescription(e.target.value)}
           placeholder="Describe this process…"
           rows={3}
-          style={textareaStyle}
+          className="fluent-input"
         />
       </div>
 
-      <div style={footerStyle}>
-        <button type="button" style={nextBtnStyle} onClick={handleNext}>
+      <div className="dialog-foot">
+        <button type="button" className="btn primary" onClick={handleNext}>
           Next →
         </button>
       </div>
@@ -88,33 +88,3 @@ const sopVersionStyle: React.CSSProperties = {
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
 
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
-const requiredStyle: React.CSSProperties = { color: 'var(--error)' };
-
-const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 6, color: 'var(--text)', fontSize: 13,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-
-const inputErrorStyle: React.CSSProperties = { borderColor: 'var(--error)' };
-
-const textareaStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 6, color: 'var(--text)', fontSize: 13,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-  resize: 'vertical', fontFamily: 'inherit',
-};
-
-const errorTextStyle: React.CSSProperties = { fontSize: 11, color: 'var(--error)' };
-
-const footerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'flex-end', paddingTop: 4 };
-
-const nextBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px',
-  background: 'var(--primary)', border: 'none',
-  borderRadius: 6, color: 'var(--text-on-primary)',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};

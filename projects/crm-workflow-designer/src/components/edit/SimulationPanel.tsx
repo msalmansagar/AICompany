@@ -89,7 +89,7 @@ export function SimulationPanel({ adapter, onExit }: SimulationPanelProps) {
         />
       )}
 
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={topRowStyle}>
           <span style={simBadgeStyle}>⏵ SIMULATION</span>
 
@@ -301,17 +301,6 @@ function resolveAssigneeLabel(
 }
 
 // --- Styles ---
-
-const panelStyle: React.CSSProperties = {
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  right: 0,
-  background: 'var(--bg)',
-  borderTop: '1px solid var(--primary-pressed)',
-  zIndex: 50,
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
 
 const topRowStyle: React.CSSProperties = {
   display: 'flex',

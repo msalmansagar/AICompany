@@ -35,7 +35,7 @@ export function AutoSimPlaybackHUD({ onStop }: AutoSimPlaybackHUDProps) {
     <div style={hudStyle}>
       <span style={pathCounterStyle}>{pathLabel}</span>
 
-      <div style={dividerStyle} />
+      <span className="cmd-sep" />
 
       <span style={stepLabelStyle}>{centerLabel}</span>
 
@@ -45,8 +45,8 @@ export function AutoSimPlaybackHUD({ onStop }: AutoSimPlaybackHUDProps) {
           <SpeedBtn label="Normal" speed="normal" active={autoSimSpeed === 'normal'} onSelect={setAutoSimSpeed} />
           <SpeedBtn label="Fast" speed="fast" active={autoSimSpeed === 'fast'} onSelect={setAutoSimSpeed} />
         </div>
-        <div style={dividerStyle} />
-        <button type="button" onClick={onStop} style={stopBtnStyle} title="Stop auto simulation">
+        <span className="cmd-sep" />
+        <button type="button" onClick={onStop} className="btn sm danger" title="Stop auto simulation">
           ■ Stop
         </button>
       </div>
@@ -69,7 +69,7 @@ function SpeedBtn({
     <button
       type="button"
       onClick={() => onSelect(speed)}
-      style={{ ...speedBtnBase, ...(active ? speedBtnActive : speedBtnInactive) }}
+      className={active ? "btn sm primary" : "btn sm"}
     >
       {label}
     </button>
@@ -116,13 +116,6 @@ const pathCounterStyle: React.CSSProperties = {
   letterSpacing: '0.02em',
 };
 
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 20,
-  background: 'var(--surface-alt)',
-  flexShrink: 0,
-};
-
 const stepLabelStyle: React.CSSProperties = {
   flex: 1,
   fontSize: 12,
@@ -144,35 +137,3 @@ const speedGroupStyle: React.CSSProperties = {
   gap: 2,
 };
 
-const speedBtnBase: React.CSSProperties = {
-  height: 24,
-  padding: '0 10px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  cursor: 'pointer',
-};
-
-const speedBtnActive: React.CSSProperties = {
-  background: 'var(--primary)',
-  color: 'var(--text-on-primary)',
-  borderColor: 'var(--primary)',
-};
-
-const speedBtnInactive: React.CSSProperties = {
-  background: 'var(--surface-alt)',
-  color: 'var(--text-secondary)',
-};
-
-const stopBtnStyle: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  cursor: 'pointer',
-  background: 'var(--surface-alt)',
-  color: 'var(--text)',
-};

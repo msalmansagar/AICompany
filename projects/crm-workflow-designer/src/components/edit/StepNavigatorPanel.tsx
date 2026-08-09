@@ -10,14 +10,14 @@ export function StepNavigatorPanel() {
   }));
 
   return (
-    <div style={navPanelStyle}>
-      <div style={navHeaderStyle}>
+    <div className="panel">
+      <div className="panel-head">
         Steps
-        <span style={navCountStyle}>{stepOrder.length}</span>
+        <span className="pill draft">{stepOrder.length}</span>
       </div>
-      <div style={navBodyStyle}>
+      <div className="panel-body" style={{ gap: 6 }}>
         {stepOrder.length === 0 ? (
-          <div style={navEmptyStyle}>No steps yet. Click "Add Step" to begin.</div>
+          <div className="empty-state">No steps yet. Click "Add Step" to begin.</div>
         ) : (
           stepOrder.map((stepId, idx) => {
             const step = steps[stepId];
@@ -44,62 +44,13 @@ export function StepNavigatorPanel() {
             );
           })
         )}
-        <div style={navHintStyle}>
+        <div className="hint-inline">
           Click a step to edit · Drag handles to connect
         </div>
       </div>
     </div>
   );
 }
-
-const navPanelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: 'var(--bg)',
-  borderLeft: '1px solid var(--border-strong)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
-const navHeaderStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--text-disabled)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-  borderBottom: '1px solid var(--border-strong)',
-  flexShrink: 0,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
-};
-
-const navCountStyle: React.CSSProperties = {
-  fontSize: 10,
-  background: 'var(--surface-alt)',
-  color: 'var(--text-disabled)',
-  borderRadius: 8,
-  padding: '0 5px',
-  fontWeight: 700,
-};
-
-const navBodyStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  overflowY: 'auto',
-  flex: 1,
-};
-
-const navEmptyStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--text-secondary)',
-  fontStyle: 'italic',
-  padding: '8px 4px',
-};
 
 const navRowStyle: React.CSSProperties = {
   display: 'flex',
@@ -153,10 +104,3 @@ const navAssignStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const navHintStyle: React.CSSProperties = {
-  fontSize: 10,
-  color: 'var(--text)',
-  marginTop: 8,
-  textAlign: 'center',
-  fontStyle: 'italic',
-};
