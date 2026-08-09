@@ -82,9 +82,11 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
   if (!selected) {
     return (
       <div className="panel">
-        <ProcessInfo process={data.process} stepCount={data.steps.length} />
-        <div className="empty-state">
-          <p className="hint-inline">Click a step, gateway ◈, or route edge to inspect it.</p>
+        <div className="panel-body">
+          <ProcessInfo process={data.process} stepCount={data.steps.length} />
+          <div className="empty-state">
+            <p className="hint-inline">Click a step, gateway ◈, or route edge to inspect it.</p>
+          </div>
         </div>
       </div>
     );
@@ -92,12 +94,14 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
 
   return (
     <div className="panel">
-      <ProcessInfo process={data.process} stepCount={data.steps.length} />
-      {selected.type === 'step' && <StepDetails step={selected.step} />}
-      {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
-      {selected.type === 'gateway' && (
-        <GatewayDetails outcome={selected.outcome} routes={selected.routes} adapter={adapter} />
-      )}
+      <div className="panel-body">
+        <ProcessInfo process={data.process} stepCount={data.steps.length} />
+        {selected.type === 'step' && <StepDetails step={selected.step} />}
+        {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
+        {selected.type === 'gateway' && (
+          <GatewayDetails outcome={selected.outcome} routes={selected.routes} adapter={adapter} />
+        )}
+      </div>
     </div>
   );
 }
@@ -257,9 +261,9 @@ function ResolvedConditionList({ conditions }: { conditions: ResolvedCondition[]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="section-body" style={{ paddingTop: 0 }}>
+    <div className="ro-section">
       <div className="panel-section">{title}</div>
-      <div className="section-body" style={{ paddingTop: 4 }}>{children}</div>
+      <div className="ro-fields">{children}</div>
     </div>
   );
 }
@@ -287,11 +291,11 @@ function Field({
 }) {
   if (!value) return null;
   return (
-    <div style={fieldRow}>
-      <span style={fieldLabel}>{label}</span>
+    <div className="ro-field">
+      <span className="k">{label}</span>
       <span
+        className="v"
         style={{
-          ...fieldValue,
           fontWeight: bold ? 600 : 400,
           fontFamily: mono ? 'monospace' : 'inherit',
           whiteSpace: multiline ? 'pre-wrap' : 'normal',
@@ -304,24 +308,6 @@ function Field({
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
-
-const fieldRow: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 1,
-};
-
-const fieldLabel: React.CSSProperties = {
-  fontSize: 10,
-  color: 'var(--text-disabled)',
-  fontWeight: 500,
-};
-
-const fieldValue: React.CSSProperties = {
-  fontSize: 12,
-  color: 'var(--text)',
-  wordBreak: 'break-word',
-};
 
 const dividerStyle: React.CSSProperties = {
   borderTop: '1px solid var(--border)',

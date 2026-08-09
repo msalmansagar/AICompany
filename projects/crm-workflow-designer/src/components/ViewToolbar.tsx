@@ -8,8 +8,7 @@ interface ViewToolbarProps {
   isExporting: boolean;
   showMiniMap: boolean;
   viewMode: ViewMode;
-  layoutDir: LayoutDir;
-  onOpen(): void;
+  layoutDir: LayoutDir;
   onRefresh(): void;
   onFitView(): void;
   onAutoLayout(): void;
@@ -28,8 +27,7 @@ export function ViewToolbar({
   isExporting,
   showMiniMap,
   viewMode,
-  layoutDir,
-  onOpen,
+  layoutDir,
   onRefresh,
   onFitView,
   onAutoLayout,
@@ -48,9 +46,6 @@ export function ViewToolbar({
       <div className="cmdbar" role="toolbar" aria-label="Workflow viewer">
         <button type="button" className="cmd primary" onClick={onNewProcess} title="Create a new workflow process">
           New process
-        </button>
-        <button type="button" className="cmd" onClick={onOpen} title="Open a workflow">
-          Open
         </button>
         {onEditProcess && processName && (
           <>
@@ -112,7 +107,7 @@ export function ViewToolbar({
           {VIEW_MODES.find((m) => m.id === viewMode)?.description}
         </span>
 
-        <div style={dirToggleGroup}>
+        <div className="pivot-end">
           <button
             type="button"
             title="Top-to-Bottom layout"
@@ -145,13 +140,6 @@ const modeDescription: React.CSSProperties = {
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   flex: 1,
-};
-
-const dirToggleGroup: React.CSSProperties = {
-  display: 'flex',
-  gap: 2,
-  marginLeft: 8,
-  flexShrink: 0,
 };
 
 const processNameStyle: React.CSSProperties = {

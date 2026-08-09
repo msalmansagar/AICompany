@@ -36,7 +36,10 @@ a { color: var(--primary); }
 .app-header {
   display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 8px 0 4px;
   background: var(--header-bg); border-bottom: 1px solid var(--header-border);
-  position: relative; z-index: 30;
+  /* Above every in-canvas overlay (simulation, auto-simulation), because
+     z-index: 30 here caps the theme menu nested inside it — the menu opened but
+     the auto-simulation sheet painted over its options. Modals still win. */
+  position: relative; z-index: 1000;
 }
 .app-header .waffle, .app-header .icon-btn { color: var(--header-fg-dim); }
 .app-header .waffle:hover, .app-header .icon-btn:hover { background: var(--header-hover); color: var(--header-fg); }
@@ -209,10 +212,15 @@ table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ============ Pivot tabs ============ */
 
+/* align-items: center matters — without it the tabs' siblings stretch to the
+   full row and their content sits against the top edge. */
 .pivot {
-  display: flex; gap: 2px; padding: 0 16px; background: var(--surface);
-  border-bottom: 1px solid var(--border); overflow-x: auto; flex-shrink: 0;
+  display: flex; align-items: center; gap: 2px; padding: 0 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto; flex-shrink: 0;
 }
+/* A trailing control group sits at the right-hand end of the tab row. */
+.pivot-end { margin-left: auto; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .pivot-tab {
   border: none; background: transparent; padding: 12px 12px 10px; font-size: 14px; color: var(--text-secondary);
   cursor: pointer; position: relative; white-space: nowrap; font-family: inherit;
@@ -404,10 +412,22 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
   color: var(--text-secondary); padding-top: 4px;
 }
 
+/* Read-only inspector: a heading over a label/value list. The heading owns the
+   gap above the fields, so nesting it inside .panel-body does not double it. */
+.ro-section { display: flex; flex-direction: column; gap: 8px; }
+.ro-section + .ro-section { border-top: 1px solid var(--border); padding-top: 12px; }
+.ro-section .panel-section { padding-top: 0; }
+.ro-fields { display: flex; flex-direction: column; gap: 10px; }
+.ro-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ro-field .k { font-size: 11px; font-weight: 500; color: var(--text-secondary); }
+.ro-field .v { font-size: 12.5px; color: var(--text); line-height: 1.4; word-break: break-word; }
+
 /* ============ Dialog ============ */
 
 .dialog-backdrop {
-  position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 100;
+  /* Above the app header, which outranks the canvas overlays. A modal that the
+     app bar punched a hole through would look like a rendering fault. */
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 3000;
   display: flex; align-items: center; justify-content: center; padding: 24px;
 }
 .dialog {

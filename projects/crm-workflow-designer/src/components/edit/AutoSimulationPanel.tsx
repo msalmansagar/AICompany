@@ -31,7 +31,7 @@ export function AutoSimulationPanel({ onClose }: AutoSimulationPanelProps) {
 
   return (
     <div style={overlayStyle}>
-      <div className="panel">
+      <div style={sheetStyle}>
 
         {/* Header */}
         <div style={headerStyle}>
@@ -269,11 +269,23 @@ function endReasonLabel(reason: SimPath['endReason']): string {
 const overlayStyle: React.CSSProperties = {
   position: 'absolute',
   inset: 0,
-  background: 'rgba(248,250,252,0.94)',
+  background: 'var(--scrim)',
   zIndex: 200,
   display: 'flex',
   alignItems: 'stretch',
   backdropFilter: 'blur(4px)',
+};
+
+/**
+ * The results fill the canvas. This is deliberately not `.panel` — that class is
+ * the 300px inspector, and the whole report collapses into a column inside it.
+ */
+const sheetStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  background: 'var(--surface)',
 };
 
 const headerStyle: React.CSSProperties = {

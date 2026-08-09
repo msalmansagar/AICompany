@@ -84,6 +84,7 @@
 
   --app-bg-image: none;
   --surface-blur: none;
+  --scrim: rgba(250, 250, 250, .94);
 }
 
 /* Dark is the default only when the OS asks for it and the user has not chosen. */
@@ -100,6 +101,7 @@
     --surface-alt: #201f1e;
     --surface-raised: #323130;
     --nav-bg: #1b1a19;
+    --scrim: rgba(32, 31, 30, .94);
 
     --border: #3b3a39;
     --border-strong: #484644;
@@ -220,6 +222,7 @@
 
   --app-bg-image: none;
   --surface-blur: none;
+  --scrim: rgba(250, 250, 250, .94);
 }
 
 :root[data-theme="dark"] {
@@ -289,6 +292,7 @@
 
   --app-bg-image: none;
   --surface-blur: none;
+  --scrim: rgba(32, 31, 30, .94);
 }
 
 /* Glass — frosted panels over a soft pastel mesh. */
@@ -359,6 +363,7 @@
 
   --app-bg-image: linear-gradient(135deg, #c2e9fb 0%, #e0c3fc 46%, #ffd3e0 100%);
   --surface-blur: saturate(1.5) blur(16px);
+  --scrim: rgba(15, 23, 42, .82);
 }
 
 /* Vibrant — bold saturated gradient with punchy violet accents. */
@@ -429,4 +434,5 @@
 
   --app-bg-image: linear-gradient(135deg, #6366f1 0%, #a855f7 40%, #ec4899 74%, #f59e0b 100%);
   --surface-blur: saturate(1.4) blur(14px);
+  --scrim: rgba(24, 16, 44, .88);
 }

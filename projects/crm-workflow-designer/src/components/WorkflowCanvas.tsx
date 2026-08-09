@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   useReactFlow,
+  useStore,
   Panel,
   applyNodeChanges,
   getNodesBounds,
@@ -15,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
@@ -58,12 +59,32 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:       buildSwimlaneGraph as BuildFn,
 };
 
+/**
+ * The ids of every node React Flow has measured, or null while any is still
+ * unmeasured. `useNodesInitialized` cannot be used for this: during the commit
+ * that swaps a new graph in it still reports the previous graph's state, so a
+ * fit driven by it lands on stale sizes and leaves a swimlane off-screen.
+ * Comparing ids makes that staleness visible instead of invisible.
+ */
+function useMeasuredNodeIds(): string | null {
+  return useStore((state) => {
+    const ids: string[] = [];
+    for (const [id, node] of state.nodeLookup) {
+      if (!node.measured?.width) return null;
+      ids.push(id);
+    }
+    return ids.sort().join(';');
+  });
+}
+
 export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
   const fitViewTrigger = useRef(0);
+  const measuredNodeIds = useMeasuredNodeIds();
+  const [pendingFit, setPendingFit] = useState(0);
 
   const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
 
@@ -79,9 +100,24 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     );
     view.setNodes(() => rebuilt);
     view.setEdges(() => rebuiltEdges);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+    setPendingFit((token) => token + 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.data, view.viewMode, view.layoutDir]);
+
+  const requestedNodeIds = useMemo(
+    () => view.nodes.map((node) => node.id).sort().join(';'),
+    [view.nodes]
+  );
+
+  // Fit only once the nodes React Flow has measured are the nodes we asked for.
+  // A fixed delay raced measurement, and a swimlane lane is wide enough that
+  // fitting too early left most of the diagram off-screen behind the panel.
+  useEffect(() => {
+    if (pendingFit === 0 || measuredNodeIds === null) return;
+    if (measuredNodeIds !== requestedNodeIds) return;
+    fitView({ padding: 0.2, duration: 300 });
+    setPendingFit(0);
+  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView]);
 
   // Apply resolved human-readable labels to route edges once metadata is fetched.
   // Also re-runs on view mode / data change so labels survive graph rebuilds.
@@ -123,8 +159,8 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     );
     view.setNodes(() => positioned);
     view.setEdges(() => rebuilt);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [view, fitView]);
+    setPendingFit((token) => token + 1);
+  }, [view]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     view.selectElement(node.id);
@@ -200,7 +236,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
         showMiniMap={showMiniMap}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
-        onOpen={handleOpen}
         onRefresh={() => void view.refresh()}
         onFitView={handleFitView}
         onAutoLayout={handleAutoLayout}

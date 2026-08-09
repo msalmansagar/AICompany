@@ -352,6 +352,7 @@ const bodyStyle: React.CSSProperties = {
 
 const canvasWrapStyle: React.CSSProperties = {
   flex: 1,
+  minWidth: 0,
   position: 'relative',
   overflow: 'hidden',
 };
