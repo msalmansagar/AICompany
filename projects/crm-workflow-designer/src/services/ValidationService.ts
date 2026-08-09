@@ -1,6 +1,16 @@
 import type { WorkflowDesignerState } from '@/store/workflowStore';
 import { analyseBranchRegions } from '@/validators/branchRegions';
 import type { BranchFinding } from '@/validators/branchRegions';
+import type { AssignToType } from '@/types/WorkflowTypes';
+import { ASSIGN_TO_LABELS, assigneeIsMissing } from '@/services/taskAssignment';
+
+/** What is missing when a step's chosen assignment mode has no assignee. */
+const MISSING_ASSIGNEE_REASON: Record<AssignToType, string> = {
+  user: 'no user is selected',
+  team: 'no team is selected',
+  roundRobin: 'no round robin team is selected',
+  readFromParent: 'the parent table, its lookup and the owner field are not all set',
+};
 
 export type ViolationCode =
   | 'NO_PROCESS'
@@ -257,30 +267,15 @@ export class ValidationService {
     violations: Violation[]
   ): void {
     for (const step of steps) {
-      if (step.assignTo === 'user' && !step.assignedUserId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Specific User" but no user is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-      if (step.assignTo === 'team' && !step.teamId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Team" but no team is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
-      if (step.assignTo === 'roundRobin' && !step.roundRobinTeamId) {
-        violations.push({
-          code: 'INVALID_ASSIGNMENT',
-          message: `Step "${step.name}" is assigned to "Round Robin" but no round robin team is selected.`,
-          nodeId: step.crmId,
-          severity: 'error',
-        });
-      }
+      if (!assigneeIsMissing(step)) continue;
+      violations.push({
+        code: 'INVALID_ASSIGNMENT',
+        message:
+          `Step "${step.name}" is assigned to "${ASSIGN_TO_LABELS[step.assignTo]}" but ` +
+          `${MISSING_ASSIGNEE_REASON[step.assignTo]}. The engine would create the task unowned.`,
+        nodeId: step.crmId,
+        severity: 'error',
+      });
     }
   }
 
