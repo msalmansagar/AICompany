@@ -143,11 +143,54 @@ a { color: var(--primary); }
 .content { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
 .scroll { overflow: auto; flex: 1; min-height: 0; }
 
+/* ============ Command bar ============ */
+
+/* The model-driven pattern: a row is selected in the grid and acted on from here,
+   rather than every row carrying its own buttons. Commands that need a selection
+   disable themselves until there is one, and say why in a title. */
+.cmdbar {
+  display: flex; align-items: center; gap: 2px; height: 44px; padding: 0 8px;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; overflow-x: auto;
+}
+.cmd {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: none;
+  background: transparent; color: var(--text); cursor: pointer; border-radius: var(--radius);
+  font-size: 13px; white-space: nowrap; font-family: inherit;
+}
+.cmd:hover { background: var(--surface-alt); }
+.cmd:disabled { color: var(--text-disabled); cursor: default; }
+.cmd:disabled:hover { background: transparent; }
+.cmd.primary { color: var(--primary); font-weight: 600; }
+.cmd.danger { color: var(--error); }
+.cmd.danger:disabled { color: var(--text-disabled); }
+.cmd-sep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 4px; flex-shrink: 0; }
+.cmd-spacer { flex: 1; }
+
+/* The reference keeps the column headers in view while the rows scroll under them.
+   Fluent's grid header does not stick on its own, so it is pinned here — otherwise
+   a long list scrolls into unlabelled columns. */
+.fui-DataGridHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+/* The row's own name, as the way into it. */
+.link-cell {
+  color: var(--primary); font-weight: 600; cursor: pointer; border: none; background: transparent;
+  font-family: inherit; font-size: inherit; padding: 0; text-align: left;
+}
+.link-cell:hover { text-decoration: underline; }
+
 /* ============ Status pills ============ */
 
 .pill {
   display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 11px;
   font-size: 12px; font-weight: 600; white-space: nowrap;
+  /* Statuses are stored lower-case ("draft"), read as proper nouns in the grid. */
+  text-transform: capitalize;
 }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
 .pill.published, .pill.success { background: var(--success-bg); color: var(--success); }

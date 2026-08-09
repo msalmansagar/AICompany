@@ -19,9 +19,6 @@ import {
   TableCellLayout,
   TableColumnDefinition,
   Text,
-  Badge,
-  Toolbar,
-  ToolbarButton,
   createTableColumn,
   makeStyles,
   tokens,
@@ -115,9 +112,6 @@ const useStyles = makeStyles({
     overflow: 'auto',
     padding: '0 24px 24px',
   },
-  statusBadge: {
-    textTransform: 'capitalize',
-  },
   emptyState: {
     display: 'flex',
     flexDirection: 'column',
@@ -128,17 +122,7 @@ const useStyles = makeStyles({
   },
 });
 
-const STATUS_BADGE_APPEARANCE = {
-  draft: 'outline',
-  published: 'filled',
-  archived: 'ghost',
-} as const;
-
-const STATUS_BADGE_COLOR = {
-  draft: 'warning',
-  published: 'success',
-  archived: 'subtle',
-} as const;
+const SELECT_A_FORM_FIRST = 'Select a form first';
 
 export function FormListScreen(): React.ReactElement {
   const styles = useStyles();
@@ -154,6 +138,9 @@ export function FormListScreen(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<FormStatus | 'all'>('all');
   const [error, setError] = useState<string | null>(null);
+  // Which row the command bar acts on. Single selection: the commands here operate
+  // on one form, and a multi-select would only raise the question of what Open means.
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
 
   const loadForms = useCallback(async () => {
     if (!crmService) return;
@@ -296,6 +283,8 @@ export function FormListScreen(): React.ReactElement {
       await auditService.logAction(formId, 'DELETE_FORM', {});
       const deleteService = new FormDeleteService(webApi);
       await deleteService.deleteForm(formId);
+      // The commands act on the selection, so it must not outlive the row.
+      setSelectedFormId(null);
       await loadForms();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete form');
@@ -304,12 +293,36 @@ export function FormListScreen(): React.ReactElement {
     }
   }, [crmService, deleteTarget, loadForms]);
 
+  // Which commands apply is a property of the selection, not of a button sitting in
+  // a row, so each one works it out from the selected form and explains itself in a
+  // title when it is off.
+  const selectedForm = forms.find(form => form.id === selectedFormId) ?? null;
+  const isBusy = !!isCloningId || !!isDeletingId;
+  const canDeleteSelected = selectedForm?.status === 'draft';
+  const deleteCommandTitle =
+    !selectedForm ? SELECT_A_FORM_FIRST
+    : canDeleteSelected ? `Delete ${selectedForm.name}`
+    : 'Only a draft can be deleted';
+
   const columns: TableColumnDefinition<FormSummary>[] = [
     createTableColumn<FormSummary>({
       columnId: 'name',
       compare: (a, b) => a.name.localeCompare(b.name),
       renderHeaderCell: () => 'Form Name',
-      renderCell: item => <TableCellLayout>{item.name}</TableCellLayout>,
+      // The name is the way in, as it is in every model-driven grid. The command
+      // bar covers the same action for anyone working from the keyboard.
+      renderCell: item => (
+        <TableCellLayout>
+          <button
+            type="button"
+            className="link-cell"
+            onClick={() => void handleOpenForm(item.id)}
+            aria-label={`Open ${item.name}`}
+          >
+            {item.name}
+          </button>
+        </TableCellLayout>
+      ),
     }),
     createTableColumn<FormSummary>({
       columnId: 'code',
@@ -323,13 +336,7 @@ export function FormListScreen(): React.ReactElement {
       renderHeaderCell: () => 'Status',
       renderCell: item => (
         <TableCellLayout>
-          <Badge
-            appearance={STATUS_BADGE_APPEARANCE[item.status]}
-            color={STATUS_BADGE_COLOR[item.status]}
-            className={styles.statusBadge}
-          >
-            {item.status}
-          </Badge>
+          <span className={`pill ${item.status}`}>{item.status}</span>
         </TableCellLayout>
       ),
     }),
@@ -345,36 +352,6 @@ export function FormListScreen(): React.ReactElement {
       renderHeaderCell: () => 'Modified On',
       renderCell: item => <TableCellLayout>{item.modifiedOn.toLocaleDateString()}</TableCellLayout>,
     }),
-    createTableColumn<FormSummary>({
-      columnId: 'actions',
-      renderHeaderCell: () => 'Actions',
-      renderCell: item => (
-        <TableCellLayout>
-          <Toolbar size="small">
-            <ToolbarButton
-              icon={<Open24Regular />}
-              onClick={() => void handleOpenForm(item.id)}
-              aria-label={`Open ${item.name}`}
-              disabled={!!isDeletingId || !!isCloningId}
-            />
-            <ToolbarButton
-              icon={isCloningId === item.id ? <Spinner size="tiny" /> : <Copy24Regular />}
-              onClick={() => void handleCloneForm(item.id)}
-              aria-label={`Clone ${item.name}`}
-              disabled={isCloningId === item.id || !!isDeletingId}
-            />
-            {item.status === 'draft' && (
-              <ToolbarButton
-                icon={isDeletingId === item.id ? <Spinner size="tiny" /> : <Delete24Regular />}
-                onClick={() => setDeleteTarget(item)}
-                aria-label={`Delete ${item.name}`}
-                disabled={isDeletingId === item.id || !!isCloningId}
-              />
-            )}
-          </Toolbar>
-        </TableCellLayout>
-      ),
-    }),
   ];
 
   if (isOpeningForm) {
@@ -387,11 +364,46 @@ export function FormListScreen(): React.ReactElement {
 
   return (
     <div className={styles.container}>
+      <div className="cmdbar" role="toolbar" aria-label="Form commands">
+        <button type="button" className="cmd primary" onClick={handleNewForm}>
+          <Add24Regular fontSize={16} /> New Form
+        </button>
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => selectedForm && void handleOpenForm(selectedForm.id)}
+          disabled={!selectedForm || isBusy}
+          title={selectedForm ? `Open ${selectedForm.name}` : SELECT_A_FORM_FIRST}
+        >
+          <Open24Regular fontSize={16} /> Open
+        </button>
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => selectedForm && void handleCloneForm(selectedForm.id)}
+          disabled={!selectedForm || isBusy}
+          title={selectedForm ? `Clone ${selectedForm.name}` : SELECT_A_FORM_FIRST}
+        >
+          {isCloningId ? <Spinner size="tiny" /> : <Copy24Regular fontSize={16} />} Clone
+        </button>
+        <button
+          type="button"
+          className="cmd danger"
+          onClick={() => selectedForm && setDeleteTarget(selectedForm)}
+          disabled={!canDeleteSelected || isBusy}
+          title={deleteCommandTitle}
+        >
+          {isDeletingId ? <Spinner size="tiny" /> : <Delete24Regular fontSize={16} />} Delete
+        </button>
+        <span className="cmd-spacer" />
+        <button type="button" className="cmd" onClick={() => void loadForms()} disabled={isBusy}>
+          Refresh
+        </button>
+      </div>
+
       <div className={styles.header}>
         <Text size={600} weight="semibold">Portal Form Designer</Text>
-        <Button appearance="primary" icon={<Add24Regular />} onClick={handleNewForm}>
-          New Form
-        </Button>
       </div>
 
       <div className={styles.toolbar}>
@@ -412,7 +424,6 @@ export function FormListScreen(): React.ReactElement {
           <option value="published">Published</option>
           <option value="archived">Archived</option>
         </Select>
-        <Button onClick={() => void loadForms()}>Refresh</Button>
       </div>
 
       <div className={styles.tableContainer}>
@@ -434,9 +445,19 @@ export function FormListScreen(): React.ReactElement {
             columns={columns}
             sortable
             getRowId={item => item.id}
+            selectionMode="single"
+            selectedItems={selectedFormId ? [selectedFormId] : []}
+            onSelectionChange={(_, data) => {
+              const [first] = [...data.selectedItems];
+              setSelectedFormId(first === undefined ? null : String(first));
+            }}
           >
             <DataGridHeader>
-              <DataGridRow>
+              {/* Single selection, so Fluent renders a radio here rather than a
+                  checkbox — the label has to go on radioIndicator to be applied. */}
+              <DataGridRow
+                selectionCell={{ radioIndicator: { 'aria-label': 'Select a form' } }}
+              >
                 {({ renderHeaderCell }) => (
                   <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
                 )}
@@ -444,7 +465,10 @@ export function FormListScreen(): React.ReactElement {
             </DataGridHeader>
             <DataGridBody<FormSummary>>
               {({ item, rowId }) => (
-                <DataGridRow<FormSummary> key={rowId}>
+                <DataGridRow<FormSummary>
+                  key={rowId}
+                  selectionCell={{ radioIndicator: { 'aria-label': `Select ${item.name}` } }}
+                >
                   {({ renderCell }) => (
                     <DataGridCell>{renderCell(item)}</DataGridCell>
                   )}
