@@ -1,6 +1,9 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import type { WorkflowProcess } from '../types/WorkflowTypes';
+
+/** Which processes the sitemap is currently asking for. */
+export type ProcessStatusFilter = 'all' | 'draft' | 'published';
 
 interface ProcessListScreenProps {
   adapter: ICrmAdapter;
@@ -8,6 +11,11 @@ interface ProcessListScreenProps {
   onOpenProcess(processId: string): void;
   onEditProcess(processId: string): void;
   onOpenSopDesigner?: () => void;
+  /** Search text, owned by the app bar so there is one search box, not two. */
+  search: string;
+  onSearchChange(search: string): void;
+  /** Status the sitemap selected. */
+  statusFilter: ProcessStatusFilter;
 }
 
 interface ProcessRow extends WorkflowProcess {
@@ -45,6 +53,9 @@ export function ProcessListScreen({
   onOpenProcess,
   onEditProcess,
   onOpenSopDesigner,
+  search,
+  onSearchChange,
+  statusFilter,
 }: ProcessListScreenProps) {
   const [rows, setRows] = useState<ProcessRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -52,10 +63,8 @@ export function ProcessListScreen({
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const searchRef = useRef<HTMLInputElement>(null);
 
   const loadList = useCallback(async () => {
     setIsLoading(true);
@@ -122,14 +131,16 @@ export function ProcessListScreen({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter(
-      (r) =>
+    return rows.filter((r) => {
+      if (statusFilter !== 'all' && r.workflowState !== statusFilter) return false;
+      return (
         !q ||
         r.name.toLowerCase().includes(q) ||
         r.resolvedTaskEntity.toLowerCase().includes(q) ||
         r.resolvedParentEntity.toLowerCase().includes(q)
-    );
-  }, [rows, search]);
+      );
+    });
+  }, [rows, search, statusFilter]);
 
   const sorted = useMemo(
     () =>
@@ -181,22 +192,6 @@ export function ProcessListScreen({
           <CmdButton icon={<IconRefresh spin={isLoading} />} label="Refresh" onClick={() => void loadList()} disabled={busy} />
         </div>
 
-        <div style={searchBoxStyle}>
-          <span style={searchIconWrap}><IconSearch /></span>
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Filter by keyword…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={searchInputStyle}
-          />
-          {search && (
-            <button type="button" style={clearBtnStyle} onClick={() => setSearch('')} title="Clear">
-              <IconX />
-            </button>
-          )}
-        </div>
       </div>
 
       {/* ── Error message bar ─────────────────────────────────────────── */}
@@ -224,7 +219,7 @@ export function ProcessListScreen({
         ) : sorted.length === 0 ? (
           <GridMessage>
             <span style={{ fontSize: 13, color: T.textSecondary }}>No results match &ldquo;{search}&rdquo;</span>
-            <button type="button" style={linkBtnStyle} onClick={() => setSearch('')}>Clear filter</button>
+            <button type="button" style={linkBtnStyle} onClick={() => onSearchChange('')}>Clear filter</button>
           </GridMessage>
         ) : (
           <table style={tableStyle}>
@@ -509,22 +504,6 @@ function IconRefresh({ spin }: { spin: boolean }) {
   );
 }
 
-function IconSearch() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M11.27 10.56l3.08 3.09a.5.5 0 0 1-.7.7l-3.09-3.08a6 6 0 1 1 .7-.7zm-5.27.94a5 5 0 1 0 0-10 5 5 0 0 0 0 10z" />
-    </svg>
-  );
-}
-
-function IconX() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-      <path d="M1.41 0L0 1.41 3.59 5 0 8.59 1.41 10 5 6.41 8.59 10 10 8.59 6.41 5 10 1.41 8.59 0 5 3.59 1.41 0z" />
-    </svg>
-  );
-}
-
 function IconWarning() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="#d13438">
@@ -588,25 +567,6 @@ const commandBarStyle: React.CSSProperties = {
 
 const commandGroupStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 2,
-};
-
-const searchBoxStyle: React.CSSProperties = {
-  position: 'relative', display: 'flex', alignItems: 'center',
-};
-
-const searchIconWrap: React.CSSProperties = {
-  position: 'absolute', left: 9, color: T.textSecondary, display: 'flex', pointerEvents: 'none',
-};
-
-const searchInputStyle: React.CSSProperties = {
-  height: 32, paddingLeft: 30, paddingRight: 28, border: `1px solid ${T.neutralBorder2}`,
-  borderRadius: 2, fontSize: 13, color: T.textPrimary, background: T.white,
-  outline: 'none', width: 220, fontFamily: 'inherit',
-};
-
-const clearBtnStyle: React.CSSProperties = {
-  position: 'absolute', right: 8, background: 'none', border: 'none',
-  cursor: 'pointer', color: T.textSecondary, display: 'flex', padding: 0,
 };
 
 const errorBarStyle: React.CSSProperties = {

@@ -16,16 +16,28 @@ import { SopAdapterContext } from './app/SopAdapterContext';
 import { isSopAdapter } from './services/ISopAdapter';
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog';
 import { NotifyHost, notify } from './components/ui/Notify';
+import { AppShell } from './components/shell/AppShell';
+import type { NavDestination } from './components/shell/SitemapNav';
+import type { ProcessStatusFilter } from './components/ProcessListScreen';
 import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
 
 type AppMode = 'list' | 'view' | 'edit' | 'sop-list' | 'roles';
 
+/** Environment identity for the app bar, resolved once at start-up. */
+interface HostContext {
+  environmentLabel: string;
+  userInitials: string;
+}
+
+const EMPTY_HOST: HostContext = { environmentLabel: '', userInitials: '' };
+
 export function App() {
   const [service, setService] = useState<WorkflowDataService | null>(null);
   const [adapter, setAdapter] = useState<ICrmAdapter | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
+  const [host, setHost] = useState<HostContext>(EMPTY_HOST);
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +46,7 @@ export function App() {
       setIsDevMode(env.isDevMode);
       setService(new WorkflowDataService(env));
       setAdapter(createAdapter(env));
+      setHost(readHostContext(env));
     } catch (err) {
       setInitError(err instanceof Error ? err.message : 'Failed to initialise CRM context.');
     }
@@ -61,27 +74,68 @@ export function App() {
     <ReactFlowProvider>
       <CrmAdapterProvider adapter={adapter}>
         <SopAdapterContext.Provider value={adapter}>
-          <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} />
+          <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} host={host} />
         </SopAdapterContext.Provider>
       </CrmAdapterProvider>
     </ReactFlowProvider>
   );
 }
 
+/**
+ * Reads who and where we are for the app bar. Dataverse can refuse the user
+ * context in some hosting modes, and an unnamed environment is not a reason to
+ * fail to start, so this degrades to blanks rather than throwing.
+ */
+function readHostContext(env: CrmEnvironmentService): HostContext {
+  try {
+    const { userName, orgName } = env.getUserContext();
+    return { environmentLabel: orgName, userInitials: toInitials(userName) };
+  } catch {
+    return EMPTY_HOST;
+  }
+}
+
+function toInitials(userName: string): string {
+  const words = userName.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+  const first = words[0][0];
+  const last = words.length > 1 ? words[words.length - 1][0] : '';
+  return `${first}${last}`.toUpperCase();
+}
+
+/** The sitemap destination each process status filter corresponds to. */
+const STATUS_BY_DESTINATION: Partial<Record<NavDestination, ProcessStatusFilter>> = {
+  'processes-all': 'all',
+  'processes-draft': 'draft',
+  'processes-published': 'published',
+};
+
 interface DesignerRootProps {
   service: WorkflowDataService;
   adapter: ICrmAdapter;
   isDevMode: boolean;
+  host: HostContext;
 }
 
-function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
+function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) {
   const [appMode, setAppMode] = useState<AppMode>('list');
   const [previousMode, setPreviousMode] = useState<'list' | 'view'>('list');
   const sopAdapter = isSopAdapter(adapter) ? (adapter as ISopAdapter) : null;
   const [showWizard, setShowWizard] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+  const [destination, setDestination] = useState<NavDestination>('processes-all');
+  const [search, setSearch] = useState('');
   const view = useWorkflowView(service);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
+
+  // The sitemap owns which screen is showing; opening a process moves the app
+  // into view/edit, which are not sitemap destinations and so leave it alone.
+  const handleNavigate = useCallback((next: NavDestination) => {
+    setDestination(next);
+    if (next === 'sop-library') setAppMode('sop-list');
+    else if (next === 'roles') setAppMode('roles');
+    else setAppMode('list');
+  }, []);
 
   const handleNewProcess = () => setShowWizard(true);
 
@@ -172,12 +226,23 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
   }, [previousMode, view]);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {isDevMode && (
-        <div style={devBanner}>
-          LOCAL DEV — data via Dataverse proxy (org5869857f.crm4.dynamics.com)
-        </div>
-      )}
+    <AppShell
+      environmentLabel={host.environmentLabel}
+      userInitials={host.userInitials}
+      active={destination}
+      onNavigate={handleNavigate}
+      sopEnabled={!!sopAdapter}
+      search={search}
+      onSearchChange={setSearch}
+      navHidden={appMode === 'edit' || appMode === 'view'}
+      banner={
+        isDevMode ? (
+          <div style={devBanner}>
+            LOCAL DEV — data via Dataverse proxy (org5869857f.crm4.dynamics.com)
+          </div>
+        ) : undefined
+      }
+    >
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         {appMode === 'edit' ? (
           <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
@@ -192,13 +257,13 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
         ) : appMode === 'sop-list' && sopAdapter ? (
           <SopListScreen
             adapter={sopAdapter}
-            onBack={() => setAppMode('list')}
-            onManageRoles={() => setAppMode('roles')}
+            onBack={() => handleNavigate('processes-all')}
+            onManageRoles={() => handleNavigate('roles')}
           />
         ) : appMode === 'roles' && sopAdapter ? (
           <RolesScreen
             adapter={sopAdapter}
-            onBack={() => setAppMode('sop-list')}
+            onBack={() => handleNavigate('sop-library')}
           />
         ) : (
           <ProcessListScreen
@@ -206,7 +271,10 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
             onNewProcess={handleNewProcess}
             onOpenProcess={(id) => void handleOpenProcess(id)}
             onEditProcess={(id) => void handleEditProcess(id)}
-            onOpenSopDesigner={sopAdapter ? () => setAppMode('sop-list') : undefined}
+            onOpenSopDesigner={sopAdapter ? () => handleNavigate('sop-library') : undefined}
+            search={search}
+            onSearchChange={setSearch}
+            statusFilter={STATUS_BY_DESTINATION[destination] ?? 'all'}
           />
         )}
       </div>
@@ -224,7 +292,7 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
       )}
       <ConfirmDialogHost />
       <NotifyHost />
-    </div>
+    </AppShell>
   );
 }
 
