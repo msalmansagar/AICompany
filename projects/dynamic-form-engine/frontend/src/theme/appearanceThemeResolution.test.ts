@@ -6,7 +6,13 @@
 // quietly repaint a bank's branded form, which is a defect, not a feature.
 
 import { describe, it, expect } from 'vitest';
-import { appearanceThemeDefinition, APPEARANCE_NAMES } from '@qdb/shared';
+import {
+  appearanceThemeDefinition,
+  APPEARANCE_NAMES,
+  APPEARANCE_PALETTES,
+  fluentTokenOverrides,
+  isAppearanceName,
+} from '@qdb/shared';
 import { LIGHT_THEME, DARK_THEME, CORPORATE_QDB_THEME, isBuiltInDefaultTheme } from './themes';
 
 describe('isBuiltInDefaultTheme', () => {
@@ -54,5 +60,30 @@ describe('appearanceThemeDefinition', () => {
   it('gives_every_appearance_the_text_colours_its_palette_states', () => {
     expect(appearanceThemeDefinition('dark').textPrimaryColor).toBe('#f3f2f1');
     expect(appearanceThemeDefinition('light').textPrimaryColor).toBe('#201f1e');
+  });
+});
+
+// ThemeProvider decides whether to restate the design system's neutrals on Fluent
+// by looking at the theme's id prefix and themeCode. That is a contract between two
+// files, so it is asserted rather than assumed — a renamed id would silently send
+// every form back to Fluent's stock neutrals.
+describe('an appearance theme is recognisable to ThemeProvider', () => {
+  for (const appearance of APPEARANCE_NAMES) {
+    it(`identifies_${appearance}_by_id_prefix_and_theme_code`, () => {
+      const theme = appearanceThemeDefinition(appearance);
+
+      expect(theme.id.startsWith('appearance-')).toBe(true);
+      expect(isAppearanceName(theme.themeCode)).toBe(true);
+    });
+  }
+
+  it('does_not_mistake_a_customer_theme_for_an_appearance', () => {
+    expect(CORPORATE_QDB_THEME.id.startsWith('appearance-')).toBe(false);
+  });
+
+  it('restates_the_dark_surface_Fluent_would_otherwise_get_wrong', () => {
+    // Fluent's own dark surface is #292929; the design system's is #292827. One
+    // shade apart, which reads as a rendering fault rather than a choice.
+    expect(fluentTokenOverrides(APPEARANCE_PALETTES.dark).colorNeutralBackground1).toBe('#292827');
   });
 });
