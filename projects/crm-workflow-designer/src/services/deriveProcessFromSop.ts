@@ -1,8 +1,8 @@
 import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 // Client-side orchestration that derives a workflow process from a published SOP.
 // Replaces the qdb_CreateProcessFromSop Custom API (not registered in Dataverse).
-import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
 import type { AssignToType } from '@/types/WorkflowTypes';
+import { emptyAssignmentFields, mapAssignTo } from './taskAssignment';
 import type { ISopAdapter } from './ISopAdapter';
 import { copyEscalationFields } from './escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from './branchFields';
@@ -49,20 +49,19 @@ export async function deriveProcessFromSop(
       // SOP template steps carry no control-flow semantics yet (that is DP-1b), so a
       // derived step starts exclusive — the same meaning derivation has always produced.
       ...emptyBranchFields(),
-    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
+      ...emptyAssignmentFields(),
+      workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
       name: sopStep.name,
       schemaName: '',
       sequenceNo: sopStep.sequenceNo,
       taskSubject: assignment?.taskSubject || sopStep.name,
       taskDescription: sopStep.description,
       processId,
+      allowBulkApproval: false,
       assignTo: resolveAssignTo(assignment),
       assignedUserId: assignment?.assignedUserId ?? null,
-      assignedUserName: null,
       teamId: assignment?.teamId ?? null,
-      teamName: null,
       roundRobinTeamId: assignment?.roundRobinTeamId ?? null,
-      roundRobinTeamName: null,
       recordEntityId: request.taskEntity || null,
       recordEntityName: null,
       regardingFieldId: request.regardingField || null,
@@ -116,7 +115,5 @@ export async function deriveProcessFromSop(
 
 function resolveAssignTo(assignment: StepAssignment | undefined): AssignToType {
   if (!assignment || assignment.assignToType === null) return 'user';
-  if (assignment.assignToType === ASSIGN_TO_CODES.user) return 'user';
-  // Both team and roundRobin share code 100000002; enableRoundRobin is the discriminant.
-  return assignment.enableRoundRobin ? 'roundRobin' : 'team';
+  return mapAssignTo(assignment.assignToType, assignment.enableRoundRobin);
 }

@@ -5,6 +5,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { SimPath } from '@/services/PathEnumerator';
 import { emptyEscalationFields } from '@/services/escalationFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
 import type { Violation } from '@/services/ValidationService';
 
@@ -319,20 +320,15 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const newStep: WorkflowStep = {
             ...emptyEscalationFields(),
             ...emptyBranchFields(),
-    workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
+            ...emptyAssignmentFields(),
+            workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
             crmId: newStepId,
             name: 'New Step',
             sequenceNo: nextSeqNo,
             schemaName: '',
             taskSubject: '',
             taskDescription: '',
-            assignTo: 'user',
-            assignedUserId: null,
-            assignedUserName: null,
-            teamId: null,
-            teamName: null,
-            roundRobinTeamId: null,
-            roundRobinTeamName: null,
+            allowBulkApproval: false,
             recordEntityId: null,
             recordEntityName: null,
             regardingFieldId: null,

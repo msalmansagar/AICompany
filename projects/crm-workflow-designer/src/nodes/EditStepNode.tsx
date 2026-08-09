@@ -1,11 +1,13 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import type { AssignToType } from '@/types/WorkflowTypes';
+import { ASSIGN_TO_LABELS } from '@/services/taskAssignment';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
   name: string;
   sequenceNo: number;
-  assignTo: 'user' | 'team' | 'roundRobin';
+  assignTo: AssignToType;
   assigneeName: string | null;
   isSelected: boolean;
   hasError: boolean;
@@ -15,12 +17,6 @@ export interface EditStepData extends Record<string, unknown> {
   /** The same semantics spelled out, for the badge tooltip. */
   controlFlowDescription: string | null;
 }
-
-const ASSIGN_TO_LABELS: Record<EditStepData['assignTo'], string> = {
-  user: 'Specific User',
-  team: 'Team',
-  roundRobin: 'Round Robin',
-};
 
 export function EditStepNode({ data }: NodeProps) {
   const stepData = data as EditStepData;
@@ -95,6 +91,7 @@ function buildAssignChipStyle(assignTo: EditStepData['assignTo']): React.CSSProp
   const colorMap: Record<EditStepData['assignTo'], string> = {
     user: '#1d4ed8',
     team: '#065f46',
+    readFromParent: '#9a3412',
     roundRobin: '#6b21a8',
   };
   return {

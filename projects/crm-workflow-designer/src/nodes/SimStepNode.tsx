@@ -1,5 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
+import type { AssignToType } from '@/types/WorkflowTypes';
+import { ASSIGN_TO_LABELS as ASSIGN_LABELS } from '@/services/taskAssignment';
 
 export type SimStepStatus = 'active' | 'visited' | 'unreached';
 
@@ -7,17 +9,11 @@ export interface SimStepData extends Record<string, unknown> {
   stepId: string;
   name: string;
   sequenceNo: number;
-  assignTo: 'user' | 'team' | 'roundRobin';
+  assignTo: AssignToType;
   assigneeName: string | null;
   simStatus: SimStepStatus;
   monochrome?: boolean;
 }
-
-const ASSIGN_LABELS: Record<SimStepData['assignTo'], string> = {
-  user: 'Specific User',
-  team: 'Team',
-  roundRobin: 'Round Robin',
-};
 
 export function SimStepNode({ data }: NodeProps) {
   const d = data as SimStepData;
@@ -90,6 +86,7 @@ function buildChipStyle(assignTo: SimStepData['assignTo'], mono: boolean): React
   const colorMap: Record<SimStepData['assignTo'], string> = {
     user: '#1d4ed8',
     team: '#065f46',
+    readFromParent: '#9a3412',
     roundRobin: '#6b21a8',
   };
   return {

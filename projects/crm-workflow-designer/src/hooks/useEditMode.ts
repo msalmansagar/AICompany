@@ -5,6 +5,7 @@ import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { emptyEscalationFields, escalationSummaryText } from '@/services/escalationFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 import {
   emptyBranchFields,
   branchSummaryText,
@@ -307,6 +308,7 @@ function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
   return {
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
+    ...emptyAssignmentFields(),
     workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
     crmId: `tmp_${crypto.randomUUID()}`,
     name: 'New Step',
@@ -314,13 +316,7 @@ function buildNewStep(processId: string, sequenceNo: number): WorkflowStep {
     schemaName: '',
     taskSubject: '',
     taskDescription: '',
-    assignTo: 'user',
-    assignedUserId: null,
-    assignedUserName: null,
-    teamId: null,
-    teamName: null,
-    roundRobinTeamId: null,
-    roundRobinTeamName: null,
+    allowBulkApproval: false,
     recordEntityId: null,
     recordEntityName: null,
     regardingFieldId: null,

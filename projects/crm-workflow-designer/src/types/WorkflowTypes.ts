@@ -18,7 +18,31 @@ export interface WorkflowProcess {
   sopId?: string | null;
 }
 
-export type AssignToType = 'user' | 'team' | 'roundRobin';
+export type AssignToType = 'user' | 'team' | 'roundRobin' | 'readFromParent';
+
+/**
+ * Who the engine gives a task to. `readFromParent` names a field on the task's
+ * parent record and takes the user it points at, so ownership follows the
+ * application rather than being fixed at design time.
+ */
+export interface AssignmentFields {
+  assignTo: AssignToType;
+  assignedUserId: string | null;
+  assignedUserName: string | null;
+  teamId: string | null;
+  teamName: string | null;
+  roundRobinTeamId: string | null;
+  roundRobinTeamName: string | null;
+  /** The parent table to read the owner from. */
+  parentAssignEntityId: string | null;
+  parentAssignEntityName: string | null;
+  /** The lookup on the task's own record that points at the parent. */
+  parentAssignFieldId: string | null;
+  parentAssignFieldName: string | null;
+  /** The user field on the parent record that names the owner. */
+  parentAssignUserFieldId: string | null;
+  parentAssignUserFieldName: string | null;
+}
 
 // --- Escalation: the platform engine's model (CWFD-005) ---
 
@@ -78,7 +102,7 @@ export interface BranchFields {
   branchFilter: string;
 }
 
-export interface WorkflowStep extends EscalationFields, BranchFields {
+export interface WorkflowStep extends EscalationFields, BranchFields, AssignmentFields {
   /** Workflows the engine runs at points in this step’s task life (DP-5). */
   workflowHooks: WorkflowHooks;
   crmId: string;
@@ -93,13 +117,12 @@ export interface WorkflowStep extends EscalationFields, BranchFields {
   regardingFieldName: string | null;
   parentEntityId: string | null;
   parentEntityName: string | null;
-  assignTo: AssignToType;
-  assignedUserId: string | null;
-  assignedUserName: string | null;
-  teamId: string | null;
-  teamName: string | null;
-  roundRobinTeamId: string | null;
-  roundRobinTeamName: string | null;
+  /**
+   * Let one completion close every task named in the completing task's
+   * `qdb_bulkapprovalids`. `OnTaskComplete` copies the completing task's values
+   * onto each and closes it, so approvers clear a batch in one action (DP-3).
+   */
+  allowBulkApproval: boolean;
   processId: string;
 }
 
@@ -183,12 +206,11 @@ export const WORKFLOW_STATE_CODES: Record<WorkflowStateCode, number> = {
   archived: 100000002,
 };
 
-// Round Robin uses the same OptionSet value as Team (100000002) + qdb_enableroundrobin = true
-export const ASSIGN_TO_CODES: Record<AssignToType, number> = {
-  user: 100000000,
-  roundRobin: 100000002,
-  team: 100000002,
-};
+// ASSIGN_TO_CODES moved to services/taskAssignment.ts with the rest of the
+// assignment mapping. It used to encode round robin as the Team value plus
+// qdb_enableroundrobin; the org has always had its own Apply Round Robin value,
+// and sharing the Team code made a saved round-robin step read back as a Team
+// step with no team.
 
 // DP-1's qdb_splittype / qdb_jointype and DP-2's four SLA/escalation option sets
 // lived here. All were removed by the CWFD-005 reconciliation: the engine reads a

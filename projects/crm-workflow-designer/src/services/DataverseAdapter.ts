@@ -27,7 +27,12 @@ import type { SopStatus } from '@/types/SopTypes';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { withRetry } from './withRetry';
-import { ASSIGN_TO_CODES } from '@/types/WorkflowTypes';
+import {
+  ASSIGNMENT_LOOKUP_COLUMNS,
+  ASSIGNMENT_SELECT_COLUMNS,
+  buildAssignmentBody,
+  mapAssignmentFields,
+} from './taskAssignment';
 import type {
   WorkflowProcess,
   WorkflowStep,
@@ -189,7 +194,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.step,
-        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_task_assign_to,_qdb_assigned_user_value,_qdb_team_value,_qdb_roundrobinteam_value,${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_work_item_stepsid,qdb_name,qdb_schemaname,qdb_sequenceno,qdb_tasksubject,qdb_taskdescription,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,qdb_allowbulkapproval,${ASSIGNMENT_SELECT_COLUMNS},${ESCALATION_SELECT_COLUMNS},${BRANCH_SELECT_COLUMNS},${hookSelectColumns(STEP_HOOKS)}&$filter=_qdb_record_type_value eq ${processId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapStep);
@@ -216,14 +221,17 @@ export class DataverseAdapter implements ISopAdapter {
   private async buildStepBodyResolved(data: Partial<Omit<WorkflowStep, 'crmId'>>): Promise<Record<string, unknown>> {
     const body = buildStepBody(data);
     const E = 'qdb_work_item_steps';
-    const [re, rf, pe, au, tm, rr, rt] = await Promise.all([
+    const [re, rf, pe, au, tm, rr, rt, pae, paf, pau] = await Promise.all([
       data.recordEntityId   ? this.resolveNavProp(E, 'qdb_recordentity')   : Promise.resolve(''),
       data.regardingFieldId ? this.resolveNavProp(E, 'qdb_regardingfield') : Promise.resolve(''),
       data.parentEntityId   ? this.resolveNavProp(E, 'qdb_parententity')   : Promise.resolve(''),
-      data.assignedUserId   ? this.resolveNavProp(E, 'qdb_assigned_user')  : Promise.resolve(''),
-      data.teamId           ? this.resolveNavProp(E, 'qdb_team')           : Promise.resolve(''),
-      data.roundRobinTeamId ? this.resolveNavProp(E, 'qdb_roundrobinteam') : Promise.resolve(''),
+      data.assignedUserId   ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.assignedUser)    : Promise.resolve(''),
+      data.teamId           ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.team)            : Promise.resolve(''),
+      data.roundRobinTeamId ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.roundRobinTeam)  : Promise.resolve(''),
       data.processId        ? this.resolveNavProp(E, 'qdb_record_type')    : Promise.resolve(''),
+      data.parentAssignEntityId    ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentEntity)    : Promise.resolve(''),
+      data.parentAssignFieldId     ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentField)     : Promise.resolve(''),
+      data.parentAssignUserFieldId ? this.resolveNavProp(E, ASSIGNMENT_LOOKUP_COLUMNS.parentUserField) : Promise.resolve(''),
     ]);
     if (data.recordEntityId   && re) body[`${re}@odata.bind`] = `/${SET.crmEntity}(${data.recordEntityId})`;
     if (data.regardingFieldId && rf) body[`${rf}@odata.bind`] = `/${SET.crmField}(${data.regardingFieldId})`;
@@ -232,6 +240,9 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.teamId           && tm) body[`${tm}@odata.bind`] = `/teams(${data.teamId})`;
     if (data.roundRobinTeamId && rr) body[`${rr}@odata.bind`] = `/qdb_roundrobinteams(${data.roundRobinTeamId})`;
     if (data.processId        && rt) body[`${rt}@odata.bind`] = `/${SET.process}(${data.processId})`;
+    if (data.parentAssignEntityId    && pae) body[`${pae}@odata.bind`] = `/${SET.crmEntity}(${data.parentAssignEntityId})`;
+    if (data.parentAssignFieldId     && paf) body[`${paf}@odata.bind`] = `/${SET.crmField}(${data.parentAssignFieldId})`;
+    if (data.parentAssignUserFieldId && pau) body[`${pau}@odata.bind`] = `/${SET.crmField}(${data.parentAssignUserFieldId})`;
     Object.assign(
       body,
       await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), E, ESCALATION_CONFIG_SET)
@@ -938,7 +949,6 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
 }
 
 function mapStep(raw: Record<string, unknown>): WorkflowStep {
-  const assignCode = (raw['qdb_task_assign_to'] as number) ?? ASSIGN_TO_CODES.user;
   return {
     crmId: (raw['qdb_work_item_stepsid'] as string) ?? '',
     name: (raw['qdb_name'] as string) ?? '',
@@ -952,24 +962,13 @@ function mapStep(raw: Record<string, unknown>): WorkflowStep {
     regardingFieldName: (raw['_qdb_regardingfield_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
     parentEntityId: (raw['_qdb_parententity_value'] as string | null) ?? null,
     parentEntityName: (raw['_qdb_parententity_value@OData.Community.Display.V1.FormattedValue'] as string | null) ?? null,
-    assignTo: mapAssignCode(assignCode),
-    assignedUserId: (raw['_qdb_assigned_user_value'] as string | null) ?? null,
-    assignedUserName: (raw[`_qdb_assigned_user_value${FMT}`] as string | null) ?? null,
-    teamId: (raw['_qdb_team_value'] as string | null) ?? null,
-    teamName: (raw[`_qdb_team_value${FMT}`] as string | null) ?? null,
-    roundRobinTeamId: (raw['_qdb_roundrobinteam_value'] as string | null) ?? null,
-    roundRobinTeamName: (raw[`_qdb_roundrobinteam_value${FMT}`] as string | null) ?? null,
+    allowBulkApproval: (raw['qdb_allowbulkapproval'] as boolean) ?? false,
     processId: (raw['_qdb_record_type_value'] as string) ?? '',
+    ...mapAssignmentFields(raw),
     ...mapEscalationFields(raw),
     ...mapBranchFields(raw),
     workflowHooks: mapWorkflowHooks(raw, STEP_HOOKS),
   };
-}
-
-function mapAssignCode(code: number): WorkflowStep['assignTo'] {
-  if (code === ASSIGN_TO_CODES.team) return 'team';
-  if (code === ASSIGN_TO_CODES.roundRobin) return 'roundRobin';
-  return 'user';
 }
 
 function mapOutcome(raw: Record<string, unknown>): WorkflowOutcome {
@@ -1012,10 +1011,8 @@ function buildStepBody(data: Partial<Omit<WorkflowStep, 'crmId'>>): Record<strin
   if (data.sequenceNo !== undefined) body['qdb_sequenceno'] = data.sequenceNo;
   if (data.taskSubject !== undefined) body['qdb_tasksubject'] = data.taskSubject;
   if (data.taskDescription !== undefined) body['qdb_taskdescription'] = data.taskDescription;
-  if (data.assignTo !== undefined) {
-    body['qdb_task_assign_to'] = ASSIGN_TO_CODES[data.assignTo];
-    body['qdb_enableroundrobin'] = data.assignTo === 'roundRobin';
-  }
+  if (data.allowBulkApproval !== undefined) body['qdb_allowbulkapproval'] = data.allowBulkApproval;
+  Object.assign(body, buildAssignmentBody(data));
   Object.assign(body, buildEscalationBody(data));
   Object.assign(body, buildBranchBody(data));
   return body;
