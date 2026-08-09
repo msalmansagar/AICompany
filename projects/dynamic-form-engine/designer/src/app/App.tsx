@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { FluentProvider, webLightTheme, Spinner } from '@fluentui/react-components';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Spinner } from '@fluentui/react-components';
 import { AppProviders } from './AppProviders';
+import { AppearanceProvider } from '@/theme/AppearanceProvider';
+import { AppShell } from '@/components/shell/AppShell';
+import '@/styles/tokens.css';
+import '@/styles/components.css';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerScreen as DesignerScreenName } from '@/state/designerStore';
 import { FormListScreen } from '@/screens/FormListScreen';
@@ -25,6 +29,7 @@ export const CrmContext = React.createContext<CrmContextService | null>(null);
 
 export function App(): React.ReactElement {
   const currentScreen = useDesignerStore(state => state.currentScreen);
+  const navigateTo = useDesignerStore(state => state.navigateTo);
   const [crmService, setCrmService] = useState<CrmContextService | null>(null);
   const [initError, setInitError] = useState<string | null>(null);
 
@@ -41,34 +46,58 @@ export function App(): React.ReactElement {
 
   if (initError) {
     return (
-      <FluentProvider theme={webLightTheme}>
-        <div style={{ padding: 24, color: '#a4262c' }}>
+      <AppearanceProvider>
+        <div className="notice error" style={{ margin: 24 }}>
           <strong>Form Designer initialization error:</strong>
           <br />
           {initError}
         </div>
-      </FluentProvider>
+      </AppearanceProvider>
     );
   }
 
   if (!crmService) {
     return (
-      <FluentProvider theme={webLightTheme}>
+      <AppearanceProvider>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
           <Spinner label="Initializing Form Designer..." />
         </div>
-      </FluentProvider>
+      </AppearanceProvider>
     );
   }
 
   return (
-    <FluentProvider theme={webLightTheme}>
+    <AppearanceProvider>
       <CrmContext.Provider value={crmService}>
         <AppProviders>
-          <ActiveScreen currentScreen={currentScreen} />
+          <ShelledApp currentScreen={currentScreen} onNavigate={navigateTo} crmService={crmService} />
         </AppProviders>
       </CrmContext.Provider>
-    </FluentProvider>
+    </AppearanceProvider>
+  );
+}
+
+interface ShelledAppProps {
+  currentScreen: DesignerScreenName;
+  onNavigate: (screen: DesignerScreenName) => void;
+  crmService: CrmContextService;
+}
+
+function ShelledApp({ currentScreen, onNavigate, crmService }: ShelledAppProps): React.ReactElement {
+  // Outside CRM there is no signed-in user to name, and getUserContext throws
+  // rather than inventing one. The avatar simply does not appear.
+  const userFullName = useMemo(() => {
+    try {
+      return crmService.getUserContext().userFullName;
+    } catch {
+      return undefined;
+    }
+  }, [crmService]);
+
+  return (
+    <AppShell currentScreen={currentScreen} onNavigate={onNavigate} userFullName={userFullName}>
+      <ActiveScreen currentScreen={currentScreen} />
+    </AppShell>
   );
 }
 

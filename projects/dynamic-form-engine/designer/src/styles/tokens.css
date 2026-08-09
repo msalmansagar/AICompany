@@ -1,0 +1,409 @@
+/* ============================================================================
+   Dynamic Form Engine — design tokens
+   ----------------------------------------------------------------------------
+   The same token vocabulary the Report Engine designer and the Process Engine
+   use, so the three tools read as one product. Nothing in the app should name a
+   colour; everything resolves through these variables, which is what lets all
+   four themes work without touching a component.
+
+   Themes: light (Fluent / Power Platform), dark, glass, vibrant.
+   `--radius` and `--surface-blur` are themed too — glass and vibrant are not
+   just a recolour, they change the shape and material of every surface.
+
+   Fluent's own components do NOT read these variables. They are themed in
+   parallel by theme/fluentThemes.ts, which carries the same palette into a
+   Fluent Theme object. Change a colour here and change it there too.
+   ========================================================================= */
+
+:root {
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "Courier New", monospace;
+
+  --primary: #0078d4;
+  --primary-hover: #106ebe;
+  --primary-pressed: #005a9e;
+  --primary-tint: #deecf9;
+  --primary-tint-2: #eff6fc;
+
+  --bg: #f3f2f1;
+  --surface: #ffffff;
+  --surface-alt: #faf9f8;
+  --surface-raised: #ffffff;
+  --nav-bg: #f3f2f1;
+
+  --border: #edebe9;
+  --border-strong: #e1dfdd;
+  --border-input: #8a8886;
+
+  --text: #201f1e;
+  --text-secondary: #605e5c;
+  --text-disabled: #a19f9d;
+  --text-on-primary: #ffffff;
+
+  --success: #107c10;
+  --success-bg: #dff6dd;
+  --warning: #ca7c11;
+  --warning-bg: #fff4ce;
+  --error: #a4262c;
+  --error-bg: #fde7e9;
+  --info: #0078d4;
+  --info-bg: #eff6fc;
+  --neutral-chip: #f3f2f1;
+
+  /* Designer canvas. The form canvas colour-codes drop targets, the selected
+     element and the field palette; these stay distinguishable in every theme. */
+  --canvas-bg: #faf9f8;
+  --canvas-grid: #e2e8f0;
+  --drop-target: #0078d4;
+  --drop-target-bg: #eff6fc;
+  --drop-valid: #0f9d58;
+  --drop-valid-bg: rgba(15, 157, 88, .08);
+  --selected-outline: #0078d4;
+
+  /* Field-type swatches in the toolbox, mirroring the Report Engine palette. */
+  --type-text: #8a8886;
+  --type-number: #0f9d58;
+  --type-currency: #0078d4;
+  --type-choice: #7c3aed;
+  --type-date: #d97706;
+  --type-lookup: #0f766e;
+
+  --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .13), 0 .3px .9px rgba(0, 0, 0, .11);
+  --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .13), 0 .6px 1.8px rgba(0, 0, 0, .11);
+  --shadow-64: 0 12.8px 28.8px rgba(0, 0, 0, .22), 0 2.4px 7.2px rgba(0, 0, 0, .18);
+  --radius: 2px;
+  --radius-lg: 4px;
+
+  --header-bg: #0078d4;
+  --header-border: #005a9e;
+  --header-fg: #ffffff;
+  --header-fg-dim: rgba(255, 255, 255, .82);
+  --header-hover: rgba(255, 255, 255, .16);
+  --header-accent: rgba(255, 255, 255, .7);
+  --header-search-bg: rgba(255, 255, 255, .16);
+  --header-search-border: rgba(255, 255, 255, .32);
+  --header-search-ph: rgba(255, 255, 255, .72);
+  --header-avatar-bg: #ffffff;
+  --header-avatar-fg: #0078d4;
+
+  --app-bg-image: none;
+  --surface-blur: none;
+}
+
+/* Dark is the default only when the OS asks for it and the user has not chosen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --primary: #2899f5;
+    --primary-hover: #3aa0f3;
+    --primary-pressed: #1a86dc;
+    --primary-tint: #0b3a5c;
+    --primary-tint-2: #10334d;
+
+    --bg: #1b1a19;
+    --surface: #292827;
+    --surface-alt: #201f1e;
+    --surface-raised: #323130;
+    --nav-bg: #1b1a19;
+
+    --border: #3b3a39;
+    --border-strong: #484644;
+    --border-input: #605e5c;
+
+    --text: #f3f2f1;
+    --text-secondary: #c8c6c4;
+    --text-disabled: #797775;
+
+    --success: #6bb700;
+    --success-bg: #1f2e10;
+    --warning: #fce100;
+    --warning-bg: #3a3410;
+    --error: #f1707b;
+    --error-bg: #3a1416;
+    --info: #2899f5;
+    --info-bg: #10334d;
+    --neutral-chip: #3b3a39;
+
+    --canvas-bg: #201f1e;
+    --canvas-grid: #3b3a39;
+    --drop-target: #2899f5;
+    --drop-target-bg: #10334d;
+    --drop-valid: #6bb700;
+    --drop-valid-bg: rgba(107, 183, 0, .12);
+    --selected-outline: #2899f5;
+
+    --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .4);
+    --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .5);
+    --shadow-64: 0 12.8px 28.8px rgba(0, 0, 0, .6);
+
+    --header-bg: #141312;
+    --header-border: #3b3a39;
+    --header-fg: #f3f2f1;
+    --header-fg-dim: rgba(243, 242, 241, .72);
+    --header-hover: rgba(255, 255, 255, .08);
+    --header-accent: #2899f5;
+    --header-search-bg: rgba(255, 255, 255, .06);
+    --header-search-border: rgba(255, 255, 255, .14);
+    --header-search-ph: rgba(243, 242, 241, .5);
+    --header-avatar-bg: #2899f5;
+    --header-avatar-fg: #0b1a26;
+  }
+}
+
+:root[data-theme="light"] {
+  --primary: #0078d4;
+  --primary-hover: #106ebe;
+  --primary-pressed: #005a9e;
+  --primary-tint: #deecf9;
+  --primary-tint-2: #eff6fc;
+
+  --bg: #f3f2f1;
+  --surface: #ffffff;
+  --surface-alt: #faf9f8;
+  --surface-raised: #ffffff;
+  --nav-bg: #f3f2f1;
+
+  --border: #edebe9;
+  --border-strong: #e1dfdd;
+  --border-input: #8a8886;
+
+  --text: #201f1e;
+  --text-secondary: #605e5c;
+  --text-disabled: #a19f9d;
+
+  --success: #107c10;
+  --success-bg: #dff6dd;
+  --warning: #ca7c11;
+  --warning-bg: #fff4ce;
+  --error: #a4262c;
+  --error-bg: #fde7e9;
+  --info: #0078d4;
+  --info-bg: #eff6fc;
+  --neutral-chip: #f3f2f1;
+
+  --canvas-bg: #faf9f8;
+  --canvas-grid: #e2e8f0;
+  --drop-target: #0078d4;
+  --drop-target-bg: #eff6fc;
+  --drop-valid: #0f9d58;
+  --drop-valid-bg: rgba(15, 157, 88, .08);
+  --selected-outline: #0078d4;
+
+  --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .13), 0 .3px .9px rgba(0, 0, 0, .11);
+  --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .13), 0 .6px 1.8px rgba(0, 0, 0, .11);
+  --shadow-64: 0 12.8px 28.8px rgba(0, 0, 0, .22), 0 2.4px 7.2px rgba(0, 0, 0, .18);
+  --radius: 2px;
+  --radius-lg: 4px;
+
+  --header-bg: #0078d4;
+  --header-border: #005a9e;
+  --header-fg: #ffffff;
+  --header-fg-dim: rgba(255, 255, 255, .82);
+  --header-hover: rgba(255, 255, 255, .16);
+  --header-accent: rgba(255, 255, 255, .7);
+  --header-search-bg: rgba(255, 255, 255, .16);
+  --header-search-border: rgba(255, 255, 255, .32);
+  --header-search-ph: rgba(255, 255, 255, .72);
+  --header-avatar-bg: #ffffff;
+  --header-avatar-fg: #0078d4;
+
+  --app-bg-image: none;
+  --surface-blur: none;
+}
+
+:root[data-theme="dark"] {
+  --primary: #2899f5;
+  --primary-hover: #3aa0f3;
+  --primary-pressed: #1a86dc;
+  --primary-tint: #0b3a5c;
+  --primary-tint-2: #10334d;
+
+  --bg: #1b1a19;
+  --surface: #292827;
+  --surface-alt: #201f1e;
+  --surface-raised: #323130;
+  --nav-bg: #1b1a19;
+
+  --border: #3b3a39;
+  --border-strong: #484644;
+  --border-input: #605e5c;
+
+  --text: #f3f2f1;
+  --text-secondary: #c8c6c4;
+  --text-disabled: #797775;
+
+  --success: #6bb700;
+  --success-bg: #1f2e10;
+  --warning: #fce100;
+  --warning-bg: #3a3410;
+  --error: #f1707b;
+  --error-bg: #3a1416;
+  --info: #2899f5;
+  --info-bg: #10334d;
+  --neutral-chip: #3b3a39;
+
+  --canvas-bg: #201f1e;
+  --canvas-grid: #3b3a39;
+  --drop-target: #2899f5;
+  --drop-target-bg: #10334d;
+  --drop-valid: #6bb700;
+  --drop-valid-bg: rgba(107, 183, 0, .12);
+  --selected-outline: #2899f5;
+
+  --type-text: #a19f9d;
+  --type-number: #6bb700;
+  --type-currency: #2899f5;
+  --type-choice: #a78bfa;
+  --type-date: #f0a52e;
+  --type-lookup: #2dd4bf;
+
+  --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .4);
+  --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .5);
+  --shadow-64: 0 12.8px 28.8px rgba(0, 0, 0, .6);
+  --radius: 2px;
+  --radius-lg: 4px;
+
+  --header-bg: #141312;
+  --header-border: #3b3a39;
+  --header-fg: #f3f2f1;
+  --header-fg-dim: rgba(243, 242, 241, .72);
+  --header-hover: rgba(255, 255, 255, .08);
+  --header-accent: #2899f5;
+  --header-search-bg: rgba(255, 255, 255, .06);
+  --header-search-border: rgba(255, 255, 255, .14);
+  --header-search-ph: rgba(243, 242, 241, .5);
+  --header-avatar-bg: #2899f5;
+  --header-avatar-fg: #0b1a26;
+
+  --app-bg-image: none;
+  --surface-blur: none;
+}
+
+/* ---- Glass: frosted glassmorphism over a soft pastel mesh ---- */
+:root[data-theme="glass"] {
+  --primary: #5b5bd6;
+  --primary-hover: #4d4dc7;
+  --primary-pressed: #3f3fb0;
+  --primary-tint: rgba(91, 91, 214, .18);
+  --primary-tint-2: rgba(91, 91, 214, .10);
+
+  --bg: rgba(248, 250, 255, .30);
+  --surface: rgba(255, 255, 255, .55);
+  --surface-alt: rgba(255, 255, 255, .38);
+  --surface-raised: rgba(255, 255, 255, .72);
+  --nav-bg: rgba(255, 255, 255, .28);
+
+  --border: rgba(255, 255, 255, .55);
+  --border-strong: rgba(255, 255, 255, .72);
+  --border-input: rgba(110, 110, 150, .45);
+
+  --text: #1c1c2e;
+  --text-secondary: #494963;
+  --text-disabled: #9a9ab0;
+
+  --success: #0f7a4f;
+  --success-bg: rgba(16, 124, 74, .16);
+  --warning: #b5730a;
+  --warning-bg: rgba(202, 124, 17, .16);
+  --error: #c0392b;
+  --error-bg: rgba(164, 38, 44, .16);
+  --info: #5b5bd6;
+  --info-bg: rgba(91, 91, 214, .12);
+  --neutral-chip: rgba(120, 120, 150, .14);
+
+  --canvas-bg: rgba(255, 255, 255, .30);
+  --canvas-grid: rgba(120, 120, 160, .22);
+  --drop-target: #5b5bd6;
+  --drop-target-bg: rgba(91, 91, 214, .12);
+  --drop-valid: #0f7a4f;
+  --drop-valid-bg: rgba(16, 124, 74, .14);
+  --selected-outline: #5b5bd6;
+
+  --type-choice: #5b5bd6;
+  --type-lookup: #0f7a4f;
+
+  --shadow-8: 0 4px 16px rgba(31, 38, 90, .10);
+  --shadow-16: 0 8px 28px rgba(31, 38, 90, .14);
+  --shadow-64: 0 24px 60px rgba(31, 38, 90, .24);
+  --radius: 8px;
+  --radius-lg: 16px;
+
+  --app-bg-image: linear-gradient(135deg, #c2e9fb 0%, #e0c3fc 46%, #ffd3e0 100%);
+  --surface-blur: saturate(1.5) blur(16px);
+
+  --header-bg: rgba(255, 255, 255, .32);
+  --header-border: rgba(255, 255, 255, .5);
+  --header-fg: #1c1c2e;
+  --header-fg-dim: rgba(28, 28, 46, .66);
+  --header-hover: rgba(255, 255, 255, .55);
+  --header-accent: #5b5bd6;
+  --header-search-bg: rgba(255, 255, 255, .5);
+  --header-search-border: rgba(255, 255, 255, .62);
+  --header-search-ph: rgba(28, 28, 46, .5);
+  --header-avatar-bg: #5b5bd6;
+  --header-avatar-fg: #ffffff;
+}
+
+/* ---- Vibrant: bold saturated gradient with punchy violet accents ---- */
+:root[data-theme="vibrant"] {
+  --primary: #7c3aed;
+  --primary-hover: #6d28d9;
+  --primary-pressed: #5b21b6;
+  --primary-tint: #ede9fe;
+  --primary-tint-2: #f5f3ff;
+
+  --bg: rgba(250, 248, 255, .82);
+  --surface: #ffffff;
+  --surface-alt: #f7f5ff;
+  --surface-raised: #ffffff;
+  --nav-bg: rgba(255, 255, 255, .55);
+
+  --border: rgba(124, 58, 237, .14);
+  --border-strong: rgba(124, 58, 237, .24);
+  --border-input: #b9a7e8;
+
+  --text: #1e1b2e;
+  --text-secondary: #5a5470;
+  --text-disabled: #a99fc0;
+
+  --success: #0f9d58;
+  --success-bg: #e3f7ec;
+  --warning: #d97706;
+  --warning-bg: #fef3e2;
+  --error: #e11d48;
+  --error-bg: #fde7ec;
+  --info: #7c3aed;
+  --info-bg: #f5f3ff;
+  --neutral-chip: #efeafc;
+
+  --canvas-bg: #faf8ff;
+  --canvas-grid: rgba(124, 58, 237, .16);
+  --drop-target: #7c3aed;
+  --drop-target-bg: #f5f3ff;
+  --drop-valid: #0f9d58;
+  --drop-valid-bg: rgba(15, 157, 88, .10);
+  --selected-outline: #7c3aed;
+
+  --type-choice: #7c3aed;
+  --type-currency: #7c3aed;
+
+  --shadow-8: 0 6px 18px rgba(124, 58, 237, .16);
+  --shadow-16: 0 10px 30px rgba(124, 58, 237, .20);
+  --shadow-64: 0 26px 64px rgba(124, 58, 237, .32);
+  --radius: 8px;
+  --radius-lg: 16px;
+
+  --app-bg-image: linear-gradient(135deg, #6366f1 0%, #a855f7 40%, #ec4899 74%, #f59e0b 100%);
+  --surface-blur: saturate(1.4) blur(14px);
+
+  --header-bg: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
+  --header-border: rgba(255, 255, 255, .22);
+  --header-fg: #ffffff;
+  --header-fg-dim: rgba(255, 255, 255, .85);
+  --header-hover: rgba(255, 255, 255, .2);
+  --header-accent: rgba(255, 255, 255, .85);
+  --header-search-bg: rgba(255, 255, 255, .2);
+  --header-search-border: rgba(255, 255, 255, .4);
+  --header-search-ph: rgba(255, 255, 255, .75);
+  --header-avatar-bg: #ffffff;
+  --header-avatar-fg: #7c3aed;
+}

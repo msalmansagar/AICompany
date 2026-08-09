@@ -26,3 +26,18 @@ export { buildODataFilter } from './gridFilter/odataFilter.js';
 export { collectLookupPathAttributes } from './gridFilter/filterTemplate.js';
 export { buildViewFetchXml } from './gridFilter/viewFetchXml.js';
 export type { ViewFetchXmlRequest } from './gridFilter/viewFetchXml.js';
+// Design system: the four appearances, shared so the designer and the runtime
+// cannot drift into two different-looking products.
+export {
+  APPEARANCE_PALETTES,
+  APPEARANCE_NAMES,
+  APPEARANCE_OPTIONS,
+  isAppearanceName,
+} from './theme/appearancePalettes.js';
+export type {
+  AppearancePalette,
+  AppearanceName,
+  AppearanceOption,
+} from './theme/appearancePalettes.js';
+export { buildBrandRamp, fluentTokenOverrides } from './theme/fluentAppearance.js';
+export type { BrandRamp } from './theme/fluentAppearance.js';
