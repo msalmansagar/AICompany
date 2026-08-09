@@ -3,8 +3,8 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { logError } from './logError';
 import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
-import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, CALLABLE_WORKFLOW_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
-import type { CallableWorkflowOption } from './workflowHooks';
+import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, mapCallableAction, dedupeActionsByMessage, CALLABLE_WORKFLOW_QUERY, CALLABLE_ACTION_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
+import type { CallableActionOption, CallableWorkflowOption } from './workflowHooks';
 import { mapBranchFields, buildBranchBody, buildParentStepBindPatch, mapOutcomeConcurrency, buildOutcomeConcurrencyBody, BRANCH_SELECT_COLUMNS, OUTCOME_CONCURRENCY_SELECT_COLUMNS } from './branchFields';
 import type {
   CrmRole,
@@ -489,6 +489,17 @@ export class DataverseAdapter implements ISopAdapter {
       return result.entities.map(mapCallableWorkflow);
     } catch (err) {
       throw asError(err, 'getCallableWorkflows');
+    }
+  }
+
+  async getCallableTaskActions(): Promise<CallableActionOption[]> {
+    try {
+      const result = await withRetry(() =>
+        this.xrm.WebApi.retrieveMultipleRecords('workflow', `?${CALLABLE_ACTION_QUERY.split('?')[1]}`)
+      );
+      return dedupeActionsByMessage(result.entities.map(mapCallableAction));
+    } catch (err) {
+      throw asError(err, 'getCallableTaskActions');
     }
   }
 

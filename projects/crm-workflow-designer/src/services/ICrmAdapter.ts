@@ -1,4 +1,4 @@
-import type { CallableWorkflowOption } from './workflowHooks';
+import type { CallableActionOption, CallableWorkflowOption } from './workflowHooks';
 import type {
   WorkflowProcess,
   WorkflowStep,
@@ -57,6 +57,8 @@ export interface ICrmAdapter {
   getEscalationConfigs(): Promise<EscalationConfigOption[]>;
   /** Workflows the engine can execute on demand (DP-5). */
   getCallableWorkflows(): Promise<CallableWorkflowOption[]>;
+  /** Actions on the task table the engine can send as a message — the on-hold hook (DP-3). */
+  getCallableTaskActions(): Promise<CallableActionOption[]>;
   getAutoNumberEntities(): Promise<AutoNumberEntityOption[]>;
   getAutoNumberEntityFields(entityId?: string): Promise<AutoNumberFieldOption[]>;
 

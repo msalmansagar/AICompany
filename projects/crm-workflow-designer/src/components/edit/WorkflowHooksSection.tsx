@@ -2,12 +2,17 @@ import { useEffect, useId, useState } from 'react';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { logError } from '@/services/logError';
 import {
+  HOOK_INVOCATION,
   HOOK_LABELS,
   workflowHookSummary,
   type WorkflowHookKind,
   type WorkflowHooks,
+  type CallableActionOption,
   type CallableWorkflowOption,
 } from '@/services/workflowHooks';
+
+/** One pickable process, whichever way the engine invokes it. */
+type HookOption = { id: string; name: string; detail: string };
 
 // DP-5 — pick a workflow to run at a point in the task's life.
 //
@@ -42,9 +47,12 @@ export function WorkflowHooksSection({
   const sectionId = useId();
   const [expanded, setExpanded] = useState(false);
   const [workflows, setWorkflows] = useState<CallableWorkflowOption[]>([]);
+  const [actions, setActions] = useState<CallableActionOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const summary = workflowHookSummary(value);
   const style = PALETTE[surface];
+
+  const needsActions = kinds.some((kind) => HOOK_INVOCATION[kind] === 'action');
 
   useEffect(() => {
     if (!expanded || workflows.length > 0 || loadFailed) return;
@@ -57,8 +65,28 @@ export function WorkflowHooksSection({
       });
   }, [expanded, workflows.length, loadFailed, adapter]);
 
+  useEffect(() => {
+    if (!expanded || !needsActions || actions.length > 0 || loadFailed) return;
+    adapter
+      .getCallableTaskActions()
+      .then(setActions)
+      .catch((error) => {
+        logError('WorkflowHooksSection:loadActions', error);
+        setLoadFailed(true);
+      });
+  }, [expanded, needsActions, actions.length, loadFailed, adapter]);
+
+  const optionsFor = (kind: WorkflowHookKind): HookOption[] =>
+    HOOK_INVOCATION[kind] === 'action'
+      ? actions.map((action) => ({ id: action.id, name: action.name, detail: action.messageName }))
+      : workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          detail: workflow.primaryEntity,
+        }));
+
   const setHook = (kind: WorkflowHookKind, workflowId: string | null) => {
-    const chosen = workflows.find((workflow) => workflow.id === workflowId);
+    const chosen = optionsFor(kind).find((option) => option.id === workflowId);
     onChange({
       ...value,
       [kind]: { workflowId, workflowName: chosen?.name ?? null },
@@ -77,31 +105,40 @@ export function WorkflowHooksSection({
         <div style={style.body}>
           {scopeNote && <div style={style.notice}>{scopeNote}</div>}
 
-          {kinds.map((kind) => (
-            <div key={kind} style={style.field}>
-              <label style={style.label} htmlFor={`${sectionId}-${kind}`}>{HOOK_LABELS[kind]}</label>
-              <select
-                id={`${sectionId}-${kind}`}
-                style={style.select}
-                value={value[kind]?.workflowId ?? ''}
-                onChange={(event) => setHook(kind, event.target.value || null)}
-              >
-                <option value="">— Run nothing —</option>
-                {workflows.map((workflow) => (
-                  <option key={workflow.id} value={workflow.id}>
-                    {workflow.name} · {workflow.primaryEntity}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-
-          {workflows.length === 0 && !loadFailed && (
-            <span style={style.hint}>
-              Only activated workflows marked &ldquo;run on demand&rdquo; can be called, because
-              that is exactly the flag the engine&rsquo;s execute request needs.
-            </span>
-          )}
+          {kinds.map((kind) => {
+            const options = optionsFor(kind);
+            return (
+              <div key={kind} style={style.field}>
+                <label style={style.label} htmlFor={`${sectionId}-${kind}`}>{HOOK_LABELS[kind]}</label>
+                <select
+                  id={`${sectionId}-${kind}`}
+                  style={style.select}
+                  value={value[kind]?.workflowId ?? ''}
+                  onChange={(event) => setHook(kind, event.target.value || null)}
+                >
+                  <option value="">— Run nothing —</option>
+                  {options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name} · {option.detail}
+                    </option>
+                  ))}
+                </select>
+                {HOOK_INVOCATION[kind] === 'action' && (
+                  <span style={style.hint}>
+                    The engine sends this one as a message, so it lists Actions on the task
+                    table rather than workflows.
+                  </span>
+                )}
+                {options.length === 0 && !loadFailed && (
+                  <span style={style.hint}>
+                    {HOOK_INVOCATION[kind] === 'action'
+                      ? 'No Actions are bound to the task table in this environment yet.'
+                      : 'Only activated workflows marked “run on demand” can be called, because that is exactly the flag the engine’s execute request needs.'}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           {loadFailed && <div style={style.notice}>Could not load workflows.</div>}
         </div>
       )}
