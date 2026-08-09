@@ -151,7 +151,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewportEl) throw new Error('Viewport element not found.');
     return toPng(viewportEl, {
-      backgroundColor: '#f8fafc',
+      backgroundColor: 'var(--surface-alt)',
       width: EXPORT_W,
       height: EXPORT_H,
       style: {
@@ -237,7 +237,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
             panOnDrag
             selectionOnDrag={false}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
             <Controls showInteractive={false} />
             {showMiniMap && (
               <MiniMap
@@ -276,7 +276,7 @@ function LoadingOverlay() {
   return (
     <Panel position="top-center" style={overlayPanelStyle}>
       <span style={spinnerStyle} />
-      <span style={{ fontSize: 13, color: '#475569' }}>Loading workflow…</span>
+      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading workflow…</span>
     </Panel>
   );
 }
@@ -284,7 +284,7 @@ function LoadingOverlay() {
 function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) {
   return (
     <Panel position="top-center" style={errorPanelStyle}>
-      <strong style={{ fontSize: 12, color: '#991b1b', display: 'block', marginBottom: 4 }}>
+      <strong style={{ fontSize: 12, color: 'var(--error)', display: 'block', marginBottom: 4 }}>
         Failed to load workflow
       </strong>
       <pre style={errorPreStyle}>{message}</pre>
@@ -319,11 +319,11 @@ function extractRouteId(edgeId: string): string | null {
 }
 
 function minimapColor(node: Node): string {
-  if (node.type === 'viewStep') return '#2563eb';
-  if (node.type === 'viewDecision') return '#7c3aed';
-  if (node.type === 'viewStart') return '#16a34a';
-  if (node.type === 'viewEnd') return '#dc2626';
-  return '#94a3b8';
+  if (node.type === 'viewStep') return 'var(--primary)';
+  if (node.type === 'viewDecision') return 'var(--accent-branch)';
+  if (node.type === 'viewStart') return 'var(--success)';
+  if (node.type === 'viewEnd') return 'var(--error)';
+  return 'var(--text-disabled)';
 }
 
 const shellStyle: React.CSSProperties = {
@@ -351,8 +351,8 @@ const overlayPanelStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '8px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -360,8 +360,8 @@ const overlayPanelStyle: React.CSSProperties = {
 };
 
 const errorPanelStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #fecaca',
+  background: 'var(--surface)',
+  border: '1px solid var(--error)',
   borderRadius: 8,
   padding: '12px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -372,7 +372,7 @@ const errorPanelStyle: React.CSSProperties = {
 const errorPreStyle: React.CSSProperties = {
   fontSize: 11,
   fontFamily: 'monospace',
-  color: '#7f1d1d',
+  color: 'var(--error)',
   margin: '0 0 8px',
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
@@ -382,8 +382,8 @@ const errorPreStyle: React.CSSProperties = {
 
 const retryBtn: React.CSSProperties = {
   padding: '4px 12px',
-  background: '#dc2626',
-  color: '#fff',
+  background: 'var(--error)',
+  color: 'var(--text-on-primary)',
   border: 'none',
   borderRadius: 4,
   fontSize: 12,
@@ -394,13 +394,13 @@ const spinnerStyle: React.CSSProperties = {
   display: 'inline-block',
   width: 14,
   height: 14,
-  border: '2px solid #e2e8f0',
-  borderTopColor: '#2563eb',
+  border: '2px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
 };
 
 const emptyCard: React.CSSProperties = {
-  background: '#fff',
+  background: 'var(--surface)',
   borderRadius: 12,
   padding: '40px 48px',
   boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
@@ -411,20 +411,20 @@ const emptyCard: React.CSSProperties = {
 const emptyHeading: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 700,
-  color: '#1e293b',
+  color: 'var(--text)',
   marginBottom: 8,
 };
 
 const emptyText: React.CSSProperties = {
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontSize: 13,
   margin: '0 0 24px',
 };
 
 const openBtn: React.CSSProperties = {
   padding: '10px 24px',
-  background: '#2563eb',
-  color: '#fff',
+  background: 'var(--primary)',
+  color: 'var(--text-on-primary)',
   border: 'none',
   borderRadius: 6,
   fontSize: 14,

@@ -26,10 +26,10 @@ function wrapStyle(w: number, h: number, isFirst: boolean, isLast: boolean): Rea
   return {
     width: w, height: h,
     display: 'flex', flexDirection: 'row',
-    borderLeft: '2px solid #cbd5e1',
-    borderRight: '2px solid #cbd5e1',
-    borderTop: isFirst ? '2px solid #cbd5e1' : '1px solid #e2e8f0',
-    borderBottom: isLast ? '2px solid #cbd5e1' : 'none',
+    borderLeft: '2px solid var(--border-strong)',
+    borderRight: '2px solid var(--border-strong)',
+    borderTop: isFirst ? '2px solid var(--border-strong)' : '1px solid var(--border)',
+    borderBottom: isLast ? '2px solid var(--border-strong)' : 'none',
     pointerEvents: 'none',
     boxSizing: 'border-box',
   };
@@ -39,15 +39,15 @@ function headerStyle(h: number): React.CSSProperties {
   return {
     width: HEADER_W, height: h, flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    background: '#f1f5f9',
-    borderRight: '1px solid #cbd5e1',
+    background: 'var(--surface-alt)',
+    borderRight: '1px solid var(--border-strong)',
     padding: '0 8px',
     boxSizing: 'border-box',
   };
 }
 
 const roleLabelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: '#475569',
+  fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)',
   writingMode: 'vertical-rl', transform: 'rotate(180deg)',
   textAlign: 'center', letterSpacing: '0.04em',
   userSelect: 'none', textTransform: 'uppercase',

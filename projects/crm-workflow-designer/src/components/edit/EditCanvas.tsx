@@ -250,7 +250,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#0f172a" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
             </ReactFlow>
           ) : isAutoSimulating && autoSimPhase !== 'done' ? (
@@ -270,7 +270,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
             </ReactFlow>
           ) : (
@@ -294,7 +294,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
             </ReactFlow>
           )}
@@ -389,11 +389,11 @@ function Toast({
     <div style={{
       position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
       zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? '#fef2f2' : '#f0fdf4',
-      border: `1px solid ${isError ? '#fca5a5' : '#86efac'}`,
+      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
+      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
       borderRadius: 8, padding: '10px 16px',
       boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? '#991b1b' : '#166534',
+      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
       maxWidth: 480, minWidth: 260,
     }}>
       <span style={{ flex: 1 }}>{message}</span>

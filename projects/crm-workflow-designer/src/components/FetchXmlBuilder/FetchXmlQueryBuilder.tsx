@@ -125,13 +125,13 @@ const previewSectionStyle: React.CSSProperties = {
 const sectionLabelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
   margin: 0,
 };
 
 const emptyStateStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   fontStyle: 'italic',
 };
 
@@ -140,7 +140,7 @@ function textareaStyle(hasError: boolean): React.CSSProperties {
     width: '100%',
     fontFamily: 'monospace',
     fontSize: 12,
-    border: `1px solid ${hasError ? '#ef4444' : '#d1d5db'}`,
+    border: `1px solid ${hasError ? 'var(--error)' : 'var(--border-strong)'}`,
     borderRadius: 4,
     padding: 8,
     resize: 'vertical',
@@ -150,6 +150,6 @@ function textareaStyle(hasError: boolean): React.CSSProperties {
 
 const errorStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#ef4444',
+  color: 'var(--error)',
   margin: 0,
 };

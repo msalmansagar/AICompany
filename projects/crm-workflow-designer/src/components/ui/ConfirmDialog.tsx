@@ -96,7 +96,7 @@ const backdrop: React.CSSProperties = {
 };
 
 const dialog: React.CSSProperties = {
-  background: '#fff',
+  background: 'var(--surface)',
   borderRadius: 10,
   padding: '20px 22px 16px',
   width: 380,
@@ -107,13 +107,13 @@ const dialog: React.CSSProperties = {
 const titleStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: '#0f172a',
+  color: 'var(--text)',
   marginBottom: 8,
 };
 
 const messageStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   lineHeight: 1.5,
   marginBottom: 18,
   whiteSpace: 'pre-wrap',
@@ -136,11 +136,11 @@ const baseBtn: React.CSSProperties = {
 
 const cancelBtn: React.CSSProperties = {
   ...baseBtn,
-  background: '#fff',
-  border: '1px solid #cbd5e1',
-  color: '#334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border-strong)',
+  color: 'var(--text)',
 };
 
-const confirmBtn: React.CSSProperties = { ...baseBtn, color: '#fff' };
-const primaryBtn: React.CSSProperties = { background: '#2563eb' };
-const dangerBtn: React.CSSProperties = { background: '#dc2626' };
+const confirmBtn: React.CSSProperties = { ...baseBtn, color: 'var(--text-on-primary)' };
+const primaryBtn: React.CSSProperties = { background: 'var(--primary)' };
+const dangerBtn: React.CSSProperties = { background: 'var(--error)' };

@@ -205,7 +205,7 @@ const containerStyle: React.CSSProperties = {
 
 const readonlyTextStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#374151',
+  color: 'var(--text)',
   padding: '6px 0',
 };
 
@@ -217,8 +217,8 @@ const filterPreviewStyle: React.CSSProperties = {
 
 const filterCodeStyle: React.CSSProperties = {
   fontSize: 11,
-  background: '#f3f4f6',
-  border: '1px solid #e5e7eb',
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: 8,
   overflowX: 'auto',
@@ -239,15 +239,15 @@ const fallbackBannerStyle: React.CSSProperties = {
   display: 'flex',
   gap: 10,
   alignItems: 'flex-start',
-  background: '#f0fdf4',
-  border: '1px solid #86efac',
+  background: 'var(--success-bg)',
+  border: '1px solid var(--success)',
   borderRadius: 6,
   padding: '8px 10px',
 };
 
 const fallbackIconStyle: React.CSSProperties = {
   fontSize: 16,
-  color: '#16a34a',
+  color: 'var(--success)',
   flexShrink: 0,
   marginTop: 1,
 };
@@ -255,12 +255,12 @@ const fallbackIconStyle: React.CSSProperties = {
 const fallbackTitleStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#15803d',
+  color: 'var(--success)',
 };
 
 const fallbackHintStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#166534',
+  color: 'var(--success)',
   marginTop: 2,
   lineHeight: 1.5,
 };

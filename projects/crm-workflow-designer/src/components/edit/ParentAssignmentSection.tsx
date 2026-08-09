@@ -153,14 +153,14 @@ const bodyStyle: React.CSSProperties = {
 };
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em',
+  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em',
 };
 const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 4, color: '#e2e8f0', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+  height: 30, padding: '0 8px', background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 4, color: 'var(--text)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
 };
-const hintStyle: React.CSSProperties = { fontSize: 10, color: '#64748b', lineHeight: 1.4 };
+const hintStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 };
 const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: '#fbbf24', background: '#1c1917', border: '1px solid #422006',
+  fontSize: 10, color: 'var(--warning)', background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)',
   borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
 };

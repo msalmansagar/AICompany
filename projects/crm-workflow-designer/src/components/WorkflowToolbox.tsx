@@ -8,9 +8,9 @@ interface ToolboxItem {
 }
 
 const TOOLBOX_ITEMS: ToolboxItem[] = [
-  { type: 'step',    label: 'Task Step',     color: '#2563eb', shape: 'rect' },
-  { type: 'outcome', label: 'Outcome',       color: '#059669', shape: 'pill' },
-  { type: 'end',     label: 'End',           color: '#dc2626', shape: 'circle' },
+  { type: 'step',    label: 'Task Step',     color: 'var(--primary)', shape: 'rect' },
+  { type: 'outcome', label: 'Outcome',       color: 'var(--success)', shape: 'pill' },
+  { type: 'end',     label: 'End',           color: 'var(--error)', shape: 'circle' },
 ];
 
 export function WorkflowToolbox() {
@@ -45,8 +45,8 @@ export function WorkflowToolbox() {
 const toolboxStyle: React.CSSProperties = {
   width: 180,
   flexShrink: 0,
-  background: '#f8fafc',
-  borderRight: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  borderRight: '1px solid var(--border)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
@@ -58,9 +58,9 @@ const headerStyle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
-  color: '#64748b',
-  borderBottom: '1px solid #e2e8f0',
-  background: '#f1f5f9',
+  color: 'var(--text-secondary)',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
 };
 
 const sectionStyle: React.CSSProperties = {
@@ -77,11 +77,11 @@ function itemStyle(color: string): React.CSSProperties {
     gap: 8,
     padding: '7px 10px',
     borderRadius: 6,
-    background: '#fff',
+    background: 'var(--surface)',
     border: `1px solid ${color}22`,
     cursor: 'grab',
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--text)',
     userSelect: 'none',
     transition: 'box-shadow 0.15s',
   };

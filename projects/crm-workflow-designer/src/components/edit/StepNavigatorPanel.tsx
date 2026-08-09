@@ -55,8 +55,8 @@ export function StepNavigatorPanel() {
 const navPanelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
+  background: 'var(--bg)',
+  borderLeft: '1px solid var(--border-strong)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
@@ -66,10 +66,10 @@ const navHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   flexShrink: 0,
   display: 'flex',
   alignItems: 'center',
@@ -78,8 +78,8 @@ const navHeaderStyle: React.CSSProperties = {
 
 const navCountStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   borderRadius: 8,
   padding: '0 5px',
   fontWeight: 700,
@@ -96,7 +96,7 @@ const navBodyStyle: React.CSSProperties = {
 
 const navEmptyStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
   padding: '8px 4px',
 };
@@ -106,8 +106,8 @@ const navRowStyle: React.CSSProperties = {
   alignItems: 'flex-start',
   gap: 8,
   padding: '7px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
   cursor: 'pointer',
   textAlign: 'left',
@@ -118,8 +118,8 @@ const navSeqStyle: React.CSSProperties = {
   minWidth: 20,
   height: 20,
   borderRadius: 4,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   fontSize: 9,
   fontWeight: 700,
   display: 'flex',
@@ -139,7 +139,7 @@ const navInfoStyle: React.CSSProperties = {
 const navStepNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -147,7 +147,7 @@ const navStepNameStyle: React.CSSProperties = {
 
 const navAssignStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -155,7 +155,7 @@ const navAssignStyle: React.CSSProperties = {
 
 const navHintStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#334155',
+  color: 'var(--text)',
   marginTop: 8,
   textAlign: 'center',
   fontStyle: 'italic',

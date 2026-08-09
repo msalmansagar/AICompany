@@ -89,8 +89,8 @@ function PathListItem({
       onClick={onClick}
       style={{
         ...listItemStyle,
-        background: isSelected ? '#eff6ff' : 'transparent',
-        borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent',
+        background: isSelected ? 'var(--primary-tint-2)' : 'transparent',
+        borderLeft: isSelected ? '3px solid var(--primary)' : '3px solid transparent',
       }}
     >
       <div style={listItemTopStyle}>
@@ -180,9 +180,9 @@ function MetricCard({ metric }: { metric: ComplexityMetric }) {
         {metric.level === 'green' ? 'Low' : metric.level === 'yellow' ? 'Medium' : 'High'}
       </div>
       <div style={thresholdRowStyle}>
-        <span style={{ color: '#16a34a', fontSize: 9 }}>● {metric.greenRange}</span>
-        <span style={{ color: '#d97706', fontSize: 9 }}>● {metric.yellowRange}</span>
-        <span style={{ color: '#dc2626', fontSize: 9 }}>● {metric.redRange}</span>
+        <span style={{ color: 'var(--success)', fontSize: 9 }}>● {metric.greenRange}</span>
+        <span style={{ color: 'var(--warning)', fontSize: 9 }}>● {metric.yellowRange}</span>
+        <span style={{ color: 'var(--error)', fontSize: 9 }}>● {metric.redRange}</span>
       </div>
     </div>
   );
@@ -232,9 +232,9 @@ function StepCard({
 }
 
 function assignHeaderColor(assignType: string): { bg: string; text: string } {
-  if (assignType === 'Team') return { bg: '#ccfbf1', text: '#0f766e' };
-  if (assignType === 'Round Robin') return { bg: '#ede9fe', text: '#5b21b6' };
-  return { bg: '#dbeafe', text: '#1e40af' };
+  if (assignType === 'Team') return { bg: 'var(--accent-route-bg)', text: 'var(--accent-route)' };
+  if (assignType === 'Round Robin') return { bg: 'var(--accent-branch-bg)', text: 'var(--accent-branch)' };
+  return { bg: 'var(--primary-tint)', text: 'var(--primary-pressed)' };
 }
 
 function Stat({ label, value }: { label: string; value: number | string }) {
@@ -247,15 +247,15 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 }
 
 function levelColor(level: ComplexityLevel): string {
-  if (level === 'green') return '#16a34a';
-  if (level === 'yellow') return '#d97706';
-  return '#dc2626';
+  if (level === 'green') return 'var(--success)';
+  if (level === 'yellow') return 'var(--warning)';
+  return 'var(--error)';
 }
 
 function endReasonColor(reason: SimPath['endReason']): string {
-  if (reason === 'end') return '#16a34a';
-  if (reason === 'cycle') return '#7c3aed';
-  return '#94a3b8';
+  if (reason === 'end') return 'var(--success)';
+  if (reason === 'cycle') return 'var(--accent-branch)';
+  return 'var(--text-disabled)';
 }
 
 function endReasonLabel(reason: SimPath['endReason']): string {
@@ -280,10 +280,10 @@ const panelStyle: React.CSSProperties = {
   flex: 1,
   display: 'flex',
   flexDirection: 'column',
-  background: '#ffffff',
+  background: 'var(--surface)',
   overflow: 'hidden',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
-  boxShadow: '0 0 0 1px #e2e8f0',
+  boxShadow: '0 0 0 1px var(--border)',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -291,8 +291,8 @@ const headerStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '10px 20px',
-  background: '#f8fafc',
-  borderBottom: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  borderBottom: '1px solid var(--border)',
   flexShrink: 0,
 };
 
@@ -306,9 +306,9 @@ const doneBadgeStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: '0.04em',
-  color: '#16a34a',
-  background: '#f0fdf4',
-  border: '1px solid #bbf7d0',
+  color: 'var(--success)',
+  background: 'var(--success-bg)',
+  border: '1px solid var(--success)',
   borderRadius: 4,
   padding: '3px 10px',
 };
@@ -316,7 +316,7 @@ const doneBadgeStyle: React.CSSProperties = {
 const processTitleStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
-  color: '#0f172a',
+  color: 'var(--text)',
 };
 
 const closeBtnStyle: React.CSSProperties = {
@@ -325,18 +325,18 @@ const closeBtnStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  background: '#f1f5f9',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   cursor: 'pointer',
   fontSize: 14,
 };
 
 const complexitySectionStyle: React.CSSProperties = {
   padding: '12px 20px',
-  borderBottom: '1px solid #f1f5f9',
-  background: '#fafafa',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
@@ -350,7 +350,7 @@ const complexityHeaderStyle: React.CSSProperties = {
 const complexityTitleStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 };
@@ -364,8 +364,8 @@ const metricsRowStyle: React.CSSProperties = {
 const metricCardStyle: React.CSSProperties = {
   flex: '1 1 120px',
   maxWidth: 180,
-  background: '#ffffff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   padding: '10px 14px 8px',
   display: 'flex',
@@ -381,7 +381,7 @@ const metricValueStyle: React.CSSProperties = {
 
 const metricLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontWeight: 500,
   marginTop: 2,
 };
@@ -397,8 +397,8 @@ const summaryBarStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   padding: '8px 20px',
-  borderBottom: '1px solid #f1f5f9',
-  background: '#f8fafc',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
   gap: 0,
 };
@@ -412,19 +412,19 @@ const statStyle: React.CSSProperties = {
 const statDividerStyle: React.CSSProperties = {
   width: 1,
   height: 30,
-  background: '#e2e8f0',
+  background: 'var(--surface-alt)',
 };
 
 const statValueStyle: React.CSSProperties = {
   fontSize: 17,
   fontWeight: 700,
-  color: '#0f172a',
+  color: 'var(--text)',
   lineHeight: 1,
 };
 
 const statLabelStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontWeight: 500,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
@@ -440,17 +440,17 @@ const bodyStyle: React.CSSProperties = {
 
 const pathListStyle: React.CSSProperties = {
   width: 200,
-  borderRight: '1px solid #f1f5f9',
+  borderRight: '1px solid var(--border)',
   overflowY: 'auto',
   flexShrink: 0,
-  background: '#fafafa',
+  background: 'var(--surface-alt)',
 };
 
 const listHeaderStyle: React.CSSProperties = {
   padding: '10px 14px 6px',
   fontSize: 10,
   fontWeight: 700,
-  color: '#cbd5e1',
+  color: 'var(--text-secondary)',
   textTransform: 'uppercase',
   letterSpacing: '0.06em',
 };
@@ -475,19 +475,19 @@ const listItemTopStyle: React.CSSProperties = {
 const listItemTitleStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
 };
 
 const listItemSubStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const pathDetailStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
   padding: '0 0 24px',
-  background: '#ffffff',
+  background: 'var(--surface)',
 };
 
 const detailWrapStyle: React.CSSProperties = {
@@ -504,12 +504,12 @@ const detailHeaderStyle: React.CSSProperties = {
 const detailTitleStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: '#0f172a',
+  color: 'var(--text)',
 };
 
 const detailSubStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const flowStyle: React.CSSProperties = {
@@ -519,19 +519,19 @@ const flowStyle: React.CSSProperties = {
 };
 
 const startTagStyle: React.CSSProperties = {
-  background: '#f1f5f9',
-  color: '#64748b',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-secondary)',
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: '0.08em',
   borderRadius: 99,
   padding: '3px 14px',
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
 };
 
 const connectorStyle: React.CSSProperties = {
   fontSize: 16,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   lineHeight: 1,
   margin: '3px 0 3px 14px',
 };
@@ -539,8 +539,8 @@ const connectorStyle: React.CSSProperties = {
 const concurrentBlockStyle: React.CSSProperties = {
   margin: '6px 0',
   padding: '8px 10px',
-  background: '#f5f3ff',
-  border: '1px dashed #a78bfa',
+  background: 'var(--accent-branch-bg)',
+  border: '1px dashed var(--accent-branch)',
   borderRadius: 6,
   minWidth: 240,
   maxWidth: 380,
@@ -549,19 +549,19 @@ const concurrentBlockStyle: React.CSSProperties = {
 const concurrentTitleStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#6d28d9',
+  color: 'var(--accent-branch)',
   marginBottom: 4,
 };
 
 const concurrentBranchStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#4c1d95',
+  color: 'var(--accent-branch)',
   lineHeight: 1.5,
 };
 
 const stepCardStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   overflow: 'hidden',
   minWidth: 240,
@@ -577,7 +577,7 @@ const stepCardHeaderStyle: React.CSSProperties = {
 const stepCardNameStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#0f172a',
+  color: 'var(--text)',
 };
 
 const stepCardBodyStyle: React.CSSProperties = {
@@ -590,16 +590,16 @@ const stepCardBodyStyle: React.CSSProperties = {
 const assignTypeStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
-  color: '#64748b',
-  background: '#f1f5f9',
+  color: 'var(--text-secondary)',
+  background: 'var(--surface-alt)',
   borderRadius: 99,
   padding: '1px 8px',
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
 };
 
 const assigneeStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const outcomeTagStyle: React.CSSProperties = {
@@ -611,32 +611,32 @@ const outcomeTagStyle: React.CSSProperties = {
 
 const outcomeArrowStyle: React.CSSProperties = {
   fontSize: 14,
-  color: '#cbd5e1',
+  color: 'var(--text-secondary)',
 };
 
 const outcomeNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#64748b',
-  border: '1px solid #e2e8f0',
+  color: 'var(--text-secondary)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '1px 7px',
-  background: '#f8fafc',
+  background: 'var(--surface-alt)',
 };
 
 const routeTagStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
-  color: '#92400e',
-  background: '#fef3c7',
-  border: '1px solid #fcd34d',
+  color: 'var(--warning)',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
   borderRadius: 4,
   padding: '1px 6px',
 };
 
 const endTagBlockStyle: React.CSSProperties = {
-  background: '#f8fafc',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   padding: '7px 14px',
   marginTop: 4,
@@ -647,7 +647,7 @@ const emptyStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   flex: 1,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontSize: 13,
   padding: 40,
 };

@@ -9,7 +9,7 @@ import { SopAddNodeToolbar } from './SopAddNodeToolbar';
 // Slightly wider diamond to fit a decision label phrase
 const W      = 140;
 const H      = 80;
-const ACCENT = '#7c3aed';
+const ACCENT = 'var(--accent-branch)';
 
 export function SopGatewayNode({ data, selected }: NodeProps) {
   const gatewayData = data as unknown as SopGatewayNodeData;
@@ -27,8 +27,8 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
   };
 
   const isActive  = selected || gatewayData.isSelected;
-  const bg        = gatewayData.hasError ? '#fff8f8' : isActive ? '#f5f3ff' : '#faf5ff';
-  const border    = gatewayData.hasError ? '#ef4444' : ACCENT;
+  const bg        = gatewayData.hasError ? 'var(--error)' : isActive ? 'var(--accent-branch)' : 'var(--accent-branch)';
+  const border    = gatewayData.hasError ? 'var(--error)' : ACCENT;
   const shadow    = gatewayData.hasError
     ? '0 0 0 3px rgba(239,68,68,0.2)'
     : isActive
@@ -57,7 +57,7 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
         id="in"
         style={{
           background: ACCENT, width: 10, height: 10,
-          border: '2px solid #fff', borderRadius: '50%',
+          border: '2px solid var(--border)', borderRadius: '50%',
           left: -5, top: '50%', transform: 'translateY(-50%)',
         }}
       />
@@ -88,7 +88,7 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
         ) : (
           <>
             <span style={{ fontSize: 13, color: ACCENT, lineHeight: 1, fontWeight: 700 }}>✕</span>
-            <span style={{ fontSize: 8, color: '#a78bfa', fontStyle: 'italic', lineHeight: 1 }}>
+            <span style={{ fontSize: 8, color: 'var(--accent-branch)', fontStyle: 'italic', lineHeight: 1 }}>
               set question
             </span>
           </>
@@ -100,8 +100,8 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
         position={Position.Right}
         id="out"
         style={{
-          background: '#2563eb', width: 10, height: 10,
-          border: '2px solid #fff', borderRadius: '50%',
+          background: 'var(--primary)', width: 10, height: 10,
+          border: '2px solid var(--border)', borderRadius: '50%',
           right: -5, top: '50%', transform: 'translateY(-50%)',
         }}
       />

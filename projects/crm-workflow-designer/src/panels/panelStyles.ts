@@ -6,7 +6,7 @@ export const label: CSSProperties = {
   display: 'block',
   fontSize: 11,
   fontWeight: 600,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   marginBottom: 4,
   textTransform: 'uppercase',
   letterSpacing: 0.4,
@@ -16,10 +16,10 @@ export const select: CSSProperties = {
   width: '100%',
   padding: '6px 8px',
   fontSize: 13,
-  border: '1px solid #cbd5e1',
+  border: '1px solid var(--border-strong)',
   borderRadius: 6,
-  background: '#fff',
-  color: '#1e293b',
+  background: 'var(--surface)',
+  color: 'var(--text)',
   outline: 'none',
 };
 

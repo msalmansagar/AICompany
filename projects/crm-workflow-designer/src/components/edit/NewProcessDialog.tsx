@@ -232,8 +232,8 @@ const overlayStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   width: 500,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 12,
   boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
   display: 'flex',
@@ -245,20 +245,20 @@ const headerStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'space-between',
   padding: '18px 24px 16px',
-  borderBottom: '1px solid #f1f5f9',
+  borderBottom: '1px solid var(--border)',
   flexShrink: 0,
 };
 
 const titleStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 700,
-  color: '#0f172a',
+  color: 'var(--text)',
 };
 
 const closeBtnStyle: React.CSSProperties = {
   background: 'transparent',
   border: 'none',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontSize: 22,
   cursor: 'pointer',
   lineHeight: 1,
@@ -283,26 +283,26 @@ const fieldGroupStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
 };
 
 const requiredMark: React.CSSProperties = {
-  color: '#dc2626',
+  color: 'var(--error)',
 };
 
 const hintStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   lineHeight: 1.4,
 };
 
 const inputStyle: React.CSSProperties = {
   height: 34,
   padding: '0 10px',
-  background: '#fff',
-  border: '1px solid #cbd5e1',
+  background: 'var(--surface)',
+  border: '1px solid var(--border-strong)',
   borderRadius: 6,
-  color: '#1e293b',
+  color: 'var(--text)',
   fontSize: 13,
   outline: 'none',
   width: '100%',
@@ -314,8 +314,8 @@ const footerStyle: React.CSSProperties = {
   justifyContent: 'flex-end',
   gap: 8,
   padding: '14px 24px',
-  borderTop: '1px solid #f1f5f9',
-  background: '#f8fafc',
+  borderTop: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
   borderRadius: '0 0 12px 12px',
   flexShrink: 0,
 };
@@ -323,10 +323,10 @@ const footerStyle: React.CSSProperties = {
 const cancelBtnStyle: React.CSSProperties = {
   height: 34,
   padding: '0 18px',
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
-  color: '#374151',
+  color: 'var(--text)',
   fontSize: 13,
   fontWeight: 500,
   cursor: 'pointer',
@@ -335,10 +335,10 @@ const cancelBtnStyle: React.CSSProperties = {
 const confirmBtnStyle: React.CSSProperties = {
   height: 34,
   padding: '0 18px',
-  background: '#2563eb',
+  background: 'var(--primary)',
   border: 'none',
   borderRadius: 6,
-  color: '#fff',
+  color: 'var(--text-on-primary)',
   fontSize: 13,
   fontWeight: 600,
   cursor: 'pointer',
@@ -346,7 +346,7 @@ const confirmBtnStyle: React.CSSProperties = {
 
 const confirmBtnDisabledStyle: React.CSSProperties = {
   ...confirmBtnStyle,
-  background: '#93c5fd',
+  background: 'var(--primary-tint)',
   cursor: 'not-allowed',
 };
 
@@ -356,24 +356,24 @@ const spinnerRowStyle: React.CSSProperties = {
   gap: 8,
   padding: '4px 0',
   fontSize: 13,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block',
   width: 14,
   height: 14,
-  border: '2px solid #e2e8f0',
-  borderTopColor: '#2563eb',
+  border: '2px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
   animation: 'spin 0.7s linear infinite',
 };
 
 const errorStyle: React.CSSProperties = {
   padding: '10px 14px',
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
+  background: 'var(--error-bg)',
+  border: '1px solid var(--error)',
   borderRadius: 6,
-  color: '#991b1b',
+  color: 'var(--error)',
   fontSize: 13,
 };

@@ -74,47 +74,47 @@ const sopInfoStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '10px 14px',
-  background: '#eff6ff',
-  border: '1px solid #bfdbfe',
+  background: 'var(--primary-tint-2)',
+  border: '1px solid var(--primary-tint)',
   borderRadius: 6,
 };
 
-const sopLabelStyle: React.CSSProperties = { fontSize: 12, color: '#3b82f6', fontWeight: 500 };
-const sopNameStyle: React.CSSProperties = { fontSize: 13, color: '#1e40af', fontWeight: 600 };
+const sopLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--primary)', fontWeight: 500 };
+const sopNameStyle: React.CSSProperties = { fontSize: 13, color: 'var(--primary-pressed)', fontWeight: 600 };
 const sopVersionStyle: React.CSSProperties = {
-  fontSize: 11, color: '#3b82f6', background: '#dbeafe',
-  border: '1px solid #bfdbfe', borderRadius: 4, padding: '1px 6px',
+  fontSize: 11, color: 'var(--primary)', background: 'var(--primary-tint)',
+  border: '1px solid var(--primary-tint)', borderRadius: 4, padding: '1px 6px',
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
 
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
-const requiredStyle: React.CSSProperties = { color: '#dc2626' };
+const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
+const requiredStyle: React.CSSProperties = { color: 'var(--error)' };
 
 const inputStyle: React.CSSProperties = {
   height: 34, padding: '0 10px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 6, color: '#1e293b', fontSize: 13,
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 6, color: 'var(--text)', fontSize: 13,
   outline: 'none', width: '100%', boxSizing: 'border-box',
 };
 
-const inputErrorStyle: React.CSSProperties = { borderColor: '#f87171' };
+const inputErrorStyle: React.CSSProperties = { borderColor: 'var(--error)' };
 
 const textareaStyle: React.CSSProperties = {
   padding: '8px 10px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 6, color: '#1e293b', fontSize: 13,
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 6, color: 'var(--text)', fontSize: 13,
   outline: 'none', width: '100%', boxSizing: 'border-box',
   resize: 'vertical', fontFamily: 'inherit',
 };
 
-const errorTextStyle: React.CSSProperties = { fontSize: 11, color: '#dc2626' };
+const errorTextStyle: React.CSSProperties = { fontSize: 11, color: 'var(--error)' };
 
 const footerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'flex-end', paddingTop: 4 };
 
 const nextBtnStyle: React.CSSProperties = {
   height: 34, padding: '0 20px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 6, color: '#fff',
+  background: 'var(--primary)', border: 'none',
+  borderRadius: 6, color: 'var(--text-on-primary)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };

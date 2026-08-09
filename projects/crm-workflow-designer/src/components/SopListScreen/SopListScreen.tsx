@@ -267,10 +267,10 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
                   <td style={tdStyle}>
                     <StatusBadge status={sop.status} />
                   </td>
-                  <td style={{ ...tdStyle, color: '#64748b', fontSize: 12 }}>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)', fontSize: 12 }}>
                     v{sop.version || '1.0'}
                   </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: '#374151' }}>
+                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text)' }}>
                     {sop.derivedProcessCount}
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
@@ -334,9 +334,9 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
 
 function StatusBadge({ status }: { status: number }) {
   const config: Record<number, { label: string; bg: string; color: string; border: string }> = {
-    [SOP_STATUS.DRAFT]: { label: 'Draft', bg: '#fffbeb', color: '#92400e', border: '#fde68a' },
-    [SOP_STATUS.PUBLISHED]: { label: 'Published', bg: '#f0fdf4', color: '#166534', border: '#86efac' },
-    [SOP_STATUS.RETIRED]: { label: 'Retired', bg: '#f8fafc', color: '#64748b', border: '#e2e8f0' },
+    [SOP_STATUS.DRAFT]: { label: 'Draft', bg: 'var(--warning-bg)', color: 'var(--warning)', border: 'var(--warning)' },
+    [SOP_STATUS.PUBLISHED]: { label: 'Published', bg: 'var(--success-bg)', color: 'var(--success)', border: 'var(--success)' },
+    [SOP_STATUS.RETIRED]: { label: 'Retired', bg: 'var(--surface-alt)', color: 'var(--text-secondary)', border: 'var(--border)' },
   };
   const c = config[status] ?? config[SOP_STATUS.DRAFT];
   return (
@@ -373,7 +373,7 @@ function CreateSopDialog({
         </div>
         <div style={dialogBodyStyle}>
           <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>SOP Name <span style={{ color: '#dc2626' }}>*</span></label>
+            <label style={fieldLabelStyle}>SOP Name <span style={{ color: 'var(--error)' }}>*</span></label>
             <input
               type="text"
               value={name}
@@ -414,13 +414,13 @@ function CreateSopDialog({
 
 const shellStyle: React.CSSProperties = {
   width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-  background: '#f8fafc', fontFamily: '"Segoe UI", system-ui, sans-serif',
+  background: 'var(--surface-alt)', fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
 
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '16px 24px', background: '#fff',
-  borderBottom: '1px solid #e2e8f0', flexShrink: 0,
+  padding: '16px 24px', background: 'var(--surface)',
+  borderBottom: '1px solid var(--border)', flexShrink: 0,
 };
 
 const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16 };
@@ -428,26 +428,26 @@ const headerRightStyle: React.CSSProperties = { display: 'flex', alignItems: 'ce
 
 const backBtnStyle: React.CSSProperties = {
   height: 30, padding: '0 12px',
-  background: 'transparent', border: '1px solid #e2e8f0',
+  background: 'transparent', border: '1px solid var(--border)',
   borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: '#475569', cursor: 'pointer',
+  color: 'var(--text-secondary)', cursor: 'pointer',
 };
 
-const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: '#0f172a' };
-const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: '#64748b' };
+const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: 'var(--text)' };
+const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
 
 const rolesBtn: React.CSSProperties = {
   height: 32, padding: '0 14px',
-  background: '#fff', border: '1px solid #e2e8f0',
+  background: 'var(--surface)', border: '1px solid var(--border)',
   borderRadius: 6, fontSize: 13, fontWeight: 500,
-  color: '#374151', cursor: 'pointer',
+  color: 'var(--text)', cursor: 'pointer',
 };
 
 const newSopBtnStyle: React.CSSProperties = {
   height: 32, padding: '0 16px',
-  background: '#0f766e', border: 'none',
+  background: 'var(--accent-route)', border: 'none',
   borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
+  color: 'var(--text-on-primary)', cursor: 'pointer',
 };
 
 const contentStyle: React.CSSProperties = {
@@ -456,19 +456,19 @@ const contentStyle: React.CSSProperties = {
 
 const spinnerCenterStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 10, fontSize: 13, color: '#64748b', padding: '60px 0',
+  gap: 10, fontSize: 13, color: 'var(--text-secondary)', padding: '60px 0',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block', width: 16, height: 16,
-  border: '2px solid #e2e8f0', borderTopColor: '#0f766e',
+  border: '2px solid var(--border)', borderTopColor: 'var(--accent-route)',
   borderRadius: '50%', animation: 'spin 0.7s linear infinite',
 };
 
 const errorBannerStyle: React.CSSProperties = {
-  padding: '12px 16px', background: '#fef2f2',
-  border: '1px solid #fecaca', borderRadius: 6,
-  color: '#991b1b', fontSize: 13,
+  padding: '12px 16px', background: 'var(--error-bg)',
+  border: '1px solid var(--error)', borderRadius: 6,
+  color: 'var(--error)', fontSize: 13,
 };
 
 const emptyStateStyle: React.CSSProperties = {
@@ -477,36 +477,36 @@ const emptyStateStyle: React.CSSProperties = {
 };
 
 const emptyIconStyle: React.CSSProperties = { fontSize: 48 };
-const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: '#0f172a' };
-const emptySubStyle: React.CSSProperties = { fontSize: 13, color: '#64748b' };
+const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
+const emptySubStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)' };
 const emptyNewBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: '#0f766e',
+  height: 34, padding: '0 20px', background: 'var(--accent-route)',
   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: '#fff', cursor: 'pointer', marginTop: 4,
+  color: 'var(--text-on-primary)', cursor: 'pointer', marginTop: 4,
 };
 
 const tableStyle: React.CSSProperties = {
   width: '100%', borderCollapse: 'collapse',
-  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
+  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
   overflow: 'hidden',
 };
 
-const theadRowStyle: React.CSSProperties = { background: '#f8fafc' };
+const theadRowStyle: React.CSSProperties = { background: 'var(--surface-alt)' };
 
 const thStyle: React.CSSProperties = {
   padding: '10px 16px', textAlign: 'left',
-  fontSize: 11, fontWeight: 600, color: '#64748b',
-  borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap',
+  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+  borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
 };
 
 const tbodyRowStyle: React.CSSProperties = {
-  borderBottom: '1px solid #f1f5f9',
+  borderBottom: '1px solid var(--border)',
 };
 
 const tdStyle: React.CSSProperties = { padding: '12px 16px', verticalAlign: 'middle' };
 
 const sopNameStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: '#1e293b',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
 };
 
 const actionGroupStyle: React.CSSProperties = {
@@ -515,23 +515,23 @@ const actionGroupStyle: React.CSSProperties = {
 
 const editBtnStyle: React.CSSProperties = {
   height: 28, padding: '0 12px',
-  background: '#eff6ff', border: '1px solid #bfdbfe',
+  background: 'var(--primary-tint-2)', border: '1px solid var(--primary-tint)',
   borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: '#1d4ed8', cursor: 'pointer',
+  color: 'var(--primary-pressed)', cursor: 'pointer',
 };
 
 const deleteBtnStyle: React.CSSProperties = {
   height: 28, padding: '0 12px',
-  background: '#fef2f2', border: '1px solid #fecaca',
+  background: 'var(--error-bg)', border: '1px solid var(--error)',
   borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: '#dc2626', cursor: 'pointer',
+  color: 'var(--error)', cursor: 'pointer',
 };
 
 const createProcessBtnStyle: React.CSSProperties = {
   height: 28, padding: '0 12px',
-  background: '#f5f3ff', border: '1px solid #ddd6fe',
+  background: 'var(--accent-branch-bg)', border: '1px solid var(--accent-branch)',
   borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: '#7c3aed', cursor: 'pointer',
+  color: 'var(--accent-branch)', cursor: 'pointer',
 };
 
 const overlayStyle: React.CSSProperties = {
@@ -540,19 +540,19 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const dialogCardStyle: React.CSSProperties = {
-  width: 400, background: '#fff', border: '1px solid #e2e8f0',
+  width: 400, background: 'var(--surface)', border: '1px solid var(--border)',
   borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
   display: 'flex', flexDirection: 'column',
 };
 
 const dialogHeaderStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 14px', borderBottom: '1px solid #f1f5f9',
+  padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
 };
 
-const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: '#0f172a' };
+const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
 const dialogCloseBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#94a3b8',
+  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
   fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
 };
 
@@ -561,35 +561,35 @@ const dialogBodyStyle: React.CSSProperties = {
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
-const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
+const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
 
 const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px', background: '#fff',
-  border: '1px solid #cbd5e1', borderRadius: 6,
-  color: '#1e293b', fontSize: 13, outline: 'none',
+  height: 34, padding: '0 10px', background: 'var(--surface)',
+  border: '1px solid var(--border-strong)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 };
 
 const dialogFooterStyle: React.CSSProperties = {
   display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid #f1f5f9',
-  background: '#f8fafc', borderRadius: '0 0 12px 12px',
+  padding: '14px 24px', borderTop: '1px solid var(--border)',
+  background: 'var(--surface-alt)', borderRadius: '0 0 12px 12px',
 };
 
 const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: '#fff',
-  border: '1px solid #e2e8f0', borderRadius: 6,
-  color: '#374151', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+  height: 34, padding: '0 18px', background: 'var(--surface)',
+  border: '1px solid var(--border)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
 
 const confirmBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: '#0f766e',
-  border: 'none', borderRadius: 6, color: '#fff',
+  height: 34, padding: '0 18px', background: 'var(--accent-route)',
+  border: 'none', borderRadius: 6, color: 'var(--text-on-primary)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 
 const confirmBtnDisabledStyle: React.CSSProperties = {
-  ...confirmBtnStyle, background: '#99f6e4', cursor: 'not-allowed',
+  ...confirmBtnStyle, background: 'var(--accent-route-bg)', cursor: 'not-allowed',
 };
 
 const canvasOverlayStyle: React.CSSProperties = {
@@ -601,21 +601,21 @@ const canvasOverlayStyle: React.CSSProperties = {
 
 const canvasLoadCardStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-  background: '#fff', borderRadius: 12, padding: '32px 48px',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)', borderRadius: 12, padding: '32px 48px',
+  border: '1px solid var(--border)',
   boxShadow: '0 8px 32px rgba(15,23,42,0.10)',
 };
 
 const spinnerLargeStyle: React.CSSProperties = {
   display: 'inline-block', width: 36, height: 36,
-  border: '3px solid #e2e8f0', borderTopColor: '#0f766e',
+  border: '3px solid var(--border)', borderTopColor: 'var(--accent-route)',
   borderRadius: '50%', animation: 'spin 0.75s linear infinite',
 };
 
 const canvasLoadTitleStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, color: '#0f172a',
+  fontSize: 15, fontWeight: 700, color: 'var(--text)',
 };
 
 const canvasLoadSubStyle: React.CSSProperties = {
-  fontSize: 12, color: '#64748b',
+  fontSize: 12, color: 'var(--text-secondary)',
 };

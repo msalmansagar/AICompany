@@ -137,7 +137,7 @@ const loadingStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: 13,
-  color: '#6b7280',
+  color: 'var(--text-secondary)',
 };
 
 function iframeStyle(isLoaded: boolean): React.CSSProperties {
@@ -145,7 +145,7 @@ function iframeStyle(isLoaded: boolean): React.CSSProperties {
     display: 'block',
     width: '100%',
     height: '100%',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 4,
     opacity: isLoaded ? 1 : 0,
     transition: 'opacity 0.2s',

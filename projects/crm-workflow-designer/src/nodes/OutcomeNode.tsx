@@ -3,20 +3,20 @@ import type { NodeProps } from '@xyflow/react';
 import type { OutcomeNodeData } from '@/store/selectors';
 
 const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-  approved: { bg: '#f0fdf4', border: '#86efac', text: '#15803d' },
-  pass: { bg: '#f0fdf4', border: '#86efac', text: '#15803d' },
-  complete: { bg: '#f0fdf4', border: '#86efac', text: '#15803d' },
-  reject: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626' },
-  rejected: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626' },
-  fail: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626' },
-  decline: { bg: '#fef2f2', border: '#fca5a5', text: '#dc2626' },
-  escalate: { bg: '#fff7ed', border: '#fdba74', text: '#ea580c' },
-  escalation: { bg: '#fff7ed', border: '#fdba74', text: '#ea580c' },
-  pending: { bg: '#fffbeb', border: '#fde68a', text: '#92400e' },
+  approved: { bg: 'var(--success-bg)', border: 'var(--success)', text: 'var(--success)' },
+  pass: { bg: 'var(--success-bg)', border: 'var(--success)', text: 'var(--success)' },
+  complete: { bg: 'var(--success-bg)', border: 'var(--success)', text: 'var(--success)' },
+  reject: { bg: 'var(--error-bg)', border: 'var(--error)', text: 'var(--error)' },
+  rejected: { bg: 'var(--error-bg)', border: 'var(--error)', text: 'var(--error)' },
+  fail: { bg: 'var(--error-bg)', border: 'var(--error)', text: 'var(--error)' },
+  decline: { bg: 'var(--error-bg)', border: 'var(--error)', text: 'var(--error)' },
+  escalate: { bg: 'var(--warning-bg)', border: 'var(--warning)', text: 'var(--warning)' },
+  escalation: { bg: 'var(--warning-bg)', border: 'var(--warning)', text: 'var(--warning)' },
+  pending: { bg: 'var(--warning-bg)', border: 'var(--warning)', text: 'var(--warning)' },
 };
 
-const DEFAULT_COLOR = { bg: '#eff6ff', border: '#93c5fd', text: '#1d4ed8' };
-const ORPHAN_COLOR = { bg: '#f8fafc', border: '#cbd5e1', text: '#64748b' };
+const DEFAULT_COLOR = { bg: 'var(--primary-tint-2)', border: 'var(--primary-tint)', text: 'var(--primary-pressed)' };
+const ORPHAN_COLOR = { bg: 'var(--surface-alt)', border: 'var(--border-strong)', text: 'var(--text-secondary)' };
 
 function resolveColor(name: string): { bg: string; border: string; text: string } {
   const lower = name.toLowerCase();
@@ -54,7 +54,7 @@ function containerStyle(
   return {
     background: colors.bg,
     border: orphaned
-      ? '1.5px dashed #cbd5e1'
+      ? '1.5px dashed var(--border-strong)'
       : selected
       ? `2px solid ${colors.text}`
       : `1.5px solid ${colors.border}`,
@@ -76,23 +76,23 @@ function nameStyle(colors: { text: string }): React.CSSProperties {
   return { fontSize: 12, fontWeight: 600, color: colors.text, whiteSpace: 'nowrap' };
 }
 
-const seqStyle: React.CSSProperties = { fontSize: 10, color: '#94a3b8', fontWeight: 500 };
+const seqStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-disabled)', fontWeight: 500 };
 
 const filterBadgeStyle: React.CSSProperties = {
-  fontSize: 9, background: '#fef3c7', color: '#92400e',
-  border: '1px solid #fde68a', borderRadius: 4, padding: '0 4px',
+  fontSize: 9, background: 'var(--warning-bg)', color: 'var(--warning)',
+  border: '1px solid var(--warning)', borderRadius: 4, padding: '0 4px',
   fontWeight: 700,
 };
 
 const orphanBadgeStyle: React.CSSProperties = {
-  fontSize: 10, color: '#94a3b8',
+  fontSize: 10, color: 'var(--text-disabled)',
 };
 
 function targetHandleStyle(colors: { text: string }): React.CSSProperties {
   return {
     background: colors.text,
     width: 12, height: 12,
-    border: '2px solid #fff',
+    border: '2px solid var(--border)',
     borderRadius: '50%',
     left: -6,
   };
@@ -102,7 +102,7 @@ function sourceHandleStyle(colors: { text: string }): React.CSSProperties {
   return {
     background: colors.text,
     width: 12, height: 12,
-    border: '2px solid #fff',
+    border: '2px solid var(--border)',
     borderRadius: '50%',
     right: -6,
   };

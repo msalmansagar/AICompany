@@ -170,10 +170,10 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
                   <td style={tdStyle}>
                     <span style={roleNameStyle}>{role.name}</span>
                   </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: '#475569' }}>
+                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>
                     {role.department || '—'}
                   </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: '#64748b', maxWidth: 240 }}>
+                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)', maxWidth: 240 }}>
                     {role.description || '—'}
                   </td>
                   <td style={tdStyle}>
@@ -227,9 +227,9 @@ function StatusBadge({ status }: { status: number }) {
   return (
     <span style={{
       fontSize: 11, fontWeight: 600,
-      background: isActive ? '#f0fdf4' : '#f8fafc',
-      color: isActive ? '#166534' : '#64748b',
-      border: `1px solid ${isActive ? '#86efac' : '#e2e8f0'}`,
+      background: isActive ? 'var(--success-bg)' : 'var(--surface-alt)',
+      color: isActive ? 'var(--success)' : 'var(--text-secondary)',
+      border: `1px solid ${isActive ? 'var(--success)' : 'var(--border)'}`,
       borderRadius: 4, padding: '2px 7px',
     }}>
       {isActive ? 'Active' : 'Inactive'}
@@ -269,7 +269,7 @@ function RoleEditDialog({
           {saveError && <div style={dialogErrorStyle}>{saveError}</div>}
 
           <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>Name <span style={{ color: '#dc2626' }}>*</span></label>
+            <label style={fieldLabelStyle}>Name <span style={{ color: 'var(--error)' }}>*</span></label>
             <input
               type="text"
               value={editing.name}
@@ -320,48 +320,48 @@ function RoleEditDialog({
 
 const shellStyle: React.CSSProperties = {
   width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
-  background: '#f8fafc', fontFamily: '"Segoe UI", system-ui, sans-serif',
+  background: 'var(--surface-alt)', fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
 
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '16px 24px', background: '#fff',
-  borderBottom: '1px solid #e2e8f0', flexShrink: 0,
+  padding: '16px 24px', background: 'var(--surface)',
+  borderBottom: '1px solid var(--border)', flexShrink: 0,
 };
 
 const headerLeftStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16 };
 
 const backBtnStyle: React.CSSProperties = {
   height: 30, padding: '0 12px', background: 'transparent',
-  border: '1px solid #e2e8f0', borderRadius: 5,
-  fontSize: 12, fontWeight: 500, color: '#475569', cursor: 'pointer',
+  border: '1px solid var(--border)', borderRadius: 5,
+  fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer',
 };
 
-const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: '#0f172a' };
-const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: '#64748b' };
+const pageTitleStyle: React.CSSProperties = { fontSize: 16, fontWeight: 700, color: 'var(--text)' };
+const pageSubtitleStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
 
 const newRoleBtnStyle: React.CSSProperties = {
-  height: 32, padding: '0 16px', background: '#2563eb',
+  height: 32, padding: '0 16px', background: 'var(--primary)',
   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
+  color: 'var(--text-on-primary)', cursor: 'pointer',
 };
 
 const contentStyle: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: '24px' };
 
 const spinnerCenterStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 10, fontSize: 13, color: '#64748b', padding: '60px 0',
+  gap: 10, fontSize: 13, color: 'var(--text-secondary)', padding: '60px 0',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block', width: 16, height: 16,
-  border: '2px solid #e2e8f0', borderTopColor: '#2563eb',
+  border: '2px solid var(--border)', borderTopColor: 'var(--primary)',
   borderRadius: '50%', animation: 'spin 0.7s linear infinite',
 };
 
 const errorBannerStyle: React.CSSProperties = {
-  padding: '12px 16px', background: '#fef2f2',
-  border: '1px solid #fecaca', borderRadius: 6, color: '#991b1b', fontSize: 13,
+  padding: '12px 16px', background: 'var(--error-bg)',
+  border: '1px solid var(--error)', borderRadius: 6, color: 'var(--error)', fontSize: 13,
 };
 
 const emptyStateStyle: React.CSSProperties = {
@@ -370,56 +370,56 @@ const emptyStateStyle: React.CSSProperties = {
 };
 
 const emptyIconStyle: React.CSSProperties = { fontSize: 48 };
-const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: '#0f172a' };
-const emptySubStyle: React.CSSProperties = { fontSize: 13, color: '#64748b' };
+const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
+const emptySubStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)' };
 const emptyNewBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: '#2563eb',
+  height: 34, padding: '0 20px', background: 'var(--primary)',
   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: '#fff', cursor: 'pointer', marginTop: 4,
+  color: 'var(--text-on-primary)', cursor: 'pointer', marginTop: 4,
 };
 
 const tableStyle: React.CSSProperties = {
   width: '100%', borderCollapse: 'collapse',
-  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden',
+  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
 };
 
-const theadRowStyle: React.CSSProperties = { background: '#f8fafc' };
+const theadRowStyle: React.CSSProperties = { background: 'var(--surface-alt)' };
 const thStyle: React.CSSProperties = {
   padding: '10px 16px', textAlign: 'left',
-  fontSize: 11, fontWeight: 600, color: '#64748b',
-  borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap',
+  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+  borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
 };
 
-const tbodyRowStyle: React.CSSProperties = { borderBottom: '1px solid #f1f5f9' };
+const tbodyRowStyle: React.CSSProperties = { borderBottom: '1px solid var(--border)' };
 const tdStyle: React.CSSProperties = { padding: '12px 16px', verticalAlign: 'middle' };
-const roleNameStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#1e293b' };
+const roleNameStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)' };
 
 const actionGroupStyle: React.CSSProperties = {
   display: 'flex', justifyContent: 'flex-end', gap: 6,
 };
 
 const editBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: '#eff6ff',
-  border: '1px solid #bfdbfe', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: '#1d4ed8', cursor: 'pointer',
+  height: 26, padding: '0 10px', background: 'var(--primary-tint-2)',
+  border: '1px solid var(--primary-tint)', borderRadius: 4,
+  fontSize: 11, fontWeight: 500, color: 'var(--primary-pressed)', cursor: 'pointer',
 };
 
 const deactivateBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: '#fffbeb',
-  border: '1px solid #fde68a', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: '#92400e', cursor: 'pointer',
+  height: 26, padding: '0 10px', background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)', borderRadius: 4,
+  fontSize: 11, fontWeight: 500, color: 'var(--warning)', cursor: 'pointer',
 };
 
 const activateBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: '#f0fdf4',
-  border: '1px solid #86efac', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: '#166534', cursor: 'pointer',
+  height: 26, padding: '0 10px', background: 'var(--success-bg)',
+  border: '1px solid var(--success)', borderRadius: 4,
+  fontSize: 11, fontWeight: 500, color: 'var(--success)', cursor: 'pointer',
 };
 
 const deleteBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: '#fef2f2',
-  border: '1px solid #fecaca', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: '#dc2626', cursor: 'pointer',
+  height: 26, padding: '0 10px', background: 'var(--error-bg)',
+  border: '1px solid var(--error)', borderRadius: 4,
+  fontSize: 11, fontWeight: 500, color: 'var(--error)', cursor: 'pointer',
 };
 
 const overlayStyle: React.CSSProperties = {
@@ -428,19 +428,19 @@ const overlayStyle: React.CSSProperties = {
 };
 
 const dialogCardStyle: React.CSSProperties = {
-  width: 440, background: '#fff', border: '1px solid #e2e8f0',
+  width: 440, background: 'var(--surface)', border: '1px solid var(--border)',
   borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
   display: 'flex', flexDirection: 'column',
 };
 
 const dialogHeaderStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 14px', borderBottom: '1px solid #f1f5f9',
+  padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
 };
 
-const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: '#0f172a' };
+const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
 const dialogCloseBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#94a3b8',
+  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
   fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
 };
 
@@ -449,45 +449,45 @@ const dialogBodyStyle: React.CSSProperties = {
 };
 
 const dialogErrorStyle: React.CSSProperties = {
-  padding: '10px 14px', background: '#fef2f2',
-  border: '1px solid #fecaca', borderRadius: 6, color: '#991b1b', fontSize: 13,
+  padding: '10px 14px', background: 'var(--error-bg)',
+  border: '1px solid var(--error)', borderRadius: 6, color: 'var(--error)', fontSize: 13,
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
-const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
+const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
 
 const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px', background: '#fff',
-  border: '1px solid #cbd5e1', borderRadius: 6,
-  color: '#1e293b', fontSize: 13, outline: 'none',
+  height: 34, padding: '0 10px', background: 'var(--surface)',
+  border: '1px solid var(--border-strong)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, outline: 'none',
   width: '100%', boxSizing: 'border-box',
 };
 
 const textareaStyle: React.CSSProperties = {
-  padding: '8px 10px', background: '#fff',
-  border: '1px solid #cbd5e1', borderRadius: 6,
-  color: '#1e293b', fontSize: 13, outline: 'none',
+  padding: '8px 10px', background: 'var(--surface)',
+  border: '1px solid var(--border-strong)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, outline: 'none',
   width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
 };
 
 const dialogFooterStyle: React.CSSProperties = {
   display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid #f1f5f9',
-  background: '#f8fafc', borderRadius: '0 0 12px 12px',
+  padding: '14px 24px', borderTop: '1px solid var(--border)',
+  background: 'var(--surface-alt)', borderRadius: '0 0 12px 12px',
 };
 
 const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: '#fff',
-  border: '1px solid #e2e8f0', borderRadius: 6,
-  color: '#374151', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+  height: 34, padding: '0 18px', background: 'var(--surface)',
+  border: '1px solid var(--border)', borderRadius: 6,
+  color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
 
 const saveBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: '#2563eb',
-  border: 'none', borderRadius: 6, color: '#fff',
+  height: 34, padding: '0 20px', background: 'var(--primary)',
+  border: 'none', borderRadius: 6, color: 'var(--text-on-primary)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 
 const saveBtnDisabledStyle: React.CSSProperties = {
-  ...saveBtnStyle, background: '#93c5fd', cursor: 'not-allowed',
+  ...saveBtnStyle, background: 'var(--primary-tint)', cursor: 'not-allowed',
 };

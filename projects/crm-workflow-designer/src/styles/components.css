@@ -331,6 +331,36 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
 
 /* ============ Canvas ============ */
 
+/* React Flow ships its own stylesheet, which paints the controls and minimap
+   white regardless of the theme. These follow the tokens instead. */
 .react-flow__renderer { background: var(--canvas-bg); }
+
+.react-flow__controls {
+  box-shadow: var(--shadow-8);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  fill: var(--text-secondary);
+  color: var(--text-secondary);
+}
+.react-flow__controls-button:hover { background: var(--surface-alt); fill: var(--text); }
+.react-flow__controls-button svg { fill: currentColor; }
+
+.react-flow__minimap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.react-flow__minimap-mask { fill: var(--bg); fill-opacity: .6; }
+
+.react-flow__attribution { background: transparent; color: var(--text-disabled); }
+.react-flow__attribution a { color: var(--text-disabled); }
+
+.react-flow__background pattern circle,
+.react-flow__background pattern path { fill: var(--canvas-grid); stroke: var(--canvas-grid); }
+
 .spin { animation: pe-spin .8s linear infinite; }
 @keyframes pe-spin { to { transform: rotate(360deg); } }

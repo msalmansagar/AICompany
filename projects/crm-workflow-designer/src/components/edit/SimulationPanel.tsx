@@ -307,8 +307,8 @@ const panelStyle: React.CSSProperties = {
   bottom: 0,
   left: 0,
   right: 0,
-  background: '#0f172a',
-  borderTop: '1px solid #1e3a5f',
+  background: 'var(--bg)',
+  borderTop: '1px solid var(--primary-pressed)',
   zIndex: 50,
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
@@ -318,7 +318,7 @@ const topRowStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 10,
   padding: '8px 16px 4px',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   minHeight: 36,
   flexWrap: 'wrap',
 };
@@ -335,7 +335,7 @@ const simBadgeStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   letterSpacing: '0.06em',
-  color: '#60a5fa',
+  color: 'var(--primary)',
   background: 'rgba(37,99,235,0.18)',
   border: '1px solid rgba(37,99,235,0.35)',
   borderRadius: 4,
@@ -346,20 +346,20 @@ const simBadgeStyle: React.CSSProperties = {
 const stepTitleStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   maxWidth: 240,
 };
 
-const completeLabelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#4ade80' };
+const completeLabelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--success)' };
 
 const assigneeChipStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  color: 'var(--text-disabled)',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '2px 8px',
   flexShrink: 0,
@@ -369,7 +369,7 @@ const flexSpacer: React.CSSProperties = { flex: 1, minWidth: 0 };
 
 const pathLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -382,9 +382,9 @@ const exitBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1px solid #334155',
-  background: '#1e293b',
-  color: '#94a3b8',
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
   flexShrink: 0,
 };
@@ -395,9 +395,9 @@ const navBtnStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 500,
   borderRadius: 4,
-  border: '1px solid #334155',
-  background: '#1e293b',
-  color: '#cbd5e1',
+  border: '1px solid var(--border)',
+  background: 'var(--surface)',
+  color: 'var(--text-secondary)',
   cursor: 'pointer',
   flexShrink: 0,
 };
@@ -407,7 +407,7 @@ const navBtnDisabledStyle: React.CSSProperties = { opacity: 0.38, cursor: 'not-a
 const actionDividerStyle: React.CSSProperties = {
   width: 1,
   height: 20,
-  background: '#334155',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
@@ -417,9 +417,9 @@ const outcomeBtnStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1.5px solid #2563eb',
+  border: '1.5px solid var(--primary)',
   background: 'rgba(37,99,235,0.12)',
-  color: '#93c5fd',
+  color: 'var(--primary)',
   cursor: 'pointer',
   flexShrink: 0,
 };
@@ -430,14 +430,14 @@ const conditionalOutcomeBtnStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1.5px solid #d97706',
+  border: '1.5px solid var(--warning)',
   background: 'rgba(217,119,6,0.12)',
-  color: '#fbbf24',
+  color: 'var(--warning)',
   cursor: 'pointer',
   flexShrink: 0,
 };
 
-const completeNoteStyle: React.CSSProperties = { fontSize: 12, color: '#64748b', fontStyle: 'italic' };
+const completeNoteStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' };
 
 // Route picker dialog styles
 
@@ -452,8 +452,8 @@ const pickerOverlayStyle: React.CSSProperties = {
 };
 
 const pickerDialogStyle: React.CSSProperties = {
-  background: '#0f172a',
-  border: '1px solid #1e3a5f',
+  background: 'var(--bg)',
+  border: '1px solid var(--primary-pressed)',
   borderRadius: 10,
   width: 520,
   maxWidth: '92vw',
@@ -467,19 +467,19 @@ const pickerHeaderStyle: React.CSSProperties = {
   alignItems: 'flex-start',
   justifyContent: 'space-between',
   padding: '14px 16px 10px',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
 };
 
 const pickerTitleStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 700,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   marginBottom: 2,
 };
 
 const pickerSubtitleStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const pickerCloseBtnStyle: React.CSSProperties = {
@@ -489,9 +489,9 @@ const pickerCloseBtnStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   background: 'transparent',
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   cursor: 'pointer',
   fontSize: 12,
   flexShrink: 0,
@@ -508,7 +508,7 @@ const pickerBodyStyle: React.CSSProperties = {
 
 const pickerEmptyStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
   padding: '12px 4px',
 };
@@ -520,8 +520,8 @@ function buildRouteOptionStyle(isFallback: boolean): React.CSSProperties {
     justifyContent: 'space-between',
     gap: 10,
     padding: '10px 12px',
-    background: isFallback ? '#052e16' : '#1e293b',
-    border: `1px solid ${isFallback ? '#166534' : '#334155'}`,
+    background: isFallback ? 'var(--success-bg)' : 'var(--surface)',
+    border: `1px solid ${isFallback ? 'var(--success)' : 'var(--border)'}`,
     borderRadius: 6,
     cursor: 'pointer',
     textAlign: 'left',
@@ -542,8 +542,8 @@ const routeOptionSeqStyle: React.CSSProperties = {
   minWidth: 20,
   height: 20,
   borderRadius: 3,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   fontSize: 9,
   fontWeight: 700,
   display: 'flex',
@@ -562,7 +562,7 @@ const routeOptionInfoStyle: React.CSSProperties = {
 const routeOptionNameStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -570,7 +570,7 @@ const routeOptionNameStyle: React.CSSProperties = {
 
 const routeOptionCondStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   wordBreak: 'break-word',
 };
 
@@ -584,7 +584,7 @@ const routeOptionRightStyle: React.CSSProperties = {
 
 const routeOptionNextStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   whiteSpace: 'nowrap',
 };
 
@@ -592,9 +592,9 @@ function buildRouteBadgeStyle(isFallback: boolean): React.CSSProperties {
   return {
     fontSize: 9,
     fontWeight: 700,
-    color: isFallback ? '#16a34a' : '#d97706',
-    background: isFallback ? '#052e16' : '#451a03',
-    border: `1px solid ${isFallback ? '#166534' : '#92400e'}`,
+    color: isFallback ? 'var(--success)' : 'var(--warning)',
+    background: isFallback ? 'var(--success-bg)' : 'var(--warning-bg)',
+    border: `1px solid ${isFallback ? 'var(--success)' : 'var(--warning)'}`,
     borderRadius: 3,
     padding: '1px 5px',
     letterSpacing: '0.04em',

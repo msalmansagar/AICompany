@@ -196,9 +196,9 @@ function ErrorNote({ message, error }: { message: string; error?: unknown }) {
   const detail = extractErrorDetail(error);
   return (
     <div style={errorBoxStyle}>
-      <strong style={{ fontSize: 12, color: '#991b1b' }}>{message}</strong>
+      <strong style={{ fontSize: 12, color: 'var(--error)' }}>{message}</strong>
       {detail && (
-        <div style={{ fontSize: 11, marginTop: 4, color: '#7f1d1d', wordBreak: 'break-word', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+        <div style={{ fontSize: 11, marginTop: 4, color: 'var(--error)', wordBreak: 'break-word', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
           {detail}
         </div>
       )}
@@ -221,25 +221,25 @@ const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'c
 
 const versionRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 };
 
-const versionLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#6b7280' };
+const versionLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' };
 
 const sectionStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: 10,
-  borderTop: '1px solid #f1f5f9', paddingTop: 12, marginTop: 4,
+  borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4,
 };
 
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 11, fontWeight: 700, letterSpacing: '0.06em',
-  textTransform: 'uppercase', color: '#64748b', margin: 0,
+  textTransform: 'uppercase', color: 'var(--text-secondary)', margin: 0,
 };
 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '6px 8px',
-  border: '1px solid #d1d5db', borderRadius: 4,
-  fontSize: 13, background: '#fff',
+  border: '1px solid var(--border-strong)', borderRadius: 4,
+  fontSize: 13, background: 'var(--surface)',
 };
 
 const errorBoxStyle: React.CSSProperties = {
-  background: '#fef2f2', border: '1px solid #fecaca',
+  background: 'var(--error-bg)', border: '1px solid var(--error)',
   borderRadius: 6, padding: '8px 10px',
 };

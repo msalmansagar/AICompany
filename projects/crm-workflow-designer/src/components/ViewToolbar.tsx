@@ -193,8 +193,8 @@ const barStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '0 16px',
-  background: '#1e293b',
-  borderBottom: '1px solid #334155',
+  background: 'var(--surface)',
+  borderBottom: '1px solid var(--border)',
 };
 
 const modeBarStyle: React.CSSProperties = {
@@ -203,14 +203,14 @@ const modeBarStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 4,
   padding: '0 16px',
-  background: '#0f172a',
-  borderBottom: '1px solid #1e293b',
+  background: 'var(--bg)',
+  borderBottom: '1px solid var(--border-strong)',
 };
 
 const modeLabel: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   letterSpacing: '0.05em',
   textTransform: 'uppercase',
   marginRight: 4,
@@ -219,7 +219,7 @@ const modeLabel: React.CSSProperties = {
 
 const modeDescription: React.CSSProperties = {
   fontSize: 11,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   marginLeft: 8,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
@@ -241,9 +241,9 @@ function dirBtn(active: boolean): React.CSSProperties {
     fontSize: 10,
     fontWeight: active ? 600 : 400,
     borderRadius: 4,
-    border: active ? '1px solid #0ea5e9' : '1px solid #334155',
-    background: active ? '#0c4a6e' : 'transparent',
-    color: active ? '#7dd3fc' : '#64748b',
+    border: active ? '1px solid var(--primary)' : '1px solid var(--border)',
+    background: active ? 'var(--primary-tint)' : 'transparent',
+    color: active ? 'var(--primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     transition: 'background 0.1s, color 0.1s',
     flexShrink: 0,
@@ -258,9 +258,9 @@ function modeTab(active: boolean): React.CSSProperties {
     fontSize: 11,
     fontWeight: active ? 600 : 400,
     borderRadius: 4,
-    border: active ? '1px solid #3b82f6' : '1px solid transparent',
-    background: active ? '#1d4ed8' : 'transparent',
-    color: active ? '#fff' : '#94a3b8',
+    border: active ? '1px solid var(--primary)' : '1px solid transparent',
+    background: active ? 'var(--primary-pressed)' : 'transparent',
+    color: active ? 'var(--text-on-primary)' : 'var(--text-disabled)',
     cursor: 'pointer',
     transition: 'background 0.1s, color 0.1s',
     flexShrink: 0,
@@ -279,26 +279,26 @@ const identityStyle: React.CSSProperties = {
 const logoText: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   flexShrink: 0,
 };
 
 const loadingBadge: React.CSSProperties = {
   fontSize: 11,
-  color: '#60a5fa',
+  color: 'var(--primary)',
 };
 
 const dividerStyle: React.CSSProperties = {
   width: 1,
   height: 14,
-  background: '#475569',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
 const processNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -328,18 +328,18 @@ const backBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   background: 'transparent',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
   flexShrink: 0,
   marginRight: 4,
 };
 
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
-const btnActive: React.CSSProperties = { background: '#0f172a', color: '#60a5fa' };
+const btnSecondary: React.CSSProperties = { background: 'var(--surface-alt)', color: 'var(--text)' };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', color: 'var(--text-on-primary)' };
+const btnActive: React.CSSProperties = { background: 'var(--bg)', color: 'var(--primary)' };
 const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
 const sepStyle: React.CSSProperties = {
-  width: 1, height: 20, background: '#475569', margin: '0 4px',
+  width: 1, height: 20, background: 'var(--surface-alt)', margin: '0 4px',
 };

@@ -173,7 +173,7 @@ function buildSimOutcomeEdge(
   const isTaken = simTakenOutcomeIds.includes(outcome.crmId);
   const isAvailable = outcome.stepId === simCurrentStepId && !isTaken;
   const { stroke, strokeWidth, opacity } = resolveEdgeStyle(isTaken, isAvailable, false);
-  const labelColor = isTaken ? '#4ade80' : isAvailable ? '#93c5fd' : '#475569';
+  const labelColor = isTaken ? 'var(--success)' : isAvailable ? 'var(--primary)' : 'var(--text-secondary)';
 
   return {
     id: `outcome_${outcome.crmId}`,
@@ -194,7 +194,7 @@ function resolveEdgeStyle(
   isAvailable: boolean,
   _isVisited: boolean
 ): { stroke: string; strokeWidth: number; opacity: number } {
-  if (isTaken) return { stroke: '#16a34a', strokeWidth: 2.5, opacity: 1 };
-  if (isAvailable) return { stroke: '#2563eb', strokeWidth: 2, opacity: 1 };
-  return { stroke: '#475569', strokeWidth: 1, opacity: 0.28 };
+  if (isTaken) return { stroke: 'var(--success)', strokeWidth: 2.5, opacity: 1 };
+  if (isAvailable) return { stroke: 'var(--primary)', strokeWidth: 2, opacity: 1 };
+  return { stroke: 'var(--text-secondary)', strokeWidth: 1, opacity: 0.28 };
 }

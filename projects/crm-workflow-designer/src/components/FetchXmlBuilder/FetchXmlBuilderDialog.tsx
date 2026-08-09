@@ -202,7 +202,7 @@ const centerStyle: React.CSSProperties = {
 };
 
 const errorStyle: React.CSSProperties = {
-  color: '#ef4444',
+  color: 'var(--error)',
   fontSize: 12,
   marginTop: 8,
 };

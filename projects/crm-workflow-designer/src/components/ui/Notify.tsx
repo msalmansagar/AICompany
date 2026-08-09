@@ -66,9 +66,9 @@ function ToastItem({ notice }: { notice: Notice }) {
 }
 
 const TONES: Record<NotifyTone, { bg: string; border: string; fg: string; icon: string }> = {
-  info:    { bg: '#eff6ff', border: '#bfdbfe', fg: '#1e40af', icon: 'ℹ' },
-  success: { bg: '#f0fdf4', border: '#bbf7d0', fg: '#166534', icon: '✓' },
-  error:   { bg: '#fef2f2', border: '#fecaca', fg: '#991b1b', icon: '✕' },
+  info:    { bg: 'var(--primary-tint-2)', border: 'var(--primary-tint)', fg: 'var(--primary-pressed)', icon: 'ℹ' },
+  success: { bg: 'var(--success-bg)', border: 'var(--success)', fg: 'var(--success)', icon: '✓' },
+  error:   { bg: 'var(--error-bg)', border: 'var(--error)', fg: 'var(--error)', icon: '✕' },
 };
 
 const stack: React.CSSProperties = {

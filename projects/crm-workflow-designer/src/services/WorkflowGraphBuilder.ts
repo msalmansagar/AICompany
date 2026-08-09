@@ -179,8 +179,8 @@ export function buildGraph(
     sourceHandle: 'out',
     targetHandle: 'in',
     type: 'smoothstep',
-    style: { stroke: '#16a34a', strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#16a34a' },
+    style: { stroke: 'var(--success)', strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--success)' },
     selectable: false,
   }));
 
@@ -206,8 +206,8 @@ export function buildGraph(
           sourceHandle: 'out',
           targetHandle: 'in',
           type: 'smoothstep',
-          style: { stroke: '#d97706', strokeWidth: 1.5, strokeDasharray: '5 3' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#d97706' },
+          style: { stroke: 'var(--warning)', strokeWidth: 1.5, strokeDasharray: '5 3' },
+          markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--warning)' },
           selectable: false,
         });
       }
@@ -216,7 +216,7 @@ export function buildGraph(
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
         const isFallback = !route.filter?.trim();
-        const stroke = isFallback ? '#16a34a' : '#d97706';
+        const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
         const edgeLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
 
@@ -232,10 +232,10 @@ export function buildGraph(
           labelStyle: {
             fontSize: 9,
             fontWeight: 600,
-            fill: isFallback ? '#166534' : '#92400e',
+            fill: isFallback ? 'var(--success)' : 'var(--warning)',
           },
           labelBgStyle: {
-            fill: isFallback ? '#f0fdf4' : '#fef3c7',
+            fill: isFallback ? 'var(--success)' : 'var(--warning)',
             fillOpacity: 1,
           },
           style: {
@@ -259,8 +259,8 @@ export function buildGraph(
           sourceHandle: 'out',
           targetHandle: 'in',
           type: 'smoothstep',
-          style: { stroke: '#64748b', strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+          style: { stroke: 'var(--text-secondary)', strokeWidth: 2 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
           selectable: false,
         });
       }
@@ -302,9 +302,9 @@ export function buildGraph(
       targetHandle: 'in',
       type: 'smoothstep',
       style: isLast
-        ? { stroke: '#dc2626', strokeWidth: 2 }
+        ? { stroke: 'var(--error)', strokeWidth: 2 }
         : { stroke: 'transparent', strokeWidth: 0 },
-      markerEnd: isLast ? { type: MarkerType.ArrowClosed, color: '#dc2626' } : undefined,
+      markerEnd: isLast ? { type: MarkerType.ArrowClosed, color: 'var(--error)' } : undefined,
       selectable: false,
     };
   });

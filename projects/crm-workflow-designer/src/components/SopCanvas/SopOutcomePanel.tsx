@@ -78,18 +78,18 @@ export function SopOutcomePanel({ outcome, steps, onUpdate, onRemove, onClose }:
 
 const panelStyle: React.CSSProperties = {
   width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column',
-  background: '#fff', borderLeft: '1px solid #e2e8f0',
+  background: 'var(--surface)', borderLeft: '1px solid var(--border)',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
 
 const panelHeaderStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid #f1f5f9', flexShrink: 0,
+  padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
 };
 
-const panelTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#0f172a' };
+const panelTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)' };
 const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#94a3b8',
+  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
   fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0,
 };
 
@@ -99,26 +99,26 @@ const panelBodyStyle: React.CSSProperties = {
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#374151' };
+const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
 
 const inputStyle: React.CSSProperties = {
   height: 30, padding: '0 8px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 5, fontSize: 12, color: '#1e293b', outline: 'none',
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 5, fontSize: 12, color: 'var(--text)', outline: 'none',
   width: '100%', boxSizing: 'border-box',
 };
 
 const selectStyle: React.CSSProperties = {
   height: 30, padding: '0 6px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 5, fontSize: 12, color: '#1e293b',
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 5, fontSize: 12, color: 'var(--text)',
   width: '100%', cursor: 'pointer',
 };
 
-const deleteSectionStyle: React.CSSProperties = { paddingTop: 8, borderTop: '1px solid #f1f5f9' };
+const deleteSectionStyle: React.CSSProperties = { paddingTop: 8, borderTop: '1px solid var(--border)' };
 const deleteBtnStyle: React.CSSProperties = {
   width: '100%', height: 30,
-  background: '#fef2f2', border: '1px solid #fecaca',
+  background: 'var(--error-bg)', border: '1px solid var(--error)',
   borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: '#dc2626', cursor: 'pointer',
+  color: 'var(--error)', cursor: 'pointer',
 };

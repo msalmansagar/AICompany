@@ -43,8 +43,8 @@ const toast: React.CSSProperties = {
   fontSize: 13,
 };
 
-const errorStyle: React.CSSProperties = { background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b' };
-const successStyle: React.CSSProperties = { background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534' };
+const errorStyle: React.CSSProperties = { background: 'var(--error-bg)', border: '1px solid var(--error)', color: 'var(--error)' };
+const successStyle: React.CSSProperties = { background: 'var(--success-bg)', border: '1px solid var(--success)', color: 'var(--success)' };
 const icon: React.CSSProperties = { fontWeight: 700, flexShrink: 0, marginTop: 1 };
 const msg: React.CSSProperties = { flex: 1, lineHeight: 1.4 };
 const closeBtn: React.CSSProperties = {

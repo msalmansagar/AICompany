@@ -145,10 +145,10 @@ const wrapperStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
 };
 
-const requiredMark: React.CSSProperties = { color: '#dc2626' };
+const requiredMark: React.CSSProperties = { color: 'var(--error)' };
 
 const inputWrapStyle: React.CSSProperties = {
   position: 'relative',
@@ -159,10 +159,10 @@ const inputWrapStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   height: 36,
   padding: '0 32px 0 10px',
-  background: '#fff',
-  border: '1.5px solid #d1d5db',
+  background: 'var(--surface)',
+  border: '1.5px solid var(--border-strong)',
   borderRadius: 6,
-  color: '#111827',
+  color: 'var(--text)',
   fontSize: 13,
   outline: 'none',
   width: '100%',
@@ -171,10 +171,10 @@ const inputStyle: React.CSSProperties = {
 };
 
 const inputDisabledStyle: React.CSSProperties = {
-  background: '#f9fafb',
-  color: '#9ca3af',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   cursor: 'not-allowed',
-  borderColor: '#e5e7eb',
+  borderColor: 'var(--border)',
 };
 
 const clearBtnStyle: React.CSSProperties = {
@@ -182,7 +182,7 @@ const clearBtnStyle: React.CSSProperties = {
   right: 8,
   background: 'none',
   border: 'none',
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   fontSize: 16,
   cursor: 'pointer',
   padding: '0 2px',
@@ -198,8 +198,8 @@ const listStyle: React.CSSProperties = {
   right: 0,
   maxHeight: 240,
   overflowY: 'auto',
-  background: '#fff',
-  border: '1.5px solid #d1d5db',
+  background: 'var(--surface)',
+  border: '1.5px solid var(--border-strong)',
   borderRadius: 6,
   margin: 0,
   padding: '4px 0',
@@ -211,20 +211,20 @@ const listStyle: React.CSSProperties = {
 const listItemStyle: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 13,
-  color: '#111827',
+  color: 'var(--text)',
   cursor: 'pointer',
   lineHeight: 1.4,
 };
 
 const listItemActiveStyle: React.CSSProperties = {
-  background: '#eff6ff',
-  color: '#1d4ed8',
+  background: 'var(--primary-tint-2)',
+  color: 'var(--primary-pressed)',
   fontWeight: 500,
 };
 
 const noResultsStyle: React.CSSProperties = {
   padding: '8px 12px',
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   fontStyle: 'italic',
 };

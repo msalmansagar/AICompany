@@ -101,7 +101,7 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     if (entryStepId) {
       const isFirstActive = entryStepId === autoSimCurrentStepId;
       const isFirstVisited = autoSimVisitedStepIds.includes(entryStepId);
-      const stroke = isFirstActive ? '#2563eb' : isFirstVisited ? '#94a3b8' : '#e2e8f0';
+      const stroke = isFirstActive ? 'var(--primary)' : isFirstVisited ? 'var(--text-disabled)' : 'var(--text)';
       result.push({
         id: `auto_start_to_${entryStepId}`,
         source: AUTO_SIM_START_ID,
@@ -129,7 +129,7 @@ export function useAutoSimMode(): UseAutoSimModeResult {
           : false;
 
         const targetNodeId = outcome.nextStepId ? `step_${outcome.nextStepId}` : AUTO_SIM_END_ID;
-        const stroke = isTaken ? '#94a3b8' : '#e2e8f0';
+        const stroke = isTaken ? 'var(--text-disabled)' : 'var(--text)';
         const opacity = isTaken ? 1 : 0.5;
 
         result.push({

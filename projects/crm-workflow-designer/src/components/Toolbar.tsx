@@ -200,14 +200,14 @@ export function Toolbar({
           <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
             <h3 style={dialogTitle}>Open Workflow</h3>
             {isLoadingList ? (
-              <p style={{ color: '#6b7280', fontSize: 13 }}>Loading workflows…</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading workflows…</p>
             ) : listError ? (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '8px 10px' }}>
-                <p style={{ color: '#991b1b', fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>Failed to load workflows</p>
-                <p style={{ color: '#7f1d1d', fontSize: 11, margin: 0, fontFamily: 'monospace', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{listError}</p>
+              <div style={{ background: 'var(--error-bg)', border: '1px solid var(--error)', borderRadius: 6, padding: '8px 10px' }}>
+                <p style={{ color: 'var(--error)', fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>Failed to load workflows</p>
+                <p style={{ color: 'var(--error)', fontSize: 11, margin: 0, fontFamily: 'monospace', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{listError}</p>
               </div>
             ) : processList.length === 0 ? (
-              <p style={{ color: '#6b7280', fontSize: 13 }}>No workflows found.</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>No workflows found.</p>
             ) : (
               <div style={listStyle}>
                 {processList.map((p) => (
@@ -230,7 +230,7 @@ export function Toolbar({
         <Backdrop onClick={() => onCloseNew?.()}>
           <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
             <h3 style={dialogTitle}>New Workflow</h3>
-            <label style={{ fontSize: 13, color: '#374151', display: 'block', marginBottom: 6 }}>Workflow Name</label>
+            <label style={{ fontSize: 13, color: 'var(--text)', display: 'block', marginBottom: 6 }}>Workflow Name</label>
             <input
               autoFocus
               style={inputStyle}
@@ -266,7 +266,7 @@ function Btn({ label, onClick, disabled = false, primary = false, title }: {
   );
 }
 
-function Divider() { return <div style={{ width: 1, height: 20, background: '#475569', margin: '0 4px' }} />; }
+function Divider() { return <div style={{ width: 1, height: 20, background: 'var(--surface-alt)', margin: '0 4px' }} />; }
 
 function DropItem({ label, onClick }: { label: string; onClick: () => void }) {
   return <button type="button" onClick={onClick} style={dropItemStyle}>{label}</button>;
@@ -281,25 +281,25 @@ function Backdrop({ children, onClick }: { children: React.ReactNode; onClick: (
 }
 
 function stateBadge(state: string): React.CSSProperties {
-  const colors: Record<string, string> = { draft: '#94a3b8', published: '#16a34a', archived: '#9ca3af' };
-  return { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: colors[state] ?? '#94a3b8', letterSpacing: '0.06em' };
+  const colors: Record<string, string> = { draft: 'var(--text-disabled)', published: 'var(--success)', archived: 'var(--text-disabled)' };
+  return { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: colors[state] ?? 'var(--text-disabled)', letterSpacing: '0.06em' };
 }
 
-const barStyle: React.CSSProperties = { height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', background: '#1e293b', borderBottom: '1px solid #334155', flexShrink: 0, zIndex: 10 };
+const barStyle: React.CSSProperties = { height: 44, display: 'flex', alignItems: 'center', gap: 8, padding: '0 16px', background: 'var(--surface)', borderBottom: '1px solid var(--border)', flexShrink: 0, zIndex: 10 };
 const identityStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 };
-const titleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
-const versionStyle: React.CSSProperties = { fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap' };
-const dirtyDot: React.CSSProperties = { fontSize: 10, color: '#f59e0b' };
+const titleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const versionStyle: React.CSSProperties = { fontSize: 11, color: 'var(--text-disabled)', whiteSpace: 'nowrap' };
+const dirtyDot: React.CSSProperties = { fontSize: 10, color: 'var(--warning)' };
 const actionsStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 };
 const btnBase: React.CSSProperties = { height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, borderRadius: 4, border: 'none', cursor: 'pointer' };
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
+const btnSecondary: React.CSSProperties = { background: 'var(--surface-alt)', color: 'var(--text)' };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', color: 'var(--text-on-primary)' };
 const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
-const dropdownStyle: React.CSSProperties = { position: 'absolute', top: '100%', right: 0, marginTop: 4, background: '#1e293b', border: '1px solid #334155', borderRadius: 6, padding: 4, minWidth: 130, zIndex: 100 };
-const dropItemStyle: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', padding: '6px 12px', fontSize: 12, color: '#e2e8f0', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' };
+const dropdownStyle: React.CSSProperties = { position: 'absolute', top: '100%', right: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 4, minWidth: 130, zIndex: 100 };
+const dropItemStyle: React.CSSProperties = { display: 'block', width: '100%', textAlign: 'left', padding: '6px 12px', fontSize: 12, color: 'var(--text)', background: 'transparent', border: 'none', borderRadius: 4, cursor: 'pointer' };
 const backdropStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
-const dialogStyle: React.CSSProperties = { background: '#fff', borderRadius: 10, padding: 24, minWidth: 380, maxWidth: 480, boxShadow: '0 20px 48px rgba(0,0,0,0.25)' };
-const dialogTitle: React.CSSProperties = { margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#1e293b' };
+const dialogStyle: React.CSSProperties = { background: 'var(--surface)', borderRadius: 10, padding: 24, minWidth: 380, maxWidth: 480, boxShadow: '0 20px 48px rgba(0,0,0,0.25)' };
+const dialogTitle: React.CSSProperties = { margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: 'var(--text)' };
 const listStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 300, overflowY: 'auto' };
-const listItemStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: 6, background: '#f8fafc', cursor: 'pointer', textAlign: 'left', width: '100%' };
-const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13, outline: 'none', boxSizing: 'border-box' };
+const listItemStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface-alt)', cursor: 'pointer', textAlign: 'left', width: '100%' };
+const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 13, outline: 'none', boxSizing: 'border-box' };

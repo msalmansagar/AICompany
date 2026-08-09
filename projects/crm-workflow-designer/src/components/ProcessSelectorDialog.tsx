@@ -100,7 +100,7 @@ const backdropStyle: React.CSSProperties = {
 };
 
 const dialogStyle: React.CSSProperties = {
-  background: '#fff',
+  background: 'var(--surface)',
   borderRadius: 10,
   padding: 24,
   width: 440,
@@ -122,7 +122,7 @@ const dialogTitle: React.CSSProperties = {
   margin: 0,
   fontSize: 16,
   fontWeight: 700,
-  color: '#1e293b',
+  color: 'var(--text)',
 };
 
 const closeBtn: React.CSSProperties = {
@@ -130,14 +130,14 @@ const closeBtn: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   fontSize: 16,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   padding: '2px 6px',
 };
 
 const searchInput: React.CSSProperties = {
   width: '100%',
   padding: '8px 12px',
-  border: '1px solid #d1d5db',
+  border: '1px solid var(--border-strong)',
   borderRadius: 6,
   fontSize: 13,
   marginBottom: 12,
@@ -161,7 +161,7 @@ const centeredMsg: React.CSSProperties = {
   justifyContent: 'center',
   gap: 8,
   padding: 24,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontSize: 13,
 };
 
@@ -169,23 +169,23 @@ const spinner: React.CSSProperties = {
   display: 'inline-block',
   width: 14,
   height: 14,
-  border: '2px solid #e2e8f0',
-  borderTopColor: '#2563eb',
+  border: '2px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
   animation: 'spin 0.7s linear infinite',
 };
 
 const errorBox: React.CSSProperties = {
-  background: '#fef2f2',
-  border: '1px solid #fecaca',
+  background: 'var(--error-bg)',
+  border: '1px solid var(--error)',
   borderRadius: 6,
   padding: '10px 12px',
-  color: '#991b1b',
+  color: 'var(--error)',
 };
 
 const errorPre: React.CSSProperties = {
   fontSize: 11,
-  color: '#7f1d1d',
+  color: 'var(--error)',
   margin: 0,
   whiteSpace: 'pre-wrap',
   wordBreak: 'break-word',
@@ -200,9 +200,9 @@ const listItem: React.CSSProperties = {
   justifyContent: 'space-between',
   gap: 8,
   padding: '10px 12px',
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
   borderRadius: 6,
-  background: '#f8fafc',
+  background: 'var(--surface-alt)',
   cursor: 'pointer',
   textAlign: 'left',
   width: '100%',
@@ -212,7 +212,7 @@ const listItem: React.CSSProperties = {
 const processName: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -221,9 +221,9 @@ const processName: React.CSSProperties = {
 
 const entityBadge: React.CSSProperties = {
   fontSize: 10,
-  background: '#faf5ff',
-  color: '#7e22ce',
-  border: '1px solid #e9d5ff',
+  background: 'var(--accent-branch-bg)',
+  color: 'var(--accent-branch)',
+  border: '1px solid var(--accent-branch)',
   borderRadius: 4,
   padding: '2px 6px',
   flexShrink: 0,
@@ -238,14 +238,14 @@ const dialogFooter: React.CSSProperties = {
   justifyContent: 'flex-end',
   marginTop: 16,
   paddingTop: 12,
-  borderTop: '1px solid #f1f5f9',
+  borderTop: '1px solid var(--border)',
 };
 
 const cancelBtn: React.CSSProperties = {
   padding: '6px 16px',
-  background: '#f1f5f9',
-  color: '#374151',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  color: 'var(--text)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
   fontSize: 13,
   fontWeight: 500,

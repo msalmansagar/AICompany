@@ -314,12 +314,12 @@ const errorScreen: React.CSSProperties = {
   justifyContent: 'center',
   width: '100vw',
   height: '100vh',
-  background: '#f8fafc',
+  background: 'var(--surface-alt)',
 };
 
 const errorCard: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #fecaca',
+  background: 'var(--surface)',
+  border: '1px solid var(--error)',
   borderRadius: 10,
   padding: 32,
   maxWidth: 500,
@@ -329,13 +329,13 @@ const errorCard: React.CSSProperties = {
 const errorTitle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 700,
-  color: '#991b1b',
+  color: 'var(--error)',
   marginBottom: 12,
 };
 
 const errorMsg: React.CSSProperties = {
   fontSize: 13,
-  color: '#374151',
+  color: 'var(--text)',
   lineHeight: 1.6,
   marginBottom: 8,
   fontFamily: 'monospace',
@@ -344,7 +344,7 @@ const errorMsg: React.CSSProperties = {
 
 const errorHint: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   lineHeight: 1.6,
 };
 
@@ -355,12 +355,12 @@ const loadingScreen: React.CSSProperties = {
   width: '100vw',
   height: '100vh',
   fontSize: 14,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const devBanner: React.CSSProperties = {
-  background: '#92400e',
-  color: '#fef3c7',
+  background: 'var(--warning-bg)',
+  color: 'var(--warning)',
   fontSize: 11,
   fontWeight: 600,
   textAlign: 'center',
@@ -385,8 +385,8 @@ const overlayCard: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   gap: 16,
-  background: '#ffffff',
-  border: '1px solid #edebe9',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '28px 36px',
   boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
@@ -395,14 +395,14 @@ const overlayCard: React.CSSProperties = {
 const overlaySpinner: React.CSSProperties = {
   width: 32,
   height: 32,
-  border: '3px solid #edebe9',
-  borderTopColor: '#0078d4',
+  border: '3px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
   animation: 'ppSpin 0.7s linear infinite',
 };
 
 const overlayLabel: React.CSSProperties = {
   fontSize: 13,
-  color: '#605e5c',
+  color: 'var(--text-secondary)',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };

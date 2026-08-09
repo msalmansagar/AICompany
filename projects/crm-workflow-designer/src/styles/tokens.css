@@ -54,6 +54,8 @@
   --accent-roundrobin: #6b21a8;
   --accent-branch: #7c3aed;
   --accent-route: #0f766e;
+  --accent-branch-bg: #f5f3ff;
+  --accent-route-bg: #ecfeff;
 
   --canvas-bg: #f8fafc;
   --canvas-grid: #e2e8f0;
@@ -123,6 +125,8 @@
     --accent-roundrobin: #c084fc;
     --accent-branch: #a78bfa;
     --accent-route: #2dd4bf;
+    --accent-branch-bg: #2e1065;
+    --accent-route-bg: #083344;
 
     --canvas-bg: #161514;
     --canvas-grid: #302f2e;
@@ -186,6 +190,8 @@
   --accent-roundrobin: #6b21a8;
   --accent-branch: #7c3aed;
   --accent-route: #0f766e;
+  --accent-branch-bg: #f5f3ff;
+  --accent-route-bg: #ecfeff;
 
   --canvas-bg: #f8fafc;
   --canvas-grid: #e2e8f0;
@@ -253,6 +259,8 @@
   --accent-roundrobin: #c084fc;
   --accent-branch: #a78bfa;
   --accent-route: #2dd4bf;
+  --accent-branch-bg: #2e1065;
+  --accent-route-bg: #083344;
 
   --canvas-bg: #161514;
   --canvas-grid: #302f2e;
@@ -321,6 +329,8 @@
   --accent-roundrobin: #7c3aed;
   --accent-branch: #7c3aed;
   --accent-route: #0f766e;
+  --accent-branch-bg: rgba(124, 58, 237, .12);
+  --accent-route-bg: rgba(13, 148, 136, .12);
 
   --canvas-bg: rgba(255, 255, 255, .18);
   --canvas-grid: rgba(120, 120, 170, .22);
@@ -389,6 +399,8 @@
   --accent-roundrobin: #db2777;
   --accent-branch: #7c3aed;
   --accent-route: #0d9488;
+  --accent-branch-bg: #ede9fe;
+  --accent-route-bg: #ccfbf1;
 
   --canvas-bg: #faf8ff;
   --canvas-grid: #ede9fe;

@@ -254,12 +254,12 @@ function AssignmentRowCard({
 }
 
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14 };
-const hintStyle: React.CSSProperties = { margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 };
+const hintStyle: React.CSSProperties = { margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 };
 const tableStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 360, overflowY: 'auto' };
 
 const rowCardStyle: React.CSSProperties = {
-  border: '1px solid #e2e8f0', borderRadius: 8,
-  padding: '12px 14px', background: '#fff',
+  border: '1px solid var(--border)', borderRadius: 8,
+  padding: '12px 14px', background: 'var(--surface)',
 };
 
 const rowHeaderStyle: React.CSSProperties = {
@@ -267,12 +267,12 @@ const rowHeaderStyle: React.CSSProperties = {
 };
 
 const seqBadgeStyle: React.CSSProperties = {
-  background: '#2563eb', color: '#fff', borderRadius: 4,
+  background: 'var(--primary)', color: 'var(--text-on-primary)', borderRadius: 4,
   fontSize: 10, fontWeight: 700, padding: '1px 6px', flexShrink: 0,
 };
 
 const stepNameStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: '#1e293b',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
 };
 
 const rowFieldsStyle: React.CSSProperties = {
@@ -280,19 +280,19 @@ const rowFieldsStyle: React.CSSProperties = {
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: '#374151' };
+const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
 
 const inputStyle: React.CSSProperties = {
   height: 30, padding: '0 8px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 5, color: '#1e293b', fontSize: 12,
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 5, color: 'var(--text)', fontSize: 12,
   outline: 'none', width: '100%', boxSizing: 'border-box',
 };
 
 const selectStyle: React.CSSProperties = {
   height: 30, padding: '0 6px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 5, color: '#1e293b', fontSize: 12,
+  background: 'var(--surface)', border: '1px solid var(--border-strong)',
+  borderRadius: 5, color: 'var(--text)', fontSize: 12,
   cursor: 'pointer', width: '100%',
 };
 
@@ -301,17 +301,17 @@ const checkboxRowStyle: React.CSSProperties = {
 };
 
 const checkboxLabelStyle: React.CSSProperties = {
-  fontSize: 12, color: '#374151', cursor: 'pointer',
+  fontSize: 12, color: 'var(--text)', cursor: 'pointer',
 };
 
 const spinnerRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
-  fontSize: 13, color: '#64748b', padding: '20px 0',
+  fontSize: 13, color: 'var(--text-secondary)', padding: '20px 0',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block', width: 14, height: 14,
-  border: '2px solid #e2e8f0', borderTopColor: '#2563eb',
+  border: '2px solid var(--border)', borderTopColor: 'var(--primary)',
   borderRadius: '50%', animation: 'spin 0.7s linear infinite',
 };
 
@@ -321,7 +321,7 @@ const footerStyle: React.CSSProperties = {
 
 const backBtnStyle: React.CSSProperties = {
   height: 34, padding: '0 16px',
-  background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 6, color: '#374151',
+  background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 6, color: 'var(--text)',
   fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };

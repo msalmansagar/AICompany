@@ -65,8 +65,8 @@ function EmptyState() {
 const panelStyle: React.CSSProperties = {
   width: 320,
   flexShrink: 0,
-  background: '#fff',
-  borderLeft: '1px solid #e5e7eb',
+  background: 'var(--surface)',
+  borderLeft: '1px solid var(--border)',
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
@@ -75,15 +75,15 @@ const panelStyle: React.CSSProperties = {
 
 const headerStyle: React.CSSProperties = {
   padding: '12px 16px',
-  borderBottom: '1px solid #e5e7eb',
-  background: '#f9fafb',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
 const headerTitleStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
 };
 
 const bodyStyle: React.CSSProperties = {
@@ -99,7 +99,7 @@ const emptyStateStyle: React.CSSProperties = {
   justifyContent: 'center',
   height: '100%',
   gap: 8,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   textAlign: 'center',
 };
 
@@ -110,13 +110,13 @@ const emptyIconStyle: React.CSSProperties = {
 const emptyTitleStyle: React.CSSProperties = {
   fontSize: 14,
   fontWeight: 600,
-  color: '#6b7280',
+  color: 'var(--text-secondary)',
   margin: 0,
 };
 
 const emptyHintStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   maxWidth: 220,
   margin: 0,
 };

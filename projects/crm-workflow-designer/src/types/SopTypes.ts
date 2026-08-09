@@ -36,14 +36,14 @@ export const SOP_STEP_TYPE_FROM_OPTION_VALUE: Record<number, SopStepType> = {
 };
 
 export const SOP_STEP_TYPE_META: Record<SopStepType, { label: string; accent: string; icon: string }> = {
-  step:         { label: 'Step',          accent: '#0f766e', icon: '' },
-  approval:     { label: 'Approval',      accent: '#4f46e5', icon: '✓' },
-  milestone:    { label: 'Milestone',     accent: '#d97706', icon: '◆' },
-  manual:       { label: 'Manual',        accent: '#2563eb', icon: '✋' },
-  system:       { label: 'System',        accent: '#7c3aed', icon: '⚙' },
-  notification: { label: 'Notification',  accent: '#ea580c', icon: '◉' },
-  wait:         { label: 'Wait State',    accent: '#64748b', icon: '◷' },
-  subprocess:   { label: 'Sub-process',   accent: '#be185d', icon: '⊡' },
+  step:         { label: 'Step',          accent: 'var(--accent-route)', icon: '' },
+  approval:     { label: 'Approval',      accent: 'var(--primary)', icon: '✓' },
+  milestone:    { label: 'Milestone',     accent: 'var(--warning)', icon: '◆' },
+  manual:       { label: 'Manual',        accent: 'var(--primary)', icon: '✋' },
+  system:       { label: 'System',        accent: 'var(--accent-branch)', icon: '⚙' },
+  notification: { label: 'Notification',  accent: 'var(--warning)', icon: '◉' },
+  wait:         { label: 'Wait State',    accent: 'var(--text-secondary)', icon: '◷' },
+  subprocess:   { label: 'Sub-process',   accent: 'var(--error)', icon: '⊡' },
 };
 
 export const SOP_STATUS = {

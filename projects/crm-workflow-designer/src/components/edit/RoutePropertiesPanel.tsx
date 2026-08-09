@@ -169,8 +169,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const panelStyle: React.CSSProperties = {
   width: 280,
   flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
+  background: 'var(--bg)',
+  borderLeft: '1px solid var(--border-strong)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
@@ -180,10 +180,10 @@ const headerStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase' as const,
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   flexShrink: 0,
 };
 
@@ -205,7 +205,7 @@ const fieldGroup: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   textTransform: 'uppercase' as const,
   letterSpacing: '0.04em',
 };
@@ -213,10 +213,10 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   height: 30,
   padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   fontSize: 12,
   outline: 'none',
   width: '100%',
@@ -225,10 +225,10 @@ const inputStyle: React.CSSProperties = {
 
 const readonlyChip: React.CSSProperties = {
   padding: '4px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontSize: 12,
 };
 
@@ -236,8 +236,8 @@ const fallbackBanner: React.CSSProperties = {
   display: 'flex',
   gap: 8,
   alignItems: 'flex-start',
-  background: '#052e16',
-  border: '1px solid #166534',
+  background: 'var(--success-bg)',
+  border: '1px solid var(--success)',
   borderRadius: 6,
   padding: '8px 10px',
   marginBottom: 6,
@@ -246,12 +246,12 @@ const fallbackBanner: React.CSSProperties = {
 const fallbackTitle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#4ade80',
+  color: 'var(--success)',
 };
 
 const fallbackHint: React.CSSProperties = {
   fontSize: 10,
-  color: '#86efac',
+  color: 'var(--success)',
   marginTop: 2,
   lineHeight: 1.5,
 };
@@ -265,8 +265,8 @@ const filterBlock: React.CSSProperties = {
 
 const filterCode: React.CSSProperties = {
   fontSize: 10,
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '6px 8px',
   overflowX: 'auto',
@@ -275,14 +275,14 @@ const filterCode: React.CSSProperties = {
   maxHeight: 100,
   overflowY: 'auto',
   margin: 0,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
 };
 
 const clearBtn: React.CSSProperties = {
   background: 'none',
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontSize: 10,
   padding: '2px 8px',
   cursor: 'pointer',
@@ -292,10 +292,10 @@ const clearBtn: React.CSSProperties = {
 const editFilterBtn: React.CSSProperties = {
   height: 28,
   padding: '0 10px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   fontSize: 11,
   cursor: 'pointer',
   textAlign: 'left',
@@ -304,6 +304,6 @@ const editFilterBtn: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   padding: 16,
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
 };

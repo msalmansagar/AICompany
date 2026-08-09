@@ -251,8 +251,8 @@ function buildEdges(
       sourceHandle: 'out',
       targetHandle: 'in',
       type: 'smoothstep',
-      style: { stroke: '#16a34a', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#16a34a' },
+      style: { stroke: 'var(--success)', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--success)' },
       selectable: false,
     });
   }
@@ -266,7 +266,7 @@ function buildEdges(
         sourceHandle: 'out',
         targetHandle: 'in',
         type: 'smoothstep',
-        style: { stroke: '#cbd5e1', strokeWidth: 1.5 },
+        style: { stroke: 'var(--text-secondary)', strokeWidth: 1.5 },
         selectable: false,
       });
     }
@@ -281,7 +281,7 @@ function buildEdges(
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `tn_step_${route.nextStepId}` : TN_END_ID;
         const isFallback = !route.filter?.trim();
-        const stroke = isFallback ? '#16a34a' : '#d97706';
+        const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
         const rawLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
         const label = rawLabel.length > 28 ? `${rawLabel.slice(0, 28)}…` : rawLabel;
@@ -295,8 +295,8 @@ function buildEdges(
           type: 'smoothstep',
           animated: !isFallback,
           label,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? '#166534' : '#92400e' },
-          labelBgStyle: { fill: isFallback ? '#f0fdf4' : '#fef3c7', fillOpacity: 1 },
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? 'var(--success)' : 'var(--warning)' },
+          labelBgStyle: { fill: isFallback ? 'var(--success)' : 'var(--warning)', fillOpacity: 1 },
           style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
           markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
           selectable: false,
@@ -310,8 +310,8 @@ function buildEdges(
         sourceHandle: 'term',
         targetHandle: 'in',
         type: 'smoothstep',
-        style: { stroke: '#64748b', strokeWidth: 1.5, strokeDasharray: '4 3' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+        style: { stroke: 'var(--text-secondary)', strokeWidth: 1.5, strokeDasharray: '4 3' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
         selectable: false,
       });
     } else if (isReturnEdge(o, stepById)) {
@@ -323,11 +323,11 @@ function buildEdges(
         targetHandle: 'in',
         type: 'bezier',
         label: `↩ ${o.name}`,
-        labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
-        labelBgStyle: { fill: '#f5f3ff', fillOpacity: 0.95, rx: 4 },
+        labelStyle: { fontSize: 10, fill: 'var(--accent-branch)', fontWeight: 600 },
+        labelBgStyle: { fill: 'var(--accent-branch)', fillOpacity: 0.95, rx: 4 },
         labelBgPadding: [8, 4] as [number, number],
-        style: { stroke: '#7c3aed', strokeWidth: 2, strokeDasharray: '6 3' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#7c3aed' },
+        style: { stroke: 'var(--accent-branch)', strokeWidth: 2, strokeDasharray: '6 3' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
         selectable: true,
       });
     } else {
@@ -338,8 +338,8 @@ function buildEdges(
         sourceHandle: 'out',
         targetHandle: 'in',
         type: 'smoothstep',
-        style: { stroke: '#2563eb', strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#2563eb' },
+        style: { stroke: 'var(--primary)', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--primary)' },
         selectable: true,
       });
     }

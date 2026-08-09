@@ -134,8 +134,8 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
       source: outcome.stepId,
       target: outcome.crmId,
       type: 'stepToOutcome',
-      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+      style: { stroke: 'var(--text-disabled)', strokeWidth: 1.5 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-disabled)' },
     });
   }
 

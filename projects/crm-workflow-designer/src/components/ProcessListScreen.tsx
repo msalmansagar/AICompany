@@ -27,24 +27,27 @@ type SortKey = 'name' | 'resolvedTaskEntity' | 'resolvedParentEntity';
 type SortDir = 'asc' | 'desc';
 
 // ─── Fluent / Power Platform tokens ────────────────────────────────────────
+// Resolved through styles/tokens.css so the screen follows the selected theme.
+// These were Fluent's light values inlined; the tokens are the same colours in
+// Light and the correct ones in Dark, Glass and Vibrant.
 const T = {
-  blue:          '#0078d4',
-  blueHover:     '#106ebe',
-  blueDark:      '#005a9e',
-  neutralLight:  '#f3f2f1',
-  neutralLighter:'#faf9f8',
-  neutralBorder: '#edebe9',
-  neutralBorder2:'#d2d0ce',
-  textPrimary:   '#201f1e',
-  textSecondary: '#605e5c',
-  textDisabled:  '#a19f9d',
-  selectionBg:   '#deecf9',
-  selectionHover:'#c7e0f4',
-  rowHover:      '#f3f2f1',
-  white:         '#ffffff',
-  redDanger:     '#d13438',
-  greenSuccess:  '#107c10',
-  orangeWarning: '#ca5010',
+  blue:          'var(--primary)',
+  blueHover:     'var(--primary-hover)',
+  blueDark:      'var(--primary-pressed)',
+  neutralLight:  'var(--neutral-chip)',
+  neutralLighter:'var(--surface-alt)',
+  neutralBorder: 'var(--border)',
+  neutralBorder2:'var(--border-strong)',
+  textPrimary:   'var(--text)',
+  textSecondary: 'var(--text-secondary)',
+  textDisabled:  'var(--text-disabled)',
+  selectionBg:   'var(--primary-tint)',
+  selectionHover:'var(--primary-tint-2)',
+  rowHover:      'var(--surface-alt)',
+  white:         'var(--surface)',
+  redDanger:     'var(--error)',
+  greenSuccess:  'var(--success)',
+  orangeWarning: 'var(--warning)',
 };
 
 export function ProcessListScreen({
@@ -308,7 +311,7 @@ function GridRow({
         }}>
           {selected && (
             <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-              <path d="M1 4l3 3L9 1" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M1 4l3 3L9 1" stroke="var(--text-on-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
         </div>
@@ -506,7 +509,7 @@ function IconRefresh({ spin }: { spin: boolean }) {
 
 function IconWarning() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="#d13438">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="var(--error)">
       <path d="M8.56 1.3L15.87 14a.65.65 0 0 1-.56.99H.69a.65.65 0 0 1-.56-.99L7.44 1.3a.65.65 0 0 1 1.12 0zM8 5.5a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 1 0V6A.5.5 0 0 0 8 5.5zm0 6.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" />
     </svg>
   );
@@ -546,9 +549,9 @@ const pageHeaderStyle: React.CSSProperties = {
 
 const sopDesignerBtnStyle: React.CSSProperties = {
   marginLeft: 'auto', height: 28, padding: '0 14px',
-  background: '#f0fdf4', border: '1px solid #99f6e4',
+  background: 'var(--accent-route-bg)', border: '1px solid var(--accent-route)',
   borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#0f766e', cursor: 'pointer',
+  color: 'var(--accent-route)', cursor: 'pointer',
 };
 
 const pageTitleStyle: React.CSSProperties = {
@@ -571,7 +574,7 @@ const commandGroupStyle: React.CSSProperties = {
 
 const errorBarStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
-  background: '#fdf3f3', borderBottom: `1px solid #f1bbbc`,
+  background: 'var(--error-bg)', borderBottom: '1px solid var(--error)',
   padding: '8px 20px', fontSize: 13, color: T.redDanger, flexShrink: 0,
 };
 

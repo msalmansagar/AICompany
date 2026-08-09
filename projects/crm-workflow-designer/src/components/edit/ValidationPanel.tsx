@@ -76,8 +76,8 @@ function ViolationRow({
 const panelStyle: React.CSSProperties = {
   width: 300,
   flexShrink: 0,
-  background: '#fff',
-  borderLeft: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  borderLeft: '1px solid var(--border)',
   display: 'flex',
   flexDirection: 'column',
   overflow: 'hidden',
@@ -89,15 +89,15 @@ const headerStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '8px 12px',
-  borderBottom: '1px solid #e2e8f0',
-  background: '#f8fafc',
+  borderBottom: '1px solid var(--border)',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
 const titleStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#1e293b',
+  color: 'var(--text)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   flex: 1,
@@ -112,9 +112,9 @@ const summaryStyle: React.CSSProperties = {
 const errorBadge: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  background: '#fef2f2',
-  color: '#dc2626',
-  border: '1px solid #fca5a5',
+  background: 'var(--error-bg)',
+  color: 'var(--error)',
+  border: '1px solid var(--error)',
   borderRadius: 10,
   padding: '1px 6px',
 };
@@ -122,9 +122,9 @@ const errorBadge: React.CSSProperties = {
 const warnBadge: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
-  background: '#fffbeb',
-  color: '#d97706',
-  border: '1px solid #fcd34d',
+  background: 'var(--warning-bg)',
+  color: 'var(--warning)',
+  border: '1px solid var(--warning)',
   borderRadius: 10,
   padding: '1px 6px',
 };
@@ -133,7 +133,7 @@ const closeBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   fontSize: 16,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
   padding: '0 2px',
   lineHeight: 1,
@@ -151,10 +151,10 @@ function rowStyle(isError: boolean, clickable: boolean): React.CSSProperties {
     alignItems: 'flex-start',
     gap: 8,
     padding: '8px 12px',
-    borderBottom: '1px solid #f1f5f9',
+    borderBottom: '1px solid var(--border)',
     cursor: clickable ? 'pointer' : 'default',
     transition: 'background 0.1s',
-    background: isError ? '#fff8f8' : '#fffbeb',
+    background: isError ? 'var(--error-bg)' : 'var(--warning-bg)',
   };
 }
 
@@ -162,7 +162,7 @@ function iconStyle(isError: boolean): React.CSSProperties {
   return {
     fontSize: 11,
     fontWeight: 700,
-    color: isError ? '#dc2626' : '#d97706',
+    color: isError ? 'var(--error)' : 'var(--warning)',
     flexShrink: 0,
     marginTop: 1,
     width: 14,
@@ -183,21 +183,21 @@ function codeStyle(isError: boolean): React.CSSProperties {
     fontSize: 9,
     fontWeight: 700,
     letterSpacing: '0.06em',
-    color: isError ? '#dc2626' : '#d97706',
+    color: isError ? 'var(--error)' : 'var(--warning)',
     textTransform: 'uppercase',
   };
 }
 
 const messageStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#374151',
+  color: 'var(--text)',
   lineHeight: 1.5,
   wordBreak: 'break-word',
 };
 
 const arrowStyle: React.CSSProperties = {
   fontSize: 14,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   flexShrink: 0,
   lineHeight: 1,
   marginTop: 2,

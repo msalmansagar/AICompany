@@ -309,8 +309,8 @@ const panelStyle: React.CSSProperties = {
   width: 280,
   minWidth: 280,
   maxWidth: 280,
-  background: '#fafafa',
-  borderLeft: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  borderLeft: '1px solid var(--border)',
   overflowY: 'auto',
   display: 'flex',
   flexDirection: 'column',
@@ -318,7 +318,7 @@ const panelStyle: React.CSSProperties = {
 };
 
 const sectionStyle: React.CSSProperties = {
-  borderBottom: '1px solid #e2e8f0',
+  borderBottom: '1px solid var(--border)',
   padding: '12px 14px',
 };
 
@@ -327,7 +327,7 @@ const sectionTitle: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: '0.07em',
   textTransform: 'uppercase',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   marginBottom: 8,
 };
 
@@ -340,7 +340,7 @@ const sectionBody: React.CSSProperties = {
 const subLabel: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   marginTop: 2,
   marginBottom: 2,
   textTransform: 'uppercase',
@@ -355,18 +355,18 @@ const fieldRow: React.CSSProperties = {
 
 const fieldLabel: React.CSSProperties = {
   fontSize: 10,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontWeight: 500,
 };
 
 const fieldValue: React.CSSProperties = {
   fontSize: 12,
-  color: '#1e293b',
+  color: 'var(--text)',
   wordBreak: 'break-word',
 };
 
 const dividerStyle: React.CSSProperties = {
-  borderTop: '1px solid #f1f5f9',
+  borderTop: '1px solid var(--border)',
   margin: '6px 0',
 };
 
@@ -377,13 +377,13 @@ const emptyState: React.CSSProperties = {
 const emptyTitle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
   margin: '0 0 4px',
 };
 
 const emptyHint: React.CSSProperties = {
   fontSize: 12,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   margin: 0,
 };
 
@@ -395,7 +395,7 @@ const routeListStyle: React.CSSProperties = {
 
 const routeEntryStyle: React.CSSProperties = {
   borderRadius: 6,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
   overflow: 'hidden',
 };
 
@@ -406,7 +406,7 @@ function buildRouteHeaderStyle(isFallback: boolean): React.CSSProperties {
     alignItems: 'flex-start',
     gap: 8,
     padding: '7px 8px',
-    background: isFallback ? '#f0fdf4' : '#fffbeb',
+    background: isFallback ? 'var(--success-bg)' : 'var(--warning-bg)',
     border: 'none',
     cursor: isFallback ? 'default' : 'pointer',
     textAlign: 'left',
@@ -419,8 +419,8 @@ function buildIndexBadgeStyle(isFallback: boolean): React.CSSProperties {
     width: 16,
     height: 16,
     borderRadius: '50%',
-    background: isFallback ? '#16a34a' : '#d97706',
-    color: '#fff',
+    background: isFallback ? 'var(--success)' : 'var(--warning)',
+    color: 'var(--text-on-primary)',
     fontSize: 9,
     fontWeight: 700,
     display: 'flex',
@@ -441,14 +441,14 @@ const routeTextBlock: React.CSSProperties = {
 const routeNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
   wordBreak: 'break-word',
 };
 
 function buildShortLabelStyle(isFallback: boolean): React.CSSProperties {
   return {
     fontSize: 10,
-    color: isFallback ? '#166534' : '#92400e',
+    color: isFallback ? 'var(--success)' : 'var(--warning)',
     fontFamily: 'monospace',
     wordBreak: 'break-all',
   };
@@ -457,13 +457,13 @@ function buildShortLabelStyle(isFallback: boolean): React.CSSProperties {
 
 const expandedBodyStyle: React.CSSProperties = {
   padding: '8px 10px',
-  background: '#f8fafc',
-  borderTop: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  borderTop: '1px solid var(--border)',
 };
 
 const resolvingLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontStyle: 'italic',
 };
 
@@ -483,20 +483,20 @@ const condRowStyle: React.CSSProperties = {
 const condFieldStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
 };
 
 const condOpStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontWeight: 500,
 };
 
 const condValStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#2563eb',
-  background: '#eff6ff',
+  color: 'var(--primary)',
+  background: 'var(--primary-tint-2)',
   borderRadius: 3,
   padding: '0 4px',
 };

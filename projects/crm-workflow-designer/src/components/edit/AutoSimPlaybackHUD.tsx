@@ -101,8 +101,8 @@ const hudStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 12,
   padding: '0 16px',
-  background: '#ffffff',
-  borderTop: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  borderTop: '1px solid var(--border)',
   zIndex: 100,
   fontFamily: '"Segoe UI", system-ui, sans-serif',
   boxShadow: '0 -2px 8px rgba(0,0,0,0.06)',
@@ -111,7 +111,7 @@ const hudStyle: React.CSSProperties = {
 const pathCounterStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: '#2563eb',
+  color: 'var(--primary)',
   flexShrink: 0,
   letterSpacing: '0.02em',
 };
@@ -119,14 +119,14 @@ const pathCounterStyle: React.CSSProperties = {
 const dividerStyle: React.CSSProperties = {
   width: 1,
   height: 20,
-  background: '#e2e8f0',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
 const stepLabelStyle: React.CSSProperties = {
   flex: 1,
   fontSize: 12,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -150,19 +150,19 @@ const speedBtnBase: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 500,
   borderRadius: 4,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
   cursor: 'pointer',
 };
 
 const speedBtnActive: React.CSSProperties = {
-  background: '#2563eb',
-  color: '#ffffff',
-  borderColor: '#2563eb',
+  background: 'var(--primary)',
+  color: 'var(--text-on-primary)',
+  borderColor: 'var(--primary)',
 };
 
 const speedBtnInactive: React.CSSProperties = {
-  background: '#f8fafc',
-  color: '#64748b',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-secondary)',
 };
 
 const stopBtnStyle: React.CSSProperties = {
@@ -171,8 +171,8 @@ const stopBtnStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 500,
   borderRadius: 4,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
   cursor: 'pointer',
-  background: '#f8fafc',
-  color: '#0f172a',
+  background: 'var(--surface-alt)',
+  color: 'var(--text)',
 };

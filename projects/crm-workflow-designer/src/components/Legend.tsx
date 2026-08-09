@@ -1,14 +1,14 @@
 export function Legend() {
   return (
     <div style={legend}>
-      <LegendItem color="#16a34a" label="Trigger (Start)" circle />
-      <LegendItem color="#d97706" label="Condition" />
-      <LegendItem color="#2563eb" label="Action" />
-      <LegendItem color="#b45309" label="Approval" />
-      <LegendItem color="#dc2626" label="End" circle />
+      <LegendItem color="var(--success)" label="Trigger (Start)" circle />
+      <LegendItem color="var(--warning)" label="Condition" />
+      <LegendItem color="var(--primary)" label="Action" />
+      <LegendItem color="var(--warning)" label="Approval" />
+      <LegendItem color="var(--error)" label="End" circle />
       <div style={divider} />
       <div style={transitionItem}>
-        <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="#94a3b8" strokeWidth="1.5" /></svg>
+        <svg width="24" height="10"><line x1="0" y1="5" x2="24" y2="5" stroke="var(--text-disabled)" strokeWidth="1.5" /></svg>
         <span style={transitionLabel}>Transition</span>
       </div>
     </div>
@@ -33,8 +33,8 @@ const legend: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 14,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '7px 14px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
@@ -49,7 +49,7 @@ const item: React.CSSProperties = {
 };
 
 const itemLabel: React.CSSProperties = {
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontWeight: 500,
 };
 
@@ -62,7 +62,7 @@ function barIndicator(color: string): React.CSSProperties {
 }
 
 const divider: React.CSSProperties = {
-  width: 1, height: 20, background: '#e2e8f0', margin: '0 2px',
+  width: 1, height: 20, background: 'var(--surface-alt)', margin: '0 2px',
 };
 
 const transitionItem: React.CSSProperties = {
@@ -70,5 +70,5 @@ const transitionItem: React.CSSProperties = {
 };
 
 const transitionLabel: React.CSSProperties = {
-  color: '#475569', fontWeight: 500,
+  color: 'var(--text-secondary)', fontWeight: 500,
 };

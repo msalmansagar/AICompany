@@ -204,8 +204,8 @@ const barStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '0 16px',
-  background: '#1e293b',
-  borderBottom: '1px solid #334155',
+  background: 'var(--surface)',
+  borderBottom: '1px solid var(--border)',
 };
 
 const identityStyle: React.CSSProperties = {
@@ -220,21 +220,21 @@ const identityStyle: React.CSSProperties = {
 const logoText: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   flexShrink: 0,
 };
 
 const dividerStyle: React.CSSProperties = {
   width: 1,
   height: 14,
-  background: '#475569',
+  background: 'var(--surface-alt)',
   flexShrink: 0,
 };
 
 const processNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -267,13 +267,13 @@ const backBtnStyle: React.CSSProperties = {
   border: 'none',
   cursor: 'pointer',
   background: 'transparent',
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   flexShrink: 0,
 };
 
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
-const btnError: React.CSSProperties = { background: '#7f1d1d', color: '#fecaca' };
+const btnSecondary: React.CSSProperties = { background: 'var(--surface-alt)', color: 'var(--text)' };
+const btnPrimary: React.CSSProperties = { background: 'var(--primary)', color: 'var(--text-on-primary)' };
+const btnError: React.CSSProperties = { background: 'var(--error-bg)', color: 'var(--error)' };
 const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
 
 const errorCountBadge: React.CSSProperties = {
@@ -283,21 +283,21 @@ const errorCountBadge: React.CSSProperties = {
   minWidth: 16,
   height: 16,
   borderRadius: 8,
-  background: '#ef4444',
-  color: '#fff',
+  background: 'var(--error)',
+  color: 'var(--text-on-primary)',
   fontSize: 9,
   fontWeight: 700,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   padding: '0 3px',
-  border: '1.5px solid #1e293b',
+  border: '1.5px solid var(--border-strong)',
   lineHeight: 1,
 };
 
 const sepStyle: React.CSSProperties = {
   width: 1,
   height: 20,
-  background: '#475569',
+  background: 'var(--surface-alt)',
   margin: '0 4px',
 };

@@ -111,35 +111,35 @@ export function BranchSection({
 
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 0',
-  background: 'transparent', border: 'none', color: '#94a3b8', fontSize: 11, fontWeight: 700,
+  background: 'transparent', border: 'none', color: 'var(--text-disabled)', fontSize: 11, fontWeight: 700,
   textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
 };
-const caretStyle: React.CSSProperties = { fontSize: 10, color: '#64748b' };
+const caretStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)' };
 const summaryBadgeStyle: React.CSSProperties = {
-  marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: '#ddd6fe',
-  background: '#4c1d95', border: '1px solid #7c3aed', borderRadius: 3, padding: '1px 5px',
+  marginLeft: 'auto', fontSize: 9, fontWeight: 700, color: 'var(--accent-branch)',
+  background: 'var(--accent-branch-bg)', border: '1px solid var(--accent-branch)', borderRadius: 3, padding: '1px 5px',
   textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap',
 };
 const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 };
 const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: '#c4b5fd', background: '#1e1b4b', border: '1px solid #4c1d95',
+  fontSize: 10, color: 'var(--accent-branch)', background: 'var(--primary-tint)', border: '1px solid var(--accent-branch)',
   borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
 };
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em',
+  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em',
 };
 const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 4, color: '#e2e8f0', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
+  height: 30, padding: '0 8px', background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 4, color: 'var(--text)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
 };
-const hintStyle: React.CSSProperties = { fontSize: 10, color: '#64748b', lineHeight: 1.4 };
-const errorStyle: React.CSSProperties = { fontSize: 10, color: '#f87171', fontWeight: 600, lineHeight: 1.4 };
+const hintStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 };
+const errorStyle: React.CSSProperties = { fontSize: 10, color: 'var(--error)', fontWeight: 600, lineHeight: 1.4 };
 const toggleRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
 };
-const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: '#e2e8f0' };
+const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
 const conditionBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 4, color: '#e2e8f0', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start',
+  height: 30, padding: '0 12px', background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 4, color: 'var(--text)', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start',
 };

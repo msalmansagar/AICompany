@@ -10,21 +10,21 @@ const MY = DECISION_H / 2;
 const DIAMOND = `${MX},0 ${DECISION_W},${MY} ${MX},${DECISION_H} 0,${MY}`;
 
 const COLOR_MAP: Record<string, { fill: string; stroke: string; text: string }> = {
-  approved: { fill: '#f0fdf4', stroke: '#86efac', text: '#15803d' },
-  pass:     { fill: '#f0fdf4', stroke: '#86efac', text: '#15803d' },
-  complete: { fill: '#f0fdf4', stroke: '#86efac', text: '#15803d' },
-  success:  { fill: '#f0fdf4', stroke: '#86efac', text: '#15803d' },
-  reject:   { fill: '#fef2f2', stroke: '#fca5a5', text: '#dc2626' },
-  rejected: { fill: '#fef2f2', stroke: '#fca5a5', text: '#dc2626' },
-  fail:     { fill: '#fef2f2', stroke: '#fca5a5', text: '#dc2626' },
-  decline:  { fill: '#fef2f2', stroke: '#fca5a5', text: '#dc2626' },
-  escalate: { fill: '#fff7ed', stroke: '#fdba74', text: '#ea580c' },
-  pending:  { fill: '#fffbeb', stroke: '#fde68a', text: '#92400e' },
+  approved: { fill: 'var(--success)', stroke: 'var(--success)', text: 'var(--success)' },
+  pass:     { fill: 'var(--success)', stroke: 'var(--success)', text: 'var(--success)' },
+  complete: { fill: 'var(--success)', stroke: 'var(--success)', text: 'var(--success)' },
+  success:  { fill: 'var(--success)', stroke: 'var(--success)', text: 'var(--success)' },
+  reject:   { fill: 'var(--error)', stroke: 'var(--error)', text: 'var(--error)' },
+  rejected: { fill: 'var(--error)', stroke: 'var(--error)', text: 'var(--error)' },
+  fail:     { fill: 'var(--error)', stroke: 'var(--error)', text: 'var(--error)' },
+  decline:  { fill: 'var(--error)', stroke: 'var(--error)', text: 'var(--error)' },
+  escalate: { fill: 'var(--warning)', stroke: 'var(--warning)', text: 'var(--warning)' },
+  pending:  { fill: 'var(--warning)', stroke: 'var(--warning)', text: 'var(--warning)' },
 };
 
-const DEFAULT_COLORS = { fill: '#eff6ff', stroke: '#93c5fd', text: '#1d4ed8' };
-const NO_NEXT_COLORS = { fill: '#f8fafc', stroke: '#cbd5e1', text: '#94a3b8' };
-const BACK_EDGE_COLORS = { fill: '#f5f3ff', stroke: '#a78bfa', text: '#7c3aed' };
+const DEFAULT_COLORS = { fill: 'var(--primary)', stroke: 'var(--primary)', text: 'var(--primary-pressed)' };
+const NO_NEXT_COLORS = { fill: 'var(--text)', stroke: 'var(--text-secondary)', text: 'var(--text-disabled)' };
+const BACK_EDGE_COLORS = { fill: 'var(--accent-branch)', stroke: 'var(--accent-branch)', text: 'var(--accent-branch)' };
 
 function pickColors(name: string, hasNoNextStep: boolean, isBackEdge: boolean) {
   if (hasNoNextStep) return NO_NEXT_COLORS;
@@ -107,7 +107,7 @@ function handleStyle(color: string): React.CSSProperties {
     background: color,
     width: 10,
     height: 10,
-    border: '2px solid #fff',
+    border: '2px solid var(--border)',
     borderRadius: '50%',
   };
 }
