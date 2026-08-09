@@ -64,13 +64,24 @@
   --drop-valid-bg: rgba(15, 157, 88, .08);
   --selected-outline: #0078d4;
 
-  /* Field-type swatches in the toolbox, mirroring the Report Engine palette. */
-  --type-text: #8a8886;
-  --type-number: #0f9d58;
-  --type-currency: #0078d4;
-  --type-choice: #7c3aed;
-  --type-date: #d97706;
-  --type-lookup: #0f766e;
+  /* The simulated form in Preview, and the report paper in the reference, stay
+     light in every appearance: they show what an end user will see, not what the
+     maker's application looks like. Dark softens it off pure white so it does not
+     glare against a dark canvas — the same move report-designer.html makes. */
+  --paper: #ffffff;
+  /* The paper must state its own foreground, not only its background. It is a light
+     island inside a possibly-dark application, and anything inside it that inherits
+     Fluent's foreground would otherwise come out near-white on near-white. */
+  --paper-fg: #201f1e;
+
+  /* Toolbox field-type groups. Each group's icon carries its own colour so a
+     maker can find a type by hue; these are the light-appearance values. */
+  --type-input: #2563eb;
+  --type-choice: #16a34a;
+  --type-datetime: #0d9488;
+  --type-media: #7c3aed;
+  --type-data: #ea580c;
+  --type-layout: #64748b;
 
   --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .13), 0 .3px .9px rgba(0, 0, 0, .11);
   --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .13), 0 .6px 1.8px rgba(0, 0, 0, .11);
@@ -134,6 +145,15 @@
     --drop-valid: #6bb700;
     --drop-valid-bg: rgba(107, 183, 0, .12);
     --selected-outline: #2899f5;
+
+    --paper: #fbfbfa;
+
+    --type-input: #60a5fa;
+    --type-choice: #4ade80;
+    --type-datetime: #2dd4bf;
+    --type-media: #a78bfa;
+    --type-data: #fb923c;
+    --type-layout: #94a3b8;
 
     --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .4);
     --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .5);
@@ -253,12 +273,17 @@
   --drop-valid-bg: rgba(107, 183, 0, .12);
   --selected-outline: #2899f5;
 
-  --type-text: #a19f9d;
-  --type-number: #6bb700;
-  --type-currency: #2899f5;
-  --type-choice: #a78bfa;
-  --type-date: #f0a52e;
-  --type-lookup: #2dd4bf;
+  /* Off pure white, so the simulated form does not glare against a dark canvas. */
+  --paper: #fbfbfa;
+
+  /* Lightened for legibility: the light values are mid-tones chosen against
+     white and go muddy on a #292827 surface — slate especially. */
+  --type-input: #60a5fa;
+  --type-choice: #4ade80;
+  --type-datetime: #2dd4bf;
+  --type-media: #a78bfa;
+  --type-data: #fb923c;
+  --type-layout: #94a3b8;
 
   --shadow-8: 0 1.6px 3.6px rgba(0, 0, 0, .4);
   --shadow-16: 0 3.2px 7.2px rgba(0, 0, 0, .5);
@@ -322,8 +347,8 @@
   --drop-valid-bg: rgba(16, 124, 74, .14);
   --selected-outline: #5b5bd6;
 
-  --type-choice: #5b5bd6;
-  --type-lookup: #0f7a4f;
+  /* Glass and vibrant read as light appearances — dark text on a pale surface —
+     so the toolbox groups keep the light values from :root. */
 
   --shadow-8: 0 4px 16px rgba(31, 38, 90, .10);
   --shadow-16: 0 8px 28px rgba(31, 38, 90, .14);
@@ -386,9 +411,6 @@
   --drop-valid: #0f9d58;
   --drop-valid-bg: rgba(15, 157, 88, .10);
   --selected-outline: #7c3aed;
-
-  --type-choice: #7c3aed;
-  --type-currency: #7c3aed;
 
   --shadow-8: 0 6px 18px rgba(124, 58, 237, .16);
   --shadow-16: 0 10px 30px rgba(124, 58, 237, .20);

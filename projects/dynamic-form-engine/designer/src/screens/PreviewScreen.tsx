@@ -101,8 +101,16 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     padding: '24px',
   },
+  // The paper. Everything inside it simulates what an end user will see and so is
+  // deliberately NOT themed by the maker's appearance — the colours below belong to
+  // the form, not to the designer. The sheet itself softens off pure white in dark
+  // so it does not glare against the canvas.
   previewFrame: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'var(--paper)',
+    // Stated together with the background, never apart. Under a dark appearance
+    // anything in here that inherits Fluent's foreground comes out near-white on
+    // near-white — the labels below did exactly that, at about 1.03:1.
+    color: 'var(--paper-fg)',
     boxShadow: tokens.shadow64,
     overflow: 'auto',
     transition: 'width 0.3s ease',
