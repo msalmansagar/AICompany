@@ -790,7 +790,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.sopStep,
-        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${ESCALATION_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapSopStep);
@@ -810,8 +810,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${SET.role}(${data.roleId})`;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.sopStep, body));
     return result.id;
   }
@@ -828,8 +826,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId ? `/${SET.role}(${data.roleId})` : null;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.sopStep, id, body));
   }
 

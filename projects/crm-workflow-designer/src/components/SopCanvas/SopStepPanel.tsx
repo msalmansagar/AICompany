@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import type { SopStep, SopOutcome, CrmRole, SopStepType, SopExecutionChannel } from '@/types/SopTypes';
 import { SOP_STEP_TYPE_META } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
-import { EscalationSection } from '@/components/edit/EscalationSection';
 
 const STEP_TYPES = Object.entries(SOP_STEP_TYPE_META) as [SopStepType, typeof SOP_STEP_TYPE_META[SopStepType]][];
 
@@ -170,7 +169,10 @@ export function SopStepPanel({
           </select>
         </FieldGroup>
 
-        <EscalationSection value={step} onChange={onUpdateStep} adapter={adapter} />
+        {/* No escalation here. `qdb_sopstep` carries neither qdb_escalation nor
+            qdb_applyescalationfilter, so anything set would fail on save. A step
+            escalates once it is a process step, where the columns exist and the
+            engine reads them. */}
 
         <div style={sectionHeaderStyle}>
           <span style={sectionTitleStyle}>Outcomes ({outcomes.length})</span>
