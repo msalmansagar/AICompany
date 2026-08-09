@@ -6,13 +6,17 @@
    colour; everything resolves through these variables, which is what lets all
    four themes work without touching a component.
 
+   One stylesheet, imported by both the designer and the form runtime, so the two
+   cannot drift into different-looking halves of the same product.
+
    Themes: light (Fluent / Power Platform), dark, glass, vibrant.
    `--radius` and `--surface-blur` are themed too — glass and vibrant are not
    just a recolour, they change the shape and material of every surface.
 
    Fluent's own components do NOT read these variables. They are themed in
-   parallel by theme/fluentThemes.ts, which carries the same palette into a
-   Fluent Theme object. Change a colour here and change it there too.
+   parallel from appearancePalettes.ts, which states the same colours as data and
+   carries them into a Fluent Theme. Change a colour here and change it there
+   too — tokensMatchPalettes fails when the two disagree.
    ========================================================================= */
 
 :root {

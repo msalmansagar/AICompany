@@ -52,9 +52,11 @@ import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
 import { FormConfirmation } from './FormConfirmation';
-import { ThemeSwitcher, readStoredThemePreference } from './ThemeSwitcher';
+import { AppearancePicker } from './AppearancePicker';
+import { useAppearance } from '../../theme/AppearanceProvider';
 import { InfoCardFlow } from './info-card/InfoCardFlow';
-import { LIGHT_THEME, DARK_THEME } from '../../theme/themes';
+import { isBuiltInDefaultTheme } from '../../theme/themes';
+import { appearanceThemeDefinition } from '@qdb/shared';
 import type { DesignPayload, TabDefinition } from '@qdb/shared';
 
 // BC-008: debounce delay for finalTabId recomputation when tab visibility changes.
@@ -268,23 +270,22 @@ function FormRendererInner({
     }
   }, [formDefinition, hasDraftInUrl]);
 
-  // Theme toggle state — persisted via localStorage.
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(readStoredThemePreference);
-
-  const activeTheme = isDarkMode ? DARK_THEME : LIGHT_THEME;
+  const { appearance } = useAppearance();
 
   const design = useMemo<DesignPayload>(() => {
     return formDefinition?.design ?? DEFAULT_DESIGN_PAYLOAD;
   }, [formDefinition]);
 
+  // A form the customer has themed keeps its branding in every appearance — that
+  // is the point of authoring one. A form that never was falls back to a built-in
+  // default, and those follow the chosen appearance rather than staying light
+  // inside a dark application.
   const resolvedTheme = useMemo(() => {
-    const baseTheme = design.theme;
-    return isDarkMode && !baseTheme.isDarkMode ? activeTheme : baseTheme;
-  }, [design.theme, isDarkMode, activeTheme]);
-
-  const handleThemeToggle = useCallback((isDark: boolean) => {
-    setIsDarkMode(isDark);
-  }, []);
+    const customerTheme = design.theme;
+    return isBuiltInDefaultTheme(customerTheme)
+      ? appearanceThemeDefinition(appearance)
+      : customerTheme;
+  }, [design.theme, appearance]);
 
   // Custom CSS injection.
   useEffect(() => {
@@ -397,7 +398,6 @@ function FormRendererInner({
   const { canLeaveTab, isSubmitBlocked: isSubmitBlockedByTabGate } =
     evaluateTabConfirmation(visibleTabs, tabAcknowledgements);
   const isStickyBar = design.formDesign.stickyActionBar;
-  const hasDarkOption = true;
 
   const isOnFinalTab =
     activeTab !== undefined && finalTabId !== null && activeTab.id === finalTabId;
@@ -430,9 +430,7 @@ function FormRendererInner({
           activeLanguage={activeLanguage}
           onSelect={onLanguageSelect}
         />
-        {hasDarkOption && (
-          <ThemeSwitcher isDarkMode={isDarkMode} onToggle={handleThemeToggle} />
-        )}
+        <AppearancePicker />
       </div>
     </header>
     {/* DFE-FBE-002: completion progress bar, above the tab strip (gated on showProgressBar). */}

@@ -41,3 +41,4 @@ export type {
 } from './theme/appearancePalettes.js';
 export { buildBrandRamp, fluentTokenOverrides } from './theme/fluentAppearance.js';
 export type { BrandRamp } from './theme/fluentAppearance.js';
+export { appearanceThemeDefinition } from './theme/appearanceThemeDefinition.js';

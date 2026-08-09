@@ -70,3 +70,14 @@ export const CORPORATE_QDB_THEME: ThemeDefinition = {
   isDarkMode: false,
   isActive: false,
 };
+
+/**
+ * Whether a theme is one of the runtime's own fallbacks rather than something a
+ * customer authored in CRM.
+ *
+ * A form with no theme of its own is served one of these, and those follow the
+ * chosen appearance. An authored theme is branding and is never overridden.
+ */
+export function isBuiltInDefaultTheme(theme: ThemeDefinition): boolean {
+  return theme.id === LIGHT_THEME.id || theme.id === DARK_THEME.id;
+}

@@ -3,7 +3,10 @@ import { Spinner } from '@fluentui/react-components';
 import { AppProviders } from './AppProviders';
 import { AppearanceProvider } from '@/theme/AppearanceProvider';
 import { AppShell } from '@/components/shell/AppShell';
-import '@/styles/tokens.css';
+// The token layer is shared with the form runtime, so the two cannot drift. The
+// '@qdb/shared' alias resolves to a single barrel file rather than a directory,
+// which is why this reaches for the stylesheet by path.
+import '../../../shared/src/theme/tokens.css';
 import '@/styles/components.css';
 import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerScreen as DesignerScreenName } from '@/state/designerStore';

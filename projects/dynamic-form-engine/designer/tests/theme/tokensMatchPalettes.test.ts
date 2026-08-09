@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { APPEARANCE_PALETTES, APPEARANCE_NAMES, type AppearancePalette } from '@qdb/shared';
 
-const TOKENS_CSS = readFileSync(join(__dirname, '../../src/styles/tokens.css'), 'utf8');
+const TOKENS_CSS = readFileSync(join(__dirname, '../../../shared/src/theme/tokens.css'), 'utf8');
 
 /** CSS custom property → the palette field that must carry the same value. */
 const VARIABLE_TO_FIELD: Record<string, keyof AppearancePalette> = {
