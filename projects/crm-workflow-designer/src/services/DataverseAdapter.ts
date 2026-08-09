@@ -128,7 +128,7 @@ export class DataverseAdapter implements ISopAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
-          '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc'
+          `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc`
         )
       );
       return result.entities.map(mapProcess);
@@ -143,7 +143,7 @@ export class DataverseAdapter implements ISopAdapter {
       this.xrm.WebApi.retrieveRecord(
         LOGICAL.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}'
+        `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
       )
     );
     return mapProcess(raw as Record<string, unknown>);

@@ -89,9 +89,26 @@ export function App() {
 function readHostContext(env: CrmEnvironmentService): HostContext {
   try {
     const { userName, orgName } = env.getUserContext();
-    return { environmentLabel: orgName, userInitials: toInitials(userName) };
+    return {
+      environmentLabel: environmentLabelFrom(env.getClientUrl(), orgName),
+      userInitials: toInitials(userName),
+    };
   } catch {
     return EMPTY_HOST;
+  }
+}
+
+/**
+ * Names the environment the way a person does. `getOrgUniqueName()` returns the
+ * internal unique name — "unq8e28c4d88f8f4c42aa0a31a680cc0" — which nobody
+ * recognises; the host they typed to get here is the name they know it by.
+ */
+function environmentLabelFrom(clientUrl: string, orgName: string): string {
+  try {
+    const [subdomain] = new URL(clientUrl).hostname.split('.');
+    return subdomain || orgName;
+  } catch {
+    return orgName;
   }
 }
 
