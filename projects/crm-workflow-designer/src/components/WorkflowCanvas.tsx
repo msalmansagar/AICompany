@@ -58,7 +58,7 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:       buildSwimlaneGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -211,7 +211,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
         onLayoutDirChange={view.setLayoutDir}
         onNewProcess={onNewProcess}
         onEditProcess={onEditProcess}
-        onBackToList={onBackToList}
       />
 
       <div style={bodyStyle}>

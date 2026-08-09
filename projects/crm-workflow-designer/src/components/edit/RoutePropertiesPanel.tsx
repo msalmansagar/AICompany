@@ -49,8 +49,8 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
   if (!route) {
     return (
-      <div style={panelStyle}>
-        <div style={headerStyle}>Route Properties</div>
+      <div className="panel">
+        <div className="panel-head"><h3>Route Properties</h3></div>
         <div style={emptyStyle}>Route not found</div>
       </div>
     );
@@ -59,13 +59,13 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
   const isFallback = !route.filter?.trim();
 
   return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>Route Properties</div>
+    <div className="panel">
+      <div className="panel-head"><h3>Route Properties</h3></div>
 
-      <div style={bodyStyle}>
+      <div className="panel-body">
         <Field label="Name">
           <input
-            style={inputStyle}
+            className="fluent-input"
             value={route.name}
             onChange={(e) => setRoute({ ...route, name: e.target.value })}
             placeholder="Route name"
@@ -74,7 +74,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 
         <Field label="Sequence">
           <input
-            style={inputStyle}
+            className="fluent-input"
             type="number"
             value={route.sequenceNumber}
             onChange={(e) => {
@@ -160,67 +160,16 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={fieldGroup}>
-      <div style={labelStyle}>{label}</div>
+      <div className="lbl">{label}</div>
       {children}
     </div>
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: 'var(--bg)',
-  borderLeft: '1px solid var(--border-strong)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
-const headerStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  fontSize: 11,
-  fontWeight: 700,
-  color: 'var(--text-disabled)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.05em',
-  borderBottom: '1px solid var(--border-strong)',
-  flexShrink: 0,
-};
-
-const bodyStyle: React.CSSProperties = {
-  padding: '12px 14px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 14,
-  overflowY: 'auto' as const,
-  flex: 1,
-};
-
 const fieldGroup: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text)',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box' as const,
 };
 
 const readonlyChip: React.CSSProperties = {

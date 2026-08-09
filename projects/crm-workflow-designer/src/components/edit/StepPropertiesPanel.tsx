@@ -97,7 +97,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   if (!step) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={emptyStyle}>No step selected</div>
       </div>
     );
@@ -182,23 +182,23 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   };
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <div style={panelHeaderStyle}>Step Properties</div>
       <div style={panelBodyStyle}>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Name</label>
+          <label className="lbl">Name</label>
           <input
             type="text"
             value={step.name}
             onChange={(e) => setStep({ ...step, name: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
             placeholder="Step name"
           />
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Order</label>
+          <label className="lbl">Order</label>
           <div style={orderRowStyle}>
             <span style={seqChipStyle}>#{stepIndex + 1}</span>
             <button
@@ -225,7 +225,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         <div style={dividerStyle} />
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Assign To</label>
+          <label className="lbl">Assign To</label>
           <div style={toggleGroupStyle}>
             {ASSIGN_TO_OPTIONS.map((opt) => (
               <button
@@ -279,7 +279,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <div style={sectionLabelStyle}>
+        <div className="panel-section">
           Decisions
           <span style={countBadgeStyle}>{stepOutcomes.length}</span>
         </div>
@@ -315,14 +315,14 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               value={newDecisionName}
               onChange={(e) => setNewDecisionName(e.target.value)}
               placeholder="Decision name (optional)"
-              style={inputStyle}
+              className="fluent-input"
               autoFocus
             />
-            <label style={labelStyle}>Goes to</label>
+            <label className="lbl">Goes to</label>
             <select
               value={newDecisionTarget}
               onChange={(e) => setNewDecisionTarget(e.target.value)}
-              style={selectStyle}
+              className="fluent-select"
             >
               <option value="__end__">— End —</option>
               {otherSteps.map((s) => (
@@ -419,16 +419,6 @@ const bulkApprovalHintStyle: React.CSSProperties = {
   fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, paddingTop: 2,
 };
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: 'var(--bg)',
-  borderLeft: '1px solid var(--border-strong)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
 const panelHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
@@ -453,40 +443,6 @@ const fieldGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text)',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text)',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
 };
 
 // Two columns: the four mode names do not fit on one row of a 280px panel.
@@ -565,17 +521,6 @@ function buildMoveBtn(enabled: boolean): React.CSSProperties {
 const dividerStyle: React.CSSProperties = {
   borderTop: '1px solid var(--border-strong)',
   margin: '2px 0',
-};
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const countBadgeStyle: React.CSSProperties = {

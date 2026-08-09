@@ -15,7 +15,7 @@ export function ValidationPanel({ onNodeFocus, onClose }: ValidationPanelProps) 
   const warnings = validationResults.filter((v) => v.severity === 'warning');
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <div style={headerStyle}>
         <span style={titleStyle}>Validation Results</span>
         <div style={summaryStyle}>
@@ -72,17 +72,6 @@ function ViolationRow({
     </div>
   );
 }
-
-const panelStyle: React.CSSProperties = {
-  width: 300,
-  flexShrink: 0,
-  background: 'var(--surface)',
-  borderLeft: '1px solid var(--border)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-  maxHeight: '50%',
-};
 
 const headerStyle: React.CSSProperties = {
   display: 'flex',

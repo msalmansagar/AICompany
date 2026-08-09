@@ -15,11 +15,15 @@ type ScreenView = 'list' | 'canvas';
 
 interface SopListScreenProps {
   adapter: ISopAdapter;
-  onBack(): void;
   onManageRoles(): void;
+  /**
+   * Bumped when the sitemap asks for the SOP library. An open SOP is this
+   * screen's own state, so navigation has to reach in and close it.
+   */
+  resetToken: number;
 }
 
-export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenProps) {
+export function SopListScreen({ adapter, onManageRoles, resetToken }: SopListScreenProps) {
   const [view, setView] = useState<ScreenView>('list');
   const [sops, setSops] = useState<SopSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -117,6 +121,23 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
     loadSops();
   }, [store, loadSops]);
 
+  // The sitemap asked for the library. Close an open SOP, warning first if it
+  // would discard work — the same guard the removed back button carried.
+  useEffect(() => {
+    if (resetToken === 0) return;
+    if (useSopStore.getState().isDirty) {
+      void confirm({
+        title: 'Unsaved changes',
+        message: 'This SOP has unsaved changes. Leave without saving?',
+        confirmLabel: 'Leave',
+        tone: 'danger',
+      }).then((leave) => { if (leave) handleCanvasBack(); });
+      return;
+    }
+    handleCanvasBack();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken]);
+
   const handleDeleteSop = useCallback(async (sop: SopSummary) => {
     if (sop.status !== SOP_STATUS.DRAFT) {
       notify('Only Draft SOPs can be deleted. Retire the SOP first.', 'error');
@@ -159,11 +180,11 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
     }
   }, [adapter]);
 
-  const handleNewSop = useCallback(async (name: string, version: string) => {
+  const handleNewSop = useCallback(async (name: string, version: string, description: string) => {
     try {
       const tmpId = `tmp_sop_${crypto.randomUUID()}`;
       const newSop: Sop = {
-        id: tmpId, name, description: '', purpose: '',
+        id: tmpId, name, description, purpose: '',
         status: SOP_STATUS.DRAFT, version,
         recordTypeId: null, recordTypeName: null,
       };
@@ -190,7 +211,7 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   if (view === 'canvas') {
     return (
       <ReactFlowProvider>
-        <SopCanvas adapter={adapter} onBack={handleCanvasBack} />
+        <SopCanvas adapter={adapter} />
       </ReactFlowProvider>
     );
   }
@@ -251,10 +272,6 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
         </button>
         <button type="button" className="cmd" onClick={onManageRoles}>
           Manage roles
-        </button>
-        <span className="cmd-spacer" />
-        <button type="button" className="cmd" onClick={onBack}>
-          ← Processes
         </button>
       </div>
 
@@ -373,11 +390,12 @@ function CreateSopDialog({
   onConfirm,
   onClose,
 }: {
-  onConfirm(name: string, version: string): void;
+  onConfirm(name: string, version: string, description: string): void;
   onClose(): void;
 }) {
   const [name, setName] = useState('');
   const [version, setVersion] = useState('1.0');
+  const [description, setDescription] = useState('');
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose();
@@ -418,6 +436,17 @@ function CreateSopDialog({
                 placeholder="1.0"
               />
             </div>
+            <div className="field col-2">
+              <label className="lbl" htmlFor="sop-description">Description</label>
+              <textarea
+                id="sop-description"
+                className="fluent-input"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="What this procedure covers, and when it applies."
+              />
+            </div>
           </div>
         </div>
         <div className="dialog-foot">
@@ -426,7 +455,9 @@ function CreateSopDialog({
             type="button"
             className="btn primary"
             disabled={!name.trim()}
-            onClick={() => { if (name.trim()) onConfirm(name.trim(), version.trim() || '1.0'); }}
+            onClick={() => {
+              if (name.trim()) onConfirm(name.trim(), version.trim() || '1.0', description.trim());
+            }}
           >
             Create
           </button>

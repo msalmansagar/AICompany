@@ -68,17 +68,17 @@ export function SopStepPanel({
   const activeMeta = SOP_STEP_TYPE_META[activeType];
 
   return (
-    <div style={panelStyle}>
-      <div style={panelHeaderStyle}>
-        <span style={panelTitleStyle}>Step Properties</span>
-        <button type="button" style={closeBtnStyle} onClick={onClose}>×</button>
+    <div className="panel">
+      <div className="panel-head">
+        <h3>Step properties</h3>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">×</button>
       </div>
 
-      <div style={panelBodyStyle}>
+      <div className="panel-body">
         {/* Node Type Picker */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={fieldLabelStyle}>Node Type</label>
-          <div style={typeGridStyle}>
+          <label className="lbl">Node type</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
             {STEP_TYPES.map(([type, meta]) => (
               <button
                 key={type}
@@ -100,7 +100,7 @@ export function SopStepPanel({
 
         {/* Execution Channel */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={fieldLabelStyle}>Execution Channel</label>
+          <label className="lbl">Execution Channel</label>
           <div style={{ display: 'flex', gap: 4 }}>
             {(['crm', 'manual', null] as (SopExecutionChannel | null)[]).map((ch) => {
               const isActive = (step.executionChannel ?? null) === ch;
@@ -123,7 +123,7 @@ export function SopStepPanel({
         {/* Decision Label — only for steps with 2+ outcomes (gateway decision point) */}
         {outcomes.length >= 2 && (
           <div style={decisionLabelGroupStyle}>
-            <label style={fieldLabelStyle}>
+            <label className="lbl">
               Decision Label
               <span style={decisionHintStyle}>shown inside the gateway diamond</span>
             </label>
@@ -132,13 +132,13 @@ export function SopStepPanel({
               value={step.decisionLabel ?? ''}
               onChange={handleDecisionLabelChange}
               placeholder="e.g. Approved?"
-              style={inputStyle}
+              className="fluent-input"
             />
           </div>
         )}
 
         <FieldGroup label="Name" required>
-          <input type="text" value={step.name} onChange={handleNameChange} style={inputStyle} />
+          <input type="text" value={step.name} onChange={handleNameChange} className="fluent-input" />
         </FieldGroup>
 
         <FieldGroup label="Description">
@@ -146,7 +146,7 @@ export function SopStepPanel({
             value={step.description}
             onChange={handleDescChange}
             rows={2}
-            style={textareaStyle}
+            className="fluent-input"
           />
         </FieldGroup>
 
@@ -156,12 +156,12 @@ export function SopStepPanel({
             value={step.sequenceNo}
             onChange={handleSeqChange}
             min={1}
-            style={inputStyle}
+            className="fluent-input"
           />
         </FieldGroup>
 
         <FieldGroup label="Role">
-          <select value={step.roleId ?? ''} onChange={handleRoleChange} style={selectStyle}>
+          <select value={step.roleId ?? ''} onChange={handleRoleChange} className="fluent-select">
             <option value="">— No role —</option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
@@ -176,7 +176,7 @@ export function SopStepPanel({
 
         <div style={sectionHeaderStyle}>
           <span style={sectionTitleStyle}>Outcomes ({outcomes.length})</span>
-          <button type="button" style={addOutcomeBtnStyle} onClick={onAddOutcome}>
+          <button type="button" className="btn sm" onClick={onAddOutcome}>
             + Add
           </button>
         </div>
@@ -194,8 +194,8 @@ export function SopStepPanel({
         )}
 
         <div style={deleteSectionStyle}>
-          <button type="button" style={deleteBtnStyle} onClick={onRemoveStep}>
-            Delete Step
+          <button type="button" className="btn danger" onClick={onRemoveStep}>
+            Delete step
           </button>
         </div>
       </div>
@@ -206,42 +206,13 @@ export function SopStepPanel({
 function FieldGroup({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={fieldLabelStyle}>
+      <label className="lbl">
         {label}{required && <span style={{ color: 'var(--error)' }}> *</span>}
       </label>
       {children}
     </div>
   );
 }
-
-const panelStyle: React.CSSProperties = {
-  width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column',
-  background: 'var(--surface)', borderLeft: '1px solid var(--border)',
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const panelHeaderStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-};
-
-const panelTitleStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--text)' };
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
-  fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 0,
-};
-
-const panelBodyStyle: React.CSSProperties = {
-  flex: 1, overflowY: 'auto', padding: '14px 16px',
-  display: 'flex', flexDirection: 'column', gap: 14,
-};
-
-const fieldLabelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
-
-const typeGridStyle: React.CSSProperties = {
-  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
-};
 
 function channelChipStyle(isActive: boolean, accent: string): React.CSSProperties {
   return {
@@ -275,39 +246,12 @@ function activeTypeLabelStyle(accent: string): React.CSSProperties {
   };
 }
 
-const inputStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 5, fontSize: 12, color: 'var(--text)', outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-};
-
-const textareaStyle: React.CSSProperties = {
-  padding: '6px 8px', background: 'var(--surface)',
-  border: '1px solid var(--border-strong)', borderRadius: 5,
-  fontSize: 12, color: 'var(--text)', outline: 'none',
-  width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 6px',
-  background: 'var(--surface)', border: '1px solid var(--border-strong)',
-  borderRadius: 5, fontSize: 12, color: 'var(--text)',
-  width: '100%', cursor: 'pointer',
-};
-
 const sectionHeaderStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   paddingTop: 4,
 };
 
 const sectionTitleStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
-
-const addOutcomeBtnStyle: React.CSSProperties = {
-  height: 22, padding: '0 8px', background: 'var(--success-bg)',
-  border: '1px solid var(--accent-route)', borderRadius: 4,
-  fontSize: 11, fontWeight: 600, color: 'var(--accent-route)', cursor: 'pointer',
-};
 
 const emptyStyle: React.CSSProperties = {
   margin: 0, fontSize: 11, color: 'var(--text-disabled)', fontStyle: 'italic',
@@ -340,9 +284,3 @@ const decisionHintStyle: React.CSSProperties = {
   marginLeft: 6, fontStyle: 'italic',
 };
 
-const deleteBtnStyle: React.CSSProperties = {
-  width: '100%', height: 30,
-  background: 'var(--error-bg)', border: '1px solid var(--error)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--error)', cursor: 'pointer',
-};

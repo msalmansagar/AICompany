@@ -42,19 +42,19 @@ export function BranchSection({
       </button>
 
       {expanded && (
-        <div style={bodyStyle}>
+        <div className="section-body">
           {childCount > 0 && (
-            <div style={noticeStyle}>
+            <div className="notice warning">
               {childCount} step{childCount === 1 ? '' : 's'} run{childCount === 1 ? 's' : ''} at the
               same time as this one. Use the outcome panel to make an outcome wait for them.
             </div>
           )}
 
           <div style={fieldStyle}>
-            <label style={labelStyle} htmlFor={`${sectionId}-parent`}>Runs at the same time as</label>
+            <label className="lbl" htmlFor={`${sectionId}-parent`}>Runs at the same time as</label>
             <select
               id={`${sectionId}-parent`}
-              style={selectStyle}
+              className="fluent-select"
               value={value.parentStepId ?? ''}
               onChange={(event) =>
                 onChange(
@@ -71,14 +71,14 @@ export function BranchSection({
                 </option>
               ))}
             </select>
-            <span style={hintStyle}>
+            <span className="hint-inline">
               When that step&rsquo;s task is created, this step&rsquo;s task is created alongside it.
             </span>
           </div>
 
           {isBranch && (
             <>
-              <label style={toggleRowStyle}>
+              <label className="toggle" style={{ gap: 8 }}>
                 <input
                   type="checkbox"
                   checked={value.applyBranchFilter}
@@ -89,11 +89,11 @@ export function BranchSection({
 
               {value.applyBranchFilter && (
                 <div style={fieldStyle}>
-                  <button type="button" style={conditionBtnStyle} onClick={onEditCondition}>
+                  <button type="button" className="btn sm" onClick={onEditCondition}>
                     {value.branchFilter.trim() ? 'Edit condition' : 'Set condition'}
                   </button>
                   {!value.branchFilter.trim() && (
-                    <span style={errorStyle}>
+                    <span className="hint-inline" style={{ color: 'var(--error)' }}>
                       No condition set — this branch would never start.
                     </span>
                   )}
@@ -120,26 +120,5 @@ const summaryBadgeStyle: React.CSSProperties = {
   background: 'var(--accent-branch-bg)', border: '1px solid var(--accent-branch)', borderRadius: 3, padding: '1px 5px',
   textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap',
 };
-const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 };
-const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: 'var(--accent-branch)', background: 'var(--primary-tint)', border: '1px solid var(--accent-branch)',
-  borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-};
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em',
-};
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 4, color: 'var(--text)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-const hintStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 };
-const errorStyle: React.CSSProperties = { fontSize: 10, color: 'var(--error)', fontWeight: 600, lineHeight: 1.4 };
-const toggleRowStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-};
 const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
-const conditionBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 4, color: 'var(--text)', fontSize: 12, cursor: 'pointer', alignSelf: 'flex-start',
-};

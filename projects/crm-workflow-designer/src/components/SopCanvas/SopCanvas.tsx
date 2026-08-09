@@ -18,6 +18,7 @@ import { validateSopForPublish } from '@/validators/sopValidator';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
+import { SopPropertiesDialog } from './SopPropertiesDialog';
 import { SOP_STATUS } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
 import type { SopStep, SopOutcome } from '@/types/SopTypes';
@@ -28,10 +29,9 @@ import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
-  onBack(): void;
 }
 
-export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
+export function SopCanvas({ adapter }: SopCanvasProps) {
   const { fitView } = useReactFlow();
   const store = useSopStore();
   const { saveSopCanvas } = useSopSave();
@@ -42,6 +42,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
     selectSopNodes(useSopStore.getState() as unknown as SopDesignerState)
   );
   const [showWizard, setShowWizard] = useState(false);
+  const [showSopProperties, setShowSopProperties] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
 
@@ -106,23 +107,8 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
     }
   }, [saveSopCanvas, showToast]);
 
-  const handleBack = useCallback(() => {
-    if (!state.isDirty) {
-      store.resetSopCanvas();
-      onBack();
-      return;
-    }
-    void confirm({
-      title: 'Unsaved changes',
-      message: 'You have unsaved changes. Leave without saving?',
-      confirmLabel: 'Leave',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      store.resetSopCanvas();
-      onBack();
-    });
-  }, [state.isDirty, store, onBack]);
+  // Leaving is the sitemap's job now; SopListScreen carries the unsaved-changes
+  // guard that used to live behind this screen's back button.
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((nds) => applyNodeChanges(changes, nds));
@@ -167,45 +153,46 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
         <ToastBanner message={toastMsg} isError={toastIsError} onClose={() => setToastMsg(null)} />
       )}
 
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <button type="button" style={backBtnStyle} onClick={handleBack}>
-          ← SOPs
+      {/* The sitemap owns navigation, so there is no back button here — the
+          command bar carries only what acts on this SOP. */}
+      <div className="cmdbar">
+        <button type="button" className="cmd primary" onClick={handleAddStep} disabled={!state.sop}>
+          + Add step
         </button>
-        <div style={toolbarDividerStyle} />
-        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
-        {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <span style={publishedBadgeStyle}>Published</span>
-        )}
-        {state.isDirty && <span style={dirtyBadgeStyle}>Unsaved</span>}
-
-        <div style={{ flex: 1 }} />
-
-        <button type="button" style={addStepBtnStyle} onClick={handleAddStep} disabled={!state.sop}>
-          + Add Step
-        </button>
+        <span className="cmd-sep" />
         <button
           type="button"
-          style={state.isSaving ? saveBtnDisabledStyle : saveBtnStyle}
+          className="cmd"
           onClick={() => void handleSave()}
           disabled={state.isSaving || !state.isDirty}
         >
           {state.isSaving ? 'Saving…' : 'Save'}
         </button>
         {canPublish && (
-          <button type="button" style={publishBtnStyle} onClick={() => void handlePublish()}>
+          <button type="button" className="cmd" onClick={() => void handlePublish()}>
             Publish
           </button>
         )}
         {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <button
-            type="button"
-            style={createProcessBtnStyle}
-            onClick={() => setShowWizard(true)}
-          >
-            Create Process
+          <button type="button" className="cmd" onClick={() => setShowWizard(true)}>
+            Create process
           </button>
         )}
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => setShowSopProperties(true)}
+          disabled={!state.sop}
+        >
+          Properties
+        </button>
+
+        <span className="cmd-spacer" />
+
+        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
+        {state.sop?.status === SOP_STATUS.PUBLISHED && <span className="pill published">Published</span>}
+        {state.isDirty && <span className="pill warning">Unsaved</span>}
       </div>
 
       {/* Validation errors */}
@@ -304,6 +291,17 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
           }}
         />
       )}
+
+      {showSopProperties && state.sop && (
+        <SopPropertiesDialog
+          sop={state.sop}
+          onClose={() => setShowSopProperties(false)}
+          onSave={(patch) => {
+            store.updateSop(patch);
+            setShowSopProperties(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -354,69 +352,8 @@ const shellStyle: React.CSSProperties = {
   flexDirection: 'column', overflow: 'hidden', position: 'relative',
 };
 
-const toolbarStyle: React.CSSProperties = {
-  height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
-  padding: '0 12px', background: 'var(--surface)',
-  borderBottom: '1px solid var(--border)',
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: 'transparent',
-  border: '1px solid var(--border)', borderRadius: 5,
-  fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer',
-};
-
-const toolbarDividerStyle: React.CSSProperties = {
-  width: 1, height: 24, background: 'var(--surface-alt)', flexShrink: 0,
-};
-
 const sopNameStyle: React.CSSProperties = {
   fontSize: 14, fontWeight: 700, color: 'var(--text)',
-};
-
-const publishedBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: 'var(--success)',
-  background: 'var(--success-bg)', border: '1px solid var(--success)',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const dirtyBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: 'var(--warning)',
-  background: 'var(--warning-bg)', border: '1px solid var(--warning)',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const addStepBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: 'var(--surface-alt)', border: '1px solid var(--border)',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: 'var(--accent-route)', cursor: 'pointer',
-};
-
-const saveBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: 'var(--primary)', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer',
-};
-
-const saveBtnDisabledStyle: React.CSSProperties = {
-  ...saveBtnStyle, background: 'var(--primary-tint)', cursor: 'not-allowed',
-};
-
-const publishBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: 'var(--accent-route)', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer',
-};
-
-const createProcessBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: 'var(--accent-branch)', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer',
 };
 
 const bodyStyle: React.CSSProperties = {

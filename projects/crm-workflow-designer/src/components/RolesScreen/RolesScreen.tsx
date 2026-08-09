@@ -8,7 +8,6 @@ import { notify } from '@/components/ui/Notify';
 
 interface RolesScreenProps {
   adapter: ISopAdapter;
-  onBack(): void;
 }
 
 interface EditingRole {
@@ -18,7 +17,7 @@ interface EditingRole {
   department: string;
 }
 
-export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
+export function RolesScreen({ adapter }: RolesScreenProps) {
   const [roles, setRoles] = useState<CrmRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -152,10 +151,6 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
         <span className="cmd-sep" />
         <button type="button" className="cmd" onClick={loadRoles} disabled={isLoading}>
           Refresh
-        </button>
-        <span className="cmd-spacer" />
-        <button type="button" className="cmd" onClick={onBack}>
-          ← SOPs
         </button>
       </div>
 

@@ -165,20 +165,8 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     [selectedId, deleteStep, deleteOutcome, selectNode]
   );
 
-  const handleBack = useCallback(() => {
-    if (!isDirty) {
-      onExitEdit();
-      return;
-    }
-    void confirm({
-      title: 'Unsaved changes',
-      message: 'You have unsaved changes. Leave without saving?',
-      confirmLabel: 'Leave',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (confirmed) onExitEdit();
-    });
-  }, [isDirty, onExitEdit]);
+  // Leaving the editor is the sitemap's job now, and App guards that against
+  // discarding unsaved work — which is what this screen's back button did.
 
   const handleDiscard = useCallback(() => {
     void confirm({
@@ -213,7 +201,6 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         canSimulate={canSimulate}
         canSimStepBack={canSimStepBack}
         validationErrorCount={validationErrorCount}
-        onBack={handleBack}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
         onSave={() => void save()}

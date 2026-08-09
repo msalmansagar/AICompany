@@ -46,12 +46,12 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
       </button>
 
       {expanded && (
-        <div style={bodyStyle}>
+        <div className="section-body">
           <div style={fieldStyle}>
-            <label style={labelStyle} htmlFor={`${sectionId}-config`}>Escalation policy</label>
+            <label className="lbl" htmlFor={`${sectionId}-config`}>Escalation policy</label>
             <select
               id={`${sectionId}-config`}
-              style={selectStyle}
+              className="fluent-select"
               disabled={disabled}
               value={value.escalationConfigId ?? ''}
               onChange={(event) => {
@@ -67,20 +67,20 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
                 </option>
               ))}
             </select>
-            <span style={hintStyle}>
+            <span className="hint-inline">
               The deadline, its unit and the escalation levels live on the policy, so every
               step using it escalates the same way.
             </span>
           </div>
 
           {configs.length === 0 && !loadFailed && (
-            <div style={noticeStyle}>
+            <div className="notice warning">
               No escalation policies exist in this environment yet. They are created outside the
               designer, on the escalation configuration table.
             </div>
           )}
           {loadFailed && (
-            <div style={noticeStyle}>Could not load escalation policies.</div>
+            <div className="notice warning">Could not load escalation policies.</div>
           )}
 
           <label style={toggleRowStyle}>
@@ -93,7 +93,7 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
             <span style={toggleLabelStyle}>Pick the policy by condition instead</span>
           </label>
           {Boolean(value.escalationConfigId) && (
-            <span style={hintStyle}>
+            <span className="hint-inline">
               Clear the policy above to choose by condition — a named policy always wins.
             </span>
           )}
@@ -117,19 +117,6 @@ const summaryBadgeStyle: React.CSSProperties = {
   textTransform: 'none', letterSpacing: 0, overflow: 'hidden', textOverflow: 'ellipsis',
   whiteSpace: 'nowrap', maxWidth: 150,
 };
-const bodyStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 };
-const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: 'var(--warning)', background: 'var(--warning-bg)', border: '1px solid var(--warning-bg)',
-  borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-};
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em',
-};
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 4, color: 'var(--text)', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-const hintStyle: React.CSSProperties = { fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4 };
 const toggleRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' };
 const toggleLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };

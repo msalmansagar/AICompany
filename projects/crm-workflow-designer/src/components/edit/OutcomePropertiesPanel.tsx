@@ -47,7 +47,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
 
   if (!outcome) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={panelHeaderStyle}>Decision Properties</div>
         <div style={emptyStyle}>No decision selected</div>
       </div>
@@ -128,23 +128,23 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   };
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <div style={panelHeaderStyle}>{title}</div>
       <div style={panelBodyStyle}>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Name</label>
+          <label className="lbl">Name</label>
           <input
             type="text"
             value={outcome.name}
             onChange={(e) => setOutcome({ ...outcome, name: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
             placeholder="Decision name"
           />
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Goes To</label>
+          <label className="lbl">Goes To</label>
           <div style={targetChipStyle}>
             {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
           </div>
@@ -159,7 +159,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         />
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Concurrent branches</label>
+          <label className="lbl">Concurrent branches</label>
           <button
             type="button"
             role="switch"
@@ -187,7 +187,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Conditional Routing</label>
+          <label className="lbl">Conditional Routing</label>
           <button
             type="button"
             role="switch"
@@ -202,7 +202,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         {outcome.applyFilter && (
           <>
             <div style={dividerStyle} />
-            <div style={sectionLabelStyle}>
+            <div className="panel-section">
               Routes
               <span style={countBadgeStyle}>{outcomeRoutes.length}</span>
             </div>
@@ -240,17 +240,17 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
                   value={newRouteName}
                   onChange={(e) => setNewRouteName(e.target.value)}
                   placeholder="Route name (optional)"
-                  style={inputStyle}
+                  className="fluent-input"
                   autoFocus
                 />
-                <label style={labelStyle}>Goes to</label>
+                <label className="lbl">Goes to</label>
                 <select
                   value={newRouteTarget}
                   onChange={(e) => {
                     setNewRouteTarget(e.target.value);
                     if (e.target.value !== '__end__') setAddRouteError(null);
                   }}
-                  style={selectStyle}
+                  className="fluent-select"
                 >
                   <option value="__end__">— End —</option>
                   {availableSteps.map((s) => (
@@ -304,16 +304,6 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   );
 }
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: 'var(--bg)',
-  borderLeft: '1px solid var(--border-strong)',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
 const panelHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
@@ -338,40 +328,6 @@ const fieldGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text)',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text)',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
 };
 
 const targetChipStyle: React.CSSProperties = {
@@ -409,17 +365,6 @@ const toggleOffStyle: React.CSSProperties = {
 const dividerStyle: React.CSSProperties = {
   borderTop: '1px solid var(--border-strong)',
   margin: '2px 0',
-};
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: 'var(--text-secondary)',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const countBadgeStyle: React.CSSProperties = {

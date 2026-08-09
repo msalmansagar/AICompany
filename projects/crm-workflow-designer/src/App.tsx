@@ -16,6 +16,7 @@ import { SopAdapterContext } from './app/SopAdapterContext';
 import { isSopAdapter } from './services/ISopAdapter';
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog';
 import { NotifyHost, notify } from './components/ui/Notify';
+import { confirm } from './components/ui/ConfirmDialog';
 import { AppShell } from './components/shell/AppShell';
 import type { NavDestination } from './components/shell/SitemapNav';
 import type { ProcessStatusFilter } from './components/ProcessListScreen';
@@ -142,17 +143,31 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [destination, setDestination] = useState<NavDestination>('processes-all');
   const [search, setSearch] = useState('');
+  const [sopResetToken, setSopResetToken] = useState(0);
   const view = useWorkflowView(service);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
 
-  // The sitemap owns which screen is showing; opening a process moves the app
-  // into view/edit, which are not sitemap destinations and so leave it alone.
-  const handleNavigate = useCallback((next: NavDestination) => {
+  // The sitemap owns which screen is showing, and stays visible everywhere —
+  // including the editor — so there is one way to navigate rather than a back
+  // button per screen. Leaving unsaved work is the one case worth interrupting.
+  const handleNavigate = useCallback(async (next: NavDestination) => {
+    if (appMode === 'edit' && useWorkflowStore.getState().isDirty) {
+      const leave = await confirm({
+        title: 'Unsaved changes',
+        message: 'This process has unsaved changes. Leave without saving?',
+        confirmLabel: 'Leave',
+        tone: 'danger',
+      });
+      if (!leave) return;
+    }
+    // Returning to the SOP library must also close an open SOP, which the SOP
+    // screen tracks itself; the token tells it to.
+    if (next === 'sop-library') setSopResetToken((token) => token + 1);
     setDestination(next);
     if (next === 'sop-library') setAppMode('sop-list');
     else if (next === 'roles') setAppMode('roles');
     else setAppMode('list');
-  }, []);
+  }, [appMode]);
 
   const handleNewProcess = () => setShowWizard(true);
 
@@ -247,11 +262,10 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
       environmentLabel={host.environmentLabel}
       userInitials={host.userInitials}
       active={destination}
-      onNavigate={handleNavigate}
+      onNavigate={(next) => void handleNavigate(next)}
       sopEnabled={!!sopAdapter}
       search={search}
       onSearchChange={setSearch}
-      navHidden={appMode === 'edit' || appMode === 'view'}
       banner={
         isDevMode ? (
           <div style={devBanner}>
@@ -270,19 +284,17 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
             view={view}
             adapter={adapter}
             onNewProcess={handleNewProcess}
-            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
-            onBackToList={() => setAppMode('list')}
+            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
           />
         ) : appMode === 'sop-list' && sopAdapter ? (
           <SopListScreen
+            resetToken={sopResetToken}
             adapter={sopAdapter}
-            onBack={() => handleNavigate('processes-all')}
-            onManageRoles={() => handleNavigate('roles')}
+            onManageRoles={() => void handleNavigate('roles')}
           />
         ) : appMode === 'roles' && sopAdapter ? (
           <RolesScreen
             adapter={sopAdapter}
-            onBack={() => handleNavigate('sop-library')}
           />
         ) : (
           <ProcessListScreen
