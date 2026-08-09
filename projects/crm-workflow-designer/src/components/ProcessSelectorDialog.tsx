@@ -23,11 +23,11 @@ export function ProcessSelectorDialog({
   );
 
   return (
-    <div style={backdropStyle} onClick={onClose} role="dialog" aria-modal="true" aria-label="Open Workflow">
-      <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-        <div style={dialogHeader}>
-          <h3 style={dialogTitle}>Open Workflow</h3>
-          <button type="button" style={closeBtn} onClick={onClose} aria-label="Close">✕</button>
+    <div className="dialog-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Open workflow">
+      <div className="dialog" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div className="dialog-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2>Open workflow</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
         {!isLoading && !error && processes.length > 0 && (
@@ -81,58 +81,13 @@ export function ProcessSelectorDialog({
           ))}
         </div>
 
-        <div style={dialogFooter}>
-          <button type="button" style={cancelBtn} onClick={onClose}>Cancel</button>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
         </div>
       </div>
     </div>
   );
 }
-
-const backdropStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0,0,0,0.45)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 1000,
-};
-
-const dialogStyle: React.CSSProperties = {
-  background: 'var(--surface)',
-  borderRadius: 10,
-  padding: 24,
-  width: 440,
-  maxWidth: '92vw',
-  maxHeight: '80vh',
-  display: 'flex',
-  flexDirection: 'column',
-  boxShadow: '0 20px 48px rgba(0,0,0,0.25)',
-};
-
-const dialogHeader: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 16,
-};
-
-const dialogTitle: React.CSSProperties = {
-  margin: 0,
-  fontSize: 16,
-  fontWeight: 700,
-  color: 'var(--text)',
-};
-
-const closeBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 16,
-  color: 'var(--text-disabled)',
-  padding: '2px 6px',
-};
 
 const searchInput: React.CSSProperties = {
   width: '100%',
@@ -233,21 +188,3 @@ const entityBadge: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 
-const dialogFooter: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  marginTop: 16,
-  paddingTop: 12,
-  borderTop: '1px solid var(--border)',
-};
-
-const cancelBtn: React.CSSProperties = {
-  padding: '6px 16px',
-  background: 'var(--surface-alt)',
-  color: 'var(--text)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-};

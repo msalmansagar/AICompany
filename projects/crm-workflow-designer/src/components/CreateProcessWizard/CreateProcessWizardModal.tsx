@@ -63,15 +63,15 @@ export function CreateProcessWizardModal({
   if (!isOpen) return null;
 
   return (
-    <div style={overlayStyle} onClick={handleOverlayClick}>
-      <div style={modalStyle} role="dialog" aria-modal="true">
+    <div className="dialog-backdrop" onClick={handleOverlayClick}>
+      <div className="dialog" style={{ width: 720 }} role="dialog" aria-modal="true" aria-label="Create process from SOP">
         {/* Header */}
         <div style={headerStyle}>
           <div>
-            <div style={titleStyle}>Create Process from SOP</div>
+            <h2>Create process from SOP</h2>
             <div style={subtitleStyle}>{STEP_TITLES[wizard.currentStep]}</div>
           </div>
-          <button type="button" style={closeBtnStyle} onClick={onDismiss} aria-label="Close">
+          <button type="button" className="icon-btn" onClick={onDismiss} aria-label="Close">
             &times;
           </button>
         </div>
@@ -126,7 +126,7 @@ export function CreateProcessWizardModal({
 
         {/* Footer (only on last step) */}
         {wizard.currentStep === 2 && (
-          <div style={footerStyle}>
+          <div className="dialog-foot" style={{ justifyContent: 'space-between' }}>
             <button
               type="button"
               style={cancelBtnStyle}
@@ -150,20 +150,6 @@ export function CreateProcessWizardModal({
   );
 }
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0,
-  background: 'rgba(15,23,42,0.55)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  zIndex: 9000,
-};
-
-const modalStyle: React.CSSProperties = {
-  width: 660, maxWidth: '95vw', maxHeight: '90vh',
-  background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-  display: 'flex', flexDirection: 'column', overflow: 'hidden',
-};
-
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start',
   justifyContent: 'space-between',
@@ -172,17 +158,8 @@ const headerStyle: React.CSSProperties = {
   flexShrink: 0,
 };
 
-const titleStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, color: 'var(--text)',
-};
-
 const subtitleStyle: React.CSSProperties = {
   fontSize: 12, color: 'var(--text-secondary)', marginTop: 2,
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
-  fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
 };
 
 const progressBarTrackStyle: React.CSSProperties = {
@@ -204,14 +181,6 @@ const errorBannerStyle: React.CSSProperties = {
   padding: '10px 14px', marginBottom: 16,
   background: 'var(--error-bg)', border: '1px solid var(--error)',
   borderRadius: 6, color: 'var(--error)', fontSize: 13,
-};
-
-const footerStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px',
-  borderTop: '1px solid var(--border)',
-  background: 'var(--surface-alt)',
-  flexShrink: 0,
 };
 
 const cancelBtnStyle: React.CSSProperties = {

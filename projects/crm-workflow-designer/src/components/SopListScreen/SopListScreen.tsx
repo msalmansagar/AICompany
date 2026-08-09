@@ -30,8 +30,15 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
   const [wizardSop, setWizardSop] = useState<Sop | null>(null);
   const [wizardSteps, setWizardSteps] = useState<SopStep[]>([]);
   const [showWizard, setShowWizard] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const store = useSopStore();
+
+  // Actions live on the command bar and read the selected row, so which of them
+  // apply is a property of the selection rather than of a button inside a row.
+  const selectedSop = sops.find((s) => s.id === selectedId) ?? null;
+  const canCreateProcess = selectedSop?.status === SOP_STATUS.PUBLISHED;
+  const canRetire = selectedSop?.status === SOP_STATUS.DRAFT;
 
   const loadSops = useCallback(() => {
     setIsLoading(true);
@@ -208,6 +215,40 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
           + New SOP
         </button>
         <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          disabled={!selectedSop}
+          onClick={() => selectedSop && void handleEditSop(selectedSop.id)}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="cmd"
+          disabled={!canCreateProcess}
+          title={
+            selectedSop && !canCreateProcess
+              ? 'Only a published SOP can be turned into a process'
+              : undefined
+          }
+          onClick={() => selectedSop && void handleOpenCreateProcessWizard(selectedSop)}
+        >
+          Create process
+        </button>
+        <button
+          type="button"
+          className="cmd danger"
+          disabled={!canRetire}
+          title={selectedSop && !canRetire ? 'Only a draft SOP can be retired' : undefined}
+          onClick={() => selectedSop && void handleDeleteSop(selectedSop)}
+        >
+          Retire
+        </button>
+        <span className="cmd-sep" />
+        <button type="button" className="cmd" onClick={loadSops} disabled={isLoading}>
+          Refresh
+        </button>
         <button type="button" className="cmd" onClick={onManageRoles}>
           Manage roles
         </button>
@@ -248,45 +289,44 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
               <table className="grid" role="grid">
                 <thead>
                   <tr>
+                    <th className="row-check" />
                     <th>Name</th>
                     <th>Status</th>
                     <th>Version</th>
                     <th className="num">Derived processes</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sops.map((sop) => (
-                    <tr key={sop.id}>
-                      <td style={{ fontWeight: 600 }}>{sop.name}</td>
-                      <td><StatusBadge status={sop.status} /></td>
-                      <td style={{ color: 'var(--text-secondary)' }}>v{sop.version || '1.0'}</td>
-                      <td className="num">{sop.derivedProcessCount}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: 6 }}>
-                          <button type="button" className="btn sm" onClick={() => void handleEditSop(sop.id)}>
-                            Edit
-                          </button>
-                          {sop.status === SOP_STATUS.PUBLISHED && (
-                            <button
-                              type="button"
-                              className="btn sm primary"
-                              onClick={() => void handleOpenCreateProcessWizard(sop)}
-                            >
-                              Create process
-                            </button>
-                          )}
-                          {sop.status === SOP_STATUS.DRAFT && (
-                            <button
-                              type="button"
-                              className="btn sm danger"
-                              onClick={() => void handleDeleteSop(sop)}
-                            >
-                              Retire
-                            </button>
+                    <tr
+                      key={sop.id}
+                      className={sop.id === selectedId ? 'selected' : undefined}
+                      style={{ cursor: 'pointer' }}
+                      aria-selected={sop.id === selectedId}
+                      onClick={() => setSelectedId(sop.id === selectedId ? null : sop.id)}
+                      onDoubleClick={() => void handleEditSop(sop.id)}
+                    >
+                      <td className="row-check">
+                        <div className="box">
+                          {sop.id === selectedId && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
+                              <path d="M1 4l3 3L9 1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
                           )}
                         </div>
                       </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="link-cell"
+                          onClick={(e) => { e.stopPropagation(); void handleEditSop(sop.id); }}
+                        >
+                          {sop.name}
+                        </button>
+                      </td>
+                      <td><StatusBadge status={sop.status} /></td>
+                      <td style={{ color: 'var(--text-secondary)' }}>v{sop.version || '1.0'}</td>
+                      <td className="num">{sop.derivedProcessCount}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -320,21 +360,13 @@ export function SopListScreen({ adapter, onBack, onManageRoles }: SopListScreenP
 }
 
 function StatusBadge({ status }: { status: number }) {
-  const config: Record<number, { label: string; bg: string; color: string; border: string }> = {
-    [SOP_STATUS.DRAFT]: { label: 'Draft', bg: 'var(--warning-bg)', color: 'var(--warning)', border: 'var(--warning)' },
-    [SOP_STATUS.PUBLISHED]: { label: 'Published', bg: 'var(--success-bg)', color: 'var(--success)', border: 'var(--success)' },
-    [SOP_STATUS.RETIRED]: { label: 'Retired', bg: 'var(--surface-alt)', color: 'var(--text-secondary)', border: 'var(--border)' },
+  const pill: Record<number, { className: string; label: string }> = {
+    [SOP_STATUS.DRAFT]: { className: 'pill warning', label: 'Draft' },
+    [SOP_STATUS.PUBLISHED]: { className: 'pill published', label: 'Published' },
+    [SOP_STATUS.RETIRED]: { className: 'pill archived', label: 'Retired' },
   };
-  const c = config[status] ?? config[SOP_STATUS.DRAFT];
-  return (
-    <span style={{
-      fontSize: 11, fontWeight: 600,
-      background: c.bg, color: c.color, border: `1px solid ${c.border}`,
-      borderRadius: 4, padding: '2px 7px',
-    }}>
-      {c.label}
-    </span>
-  );
+  const chosen = pill[status] ?? pill[SOP_STATUS.DRAFT];
+  return <span className={chosen.className}>{chosen.label}</span>;
 }
 
 function CreateSopDialog({
@@ -352,40 +384,47 @@ function CreateSopDialog({
   };
 
   return (
-    <div style={overlayStyle} onClick={handleOverlayClick}>
-      <div style={dialogCardStyle}>
-        <div style={dialogHeaderStyle}>
-          <span style={dialogTitleStyle}>New SOP</span>
-          <button type="button" style={dialogCloseBtnStyle} onClick={onClose}>×</button>
-        </div>
-        <div style={dialogBodyStyle}>
-          <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>SOP Name <span style={{ color: 'var(--error)' }}>*</span></label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter SOP name"
-              style={inputStyle}
-              autoFocus
-            />
+    <div
+      className="dialog-backdrop"
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label="New SOP"
+    >
+      <div className="dialog" style={{ width: 440 }}>
+        <div className="dialog-head"><h2>New SOP</h2></div>
+        <div className="dialog-body">
+          <div className="field-grid">
+            <div className="field col-2">
+              <label className="lbl" htmlFor="sop-name">SOP name<span className="req">*</span></label>
+              <input
+                id="sop-name"
+                type="text"
+                className="fluent-input"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter SOP name"
+                autoFocus
+              />
+            </div>
+            <div className="field col-2">
+              <label className="lbl" htmlFor="sop-version">Version</label>
+              <input
+                id="sop-version"
+                type="text"
+                className="fluent-input"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                placeholder="1.0"
+              />
+            </div>
           </div>
-          <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>Version</label>
-            <input
-              type="text"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              placeholder="1.0"
-              style={inputStyle}
-            />
-          </div>
         </div>
-        <div style={dialogFooterStyle}>
-          <button type="button" style={cancelBtnStyle} onClick={onClose}>Cancel</button>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button
             type="button"
-            style={name.trim() ? confirmBtnStyle : confirmBtnDisabledStyle}
+            className="btn primary"
             disabled={!name.trim()}
             onClick={() => { if (name.trim()) onConfirm(name.trim(), version.trim() || '1.0'); }}
           >
@@ -398,64 +437,6 @@ function CreateSopDialog({
 }
 
 // --- Styles ---
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
-};
-
-const dialogCardStyle: React.CSSProperties = {
-  width: 400, background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-  display: 'flex', flexDirection: 'column',
-};
-
-const dialogHeaderStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
-};
-
-const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
-const dialogCloseBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
-  fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
-};
-
-const dialogBodyStyle: React.CSSProperties = {
-  padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16,
-};
-
-const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
-const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
-
-const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px', background: 'var(--surface)',
-  border: '1px solid var(--border-strong)', borderRadius: 6,
-  color: 'var(--text)', fontSize: 13, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-};
-
-const dialogFooterStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid var(--border)',
-  background: 'var(--surface-alt)', borderRadius: '0 0 12px 12px',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'var(--surface)',
-  border: '1px solid var(--border)', borderRadius: 6,
-  color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-
-const confirmBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'var(--accent-route)',
-  border: 'none', borderRadius: 6, color: 'var(--text-on-primary)',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};
-
-const confirmBtnDisabledStyle: React.CSSProperties = {
-  ...confirmBtnStyle, background: 'var(--accent-route-bg)', cursor: 'not-allowed',
-};
 
 const canvasOverlayStyle: React.CSSProperties = {
   position: 'absolute', inset: 0, zIndex: 9500,

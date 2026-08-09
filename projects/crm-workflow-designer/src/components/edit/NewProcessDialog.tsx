@@ -115,12 +115,12 @@ export function NewProcessDialog({ adapter, onConfirm, onClose }: NewProcessDial
   );
 
   return (
-    <div style={overlayStyle} onClick={handleOverlayClick} onKeyDown={handleKeyDown}>
-      <div style={cardStyle} role="dialog" aria-modal="true" aria-label="New Process">
+    <div className="dialog-backdrop" onClick={handleOverlayClick} onKeyDown={handleKeyDown}>
+      <div className="dialog" style={{ width: 560 }} role="dialog" aria-modal="true" aria-label="New process">
         {/* Header */}
-        <div style={headerStyle}>
-          <span style={titleStyle}>Create New Process</span>
-          <button type="button" style={closeBtnStyle} onClick={onClose} aria-label="Close">
+        <div className="dialog-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2>Create new process</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
             &times;
           </button>
         </div>
@@ -202,8 +202,8 @@ export function NewProcessDialog({ adapter, onConfirm, onClose }: NewProcessDial
         </div>
 
         {/* Footer */}
-        <div style={footerStyle}>
-          <button type="button" style={cancelBtnStyle} onClick={onClose}>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
           <button
@@ -219,53 +219,6 @@ export function NewProcessDialog({ adapter, onConfirm, onClose }: NewProcessDial
     </div>
   );
 }
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(15,23,42,0.5)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  zIndex: 9000,
-};
-
-const cardStyle: React.CSSProperties = {
-  width: 500,
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const headerStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '18px 24px 16px',
-  borderBottom: '1px solid var(--border)',
-  flexShrink: 0,
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 15,
-  fontWeight: 700,
-  color: 'var(--text)',
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  color: 'var(--text-disabled)',
-  fontSize: 22,
-  cursor: 'pointer',
-  lineHeight: 1,
-  padding: 0,
-  display: 'flex',
-  alignItems: 'center',
-};
 
 const bodyStyle: React.CSSProperties = {
   padding: '20px 24px',
@@ -307,29 +260,6 @@ const inputStyle: React.CSSProperties = {
   outline: 'none',
   width: '100%',
   boxSizing: 'border-box',
-};
-
-const footerStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: 8,
-  padding: '14px 24px',
-  borderTop: '1px solid var(--border)',
-  background: 'var(--surface-alt)',
-  borderRadius: '0 0 12px 12px',
-  flexShrink: 0,
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 34,
-  padding: '0 18px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 6,
-  color: 'var(--text)',
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
 };
 
 const confirmBtnStyle: React.CSSProperties = {

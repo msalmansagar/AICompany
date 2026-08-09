@@ -392,6 +392,33 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
 .dialog-body { padding: 16px 20px; overflow: auto; min-height: 0; }
 .dialog-foot { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
 
+/* ============ Toasts ============ */
+
+.toast-wrap {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 3100;
+  display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+.toast {
+  display: flex; align-items: center; gap: 10px; max-width: 90vw;
+  background: var(--text); color: var(--surface); padding: 10px 16px;
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-16); font-size: 13px;
+  animation: pe-pop .16s ease;
+}
+.toast .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.toast.info .dot { background: var(--primary); }
+.toast.warning .dot { background: var(--warning); }
+.toast.error .dot { background: var(--error); }
+.toast .close {
+  border: none; background: transparent; color: inherit; cursor: pointer;
+  opacity: .7; font-size: 14px; padding: 0 2px; margin-left: 4px;
+}
+.toast .close:hover { opacity: 1; }
+
+@keyframes pe-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+
 /* ============ Canvas ============ */
 
 /* React Flow ships its own stylesheet, which paints the controls and minimap

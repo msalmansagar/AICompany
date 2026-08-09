@@ -183,18 +183,27 @@ export function ProcessWizard({
     : (step === 'method' && method === METHOD_SOP ? 'Open SOP Designer' : 'Next');
 
   return (
-    <div style={overlayStyle} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={cardStyle} role="dialog" aria-modal="true" aria-label="Create Process">
-        <div style={headerStyle}>
-          <span style={titleStyle}>Create a process</span>
-          <button type="button" style={closeBtnStyle} onClick={onClose} aria-label="Close">&times;</button>
+    <div
+      className="dialog-backdrop"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        className="dialog"
+        style={{ width: 760 }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create a process"
+      >
+        <div className="dialog-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2>Create a process</h2>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">&times;</button>
         </div>
 
         <div style={splitStyle}>
           <Stepper steps={steps} current={step} />
 
           <div style={contentStyle}>
-            {error && <div style={errorStyle}>{error}</div>}
+            {error && <div className="notice error" style={{ marginBottom: 12 }}>{error}</div>}
 
             {step === 'method' && (
               <MethodPicker method={method} sopEnabled={sopEnabled} onPick={setMethod} />
@@ -245,15 +254,15 @@ export function ProcessWizard({
           </div>
         </div>
 
-        <div style={footerStyle}>
+        <div className="dialog-foot" style={{ justifyContent: 'space-between' }}>
           {step !== 'method' ? (
-            <button type="button" style={backBtnStyle} onClick={handleBack}>Back</button>
+            <button type="button" className="btn" onClick={handleBack}>Back</button>
           ) : <span />}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" style={cancelBtnStyle} onClick={onClose}>Cancel</button>
+            <button type="button" className="btn" onClick={onClose}>Cancel</button>
             <button
               type="button"
-              style={canProceed ? nextBtnStyle : nextBtnDisabledStyle}
+              className="btn primary"
               onClick={handleNext}
               disabled={!canProceed}
             >
@@ -499,23 +508,6 @@ function Stepper({ steps, current }: { steps: { key: WizardStep; label: string }
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
-};
-const cardStyle: React.CSSProperties = {
-  width: 760, maxWidth: '94vw', background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column',
-};
-const headerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-};
-const titleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: 'var(--text-disabled)', fontSize: 22,
-  cursor: 'pointer', lineHeight: 1, padding: 0, display: 'flex', alignItems: 'center',
-};
 const splitStyle: React.CSSProperties = { display: 'flex', minHeight: 320 };
 const stepperStyle: React.CSSProperties = {
   width: 170, flexShrink: 0, background: 'var(--surface-alt)', borderRight: '1px solid var(--border)',
@@ -562,24 +554,3 @@ const summaryRowStyle: React.CSSProperties = {
 };
 const summaryLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)' };
 const summaryValueStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)', textAlign: 'right' };
-const footerStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface-alt)', borderRadius: '0 0 12px 12px', flexShrink: 0,
-};
-const backBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'transparent', border: '1px solid var(--border)',
-  borderRadius: 6, color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 6, color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-const nextBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: 'var(--primary)', border: 'none', borderRadius: 6,
-  color: 'var(--text-on-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};
-const nextBtnDisabledStyle: React.CSSProperties = { ...nextBtnStyle, background: 'var(--primary-tint)', cursor: 'not-allowed' };
-const errorStyle: React.CSSProperties = {
-  padding: '10px 14px', background: 'var(--error-bg)', border: '1px solid var(--error)', borderRadius: 6,
-  color: 'var(--error)', fontSize: 13, marginBottom: 14,
-};

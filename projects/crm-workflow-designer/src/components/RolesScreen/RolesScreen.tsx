@@ -25,6 +25,10 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
   const [editing, setEditing] = useState<EditingRole | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Actions live on the command bar and read the selected row.
+  const selectedRole = roles.find((r) => r.id === selectedId) ?? null;
 
   const loadRoles = useCallback(() => {
     setIsLoading(true);
@@ -120,6 +124,35 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
         <button type="button" className="cmd primary" onClick={handleNew}>
           + New role
         </button>
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          disabled={!selectedRole}
+          onClick={() => selectedRole && handleEdit(selectedRole)}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="cmd"
+          disabled={!selectedRole}
+          onClick={() => selectedRole && void handleToggleStatus(selectedRole)}
+        >
+          {selectedRole?.status === ROLE_STATUS.INACTIVE ? 'Activate' : 'Deactivate'}
+        </button>
+        <button
+          type="button"
+          className="cmd danger"
+          disabled={!selectedRole}
+          onClick={() => selectedRole && void handleDelete(selectedRole)}
+        >
+          Delete
+        </button>
+        <span className="cmd-sep" />
+        <button type="button" className="cmd" onClick={loadRoles} disabled={isLoading}>
+          Refresh
+        </button>
         <span className="cmd-spacer" />
         <button type="button" className="cmd" onClick={onBack}>
           ← SOPs
@@ -133,79 +166,75 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
         </div>
       </div>
 
-      {/* Content */}
-      <div style={contentStyle}>
-        {isLoading && (
-          <div style={spinnerCenterStyle}>
-            <span style={spinnerStyle} /> Loading roles…
+      {loadError && <div className="message-bar" role="alert">{loadError}</div>}
+
+      <div className="scroll">
+        <div className="page">
+          <div className="grid-wrap">
+            {isLoading ? (
+              <div className="empty-state">
+                <span className="spinner" />
+                <span>Loading roles…</span>
+              </div>
+            ) : roles.length === 0 ? (
+              <div className="empty-state">
+                <span className="es-title">No roles yet</span>
+                <span>Create roles to assign to SOP steps.</span>
+                <button type="button" className="btn primary" onClick={handleNew}>
+                  + New role
+                </button>
+              </div>
+            ) : (
+              <table className="grid" role="grid">
+                <thead>
+                  <tr>
+                    <th className="row-check" />
+                    <th>Name</th>
+                    <th>Department</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {roles.map((role) => (
+                    <tr
+                      key={role.id}
+                      className={role.id === selectedId ? 'selected' : undefined}
+                      style={{ cursor: 'pointer' }}
+                      aria-selected={role.id === selectedId}
+                      onClick={() => setSelectedId(role.id === selectedId ? null : role.id)}
+                      onDoubleClick={() => handleEdit(role)}
+                    >
+                      <td className="row-check">
+                        <div className="box">
+                          {role.id === selectedId && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none" aria-hidden="true">
+                              <path d="M1 4l3 3L9 1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="link-cell"
+                          onClick={(e) => { e.stopPropagation(); handleEdit(role); }}
+                        >
+                          {role.name}
+                        </button>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>{role.department || '—'}</td>
+                      <td style={{ color: 'var(--text-secondary)', maxWidth: 260 }}>
+                        {role.description || '—'}
+                      </td>
+                      <td><StatusBadge status={role.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
-        )}
-
-        {loadError && <div style={errorBannerStyle}>{loadError}</div>}
-
-        {!isLoading && !loadError && roles.length === 0 && (
-          <div style={emptyStateStyle}>
-            <div style={emptyIconStyle}>👥</div>
-            <div style={emptyTitleStyle}>No roles yet</div>
-            <div style={emptySubStyle}>Create roles to assign to SOP steps.</div>
-            <button type="button" style={emptyNewBtnStyle} onClick={handleNew}>
-              + New Role
-            </button>
-          </div>
-        )}
-
-        {!isLoading && roles.length > 0 && (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={theadRowStyle}>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Department</th>
-                <th style={thStyle}>Description</th>
-                <th style={thStyle}>Status</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roles.map((role) => (
-                <tr key={role.id} style={tbodyRowStyle}>
-                  <td style={tdStyle}>
-                    <span style={roleNameStyle}>{role.name}</span>
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {role.department || '—'}
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: 12, color: 'var(--text-secondary)', maxWidth: 240 }}>
-                    {role.description || '—'}
-                  </td>
-                  <td style={tdStyle}>
-                    <StatusBadge status={role.status} />
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <div style={actionGroupStyle}>
-                      <button type="button" style={editBtnStyle} onClick={() => handleEdit(role)}>
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        style={role.status === ROLE_STATUS.ACTIVE ? deactivateBtnStyle : activateBtnStyle}
-                        onClick={() => void handleToggleStatus(role)}
-                      >
-                        {role.status === ROLE_STATUS.ACTIVE ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        type="button"
-                        style={deleteBtnStyle}
-                        onClick={() => void handleDelete(role)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        </div>
       </div>
 
       {/* Edit dialog */}
@@ -226,13 +255,7 @@ export function RolesScreen({ adapter, onBack }: RolesScreenProps) {
 function StatusBadge({ status }: { status: number }) {
   const isActive = status === ROLE_STATUS.ACTIVE;
   return (
-    <span style={{
-      fontSize: 11, fontWeight: 600,
-      background: isActive ? 'var(--success-bg)' : 'var(--surface-alt)',
-      color: isActive ? 'var(--success)' : 'var(--text-secondary)',
-      border: `1px solid ${isActive ? 'var(--success)' : 'var(--border)'}`,
-      borderRadius: 4, padding: '2px 7px',
-    }}>
+    <span className={isActive ? 'pill published' : 'pill draft'}>
       {isActive ? 'Active' : 'Inactive'}
     </span>
   );
@@ -260,56 +283,61 @@ function RoleEditDialog({
   };
 
   return (
-    <div style={overlayStyle} onClick={handleOverlayClick}>
-      <div style={dialogCardStyle}>
-        <div style={dialogHeaderStyle}>
-          <span style={dialogTitleStyle}>{isNew ? 'New Role' : 'Edit Role'}</span>
-          <button type="button" style={dialogCloseBtnStyle} onClick={onClose}>×</button>
+    <div
+      className="dialog-backdrop"
+      onClick={handleOverlayClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label={isNew ? 'New role' : 'Edit role'}
+    >
+      <div className="dialog" style={{ width: 460 }}>
+        <div className="dialog-head">
+          <h2>{isNew ? 'New role' : 'Edit role'}</h2>
         </div>
-        <div style={dialogBodyStyle}>
-          {saveError && <div style={dialogErrorStyle}>{saveError}</div>}
+        <div className="dialog-body">
+          {saveError && <div className="notice error" style={{ marginBottom: 12 }}>{saveError}</div>}
 
-          <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>Name <span style={{ color: 'var(--error)' }}>*</span></label>
-            <input
-              type="text"
-              value={editing.name}
-              onChange={(e) => onChange({ ...editing, name: e.target.value })}
-              style={inputStyle}
-              autoFocus
-            />
-          </div>
-          <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>Department</label>
-            <input
-              type="text"
-              value={editing.department}
-              onChange={(e) => onChange({ ...editing, department: e.target.value })}
-              placeholder="e.g. Operations, Finance"
-              style={inputStyle}
-            />
-          </div>
-          <div style={fieldGroupStyle}>
-            <label style={fieldLabelStyle}>Description</label>
-            <textarea
-              value={editing.description}
-              onChange={(e) => onChange({ ...editing, description: e.target.value })}
-              rows={2}
-              style={textareaStyle}
-            />
+          <div className="field-grid">
+            <div className="field col-2">
+              <label className="lbl" htmlFor="role-name">Name<span className="req">*</span></label>
+              <input
+                id="role-name"
+                type="text"
+                className="fluent-input"
+                value={editing.name}
+                onChange={(e) => onChange({ ...editing, name: e.target.value })}
+                autoFocus
+              />
+            </div>
+            <div className="field col-2">
+              <label className="lbl" htmlFor="role-department">Department</label>
+              <input
+                id="role-department"
+                type="text"
+                className="fluent-input"
+                value={editing.department}
+                onChange={(e) => onChange({ ...editing, department: e.target.value })}
+                placeholder="e.g. Operations, Finance"
+              />
+            </div>
+            <div className="field col-2">
+              <label className="lbl" htmlFor="role-description">Description</label>
+              <textarea
+                id="role-description"
+                className="fluent-input"
+                value={editing.description}
+                onChange={(e) => onChange({ ...editing, description: e.target.value })}
+                rows={2}
+              />
+            </div>
           </div>
         </div>
-        <div style={dialogFooterStyle}>
-          <button type="button" style={cancelBtnStyle} onClick={onClose} disabled={isSaving}>
+        <div className="dialog-foot">
+          <button type="button" className="btn" onClick={onClose} disabled={isSaving}>
             Cancel
           </button>
-          <button
-            type="button"
-            style={isSaving ? saveBtnDisabledStyle : saveBtnStyle}
-            onClick={onSave}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving…' : isNew ? 'Create Role' : 'Save Changes'}
+          <button type="button" className="btn primary" onClick={onSave} disabled={isSaving}>
+            {isSaving ? 'Saving…' : isNew ? 'Create role' : 'Save changes'}
           </button>
         </div>
       </div>
@@ -324,148 +352,3 @@ const shellStyle: React.CSSProperties = {
   background: 'var(--surface-alt)', fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
 
-const contentStyle: React.CSSProperties = { flex: 1, overflowY: 'auto', padding: '24px' };
-
-const spinnerCenterStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  gap: 10, fontSize: 13, color: 'var(--text-secondary)', padding: '60px 0',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block', width: 16, height: 16,
-  border: '2px solid var(--border)', borderTopColor: 'var(--primary)',
-  borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-};
-
-const errorBannerStyle: React.CSSProperties = {
-  padding: '12px 16px', background: 'var(--error-bg)',
-  border: '1px solid var(--error)', borderRadius: 6, color: 'var(--error)', fontSize: 13,
-};
-
-const emptyStateStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center',
-  justifyContent: 'center', gap: 12, padding: '80px 0',
-};
-
-const emptyIconStyle: React.CSSProperties = { fontSize: 48 };
-const emptyTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
-const emptySubStyle: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)' };
-const emptyNewBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: 'var(--primary)',
-  border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 600,
-  color: 'var(--text-on-primary)', cursor: 'pointer', marginTop: 4,
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%', borderCollapse: 'collapse',
-  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden',
-};
-
-const theadRowStyle: React.CSSProperties = { background: 'var(--surface-alt)' };
-const thStyle: React.CSSProperties = {
-  padding: '10px 16px', textAlign: 'left',
-  fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
-  borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
-};
-
-const tbodyRowStyle: React.CSSProperties = { borderBottom: '1px solid var(--border)' };
-const tdStyle: React.CSSProperties = { padding: '12px 16px', verticalAlign: 'middle' };
-const roleNameStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)' };
-
-const actionGroupStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 6,
-};
-
-const editBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: 'var(--primary-tint-2)',
-  border: '1px solid var(--primary-tint)', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: 'var(--primary-pressed)', cursor: 'pointer',
-};
-
-const deactivateBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: 'var(--warning-bg)',
-  border: '1px solid var(--warning)', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: 'var(--warning)', cursor: 'pointer',
-};
-
-const activateBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: 'var(--success-bg)',
-  border: '1px solid var(--success)', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: 'var(--success)', cursor: 'pointer',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 26, padding: '0 10px', background: 'var(--error-bg)',
-  border: '1px solid var(--error)', borderRadius: 4,
-  fontSize: 11, fontWeight: 500, color: 'var(--error)', cursor: 'pointer',
-};
-
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
-};
-
-const dialogCardStyle: React.CSSProperties = {
-  width: 440, background: 'var(--surface)', border: '1px solid var(--border)',
-  borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
-  display: 'flex', flexDirection: 'column',
-};
-
-const dialogHeaderStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
-};
-
-const dialogTitleStyle: React.CSSProperties = { fontSize: 15, fontWeight: 700, color: 'var(--text)' };
-const dialogCloseBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: 'var(--text-disabled)',
-  fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
-};
-
-const dialogBodyStyle: React.CSSProperties = {
-  padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16,
-};
-
-const dialogErrorStyle: React.CSSProperties = {
-  padding: '10px 14px', background: 'var(--error-bg)',
-  border: '1px solid var(--error)', borderRadius: 6, color: 'var(--error)', fontSize: 13,
-};
-
-const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
-const fieldLabelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: 'var(--text)' };
-
-const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px', background: 'var(--surface)',
-  border: '1px solid var(--border-strong)', borderRadius: 6,
-  color: 'var(--text)', fontSize: 13, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-};
-
-const textareaStyle: React.CSSProperties = {
-  padding: '8px 10px', background: 'var(--surface)',
-  border: '1px solid var(--border-strong)', borderRadius: 6,
-  color: 'var(--text)', fontSize: 13, outline: 'none',
-  width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
-};
-
-const dialogFooterStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px', borderTop: '1px solid var(--border)',
-  background: 'var(--surface-alt)', borderRadius: '0 0 12px 12px',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 18px', background: 'var(--surface)',
-  border: '1px solid var(--border)', borderRadius: 6,
-  color: 'var(--text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-
-const saveBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px', background: 'var(--primary)',
-  border: 'none', borderRadius: 6, color: 'var(--text-on-primary)',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};
-
-const saveBtnDisabledStyle: React.CSSProperties = {
-  ...saveBtnStyle, background: 'var(--primary-tint)', cursor: 'not-allowed',
-};
