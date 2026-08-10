@@ -271,9 +271,29 @@ src/
 Two renderers now exist — Puck's inside the editor canvas, ours at runtime. They
 must agree, or a page previews one way and publishes another.
 
-The comparison harness (`spikes/puck/app/oqb/page.tsx`) is committed and **must
-run in CI** over a corpus of pages, failing the build on any divergence. Current
-result: byte-identical, 17,719 characters, 225 elements, zero differences.
+**Built and running** — `.github/workflows/cms-renderer-parity.yml`.
+
+The renderer lives in one module, `spikes/puck/runtime/renderTree.tsx`, imported
+by the browser harness, the bundle measurement and the CI gate alike. A gate
+testing its own private copy would prove nothing about what ships.
+
+| Gate | Checks |
+|---|---|
+| **Parity** | Four pages × two locales rendered through both renderers; identical output required. Reports the first diverging character on failure. |
+| **Type-check** | `renderTree.tsx` under `strict`. |
+| **Visitor budget** | Bundle ≤ 80 KB gzip. Currently 53 KB; it reaches 331 KB if Puck leaks into the runtime path. |
+| **CSP hazards** | Editor bundle must contain zero dynamic imports, `fetch`, `importScripts`, `eval` or `new Function`. |
+
+Ten tests, all passing. **The gate was verified to fail**, not merely to pass: a
+one-word change to the renderer (a slot wrapper `div` → `span`) was injected and
+every corpus entry failed with the divergence located. A merge gate that has
+never been seen failing is not known to be a gate.
+
+> The wider spike carries **24 pre-existing type errors**, all from annotating
+> Puck's `Config` without type parameters so custom root slots do not type. They
+> are spike-quality debt for the Phase 4 rewrite, not absorbed silently by this
+> gate — which is why the type-check is scoped to the runtime module rather than
+> the whole directory.
 
 ---
 
@@ -297,4 +317,4 @@ result: byte-identical, 17,719 characters, 225 elements, zero differences.
 | A-2 | One environment per customer, no row-level tenant discriminator | §2 |
 | A-3 | Two bundles: editor 331 KB, runtime 53 KB | §1 |
 | A-4 | ADR-CMS-001 through 005 move from Proposed to Accepted | `adrs/` |
-| A-5 | Renderer comparison harness runs in CI as a merge gate | §4 |
+| A-5 | Renderer comparison harness runs in CI as a merge gate | §4 — **built**, `cms-renderer-parity.yml` |

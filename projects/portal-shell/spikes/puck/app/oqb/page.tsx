@@ -6,103 +6,25 @@ import { Render } from '@puckeditor/core';
 import { reyadaConfig } from '../../reyada.config';
 import { reyadaData } from '../../reyada.data';
 import { TokenRoot } from '../TokenRoot';
+import { renderTree, normaliseHtml as normalise } from '../../runtime/renderTree';
 
 /**
  * OQ-B — should the RUNTIME renderer be Puck's, or our own?
  *
- * If ours, visitors never load Puck at all and the 0.x dependency is confined
- * to the admin surface. That is a materially smaller risk than carrying it on
- * every page a citizen opens.
+ * Answered: ours. See ADR-CMS-004.
  *
  * This page renders the SAME tree twice — once through Puck's <Render>, once
- * through the hand-written renderer below — and diffs the resulting HTML. If
- * the output is identical, the question is answered by evidence rather than
- * preference.
+ * through our renderer — and diffs the result, in a real browser.
+ *
+ * The renderer itself now lives in runtime/renderTree.tsx and is imported
+ * here, by the CI parity gate, and by the bundle measurement. One
+ * implementation: a harness testing its own private copy would prove nothing
+ * about what ships.
+ *
+ * The headless equivalent of this page runs on every push —
+ * runtime/renderTree.parity.test.tsx — over four pages in both locales.
+ * This page remains useful for eyeballing a divergence the diff reports.
  */
-
-/* =====================================================================
-   Hand-written renderer.
-
-   Everything it needs to do: walk the tree, look up each block's definition
-   by type, resolve named slots into render-prop components, and pass props.
-
-   Deliberately NOT reimplemented, because the CMS does not use them:
-     resolveAllData   async/dynamic prop resolution (Puck's resolveData)
-     transformProps   field-level prop transforms
-     useRichtextProps rich text (blocked on OQ-1 anyway)
-     walkTree/zones   Puck's legacy zones mechanism — we use slots only
-     migrate          Puck's shape-sniffing migrations; ours is schemaVersion
-   ===================================================================== */
-
-type Block = { type: string; props: Record<string, any> };
-
-function renderTree(
-  config: any,
-  data: any,
-  metadata: Record<string, unknown>,
-): React.ReactNode {
-  /**
-   * A slot value is an array of blocks. The component expects to call it as a
-   * component — `<Content />` — so each slot becomes a render-prop that accepts
-   * the same className/style props Puck's slots accept.
-   */
-  const slotComponent = (blocks: Block[] | undefined) => {
-    const Slot = (slotProps: any = {}) =>
-      React.createElement(
-        'div',
-        { className: slotProps.className, style: slotProps.style },
-        (blocks ?? []).map((b, i) => renderBlock(b, i)),
-      );
-    return Slot;
-  };
-
-  /** Replaces any slot-valued prop with its render-prop equivalent. */
-  const resolveSlots = (definition: any, props: Record<string, any>) => {
-    const out: Record<string, any> = { ...props };
-    const fields = definition?.fields ?? {};
-    for (const [name, field] of Object.entries<any>(fields)) {
-      if (field?.type === 'slot') out[name] = slotComponent(props[name]);
-    }
-    return out;
-  };
-
-  function renderBlock(block: Block, key: number): React.ReactNode {
-    const definition = config.components[block.type];
-    // A missing definition must be visible, not silently skipped — the same
-    // rule as the unknown-icon placeholder.
-    if (!definition) {
-      return React.createElement(
-        'div',
-        { key, style: { border: '1px dashed #c0392b', padding: 8, fontSize: 12 } },
-        `Unknown block: ${block.type}`,
-      );
-    }
-    const props = resolveSlots(definition, block.props ?? {});
-    return React.createElement(definition.render, {
-      key,
-      ...props,
-      puck: { isEditing: false, metadata },
-    });
-  }
-
-  const rootDefinition = config.root;
-  const rootProps = resolveSlots(rootDefinition, data.root?.props ?? {});
-  return React.createElement(rootDefinition.render, {
-    ...rootProps,
-    puck: { isEditing: false, metadata },
-  });
-}
-
-/* ------------------------------------------------------------------ page */
-
-/** Strips attributes React generates non-deterministically before comparing. */
-function normalise(html: string): string {
-  return html
-    .replace(/\s+/g, ' ')
-    .replace(/ data-rfd-[a-z-]+="[^"]*"/g, '')
-    .replace(/ id="[^"]*"/g, '')
-    .trim();
-}
 
 export default function OqbPage() {
   const puckRef = useRef<HTMLDivElement>(null);
