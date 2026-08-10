@@ -12,6 +12,7 @@ rejected, and what evidence the decision rests on.
 |---|---|---|---|
 | [ADR-CMS-001](ADR-CMS-001-page-payload-storage.md) | Page payload storage: where a page's JSON lives, and what bounds it | Proposed | Measured payload sizes against the Dataverse Memo limit |
 | [ADR-CMS-002](ADR-CMS-002-icon-storage-geometry-not-files.md) | Icons are stored as geometry, not as files | Proposed | Dependency research — no .NET SVG sanitiser clears the bar |
+| [ADR-CMS-003](ADR-CMS-003-editor-adapter-boundary.md) | The editor sits behind an adapter; no Puck type crosses the boundary | Proposed | CEO condition C-7; Puck is 0.22 after three years |
 
 ## Inherited decisions
 
@@ -24,6 +25,14 @@ re-deciding:
 | ADR-PORT-005 | Portal Shell | Auth is Auth.js v5 → JWT → Fastify → msal-node. The CMS does not invent its own. |
 | DXP-P1-003 | DXP Phase 3 | Colour and typography are theme tokens. Pages store slugs, never values. |
 | DXP-P1-004 | DXP Phase 4 | Versioning and snapshots. Pages are versioned content, not versioned code. |
+
+## CEO conditions addressed here
+
+| Condition | Status | Where |
+|---|---|---|
+| **C-7** — Puck adapter interface designed and enforced | Addressed | [ADR-CMS-003](ADR-CMS-003-editor-adapter-boundary.md) |
+| **C-9** — RTL drag-and-drop visually confirmed | **Confirmed** | Both directions verified in the inline-canvas RTL spike: a block dropped on the visually-right zone landed right, and on the visually-left zone landed left. Not mirrored. |
+| C-8 — Tiptap v2/v3 clash | Open | Options recorded in `dependencies.md` Area 7 |
 
 ## Decisions still owed
 
