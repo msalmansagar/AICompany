@@ -11,6 +11,7 @@ rejected, and what evidence the decision rests on.
 | ADR | Title | Status | Rests on |
 |---|---|---|---|
 | [ADR-CMS-001](ADR-CMS-001-page-payload-storage.md) | Page payload storage: where a page's JSON lives, and what bounds it | Proposed | Measured payload sizes against the Dataverse Memo limit |
+| [ADR-CMS-002](ADR-CMS-002-icon-storage-geometry-not-files.md) | Icons are stored as geometry, not as files | Proposed | Dependency research — no .NET SVG sanitiser clears the bar |
 
 ## Inherited decisions
 
@@ -31,6 +32,6 @@ Recorded here so they are not forgotten between sessions.
 | # | Question | Blocked on |
 |---|---|---|
 | D-1 | Puck adoption itself — the spike proved it viable, but adopting a 0.x dependency for a multi-year product is a decision, not a finding. | BRD |
-| D-2 | Whether icons live in code or in Dataverse. Current direction is Dataverse, so authors are not blocked on developers. | BRD |
+| D-2 | ~~Whether icons live in code or in Dataverse.~~ **Settled**: Dataverse, stored as geometry — see ADR-CMS-002. | Closed |
 | D-3 | How far business users can go without a developer — the component-builder scope. | BRD |
 | D-4 | Bundling strategy for the on-premise web resource. A CDN load is blocked by CSP in a hardened CRM. | Architecture |
