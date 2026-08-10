@@ -1,12 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import {
   Button,
-  DataGrid,
-  DataGridBody,
-  DataGridCell,
-  DataGridHeader,
-  DataGridHeaderCell,
-  DataGridRow,
   Dialog,
   DialogActions,
   DialogBody,
@@ -16,10 +10,7 @@ import {
   Input,
   Select,
   Spinner,
-  TableCellLayout,
-  TableColumnDefinition,
   Text,
-  createTableColumn,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -107,9 +98,15 @@ const useStyles = makeStyles({
     alignItems: 'center',
     flexWrap: 'wrap',
   },
+  // The grid scrolls inside .grid-wrap, which is what the sticky header sticks to.
+  // This must not scroll as well, or there are two scrollbars and the header pins
+  // to the wrong one.
   tableContainer: {
     flex: 1,
-    overflow: 'auto',
+    minHeight: 0,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
     padding: '0 24px 24px',
   },
   emptyState: {
@@ -123,6 +120,16 @@ const useStyles = makeStyles({
 });
 
 const SELECT_A_FORM_FIRST = 'Select a form first';
+
+/** One column of the records grid: how it sorts, and what it puts in a cell. */
+interface GridColumn {
+  key: string;
+  label: string;
+  compare: (a: FormSummary, b: FormSummary) => number;
+  render: (form: FormSummary) => React.ReactNode;
+  /** Extra class on the cell, e.g. 'mono' for a code. */
+  cellClass?: string;
+}
 
 export function FormListScreen(): React.ReactElement {
   const styles = useStyles();
@@ -141,6 +148,10 @@ export function FormListScreen(): React.ReactElement {
   // Which row the command bar acts on. Single selection: the commands here operate
   // on one form, and a multi-select would only raise the question of what Open means.
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; isAscending: boolean }>({
+    key: 'modifiedOn',
+    isAscending: false,
+  });
 
   const loadForms = useCallback(async () => {
     if (!crmService) return;
@@ -304,55 +315,61 @@ export function FormListScreen(): React.ReactElement {
     : canDeleteSelected ? `Delete ${selectedForm.name}`
     : 'Only a draft can be deleted';
 
-  const columns: TableColumnDefinition<FormSummary>[] = [
-    createTableColumn<FormSummary>({
-      columnId: 'name',
+  const columns: GridColumn[] = [
+    {
+      key: 'name',
+      label: 'Form Name',
       compare: (a, b) => a.name.localeCompare(b.name),
-      renderHeaderCell: () => 'Form Name',
-      // The name is the way in, as it is in every model-driven grid. The command
-      // bar covers the same action for anyone working from the keyboard.
-      renderCell: item => (
-        <TableCellLayout>
-          <button
-            type="button"
-            className="link-cell"
-            onClick={() => void handleOpenForm(item.id)}
-            aria-label={`Open ${item.name}`}
-          >
-            {item.name}
-          </button>
-        </TableCellLayout>
+      // The name is the way in, as it is in every model-driven grid. Clicking it
+      // opens rather than selects, which is why the row handler ignores it.
+      render: form => (
+        <button
+          type="button"
+          className="link-cell"
+          onClick={() => void handleOpenForm(form.id)}
+          aria-label={`Open ${form.name}`}
+        >
+          {form.name}
+        </button>
       ),
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'code',
+    },
+    {
+      key: 'code',
+      label: 'Code',
       compare: (a, b) => a.code.localeCompare(b.code),
-      renderHeaderCell: () => 'Code',
-      renderCell: item => <TableCellLayout><Text font="monospace">{item.code}</Text></TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'status',
+      cellClass: 'mono',
+      render: form => form.code,
+    },
+    {
+      key: 'status',
+      label: 'Status',
       compare: (a, b) => a.status.localeCompare(b.status),
-      renderHeaderCell: () => 'Status',
-      renderCell: item => (
-        <TableCellLayout>
-          <span className={`pill ${item.status}`}>{item.status}</span>
-        </TableCellLayout>
-      ),
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'version',
+      render: form => <span className={`pill ${form.status}`}>{form.status}</span>,
+    },
+    {
+      key: 'version',
+      label: 'Version',
       compare: (a, b) => a.currentVersion.localeCompare(b.currentVersion),
-      renderHeaderCell: () => 'Version',
-      renderCell: item => <TableCellLayout>v{item.currentVersion}</TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'modifiedOn',
+      render: form => `v${form.currentVersion}`,
+    },
+    {
+      key: 'modifiedOn',
+      label: 'Modified On',
       compare: (a, b) => a.modifiedOn.getTime() - b.modifiedOn.getTime(),
-      renderHeaderCell: () => 'Modified On',
-      renderCell: item => <TableCellLayout>{item.modifiedOn.toLocaleDateString()}</TableCellLayout>,
-    }),
+      render: form => form.modifiedOn.toLocaleDateString(),
+    },
   ];
+
+  const sortedForms = [...forms].sort((a, b) => {
+    const column = columns.find(candidate => candidate.key === sort.key);
+    if (!column) return 0;
+    return sort.isAscending ? column.compare(a, b) : column.compare(b, a);
+  });
+
+  const toggleSort = (key: string): void =>
+    setSort(current =>
+      current.key === key ? { key, isAscending: !current.isAscending } : { key, isAscending: true },
+    );
 
   if (isOpeningForm) {
     return (
@@ -440,42 +457,77 @@ export function FormListScreen(): React.ReactElement {
             </Button>
           </div>
         ) : (
-          <DataGrid
-            items={forms}
-            columns={columns}
-            sortable
-            getRowId={item => item.id}
-            selectionMode="single"
-            selectedItems={selectedFormId ? [selectedFormId] : []}
-            onSelectionChange={(_, data) => {
-              const [first] = [...data.selectedItems];
-              setSelectedFormId(first === undefined ? null : String(first));
-            }}
-          >
-            <DataGridHeader>
-              {/* Single selection, so Fluent renders a radio here rather than a
-                  checkbox — the label has to go on radioIndicator to be applied. */}
-              <DataGridRow
-                selectionCell={{ radioIndicator: { 'aria-label': 'Select a form' } }}
-              >
-                {({ renderHeaderCell }) => (
-                  <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
-                )}
-              </DataGridRow>
-            </DataGridHeader>
-            <DataGridBody<FormSummary>>
-              {({ item, rowId }) => (
-                <DataGridRow<FormSummary>
-                  key={rowId}
-                  selectionCell={{ radioIndicator: { 'aria-label': `Select ${item.name}` } }}
-                >
-                  {({ renderCell }) => (
-                    <DataGridCell>{renderCell(item)}</DataGridCell>
-                  )}
-                </DataGridRow>
-              )}
-            </DataGridBody>
-          </DataGrid>
+          <>
+            <div className="grid-wrap">
+              <table className="grid" role="grid">
+                <thead>
+                  <tr>
+                    <th className="row-check" />
+                    {columns.map(column => (
+                      <th
+                        key={column.key}
+                        className="sortable"
+                        aria-sort={
+                          sort.key === column.key
+                            ? (sort.isAscending ? 'ascending' : 'descending')
+                            : 'none'
+                        }
+                        onClick={() => toggleSort(column.key)}
+                      >
+                        {column.label}
+                        <span className="sort-arrow" aria-hidden="true">
+                          {sort.key === column.key && !sort.isAscending ? '↓' : '↑'}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedForms.map(form => (
+                    // The whole row selects, as it does in the reference — clicking
+                    // the name is the one exception, because that opens the form.
+                    <tr
+                      key={form.id}
+                      data-id={form.id}
+                      className={form.id === selectedFormId ? 'selected' : undefined}
+                      aria-selected={form.id === selectedFormId}
+                      onClick={event => {
+                        // The name opens the form; without this it would select too.
+                        if ((event.target as HTMLElement).closest('.link-cell')) return;
+                        setSelectedFormId(form.id);
+                      }}
+                    >
+                      <td className="row-check">
+                        <input
+                          type="checkbox"
+                          checked={form.id === selectedFormId}
+                          aria-label={`Select ${form.name}`}
+                          // Without this the click also reaches the row handler, which
+                          // re-selects whatever the box just cleared.
+                          onClick={event => event.stopPropagation()}
+                          onChange={() =>
+                            setSelectedFormId(current => (current === form.id ? null : form.id))
+                          }
+                        />
+                      </td>
+                      {columns.map(column => (
+                        <td key={column.key} data-label={column.label} className={column.cellClass}>
+                          {column.render(form)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="legend">
+              {(['published', 'draft', 'archived'] as const).map(status => (
+                <span key={status}>
+                  <b>{forms.filter(form => form.status === status).length}</b> {status}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

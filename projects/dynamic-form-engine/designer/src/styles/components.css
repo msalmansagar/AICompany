@@ -167,15 +167,34 @@ a { color: var(--primary); }
 .cmd-sep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 4px; flex-shrink: 0; }
 .cmd-spacer { flex: 1; }
 
-/* The reference keeps the column headers in view while the rows scroll under them.
-   Fluent's grid header does not stick on its own, so it is pinned here — otherwise
-   a long list scrolls into unlabelled columns. */
-.fui-DataGridHeader {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
+/* ============ Records grid ============ */
+
+/* The reference's grid, to the letter: a checkbox per row, the name as the link
+   into the record, the whole row selectable, and a header that stays put while the
+   rows scroll under it. */
+.grid-wrap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  overflow: auto; flex: 1; min-height: 0;
 }
+table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.grid thead th {
+  text-align: left; font-weight: 600; color: var(--text-secondary); padding: 8px 12px; height: 40px;
+  border-bottom: 1px solid var(--border-strong); background: var(--surface); position: sticky; top: 0;
+  white-space: nowrap; font-size: 12px; z-index: 1;
+}
+table.grid tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); height: 44px; vertical-align: middle; }
+table.grid tbody tr { cursor: pointer; }
+table.grid tbody tr:hover { background: var(--primary-tint-2); }
+table.grid tbody tr.selected { background: var(--primary-tint); }
+table.grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.grid .mono { font-family: var(--font-mono); }
+.row-check { width: 36px; }
+.row-check input { cursor: pointer; }
+
+/* A sortable column header. The arrow sits at low opacity until the column sorts. */
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable .sort-arrow { margin-left: 4px; opacity: .3; }
+th.sortable[aria-sort]:not([aria-sort="none"]) .sort-arrow { opacity: 1; color: var(--primary); }
 
 /* The row's own name, as the way into it. */
 .link-cell {
@@ -183,6 +202,33 @@ a { color: var(--primary); }
   font-family: inherit; font-size: inherit; padding: 0; text-align: left;
 }
 .link-cell:hover { text-decoration: underline; }
+
+/* Counts under the grid, in the words the status column uses. */
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
+.legend b { color: var(--text); }
+
+/* Narrow: the table becomes a stack of cards, each cell labelled by its column. */
+@media (max-width: 720px) {
+  .grid-wrap { border: none; background: transparent; overflow: visible; flex: 0 0 auto; }
+  table.grid thead { display: none; }
+  table.grid, table.grid tbody, table.grid tr, table.grid td { display: block; width: 100%; }
+  table.grid tr {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); margin: 0 0 10px;
+    background: var(--surface); overflow: hidden; box-shadow: var(--shadow-8);
+  }
+  table.grid tbody tr:hover { background: var(--surface); }
+  table.grid tbody tr.selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  table.grid td {
+    border: none; border-bottom: 1px solid var(--border); height: auto; padding: 9px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 14px; text-align: right;
+  }
+  table.grid td:last-child { border-bottom: none; }
+  table.grid td::before {
+    content: attr(data-label); font-weight: 600; color: var(--text-secondary);
+    text-align: left; flex: 0 0 auto; font-size: 12px;
+  }
+  table.grid td.row-check { display: none; }
+}
 
 /* ============ Status pills ============ */
 

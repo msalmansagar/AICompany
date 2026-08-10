@@ -63,11 +63,16 @@ async function renderList(): Promise<void> {
 const command = (name: RegExp): HTMLButtonElement =>
   screen.getByRole('button', { name }) as HTMLButtonElement;
 
-// Single selection renders a radio, not a checkbox — which is also why the label
-// belongs on radioIndicator rather than checkboxIndicator.
+// The reference's grid selects with a checkbox, not a radio.
 async function selectRow(formName: string): Promise<void> {
-  await userEvent.click(screen.getByRole('radio', { name: `Select ${formName}` }));
+  await userEvent.click(screen.getByRole('checkbox', { name: `Select ${formName}` }));
 }
+
+const rowFor = (formName: string): HTMLTableRowElement => {
+  const row = screen.getByText(formName).closest('tr');
+  if (!row) throw new Error(`No row for ${formName}`);
+  return row as HTMLTableRowElement;
+};
 
 describe('FormListScreen command bar', () => {
   beforeEach(() => {
@@ -132,6 +137,62 @@ describe('FormListScreen command bar', () => {
     await renderList();
 
     expect(screen.getByRole('button', { name: 'Open Draft Form' })).toHaveClass('link-cell');
+  });
+
+  it('selects_with_a_checkbox_as_the_reference_does', async () => {
+    await renderList();
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(FORMS.length);
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+  });
+
+  it('selects_from_anywhere_in_the_row', async () => {
+    await renderList();
+
+    await userEvent.click(rowFor('Published Form'));
+
+    expect(rowFor('Published Form')).toHaveClass('selected');
+    expect(command(/^Open$/).disabled).toBe(false);
+  });
+
+  it('opens_rather_than_selects_when_the_name_is_clicked', async () => {
+    // The name is a link into the record, not a way of ticking the row. If the row
+    // handler did not ignore it, clicking a name would quietly select instead.
+    await renderList();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open Published Form' }));
+
+    expect(command(/^Open$/).disabled).toBe(true);
+  });
+
+  it('unselects_when_the_checkbox_is_clicked_again', async () => {
+    await renderList();
+
+    await selectRow('Draft Form');
+    await selectRow('Draft Form');
+
+    expect(command(/^Open$/).disabled).toBe(true);
+  });
+
+  it('sorts_a_column_and_reverses_it_on_a_second_click', async () => {
+    await renderList();
+    const header = screen.getByRole('columnheader', { name: /Form Name/ });
+
+    await userEvent.click(header);
+    expect(header).toHaveAttribute('aria-sort', 'ascending');
+    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Draft Form');
+
+    await userEvent.click(header);
+    expect(header).toHaveAttribute('aria-sort', 'descending');
+    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Published Form');
+  });
+
+  it('counts_the_statuses_under_the_grid', async () => {
+    await renderList();
+
+    const legend = document.querySelector('.legend');
+    expect(legend).toHaveTextContent('1 published');
+    expect(legend).toHaveTextContent('1 draft');
   });
 
   it('always_allows_creating_a_form_with_nothing_selected', async () => {
