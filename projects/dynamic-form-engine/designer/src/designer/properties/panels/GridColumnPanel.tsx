@@ -59,8 +59,22 @@ const useStyles = makeStyles({
     justifyContent: 'space-between',
   },
   columnActions: { display: 'flex', gap: '4px' },
-  fieldRow: { display: 'flex', gap: '8px' },
-  fieldRowItem: { flex: 1, minWidth: 0 },
+  // The properties panel is 320px, leaving a measured 246px inside this card.
+  // Three controls forced across it left ~82px each — narrower than a select's own
+  // option text or the switch's Yes/No label, which is why they overlapped.
+  //
+  // Auto-fit reflows instead. The minimum is 112px because two columns need
+  // 2 x min + 8px of gap to fit inside 246: at 120px that comes to 248 and every
+  // row silently collapsed to one control per line, which is tidy but wastes half
+  // the panel. 112 pairs them up, and three still cannot fit, so the switch drops
+  // to its own line where its label has room.
+  fieldRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))',
+    gap: '8px',
+    alignItems: 'end',
+  },
+  fieldRowItem: { minWidth: 0 },
 });
 
 function generateTempColId(): string {
