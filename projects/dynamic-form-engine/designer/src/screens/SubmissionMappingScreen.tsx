@@ -49,7 +49,7 @@ const transformLabel = (value: string): string =>
   TRANSFORM_OPTIONS.find(option => option.value === (value || NO_TRANSFORM))?.label ?? TRANSFORM_OPTIONS[0].label;
 
 const useStyles = makeStyles({
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: tokens.colorNeutralBackground3 },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: tokens.colorNeutralBackground3 },
   topBar: { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 20px', backgroundColor: tokens.colorNeutralBackground1, borderBottom: `1px solid ${tokens.colorNeutralStroke1}`, flexShrink: 0 },
   // Body uses block layout so cards expand to their natural height and scroll correctly.
   // Flex layout with a fixed-height parent causes cards to collapse when there are many rows.

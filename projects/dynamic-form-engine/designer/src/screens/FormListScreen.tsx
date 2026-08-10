@@ -80,7 +80,7 @@ const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground1,
   },
   header: {
@@ -373,7 +373,7 @@ export function FormListScreen(): React.ReactElement {
 
   if (isOpeningForm) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Spinner label="Opening form..." />
       </div>
     );

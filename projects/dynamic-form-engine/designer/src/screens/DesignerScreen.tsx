@@ -43,7 +43,7 @@ const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     overflow: 'hidden',
     backgroundColor: tokens.colorNeutralBackground3,
   },
@@ -510,7 +510,7 @@ export function DesignerScreen(): React.ReactElement {
 
   if (!form) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Spinner label="Loading form..." />
       </div>
     );

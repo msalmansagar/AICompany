@@ -36,7 +36,7 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground3,
   },
   card: {
