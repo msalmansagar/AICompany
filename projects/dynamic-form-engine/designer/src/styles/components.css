@@ -166,6 +166,15 @@ a { color: var(--primary); }
 .cmd.danger:disabled { color: var(--text-disabled); }
 .cmd-sep { width: 1px; height: 20px; background: var(--border-strong); margin: 0 4px; flex-shrink: 0; }
 .cmd-spacer { flex: 1; }
+.cmd svg { flex-shrink: 0; }
+
+/* The record the bar acts on: its name, its status, and whether it is unsaved. */
+.cmd-record { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0 6px; }
+.cmd-record-name {
+  font-weight: 600; font-size: 14px; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 28ch;
+}
+.cmd-dirty { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
 
 /* ============ Records grid ============ */
 
