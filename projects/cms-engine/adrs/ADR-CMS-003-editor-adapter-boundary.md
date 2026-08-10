@@ -171,11 +171,32 @@ rather than optimistic.
 | `locale` | Puck `metadata.locale` | Puck's metadata is untyped; the adapter types it |
 | `schemaVersion` | *(no equivalent)* | Ours alone. Puck's `Data` has no version field, which is precisely why we cannot store it directly |
 
-That last row is the one that justifies the whole ADR independently of
-replaceability. **Puck's `Data` has no schema version.** Storing it raw means a
-future Puck format change silently invalidates every page in the database with
-no way to detect which version a stored page was written against. Our `PageTree`
-carries `schemaVersion` from the first row written.
+That last row justifies the ADR independently of replaceability — but the
+argument needs stating precisely, because an earlier draft of this document
+overstated it.
+
+**Corrected 2026-08-10.** An earlier version claimed a Puck format change would
+"silently invalidate every page with no way to detect which version a stored page
+was written against". Inspecting the shipped bundle shows that is wrong: Puck
+*does* migrate older data, via a `migrations` array applied on read. Those
+migrations detect whether they apply by **sniffing the shape** — for example
+`if (!data.root.props)` — rather than by reading a version.
+
+The accurate argument is narrower and still holds:
+
+- Puck's `Data` genuinely carries **no version field**. Confirmed in the bundle.
+- Shape-sniffing works only while old and new shapes are *distinguishable*. A
+  change that is ambiguous — same shape, different meaning — cannot be detected
+  this way at all.
+- Migration runs **on every read**, and the shipped migrations emit
+  `console.warn` / `console.log` when they fire. That is acceptable in a
+  developer tool and unwelcome on a public page.
+- An explicit version lets us migrate **once, at publish**, and know what we are
+  reading instead of inferring it.
+
+Our `PageTree` therefore carries `schemaVersion` from the first row written. The
+reason is not that Puck cannot evolve its format — it can — but that we want the
+evolution to be *explicit and one-time* rather than *inferred and repeated*.
 
 ---
 
@@ -241,9 +262,8 @@ about a 0.x dependency.
 | # | Question | Owner |
 |---|---|---|
 | OQ-A | Does the adapter own the bilingual field expansion, or does the domain store one field with `{ en, ar }`? The latter is cleaner but changes the stored shape — decide before the first row is written. | Architecture |
-| OQ-B | Should `RendererPort` also be Puck-backed, or hand-written? Puck's runtime is 52 KB; a hand-written renderer over our own `PageTree` might be smaller and would remove Puck from the visitor path entirely. | Architecture |
+| ~~OQ-B~~ | ~~Should `RendererPort` also be Puck-backed, or hand-written?~~ **Answered — see [ADR-CMS-004](ADR-CMS-004-own-the-runtime-renderer.md).** A hand-written renderer produces byte-identical output in ~60 lines, so the runtime is ours and Puck never reaches a visitor. | Closed |
 
-> OQ-B is worth real thought. If the renderer is ours, **visitors never load Puck
-> at all** — only authors do. That would confine a 0.x dependency to the admin
-> surface, which is a materially smaller risk than having it on every page a
-> citizen opens.
+> The renderer question turned out to be the more valuable half of this ADR.
+> See ADR-CMS-004: confining Puck to the admin surface is a materially smaller
+> risk than carrying a 0.x dependency on every page a citizen opens.
