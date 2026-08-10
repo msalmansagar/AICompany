@@ -35,8 +35,32 @@ import { downloadWorkbook } from '@/utils/downloadFile';
 // exceljs is around a megabyte and only the two modules below pull it in. Loading them on
 // demand keeps it out of the designer's first paint, which every user pays for, and into a
 // chunk fetched by the few who open this dialog.
-const loadExporter = () => import('@/services/translations/TranslationExportService');
-const loadParser = () => import('@/services/translations/translationWorkbookParser');
+// The workbook code is split out so exceljs (~940 KB) stays out of the main bundle.
+// In CRM every chunk is a SEPARATE web resource, so an environment whose solution
+// predates this feature — or whose import was partial — simply does not have the
+// file, and the dynamic import fails with a bare "Failed to fetch dynamically
+// imported module: <url>". That names a URL and no cause, which is not something a
+// maker can act on. These say what is actually missing and what to do about it.
+const EXPORTER_WEB_RESOURCE = 'qdb_/form-designer/assets/TranslationExportService.js';
+const PARSER_WEB_RESOURCE = 'qdb_/form-designer/assets/translationWorkbookParser.js';
+
+async function loadChunk<T>(load: () => Promise<T>, webResourceName: string): Promise<T> {
+  try {
+    return await load();
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `This environment is missing the web resource "${webResourceName}", which the ` +
+        `translation workbook needs. Import and publish the current Form Designer ` +
+        `solution, then reload this page. (${detail})`,
+    );
+  }
+}
+
+const loadExporter = () =>
+  loadChunk(() => import('@/services/translations/TranslationExportService'), EXPORTER_WEB_RESOURCE);
+const loadParser = () =>
+  loadChunk(() => import('@/services/translations/translationWorkbookParser'), PARSER_WEB_RESOURCE);
 
 const useStyles = makeStyles({
   section: { display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' },
