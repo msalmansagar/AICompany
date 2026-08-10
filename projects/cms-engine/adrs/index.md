@@ -14,6 +14,7 @@ rejected, and what evidence the decision rests on.
 | [ADR-CMS-002](ADR-CMS-002-icon-storage-geometry-not-files.md) | Icons are stored as geometry, not as files | Proposed | Dependency research — no .NET SVG sanitiser clears the bar |
 | [ADR-CMS-003](ADR-CMS-003-editor-adapter-boundary.md) | The editor sits behind an adapter; no Puck type crosses the boundary | Proposed | CEO condition C-7; Puck is 0.22 after three years |
 | [ADR-CMS-004](ADR-CMS-004-own-the-runtime-renderer.md) | The runtime renderer is ours; Puck never reaches a visitor | Proposed | Hand-written renderer produced byte-identical output — 17,719 chars, 225 elements, zero differences |
+| [ADR-CMS-005](ADR-CMS-005-tiptap-version-clash.md) | The Tiptap clash is a retirement, not an upgrade | Proposed | Tiptap 2.x reaches portal-shell through exactly one file, used by the two screens the CMS replaces |
 
 ## Inherited decisions
 
@@ -33,7 +34,7 @@ re-deciding:
 |---|---|---|
 | **C-7** — Puck adapter interface designed and enforced | Addressed | [ADR-CMS-003](ADR-CMS-003-editor-adapter-boundary.md) |
 | **C-9** — RTL drag-and-drop visually confirmed | **Confirmed** | Both directions verified in the inline-canvas RTL spike: a block dropped on the visually-right zone landed right, and on the visually-left zone landed left. Not mirrored. |
-| C-8 — Tiptap v2/v3 clash | Open | Options recorded in `dependencies.md` Area 7 |
+| **C-8** — Tiptap v2/v3 clash | Addressed | [ADR-CMS-005](ADR-CMS-005-tiptap-version-clash.md) — not a clash to resolve but a component to retire |
 
 ## Decisions still owed
 
