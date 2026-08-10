@@ -170,7 +170,7 @@ function getType(ext) {
 
 // ─── Dataverse Web API ────────────────────────────────────────────────────────
 
-function apiRequest(method, orgUrl, path, token, body) {
+function apiRequest(method, orgUrl, path, token, body, extraHeaders) {
   return new Promise((resolve, reject) => {
     const bodyStr = body ? JSON.stringify(body) : '';
     const opts = {
@@ -183,6 +183,7 @@ function apiRequest(method, orgUrl, path, token, body) {
         'OData-MaxVersion': '4.0',
         'OData-Version': '4.0',
         ...(body ? { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(bodyStr) } : {}),
+        ...extraHeaders,
       },
     };
     const req = https.request(opts, res => {
@@ -204,16 +205,24 @@ async function findWebResource(orgUrl, token, name) {
   return parsed.value?.[0]?.webresourceid ?? null;
 }
 
+// Web resources created without this header land in the Default solution, not in
+// FormDesignerWebResource. Everything still WORKS on the org that was deployed to,
+// so nothing looks wrong — but exporting the solution then carries none of them,
+// and importing that export elsewhere ships an app missing its own files. That is
+// how on-premise ended up running the designer with no stylesheet.
+const SOLUTION_UNIQUE_NAME = 'FormDesignerWebResource';
+
 async function upsertWebResource(orgUrl, token, name, type, base64Content) {
   const body = { name, displayname: name, webresourcetype: type, content: base64Content };
+  const headers = { 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME };
   const existingId = await findWebResource(orgUrl, token, name);
 
   if (existingId) {
-    const r = await apiRequest('PATCH', orgUrl, `webresourceset(${existingId})`, token, body);
+    const r = await apiRequest('PATCH', orgUrl, `webresourceset(${existingId})`, token, body, headers);
     if (r.status >= 400) throw new Error(r.body);
     return 'updated';
   } else {
-    const r = await apiRequest('POST', orgUrl, 'webresourceset', token, body);
+    const r = await apiRequest('POST', orgUrl, 'webresourceset', token, body, headers);
     if (r.status >= 400) throw new Error(r.body);
     return 'created';
   }
