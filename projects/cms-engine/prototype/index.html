@@ -35,7 +35,15 @@
     A UX prototype for a metadata-driven content management engine that runs <b>inside Dynamics</b> —
     a Dataverse web resource for the designer, a plugin for anything that must be auditable, and no
     hosted middle tier. Same architecture as the Report Engine (ADR-RPT-011).
-    13 screens across six files, one design system. Self-contained: no build step, no network calls.
+    15 screens across seven files, one design system.
+  </div>
+
+  <div class="banner" data-tone="ok" style="margin-top:22px">
+    <span>🔓</span>
+    <div><b>Everything here is a screen, not a code change.</b> A Power Admin can build components,
+    define fields, approve colours, upload icons, edit navigation and publish — with no developer
+    involved. Capability is governed by <b>permission</b>, not by who can write code. A developer is
+    only needed to add a genuinely new kind of brick, which is rare.</div>
   </div>
 
   <div class="banner" data-tone="warn" style="margin-top:22px">
@@ -75,10 +83,10 @@
 
     <a class="file-card" href="03-content.html#media">
       <div class="fc-top"><span class="fc-num">03</span><span class="fc-name">Content</span></div>
-      <div class="fc-desc">Media library where pages store an asset key rather than a URL, and the
-        translation workbench with missing and stale detection.</div>
-      <div class="fc-screens"><span>Media library</span><span>Asset detail</span>
-        <span>Translations</span><span>String editor</span></div>
+      <div class="fc-desc">Media and icon libraries — pages store a name, not a file, so swapping one
+        updates every page untouched. Plus the translation workbench with missing and stale detection.</div>
+      <div class="fc-screens"><span>Media library</span><span>Icon library</span>
+        <span>Upload &amp; sanitise</span><span>Translations</span><span>String editor</span></div>
     </a>
 
     <a class="file-card" href="04-design.html#tokens">
@@ -100,9 +108,18 @@
     <a class="file-card" href="06-governance.html#review">
       <div class="fc-top"><span class="fc-num">06</span><span class="fc-name">Governance</span></div>
       <div class="fc-desc">Review queue, append-only version history with restore, the plugin-written
-        publish log, and the role matrix that keeps shell editing away from content authors.</div>
+        publish log, and a matrix of all 14 capabilities against the five roles.</div>
       <div class="fc-screens"><span>Review queue</span><span>Versions</span><span>Diff</span>
-        <span>Publish log</span><span>Roles</span></div>
+        <span>Publish log</span><span>Capability matrix</span></div>
+    </a>
+
+    <a class="file-card" href="07-builder.html#builder">
+      <div class="fc-top"><span class="fc-num">07</span><span class="fc-name">Build a component</span></div>
+      <div class="fc-desc">Where a business user creates a new reusable block without a developer —
+        by combining existing blocks or filling in a layout template, then defining the fields
+        authors will complete.</div>
+      <div class="fc-screens"><span>Combine blocks</span><span>Layout template</span>
+        <span>Field designer</span><span>Preview</span><span>Components built this way</span></div>
     </a>
 
   </div>
@@ -130,13 +147,27 @@
     </div>
   </div>
 
+  <h2>What keeps it safe</h2>
+  <div class="card">
+    <div class="fc-desc">
+      Handing this much power to non-developers only works because three things exist, and all three
+      are in the prototype: <b>approval before publish</b>, so an author cannot reach a citizen alone;
+      <b>versioning</b>, so every change is a new version and anything can be rolled back; and an
+      <b>audit log written by the plugin</b>, so it cannot be skipped. Remove any one and "everyone can
+      do everything" becomes "anyone can break the public site".
+    </div>
+  </div>
+
   <h2>Not in this prototype</h2>
   <div class="card">
     <div class="fc-desc">
-      No real Dataverse connection, no authentication, no drag-and-drop reordering (blocks are added by
-      clicking the palette), and photography is represented by CSS gradients. Arabic copy is unreviewed.
-      The designer here is a <b>faithful mock</b> of the editor's behaviour — the working Puck-based
-      implementation lives in <code class="mono">projects/portal-shell/spikes/puck</code>.
+      No real Dataverse connection and no authentication. Photography is represented by CSS gradients,
+      and the Arabic copy has not been reviewed by QDB. The component builder shows the flow but does
+      not persist what you build.
+      <br><br>
+      <b>The Designer is the exception — it runs the real Puck editor</b>, loaded from a CDN. It is the
+      only screen here that needs a network connection; every other screen works offline. In production
+      Puck ships bundled into a single Dataverse web resource, because a hardened CRM blocks CDN loads.
     </div>
   </div>
 </div>

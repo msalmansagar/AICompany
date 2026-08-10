@@ -132,3 +132,70 @@ const REVIEW_QUEUE = [
   { page: "Growth Opportunities", by: "Sara H.",  waiting: "2h 14m", locales: ["EN","AR"], changes: 12 },
   { page: "Events & Workshops",   by: "Noora A.", waiting: "26m",    locales: ["EN"],      changes: 4 },
 ];
+
+/* =====================================================================
+   Icon library.
+
+   `source` distinguishes icons that ship with the solution from those a
+   power admin uploaded. Authors pick from the combined list and never
+   need to know the difference — but governance does, because uploaded
+   SVG is sanitised on write and built-in icons are not user input.
+   ===================================================================== */
+const ICON_LIBRARY = [
+  { key: "grid",       name: "Dashboard",      source: "built-in", used: 4, added: "shipped" },
+  { key: "pages",      name: "Document",       source: "built-in", used: 6, added: "shipped" },
+  { key: "calendar",   name: "Calendar",       source: "built-in", used: 9, added: "shipped" },
+  { key: "clock",      name: "Clock",          source: "built-in", used: 7, added: "shipped" },
+  { key: "pin",        name: "Location",       source: "built-in", used: 8, added: "shipped" },
+  { key: "award",      name: "Award",          source: "built-in", used: 3, added: "shipped" },
+  { key: "users",      name: "People",         source: "built-in", used: 5, added: "shipped" },
+  { key: "briefcase",  name: "Briefcase",      source: "built-in", used: 4, added: "shipped" },
+  { key: "shield",     name: "Shield",         source: "built-in", used: 2, added: "shipped" },
+  { key: "globe",      name: "Globe",          source: "built-in", used: 3, added: "shipped" },
+  { key: "qdb-falcon",   name: "QDB falcon",       source: "uploaded", used: 5, added: "2026-08-03 by Noora A." },
+  { key: "reyada-mark",  name: "Reyada mark",      source: "uploaded", used: 8, added: "2026-08-03 by Noora A." },
+  { key: "qatar-vision",  name: "Vision 2030",     source: "uploaded", used: 2, added: "2026-07-28 by Khalid M." },
+  { key: "sme-badge",    name: "SME badge",        source: "uploaded", used: 6, added: "2026-07-22 by Noora A." },
+];
+
+/** Components a power admin composed, with no developer involved. */
+const CUSTOM_COMPONENTS = [
+  { name: "Service card", from: "blocks", built: "Section + Image + Heading + Text + Button",
+    fields: 5, used: 14, by: "Noora A.", on: "2026-08-04", status: "Published" },
+  { name: "Event tile", from: "blocks", built: "Section + Image + Badge + Heading + Meta rows",
+    fields: 7, used: 9, by: "Khalid M.", on: "2026-07-30", status: "Published" },
+  { name: "Advisor profile", from: "template", built: "Card template",
+    fields: 6, used: 22, by: "Noora A.", on: "2026-07-25", status: "Published" },
+  { name: "Stat banner", from: "template", built: "Banner template",
+    fields: 4, used: 3, by: "Sara H.", on: "2026-08-05", status: "Draft" },
+];
+
+/** Field types a power admin can add when defining a component. */
+const FIELD_TYPES = [
+  { type: "Text",        icon: "text",     desc: "Single line. Gets an EN and an AR box." },
+  { type: "Long text",   icon: "pages",    desc: "Paragraph. Also bilingual." },
+  { type: "Image",       icon: "image",    desc: "Picks from the media library." },
+  { type: "Icon",        icon: "award",    desc: "Picks from the icon library." },
+  { type: "Colour",      icon: "palette",  desc: "Picks an approved token. Never a free hex." },
+  { type: "Link",        icon: "external", desc: "Page, external URL, or open a dialog." },
+  { type: "Choice",      icon: "check",    desc: "A fixed list you define." },
+  { type: "Number",      icon: "stat",     desc: "Numeric only." },
+];
+
+/** Every capability, and which role holds it. Drives the roles matrix. */
+const CAPABILITIES = [
+  { cap: "Create & compose pages",   admin: 1, author: 1, translator: 0, approver: 1, viewer: 0 },
+  { cap: "Upload photos",            admin: 1, author: 1, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Upload icons",             admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Translations",             admin: 1, author: 1, translator: 1, approver: 1, viewer: 0 },
+  { cap: "Pick approved colours",    admin: 1, author: 1, translator: 0, approver: 1, viewer: 0 },
+  { cap: "Define approved colours",  admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Build components",         admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Define component fields",  admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Edit navigation",          admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Edit page shell",          admin: 1, author: 0, translator: 0, approver: 0, viewer: 0 },
+  { cap: "Submit for review",        admin: 1, author: 1, translator: 1, approver: 1, viewer: 0 },
+  { cap: "Publish",                  admin: 1, author: 0, translator: 0, approver: 1, viewer: 0 },
+  { cap: "Roll back a version",      admin: 1, author: 0, translator: 0, approver: 1, viewer: 0 },
+  { cap: "View audit log",           admin: 1, author: 0, translator: 0, approver: 1, viewer: 0 },
+];

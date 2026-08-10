@@ -19,11 +19,13 @@ const SITEMAP = [
   ]},
   { grp: "Content", items: [
     { id: "media",     file: "03-content.html",   label: "Media library", icon: "media" },
+    { id: "icons",     file: "03-content.html",   label: "Icon library",  icon: "award" },
     { id: "i18n",      file: "03-content.html",   label: "Translations",  icon: "globe" },
   ]},
   { grp: "Design system", items: [
     { id: "tokens",    file: "04-design.html",    label: "Theme tokens",  icon: "palette" },
     { id: "registry",  file: "04-design.html",    label: "Components",    icon: "section" },
+    { id: "builder",   file: "07-builder.html",   label: "Build component", icon: "wrench" },
   ]},
   { grp: "Structure", items: [
     { id: "nav",       file: "05-structure.html", label: "Navigation",    icon: "structure" },

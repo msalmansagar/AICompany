@@ -100,20 +100,35 @@
             <div class="tbl-wrap"><table class="tbl" id="rolesTbl"></table></div>
           </div>
 
+          <div class="card" style="margin-bottom:16px">
+            <h3>Every capability, and who holds it</h3>
+            <div class="sub">Nothing here needs code. The only question is who is allowed.</div>
+            <div class="tbl-wrap"><table class="tbl" id="capMatrix"></table></div>
+          </div>
+
           <div class="grid" data-cols="2">
             <div class="card">
-              <h3>What each role can edit</h3>
-              <div class="sub">Region-level, not page-level</div>
-              <div id="regionMatrix"></div>
+              <h3>What "Power Admin" means</h3>
+              <div style="font-size:13.5px;line-height:1.75;color:var(--text-secondary)">
+                A Power Admin can do <b>everything</b> — build components, define fields, approve
+                colours, upload icons, edit the shell and publish. No developer is involved in any
+                of it.
+                <br><br>That is the point of this design: capability is a <b>screen</b>, not a code
+                change. A developer is only needed to add a genuinely new kind of brick — a live
+                map, a payment widget — which is rare.
+              </div>
             </div>
             <div class="card">
-              <h3>Why the shell is gated</h3>
+              <h3>What keeps it safe</h3>
               <div style="font-size:13.5px;line-height:1.75;color:var(--text-secondary)">
-                Header, navigation and footer are editable regions like any other — which means an
-                author could delete the navigation and break every page at once.
-                <br><br>Until shell versions can be rolled back independently of page content, shell
-                editing stays with <b>Portal Admin</b>. Content Authors get the middle region only.
-                That is a deliberate sequencing decision, not a platform limitation.
+                Handing this much power to non-developers only works because three things exist:
+                <br><br>
+                <b>1. Approval before publish</b> — an author cannot put anything in front of a
+                citizen alone.<br>
+                <b>2. Versioning</b> — every change is a new version, so anything can be rolled back.<br>
+                <b>3. Audit</b> — the publish log is written by the plugin, so it cannot be skipped.
+                <br><br>Remove any one of them and "everyone can do everything" becomes "anyone can
+                break the public site".
               </div>
             </div>
           </div>
@@ -225,25 +240,20 @@ function renderRoles() {
           : `<span class="pill">No</span>`}</td>
       </tr>`).join("")}</tbody>`;
 
-  const regions = ["Header", "Navigation", "Content", "Footer", "Theme tokens"];
-  const matrix = {
-    "Portal Admin":   [1,1,1,1,1],
-    "Content Author": [0,0,1,0,0],
-    "Translator":     [0,0,1,0,0],
-    "Approver":       [0,0,1,0,0],
-    "Viewer":         [0,0,0,0,0],
-  };
-  $("#regionMatrix").innerHTML = `
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Role</th>${regions.map(r => `<th>${esc(r)}</th>`).join("")}</tr></thead>
-      <tbody>${Object.entries(matrix).map(([role, cells]) => `
-        <tr><td style="font-size:12.5px">${esc(role)}</td>
-          ${cells.map(c => `<td>${c
-            ? `<span style="color:var(--success)">${icon("check",15)}</span>`
-            : `<span class="muted">—</span>`}</td>`).join("")}
-        </tr>`).join("")}</tbody></table></div>
-    <div class="hint" style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
-      Translator differs from Content Author by <b>field</b>, not region: Arabic fields only.</div>`;
+  const yes = `<span style="color:var(--success)">${icon("check", 15)}</span>`;
+  const no  = `<span class="muted">—</span>`;
+  $("#capMatrix").innerHTML = `
+    <thead><tr><th>Capability</th><th>Power Admin</th><th>Content Author</th>
+      <th>Translator</th><th>Approver</th><th>Viewer</th></tr></thead>
+    <tbody>${CAPABILITIES.map(c => `
+      <tr>
+        <td>${esc(c.cap)}</td>
+        <td>${c.admin ? yes : no}</td>
+        <td>${c.author ? yes : no}</td>
+        <td>${c.translator ? yes : no}</td>
+        <td>${c.approver ? yes : no}</td>
+        <td>${c.viewer ? yes : no}</td>
+      </tr>`).join("")}</tbody>`;
 }
 
 Shell.init("06-governance.html", "review");
