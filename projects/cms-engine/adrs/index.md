@@ -45,4 +45,4 @@ Recorded here so they are not forgotten between sessions.
 | D-1 | Puck adoption itself — the spike proved it viable, but adopting a 0.x dependency for a multi-year product is a decision, not a finding. | BRD |
 | D-2 | ~~Whether icons live in code or in Dataverse.~~ **Settled**: Dataverse, stored as geometry — see ADR-CMS-002. | Closed |
 | D-3 | How far business users can go without a developer — the component-builder scope. | BRD |
-| D-4 | Bundling strategy for the on-premise web resource. A CDN load is blocked by CSP in a hardened CRM. | Architecture |
+| D-4 | ~~Bundling strategy for the on-premise web resource.~~ **Settled**: the editor bundles to a single self-contained IIFE — 331 KB gzipped, zero dynamic imports, zero `fetch`, zero `eval`. Visitor bundle is 53 KB without Puck. See [`spikes/puck/bundle-test/`](../../portal-shell/spikes/puck/bundle-test/README.md) and `phase-3-arch.md` §1. | Closed |
