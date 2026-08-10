@@ -20,7 +20,7 @@
     "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "typecheck:e2e": "tsc --noEmit --project tsconfig.e2e.json",
-    "clean": "rimraf dist deploy"
+    "clean": "rimraf dist deploy/webresources deploy/.staging \"deploy/*.zip\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
