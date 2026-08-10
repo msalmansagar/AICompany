@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Build component — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+<style>
+  .path-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
+    gap:16px; margin-block-end:22px; }
+  .path { border:2px solid var(--border-strong); border-radius:var(--radius-lg);
+    padding:20px; background:var(--surface); cursor:pointer; }
+  .path:hover { border-color:var(--primary); }
+  .path[aria-pressed="true"] { border-color:var(--primary); background:var(--primary-tint-2); }
+  .path h3 { font-size:15px; margin-block-end:6px; }
+  .path p { margin:0; font-size:13px; color:var(--text-secondary); line-height:1.6; }
+  .path .cover { font-size:11.5px; font-weight:700; color:var(--primary);
+    text-transform:uppercase; letter-spacing:.05em; margin-block-start:12px; }
+
+  .fld-row { display:flex; align-items:center; gap:12px; border:1px solid var(--border-strong);
+    border-radius:8px; padding:11px 13px; margin-block-end:8px; background:var(--surface); }
+  .fld-row .ic { color:var(--primary); flex-shrink:0; }
+  .fld-row b { font-size:13.5px; }
+  .fld-row .desc { font-size:11.5px; color:var(--text-secondary); }
+
+  .type-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr));
+    gap:9px; }
+  .type-btn { display:flex; align-items:center; gap:10px; border:1px solid var(--border-strong);
+    border-radius:8px; padding:11px 13px; background:var(--surface); cursor:pointer;
+    text-align:start; font-family:inherit; color:inherit; }
+  .type-btn:hover { border-color:var(--primary); background:var(--surface-alt); }
+  .type-btn .ic { color:var(--primary); flex-shrink:0; }
+
+  .tmpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; }
+  .tmpl { border:2px solid var(--border-strong); border-radius:8px; padding:12px;
+    background:var(--surface); cursor:pointer; }
+  .tmpl:hover, .tmpl[aria-pressed="true"] { border-color:var(--primary); }
+  .tmpl .sk { display:grid; gap:4px; margin-block-end:9px; }
+  .tmpl .sk i { display:block; background:var(--border-strong); border-radius:2px; }
+  .tmpl span { font-size:12.5px; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <span class="pill" data-tone="err">Power admin only</span>
+        <span class="sp"></span>
+        <button class="btn" onclick="toast('Saved as draft — not yet in the palette')">Save draft</button>
+        <button class="btn" data-v="primary"
+          onclick="toast('Published — “Service card” is now in the Designer palette for everyone')">
+          Publish to palette</button>
+      </div>
+      <div class="scroll">
+
+        <section class="screen active" id="builder" data-title="Build a component">
+          <div class="banner" data-tone="info">
+            <span>🧱</span>
+            <div><b>A component is a reusable block that authors drag onto pages.</b> Build one here
+            without writing code, name it, and it appears in the Designer palette for everyone.
+            Nothing is deployed and no developer is involved.</div>
+          </div>
+
+          <p class="sec-title" style="margin-block-end:10px">Choose how to build it</p>
+          <div class="path-cards" id="paths"></div>
+
+          <div class="split">
+            <div class="stack">
+              <div class="card" id="buildCard">
+                <h3 id="buildTitle">Combine existing blocks</h3>
+                <div class="sub" id="buildSub">Lay blocks out once, then save the arrangement as a named component</div>
+                <div id="buildBody"></div>
+              </div>
+
+              <div class="card">
+                <h3>Fields authors will fill in</h3>
+                <div class="sub">Each field becomes a box in the Designer's right-hand panel</div>
+                <div id="fieldList"></div>
+                <p class="sec-title" style="margin:18px 0 9px">Add a field</p>
+                <div class="type-grid" id="typeGrid"></div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h3>Preview</h3>
+                <div class="sub">How it will look on a page</div>
+                <div id="preview"></div>
+              </div>
+
+              <div class="card">
+                <h3>Details</h3>
+                <div class="fld"><label>Component name</label>
+                  <input type="text" id="cName" value="Service card" /></div>
+                <div class="fld"><label>Category in the palette</label>
+                  <select id="cCat">
+                    <option>Layout</option><option>Content</option><option>Actions</option>
+                    <option selected>Data</option><option>Custom</option>
+                  </select></div>
+                <div class="fld"><label>Who can use it</label>
+                  <select><option>Everyone who can edit pages</option>
+                    <option>Power admins only</option></select></div>
+              </div>
+
+              <div class="card">
+                <h3>What gets saved</h3>
+                <div class="sub">A row in <code class="mono">qdb_componentdefinition</code></div>
+                <div class="code" id="saveCode"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <div class="row" style="margin-block-end:12px">
+              <h3>Components built this way</h3>
+              <span class="muted right" style="font-size:12.5px">Created by business users, no developer involved</span>
+            </div>
+            <div class="tbl-wrap"><table class="tbl" id="customTbl"></table></div>
+          </div>
+
+          <div class="banner" data-tone="warn" style="margin-top:16px">
+            <span>⚠️</span>
+            <div><b>Where this stops.</b> Anything you can express by arranging existing blocks, you can
+            build here. Something genuinely new — a live map, a payment widget, a chart bound to live
+            data — still needs a developer to add a new brick. In practice that is rare: the 13 basic
+            blocks cover almost everything, and each new brick a developer adds multiplies what can be
+            built here without them.</div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+let mode = "blocks";
+
+/** Fields the admin has defined so far. Seeded to look mid-build. */
+let fields = [
+  { name: "Title",       type: "Text",      bilingual: true },
+  { name: "Description", type: "Long text", bilingual: true },
+  { name: "Picture",     type: "Image",     bilingual: false },
+  { name: "Accent",      type: "Colour",    bilingual: false },
+  { name: "Link",        type: "Link",      bilingual: false },
+];
+
+const BLOCKS = ["Section", "Image", "Heading", "Text", "Button"];
+
+const TEMPLATES = [
+  { id: "card",   name: "Card",    rows: [22, 10, 6, 6] },
+  { id: "banner", name: "Banner",  rows: [40, 8] },
+  { id: "split",  name: "Split",   rows: [30] },
+  { id: "list",   name: "List row",rows: [8, 8, 8] },
+];
+
+function renderPaths() {
+  const paths = [
+    { id: "blocks", title: "Combine existing blocks",
+      desc: "Arrange blocks the way you want them, then save that arrangement as one named component.",
+      cover: "covers ~80% of requests" },
+    { id: "template", title: "Start from a layout template",
+      desc: "Pick a shape — card, banner, split, list row — and choose which fields go in it.",
+      cover: "covers ~15% more" },
+  ];
+  $("#paths").innerHTML = paths.map(p => `
+    <div class="path" role="button" tabindex="0" aria-pressed="${mode === p.id}"
+      onclick="setMode('${p.id}')">
+      <h3>${esc(p.title)}</h3><p>${esc(p.desc)}</p>
+      <div class="cover">${esc(p.cover)}</div>
+    </div>`).join("");
+}
+
+function setMode(m) { mode = m; renderPaths(); renderBuild(); renderPreview(); renderSaveCode(); }
+
+function renderBuild() {
+  if (mode === "blocks") {
+    $("#buildTitle").textContent = "Combine existing blocks";
+    $("#buildSub").textContent = "Lay blocks out once, then save the arrangement as a named component";
+    $("#buildBody").innerHTML = `
+      <div style="border:1px solid var(--border-strong);border-radius:8px;padding:14px;
+        background:var(--surface-alt)">
+        ${BLOCKS.map((b, i) => `
+          <div class="fld-row" style="margin-inline-start:${i === 0 ? 0 : 18}px">
+            <span class="ic">${icon("section", 16)}</span>
+            <div><b>${esc(b)}</b>
+              <div class="desc">${i === 0 ? "the outer wrapper" : "inside the section"}</div></div>
+            <span class="right muted">${icon("drag", 15)}</span>
+          </div>`).join("")}
+      </div>
+      <button class="btn" style="width:100%;margin-top:12px"
+        onclick="toast('Opens the Designer so you can arrange the blocks visually')">
+        Arrange visually in the Designer</button>`;
+  } else {
+    $("#buildTitle").textContent = "Start from a layout template";
+    $("#buildSub").textContent = "Pick a shape, then choose which fields sit inside it";
+    $("#buildBody").innerHTML = `<div class="tmpl-grid">${TEMPLATES.map((t, i) => `
+      <div class="tmpl" role="button" tabindex="0" aria-pressed="${i === 0}"
+        onclick="toast('Template “${esc(t.name)}” selected')">
+        <div class="sk">${t.rows.map(r => `<i style="height:${r}px"></i>`).join("")}</div>
+        <span>${esc(t.name)}</span>
+      </div>`).join("")}</div>`;
+  }
+}
+
+function renderFields() {
+  $("#fieldList").innerHTML = fields.map((f, i) => `
+    <div class="fld-row">
+      <span class="ic">${icon(FIELD_TYPES.find(t => t.type === f.type)?.icon || "text", 16)}</span>
+      <div><b>${esc(f.name)}</b>
+        <div class="desc">${esc(f.type)}${f.bilingual ? " · English + العربية" : ""}</div></div>
+      <button class="btn" data-v="subtle" class="right" style="margin-inline-start:auto"
+        onclick="removeField(${i})">${icon("trash", 14)}</button>
+    </div>`).join("") || `<div class="muted" style="font-size:13px">No fields yet.</div>`;
+}
+
+function renderTypes() {
+  $("#typeGrid").innerHTML = FIELD_TYPES.map(t => `
+    <button class="type-btn" type="button" onclick="addField('${t.type}')">
+      <span class="ic">${icon(t.icon, 16)}</span>
+      <span><b style="font-size:13px">${esc(t.type)}</b>
+        <div class="desc" style="font-size:11px;color:var(--text-secondary)">${esc(t.desc)}</div></span>
+    </button>`).join("");
+}
+
+function addField(type) {
+  // Text fields are bilingual by default because the portal is bilingual —
+  // making the author remember to tick a box is how half-translated pages happen.
+  const bilingual = type === "Text" || type === "Long text";
+  fields.push({ name: type + " " + (fields.length + 1), type, bilingual });
+  renderFields(); renderPreview(); renderSaveCode();
+  toast(`${type} field added${bilingual ? " — bilingual by default" : ""}`);
+}
+
+function removeField(i) { fields.splice(i, 1); renderFields(); renderPreview(); renderSaveCode(); }
+
+function renderPreview() {
+  $("#preview").innerHTML = `
+    <div style="border:1px solid var(--border-strong);border-radius:8px;overflow:hidden">
+      <div style="background:#fff;color:#1a2129;padding:16px">
+        ${fields.some(f => f.type === "Image")
+          ? `<div style="height:96px;border-radius:7px;margin-bottom:12px;
+              background:linear-gradient(135deg,#20415c,#5b93ad)"></div>` : ""}
+        ${fields.some(f => f.type === "Text")
+          ? `<div style="font-size:16px;font-weight:700;margin-bottom:6px">Legal Services</div>` : ""}
+        ${fields.some(f => f.type === "Long text")
+          ? `<div style="font-size:13px;color:#5d6b7a;line-height:1.6;margin-bottom:12px">
+              Company formation, contract review and regulatory guidance for Qatari businesses.</div>` : ""}
+        ${fields.some(f => f.type === "Link")
+          ? `<span style="display:inline-block;background:#3d8a72;color:#fff;border-radius:6px;
+              padding:8px 16px;font-size:13px;font-weight:600">Learn more</span>` : ""}
+      </div>
+    </div>
+    <div class="hint" style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
+      Preview updates as you add or remove fields.</div>`;
+}
+
+function renderSaveCode() {
+  const props = fields.flatMap(f => f.bilingual
+    ? [`${camel(f.name)}En`, `${camel(f.name)}Ar`]
+    : [camel(f.name)]);
+  $("#saveCode").innerHTML =
+`{
+  <span class="k">"qdb_name"</span>: <span class="s">"${esc($("#cName")?.value || "Service card")}"</span>,
+  <span class="k">"qdb_category"</span>: <span class="s">"${esc($("#cCat")?.value || "Data")}"</span>,
+  <span class="k">"qdb_builtfrom"</span>: <span class="s">"${mode === "blocks" ? "blocks" : "template"}"</span>,
+  <span class="k">"qdb_propsschema"</span>: {
+${props.map(p => `    <span class="k">"${p}"</span>: { <span class="k">"type"</span>: <span class="s">"string"</span> }`).join(",\n")}
+  }
+}
+
+<span class="c">// One row. No deployment, no code.</span>
+<span class="c">// Publishing adds it to every author's palette.</span>`;
+}
+
+const camel = (s) => s.trim().toLowerCase().replace(/[^a-z0-9 ]/g, "")
+  .replace(/ (.)/g, (_, c) => c.toUpperCase());
+
+function renderCustom() {
+  $("#customTbl").innerHTML = `
+    <thead><tr><th>Component</th><th>Built from</th><th>Made of</th>
+      <th class="num">Fields</th><th class="num">Used on</th><th>By</th><th>Status</th></tr></thead>
+    <tbody>${CUSTOM_COMPONENTS.map(c => `
+      <tr>
+        <td><b>${esc(c.name)}</b></td>
+        <td><span class="pill" data-tone="${c.from === 'blocks' ? 'info' : ''}">
+          ${c.from === 'blocks' ? 'Combined blocks' : 'Template'}</span></td>
+        <td class="muted" style="font-size:12px">${esc(c.built)}</td>
+        <td class="num">${c.fields}</td>
+        <td class="num">${c.used}</td>
+        <td>${esc(c.by)}<br><span class="muted mono" style="font-size:11px">${esc(c.on)}</span></td>
+        <td>${statusPill(c.status)}</td>
+      </tr>`).join("")}</tbody>`;
+}
+
+Shell.init("07-builder.html", "builder");
+renderPaths(); renderBuild(); renderFields(); renderTypes();
+renderPreview(); renderSaveCode(); renderCustom();
+["cName","cCat"].forEach(id => $("#"+id).addEventListener("input", renderSaveCode));
+</script>
+</body>
+</html>

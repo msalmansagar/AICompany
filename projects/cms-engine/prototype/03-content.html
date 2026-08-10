@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Content — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <button class="btn" data-v="primary" onclick="toast('Upload — not in this prototype')">＋ Upload</button>
+        <span class="sp"></span>
+        <button class="btn" onclick="toast('Exported 216 strings to XLSX for translation')">Export for translation</button>
+      </div>
+      <div class="scroll">
+
+        <!-- ================================================ MEDIA LIBRARY -->
+        <section class="screen" id="media" data-title="Media library">
+          <div class="banner" data-tone="info">
+            <span>🖼</span>
+            <div>Pages store an <b>asset key</b>, never a URL or a CSS value. Replacing a placeholder with
+            real photography updates <code class="mono">qdb_cmsmediaasset</code> and every page that
+            references it picks up the change untouched — no page is edited, no version is created.</div>
+          </div>
+
+          <div class="filters">
+            <input type="search" id="mSearch" placeholder="Search assets…" />
+            <select id="mKind"><option value="">All kinds</option><option>Image</option><option>Logo</option></select>
+            <span class="muted" id="mCount"></span>
+          </div>
+
+          <div class="media-grid" id="mediaGrid"></div>
+        </section>
+
+        <!-- ================================================= ICON LIBRARY -->
+        <section class="screen" id="icons" data-title="Icon library">
+          <div class="banner" data-tone="info">
+            <span>✨</span>
+            <div>Icons work exactly like photos: a page stores the icon's <b>name</b>, and this library
+            holds the actual shape. Swap an icon here and every page using it updates — no page is
+            edited, no version created. <b>Power admins can upload their own</b>, so a new icon does not
+            wait on a developer.</div>
+          </div>
+
+          <div class="banner" data-tone="warn">
+            <span>🛡</span>
+            <div><b>Why uploads are checked.</b> An SVG file is not really a picture — it is a small
+            program, and a malicious one can run code on the portal when a visitor opens the page.
+            Every upload is stripped of scripts, event handlers and external references before it is
+            stored. Rejected files are logged, not silently dropped.</div>
+          </div>
+
+          <div class="filters">
+            <input type="search" id="icSearch" placeholder="Search icons…" />
+            <select id="icSource">
+              <option value="">All sources</option>
+              <option value="built-in">Built in</option>
+              <option value="uploaded">Uploaded</option>
+            </select>
+            <span class="muted" id="icCount"></span>
+            <button class="btn" data-v="primary" class="right"
+              onclick="uploadIcon()" style="margin-inline-start:auto">＋ Upload icon</button>
+          </div>
+
+          <div class="media-grid" id="iconGrid"></div>
+        </section>
+
+        <!-- ================================================= TRANSLATIONS -->
+        <section class="screen" id="i18n" data-title="Translations">
+          <div class="grid" data-cols="4" style="margin-bottom:18px" id="i18nKpis"></div>
+
+          <div class="banner" data-tone="warn">
+            <span>⚠️</span>
+            <div><b>Stale</b> means the English source changed after the Arabic was written. The engine keeps a
+            hash of the source string at translation time; when the source moves, the pair is flagged rather
+            than silently serving an out-of-date translation.</div>
+          </div>
+
+          <div class="filters">
+            <input type="search" id="tSearch" placeholder="Search key or text…" />
+            <select id="tState">
+              <option value="">All states</option>
+              <option>Translated</option><option>Missing</option><option>Stale</option>
+            </select>
+            <span class="muted" id="tCount"></span>
+          </div>
+
+          <div class="card" style="padding:0">
+            <div class="tbl-wrap"><table class="tbl" id="i18nTbl"></table></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+function renderMedia() {
+  const q = ($("#mSearch").value || "").toLowerCase();
+  const k = $("#mKind").value;
+  const rows = MEDIA.filter(m =>
+    (!q || m.name.toLowerCase().includes(q) || m.key.includes(q)) && (!k || m.kind === k));
+
+  $("#mCount").textContent = `${rows.length} of ${MEDIA.length} assets`;
+  $("#mediaGrid").innerHTML = rows.map(m => `
+    <div class="media-item" onclick='openAsset(${JSON.stringify(m.key)})'>
+      <div class="thumb" style="background:${m.css};background-size:cover"></div>
+      <div class="meta"><b>${esc(m.name)}</b><span>${esc(m.key)}</span>
+        <div class="row" style="margin-top:7px;gap:5px">
+          <span class="pill">${esc(m.kind)}</span>
+          <span class="pill" data-tone="${m.used ? 'info' : 'warn'}">${m.used} use${m.used===1?'':'s'}</span>
+        </div></div>
+    </div>`).join("") || `<div class="empty">No assets match.</div>`;
+}
+
+function openAsset(key) {
+  const m = MEDIA.find(x => x.key === key);
+  drawer(m.name, `
+    <div style="height:150px;border-radius:8px;background:${m.css};background-size:cover;margin-bottom:16px"></div>
+    <div class="fld"><label>Asset key</label><input type="text" value="${esc(m.key)}" readonly /></div>
+    <div class="row" style="gap:8px;margin-bottom:16px">
+      <span class="pill">${esc(m.kind)}</span><span class="pill">${esc(m.dims)}</span>
+      <span class="pill">${esc(m.size)}</span>
+      <span class="pill" data-tone="info">${m.used} page${m.used===1?'':'s'}</span></div>
+    <h3 style="font-size:13.5px;margin-bottom:8px">Referenced by</h3>
+    <div class="muted" style="font-size:13px;line-height:1.8">
+      ${PAGES.slice(0, m.used).map(p => "/" + p.slug).join("<br>") || "Not used yet"}</div>
+    <div class="banner" data-tone="info" style="margin-top:18px"><span>ℹ️</span>
+      <div>Replacing this file updates every reference at once. Pages are not re-versioned,
+      because the page stores the <b>key</b>, not the image.</div></div>`);
+}
+
+function renderI18nKpis() {
+  const total = TRANSLATIONS.length;
+  const by = (s) => TRANSLATIONS.filter(t => t.state === s).length;
+  const kpi = (l, v, note, tone, ic) => `
+    <div class="card kpi"><div class="k-label">${l} ${icon(ic,16)}</div>
+      <div class="k-value">${v}</div><div class="k-note" ${tone?`data-tone="${tone}"`:""}>${note}</div></div>`;
+  $("#i18nKpis").innerHTML =
+    kpi("Total strings", total, "across 12 pages", "", "globe") +
+    kpi("Translated", by("Translated"), Math.round(by("Translated")/total*100) + "% coverage", "up", "check") +
+    kpi("Missing", by("Missing"), "blocks Arabic publish", by("Missing") ? "down" : "", "alert") +
+    kpi("Stale", by("Stale"), "source changed after translation", "down", "history");
+}
+
+function renderI18n() {
+  const q = ($("#tSearch").value || "").toLowerCase();
+  const s = $("#tState").value;
+  const rows = TRANSLATIONS.filter(t =>
+    (!q || t.key.includes(q) || t.en.toLowerCase().includes(q)) && (!s || t.state === s));
+
+  const tone = { Translated: "ok", Missing: "err", Stale: "warn" };
+  $("#tCount").textContent = `${rows.length} of ${TRANSLATIONS.length} strings`;
+  $("#i18nTbl").innerHTML = `
+    <thead><tr><th>Key</th><th>English</th><th>العربية</th><th>State</th><th>Page</th></tr></thead>
+    <tbody>${rows.map(t => `
+      <tr onclick='editString(${JSON.stringify(t.key)})'>
+        <td><code>${esc(t.key)}</code></td>
+        <td style="max-width:320px">${esc(t.en)}</td>
+        <td style="max-width:320px" dir="rtl">${t.ar ? esc(t.ar) :
+          `<span class="muted" dir="ltr">— not translated —</span>`}</td>
+        <td><span class="pill" data-tone="${tone[t.state]}">${esc(t.state)}</span></td>
+        <td class="muted">${esc(t.page)}</td>
+      </tr>`).join("") || `<tr><td colspan="5" class="empty">Nothing matches.</td></tr>`}</tbody>`;
+}
+
+function editString(key) {
+  const t = TRANSLATIONS.find(x => x.key === key);
+  drawer("Translate — " + t.key, `
+    <div class="fld"><label>English (source)</label>
+      <textarea readonly>${esc(t.en)}</textarea>
+      <div class="hint">Source is read-only here — edit it on the page itself.</div></div>
+    <div class="fld"><label>العربية</label>
+      <textarea dir="rtl" placeholder="أدخل الترجمة…">${esc(t.ar)}</textarea></div>
+    ${t.state === "Stale" ? `<div class="banner" data-tone="warn"><span>⚠️</span>
+      <div>The English source changed after this Arabic was written. Review before saving.</div></div>` : ""}
+    <button class="btn" data-v="primary" style="width:100%"
+      onclick="toast('Translation saved — page marked for republish')">Save translation</button>`);
+}
+
+/* --------------------------------------------------------- icon library */
+function renderIcons() {
+  const q = ($("#icSearch").value || "").toLowerCase();
+  const s = $("#icSource").value;
+  const rows = ICON_LIBRARY.filter(i =>
+    (!q || i.name.toLowerCase().includes(q) || i.key.includes(q)) && (!s || i.source === s));
+
+  $("#icCount").textContent = `${rows.length} of ${ICON_LIBRARY.length} icons`;
+  $("#iconGrid").innerHTML = rows.map(i => `
+    <div class="media-item" onclick='openIcon(${JSON.stringify(i.key)})'>
+      <div class="thumb" style="display:grid;place-items:center;background:var(--surface-alt);
+        color:var(--text)">${icon(i.key, 34)}</div>
+      <div class="meta"><b>${esc(i.name)}</b><span>${esc(i.key)}</span>
+        <div class="row" style="margin-top:7px;gap:5px">
+          <span class="pill" data-tone="${i.source === 'uploaded' ? 'brand' : ''}">
+            ${i.source === 'uploaded' ? 'Uploaded' : 'Built in'}</span>
+          <span class="pill" data-tone="${i.used ? 'info' : 'warn'}">${i.used} use${i.used === 1 ? '' : 's'}</span>
+        </div></div>
+    </div>`).join("") || `<div class="empty">No icons match.</div>`;
+}
+
+function openIcon(key) {
+  const i = ICON_LIBRARY.find(x => x.key === key);
+  drawer(i.name, `
+    <div style="height:120px;display:grid;place-items:center;background:var(--surface-alt);
+      border-radius:8px;margin-bottom:16px">${icon(i.key, 56)}</div>
+    <div class="fld"><label>Icon name — this is what pages store</label>
+      <input type="text" value="${esc(i.key)}" readonly /></div>
+    <div class="row" style="gap:8px;margin-bottom:16px">
+      <span class="pill" data-tone="${i.source === 'uploaded' ? 'brand' : ''}">
+        ${i.source === 'uploaded' ? 'Uploaded' : 'Built in'}</span>
+      <span class="pill" data-tone="info">${i.used} page${i.used === 1 ? '' : 's'}</span>
+      <span class="pill">${esc(i.added)}</span></div>
+    ${i.source === 'uploaded' ? `
+      <div class="banner" data-tone="ok"><span>✓</span>
+        <div>Sanitised on upload — 1 <code class="mono">&lt;script&gt;</code> and 2
+        <code class="mono">onload</code> handlers were stripped before storing.</div></div>
+      <button class="btn" data-v="danger" style="width:100%"
+        onclick="toast('Cannot delete — used on ${i.used} pages. Replace it instead.')">Delete icon</button>`
+    : `<div class="banner" data-tone="info"><span>ℹ️</span>
+        <div>Ships with the solution, so it cannot be deleted here — it would come back on the next
+        import. Upload a replacement under a new name instead.</div></div>`}
+    <div class="banner" data-tone="info" style="margin-top:14px"><span>ℹ️</span>
+      <div>Replacing the file updates every page at once. Pages are not re-versioned, because a page
+      stores the <b>name</b>, not the shape.</div></div>`);
+}
+
+function uploadIcon() {
+  drawer("Upload an icon", `
+    <div style="border:2px dashed var(--border-strong);border-radius:10px;padding:34px;
+      text-align:center;color:var(--text-secondary);margin-bottom:16px">
+      ${icon("upload", 30)}<div style="margin-top:10px;font-size:13.5px">
+      Drop an SVG here, or click to browse</div>
+      <div style="font-size:11.5px;margin-top:6px">SVG only · max 64 KB</div></div>
+    <div class="fld"><label>Icon name</label><input type="text" placeholder="e.g. qdb-seal" dir="ltr" />
+      <div class="hint">Lowercase, hyphenated. This is what pages will store.</div></div>
+    <div class="fld"><label>Display name</label><input type="text" placeholder="e.g. QDB seal" /></div>
+    <div class="banner" data-tone="warn"><span>🛡</span>
+      <div>On upload the file is stripped of <code class="mono">&lt;script&gt;</code>, event handlers
+      (<code class="mono">onload</code>, <code class="mono">onclick</code>) and external references.
+      Only the drawing survives. If nothing drawable remains, the upload is rejected.</div></div>
+    <button class="btn" data-v="primary" style="width:100%"
+      onclick="toast('Uploaded, sanitised and added to the library')">Upload</button>`);
+}
+
+Shell.init("03-content.html", "media");
+renderMedia(); renderIcons(); renderI18nKpis(); renderI18n();
+["mSearch","mKind"].forEach(id => $("#"+id).addEventListener("input", renderMedia));
+["icSearch","icSource"].forEach(id => $("#"+id).addEventListener("input", renderIcons));
+["tSearch","tState"].forEach(id => $("#"+id).addEventListener("input", renderI18n));
+</script>
+</body>
+</html>
