@@ -254,6 +254,15 @@ someone writes to the API directly, which is the only enforcement that counts.
 - **AC-65.3** — **Given** a payload above the warning threshold but below the ceiling, **when** publish is called, **then** it succeeds and a warning is recorded.
 - **AC-65.4** — **Given** a payload just under the ceiling, **when** it is published and re-read, **then** the content is byte-identical. **Truncation must never be silent** (NFR-09).
 
+### NFR-08/09 · One storage mechanism, provisioned correctly *(derived from ADR-CMS-001 — Storage on two platforms)*
+
+Both criteria exist because the failure they guard against is invisible until it
+bites, and neither is caught by any test that only exercises small pages.
+
+- **AC-08.1** — **Given** the provisioned solution, **when** the metadata for `msst_cmspageversion.msst_contentjson` and `msst_cmsrendercache.msst_runtimejson` is read, **then** `MaxLength` is **1,048,576** on both. *(A Memo column's default maximum is **2,000** characters. A column created with defaults would truncate the first realistic page and break NFR-09.)*
+- **AC-08.2** — **Given** a page with fifty versions, **when** version history is listed, **then** the query returns no content payloads and the response size is independent of how large those versions are. *(A Memo column is returned with the record unless the query names its columns. A history list that selects everything drags every payload back with it.)*
+- **AC-08.3** — **Given** the same solution file, **when** it is imported to Dataverse cloud and to Dynamics CRM on-premise, **then** both accept it and the publish path executes identically. **No branch in the code selects storage by platform** (NFR-08).
+
 ### FR-66 · Visitors see the last published version; drafts are never served
 
 - **AC-66.1** — **Given** a page published at version 4 with an unpublished draft at version 7, **when** a visitor requests it, **then** version 4 is served.
@@ -392,8 +401,9 @@ Outside C-12, recorded because two carry lessons worth not re-learning.
 | **All Must FRs** | **40** | **124** |
 | FR-03a — derived from the UI/UX spec | *(not a BRD FR)* | 6 |
 | FR-03b — derived from architecture §6 (rich text) | *(not a BRD FR)* | 9 |
+| NFR-08/09 — derived from ADR-CMS-001 (storage on two platforms) | *(non-functional)* | 3 |
 | Appendix (Should) | 3 | 5 |
-| **Document total** | **43 + 2 derived** | **144** |
+| **Document total** | **43 + 3 derived** | **147** |
 
 Verified mechanically against the BRD's Must list rather than counted by hand:
 **every one of the 40 Must FRs has at least one criterion, and none is

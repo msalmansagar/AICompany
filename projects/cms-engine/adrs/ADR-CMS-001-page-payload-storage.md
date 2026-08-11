@@ -92,7 +92,7 @@ Three parts.
 
 ### 1. Render cache → Memo column, gzip + Base64 (as per Form Engine)
 
-`qdb_cmsrendercache.qdb_runtime_json`, written by the `qdb_PublishPage` plugin.
+`msst_cmsrendercache.msst_runtimejson`, written by the `msst_CmsPublishPage` plugin.
 
 This is read on **every page view**. It must be a single round trip, and a Memo
 column read in the same retrieve as the record is exactly that. The Form Engine
@@ -101,7 +101,12 @@ and the "never generates, reads pre-built cache only" plugin behaviour.
 
 ### 2. Version store → File column, not Memo
 
-`qdb_cmspageversion.qdb_contentfile`.
+> ⚠️ **SUPERSEDED 2026-08-11** by *Storage on two platforms* below. The version
+> store moves to a Memo column on both platforms. The reasoning here is kept
+> because it is still correct about *why* the version store is the unbounded half
+> — what changed is the requirement it has to satisfy, not the analysis.
+
+`msst_cmspageversion.msst_contentfile`.
 
 Versions are written on every draft save and read **only when an author opens
 the editor**. The extra request a File column costs is irrelevant at that
@@ -112,7 +117,7 @@ This is where the CMS deliberately diverges from the Form Engine. The Form
 Engine kept everything in Memo because a form definition is small and bounded.
 A page is neither, and the version store is the unbounded half.
 
-### 3. Publish-time size gate in `qdb_PublishPage`
+### 3. Publish-time size gate in `msst_CmsPublishPage`
 
 The plugin rejects or warns before anything reaches a citizen:
 
@@ -162,7 +167,7 @@ makes it real, for the same reason the audit log lives in the plugin.
 
 | Option | Why not |
 |---|---|
-| **Memo for everything** (pure Form Engine) | Works today at 100× margin, but puts the unbounded version store on a bounded column. Cheap now, a migration later. |
+| **Memo for everything** (pure Form Engine) | ⚠️ **This is now the decision — see *Storage on two platforms*.** The objection recorded here, *"puts the unbounded version store on a bounded column"*, was answered by measurement: the version store is not unbounded in practice. |
 | **File column for everything** | Costs a second request on the hot read path, for a benefit the render cache does not need. |
 | **Chunk across multiple Memo rows** | Reassembly logic, partial-write failure modes, and no query benefit. Complexity for a ceiling a File column removes outright. |
 | **Azure Blob for payloads** | Reintroduces the hosted dependency ADR-RPT-011 exists to eliminate. Also a Qatar data-residency question that does not need asking. |
@@ -211,7 +216,8 @@ bilingual heading and an accent token, so they are heavier than whatever the
 original measurement used. The two numbers are not comparable and the
 conclusion does not depend on which is right.
 
-Measured against the **Dataverse cloud** limit. On-premise remains OQ-3.
+Measured against the **Dataverse cloud** Memo limit. Confirming the same limit
+on-premise is **OQ-4**.
 
 ---
 
@@ -257,13 +263,135 @@ is no saving here worth trading a Must requirement for.
 
 ---
 
+## Storage on two platforms — 2026-08-11
+
+### What changed
+
+The Q4 answer carried a scope statement nobody asked for:
+
+> *"I want this solution enabled for both on-prem and cloud."*
+
+The question had only asked which version was in use. This is a different kind of
+answer — it converts NFR-08 (*"the solution shall import to both Dataverse cloud
+and Dynamics CRM on-premise"*) from an aspiration into a constraint on **this**
+decision, and it arrived alongside a File-column claim that contradicts Microsoft's
+documented on-premise type list.
+
+**The original decision cannot survive that combination unexamined.** It puts the
+version store in a column type that may not exist on one of the two required
+platforms.
+
+### The three options
+
+| Option | Consequence |
+|---|---|
+| **File everywhere** | Requires the File column to exist on-premise. It is *claimed* and *contradicted*, and the whole design would rest on the claim being right. |
+| **File on cloud, Memo on-premise** | Two storage paths, two plugin code paths, two test matrices — **multiplied across every customer deployment**, because this is now a product with a company prefix, not one QDB installation. A page also stops being portable between environments without transformation. |
+| **Memo everywhere** ✅ | One code path. Ceiling drops from 128 MB to ~1 MB of stored Base64 — which the measurements say is ~9× more than the most absurd page anyone has modelled. |
+
+### Decision: Memo everywhere
+
+`msst_cmspageversion.msst_contentjson` — gzip + Base64, the same encoding and the
+same column type as the render cache. **One storage mechanism for the whole
+engine.**
+
+The margin, taken from the rich-text re-measurement above:
+
+| Case | Stored | % of Memo | Headroom |
+|---|---:|---:|---:|
+| Typical page — 20 rich blocks | 3.8 KB | 0.37 % | 270× |
+| Heavy page — 60 rich blocks | 8.4 KB | 0.82 % | 122× |
+| **Pathological — 800 rich blocks** | **112 KB** | **10.94 %** | **9×** |
+
+Exhausting a Memo column would take roughly **7,000 rich-text blocks on a single
+page** — about 26 MB of raw JSON. That is not a page; it is a book, and the
+answer to it is FR-65's size gate and a content-design conversation, exactly as
+this ADR already argued for the 128 MB case.
+
+**The 128 MB was headroom, never necessity.** Nothing measured has ever come
+close to needing it.
+
+### This retires the alternative this ADR rejected
+
+*"Memo for everything"* was rejected above as *"cheap now, a migration later"*.
+That judgement was made when the version store looked unbounded in practice. The
+rich-text re-measurement showed it is not: prose compresses at **10–35×**, not the
+3–4× that was assumed, so the unbounded half turned out to be bounded after all.
+**The rejection was correct on the information available and is wrong on the
+information now available.**
+
+### The honest cost
+
+**Version payloads move from file storage to database storage.** In Dataverse
+cloud these are separately metered and database capacity is the more expensive of
+the two, so this decision trades money for simplicity.
+
+| Scenario | Database growth |
+|---|---|
+| Realistic — 500 pages × 50 versions | **≈ 210 MB** |
+| The unbounded case this ADR already accepted — 500 pages × 500 versions | ≈ 2.1 GB |
+
+210 MB is not a number worth two code paths for. **Confirm current Dataverse
+capacity pricing before Phase A** rather than trusting this paragraph — the
+direction is certain, the magnitude is not. On-premise the cost is zero: it is
+SQL Server storage either way.
+
+### Two engineering constraints this creates
+
+**1 — The Memo column must be provisioned at its maximum length, explicitly.** A
+Memo column's default maximum is **2,000 characters**, not 1,048,576. A column
+created with defaults would fail on the first realistic page. This is the single
+most likely way to get this decision wrong in implementation, and NFR-09 —
+*"page payload storage shall not silently truncate"* — is what it would break.
+**The provisioning script must set `MaxLength` and a test must assert it.**
+
+**2 — Version-list queries must not select the content column.** A File column is
+never returned inline; a Memo column is returned with the record unless the query
+names its columns. A version-history list that selects all columns would drag
+every payload back with it. **Every read of `msst_cmspageversion` that is not
+opening a specific version must name its columns explicitly.**
+
+Neither is difficult. Both are invisible until they bite, which is why they are
+written here rather than left to the build.
+
+### What this does to the open questions
+
+**OQ-3 no longer gates this ADR.** It asked whether on-premise supports File
+columns and at what maximum. With no File column in the design, the answer cannot
+change anything here. It stays open for §7 of the architecture, where it bears on
+icon and media storage.
+
+**What replaces it is a smaller question**, folded into the same two-minute
+check: confirm the on-premise Memo maximum is also 1,048,576 characters. This is
+materially different from the File question — Memo is not a capability that might
+or might not have shipped, it has existed since CRM 3.0. It is a *limit* to
+confirm, not an *existence* to establish. If it turned out lower, the size gate's
+percentages move; the design does not.
+
+### Consequences, revised
+
+Two entries in **Negative** above are now void: *"two storage mechanisms rather
+than one"* and *"File column reads require a second request and different plugin
+code"*. There is one mechanism and one code path.
+
+Replacing them:
+
+- Database capacity carries the version store instead of file capacity.
+- The ceiling is ~1 MB of stored Base64 rather than 128 MB — a real reduction,
+  with the measurements showing it is not a reachable one.
+- **NFR-08 is satisfied by construction.** One solution, one column type, one
+  plugin, both platforms.
+
+---
+
 ## Open questions
 
 | # | Question | Needs |
 |---|---|---|
 | ~~OQ-1~~ | ~~Is long-form rich text in scope? If yes, re-measure with real prose before accepting this ADR.~~ **Answered 2026-08-11: rich text is IN. Re-measured — the decision survives.** See *Re-measurement with rich text* below. | Closed |
 | ~~OQ-2~~ | ~~Do we retain every draft version, or prune?~~ **Answered 2026-08-11: retain everything, no prune.** See *Version retention* below. | Closed |
-| OQ-3 | On-premise CRM 9.x — confirm File column support and the configured maximum, which may differ from cloud. | IT / infrastructure |
+| ~~OQ-3~~ | ~~On-premise CRM 9.x — confirm File column support and the configured maximum.~~ **No longer gates this ADR — 2026-08-11.** The File column left the design; see *Storage on two platforms*. Still open for architecture §7 (icons and media). | Closed *for this ADR* |
+| **OQ-4** | On-premise CRM 9.1 — confirm the Memo maximum is 1,048,576 characters. A *limit* to confirm, not a capability to establish. If lower, the size-gate percentages move and nothing else does. | IT / infrastructure |
 
 ---
 

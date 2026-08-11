@@ -87,6 +87,18 @@ activities. It cannot be accepted before the thing it describes has happened.
 
 ### ADR-CMS-001 — payload storage
 
+> **Superseded 2026-08-11 — this section no longer describes the ADR's state.**
+> OQ-1 was answered (rich text is in) and the re-measurement was done: prose
+> compresses at **10–35×**, not the 3–4× asserted below, and the decision
+> survived. OQ-2 closed on retention. OQ-3 stopped gating it when the version
+> store moved off File columns onto Memo for both platforms.
+>
+> **One item remains: OQ-4**, confirming the on-premise Memo maximum. Unlike the
+> File question this is a limit to read off, not a capability to establish, so
+> ADR-CMS-001 is the closest of the four to Accepted.
+
+*Kept for the record — the reasoning below was correct when written:*
+
 **Self-gated.** Its own OQ-1 reads: *"Is long-form rich text in scope for the CMS?
 If yes, **re-measure with real prose before accepting this ADR**."*
 
@@ -144,7 +156,7 @@ earned the word *Accepted*.
 
 | ADR | Closes when |
 |---|---|
-| 001 | **Q1** answered; if rich text is in, re-measure with real prose. **Q4** for OQ-3. |
+| 001 | ~~Q1 + re-measurement~~ ✅ done · ~~OQ-2 retention~~ ✅ done · ~~OQ-3 File columns~~ ✅ no longer applies. **Only OQ-4 left** — read the on-premise Memo maximum. |
 | 002 | Geometry extractor built + hostile corpus run (Phase 5 QA). **Q10**. Gated behind Delivery Phase C. |
 | 003 | Adapter written; lint rule proven to fail; round-trip test green. |
 | 005 | `RichTextEditor` deleted at cutover; admin bundle measured during coexistence. |

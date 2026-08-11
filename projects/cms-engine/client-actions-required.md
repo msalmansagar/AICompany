@@ -24,7 +24,7 @@ There were ten: we closed two ourselves, and you answered two more on
 
 | Stage | Status |
 |---|---|
-| Business requirements | Written — 72 requirements |
+| Business requirements | Written — **43 functional, 9 non-functional** |
 | Executive review | **Approved with conditions** — 10 of 13 now closed |
 | Technical proof | Complete |
 | Architecture | **7 of 9 sections decided.** 2 wait on you. |
@@ -50,6 +50,7 @@ been made.
 |---|---|---|
 | How many approval routes? | **Two** — regulated, and everything else | Approval workflow is now designed. Routes are a configurable table, not code, so a third route later is a data change rather than a release. |
 | Arabic authoring screens? | **English for the first phase** | No translation or right-to-left work on the authoring screens. Arabic *content* is unaffected and already works. |
+| *(volunteered)* Run on **both** on-premise and cloud | Taken as a requirement | We re-opened the storage design against it. Page content and version history now use **one column type on both platforms** — one code path rather than two, and no behaviour that differs by environment. |
 
 That is why this document is shorter than the one you may have seen.
 
@@ -61,41 +62,40 @@ That is why this document is shorter than the one you may have seen.
 
 ---
 
-#### Q1 · Two minutes inside your on-premise environment
+#### Q1 · Three things from your on-premise environment
 
-You told us the version is **9.1**. That answers half of it. The other half is a
-capability question we cannot settle from documentation, because what you told us
-and what Microsoft publishes disagree.
+You told us the version is **9.1**, and that you want the solution to run on
+**both on-premise and cloud**. Both answers landed; here is what is still open.
 
-You said **File columns are available**. Microsoft's field-type reference for
+**1 — Does the environment support Custom API?** *(this is the one that blocks us)*
+
+It was not covered in the version answer. Publishing is built differently
+depending on it, and we cannot design that part of the system without knowing.
+
+**2 — Is "File" in the column Data Type list?** *(two minutes, no longer urgent)*
+
+You told us File columns are available. Microsoft's field-type reference for
 Dynamics 365 Customer Engagement (on-premises) lists every available data type,
-and **File is not in it** — Image is. Both cannot be true as written. The likeliest
-explanation is harmless: a cumulative update added it, and that documentation page
-is on a ten-year revision cycle. But we are not willing to assume it.
+and **File is not in it** — Image is. Both cannot be true as written; most likely
+a cumulative update added it and the documentation, which is on a ten-year
+revision cycle, never caught up.
 
-We are not asking you to resolve the contradiction. We are asking for **two
-minutes at a keyboard**:
+Begin creating a new column on any table, open the **Data Type** list, and tell us
+whether **File** is there. Please send the **four-part build number** at the same
+time — `9.1.0.xxxx`, not "9.1".
 
-1. Begin creating a new column on any table and open the **Data Type** list.
-   **Is "File" in it**, alongside Text, Choice and Image?
-2. Send the **four-part build number** — `9.1.0.xxxx`, not "9.1". That is what
-   identifies whether an update added the capability.
+> **This used to be our most urgent question and no longer is.** Your
+> "both on-premise and cloud" requirement made us re-examine the design, and page
+> version history now uses a large text column on both platforms rather than a
+> File column. We measured it first: a heavy page uses under 1 % of that column's
+> capacity. **So a "no" to File costs nothing now.** We still want the answer,
+> because how images are stored is not yet settled.
 
-**Why it matters:** version history for every page is designed to live in a File
-column. If File is not available, that store moves to a large text column instead
-— which we have already measured, and which holds a typical page at well under
-1 % of its limit. Both designs work. **Building the wrong one is expensive in
-either direction**, which is why we would rather spend your two minutes than our
-assumption.
+**3 — Is the prefix `msst` already in use in your environments?** Every table we
+create carries it, and it cannot be changed once records exist. A two-minute check
+now avoids a migration later.
 
-**Separately, and still open:** does the environment support **Custom API**? That
-part of the question was not answered, and it changes how publishing is built.
-
-**While we have you:** is the prefix **`msst`** already in use in your
-environments? Every table we create carries it, and it cannot be changed once
-records exist. A two-minute check now avoids a migration later.
-
-*Owner: QDB IT* · *Blocks: on-premise design, and one architecture decision*
+*Owner: QDB IT* · *Blocks: on-premise design*
 
 ---
 

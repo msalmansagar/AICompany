@@ -16,10 +16,10 @@ ADRs             1 of 5 Accepted
 Architecture     7 of 9 sections decided
 ```
 
-**Every gate item waits on somebody outside this repository.** One design
-decision does not: the *"both on-premise and cloud"* scope statement that arrived
-inside the Q4 answer has not been worked into the storage design. See
-**Outstanding, not gated on QDB** below.
+**Every gate item waits on somebody outside this repository.** The last piece of
+unblocked design work — the *"both on-premise and cloud"* storage decision — was
+completed on 2026-08-11: **Memo everywhere**. There is now genuinely nothing to
+build until Q1 and Q2 come back.
 
 ---
 
@@ -94,7 +94,7 @@ confirmed, the capability claim is not.
 
 | ADR | State | What would close it |
 |---|---|---|
-| 001 payload storage | Proposed | **OQ-3 → Q1** (on-prem File column limits). OQ-1 and OQ-2 already closed. **Also needs re-reading against "on-premise *and* cloud"** — see below. |
+| 001 payload storage | Proposed | **OQ-1, OQ-2, OQ-3 all closed.** OQ-3 stopped gating it when the File column left the design — the version store is now Memo on both platforms. One item left: **OQ-4**, confirm the on-premise Memo maximum. That is a limit to read off, not a capability to establish. |
 | 002 icons as geometry | Proposed | The extractor must exist + hostile-SVG corpus (Phase 5). Also **Q6**. Sits behind Delivery Phase C, which the gate rejected. |
 | 003 adapter boundary | Proposed | Adapter written; lint rule proven to fail; round-trip test green. **All build-time.** |
 | **004 own the runtime renderer** | ✅ **Accepted** | — all five items evidenced |
@@ -111,18 +111,19 @@ confirmed, the capability claim is not.
 |---|---|
 | ~~approval routes~~ | ✅ Landed 2026-08-11 — Arch §5 · C-2 · the approval schema |
 | ~~Arabic authoring UI~~ | ✅ Landed 2026-08-11 — C-3 |
-| **Q1** the File-column check | Arch §7 · C-4 · ADR-001 OQ-3 → **ADR-001 can be Accepted** |
-| **Q1** Custom API | Arch §7 — Custom API vs Process Action. **Report Engine waits on the same answer.** |
+| **Q1** Custom API | Arch §7 — Custom API vs Process Action. **Now the blocking half of Q1.** Report Engine waits on the same answer. |
+| **Q1** the File-column check | Arch §7 only, for **media binaries** — no longer touches the version store. Also settles OQ-4's neighbour. |
 | **Q2** existing content | Arch §8 |
 | Q3 font licence · Q4 PDPPL | C-6 (Phase 7) · C-5 (Phase 6) |
 
 **Phase 3 closes when Q1 and Q2 are answered.** Then: CEO architecture gate
 → schema provisioning *(needs explicit go-ahead)* → Build Phase A.
 
-> **Q1's File-column half is only a blocker while the design needs File
-> columns.** If the storage decision below lands on Memo everywhere, the version
-> store stops depending on the answer and Q1 narrows to Custom API and the
-> `CompressionStream` browser baseline.
+> **Q1's File-column half stopped being load-bearing on 2026-08-11.** The storage
+> decision landed on **Memo everywhere**, so the version store no longer depends
+> on whether File columns exist on-premise. What still blocks §7 is **Custom API**
+> and the `CompressionStream` browser baseline. The File check is still worth two
+> minutes — media binaries in §7 are undecided — but a "no" is no longer expensive.
 
 ---
 
@@ -131,7 +132,8 @@ confirmed, the capability claim is not.
 | Item | Owner | When |
 |---|---|---|
 | ~~Publisher friendly name~~ | — | ✅ **Done 2026-08-11** — "Muhammad Salman Sagar Technologies" → **"MSS Technologies"** on `org5869857f` |
-| **Storage design for on-premise *and* cloud** | MSS | **Next.** The Q4 answer carried an unrequested scope statement — *"enabled for both on-prem and cloud"* — that ADR-CMS-001 has never been re-read against. Recommendation on record: Memo everywhere, one code path, measured at 0.25–0.39 % of the limit. Not decided. |
+| ~~Storage design for on-premise *and* cloud~~ | — | ✅ **Done 2026-08-11** — **Memo everywhere.** One column type, one code path, both platforms; NFR-08 satisfied by construction. ADR-CMS-001 *Storage on two platforms*. Two implementation traps recorded there: the Memo column must be provisioned at `MaxLength` 1,048,576 (**the default is 2,000**), and version-list queries must name their columns or they drag every payload back. |
+| **Confirm Dataverse capacity pricing** | MSS | Before Phase A. The decision moves the version store from file storage to database storage — ≈ 210 MB for a realistic 500-page site. The direction is certain, the cost is not. |
 | ADR/prototype schema names still say `qdb_` | MSS | Deferred. §2 records the finding; ADR-CMS-001/005, `phase-1-ceo.md` and the seven prototype pages were never renamed to `msst`. Harmless while nothing is provisioned, wrong the moment a table is created. |
 | `msst` verified unused in other target environments | QDB IT | Fold into Q2's conversation in the session |
 
