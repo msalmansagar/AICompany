@@ -67,6 +67,18 @@ C-12; two carry hard-won notes and appear in the appendix.
 - **AC-03.1** — **Given** a block with a bilingual text field, **when** the author selects it, **then** both the English and the Arabic input are visible in the same panel without navigating away.
 - **AC-03.2** — **Given** the author types Arabic into the Arabic input, **when** the draft is saved and reloaded, **then** the Arabic value is on the same block instance as the English value, not a parallel page.
 - **AC-03.3** — **Given** an Arabic input, **when** the author types, **then** the input renders right-to-left with the caret at the correct edge.
+- **AC-03.4** — **Given** any block in the library, **when** an author selects it, **then** no more than **seven** top-level controls are shown; anything further is inside a labelled collapsible group. *(UI/UX spec §1. Six spike components exceeded this, the worst at 21.)*
+- **AC-03.5** — **Given** a bilingual field, **when** it is stored, **then** it is **one** value carrying `{ en, ar }`, not two sibling keys. *(UI/UX spec §2, closing OQ-A.)*
+- **AC-03.6** — **Given** a translated value whose state is Missing, Stale or Unknown, **when** the field is shown, **then** each state is **visually distinct from the others and from Translated**. *(Unknown must never read as Translated — see AC-40.3.)*
+
+### FR-03a · Editing-mode interaction *(derived from the UI/UX spec, §3)*
+
+- **AC-03a.1** — **Given** a block containing a link or button, **when** it is rendered in the editor, **then** clicking it selects the block rather than navigating or submitting.
+- **AC-03a.2** — **Given** that same element in the editor, **when** a keyboard user tabs to it, **then** it is **still focusable and announced**. *(Inert must not mean unreachable. The spike shipped 5 non-focusable spans — a real accessibility regression.)*
+- **AC-03a.3** — **Given** any block, **when** it is rendered with empty props `{}`, **then** it renders without error and never displays the string "undefined". *(Puck's `defaultProps` do not apply to stored data.)*
+- **AC-03a.4** — **Given** a block referencing an unknown type, icon or asset key, **when** it renders in the editor, **then** a visible placeholder names the missing identifier.
+- **AC-03a.5** — **Given** a slot with no children, **when** the page is edited, **then** the slot has a visible drop target and a label naming what belongs there.
+- **AC-03a.6** — **Given** a stateful block such as a carousel, **when** the author sets its initial state, **then** the editor renders **that** state rather than resetting on every prop change.
 
 ### FR-04 · Render as the visitor will see it, either language, without leaving the editor
 
@@ -351,18 +363,19 @@ Outside C-12, recorded because two carry lessons worth not re-learning.
 
 | Section | Must FRs | Criteria |
 |---|---|---|
-| 5.1 Authoring | 7 | 23 |
+| 5.1 Authoring | 7 | 26 |
 | 5.2 Design system | 5 | 12 |
 | 5.3 Media and icons | 4 | 16 |
 | 5.5 Translation | 3 | 10 |
 | 5.7 Publishing and audit | 8 | 27 |
 | 5.8 Access control | 2 | 6 |
-| **Phase A total** | **29** | **94** |
+| **Phase A total** | **29** | **97** |
 | Phase B | 6 | 15 |
 | Phase C | 5 | 12 |
-| **All Must FRs** | **40** | **121** |
+| **All Must FRs** | **40** | **124** |
+| FR-03a — derived from the UI/UX spec | *(not a BRD FR)* | 6 |
 | Appendix (Should) | 3 | 5 |
-| **Document total** | **43** | **126** |
+| **Document total** | **43 + 1 derived** | **135** |
 
 Verified mechanically against the BRD's Must list rather than counted by hand:
 **every one of the 40 Must FRs has at least one criterion, and none is
