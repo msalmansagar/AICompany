@@ -164,7 +164,7 @@ rather than optimistic.
 | Ours | Puck | Note |
 |---|---|---|
 | `BlockInstance.children` (named slots) | `content` + `zones` + slot fields | Puck carries two historical mechanisms; the adapter normalises to one |
-| `bilingual: true` on one field | **two** Puck text fields, `…En` / `…Ar` | One domain field expands to two editor fields, and collapses back on read |
+| `bilingual: true` on one field | **one** Puck `custom` field rendering both halves | **Revised by the UI/UX pass.** An earlier draft expanded this to two flat fields `…En` / `…Ar`; measuring the spike showed that doubling put 17–21 controls on six components. One paired control per concept, storing `{ en, ar }`. See [`phase-3-uiux-spec.md`](../phase-3-uiux-spec.md) §2 |
 | `kind: 'colour'` with token list | Puck `custom` field rendering a swatch picker | The token constraint is ours; Puck has no concept of it |
 | `kind: 'icon'` | Puck `custom` field over the icon library | Same |
 | `isEditing` | `puck.isEditing` | Renamed at the boundary so blocks never see a `puck` object |
@@ -261,7 +261,7 @@ about a 0.x dependency.
 
 | # | Question | Owner |
 |---|---|---|
-| OQ-A | Does the adapter own the bilingual field expansion, or does the domain store one field with `{ en, ar }`? The latter is cleaner but changes the stored shape — decide before the first row is written. | Architecture |
+| ~~OQ-A~~ | ~~Does the adapter own the bilingual field expansion, or does the domain store one field with `{ en, ar }`?~~ **Answered — see [`phase-3-uiux-spec.md`](../phase-3-uiux-spec.md) §1–§2.** The UI/UX pass requires one *paired control* per concept rather than two loose fields, so the domain stores `{ en, ar }` and the adapter renders both halves. Settled before the first row was written, as required. | Closed |
 | ~~OQ-B~~ | ~~Should `RendererPort` also be Puck-backed, or hand-written?~~ **Answered — see [ADR-CMS-004](ADR-CMS-004-own-the-runtime-renderer.md).** A hand-written renderer produces byte-identical output in ~60 lines, so the runtime is ours and Puck never reaches a visitor. | Closed |
 
 > The renderer question turned out to be the more valuable half of this ADR.

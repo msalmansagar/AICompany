@@ -23,10 +23,15 @@ waiting.
 | §2 Multi-tenancy (C-13) | **Decided — carries a significant finding** |
 | §3 Plugin design | **Decided** |
 | §4 Adapter specification | **Decided** |
+| §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
 | §5 Approval workflow | ⛔ Blocked on **Q3** |
 | §6 Rich text handling | ⛔ Blocked on **Q1** |
 | §7 On-premise specifics | ⛔ Blocked on **Q4** |
 | §8 Content migration | ⛔ Blocked on **Q6** |
+
+Satisfies gate finding **SR-4**, which required a UI/UX pass producing
+component-level interaction patterns, a field grouping strategy and a bilingual
+editor layout before any frontend implementation begins.
 
 ---
 
@@ -255,16 +260,17 @@ src/
 | Domain | Puck | Notes |
 |---|---|---|
 | `BlockInstance.children` | slot fields | Puck's legacy `zones` normalised away at the boundary |
-| `bilingual: true` | two fields, `…En` / `…Ar` | Expanded on write, collapsed on read |
+| `bilingual: true` | **one** `custom` paired field | Stores `{ en, ar }` — revised by the UI/UX pass, §9 |
 | `kind: 'colour'` | `custom` field, token swatches | Token constraint is ours; Puck has no concept of it |
 | `kind: 'icon'` | `custom` field over icon library | Same |
 | `isEditing` | `puck.isEditing` | Renamed so blocks never see a `puck` object |
 | `locale` | `metadata.locale` | Puck's metadata is untyped; adapter types it |
 | `schemaVersion` | *(none)* | Ours alone — see ADR-CMS-003 |
 
-> **OQ-A remains open**: does the adapter own bilingual expansion, or does the
-> domain store `{ en, ar }`? The latter is cleaner but changes the stored shape,
-> so it must be settled **before the first row is written**.
+> **OQ-A is now closed.** The domain stores `{ en, ar }` and the adapter renders
+> one paired control. Settled by the UI/UX pass (§9) after measuring that flat
+> `…En`/`…Ar` pairs put 17–21 controls on six components — and settled **before
+> the first row is written**, which was the constraint.
 
 ### Renderer agreement
 
