@@ -2786,7 +2786,15 @@ function reportToDefinition(report) {
         conditionalFormatting: (report.formatting || [])
           .filter(rule => rule.column && rule.condition)
           .map(rule => ({ column: rule.column, condition: rule.condition, style: rule.style })),
-        canvasDesign: report.design || null
+        canvasDesign: report.design || null,
+        /* The Style & Language tab has offered a language picker, with Arabic and Urdu marked
+           right-to-left, since before this engagement — and never stored the answer. The C-2
+           verification found the consequence: a settings dialog telling authors that "reports
+           render in multiple languages" over a product with no language anywhere in its data.
+           It travels here rather than in a new column for the reason the canvas design does:
+           the layout JSON is already read by the runtime, so this needs no schema change. */
+        languages: report.languages || ["en"],
+        primaryLang: report.primaryLang || "en"
       }))
     } : null
   };
@@ -3516,6 +3524,10 @@ function definitionToReport(def) {
       // report, and leaving it inside would make the next save nest one design within another.
       if (stored.canvasDesign) report.design = stored.canvasDesign;
       delete stored.canvasDesign;
+      // Same lifting as the design and the formatting rules: stored in the layout, owned by the report.
+      if (Array.isArray(stored.languages) && stored.languages.length) report.languages = stored.languages;
+      if (stored.primaryLang) report.primaryLang = stored.primaryLang;
+      delete stored.languages; delete stored.primaryLang;
       report.layout = stored;
     } catch (e) { /* keep default layout */ }
   }
@@ -4148,8 +4160,10 @@ function tabGeneral(body, r) {
       <div class="field"><label class="lbl">Main entity<span class="req">*</span></label>${entityPickerHtml(r.mainEntity, 'data-g="mainEntity"')}</div>
       <div class="field"><label class="lbl">Status</label><select class="fluent-select" data-g="status">${opts(reportChoiceLabels("qdb_status"), r.status)}</select></div>
     </div>
-  </div>
-  <div class="section-card">
+  </div>`);
+  // Same el() trap as the Languages card: a second root in one template is dropped. Execution mode,
+  // the row limit and the timeout have therefore never been editable, despite being written.
+  const execution = el(`<div class="section-card">
     <h3>Execution &amp; governance</h3>
     <div class="hint">Runtime guards and the maker-checker gate.</div>
     <div class="field-grid">
@@ -4159,7 +4173,7 @@ function tabGeneral(body, r) {
       <div class="field"><label class="lbl">Governed report</label><label class="toggle"><input type="checkbox" data-g="governed" ${r.governed?"checked":""}><span class="track"></span><span class="tlabel">Requires approver ≠ author before production run</span></label></div>
     </div>
   </div>`);
-  body.appendChild(card);
+  body.appendChild(card); body.appendChild(execution);
   body.querySelectorAll("[data-g]").forEach(inp => {
     const ev = comboSafeEvent(inp);
     inp.addEventListener(ev, () => {
@@ -4248,15 +4262,19 @@ function tabStyle(body, r) {
   const card = el(`<div class="section-card">
     <h3>Report theme</h3><div class="hint">Colours and fonts applied to the rendered report and exports.</div>
     <div class="theme-cards" id="st_themes" style="margin-top:12px">${THEMES.map(t=>`<div class="theme-card ${r.theme===t.id?"sel":""}" data-theme="${t.id}"><div class="theme-swatch" style="background:${t.accent};font-family:${t.font}">Aa</div><div class="theme-meta"><div class="tn">${esc(t.name)}</div><div class="td">${esc(t.desc)}</div><div class="tf" style="font-family:${t.font}">${esc(t.font.split(",")[0].replace(/["']/g,""))}</div></div></div>`).join("")}</div>
-  </div>
-  <div class="section-card">
+  </div>`);
+  /* Built as its own element, because el() returns firstElementChild: two sibling roots in one
+     template means the second is discarded, silently, before it reaches the DOM. That is what
+     happened to this card — the language picker has existed in the source and rendered nowhere,
+     which is why C-2 found a settings dialog promising Arabic over a product that had none. */
+  const languages = el(`<div class="section-card">
     <h3>Languages</h3><div class="hint">First selected is the default. Users switch language at run time.</div>
     <div class="chips" id="st_langs" style="margin-top:12px">${LANGUAGES.map(l=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-lng="${l.code}" ${r.languages.includes(l.code)?"checked":""}>${esc(l.name)}${l.rtl?' <span class="rel-tag" style="margin:0 0 0 4px">RTL</span>':""}</label>`).join("")}</div>
     <div class="field" style="max-width:260px;margin-top:14px"><label class="lbl">Default language</label><select class="fluent-select" id="st_primary">${r.languages.map(c=>{const l=LANGUAGES.find(x=>x.code===c);return `<option value="${c}" ${r.primaryLang===c?"selected":""}>${esc(l?l.name:c)}</option>`;}).join("")}</select></div>
   </div>`);
-  body.appendChild(card);
-  card.querySelectorAll("[data-theme]").forEach(c => c.onclick = () => { r.theme = c.dataset.theme; card.querySelectorAll("[data-theme]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); toast("Theme applied — see the Preview tab"); });
-  card.querySelectorAll("[data-lng]").forEach(cb => cb.onchange = () => { const code = cb.dataset.lng;
+  body.appendChild(card); body.appendChild(languages);
+  body.querySelectorAll("[data-theme]").forEach(c => c.onclick = () => { r.theme = c.dataset.theme; body.querySelectorAll("[data-theme]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); toast("Theme applied — see the Preview tab"); });
+  body.querySelectorAll("[data-lng]").forEach(cb => cb.onchange = () => { const code = cb.dataset.lng;
     if (cb.checked) { if (!r.languages.includes(code)) r.languages.push(code); }
     else { if (r.languages.length>1) r.languages = r.languages.filter(x=>x!==code); else { cb.checked=true; toast("Keep at least one language","warn"); return; } }
     if (!r.languages.includes(r.primaryLang)) r.primaryLang = r.languages[0];

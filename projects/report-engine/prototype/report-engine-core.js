@@ -680,6 +680,33 @@ async function runReport(){
   } catch(e){ host.innerHTML = errorState(e.message); toast(e.message,"error"); }
 }
 
+/* ---------- reading direction ----------
+   The Style & Language tab has offered Arabic and Urdu, both marked right-to-left, for as long as
+   it has existed, and the runtime contained no direction handling whatsoever — a grep for rtl
+   returned one hit, inside the entity name qdb_repo*rtl*ayout. C-2 recorded the consequence: the
+   settings dialog told authors reports render in multiple languages over a product that could not.
+
+   Kept as a set rather than a test for "ar" because Urdu is in the same list, and a report set to
+   Urdu must not quietly render left to right. */
+const RTL_LANGUAGES = new Set(["ar", "ur", "he", "fa"]);
+
+const reportLanguage = () =>
+  ((state.current && state.current.def && state.current.def.layout) || {}).primaryLang || "en";
+
+/**
+ * Marks the rendered report with its language and reading direction.
+ *
+ * Direction is set on the host rather than per element so it applies to everything inside —
+ * tables, headers, charts and anything added later — and so a report that is not right-to-left
+ * says so explicitly rather than inheriting whatever the surrounding page happens to be.
+ */
+function applyReportDirection(host){
+  if (!host) return;
+  const language = reportLanguage();
+  host.setAttribute("lang", language);
+  host.setAttribute("dir", RTL_LANGUAGES.has(language) ? "rtl" : "ltr");
+}
+
 function renderResult(result){
   const layout = state.current.def.layout;
   const laidOut = renderLayout(result, layout);
@@ -696,6 +723,7 @@ function renderResult(result){
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
       <div class="report-paper">${laidOut}</div>`;
     $("#asGrid").onclick = () => renderGrid(result);
+    applyReportDirection($("#resultHost"));
     applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
     return;
   }
@@ -729,6 +757,9 @@ function renderGrid(result){
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  // The grid is the path most reports render through, so direction has to be applied here too —
+  // putting it only in renderResult would leave it invisible for exactly the common case.
+  applyReportDirection($("#resultHost"));
 }
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
@@ -1718,8 +1749,8 @@ function buildPreviewBody(type, cols, rows, opts) {
      in the designer is no longer something only the designer can see. */
   const columnFont = designFontLookup(layout);
   const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
-  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
-  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
+  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
+  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
   const tile = (t,v) => `<div style="flex:1;min-width:130px;border:1px solid #e1dfdd;border-radius:6px;padding:12px 14px"><div style="font-size:11px;color:#605e5c;text-transform:uppercase;letter-spacing:.5px">${esc(T(t))}</div><div style="font-size:22px;font-weight:700;color:${ac};margin-top:4px">${v}</div></div>`;
   const barChart = items => { const max = Math.max(...items.map(x=>x.v),1); return `<div style="display:flex;flex-direction:column;gap:8px">${items.map(x=>`<div style="display:flex;align-items:center;gap:10px"><div style="width:90px;font-size:11.5px">${esc(T(x.label))}</div><div style="flex:1;background:${acb};border-radius:3px"><div style="width:${Math.round(x.v/max*100)}%;background:${ac};height:16px;border-radius:3px"></div></div><div style="width:120px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums">${valCol?money(x.v):x.v}</div></div>`).join("")}</div>`; };
   const grandRow = () => valCol ? `<tr class="grand-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Grand total"):(c===valCol?fmtTotal(sum(rows)):"")}</td>`).join("")}</tr>` : "";
