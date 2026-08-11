@@ -63,6 +63,22 @@ self-contained. Verified by bundling and scanning the output:
 **Puck bundles cleanly for an on-premise CSP-hardened web resource.** This was
 the risk most likely to invalidate the foundation, and it is retired.
 
+### Where a visitor's page is served from
+
+The editor is a Dataverse web resource. **The visitor path is not** — published
+CMS content reaches citizens through **portal-shell's Next.js application**
+(`[locale]/(portal)/pages/[slug]`), which reads the render cache via
+`cms_GetPublishedPageJson`.
+
+This was unstated until the C-10 assessment needed it, and it matters: it means
+portal-shell's dependency surface is part of the CMS's delivery surface. See
+`c-10-nextjs-vulnerability-assessment.md`.
+
+> ⚠️ While portal-shell runs Next.js 14.x, **middleware must never carry
+> authorisation**. The C-10 assessment downgrades a CVSS 9.1 middleware bypass to
+> low impact *solely* because today's middleware does locale routing and nothing
+> else. Adding an auth check there would silently make it critical again.
+
 ### Solution components
 
 > ⚠️ **Every web resource must be declared individually in `solution.xml`
