@@ -128,7 +128,7 @@ export class DataverseAdapter implements ISopAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
-          '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc'
+          `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc`
         )
       );
       return result.entities.map(mapProcess);
@@ -143,7 +143,7 @@ export class DataverseAdapter implements ISopAdapter {
       this.xrm.WebApi.retrieveRecord(
         LOGICAL.process,
         id,
-        '?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}'
+        `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
       )
     );
     return mapProcess(raw as Record<string, unknown>);
@@ -790,7 +790,7 @@ export class DataverseAdapter implements ISopAdapter {
     const result = await withRetry(() =>
       this.xrm.WebApi.retrieveMultipleRecords(
         LOGICAL.sopStep,
-        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value,${ESCALATION_SELECT_COLUMNS}&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
+        `?$select=qdb_sopstepid,qdb_name,qdb_description,qdb_sequenceno,qdb_steptypecode,qdb_executionchannel,qdb_decisionlabel,_qdb_sop_id_value,_qdb_role_id_value&$filter=_qdb_sop_id_value eq ${sopId}&$orderby=qdb_sequenceno asc`
       )
     );
     return result.entities.map(mapSopStep);
@@ -810,8 +810,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId) {
       body[`qdb_role_id@odata.bind`] = `/${SET.role}(${data.roleId})`;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.sopStep, body));
     return result.id;
   }
@@ -828,8 +826,6 @@ export class DataverseAdapter implements ISopAdapter {
     if (data.roleId !== undefined) {
       body[`qdb_role_id@odata.bind`] = data.roleId ? `/${SET.role}(${data.roleId})` : null;
     }
-    Object.assign(body, buildEscalationBody(data));
-    Object.assign(body, await buildEscalationConfigBindPatch(data, (e, a) => this.resolveNavProp(e, a), LOGICAL.sopStep, ESCALATION_CONFIG_SET));
     await withRetry(() => this.xrm.WebApi.updateRecord(LOGICAL.sopStep, id, body));
   }
 

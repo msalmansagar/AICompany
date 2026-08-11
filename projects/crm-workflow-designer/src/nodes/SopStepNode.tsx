@@ -78,7 +78,7 @@ export function SopStepNode({ data, selected }: NodeProps) {
 }
 
 function containerStyle(selected: boolean, hasError: boolean, accent: string): React.CSSProperties {
-  const borderColor = hasError ? '#ef4444' : selected ? accent : '#e2e8f0';
+  const borderColor = hasError ? 'var(--error)' : selected ? accent : 'var(--text)';
   const borderWidth = hasError || selected ? '2px' : '1.5px';
   const boxShadow = hasError
     ? '0 0 0 3px rgba(239,68,68,0.2)'
@@ -86,7 +86,7 @@ function containerStyle(selected: boolean, hasError: boolean, accent: string): R
     ? `0 0 0 3px ${accent}26`
     : '0 2px 8px rgba(0,0,0,0.08)';
   return {
-    background: hasError ? '#fff8f8' : '#fff',
+    background: hasError ? 'var(--error-bg)' : 'var(--surface)',
     border: `${borderWidth} solid ${borderColor}`,
     borderRadius: 8,
     padding: '10px 14px',
@@ -119,23 +119,23 @@ const headerStyle: React.CSSProperties = {
 
 function seqBadgeStyle(accent: string): React.CSSProperties {
   return {
-    background: accent, color: '#fff',
+    background: accent, color: 'var(--text-on-primary)',
     borderRadius: 4, fontSize: 10, fontWeight: 700,
     padding: '1px 6px', flexShrink: 0,
   };
 }
 
 const nameStyle: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: '#1e293b',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
 };
 
 function roleBadgeStyle(isInactive: boolean, accent: string): React.CSSProperties {
   return {
     fontSize: 10,
-    background: isInactive ? '#f8fafc' : `${accent}14`,
-    color: isInactive ? '#94a3b8' : accent,
-    border: `1px solid ${isInactive ? '#e2e8f0' : `${accent}30`}`,
+    background: isInactive ? 'var(--surface-alt)' : `${accent}14`,
+    color: isInactive ? 'var(--text-disabled)' : accent,
+    border: `1px solid ${isInactive ? 'var(--border)' : `${accent}30`}`,
     borderRadius: 4, padding: '2px 8px',
     display: 'inline-flex', alignItems: 'center', gap: 2,
     maxWidth: '100%', overflow: 'hidden',
@@ -144,18 +144,18 @@ function roleBadgeStyle(isInactive: boolean, accent: string): React.CSSPropertie
 }
 
 const noRoleStyle: React.CSSProperties = {
-  fontSize: 10, color: '#cbd5e1', fontStyle: 'italic',
+  fontSize: 10, color: 'var(--text-secondary)', fontStyle: 'italic',
 };
 
-const inactiveDotStyle: React.CSSProperties = { color: '#f59e0b', fontSize: 8 };
+const inactiveDotStyle: React.CSSProperties = { color: 'var(--warning)', fontSize: 8 };
 
 function channelBadgeStyle(channel: 'crm' | 'manual'): React.CSSProperties {
   const isCrm = channel === 'crm';
   return {
     fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
-    color: isCrm ? '#1d4ed8' : '#92400e',
-    background: isCrm ? '#dbeafe' : '#fef3c7',
-    border: `1px solid ${isCrm ? '#bfdbfe' : '#fde68a'}`,
+    color: isCrm ? 'var(--primary-pressed)' : 'var(--warning)',
+    background: isCrm ? 'var(--primary-tint)' : 'var(--warning-bg)',
+    border: `1px solid ${isCrm ? 'var(--primary-tint)' : 'var(--warning)'}`,
     borderRadius: 3, padding: '1px 5px',
     flexShrink: 0, lineHeight: '14px',
   };
@@ -164,7 +164,7 @@ function channelBadgeStyle(channel: 'crm' | 'manual'): React.CSSProperties {
 const descPreviewStyle: React.CSSProperties = {
   margin: '5px 0 0',
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   lineHeight: '1.4',
   display: '-webkit-box',
   WebkitLineClamp: 2,
@@ -175,7 +175,7 @@ const descPreviewStyle: React.CSSProperties = {
 
 function targetHandleStyle(accent: string): React.CSSProperties {
   return {
-    background: '#94a3b8', width: 12, height: 12,
+    background: 'var(--neutral-chip)', width: 12, height: 12,
     border: `2px solid ${accent}`, borderRadius: '50%', top: -6,
   };
 }
@@ -183,6 +183,6 @@ function targetHandleStyle(accent: string): React.CSSProperties {
 function sourceHandleStyle(accent: string): React.CSSProperties {
   return {
     background: accent, width: 12, height: 12,
-    border: '2px solid #fff', borderRadius: '50%', bottom: -6,
+    border: '2px solid var(--border)', borderRadius: '50%', bottom: -6,
   };
 }

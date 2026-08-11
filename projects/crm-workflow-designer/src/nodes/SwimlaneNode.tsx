@@ -57,11 +57,11 @@ export function SwimlaneNode({ data }: NodeProps) {
 // ─── Swimlane step node ────────────────────────────────────────────────────
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string; border: string }> = {
-  'Specific User': { bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe' },
-  'Team':          { bg: '#f0fdf4', text: '#15803d', border: '#bbf7d0' },
-  'Round Robin':   { bg: '#faf5ff', text: '#7e22ce', border: '#e9d5ff' },
+  'Specific User': { bg: 'var(--primary-tint-2)', text: 'var(--primary-pressed)', border: 'var(--primary-tint)' },
+  'Team':          { bg: 'var(--success-bg)', text: 'var(--success)', border: 'var(--success)' },
+  'Round Robin':   { bg: 'var(--accent-branch-bg)', text: 'var(--accent-branch)', border: 'var(--accent-branch)' },
 };
-const DEFAULT_ASSIGN = { bg: '#f8fafc', text: '#475569', border: '#e2e8f0' };
+const DEFAULT_ASSIGN = { bg: 'var(--surface-alt)', text: 'var(--text-secondary)', border: 'var(--border)' };
 
 export function SwimStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows } = data as unknown as SwimStepData;
@@ -80,8 +80,8 @@ export function SwimStepNode({ data, selected }: NodeProps) {
     <div style={swimContainer(selected ?? false, colors.border)}>
       <Handle type="target" position={Position.Left}   id="left"   style={handle(colors.text)} />
       <Handle type="source" position={Position.Right}  id="right"  style={handle(colors.text)} />
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handle('#7c3aed')} />
-      <Handle type="target" position={Position.Bottom} id="bottom-t" style={handle('#7c3aed')} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handle('var(--accent-branch)')} />
+      <Handle type="target" position={Position.Bottom} id="bottom-t" style={handle('var(--accent-branch)')} />
 
       <div style={swimHeader}>
         <span style={seqBadge(colors.text)}>{step.sequenceNo}</span>
@@ -96,9 +96,9 @@ export function SwimStepNode({ data, selected }: NodeProps) {
       </div>
 
       <div style={swimFooter}>
-        {forwardCount > 0 && <span style={badge('#16a34a')}>→ {forwardCount}</span>}
-        {terminalCount > 0 && <span style={badge('#dc2626')}>⊘ {terminalCount}</span>}
-        {backCount > 0     && <span style={badge('#7c3aed')}>↩ {backCount}</span>}
+        {forwardCount > 0 && <span style={badge('var(--success)')}>→ {forwardCount}</span>}
+        {terminalCount > 0 && <span style={badge('var(--error)')}>⊘ {terminalCount}</span>}
+        {backCount > 0     && <span style={badge('var(--accent-branch)')}>↩ {backCount}</span>}
       </div>
     </div>
   );
@@ -109,15 +109,15 @@ function truncate(s: string, max: number): string {
 }
 
 function handle(color: string): React.CSSProperties {
-  return { background: color, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
+  return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
 function swimContainer(selected: boolean, borderColor: string): React.CSSProperties {
   return {
     width: 240,
     height: 80,
-    background: '#fff',
-    border: selected ? '2px solid #2563eb' : `1.5px solid ${borderColor}`,
+    background: 'var(--surface)',
+    border: selected ? '2px solid var(--primary)' : `1.5px solid ${borderColor}`,
     borderRadius: 8,
     padding: '8px 12px',
     boxShadow: selected
@@ -136,7 +136,7 @@ function swimContainer(selected: boolean, borderColor: string): React.CSSPropert
 
 function seqBadge(color: string): React.CSSProperties {
   return {
-    background: color, color: '#fff', borderRadius: 4,
+    background: color, color: 'var(--text-on-primary)', borderRadius: 4,
     fontSize: 9, fontWeight: 700, padding: '1px 6px', flexShrink: 0,
   };
 }
@@ -159,9 +159,9 @@ function badge(color: string): React.CSSProperties {
 
 const swimHeader: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5 };
 const swimName: React.CSSProperties = {
-  fontSize: 12, fontWeight: 600, color: '#0f172a',
+  fontSize: 12, fontWeight: 600, color: 'var(--text)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
 };
 const swimChips: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4 };
-const ownerText: React.CSSProperties = { fontSize: 9, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+const ownerText: React.CSSProperties = { fontSize: 9, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 const swimFooter: React.CSSProperties = { display: 'flex', gap: 4 };

@@ -19,11 +19,11 @@ export function RouteGatewayNode({ data }: NodeProps) {
         <svg width="52" height="52" viewBox="0 0 52 52">
           <polygon
             points="26,3 49,26 26,49 3,26"
-            fill={d.isSelected ? '#fef3c7' : '#fffbeb'}
-            stroke={d.isSelected ? '#b45309' : '#d97706'}
+            fill={d.isSelected ? 'var(--warning)' : 'var(--warning)'}
+            stroke={d.isSelected ? 'var(--warning)' : 'var(--warning)'}
             strokeWidth={d.isSelected ? 2.5 : 1.5}
           />
-          <text x="26" y="31" textAnchor="middle" fontSize="14" fill="#92400e" fontWeight="700">
+          <text x="26" y="31" textAnchor="middle" fontSize="14" fill="var(--warning)" fontWeight="700">
             ⋈
           </text>
         </svg>
@@ -62,9 +62,9 @@ const wrapperStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 600,
-  color: '#92400e',
-  background: '#fef3c7',
-  border: '1px solid #fde68a',
+  color: 'var(--warning)',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
   borderRadius: 4,
   padding: '1px 6px',
   maxWidth: 120,
@@ -81,21 +81,21 @@ const countBadge: React.CSSProperties = {
   minWidth: 16,
   height: 16,
   borderRadius: 8,
-  background: '#d97706',
-  color: '#fff',
+  background: 'var(--warning)',
+  color: 'var(--text-on-primary)',
   fontSize: 9,
   fontWeight: 700,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   padding: '0 3px',
-  border: '1.5px solid #fff',
+  border: '1.5px solid var(--border)',
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#d97706',
+  background: 'var(--warning)',
   width: 8,
   height: 8,
-  border: '2px solid #fff',
+  border: '2px solid var(--border)',
   borderRadius: '50%',
 };

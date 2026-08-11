@@ -16,16 +16,29 @@ import { SopAdapterContext } from './app/SopAdapterContext';
 import { isSopAdapter } from './services/ISopAdapter';
 import { ConfirmDialogHost } from './components/ui/ConfirmDialog';
 import { NotifyHost, notify } from './components/ui/Notify';
+import { confirm } from './components/ui/ConfirmDialog';
+import { AppShell } from './components/shell/AppShell';
+import type { NavDestination } from './components/shell/SitemapNav';
+import type { ProcessStatusFilter } from './components/ProcessListScreen';
 import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
 
 type AppMode = 'list' | 'view' | 'edit' | 'sop-list' | 'roles';
 
+/** Environment identity for the app bar, resolved once at start-up. */
+interface HostContext {
+  environmentLabel: string;
+  userInitials: string;
+}
+
+const EMPTY_HOST: HostContext = { environmentLabel: '', userInitials: '' };
+
 export function App() {
   const [service, setService] = useState<WorkflowDataService | null>(null);
   const [adapter, setAdapter] = useState<ICrmAdapter | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
+  const [host, setHost] = useState<HostContext>(EMPTY_HOST);
   const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,6 +47,7 @@ export function App() {
       setIsDevMode(env.isDevMode);
       setService(new WorkflowDataService(env));
       setAdapter(createAdapter(env));
+      setHost(readHostContext(env));
     } catch (err) {
       setInitError(err instanceof Error ? err.message : 'Failed to initialise CRM context.');
     }
@@ -61,27 +75,99 @@ export function App() {
     <ReactFlowProvider>
       <CrmAdapterProvider adapter={adapter}>
         <SopAdapterContext.Provider value={adapter}>
-          <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} />
+          <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} host={host} />
         </SopAdapterContext.Provider>
       </CrmAdapterProvider>
     </ReactFlowProvider>
   );
 }
 
+/**
+ * Reads who and where we are for the app bar. Dataverse can refuse the user
+ * context in some hosting modes, and an unnamed environment is not a reason to
+ * fail to start, so this degrades to blanks rather than throwing.
+ */
+function readHostContext(env: CrmEnvironmentService): HostContext {
+  try {
+    const { userName, orgName } = env.getUserContext();
+    return {
+      environmentLabel: environmentLabelFrom(env.getClientUrl(), orgName),
+      userInitials: toInitials(userName),
+    };
+  } catch {
+    return EMPTY_HOST;
+  }
+}
+
+/**
+ * Names the environment the way a person does. `getOrgUniqueName()` returns the
+ * internal unique name — "unq8e28c4d88f8f4c42aa0a31a680cc0" — which nobody
+ * recognises; the host they typed to get here is the name they know it by.
+ */
+function environmentLabelFrom(clientUrl: string, orgName: string): string {
+  try {
+    const [subdomain] = new URL(clientUrl).hostname.split('.');
+    return subdomain || orgName;
+  } catch {
+    return orgName;
+  }
+}
+
+function toInitials(userName: string): string {
+  const words = userName.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+  const first = words[0][0];
+  const last = words.length > 1 ? words[words.length - 1][0] : '';
+  return `${first}${last}`.toUpperCase();
+}
+
+/** The sitemap destination each process status filter corresponds to. */
+const STATUS_BY_DESTINATION: Partial<Record<NavDestination, ProcessStatusFilter>> = {
+  'processes-all': 'all',
+  'processes-draft': 'draft',
+  'processes-published': 'published',
+};
+
 interface DesignerRootProps {
   service: WorkflowDataService;
   adapter: ICrmAdapter;
   isDevMode: boolean;
+  host: HostContext;
 }
 
-function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
+function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) {
   const [appMode, setAppMode] = useState<AppMode>('list');
   const [previousMode, setPreviousMode] = useState<'list' | 'view'>('list');
   const sopAdapter = isSopAdapter(adapter) ? (adapter as ISopAdapter) : null;
   const [showWizard, setShowWizard] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+  const [destination, setDestination] = useState<NavDestination>('processes-all');
+  const [search, setSearch] = useState('');
+  const [sopResetToken, setSopResetToken] = useState(0);
   const view = useWorkflowView(service);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
+
+  // The sitemap owns which screen is showing, and stays visible everywhere —
+  // including the editor — so there is one way to navigate rather than a back
+  // button per screen. Leaving unsaved work is the one case worth interrupting.
+  const handleNavigate = useCallback(async (next: NavDestination) => {
+    if (appMode === 'edit' && useWorkflowStore.getState().isDirty) {
+      const leave = await confirm({
+        title: 'Unsaved changes',
+        message: 'This process has unsaved changes. Leave without saving?',
+        confirmLabel: 'Leave',
+        tone: 'danger',
+      });
+      if (!leave) return;
+    }
+    // Returning to the SOP library must also close an open SOP, which the SOP
+    // screen tracks itself; the token tells it to.
+    if (next === 'sop-library') setSopResetToken((token) => token + 1);
+    setDestination(next);
+    if (next === 'sop-library') setAppMode('sop-list');
+    else if (next === 'roles') setAppMode('roles');
+    else setAppMode('list');
+  }, [appMode]);
 
   const handleNewProcess = () => setShowWizard(true);
 
@@ -172,13 +258,25 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
   }, [previousMode, view]);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      {isDevMode && (
-        <div style={devBanner}>
-          LOCAL DEV — data via Dataverse proxy (org5869857f.crm4.dynamics.com)
-        </div>
-      )}
-      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+    <AppShell
+      environmentLabel={host.environmentLabel}
+      userInitials={host.userInitials}
+      active={destination}
+      onNavigate={(next) => void handleNavigate(next)}
+      sopEnabled={!!sopAdapter}
+      search={search}
+      onSearchChange={setSearch}
+      banner={
+        isDevMode ? (
+          <div style={devBanner}>
+            LOCAL DEV — data via Dataverse proxy (org5869857f.crm4.dynamics.com)
+          </div>
+        ) : undefined
+      }
+    >
+      {/* A column, so a screen can stack a command bar, its page and a status
+          strip as siblings the way the design system expects. */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
         {appMode === 'edit' ? (
           <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
         ) : appMode === 'view' ? (
@@ -186,19 +284,17 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
             view={view}
             adapter={adapter}
             onNewProcess={handleNewProcess}
-            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
-            onBackToList={() => setAppMode('list')}
+            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
           />
         ) : appMode === 'sop-list' && sopAdapter ? (
           <SopListScreen
+            resetToken={sopResetToken}
             adapter={sopAdapter}
-            onBack={() => setAppMode('list')}
-            onManageRoles={() => setAppMode('roles')}
+            onManageRoles={() => void handleNavigate('roles')}
           />
         ) : appMode === 'roles' && sopAdapter ? (
           <RolesScreen
             adapter={sopAdapter}
-            onBack={() => setAppMode('sop-list')}
           />
         ) : (
           <ProcessListScreen
@@ -206,7 +302,9 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
             onNewProcess={handleNewProcess}
             onOpenProcess={(id) => void handleOpenProcess(id)}
             onEditProcess={(id) => void handleEditProcess(id)}
-            onOpenSopDesigner={sopAdapter ? () => setAppMode('sop-list') : undefined}
+            search={search}
+            onSearchChange={setSearch}
+            statusFilter={STATUS_BY_DESTINATION[destination] ?? 'all'}
           />
         )}
       </div>
@@ -224,7 +322,7 @@ function DesignerRoot({ service, adapter, isDevMode }: DesignerRootProps) {
       )}
       <ConfirmDialogHost />
       <NotifyHost />
-    </div>
+    </AppShell>
   );
 }
 
@@ -246,12 +344,12 @@ const errorScreen: React.CSSProperties = {
   justifyContent: 'center',
   width: '100vw',
   height: '100vh',
-  background: '#f8fafc',
+  background: 'var(--surface-alt)',
 };
 
 const errorCard: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #fecaca',
+  background: 'var(--surface)',
+  border: '1px solid var(--error)',
   borderRadius: 10,
   padding: 32,
   maxWidth: 500,
@@ -261,13 +359,13 @@ const errorCard: React.CSSProperties = {
 const errorTitle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 700,
-  color: '#991b1b',
+  color: 'var(--error)',
   marginBottom: 12,
 };
 
 const errorMsg: React.CSSProperties = {
   fontSize: 13,
-  color: '#374151',
+  color: 'var(--text)',
   lineHeight: 1.6,
   marginBottom: 8,
   fontFamily: 'monospace',
@@ -276,7 +374,7 @@ const errorMsg: React.CSSProperties = {
 
 const errorHint: React.CSSProperties = {
   fontSize: 12,
-  color: '#9ca3af',
+  color: 'var(--text-disabled)',
   lineHeight: 1.6,
 };
 
@@ -287,12 +385,12 @@ const loadingScreen: React.CSSProperties = {
   width: '100vw',
   height: '100vh',
   fontSize: 14,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const devBanner: React.CSSProperties = {
-  background: '#92400e',
-  color: '#fef3c7',
+  background: 'var(--warning-bg)',
+  color: 'var(--warning)',
   fontSize: 11,
   fontWeight: 600,
   textAlign: 'center',
@@ -317,8 +415,8 @@ const overlayCard: React.CSSProperties = {
   flexDirection: 'column',
   alignItems: 'center',
   gap: 16,
-  background: '#ffffff',
-  border: '1px solid #edebe9',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '28px 36px',
   boxShadow: '0 4px 20px rgba(0,0,0,0.12)',
@@ -327,14 +425,14 @@ const overlayCard: React.CSSProperties = {
 const overlaySpinner: React.CSSProperties = {
   width: 32,
   height: 32,
-  border: '3px solid #edebe9',
-  borderTopColor: '#0078d4',
+  border: '3px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
   animation: 'ppSpin 0.7s linear infinite',
 };
 
 const overlayLabel: React.CSSProperties = {
   fontSize: 13,
-  color: '#605e5c',
+  color: 'var(--text-secondary)',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };

@@ -64,14 +64,14 @@ export function ParentAssignmentSection({
   }, [adapter, parentEntityId]);
 
   return (
-    <div style={bodyStyle}>
+    <div className="section-body">
       <div style={fieldStyle}>
-        <label style={labelStyle} htmlFor={`${sectionId}-lookup`}>
+        <label className="lbl" htmlFor={`${sectionId}-lookup`}>
           Lookup on the task&rsquo;s record
         </label>
         <select
           id={`${sectionId}-lookup`}
-          style={selectStyle}
+          className="fluent-select"
           disabled={disabled}
           value={value.parentAssignFieldId ?? ''}
           onChange={(event) => {
@@ -87,14 +87,14 @@ export function ParentAssignmentSection({
             <option key={field.id} value={field.id}>{field.name}</option>
           ))}
         </select>
-        <span style={hintStyle}>The field that points at the parent record.</span>
+        <span className="hint-inline">The field that points at the parent record.</span>
       </div>
 
       <div style={fieldStyle}>
-        <label style={labelStyle} htmlFor={`${sectionId}-entity`}>Parent table</label>
+        <label className="lbl" htmlFor={`${sectionId}-entity`}>Parent table</label>
         <select
           id={`${sectionId}-entity`}
-          style={selectStyle}
+          className="fluent-select"
           disabled={disabled}
           value={value.parentAssignEntityId ?? ''}
           onChange={(event) => {
@@ -115,10 +115,10 @@ export function ParentAssignmentSection({
       </div>
 
       <div style={fieldStyle}>
-        <label style={labelStyle} htmlFor={`${sectionId}-owner`}>Owner field on the parent</label>
+        <label className="lbl" htmlFor={`${sectionId}-owner`}>Owner field on the parent</label>
         <select
           id={`${sectionId}-owner`}
-          style={selectStyle}
+          className="fluent-select"
           disabled={disabled || !value.parentAssignEntityId}
           value={value.parentAssignUserFieldId ?? ''}
           onChange={(event) => {
@@ -134,33 +134,18 @@ export function ParentAssignmentSection({
             <option key={field.id} value={field.id}>{field.name}</option>
           ))}
         </select>
-        <span style={hintStyle}>
+        <span className="hint-inline">
           {value.parentAssignEntityId
             ? 'The user on this field becomes the task owner.'
             : 'Choose a parent table first.'}
         </span>
       </div>
 
-      {loadFailed && <div style={noticeStyle}>Could not load tables.</div>}
+      {loadFailed && <div className="notice warning">Could not load tables.</div>}
     </div>
   );
 }
 
 // --- styles (match the dark step panel) ---
 
-const bodyStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6,
-};
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em',
-};
-const selectStyle: React.CSSProperties = {
-  height: 30, padding: '0 8px', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 4, color: '#e2e8f0', fontSize: 12, outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-const hintStyle: React.CSSProperties = { fontSize: 10, color: '#64748b', lineHeight: 1.4 };
-const noticeStyle: React.CSSProperties = {
-  fontSize: 10, color: '#fbbf24', background: '#1c1917', border: '1px solid #422006',
-  borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-};

@@ -5,16 +5,16 @@ import { branchSummaryText } from '../services/branchFields';
 import type { ViewStepData, StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
-  'Specific User': { bg: '#eff6ff', text: '#1d4ed8' },
-  'Team':          { bg: '#f0fdf4', text: '#15803d' },
-  'Round Robin':   { bg: '#faf5ff', text: '#7e22ce' },
+  'Specific User': { bg: 'var(--primary-tint-2)', text: 'var(--primary-pressed)' },
+  'Team':          { bg: 'var(--success-bg)', text: 'var(--success)' },
+  'Round Robin':   { bg: 'var(--accent-branch-bg)', text: 'var(--accent-branch)' },
 };
 
 export function ViewStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows, layoutDir } = data as unknown as ViewStepData;
   const isLR = layoutDir === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
-  const assignColor = ASSIGN_COLOR[assignLabel] ?? { bg: '#f1f5f9', text: '#475569' };
+  const assignColor = ASSIGN_COLOR[assignLabel] ?? { bg: 'var(--surface-alt)', text: 'var(--text-secondary)' };
   const assigneeName =
     assignLabel === 'Specific User' ? step.assignedUserName
     : assignLabel === 'Team'        ? step.teamName
@@ -30,7 +30,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
 
   return (
     <div style={containerStyle(selected ?? false)}>
-      <Handle type="target" position={mainInPos}  id="in"       style={handle('#94a3b8')} />
+      <Handle type="target" position={mainInPos}  id="in"       style={handle('var(--text-disabled)')} />
       <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
       <Handle type="target" position={backInPos}  id="back-in"  style={backHandleStyle(isLR, 'in')} />
 
@@ -47,7 +47,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
       <div style={chipsRow}>
         <span style={chip(assignColor.bg, assignColor.text)}>{assignLabel}</span>
         {assigneeName && (
-          <span style={chip('#f8fafc', '#374151')} title={assigneeName}>
+          <span style={chip('var(--text)', 'var(--text)')} title={assigneeName}>
             {truncate(assigneeName, 22)}
           </span>
         )}
@@ -64,7 +64,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
         </>
       )}
 
-      <Handle type="source" position={mainOutPos} id="out" style={handle('#64748b')} />
+      <Handle type="source" position={mainOutPos} id="out" style={handle('var(--text-secondary)')} />
     </div>
   );
 }
@@ -73,10 +73,10 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isBackEdge) {
     return (
       <div style={outcomeRow}>
-        <span style={icon('#7c3aed')}>↩</span>
-        <span style={outcomeLabel('#4c1d95')}>{truncate(row.name, 20)}</span>
+        <span style={icon('var(--accent-branch)')}>↩</span>
+        <span style={outcomeLabel('var(--accent-branch)')}>{truncate(row.name, 20)}</span>
         {row.nextStepName && (
-          <span style={outcomeTarget('#7c3aed')}>→ {truncate(row.nextStepName, 16)}</span>
+          <span style={outcomeTarget('var(--accent-branch)')}>→ {truncate(row.nextStepName, 16)}</span>
         )}
       </div>
     );
@@ -85,8 +85,8 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isTerminal && row.applyFilter) {
     return (
       <div style={outcomeRow}>
-        <span style={icon('#d97706')}>◈</span>
-        <span style={outcomeLabel('#92400e')}>{truncate(row.name, 20)}</span>
+        <span style={icon('var(--warning)')}>◈</span>
+        <span style={outcomeLabel('var(--warning)')}>{truncate(row.name, 20)}</span>
         <span style={conditionBadge}>CONDITION</span>
       </div>
     );
@@ -95,21 +95,21 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isTerminal) {
     return (
       <div style={outcomeRow}>
-        <span style={icon('#dc2626')}>⊘</span>
-        <span style={outcomeLabel('#7f1d1d')}>{truncate(row.name, 20)}</span>
-        <span style={outcomeTarget('#dc2626')}>→ END</span>
+        <span style={icon('var(--error)')}>⊘</span>
+        <span style={outcomeLabel('var(--error)')}>{truncate(row.name, 20)}</span>
+        <span style={outcomeTarget('var(--error)')}>→ END</span>
       </div>
     );
   }
 
   return (
     <div style={outcomeRow}>
-      <span style={icon('#16a34a')}>→</span>
-      <span style={outcomeLabel('#1e293b')}>{truncate(row.name, 20)}</span>
+      <span style={icon('var(--success)')}>→</span>
+      <span style={outcomeLabel('var(--text)')}>{truncate(row.name, 20)}</span>
       <div style={forwardRight}>
         {row.applyFilter && <span style={filterBadge}>◈</span>}
         {row.nextStepName && (
-          <span style={outcomeTarget('#475569')}>{truncate(row.nextStepName, 14)}</span>
+          <span style={outcomeTarget('var(--text-secondary)')}>{truncate(row.nextStepName, 14)}</span>
         )}
       </div>
     </div>
@@ -121,13 +121,13 @@ function truncate(s: string, max: number): string {
 }
 
 function handle(color: string): React.CSSProperties {
-  return { background: color, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
+  return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
 // Back handles on the same edge (left in TB, top/bottom in LR) need vertical offsets
 // in TB mode so they don't overlap at the center.
 function backHandleStyle(isLR: boolean, which: 'out' | 'in'): React.CSSProperties {
-  const base = { background: '#a78bfa', width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
+  const base = { background: 'var(--accent-branch-bg)', width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
   if (isLR) return base;
   // In TB the back handles are both on Position.Left, so offset them vertically.
   return { ...base, top: which === 'out' ? '32%' : '68%' };
@@ -135,8 +135,8 @@ function backHandleStyle(isLR: boolean, which: 'out' | 'in'): React.CSSPropertie
 
 function containerStyle(selected: boolean): React.CSSProperties {
   return {
-    background: '#fff',
-    border: selected ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
+    background: 'var(--surface)',
+    border: selected ? '2px solid var(--primary)' : '1.5px solid var(--border)',
     borderRadius: 10,
     padding: '10px 14px 10px',
     width: 280,
@@ -185,36 +185,36 @@ function outcomeTarget(color: string): React.CSSProperties {
 const headerRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 };
 
 const seqBadge: React.CSSProperties = {
-  background: '#2563eb', color: '#fff', borderRadius: 4,
+  background: 'var(--primary)', color: 'var(--text-on-primary)', borderRadius: 4,
   fontSize: 10, fontWeight: 700, padding: '1px 7px', flexShrink: 0, lineHeight: '16px',
 };
 
 const nameText: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: '#1e293b',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
 };
 
 // DP-1: the label, not the colour, is what makes this readable in greyscale
 // export and to colour-blind reviewers (NFR-009).
 const controlFlowBadge: React.CSSProperties = {
-  background: '#f5f3ff', color: '#6d28d9', border: '1px solid #ddd6fe', borderRadius: 4,
+  background: 'var(--accent-branch-bg)', color: 'var(--accent-branch)', border: '1px solid var(--accent-branch)', borderRadius: 4,
   fontSize: 9, fontWeight: 700, padding: '1px 5px', flexShrink: 0, lineHeight: '16px',
   whiteSpace: 'nowrap',
 };
 
 const chipsRow: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: 4 };
-const divider: React.CSSProperties = { borderTop: '1px solid #f1f5f9', margin: '8px 0 6px' };
+const divider: React.CSSProperties = { borderTop: '1px solid var(--border)', margin: '8px 0 6px' };
 const outcomesSection: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 3 };
 const outcomeRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5, minHeight: 20 };
 const forwardRight: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 };
-const filterBadge: React.CSSProperties = { fontSize: 9, color: '#d97706', fontWeight: 700 };
+const filterBadge: React.CSSProperties = { fontSize: 9, color: 'var(--warning)', fontWeight: 700 };
 
 const conditionBadge: React.CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
-  color: '#92400e',
-  background: '#fef3c7',
-  border: '1px solid #fcd34d',
+  color: 'var(--warning)',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
   borderRadius: 3,
   padding: '1px 5px',
   flexShrink: 0,

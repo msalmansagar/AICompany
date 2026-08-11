@@ -260,8 +260,8 @@ function buildStartEdge(state: SopDesignerState): Edge | null {
     source: SYNTHETIC_IDS.start,
     target: firstStepId,
     type: 'smoothstep',
-    style: { stroke: '#0f766e', strokeWidth: 2 },
-    markerEnd: { type: 'arrowclosed' as const, color: '#0f766e' },
+    style: { stroke: 'var(--accent-route)', strokeWidth: 2 },
+    markerEnd: { type: 'arrowclosed' as const, color: 'var(--accent-route)' },
   };
 }
 
@@ -276,8 +276,8 @@ function buildStepToOutcomeEdge(stepId: string, outcomeIds: string[]): Edge | nu
     target,
     type: 'smoothstep',
     animated: false,
-    style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-    markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
+    style: { stroke: 'var(--text-disabled)', strokeWidth: 1.5 },
+    markerEnd: { type: 'arrowclosed' as const, color: 'var(--text-disabled)' },
   };
 }
 
@@ -293,8 +293,8 @@ function buildOutcomeTargetEdge(outcome: SopDesignerState['outcomes'][string], s
       target: SYNTHETIC_IDS.end,
       type: 'smoothstep',
       animated: false,
-      style: { stroke: '#94a3b8', strokeWidth: 1.2, strokeDasharray: '4,4' },
-      markerEnd: { type: 'arrowclosed' as const, color: '#94a3b8' },
+      style: { stroke: 'var(--text-disabled)', strokeWidth: 1.2, strokeDasharray: '4,4' },
+      markerEnd: { type: 'arrowclosed' as const, color: 'var(--text-disabled)' },
     };
   }
   return {
@@ -303,13 +303,13 @@ function buildOutcomeTargetEdge(outcome: SopDesignerState['outcomes'][string], s
     target: outcome.nextSopStepId,
     type: 'smoothstep',
     animated: true,
-    style: { strokeDasharray: '5,5', stroke: '#2563eb', strokeWidth: 1.5 },
-    markerEnd: { type: 'arrowclosed' as const, color: '#2563eb' },
+    style: { strokeDasharray: '5,5', stroke: 'var(--primary)', strokeWidth: 1.5 },
+    markerEnd: { type: 'arrowclosed' as const, color: 'var(--primary)' },
     // Labels only on gateway branches (where multiple routes exist)
     ...(isBranching && outcome.name ? {
       label: outcome.name,
-      labelStyle: { fontSize: 9, fontWeight: 600, fill: '#1e40af' },
-      labelBgStyle: { fill: '#eff6ff', fillOpacity: 1 },
+      labelStyle: { fontSize: 9, fontWeight: 600, fill: 'var(--primary-pressed)' },
+      labelBgStyle: { fill: 'var(--primary)', fillOpacity: 1 },
       labelBgPadding: [5, 3] as [number, number],
       labelBgBorderRadius: 3,
       labelShowBg: true,

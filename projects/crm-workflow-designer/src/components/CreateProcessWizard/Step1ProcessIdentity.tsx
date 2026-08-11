@@ -33,33 +33,33 @@ export function Step1ProcessIdentity({ sop, initialValues, onValidated }: Step1P
       </div>
 
       <div style={fieldGroupStyle}>
-        <label style={labelStyle}>
-          Process Name <span style={requiredStyle}>*</span>
+        <label className="lbl">
+          Process Name <span className="req">*</span>
         </label>
         <input
           type="text"
           value={processName}
           onChange={(e) => { setProcessName(e.target.value); setNameError(''); }}
           placeholder="Enter process name"
-          style={{ ...inputStyle, ...(nameError ? inputErrorStyle : {}) }}
+          className={nameError ? "fluent-input invalid" : "fluent-input"}
           autoFocus
         />
-        {nameError && <span style={errorTextStyle}>{nameError}</span>}
+        {nameError && <span className="hint-inline" style={{ color: 'var(--error)' }}>{nameError}</span>}
       </div>
 
       <div style={fieldGroupStyle}>
-        <label style={labelStyle}>Description (optional)</label>
+        <label className="lbl">Description (optional)</label>
         <textarea
           value={processDescription}
           onChange={(e) => setProcessDescription(e.target.value)}
           placeholder="Describe this process…"
           rows={3}
-          style={textareaStyle}
+          className="fluent-input"
         />
       </div>
 
-      <div style={footerStyle}>
-        <button type="button" style={nextBtnStyle} onClick={handleNext}>
+      <div className="dialog-foot">
+        <button type="button" className="btn primary" onClick={handleNext}>
           Next →
         </button>
       </div>
@@ -74,47 +74,17 @@ const sopInfoStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '10px 14px',
-  background: '#eff6ff',
-  border: '1px solid #bfdbfe',
+  background: 'var(--primary-tint-2)',
+  border: '1px solid var(--primary-tint)',
   borderRadius: 6,
 };
 
-const sopLabelStyle: React.CSSProperties = { fontSize: 12, color: '#3b82f6', fontWeight: 500 };
-const sopNameStyle: React.CSSProperties = { fontSize: 13, color: '#1e40af', fontWeight: 600 };
+const sopLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--primary)', fontWeight: 500 };
+const sopNameStyle: React.CSSProperties = { fontSize: 13, color: 'var(--primary-pressed)', fontWeight: 600 };
 const sopVersionStyle: React.CSSProperties = {
-  fontSize: 11, color: '#3b82f6', background: '#dbeafe',
-  border: '1px solid #bfdbfe', borderRadius: 4, padding: '1px 6px',
+  fontSize: 11, color: 'var(--primary)', background: 'var(--primary-tint)',
+  border: '1px solid var(--primary-tint)', borderRadius: 4, padding: '1px 6px',
 };
 
 const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 5 };
 
-const labelStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#374151' };
-const requiredStyle: React.CSSProperties = { color: '#dc2626' };
-
-const inputStyle: React.CSSProperties = {
-  height: 34, padding: '0 10px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 6, color: '#1e293b', fontSize: 13,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-};
-
-const inputErrorStyle: React.CSSProperties = { borderColor: '#f87171' };
-
-const textareaStyle: React.CSSProperties = {
-  padding: '8px 10px',
-  background: '#fff', border: '1px solid #cbd5e1',
-  borderRadius: 6, color: '#1e293b', fontSize: 13,
-  outline: 'none', width: '100%', boxSizing: 'border-box',
-  resize: 'vertical', fontFamily: 'inherit',
-};
-
-const errorTextStyle: React.CSSProperties = { fontSize: 11, color: '#dc2626' };
-
-const footerStyle: React.CSSProperties = { display: 'flex', justifyContent: 'flex-end', paddingTop: 4 };
-
-const nextBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 6, color: '#fff',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};

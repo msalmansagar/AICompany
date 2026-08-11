@@ -27,7 +27,7 @@ const circleStyle: React.CSSProperties = {
   width: 64,
   height: 64,
   borderRadius: '50%',
-  background: '#dc2626',
+  background: 'var(--error)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -35,14 +35,14 @@ const circleStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  color: '#fff',
+  color: 'var(--text-on-primary)',
   fontSize: 11,
   fontWeight: 700,
   letterSpacing: '0.05em',
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#dc2626',
+  background: 'var(--error)',
   width: 10,
   height: 10,
 };

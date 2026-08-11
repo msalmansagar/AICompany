@@ -5,16 +5,16 @@ import type { TechStepData, BackHandleInfo } from '../services/TechnicalGraphBui
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
-  'Specific User': { bg: '#eff6ff', text: '#1d4ed8' },
-  'Team':          { bg: '#f0fdf4', text: '#15803d' },
-  'Round Robin':   { bg: '#faf5ff', text: '#7e22ce' },
+  'Specific User': { bg: 'var(--primary-tint-2)', text: 'var(--primary-pressed)' },
+  'Team':          { bg: 'var(--success-bg)', text: 'var(--success)' },
+  'Round Robin':   { bg: 'var(--accent-branch-bg)', text: 'var(--accent-branch)' },
 };
 
 export function TechStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows, layoutDir, backOutHandles, backInHandles } = data as unknown as TechStepData;
   const isLR = layoutDir === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
-  const assignColor = ASSIGN_COLOR[assignLabel] ?? { bg: '#f1f5f9', text: '#475569' };
+  const assignColor = ASSIGN_COLOR[assignLabel] ?? { bg: 'var(--surface-alt)', text: 'var(--text-secondary)' };
   const assigneeName =
     assignLabel === 'Specific User' ? step.assignedUserName
     : assignLabel === 'Team'        ? step.teamName
@@ -27,7 +27,7 @@ export function TechStepNode({ data, selected }: NodeProps) {
 
   return (
     <div style={containerStyle(selected ?? false)}>
-      <Handle type="target" position={mainInPos} id="in" style={handle('#94a3b8')} />
+      <Handle type="target" position={mainInPos} id="in" style={handle('var(--text-disabled)')} />
 
       {(backOutHandles ?? []).map((h: BackHandleInfo) => (
         <Handle
@@ -62,7 +62,7 @@ export function TechStepNode({ data, selected }: NodeProps) {
       <div style={chipsRow}>
         <span style={chip(assignColor.bg, assignColor.text)}>{assignLabel}</span>
         {assigneeName && (
-          <span style={chip('#f8fafc', '#374151')} title={assigneeName}>{assigneeName}</span>
+          <span style={chip('var(--text)', 'var(--text)')} title={assigneeName}>{assigneeName}</span>
         )}
       </div>
 
@@ -96,7 +96,7 @@ export function TechStepNode({ data, selected }: NodeProps) {
         </>
       )}
 
-      <Handle type="source" position={mainOutPos} id="out" style={handle('#64748b')} />
+      <Handle type="source" position={mainOutPos} id="out" style={handle('var(--text-secondary)')} />
     </div>
   );
 }
@@ -105,8 +105,8 @@ function TechOutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isBackEdge) {
     return (
       <div style={backEdgeRow}>
-        <span style={icon('#7c3aed')}>↩</span>
-        <span style={outcomeLabel('#4c1d95')}>{row.name}</span>
+        <span style={icon('var(--accent-branch)')}>↩</span>
+        <span style={outcomeLabel('var(--accent-branch)')}>{row.name}</span>
         <div style={rightSide}>
           {row.applyFilter && <span style={filterBadge}>◈ filtered</span>}
           {row.nextStepName && <span style={backTargetText}>↑ {row.nextStepName}</span>}
@@ -117,40 +117,40 @@ function TechOutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isTerminal) {
     return (
       <div style={outcomeRow}>
-        <span style={icon('#dc2626')}>⊘</span>
-        <span style={outcomeLabel('#7f1d1d')}>{row.name}</span>
-        <span style={targetText('#dc2626')}>→ END</span>
+        <span style={icon('var(--error)')}>⊘</span>
+        <span style={outcomeLabel('var(--error)')}>{row.name}</span>
+        <span style={targetText('var(--error)')}>→ END</span>
       </div>
     );
   }
   return (
     <div style={outcomeRow}>
-      <span style={icon('#16a34a')}>→</span>
-      <span style={outcomeLabel('#1e293b')}>{row.name}</span>
+      <span style={icon('var(--success)')}>→</span>
+      <span style={outcomeLabel('var(--text)')}>{row.name}</span>
       <div style={rightSide}>
         {row.applyFilter && <span style={filterBadge}>◈ filtered</span>}
-        {row.nextStepName && <span style={targetText('#475569')}>{row.nextStepName}</span>}
+        {row.nextStepName && <span style={targetText('var(--text-secondary)')}>{row.nextStepName}</span>}
       </div>
     </div>
   );
 }
 
 function handle(color: string): React.CSSProperties {
-  return { background: color, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%' };
+  return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
 function backHandleStyle(isLR: boolean, offset: number): React.CSSProperties {
   return {
-    background: '#a78bfa', width: 8, height: 8,
-    border: '2px solid #fff', borderRadius: '50%',
+    background: 'var(--accent-branch-bg)', width: 8, height: 8,
+    border: '2px solid var(--border)', borderRadius: '50%',
     ...(isLR ? { left: `${offset}%` } : { top: `${offset}%` }),
   };
 }
 
 function containerStyle(selected: boolean): React.CSSProperties {
   return {
-    background: '#fff',
-    border: selected ? '2px solid #2563eb' : '1.5px solid #94a3b8',
+    background: 'var(--surface)',
+    border: selected ? '2px solid var(--primary)' : '1.5px solid var(--border-strong)',
     borderRadius: 8,
     width: 280,
     boxShadow: selected
@@ -189,27 +189,27 @@ function targetText(color: string): React.CSSProperties {
 
 const techHeader: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 6,
-  background: '#1e293b', padding: '7px 12px',
+  background: 'var(--surface)', padding: '7px 12px',
 };
 
 const techBadge: React.CSSProperties = {
-  fontSize: 8, fontWeight: 800, color: '#94a3b8',
+  fontSize: 8, fontWeight: 800, color: 'var(--text-disabled)',
   letterSpacing: '0.1em', flexShrink: 0,
 };
 
 const seqBadge: React.CSSProperties = {
-  background: '#334155', color: '#e2e8f0', borderRadius: 4,
+  background: 'var(--surface-alt)', color: 'var(--text)', borderRadius: 4,
   fontSize: 10, fontWeight: 700, padding: '1px 6px', flexShrink: 0, lineHeight: '16px',
 };
 
 const nameText: React.CSSProperties = {
-  fontSize: 13, fontWeight: 600, color: '#f1f5f9',
+  fontSize: 13, fontWeight: 600, color: 'var(--text)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
 };
 
 const schemaRow: React.CSSProperties = {
-  fontSize: 10, fontFamily: 'monospace', color: '#64748b', background: '#f8fafc',
-  padding: '3px 12px', borderBottom: '1px solid #e2e8f0',
+  fontSize: 10, fontFamily: 'monospace', color: 'var(--text-secondary)', background: 'var(--surface-alt)',
+  padding: '3px 12px', borderBottom: '1px solid var(--border)',
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
@@ -223,11 +223,11 @@ const taskRow: React.CSSProperties = {
 };
 
 const taskLabel: React.CSSProperties = {
-  fontSize: 9, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', flexShrink: 0,
+  fontSize: 9, fontWeight: 600, color: 'var(--text-disabled)', textTransform: 'uppercase', flexShrink: 0,
 };
 
 const taskValue: React.CSSProperties = {
-  fontSize: 11, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
 };
 
 const entityRow: React.CSSProperties = {
@@ -235,14 +235,14 @@ const entityRow: React.CSSProperties = {
 };
 
 const entityBadge: React.CSSProperties = {
-  fontSize: 10, background: '#f1f5f9', color: '#475569',
-  border: '1px solid #e2e8f0', borderRadius: 4, padding: '1px 5px',
+  fontSize: 10, background: 'var(--surface-alt)', color: 'var(--text-secondary)',
+  border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px',
 };
 
-const entityField: React.CSSProperties = { fontSize: 10, color: '#94a3b8' };
+const entityField: React.CSSProperties = { fontSize: 10, color: 'var(--text-disabled)' };
 
 const divider: React.CSSProperties = {
-  borderTop: '1px solid #f1f5f9', margin: '4px 12px 4px',
+  borderTop: '1px solid var(--border)', margin: '4px 12px 4px',
 };
 
 const outcomesSection: React.CSSProperties = {
@@ -255,12 +255,12 @@ const outcomeRow: React.CSSProperties = {
 
 const backEdgeRow: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 5, minHeight: 20,
-  background: '#f5f3ff', borderLeft: '3px solid #7c3aed',
+  background: 'var(--accent-branch-bg)', borderLeft: '3px solid var(--accent-branch)',
   margin: '1px -12px', padding: '2px 12px 2px 9px',
 };
 
 const backTargetText: React.CSSProperties = {
-  fontSize: 10, color: '#7c3aed', fontWeight: 600, flexShrink: 0,
+  fontSize: 10, color: 'var(--accent-branch)', fontWeight: 600, flexShrink: 0,
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100,
 };
 
@@ -269,5 +269,5 @@ const rightSide: React.CSSProperties = {
 };
 
 const filterBadge: React.CSSProperties = {
-  fontSize: 9, color: '#d97706', fontWeight: 700,
+  fontSize: 9, color: 'var(--warning)', fontWeight: 700,
 };

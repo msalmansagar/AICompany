@@ -113,6 +113,18 @@ export function buildAssignmentBody(data: Partial<WorkflowStep>): Record<string,
 export const ASSIGN_TO_TYPES = Object.keys(ASSIGN_TO_CODES) as [AssignToType, ...AssignToType[]];
 
 /**
+ * The chip colour each mode wears on the canvas. These have their own tokens
+ * rather than borrowing the status ones: a step assigned to a team is not a
+ * success, and reading the owner from a parent record is not a warning.
+ */
+export const ASSIGN_TO_ACCENTS: Record<AssignToType, string> = {
+  user: 'var(--accent-user)',
+  team: 'var(--accent-team)',
+  readFromParent: 'var(--accent-parent)',
+  roundRobin: 'var(--accent-roundrobin)',
+};
+
+/**
  * How each mode is named, in the org's own option-set wording, so a maker reads
  * the same words in the designer and in Dataverse.
  */

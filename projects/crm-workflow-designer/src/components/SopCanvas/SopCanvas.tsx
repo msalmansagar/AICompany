@@ -18,6 +18,7 @@ import { validateSopForPublish } from '@/validators/sopValidator';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { useSopSave } from '@/hooks/useSopSave';
 import { nodeTypes } from '@/nodes/nodeTypes';
+import { SopPropertiesDialog } from './SopPropertiesDialog';
 import { SOP_STATUS } from '@/types/SopTypes';
 import type { ISopAdapter } from '@/services/ISopAdapter';
 import type { SopStep, SopOutcome } from '@/types/SopTypes';
@@ -28,10 +29,9 @@ import { confirm } from '@/components/ui/ConfirmDialog';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
-  onBack(): void;
 }
 
-export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
+export function SopCanvas({ adapter }: SopCanvasProps) {
   const { fitView } = useReactFlow();
   const store = useSopStore();
   const { saveSopCanvas } = useSopSave();
@@ -42,6 +42,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
     selectSopNodes(useSopStore.getState() as unknown as SopDesignerState)
   );
   const [showWizard, setShowWizard] = useState(false);
+  const [showSopProperties, setShowSopProperties] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [toastIsError, setToastIsError] = useState(false);
 
@@ -106,23 +107,8 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
     }
   }, [saveSopCanvas, showToast]);
 
-  const handleBack = useCallback(() => {
-    if (!state.isDirty) {
-      store.resetSopCanvas();
-      onBack();
-      return;
-    }
-    void confirm({
-      title: 'Unsaved changes',
-      message: 'You have unsaved changes. Leave without saving?',
-      confirmLabel: 'Leave',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      store.resetSopCanvas();
-      onBack();
-    });
-  }, [state.isDirty, store, onBack]);
+  // Leaving is the sitemap's job now; SopListScreen carries the unsaved-changes
+  // guard that used to live behind this screen's back button.
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     setNodes((nds) => applyNodeChanges(changes, nds));
@@ -167,45 +153,46 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
         <ToastBanner message={toastMsg} isError={toastIsError} onClose={() => setToastMsg(null)} />
       )}
 
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <button type="button" style={backBtnStyle} onClick={handleBack}>
-          ← SOPs
+      {/* The sitemap owns navigation, so there is no back button here — the
+          command bar carries only what acts on this SOP. */}
+      <div className="cmdbar">
+        <button type="button" className="cmd primary" onClick={handleAddStep} disabled={!state.sop}>
+          + Add step
         </button>
-        <div style={toolbarDividerStyle} />
-        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
-        {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <span style={publishedBadgeStyle}>Published</span>
-        )}
-        {state.isDirty && <span style={dirtyBadgeStyle}>Unsaved</span>}
-
-        <div style={{ flex: 1 }} />
-
-        <button type="button" style={addStepBtnStyle} onClick={handleAddStep} disabled={!state.sop}>
-          + Add Step
-        </button>
+        <span className="cmd-sep" />
         <button
           type="button"
-          style={state.isSaving ? saveBtnDisabledStyle : saveBtnStyle}
+          className="cmd"
           onClick={() => void handleSave()}
           disabled={state.isSaving || !state.isDirty}
         >
           {state.isSaving ? 'Saving…' : 'Save'}
         </button>
         {canPublish && (
-          <button type="button" style={publishBtnStyle} onClick={() => void handlePublish()}>
+          <button type="button" className="cmd" onClick={() => void handlePublish()}>
             Publish
           </button>
         )}
         {state.sop?.status === SOP_STATUS.PUBLISHED && (
-          <button
-            type="button"
-            style={createProcessBtnStyle}
-            onClick={() => setShowWizard(true)}
-          >
-            Create Process
+          <button type="button" className="cmd" onClick={() => setShowWizard(true)}>
+            Create process
           </button>
         )}
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => setShowSopProperties(true)}
+          disabled={!state.sop}
+        >
+          Properties
+        </button>
+
+        <span className="cmd-spacer" />
+
+        <span style={sopNameStyle}>{state.sop?.name ?? 'SOP Designer'}</span>
+        {state.sop?.status === SOP_STATUS.PUBLISHED && <span className="pill published">Published</span>}
+        {state.isDirty && <span className="pill warning">Unsaved</span>}
       </div>
 
       {/* Validation errors */}
@@ -237,7 +224,7 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
             minZoom={0.08}
             maxZoom={2.5}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
             <Controls showInteractive={false} />
           </ReactFlow>
         </div>
@@ -304,6 +291,17 @@ export function SopCanvas({ adapter, onBack }: SopCanvasProps) {
           }}
         />
       )}
+
+      {showSopProperties && state.sop && (
+        <SopPropertiesDialog
+          sop={state.sop}
+          onClose={() => setShowSopProperties(false)}
+          onSave={(patch) => {
+            store.updateSop(patch);
+            setShowSopProperties(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -334,11 +332,11 @@ function ToastBanner({ message, isError, onClose }: { message: string; isError: 
     <div style={{
       position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)',
       zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? '#fef2f2' : '#f0fdf4',
-      border: `1px solid ${isError ? '#fca5a5' : '#86efac'}`,
+      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
+      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
       borderRadius: 8, padding: '10px 16px',
       boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? '#991b1b' : '#166534',
+      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
       maxWidth: 480, minWidth: 260,
     }}>
       <span style={{ flex: 1 }}>{message}</span>
@@ -354,69 +352,8 @@ const shellStyle: React.CSSProperties = {
   flexDirection: 'column', overflow: 'hidden', position: 'relative',
 };
 
-const toolbarStyle: React.CSSProperties = {
-  height: 48, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
-  padding: '0 12px', background: '#fff',
-  borderBottom: '1px solid #e2e8f0',
-  fontFamily: '"Segoe UI", system-ui, sans-serif',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 12px', background: 'transparent',
-  border: '1px solid #e2e8f0', borderRadius: 5,
-  fontSize: 12, fontWeight: 500, color: '#475569', cursor: 'pointer',
-};
-
-const toolbarDividerStyle: React.CSSProperties = {
-  width: 1, height: 24, background: '#e2e8f0', flexShrink: 0,
-};
-
 const sopNameStyle: React.CSSProperties = {
-  fontSize: 14, fontWeight: 700, color: '#0f172a',
-};
-
-const publishedBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: '#166534',
-  background: '#dcfce7', border: '1px solid #86efac',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const dirtyBadgeStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: '#92400e',
-  background: '#fffbeb', border: '1px solid #fde68a',
-  borderRadius: 4, padding: '1px 7px',
-};
-
-const addStepBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#f8fafc', border: '1px solid #e2e8f0',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#0f766e', cursor: 'pointer',
-};
-
-const saveBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
-};
-
-const saveBtnDisabledStyle: React.CSSProperties = {
-  ...saveBtnStyle, background: '#93c5fd', cursor: 'not-allowed',
-};
-
-const publishBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#0f766e', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
-};
-
-const createProcessBtnStyle: React.CSSProperties = {
-  height: 30, padding: '0 14px',
-  background: '#7c3aed', border: 'none',
-  borderRadius: 5, fontSize: 12, fontWeight: 600,
-  color: '#fff', cursor: 'pointer',
+  fontSize: 14, fontWeight: 700, color: 'var(--text)',
 };
 
 const bodyStyle: React.CSSProperties = {
@@ -429,8 +366,8 @@ const canvasWrapStyle: React.CSSProperties = {
 
 const validationBannerStyle: React.CSSProperties = {
   flexShrink: 0,
-  background: '#fef2f2',
-  borderBottom: '1px solid #fca5a5',
+  background: 'var(--error-bg)',
+  borderBottom: '1px solid var(--error)',
   padding: '8px 14px',
   fontFamily: '"Segoe UI", system-ui, sans-serif',
 };
@@ -441,12 +378,12 @@ const validationHeaderRowStyle: React.CSSProperties = {
 };
 
 const validationTitleStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, color: '#991b1b',
+  fontSize: 12, fontWeight: 700, color: 'var(--error)',
 };
 
 const validationDismissBtnStyle: React.CSSProperties = {
   background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: 16, color: '#991b1b', padding: 0, lineHeight: 1,
+  fontSize: 16, color: 'var(--error)', padding: 0, lineHeight: 1,
 };
 
 const validationListStyle: React.CSSProperties = {
@@ -454,11 +391,11 @@ const validationListStyle: React.CSSProperties = {
 };
 
 const validationItemStyle: React.CSSProperties = {
-  fontSize: 12, color: '#7f1d1d', marginBottom: 2,
+  fontSize: 12, color: 'var(--error)', marginBottom: 2,
 };
 
 const validationCodeStyle: React.CSSProperties = {
   fontWeight: 700, marginRight: 6,
-  background: '#fee2e2', borderRadius: 3,
+  background: 'var(--error-bg)', borderRadius: 3,
   padding: '0 4px', fontSize: 10,
 };

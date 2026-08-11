@@ -1,7 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { AssignToType } from '@/types/WorkflowTypes';
-import { ASSIGN_TO_LABELS } from '@/services/taskAssignment';
+import { ASSIGN_TO_ACCENTS, ASSIGN_TO_LABELS } from '@/services/taskAssignment';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -66,7 +66,7 @@ export function EditStepNode({ data }: NodeProps) {
 }
 
 function buildContainerStyle(isSelected: boolean, hasError: boolean): React.CSSProperties {
-  const borderColor = hasError ? '#ef4444' : isSelected ? '#2563eb' : '#334155';
+  const borderColor = hasError ? 'var(--error)' : isSelected ? 'var(--primary)' : 'var(--text)';
   const borderWidth = hasError || isSelected ? '2px' : '1.5px';
   const boxShadow = hasError
     ? '0 0 0 3px rgba(239,68,68,0.18), 0 2px 8px rgba(0,0,0,0.12)'
@@ -75,7 +75,7 @@ function buildContainerStyle(isSelected: boolean, hasError: boolean): React.CSSP
     : '0 2px 8px rgba(0,0,0,0.12)';
   return {
     width: 260,
-    background: hasError ? '#fff8f8' : '#fff',
+    background: hasError ? 'var(--error-bg)' : 'var(--surface)',
     border: `${borderWidth} solid ${borderColor}`,
     borderRadius: 8,
     overflow: 'visible',
@@ -88,18 +88,12 @@ function buildContainerStyle(isSelected: boolean, hasError: boolean): React.CSSP
 
 
 function buildAssignChipStyle(assignTo: EditStepData['assignTo']): React.CSSProperties {
-  const colorMap: Record<EditStepData['assignTo'], string> = {
-    user: '#1d4ed8',
-    team: '#065f46',
-    readFromParent: '#9a3412',
-    roundRobin: '#6b21a8',
-  };
   return {
     display: 'inline-block',
     padding: '2px 8px',
     borderRadius: 99,
-    background: colorMap[assignTo],
-    color: '#fff',
+    background: ASSIGN_TO_ACCENTS[assignTo],
+    color: 'var(--text-on-primary)',
     fontSize: 10,
     fontWeight: 600,
     letterSpacing: '0.03em',
@@ -112,15 +106,15 @@ const headerStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '6px 10px',
-  background: '#1e293b',
+  background: 'var(--surface)',
 };
 
 const seqBadgeStyle: React.CSSProperties = {
   minWidth: 20,
   height: 20,
   borderRadius: 4,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   fontSize: 10,
   fontWeight: 700,
   display: 'flex',
@@ -130,7 +124,7 @@ const seqBadgeStyle: React.CSSProperties = {
 };
 
 const stepNameStyle: React.CSSProperties = {
-  color: '#f1f5f9',
+  color: 'var(--text)',
   fontSize: 12,
   fontWeight: 600,
   overflow: 'hidden',
@@ -149,7 +143,7 @@ const bodyStyle: React.CSSProperties = {
 
 const assigneeNameStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -160,9 +154,9 @@ const controlFlowBadgeStyle: React.CSSProperties = {
   display: 'inline-block',
   padding: '2px 6px',
   borderRadius: 4,
-  background: '#4c1d95',
-  border: '1px solid #7c3aed',
-  color: '#ddd6fe',
+  background: 'var(--accent-branch-bg)',
+  border: '1px solid var(--accent-branch)',
+  color: 'var(--accent-branch)',
   fontSize: 9,
   fontWeight: 700,
   letterSpacing: '0.04em',
@@ -174,9 +168,9 @@ const slaBadgeStyle: React.CSSProperties = {
   display: 'inline-block',
   padding: '2px 8px',
   borderRadius: 99,
-  background: '#78350f',
-  border: '1px solid #b45309',
-  color: '#fcd34d',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
+  color: 'var(--warning)',
   fontSize: 10,
   fontWeight: 600,
   overflow: 'hidden',
@@ -186,9 +180,9 @@ const slaBadgeStyle: React.CSSProperties = {
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#64748b',
+  background: 'var(--neutral-chip)',
   width: 10,
   height: 10,
-  border: '2px solid #fff',
+  border: '2px solid var(--border)',
   borderRadius: '50%',
 };

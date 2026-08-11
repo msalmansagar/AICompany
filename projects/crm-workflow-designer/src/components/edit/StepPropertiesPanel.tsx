@@ -97,7 +97,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   if (!step) {
     return (
-      <div style={panelStyle}>
+      <div className="panel">
         <div style={emptyStyle}>No step selected</div>
       </div>
     );
@@ -182,23 +182,23 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   };
 
   return (
-    <div style={panelStyle}>
+    <div className="panel">
       <div style={panelHeaderStyle}>Step Properties</div>
       <div style={panelBodyStyle}>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Name</label>
+          <label className="lbl">Name</label>
           <input
             type="text"
             value={step.name}
             onChange={(e) => setStep({ ...step, name: e.target.value })}
-            style={inputStyle}
+            className="fluent-input"
             placeholder="Step name"
           />
         </div>
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Order</label>
+          <label className="lbl">Order</label>
           <div style={orderRowStyle}>
             <span style={seqChipStyle}>#{stepIndex + 1}</span>
             <button
@@ -225,7 +225,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         <div style={dividerStyle} />
 
         <div style={fieldGroupStyle}>
-          <label style={labelStyle}>Assign To</label>
+          <label className="lbl">Assign To</label>
           <div style={toggleGroupStyle}>
             {ASSIGN_TO_OPTIONS.map((opt) => (
               <button
@@ -279,7 +279,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <div style={sectionLabelStyle}>
+        <div className="panel-section">
           Decisions
           <span style={countBadgeStyle}>{stepOutcomes.length}</span>
         </div>
@@ -315,14 +315,14 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               value={newDecisionName}
               onChange={(e) => setNewDecisionName(e.target.value)}
               placeholder="Decision name (optional)"
-              style={inputStyle}
+              className="fluent-input"
               autoFocus
             />
-            <label style={labelStyle}>Goes to</label>
+            <label className="lbl">Goes to</label>
             <select
               value={newDecisionTarget}
               onChange={(e) => setNewDecisionTarget(e.target.value)}
-              style={selectStyle}
+              className="fluent-select"
             >
               <option value="__end__">— End —</option>
               {otherSteps.map((s) => (
@@ -414,29 +414,19 @@ const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_
 const bulkApprovalRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', paddingTop: 10,
 };
-const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: '#e2e8f0' };
+const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
 const bulkApprovalHintStyle: React.CSSProperties = {
-  fontSize: 10, color: '#64748b', lineHeight: 1.4, paddingTop: 2,
-};
-
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  flexShrink: 0,
-  background: '#0f172a',
-  borderLeft: '1px solid #1e293b',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
+  fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, paddingTop: 2,
 };
 
 const panelHeaderStyle: React.CSSProperties = {
   padding: '10px 14px',
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
-  borderBottom: '1px solid #1e293b',
+  borderBottom: '1px solid var(--border-strong)',
   flexShrink: 0,
 };
 
@@ -455,40 +445,6 @@ const fieldGroupStyle: React.CSSProperties = {
   gap: 4,
 };
 
-const labelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-};
-
-const inputStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  height: 30,
-  padding: '0 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 4,
-  color: '#e2e8f0',
-  fontSize: 12,
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
 // Two columns: the four mode names do not fit on one row of a 280px panel.
 const toggleGroupStyle: React.CSSProperties = {
   display: 'grid',
@@ -501,17 +457,17 @@ const toggleBtnStyle: React.CSSProperties = {
   padding: '0 4px',
   fontSize: 11,
   fontWeight: 500,
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   background: 'transparent',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
 };
 
 const toggleBtnActiveStyle: React.CSSProperties = {
-  background: '#1d4ed8',
-  borderColor: '#3b82f6',
-  color: '#fff',
+  background: 'var(--primary-pressed)',
+  borderColor: 'var(--primary)',
+  color: 'var(--text-on-primary)',
 };
 
 const spinnerRowStyle: React.CSSProperties = {
@@ -519,15 +475,15 @@ const spinnerRowStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   fontSize: 12,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const spinnerStyle: React.CSSProperties = {
   display: 'inline-block',
   width: 12,
   height: 12,
-  border: '2px solid #334155',
-  borderTopColor: '#2563eb',
+  border: '2px solid var(--border)',
+  borderTopColor: 'var(--primary)',
   borderRadius: '50%',
 };
 
@@ -540,8 +496,8 @@ const orderRowStyle: React.CSSProperties = {
 const seqChipStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 700,
-  color: '#94a3b8',
-  background: '#334155',
+  color: 'var(--text-disabled)',
+  background: 'var(--surface-alt)',
   borderRadius: 4,
   padding: '3px 8px',
   flexShrink: 0,
@@ -554,34 +510,23 @@ function buildMoveBtn(enabled: boolean): React.CSSProperties {
     fontSize: 11,
     fontWeight: 500,
     borderRadius: 4,
-    border: '1px solid #334155',
+    border: '1px solid var(--border)',
     background: 'transparent',
-    color: enabled ? '#e2e8f0' : '#475569',
+    color: enabled ? 'var(--text)' : 'var(--text-secondary)',
     cursor: enabled ? 'pointer' : 'not-allowed',
     opacity: enabled ? 1 : 0.4,
   };
 }
 
 const dividerStyle: React.CSSProperties = {
-  borderTop: '1px solid #1e293b',
+  borderTop: '1px solid var(--border-strong)',
   margin: '2px 0',
-};
-
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 600,
-  color: '#64748b',
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-  display: 'flex',
-  alignItems: 'center',
-  gap: 6,
 };
 
 const countBadgeStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#334155',
-  color: '#94a3b8',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-disabled)',
   borderRadius: 8,
   padding: '0 5px',
   fontWeight: 700,
@@ -592,8 +537,8 @@ const decisionRowStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 6,
   padding: '7px 8px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 5,
   cursor: 'pointer',
   textAlign: 'left',
@@ -611,7 +556,7 @@ const decisionInfoStyle: React.CSSProperties = {
 const decisionNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#e2e8f0',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -619,15 +564,15 @@ const decisionNameStyle: React.CSSProperties = {
 
 const decisionTargetStyle: React.CSSProperties = {
   fontSize: 10,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
 };
 
 const conditionalBadgeStyle: React.CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
-  color: '#fbbf24',
-  background: '#451a03',
-  border: '1px solid #92400e',
+  color: 'var(--warning)',
+  background: 'var(--warning-bg)',
+  border: '1px solid var(--warning)',
   borderRadius: 3,
   padding: '1px 5px',
   flexShrink: 0,
@@ -635,7 +580,7 @@ const conditionalBadgeStyle: React.CSSProperties = {
 
 const arrowStyle: React.CSSProperties = {
   fontSize: 14,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   flexShrink: 0,
 };
 
@@ -644,8 +589,8 @@ const addFormStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 6,
   padding: '10px',
-  background: '#1e293b',
-  border: '1px solid #334155',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 6,
 };
 
@@ -661,8 +606,8 @@ const addConfirmBtnStyle: React.CSSProperties = {
   fontWeight: 600,
   borderRadius: 4,
   border: 'none',
-  background: '#1d4ed8',
-  color: '#fff',
+  background: 'var(--primary-pressed)',
+  color: 'var(--text-on-primary)',
   cursor: 'pointer',
 };
 
@@ -672,9 +617,9 @@ const cancelBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 500,
   borderRadius: 4,
-  border: '1px solid #334155',
+  border: '1px solid var(--border)',
   background: 'transparent',
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   cursor: 'pointer',
 };
 
@@ -684,9 +629,9 @@ const addDecisionBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1px dashed #334155',
+  border: '1px dashed var(--border)',
   background: 'transparent',
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
@@ -699,9 +644,9 @@ const deleteBtnStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
   borderRadius: 4,
-  border: '1px solid #7f1d1d',
+  border: '1px solid var(--error)',
   background: 'transparent',
-  color: '#ef4444',
+  color: 'var(--error)',
   cursor: 'pointer',
   marginTop: 4,
 };
@@ -709,6 +654,6 @@ const deleteBtnStyle: React.CSSProperties = {
 const emptyStyle: React.CSSProperties = {
   padding: 16,
   fontSize: 12,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   fontStyle: 'italic',
 };

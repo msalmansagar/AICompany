@@ -7,7 +7,7 @@ import { SopAddNodeToolbar } from './SopAddNodeToolbar';
 
 const W = 130;
 const H = 72;
-const ACCENT = '#0f766e';
+const ACCENT = 'var(--accent-route)';
 
 export function SopOutcomeNode({ data, selected }: NodeProps) {
   const d = data as unknown as SopOutcomeNodeData;
@@ -27,8 +27,8 @@ export function SopOutcomeNode({ data, selected }: NodeProps) {
 
   const showAddToolbar = hovered && !d.nextSopStepId;
 
-  const borderColor = d.hasError ? '#ef4444' : selected ? ACCENT : ACCENT;
-  const bg          = d.hasError ? '#fff8f8' : selected ? '#e6faf8' : '#f0fdf4';
+  const borderColor = d.hasError ? 'var(--error)' : selected ? ACCENT : ACCENT;
+  const bg          = d.hasError ? 'var(--error)' : selected ? 'var(--accent-route)' : 'var(--success)';
   const shadow      = d.hasError
     ? '0 0 0 3px rgba(239,68,68,0.2)'
     : selected
@@ -53,7 +53,7 @@ export function SopOutcomeNode({ data, selected }: NodeProps) {
         type="target"
         position={Position.Left}
         id="in"
-        style={{ background: ACCENT, width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%', left: -5, top: '50%', transform: 'translateY(-50%)' }}
+        style={{ background: ACCENT, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%', left: -5, top: '50%', transform: 'translateY(-50%)' }}
       />
 
       <div style={{
@@ -75,7 +75,7 @@ export function SopOutcomeNode({ data, selected }: NodeProps) {
         }}>
           {d.name || 'Outcome'}
         </span>
-        <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 500 }}>
+        <span style={{ fontSize: 9, color: 'var(--text-disabled)', fontWeight: 500 }}>
           {d.sequenceNo}
         </span>
       </div>
@@ -84,7 +84,7 @@ export function SopOutcomeNode({ data, selected }: NodeProps) {
         type="source"
         position={Position.Right}
         id="out"
-        style={{ background: '#2563eb', width: 10, height: 10, border: '2px solid #fff', borderRadius: '50%', right: -5, top: '50%', transform: 'translateY(-50%)' }}
+        style={{ background: 'var(--primary)', width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%', right: -5, top: '50%', transform: 'translateY(-50%)' }}
       />
     </div>
   );

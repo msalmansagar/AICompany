@@ -28,12 +28,6 @@ interface WorkflowHooksSectionProps {
   adapter: ICrmAdapter;
   /** Shown under the heading — what this scope means relative to the others. */
   scopeNote?: string;
-  /**
-   * Which surface this is rendered on. The edit panels are dark; the process
-   * properties panel is a light Fluent surface, and a dark section dropped into
-   * it reads as a rendering bug rather than a design choice.
-   */
-  surface?: 'dark' | 'light';
 }
 
 export function WorkflowHooksSection({
@@ -42,7 +36,6 @@ export function WorkflowHooksSection({
   kinds,
   adapter,
   scopeNote,
-  surface = 'dark',
 }: WorkflowHooksSectionProps) {
   const sectionId = useId();
   const [expanded, setExpanded] = useState(false);
@@ -50,7 +43,6 @@ export function WorkflowHooksSection({
   const [actions, setActions] = useState<CallableActionOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   const summary = workflowHookSummary(value);
-  const style = PALETTE[surface];
 
   const needsActions = kinds.some((kind) => HOOK_INVOCATION[kind] === 'action');
 
@@ -95,24 +87,24 @@ export function WorkflowHooksSection({
 
   return (
     <div>
-      <button type="button" style={style.header} onClick={() => setExpanded((open) => !open)}>
-        <span style={style.caret}>{expanded ? '▾' : '▸'}</span>
+      <button type="button" className="panel-section" style={{ width: '100%', border: 'none', background: 'transparent', cursor: 'pointer' }} onClick={() => setExpanded((open) => !open)}>
+        <span style={{ fontSize: 10 }}>{expanded ? '▾' : '▸'}</span>
         <span>Workflows</span>
-        {!expanded && summary && <span style={style.summaryBadge}>{summary}</span>}
+        {!expanded && summary && <span className="pill info">{summary}</span>}
       </button>
 
       {expanded && (
-        <div style={style.body}>
-          {scopeNote && <div style={style.notice}>{scopeNote}</div>}
+        <div className="section-body">
+          {scopeNote && <div className="notice">{scopeNote}</div>}
 
           {kinds.map((kind) => {
             const options = optionsFor(kind);
             return (
-              <div key={kind} style={style.field}>
-                <label style={style.label} htmlFor={`${sectionId}-${kind}`}>{HOOK_LABELS[kind]}</label>
+              <div key={kind} className="field">
+                <label className="lbl" htmlFor={`${sectionId}-${kind}`}>{HOOK_LABELS[kind]}</label>
                 <select
                   id={`${sectionId}-${kind}`}
-                  style={style.select}
+                  className="fluent-select"
                   value={value[kind]?.workflowId ?? ''}
                   onChange={(event) => setHook(kind, event.target.value || null)}
                 >
@@ -124,13 +116,13 @@ export function WorkflowHooksSection({
                   ))}
                 </select>
                 {HOOK_INVOCATION[kind] === 'action' && (
-                  <span style={style.hint}>
+                  <span className="hint-inline">
                     The engine sends this one as a message, so it lists Actions on the task
                     table rather than workflows.
                   </span>
                 )}
                 {options.length === 0 && !loadFailed && (
-                  <span style={style.hint}>
+                  <span className="hint-inline">
                     {HOOK_INVOCATION[kind] === 'action'
                       ? 'No Actions are bound to the task table in this environment yet.'
                       : 'Only activated workflows marked “run on demand” can be called, because that is exactly the flag the engine’s execute request needs.'}
@@ -139,7 +131,7 @@ export function WorkflowHooksSection({
               </div>
             );
           })}
-          {loadFailed && <div style={style.notice}>Could not load workflows.</div>}
+          {loadFailed && <div className="notice">Could not load workflows.</div>}
         </div>
       )}
     </div>
@@ -148,64 +140,3 @@ export function WorkflowHooksSection({
 
 // --- two surfaces: the dark edit panels, and the light Fluent process panel ---
 
-interface SectionPalette {
-  header: React.CSSProperties;
-  caret: React.CSSProperties;
-  summaryBadge: React.CSSProperties;
-  body: React.CSSProperties;
-  notice: React.CSSProperties;
-  field: React.CSSProperties;
-  label: React.CSSProperties;
-  select: React.CSSProperties;
-  hint: React.CSSProperties;
-}
-
-const baseHeader: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 0',
-  background: 'transparent', border: 'none', fontSize: 11, fontWeight: 700,
-  textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', textAlign: 'left',
-};
-const baseBody: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 6 };
-const baseField: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 };
-const baseLabel: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
-};
-const baseSelect: React.CSSProperties = {
-  height: 30, padding: '0 8px', borderRadius: 4, fontSize: 12, outline: 'none',
-  width: '100%', boxSizing: 'border-box',
-};
-const baseBadge: React.CSSProperties = {
-  marginLeft: 'auto', fontSize: 9, fontWeight: 700, borderRadius: 3, padding: '1px 5px',
-  textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap',
-};
-
-const PALETTE: Record<'dark' | 'light', SectionPalette> = {
-  dark: {
-    header: { ...baseHeader, color: '#94a3b8' },
-    caret: { fontSize: 10, color: '#64748b' },
-    summaryBadge: { ...baseBadge, color: '#a5f3fc', background: '#083344', border: '1px solid #0e7490' },
-    body: baseBody,
-    notice: {
-      fontSize: 10, color: '#a5f3fc', background: '#082f39', border: '1px solid #0e7490',
-      borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-    },
-    field: baseField,
-    label: { ...baseLabel, color: '#64748b' },
-    select: { ...baseSelect, background: '#1e293b', border: '1px solid #334155', color: '#e2e8f0' },
-    hint: { fontSize: 10, color: '#64748b', lineHeight: 1.4 },
-  },
-  light: {
-    header: { ...baseHeader, color: '#64748b' },
-    caret: { fontSize: 10, color: '#94a3b8' },
-    summaryBadge: { ...baseBadge, color: '#0e7490', background: '#ecfeff', border: '1px solid #a5f3fc' },
-    body: baseBody,
-    notice: {
-      fontSize: 10, color: '#0e7490', background: '#ecfeff', border: '1px solid #a5f3fc',
-      borderRadius: 4, padding: '6px 8px', lineHeight: 1.4,
-    },
-    field: baseField,
-    label: { ...baseLabel, color: '#64748b' },
-    select: { ...baseSelect, background: '#fff', border: '1px solid #d1d5db', color: '#1e293b' },
-    hint: { fontSize: 10, color: '#6b7280', lineHeight: 1.4 },
-  },
-};

@@ -8,8 +8,7 @@ interface ViewToolbarProps {
   isExporting: boolean;
   showMiniMap: boolean;
   viewMode: ViewMode;
-  layoutDir: LayoutDir;
-  onOpen(): void;
+  layoutDir: LayoutDir;
   onRefresh(): void;
   onFitView(): void;
   onAutoLayout(): void;
@@ -19,8 +18,7 @@ interface ViewToolbarProps {
   onViewModeChange(mode: ViewMode): void;
   onLayoutDirChange(dir: LayoutDir): void;
   onNewProcess(): void;
-  onEditProcess?(): void;
-  onBackToList?(): void;
+  onEditProcess?(): void;
 }
 
 export function ViewToolbar({
@@ -29,8 +27,7 @@ export function ViewToolbar({
   isExporting,
   showMiniMap,
   viewMode,
-  layoutDir,
-  onOpen,
+  layoutDir,
   onRefresh,
   onFitView,
   onAutoLayout,
@@ -40,68 +37,59 @@ export function ViewToolbar({
   onViewModeChange,
   onLayoutDirChange,
   onNewProcess,
-  onEditProcess,
-  onBackToList,
+  onEditProcess,
 }: ViewToolbarProps) {
   return (
-    <div style={wrapperStyle}>
-      {/* Row 1 — identity + actions */}
-      <div style={barStyle} role="toolbar" aria-label="Workflow Viewer Toolbar">
-        <div style={identityStyle}>
-          {onBackToList && (
-            <button type="button" style={backBtnStyle} onClick={onBackToList} title="Back to process list">
-              ← Processes
+    <>
+      {/* Navigation lives in the sitemap, so this bar carries only what acts on
+          the process being viewed. */}
+      <div className="cmdbar" role="toolbar" aria-label="Workflow viewer">
+        <button type="button" className="cmd primary" onClick={onNewProcess} title="Create a new workflow process">
+          New process
+        </button>
+        {onEditProcess && processName && (
+          <>
+            <span className="cmd-sep" />
+            <button type="button" className="cmd" onClick={onEditProcess} title="Edit this workflow">
+              Edit
             </button>
-          )}
-          <span style={logoText}>Workflow Designer</span>
-          {isLoading && <span style={loadingBadge}>Loading…</span>}
-          {!isLoading && processName && (
-            <>
-              <span style={dividerStyle} />
-              <span style={processNameStyle}>{processName}</span>
-            </>
-          )}
-        </div>
+          </>
+        )}
+        <span className="cmd-sep" />
+        <button type="button" className="cmd" onClick={onRefresh} title="Reload from CRM" disabled={isLoading}>
+          Refresh
+        </button>
+        <button type="button" className="cmd" onClick={onFitView} title="Fit diagram to screen">
+          Fit view
+        </button>
+        <button type="button" className="cmd" onClick={onAutoLayout} title="Re-apply layout and reset positions">
+          Auto layout
+        </button>
+        <span className="cmd-sep" />
+        <button type="button" className="cmd" onClick={onDownloadPng} title="Download as PNG image" disabled={isExporting}>
+          {isExporting ? 'Exporting…' : 'PNG'}
+        </button>
+        <button type="button" className="cmd" onClick={onDownloadPdf} title="Download as PDF document" disabled={isExporting}>
+          {isExporting ? 'Exporting…' : 'PDF'}
+        </button>
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className={showMiniMap ? 'cmd primary' : 'cmd'}
+          onClick={onToggleMiniMap}
+          title="Toggle minimap"
+        >
+          {showMiniMap ? 'Hide map' : 'Mini map'}
+        </button>
 
-        <div style={actionsStyle}>
-          <ToolBtn label="New Process" onClick={onNewProcess} title="Create a new workflow process" primary />
-          <ToolBtn label="Open" onClick={onOpen} title="Open a workflow" />
-          {onEditProcess && processName && (
-            <>
-              <Sep />
-              <ToolBtn label="Edit" onClick={onEditProcess} title="Edit this workflow" />
-            </>
-          )}
-          <Sep />
-          <ToolBtn label="Refresh" onClick={onRefresh} title="Reload from CRM" disabled={isLoading} />
-          <ToolBtn label="Fit View" onClick={onFitView} title="Fit diagram to screen" />
-          <ToolBtn label="Auto Layout" onClick={onAutoLayout} title="Re-apply layout and reset positions" />
-          <Sep />
-          <ToolBtn
-            label={isExporting ? 'Exporting…' : 'PNG'}
-            onClick={onDownloadPng}
-            title="Download as PNG image"
-            disabled={isExporting}
-          />
-          <ToolBtn
-            label={isExporting ? 'Exporting…' : 'PDF'}
-            onClick={onDownloadPdf}
-            title="Download as PDF document"
-            disabled={isExporting}
-          />
-          <Sep />
-          <ToolBtn
-            label={showMiniMap ? 'Hide Map' : 'Mini Map'}
-            onClick={onToggleMiniMap}
-            title="Toggle minimap"
-            active={showMiniMap}
-          />
-        </div>
+        <span className="cmd-spacer" />
+        {isLoading && <span className="pill info">Loading…</span>}
+        {!isLoading && processName && <span style={processNameStyle}>{processName}</span>}
       </div>
 
       {/* Row 2 — view mode selector + layout direction toggle */}
-      <div style={modeBarStyle} role="tablist" aria-label="View Mode">
-        <span style={modeLabel}>View:</span>
+      {/* The view modes are pivot tabs, as the design system draws a tab set. */}
+      <div className="pivot" role="tablist" aria-label="View mode">
         {VIEW_MODES.map((m) => (
           <button
             key={m.id}
@@ -110,7 +98,7 @@ export function ViewToolbar({
             title={m.description}
             aria-selected={viewMode === m.id}
             onClick={() => onViewModeChange(m.id)}
-            style={modeTab(viewMode === m.id)}
+            className={viewMode === m.id ? 'pivot-tab active' : 'pivot-tab'}
           >
             {m.label}
           </button>
@@ -119,12 +107,12 @@ export function ViewToolbar({
           {VIEW_MODES.find((m) => m.id === viewMode)?.description}
         </span>
 
-        <div style={dirToggleGroup}>
+        <div className="pivot-end">
           <button
             type="button"
             title="Top-to-Bottom layout"
             onClick={() => onLayoutDirChange('TB')}
-            style={dirBtn(layoutDir === 'TB')}
+            className={layoutDir === 'TB' ? 'btn sm primary' : 'btn sm'}
           >
             ↕ TB
           </button>
@@ -132,214 +120,34 @@ export function ViewToolbar({
             type="button"
             title="Left-to-Right layout"
             onClick={() => onLayoutDirChange('LR')}
-            style={dirBtn(layoutDir === 'LR')}
+            className={layoutDir === 'LR' ? 'btn sm primary' : 'btn sm'}
           >
             ↔ LR
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
-}
-
-function ToolBtn({
-  label,
-  onClick,
-  title,
-  disabled = false,
-  primary = false,
-  active = false,
-}: {
-  label: string;
-  onClick(): void;
-  title?: string;
-  disabled?: boolean;
-  primary?: boolean;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...btnBase,
-        ...(primary ? btnPrimary : active ? btnActive : btnSecondary),
-        ...(disabled ? btnDisabled : {}),
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function Sep() {
-  return <div style={sepStyle} />;
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────
 
-const wrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-  zIndex: 10,
-};
-
-const barStyle: React.CSSProperties = {
-  height: 44,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '0 16px',
-  background: '#1e293b',
-  borderBottom: '1px solid #334155',
-};
-
-const modeBarStyle: React.CSSProperties = {
-  height: 34,
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '0 16px',
-  background: '#0f172a',
-  borderBottom: '1px solid #1e293b',
-};
-
-const modeLabel: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  color: '#64748b',
-  letterSpacing: '0.05em',
-  textTransform: 'uppercase',
-  marginRight: 4,
-  flexShrink: 0,
-};
-
 const modeDescription: React.CSSProperties = {
   fontSize: 11,
-  color: '#475569',
+  color: 'var(--text-secondary)',
   marginLeft: 8,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   flex: 1,
-};
-
-const dirToggleGroup: React.CSSProperties = {
-  display: 'flex',
-  gap: 2,
-  marginLeft: 8,
-  flexShrink: 0,
-};
-
-function dirBtn(active: boolean): React.CSSProperties {
-  return {
-    height: 22,
-    padding: '0 8px',
-    fontSize: 10,
-    fontWeight: active ? 600 : 400,
-    borderRadius: 4,
-    border: active ? '1px solid #0ea5e9' : '1px solid #334155',
-    background: active ? '#0c4a6e' : 'transparent',
-    color: active ? '#7dd3fc' : '#64748b',
-    cursor: 'pointer',
-    transition: 'background 0.1s, color 0.1s',
-    flexShrink: 0,
-    letterSpacing: '0.02em',
-  };
-}
-
-function modeTab(active: boolean): React.CSSProperties {
-  return {
-    height: 24,
-    padding: '0 12px',
-    fontSize: 11,
-    fontWeight: active ? 600 : 400,
-    borderRadius: 4,
-    border: active ? '1px solid #3b82f6' : '1px solid transparent',
-    background: active ? '#1d4ed8' : 'transparent',
-    color: active ? '#fff' : '#94a3b8',
-    cursor: 'pointer',
-    transition: 'background 0.1s, color 0.1s',
-    flexShrink: 0,
-  };
-}
-
-const identityStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  flex: 1,
-  minWidth: 0,
-  overflow: 'hidden',
-};
-
-const logoText: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 700,
-  color: '#94a3b8',
-  flexShrink: 0,
-};
-
-const loadingBadge: React.CSSProperties = {
-  fontSize: 11,
-  color: '#60a5fa',
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 14,
-  background: '#475569',
-  flexShrink: 0,
 };
 
 const processNameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#f1f5f9',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
 };
 
-const actionsStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  flexShrink: 0,
-};
-
-const btnBase: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 12,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: 'none',
-  cursor: 'pointer',
-  transition: 'background 0.1s',
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 24,
-  padding: '0 10px',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid #334155',
-  background: 'transparent',
-  color: '#94a3b8',
-  cursor: 'pointer',
-  flexShrink: 0,
-  marginRight: 4,
-};
-
-const btnSecondary: React.CSSProperties = { background: '#334155', color: '#e2e8f0' };
-const btnPrimary: React.CSSProperties = { background: '#2563eb', color: '#fff' };
-const btnActive: React.CSSProperties = { background: '#0f172a', color: '#60a5fa' };
-const btnDisabled: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
-const sepStyle: React.CSSProperties = {
-  width: 1, height: 20, background: '#475569', margin: '0 4px',
-};

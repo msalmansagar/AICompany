@@ -38,7 +38,7 @@ export function RouteEdge({
   const isFallback = edgeData?.isFallback ?? false;
   const isConditional = hasFilter;
 
-  const strokeColor = selected ? '#2563eb' : isFallback ? '#16a34a' : isConditional ? '#d97706' : '#64748b';
+  const strokeColor = selected ? 'var(--primary)' : isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text-secondary)';
   const strokeDasharray = isFallback ? '4 4' : isConditional ? '6 3' : undefined;
 
   function handleDeleteClick(event: React.MouseEvent): void {
@@ -99,9 +99,9 @@ function labelContainerStyle(x: number, y: number): React.CSSProperties {
 }
 
 function labelTextStyle(isConditional: boolean, isFallback: boolean): React.CSSProperties {
-  const color = isFallback ? '#166534' : isConditional ? '#92400e' : '#475569';
-  const bg    = isFallback ? '#f0fdf4' : isConditional ? '#fef3c7' : '#f8fafc';
-  const border = isFallback ? '#86efac' : isConditional ? '#fde68a' : '#e2e8f0';
+  const color = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text-secondary)';
+  const bg    = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text)';
+  const border = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text)';
   return {
     fontSize: 10,
     fontWeight: 600,
@@ -115,8 +115,8 @@ function labelTextStyle(isConditional: boolean, isFallback: boolean): React.CSSP
 
 const filterBadgeStyle: React.CSSProperties = {
   fontSize: 9,
-  background: '#d97706',
-  color: '#fff',
+  background: 'var(--warning)',
+  color: 'var(--text-on-primary)',
   borderRadius: 4,
   padding: '0 4px',
 };
@@ -124,8 +124,8 @@ const filterBadgeStyle: React.CSSProperties = {
 const fallbackBadgeStyle: React.CSSProperties = {
   fontSize: 9,
   fontWeight: 700,
-  background: '#16a34a',
-  color: '#fff',
+  background: 'var(--success)',
+  color: 'var(--text-on-primary)',
   borderRadius: 4,
   padding: '0 5px',
   letterSpacing: '0.04em',
@@ -135,9 +135,9 @@ const deleteButtonStyle: React.CSSProperties = {
   width: 16,
   height: 16,
   borderRadius: '50%',
-  border: '1px solid #fca5a5',
-  background: '#fef2f2',
-  color: '#dc2626',
+  border: '1px solid var(--error)',
+  background: 'var(--error-bg)',
+  color: 'var(--error)',
   fontSize: 10,
   cursor: 'pointer',
   display: 'flex',

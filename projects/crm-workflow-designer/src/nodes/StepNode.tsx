@@ -24,13 +24,13 @@ export function StepNode({ data, selected }: NodeProps) {
       <div style={metaRowStyle}>
         <span style={assignBadgeStyle}>{ASSIGN_LABELS[d.assignTo] ?? d.assignTo}</span>
         {d.assignTo === 'user' && d.assignedUserName && (
-          <span style={detailBadgeStyle('#eff6ff', '#1d4ed8')}>{d.assignedUserName}</span>
+          <span style={detailBadgeStyle('var(--primary)', 'var(--primary-pressed)')}>{d.assignedUserName}</span>
         )}
         {d.assignTo === 'team' && d.teamName && (
-          <span style={detailBadgeStyle('#f0fdf4', '#15803d')}>{d.teamName}</span>
+          <span style={detailBadgeStyle('var(--success)', 'var(--success)')}>{d.teamName}</span>
         )}
         {d.assignTo === 'roundRobin' && d.roundRobinTeamName && (
-          <span style={detailBadgeStyle('#faf5ff', '#7e22ce')}>{d.roundRobinTeamName}</span>
+          <span style={detailBadgeStyle('var(--accent-branch)', 'var(--accent-branch)')}>{d.roundRobinTeamName}</span>
         )}
       </div>
 
@@ -47,12 +47,12 @@ export function StepNode({ data, selected }: NodeProps) {
 
 function containerStyle(selected: boolean, hasError: boolean): React.CSSProperties {
   return {
-    background: '#fff',
+    background: 'var(--surface)',
     border: hasError
-      ? `2px solid #f59e0b`
+      ? `2px solid var(--warning)`
       : selected
-      ? '2px solid #2563eb'
-      : '1.5px solid #e2e8f0',
+      ? '2px solid var(--primary)'
+      : '1.5px solid var(--border)',
     borderRadius: 8,
     padding: '10px 14px',
     minWidth: 190,
@@ -69,19 +69,19 @@ function containerStyle(selected: boolean, hasError: boolean): React.CSSProperti
 }
 
 const targetHandleStyle: React.CSSProperties = {
-  background: '#94a3b8',
+  background: 'var(--neutral-chip)',
   width: 14,
   height: 14,
-  border: '2px solid #fff',
+  border: '2px solid var(--border)',
   borderRadius: '50%',
   top: -7,
 };
 
 const sourceHandleStyle: React.CSSProperties = {
-  background: '#2563eb',
+  background: 'var(--primary)',
   width: 14,
   height: 14,
-  border: '2px solid #fff',
+  border: '2px solid var(--border)',
   borderRadius: '50%',
   bottom: -7,
 };
@@ -94,8 +94,8 @@ const headerStyle: React.CSSProperties = {
 };
 
 const seqBadgeStyle: React.CSSProperties = {
-  background: '#2563eb',
-  color: '#fff',
+  background: 'var(--primary)',
+  color: 'var(--text-on-primary)',
   borderRadius: 4,
   fontSize: 10,
   fontWeight: 700,
@@ -106,7 +106,7 @@ const seqBadgeStyle: React.CSSProperties = {
 const nameStyle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
@@ -115,7 +115,7 @@ const nameStyle: React.CSSProperties = {
 
 const warnIconStyle: React.CSSProperties = {
   fontSize: 12,
-  color: '#f59e0b',
+  color: 'var(--warning)',
   flexShrink: 0,
 };
 
@@ -128,9 +128,9 @@ const metaRowStyle: React.CSSProperties = {
 
 const assignBadgeStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#f1f5f9',
-  color: '#475569',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  color: 'var(--text-secondary)',
+  border: '1px solid var(--border)',
   borderRadius: 4,
   padding: '1px 5px',
   fontWeight: 500,
@@ -157,9 +157,9 @@ const entityRowStyle: React.CSSProperties = {
 
 const entityBadgeStyle: React.CSSProperties = {
   fontSize: 10,
-  background: '#faf5ff',
-  color: '#7e22ce',
-  border: '1px solid #e9d5ff',
+  background: 'var(--accent-branch-bg)',
+  color: 'var(--accent-branch)',
+  border: '1px solid var(--accent-branch)',
   borderRadius: 4,
   padding: '1px 5px',
 };

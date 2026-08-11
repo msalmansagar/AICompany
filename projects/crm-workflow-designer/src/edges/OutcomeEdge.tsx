@@ -36,8 +36,8 @@ export function OutcomeEdge({
   const labelX = sourceX + (targetX - sourceX) * 0.72;
   const labelY = sourceY + (targetY - sourceY) * 0.72;
 
-  const labelColor = d.labelColor ?? (d.isBackEdge ? '#fcd34d' : '#94a3b8');
-  const labelBorder = d.isBackEdge ? '#92400e' : '#334155';
+  const labelColor = d.labelColor ?? (d.isBackEdge ? 'var(--warning)' : 'var(--text-disabled)');
+  const labelBorder = d.isBackEdge ? 'var(--warning)' : 'var(--text)';
 
   return (
     <>
@@ -49,7 +49,7 @@ export function OutcomeEdge({
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'none',
-              background: '#0f172a',
+              background: 'var(--bg)',
               border: `1px solid ${labelBorder}`,
               borderRadius: 4,
               padding: '2px 7px',

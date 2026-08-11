@@ -23,11 +23,11 @@ export interface SwimlaneData extends Record<string, unknown> {
 }
 
 const LANE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  'Specific User': { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
-  'Team':          { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
-  'Round Robin':   { bg: '#faf5ff', border: '#e9d5ff', text: '#7e22ce' },
+  'Specific User': { bg: 'var(--primary-tint-2)', border: 'var(--primary-tint)', text: 'var(--primary-pressed)' },
+  'Team':          { bg: 'var(--success-bg)', border: 'var(--success)', text: 'var(--success)' },
+  'Round Robin':   { bg: 'var(--accent-branch-bg)', border: 'var(--accent-branch)', text: 'var(--accent-branch)' },
 };
-const DEFAULT_LANE_COLOR = { bg: '#f8fafc', border: '#e2e8f0', text: '#475569' };
+const DEFAULT_LANE_COLOR = { bg: 'var(--surface-alt)', border: 'var(--border)', text: 'var(--text-secondary)' };
 
 export function buildSwimlaneGraph(
   steps: CrmStep[],
@@ -125,8 +125,8 @@ export function buildSwimlaneGraph(
       source: `step_${o.stepId}`, target: `step_${o.nextStepId}`,
       sourceHandle: 'right', targetHandle: 'left',
       type: 'smoothstep',
-      style: { stroke: '#64748b', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+      style: { stroke: 'var(--text-secondary)', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
       selectable: false,
     });
   }
@@ -140,10 +140,10 @@ export function buildSwimlaneGraph(
       sourceHandle: 'bottom', targetHandle: 'bottom',
       type: 'smoothstep',
       label: `↩ ${truncate(o.name, 16)}`,
-      labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
-      labelBgStyle: { fill: '#f5f3ff', fillOpacity: 0.95, rx: 4 },
-      style: { stroke: '#7c3aed', strokeWidth: 1.5, strokeDasharray: '6 3' },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#7c3aed' },
+      labelStyle: { fontSize: 10, fill: 'var(--accent-branch)', fontWeight: 600 },
+      labelBgStyle: { fill: 'var(--accent-branch)', fillOpacity: 0.95, rx: 4 },
+      style: { stroke: 'var(--accent-branch)', strokeWidth: 1.5, strokeDasharray: '6 3' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
       selectable: true,
     }));
 

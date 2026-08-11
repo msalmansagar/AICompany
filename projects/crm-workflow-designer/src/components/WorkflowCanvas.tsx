@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   useReactFlow,
+  useStore,
   Panel,
   applyNodeChanges,
   getNodesBounds,
@@ -15,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
@@ -58,12 +59,32 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   swimlane:       buildSwimlaneGraph as BuildFn,
 };
 
-export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onBackToList }: WorkflowCanvasProps) {
+/**
+ * The ids of every node React Flow has measured, or null while any is still
+ * unmeasured. `useNodesInitialized` cannot be used for this: during the commit
+ * that swaps a new graph in it still reports the previous graph's state, so a
+ * fit driven by it lands on stale sizes and leaves a swimlane off-screen.
+ * Comparing ids makes that staleness visible instead of invisible.
+ */
+function useMeasuredNodeIds(): string | null {
+  return useStore((state) => {
+    const ids: string[] = [];
+    for (const [id, node] of state.nodeLookup) {
+      if (!node.measured?.width) return null;
+      ids.push(id);
+    }
+    return ids.sort().join(';');
+  });
+}
+
+export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
   const fitViewTrigger = useRef(0);
+  const measuredNodeIds = useMeasuredNodeIds();
+  const [pendingFit, setPendingFit] = useState(0);
 
   const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
 
@@ -79,9 +100,24 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     );
     view.setNodes(() => rebuilt);
     view.setEdges(() => rebuiltEdges);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+    setPendingFit((token) => token + 1);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.data, view.viewMode, view.layoutDir]);
+
+  const requestedNodeIds = useMemo(
+    () => view.nodes.map((node) => node.id).sort().join(';'),
+    [view.nodes]
+  );
+
+  // Fit only once the nodes React Flow has measured are the nodes we asked for.
+  // A fixed delay raced measurement, and a swimlane lane is wide enough that
+  // fitting too early left most of the diagram off-screen behind the panel.
+  useEffect(() => {
+    if (pendingFit === 0 || measuredNodeIds === null) return;
+    if (measuredNodeIds !== requestedNodeIds) return;
+    fitView({ padding: 0.2, duration: 300 });
+    setPendingFit(0);
+  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView]);
 
   // Apply resolved human-readable labels to route edges once metadata is fetched.
   // Also re-runs on view mode / data change so labels survive graph rebuilds.
@@ -123,8 +159,8 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     );
     view.setNodes(() => positioned);
     view.setEdges(() => rebuilt);
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [view, fitView]);
+    setPendingFit((token) => token + 1);
+  }, [view]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     view.selectElement(node.id);
@@ -151,7 +187,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
     const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewportEl) throw new Error('Viewport element not found.');
     return toPng(viewportEl, {
-      backgroundColor: '#f8fafc',
+      backgroundColor: 'var(--surface-alt)',
       width: EXPORT_W,
       height: EXPORT_H,
       style: {
@@ -200,7 +236,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
         showMiniMap={showMiniMap}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
-        onOpen={handleOpen}
         onRefresh={() => void view.refresh()}
         onFitView={handleFitView}
         onAutoLayout={handleAutoLayout}
@@ -211,7 +246,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
         onLayoutDirChange={view.setLayoutDir}
         onNewProcess={onNewProcess}
         onEditProcess={onEditProcess}
-        onBackToList={onBackToList}
       />
 
       <div style={bodyStyle}>
@@ -237,7 +271,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
             panOnDrag
             selectionOnDrag={false}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#e2e8f0" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
             <Controls showInteractive={false} />
             {showMiniMap && (
               <MiniMap
@@ -275,8 +309,8 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onB
 function LoadingOverlay() {
   return (
     <Panel position="top-center" style={overlayPanelStyle}>
-      <span style={spinnerStyle} />
-      <span style={{ fontSize: 13, color: '#475569' }}>Loading workflow…</span>
+      <span className="spinner" />
+      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Loading workflow…</span>
     </Panel>
   );
 }
@@ -284,11 +318,11 @@ function LoadingOverlay() {
 function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) {
   return (
     <Panel position="top-center" style={errorPanelStyle}>
-      <strong style={{ fontSize: 12, color: '#991b1b', display: 'block', marginBottom: 4 }}>
+      <strong style={{ fontSize: 12, color: 'var(--error)', display: 'block', marginBottom: 4 }}>
         Failed to load workflow
       </strong>
-      <pre style={errorPreStyle}>{message}</pre>
-      <button type="button" style={retryBtn} onClick={onRetry}>Retry</button>
+      <pre className="hint-inline" style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)' }}>{message}</pre>
+      <button type="button" className="btn" onClick={onRetry}>Retry</button>
     </Panel>
   );
 }
@@ -296,14 +330,14 @@ function ErrorPanel({ message, onRetry }: { message: string; onRetry(): void }) 
 function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolean }) {
   return (
     <Panel position="top-center" style={{ marginTop: 80 }}>
-      <div style={emptyCard}>
+      <div className="empty-state">
         <div style={emptyHeading}>Workflow Designer</div>
         {hasNoSteps ? (
-          <p style={emptyText}>This process has no workflow steps.</p>
+          <p className="hint-inline">This process has no workflow steps.</p>
         ) : (
-          <p style={emptyText}>Open an existing workflow to visualise it.</p>
+          <p className="hint-inline">Open an existing workflow to visualise it.</p>
         )}
-        <button type="button" style={openBtn} onClick={onOpen}>
+        <button type="button" className="btn primary" onClick={onOpen}>
           Open Workflow
         </button>
       </div>
@@ -319,11 +353,11 @@ function extractRouteId(edgeId: string): string | null {
 }
 
 function minimapColor(node: Node): string {
-  if (node.type === 'viewStep') return '#2563eb';
-  if (node.type === 'viewDecision') return '#7c3aed';
-  if (node.type === 'viewStart') return '#16a34a';
-  if (node.type === 'viewEnd') return '#dc2626';
-  return '#94a3b8';
+  if (node.type === 'viewStep') return 'var(--primary)';
+  if (node.type === 'viewDecision') return 'var(--accent-branch)';
+  if (node.type === 'viewStart') return 'var(--success)';
+  if (node.type === 'viewEnd') return 'var(--error)';
+  return 'var(--text-disabled)';
 }
 
 const shellStyle: React.CSSProperties = {
@@ -351,8 +385,8 @@ const overlayPanelStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  background: '#fff',
-  border: '1px solid #e2e8f0',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '8px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -360,8 +394,8 @@ const overlayPanelStyle: React.CSSProperties = {
 };
 
 const errorPanelStyle: React.CSSProperties = {
-  background: '#fff',
-  border: '1px solid #fecaca',
+  background: 'var(--surface)',
+  border: '1px solid var(--error)',
   borderRadius: 8,
   padding: '12px 16px',
   boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
@@ -369,65 +403,10 @@ const errorPanelStyle: React.CSSProperties = {
   marginTop: 12,
 };
 
-const errorPreStyle: React.CSSProperties = {
-  fontSize: 11,
-  fontFamily: 'monospace',
-  color: '#7f1d1d',
-  margin: '0 0 8px',
-  whiteSpace: 'pre-wrap',
-  wordBreak: 'break-word',
-  maxHeight: 200,
-  overflowY: 'auto',
-};
-
-const retryBtn: React.CSSProperties = {
-  padding: '4px 12px',
-  background: '#dc2626',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 4,
-  fontSize: 12,
-  cursor: 'pointer',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block',
-  width: 14,
-  height: 14,
-  border: '2px solid #e2e8f0',
-  borderTopColor: '#2563eb',
-  borderRadius: '50%',
-};
-
-const emptyCard: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: 12,
-  padding: '40px 48px',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-  textAlign: 'center',
-  maxWidth: 400,
-};
-
 const emptyHeading: React.CSSProperties = {
   fontSize: 20,
   fontWeight: 700,
-  color: '#1e293b',
+  color: 'var(--text)',
   marginBottom: 8,
 };
 
-const emptyText: React.CSSProperties = {
-  color: '#64748b',
-  fontSize: 13,
-  margin: '0 0 24px',
-};
-
-const openBtn: React.CSSProperties = {
-  padding: '10px 24px',
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 6,
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer',
-};

@@ -335,12 +335,12 @@ function buildStartEdge(entryStepId: string): Edge {
     sourceHandle: 'out',
     targetHandle: 'in',
     type: 'smoothstep',
-    style: { stroke: '#64748b' },
-    markerEnd: { type: 'arrowclosed' as const, color: '#64748b' },
+    style: { stroke: 'var(--text-secondary)' },
+    markerEnd: { type: 'arrowclosed' as const, color: 'var(--text-secondary)' },
   };
 }
 
-const BRANCH_STROKE = '#7c3aed';
+const BRANCH_STROKE = 'var(--accent-branch)';
 
 /**
  * The link from a step to one that runs alongside it. Dashed, because nothing
@@ -358,7 +358,7 @@ function buildBranchEdge(parentStepId: string, childStepId: string, isConditiona
     animated: false,
     label: isConditional ? 'AT SAME TIME · IF' : 'AT SAME TIME',
     labelStyle: { fill: BRANCH_STROKE, fontSize: 10, fontWeight: 700 },
-    labelBgStyle: { fill: '#f5f3ff' },
+    labelBgStyle: { fill: 'var(--accent-branch)' },
     style: { stroke: BRANCH_STROKE, strokeWidth: 2, strokeDasharray: '6 4' },
     markerEnd: { type: 'arrowclosed' as const, color: BRANCH_STROKE },
     selectable: false,
@@ -395,13 +395,13 @@ function buildOutcomeEdge(
       targetHandle: 'in',
       type: 'editBack',
       animated: false,
-      style: { stroke: '#d97706', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.45 },
+      style: { stroke: 'var(--warning)', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.45 },
       data: { isBackEdge: true, isConditional },
-      markerEnd: { type: 'arrowclosed' as const, color: '#d97706' },
+      markerEnd: { type: 'arrowclosed' as const, color: 'var(--warning)' },
     };
   }
 
-  const stroke = isConditional ? '#3b82f6' : '#64748b';
+  const stroke = isConditional ? 'var(--primary)' : 'var(--text-secondary)';
   const strokeWidth = isConditional ? 1.5 : 1;
 
   return {

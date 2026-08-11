@@ -8,9 +8,9 @@ interface ToolboxItem {
 }
 
 const TOOLBOX_ITEMS: ToolboxItem[] = [
-  { type: 'step',    label: 'Task Step',     color: '#2563eb', shape: 'rect' },
-  { type: 'outcome', label: 'Outcome',       color: '#059669', shape: 'pill' },
-  { type: 'end',     label: 'End',           color: '#dc2626', shape: 'circle' },
+  { type: 'step',    label: 'Task Step',     color: 'var(--primary)', shape: 'rect' },
+  { type: 'outcome', label: 'Outcome',       color: 'var(--success)', shape: 'pill' },
+  { type: 'end',     label: 'End',           color: 'var(--error)', shape: 'circle' },
 ];
 
 export function WorkflowToolbox() {
@@ -20,15 +20,15 @@ export function WorkflowToolbox() {
   }
 
   return (
-    <div style={toolboxStyle} aria-label="Component Toolbox">
-      <div style={headerStyle}>Toolbox</div>
-      <div style={sectionStyle}>
+    <div className="palette" aria-label="Component toolbox">
+      <div className="palette-group">Toolbox</div>
+      <div>
         {TOOLBOX_ITEMS.map((item) => (
           <div
             key={item.type}
             draggable
             onDragStart={(e) => onDragStart(e, item.type)}
-            style={itemStyle(item.color)}
+            className="palette-item"
             title={`Drag to add ${item.label}`}
             role="button"
             tabIndex={0}
@@ -40,51 +40,6 @@ export function WorkflowToolbox() {
       </div>
     </div>
   );
-}
-
-const toolboxStyle: React.CSSProperties = {
-  width: 180,
-  flexShrink: 0,
-  background: '#f8fafc',
-  borderRight: '1px solid #e2e8f0',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-};
-
-const headerStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  textTransform: 'uppercase',
-  color: '#64748b',
-  borderBottom: '1px solid #e2e8f0',
-  background: '#f1f5f9',
-};
-
-const sectionStyle: React.CSSProperties = {
-  padding: '10px 8px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
-function itemStyle(color: string): React.CSSProperties {
-  return {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '7px 10px',
-    borderRadius: 6,
-    background: '#fff',
-    border: `1px solid ${color}22`,
-    cursor: 'grab',
-    fontSize: 12,
-    color: '#374151',
-    userSelect: 'none',
-    transition: 'box-shadow 0.15s',
-  };
 }
 
 function dotStyle(color: string, shape: ToolboxItem['shape']): React.CSSProperties {

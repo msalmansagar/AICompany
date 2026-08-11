@@ -63,15 +63,15 @@ export function CreateProcessWizardModal({
   if (!isOpen) return null;
 
   return (
-    <div style={overlayStyle} onClick={handleOverlayClick}>
-      <div style={modalStyle} role="dialog" aria-modal="true">
+    <div className="dialog-backdrop" onClick={handleOverlayClick}>
+      <div className="dialog" style={{ width: 720 }} role="dialog" aria-modal="true" aria-label="Create process from SOP">
         {/* Header */}
         <div style={headerStyle}>
           <div>
-            <div style={titleStyle}>Create Process from SOP</div>
+            <h2>Create process from SOP</h2>
             <div style={subtitleStyle}>{STEP_TITLES[wizard.currentStep]}</div>
           </div>
-          <button type="button" style={closeBtnStyle} onClick={onDismiss} aria-label="Close">
+          <button type="button" className="icon-btn" onClick={onDismiss} aria-label="Close">
             &times;
           </button>
         </div>
@@ -126,7 +126,7 @@ export function CreateProcessWizardModal({
 
         {/* Footer (only on last step) */}
         {wizard.currentStep === 2 && (
-          <div style={footerStyle}>
+          <div className="dialog-foot" style={{ justifyContent: 'space-between' }}>
             <button
               type="button"
               style={cancelBtnStyle}
@@ -150,47 +150,24 @@ export function CreateProcessWizardModal({
   );
 }
 
-const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0,
-  background: 'rgba(15,23,42,0.55)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  zIndex: 9000,
-};
-
-const modalStyle: React.CSSProperties = {
-  width: 660, maxWidth: '95vw', maxHeight: '90vh',
-  background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,0.2)',
-  display: 'flex', flexDirection: 'column', overflow: 'hidden',
-};
-
 const headerStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'flex-start',
   justifyContent: 'space-between',
   padding: '20px 24px 14px',
-  borderBottom: '1px solid #f1f5f9',
+  borderBottom: '1px solid var(--border)',
   flexShrink: 0,
 };
 
-const titleStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, color: '#0f172a',
-};
-
 const subtitleStyle: React.CSSProperties = {
-  fontSize: 12, color: '#64748b', marginTop: 2,
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: 'transparent', border: 'none', color: '#94a3b8',
-  fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: 0,
+  fontSize: 12, color: 'var(--text-secondary)', marginTop: 2,
 };
 
 const progressBarTrackStyle: React.CSSProperties = {
-  height: 3, background: '#f1f5f9', flexShrink: 0,
+  height: 3, background: 'var(--surface-alt)', flexShrink: 0,
 };
 
 const progressBarFillStyle: React.CSSProperties = {
-  height: '100%', background: '#2563eb',
+  height: '100%', background: 'var(--primary)',
   transition: 'width 0.3s ease',
 };
 
@@ -202,33 +179,25 @@ const bodyStyle: React.CSSProperties = {
 
 const errorBannerStyle: React.CSSProperties = {
   padding: '10px 14px', marginBottom: 16,
-  background: '#fef2f2', border: '1px solid #fecaca',
-  borderRadius: 6, color: '#991b1b', fontSize: 13,
-};
-
-const footerStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'flex-end', gap: 8,
-  padding: '14px 24px',
-  borderTop: '1px solid #f1f5f9',
-  background: '#f8fafc',
-  flexShrink: 0,
+  background: 'var(--error-bg)', border: '1px solid var(--error)',
+  borderRadius: 6, color: 'var(--error)', fontSize: 13,
 };
 
 const cancelBtnStyle: React.CSSProperties = {
   height: 34, padding: '0 18px',
-  background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 6, color: '#374151',
+  background: 'var(--surface)', border: '1px solid var(--border)',
+  borderRadius: 6, color: 'var(--text)',
   fontSize: 13, fontWeight: 500, cursor: 'pointer',
 };
 
 const submitBtnStyle: React.CSSProperties = {
   height: 34, padding: '0 20px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 6, color: '#fff',
+  background: 'var(--primary)', border: 'none',
+  borderRadius: 6, color: 'var(--text-on-primary)',
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
 };
 
 const submitBtnDisabledStyle: React.CSSProperties = {
   ...submitBtnStyle,
-  background: '#93c5fd', cursor: 'not-allowed',
+  background: 'var(--primary-tint)', cursor: 'not-allowed',
 };

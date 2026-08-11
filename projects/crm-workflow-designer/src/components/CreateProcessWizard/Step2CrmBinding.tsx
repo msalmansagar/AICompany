@@ -63,11 +63,11 @@ export function Step2CrmBinding({ initialValues, onValidated, onBack }: Step2Crm
 
   return (
     <div style={containerStyle}>
-      {loadError && <div style={errorBannerStyle}>{loadError}</div>}
+      {loadError && <div className="notice error">{loadError}</div>}
 
       {isLoadingEntities ? (
         <div style={spinnerRowStyle}>
-          <span style={spinnerStyle} /> Loading entities…
+          <span className="spinner sm" /> Loading entities…
         </div>
       ) : (
         <>
@@ -83,7 +83,7 @@ export function Step2CrmBinding({ initialValues, onValidated, onBack }: Step2Crm
 
           {isLoadingFields ? (
             <div style={spinnerRowStyle}>
-              <span style={spinnerStyle} /> Loading fields…
+              <span className="spinner sm" /> Loading fields…
             </div>
           ) : (
             <SearchableDropdown
@@ -106,11 +106,11 @@ export function Step2CrmBinding({ initialValues, onValidated, onBack }: Step2Crm
         </>
       )}
 
-      <div style={footerStyle}>
-        <button type="button" style={backBtnStyle} onClick={onBack}>
+      <div className="dialog-foot">
+        <button type="button" className="btn" onClick={onBack}>
           ← Back
         </button>
-        <button type="button" style={nextBtnStyle} onClick={handleNext} disabled={isLoadingEntities}>
+        <button type="button" className="btn primary" onClick={handleNext} disabled={isLoadingEntities}>
           Next →
         </button>
       </div>
@@ -120,39 +120,10 @@ export function Step2CrmBinding({ initialValues, onValidated, onBack }: Step2Crm
 
 const containerStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 18 };
 
-const errorBannerStyle: React.CSSProperties = {
-  padding: '10px 14px',
-  background: '#fef2f2', border: '1px solid #fecaca',
-  borderRadius: 6, color: '#991b1b', fontSize: 13,
-};
-
 const spinnerRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 8,
-  fontSize: 13, color: '#64748b', padding: '4px 0',
+  fontSize: 13, color: 'var(--text-secondary)', padding: '4px 0',
 };
 
-const spinnerStyle: React.CSSProperties = {
-  display: 'inline-block', width: 14, height: 14,
-  border: '2px solid #e2e8f0', borderTopColor: '#2563eb',
-  borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-};
+const errorTextStyle: React.CSSProperties = { fontSize: 11, color: 'var(--error)', marginTop: -12 };
 
-const errorTextStyle: React.CSSProperties = { fontSize: 11, color: '#dc2626', marginTop: -12 };
-
-const footerStyle: React.CSSProperties = {
-  display: 'flex', justifyContent: 'space-between', paddingTop: 4,
-};
-
-const backBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 16px',
-  background: '#fff', border: '1px solid #e2e8f0',
-  borderRadius: 6, color: '#374151',
-  fontSize: 13, fontWeight: 500, cursor: 'pointer',
-};
-
-const nextBtnStyle: React.CSSProperties = {
-  height: 34, padding: '0 20px',
-  background: '#2563eb', border: 'none',
-  borderRadius: 6, color: '#fff',
-  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-};
