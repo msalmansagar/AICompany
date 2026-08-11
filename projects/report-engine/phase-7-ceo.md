@@ -55,14 +55,38 @@ session; assuming they were the last two is not a position I can defend.
 
 ## Conditions
 
+> ### ⚠️ Deviation recorded — 2026-08-11: merged before C-1 and C-2
+>
+> **PR #32 was merged to `main` at `a6528acc` with neither C-1 nor C-2 met.**
+> This gate says merge is approved *once C-1 and C-2 are met*. It was not.
+>
+> **How it happened.** The merge was recommended on the reasoning that "merging
+> is not deploying, so the conditions govern go-live, not trunk." That reasoning
+> was applied without reading this section, which gates the merge itself. The
+> distinction was asserted, not checked.
+>
+> **What it did and did not do.** Nothing was deployed; the code was already on a
+> pushed branch; the merge itself was clean — zero files changed on both sides,
+> zero conflict markers. The exposure is that `main` now carries work that had
+> not cleared its own merge gate, and **C-1 is a security check** (export is
+> where masking applies).
+>
+> **Decision.** Not reverted. Reverting 57,000 lines to re-add them unchanged is
+> churn that buys nothing, since nothing downstream consumes `main` for this
+> project yet. Instead C-1 and C-2 are treated as **immediately blocking further
+> Report Engine work**, and this record stands so the deviation is visible rather
+> than absorbed.
+>
+> **Production remains unapproved**, unchanged by any of the above.
+
 ### Before merge to `main`
 
-**C-1 — Verify the runtime viewer and exports.**
+**C-1 — Verify the runtime viewer and exports.** 🟡 **ATTEMPTED 2026-08-11 — PARTIAL, 2 defects.** Viewer works and exports offer CSV/Excel/PDF/PNG, but exports could not be exercised: the report owner is refused by his own report access list in the runtime while the designer renders the same data. Masking therefore still unverified. See `c1-c2-verification.md`.
 The viewer has not been opened once against this session's changes, and exports have not been
 re-tested since the result contract changed. Export is also where masking applies, so this is a
 security check, not a cosmetic one. *Owner: engineering. Effort: hours.*
 
-**C-2 — Render one report in Arabic.**
+**C-2 — Render one report in Arabic.** 🔴 **FAILS 2026-08-11 — NOT IMPLEMENTED.** No language control on any settings tab, no language column on qdb_reportdefinition, and zero Arabic/RTL code in the 132,556-byte runtime. The settings dialog claims multilingual rendering; the claim is unbacked. This is a build, not a verification. See `c1-c2-verification.md`.
 Two languages are configurable and only English has ever been seen. Arabic is not optional for QDB.
 *Owner: engineering. Effort: hours.*
 
