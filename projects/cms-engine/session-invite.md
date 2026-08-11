@@ -7,13 +7,13 @@ Ready to send. Copy the invite text below; attach or link
 
 ## Invite
 
-**Subject:** QDB CMS Engine — decision session (60 min)
+**Subject:** QDB CMS Engine — decision session (45 min)
 
 **Body:**
 
-> We have completed the evaluation, the business case and two-thirds of the
-> architecture for the Content Management Engine. **Eight decisions remain, and
-> three of them are holding up the rest of the design.**
+> We have completed the evaluation, the business case and most of the
+> architecture for the Content Management Engine. **Six decisions remain, and
+> two of them are holding up the rest of the design.**
 >
 > We will demo the working prototype first — in our experience several of these
 > questions answer themselves once people see it.
@@ -23,11 +23,10 @@ Ready to send. Copy the invite text below; attach or link
 | Time | Who | Decisions |
 |---|---|---|
 | **0:00 – 0:10** | Everyone | Prototype demonstration |
-| **0:10 – 0:25** | **Legal + Communications** | **Q1 — how many approval routes** |
-| **0:25 – 0:40** | **IT** | **Q2 — Dynamics on-prem version**, plus the `msst` prefix check |
-| **0:40 – 0:50** | **Digital** | **Q3 — existing content** · Q4 Arabic authoring UI · Q7 Arabic URLs |
-| **0:50 – 0:55** | **Brand** | Q5 font licence · Q8 multi-colour icons |
-| **0:55 – 1:00** | **Compliance** | Q6 PDPPL |
+| **0:10 – 0:25** | **IT** | **Q1 — the File-column check and the four-part build number**, Custom API, plus the `msst` prefix check |
+| **0:25 – 0:35** | **Digital** | **Q2 — existing content** · Q5 Arabic URLs |
+| **0:35 – 0:40** | **Brand** | Q3 font licence · Q6 multi-colour icons |
+| **0:40 – 0:45** | **Compliance** | Q4 PDPPL |
 
 > Full detail and our recommendation on each is in the attached document.
 
@@ -35,24 +34,29 @@ Ready to send. Copy the invite text below; attach or link
 
 ## Notes for whoever runs it
 
-**Sixty minutes, not ninety.** The previous version of this session had ten
-questions; rich text is now decided and the question that depended on it has
-fallen away.
+**Forty-five minutes, not ninety.** This session started at ten questions. Rich
+text is decided, the question depending on it fell away, and QDB answered the
+approval-routes and Arabic-authoring questions on 11 August. **Legal and
+Communications no longer need to be in the room.**
 
-**Q1 is the one to push on.** *"The Communications lead approves"* is the easy
-answer and probably the wrong one. The question is **how many routes**, not who.
-A single queue gets routed around the first time a news item waits behind a
-lawyer — and at that point the control has stopped being a control. Come away
-with a number.
+**Q1 is the whole session.** It is not a discussion — it is someone opening the
+Data Type list on a new column and telling us whether **File** is in it, then
+sending the **four-part build number**. QDB has already told us File columns are
+available; Microsoft's on-premise type reference says otherwise. Get it settled
+in the room rather than by email, because page version history is designed
+against the answer and we will build the wrong thing in one direction or the
+other. **Custom API is part of the same question and was never answered.**
 
-**Q2 carries a hidden deadline.** The `msst` prefix goes on every table we
+**Q1 also carries a hidden deadline.** The `msst` prefix goes on every table we
 create and cannot be changed once records exist. It is a two-minute check for
 whoever administers the environment, and it is the last thing that could force
 rework before provisioning.
 
-**One thing to state, not ask:** rich text is **in**. We measured the storage
-cost before committing — a heavy page uses 0.8 % of the limit. Present it as a
-decision to confirm, not a question to reopen.
+**Two things to state, not ask:** rich text is **in** — we measured the storage
+cost before committing, and a heavy page uses 0.8 % of the limit. And the
+approval design is **done**: two routes, regulated and standard, driven by a
+classification the author cannot set. Present both as decisions to confirm, not
+questions to reopen.
 
 **If a question stalls,** take the recommendation in the pre-read and record it
 as an assumption rather than leaving the room without an answer. Both open
@@ -65,11 +69,9 @@ and expensive to retrofit — so a recorded assumption keeps architecture moving
 
 | Answer | Unblocks |
 |---|---|
-| **Q1** approval routes | Architecture §5 · condition C-2 |
-| **Q2** on-prem version | Architecture §7 · condition C-4 · lets ADR-CMS-001 be accepted |
-| **Q3** existing content | Architecture §8 |
-| Q4 · Q5 · Q6 | Conditions C-3 · C-6 · C-5 |
+| **Q1** File column · build number · Custom API | Architecture §7 · condition C-4 · lets ADR-CMS-001 be accepted |
+| **Q2** existing content | Architecture §8 |
+| Q3 · Q4 | Conditions C-6 · C-5 |
 
-**Phase 3 closes on Q1, Q2 and Q3.** Everything downstream — executive review,
-schema provisioning, then a three-to-four month build — is sequenced behind
-those three.
+**Phase 3 closes on Q1 and Q2.** Everything downstream — executive review, schema
+provisioning, then a three-to-four month build — is sequenced behind those two.

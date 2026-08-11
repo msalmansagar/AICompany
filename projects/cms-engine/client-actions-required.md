@@ -1,7 +1,7 @@
 # CMS Engine — Summary for QDB, and what we need from you
 
 **Engagement:** CMS-ENG-001 · **Updated:** 2026-08-11 · **Prepared by:** MSS Technologies
-**Status:** Business case approved with conditions. Architecture two-thirds complete. Build not yet approved.
+**Status:** Business case approved with conditions. Architecture seven-ninths complete. Build not yet approved.
 
 ---
 
@@ -14,9 +14,9 @@ hosted service, nothing outside your environment. Business users compose pages
 from approved building blocks, in English and Arabic, and publish them under
 approval. Developers stop being in the path of routine content work.
 
-**We are not asking you to approve a build.** We are asking for eight answers.
-There were ten; we have closed two ourselves since the last version of this
-document.
+**We are not asking you to approve a build.** We are asking for six answers.
+There were ten: we closed two ourselves, and you answered two more on
+11 August 2026.
 
 ---
 
@@ -25,9 +25,9 @@ document.
 | Stage | Status |
 |---|---|
 | Business requirements | Written — 72 requirements |
-| Executive review | **Approved with conditions** — 8 of 13 now closed |
+| Executive review | **Approved with conditions** — 10 of 13 now closed |
 | Technical proof | Complete |
-| Architecture | **6 of 9 sections decided.** 3 wait on you. |
+| Architecture | **7 of 9 sections decided.** 2 wait on you. |
 | Build | **Not approved** |
 
 Nothing has been written to a live QDB environment. No database changes have
@@ -35,45 +35,61 @@ been made.
 
 ---
 
-## 3. What we settled without troubling you
+## 3. What is already closed
+
+### Settled without troubling you
 
 | Previously asked | Now |
 |---|---|
 | **Rich text** — do authors need bold, lists, links? | **Decided: yes.** Your portal has it today and removing it would be a step backwards. We measured the storage cost before committing: a heavy page uses **0.8 %** of the available limit. **Please confirm** rather than answer. |
 | **The capability-loss question** that followed it | **Falls away** — nothing is lost. |
 
+### Answered by you on 11 August 2026
+
+| Question | Your answer | What we did with it |
+|---|---|---|
+| How many approval routes? | **Two** — regulated, and everything else | Approval workflow is now designed. Routes are a configurable table, not code, so a third route later is a data change rather than a release. |
+| Arabic authoring screens? | **English for the first phase** | No translation or right-to-left work on the authoring screens. Arabic *content* is unaffected and already works. |
+
 That is why this document is shorter than the one you may have seen.
 
 ---
 
-## 4. What we need from you — eight questions
+## 4. What we need from you — six questions
 
-### 🔴 These three block us today
-
----
-
-#### Q1 · How many different approval routes do you need?
-
-Not *who* approves — **how many separate routes**.
-
-Our concern is specific: a single approval queue for everything will be routed
-around. If a legal page and a news item both wait behind the same lawyer,
-someone will find a way to skip the queue, and the control stops being a control.
-
-**Our recommendation:** at least two — one for regulated content (legal, terms,
-privacy, anything carrying a compliance obligation) and one for everything else.
-
-*Owner: QDB Legal and Communications* · *Blocks: approval design*
+### 🔴 These two block us today
 
 ---
 
-#### Q2 · Which version of Dynamics on-premise, and does it support two features?
+#### Q1 · Two minutes inside your on-premise environment
 
-We need to confirm your on-premise environment supports **Custom API** and **File
-columns**. Older versions handle these differently, and the answer changes how we
-build publishing.
+You told us the version is **9.1**. That answers half of it. The other half is a
+capability question we cannot settle from documentation, because what you told us
+and what Microsoft publishes disagree.
 
-**If you can give us the exact version number, we can verify the rest ourselves.**
+You said **File columns are available**. Microsoft's field-type reference for
+Dynamics 365 Customer Engagement (on-premises) lists every available data type,
+and **File is not in it** — Image is. Both cannot be true as written. The likeliest
+explanation is harmless: a cumulative update added it, and that documentation page
+is on a ten-year revision cycle. But we are not willing to assume it.
+
+We are not asking you to resolve the contradiction. We are asking for **two
+minutes at a keyboard**:
+
+1. Begin creating a new column on any table and open the **Data Type** list.
+   **Is "File" in it**, alongside Text, Choice and Image?
+2. Send the **four-part build number** — `9.1.0.xxxx`, not "9.1". That is what
+   identifies whether an update added the capability.
+
+**Why it matters:** version history for every page is designed to live in a File
+column. If File is not available, that store moves to a large text column instead
+— which we have already measured, and which holds a typical page at well under
+1 % of its limit. Both designs work. **Building the wrong one is expensive in
+either direction**, which is why we would rather spend your two minutes than our
+assumption.
+
+**Separately, and still open:** does the environment support **Custom API**? That
+part of the question was not answered, and it changes how publishing is built.
 
 **While we have you:** is the prefix **`msst`** already in use in your
 environments? Every table we create carries it, and it cannot be changed once
@@ -83,7 +99,7 @@ records exist. A two-minute check now avoids a migration later.
 
 ---
 
-#### Q3 · What happens to content already in the current portal CMS?
+#### Q2 · What happens to content already in the current portal CMS?
 
 Your existing portal stores CMS content in a different format from the new
 system. Retiring the old editor without moving that content would strand it.
@@ -99,24 +115,7 @@ be re-authored?
 
 ---
 
-#### Q4 · Should the authoring screens themselves be in Arabic?
-
-Two different things:
-
-- **Arabic content** — pages read by citizens in Arabic. **Confirmed working.**
-- **Arabic interface** — the buttons and menus your *authors* use.
-
-The editor we adopted has an English-only interface. Translating it is real
-additional work, and it affects only staff, never citizens.
-
-**Our recommendation:** English interface for the first phase, revisit if authors
-ask.
-
-*Owner: QDB Digital*
-
----
-
-#### Q5 · Is the GE Dinar font licensed for web use?
+#### Q3 · Is the GE Dinar font licensed for web use?
 
 GE Dinar is commercial software owned by Boutros International. **A desktop or
 print licence does not permit serving it on a website** — that is a separate,
@@ -133,7 +132,7 @@ not a technical one.
 
 ---
 
-#### Q6 · Confirmation on data protection
+#### Q4 · Confirmation on data protection
 
 Written confirmation that page content is not personal data under PDPPL — or, if
 it is, the controls required.
@@ -148,7 +147,7 @@ This has gated previous QDB engagements at the same point, so we raise it early.
 
 ---
 
-#### Q7 · What should Arabic page addresses look like?
+#### Q5 · What should Arabic page addresses look like?
 
 For a page titled **عن ريادة**:
 
@@ -163,7 +162,7 @@ For a page titled **عن ريادة**:
 
 ---
 
-#### Q8 · Do you need multi-colour icons?
+#### Q6 · Do you need multi-colour icons?
 
 For security reasons we store icons as pure shapes, which means they take their
 colour from your brand palette. **A single icon cannot have two colours.**
@@ -202,12 +201,12 @@ users this much control means anyone can break the public site.
 
 ## 6. What happens once we have answers
 
-1. We complete the architecture — roughly two to three weeks after Q1, Q2 and Q3
+1. We complete the architecture — roughly two weeks after Q1 and Q2
 2. Executive review of the architecture
 3. Build Phase A
 4. Testing, security audit, and a final go-live decision
 
-**Nothing proceeds without Q1, Q2 and Q3.**
+**Nothing proceeds without Q1 and Q2.**
 
 ---
 
@@ -218,11 +217,10 @@ minutes to answer with the right person present, and weeks by email.
 
 | Area | Questions |
 |---|---|
-| QDB Digital | Q3, Q4, Q7 |
-| Legal and Communications | **Q1** |
-| IT | **Q2** + the `msst` prefix check |
-| Brand | Q5, Q8 |
-| Compliance | Q6 |
+| IT | **Q1** — the File-column check, the build number, Custom API, and the `msst` prefix check |
+| QDB Digital | **Q2**, Q5 |
+| Brand | Q3, Q6 |
+| Compliance | Q4 |
 
 We can demonstrate the working prototype in the same session, which usually makes
 several of these answer themselves.
