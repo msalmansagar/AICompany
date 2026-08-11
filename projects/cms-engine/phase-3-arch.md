@@ -484,7 +484,7 @@ inherited from the DFE:
 
 ### Acceptance criteria this adds
 
-Recorded here; to be folded into `acceptance-criteria.md` for FR-02/03/65.
+**Folded into `acceptance-criteria.md` as FR-03b** (9 criteria). Listed here for readability; that file is the contract.
 
 - A tag outside the allowlist, submitted directly to the API, is stripped at publish
 - `javascript:` and `data:` URIs in `href` are rejected

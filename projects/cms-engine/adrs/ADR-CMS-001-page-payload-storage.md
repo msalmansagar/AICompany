@@ -215,12 +215,54 @@ Measured against the **Dataverse cloud** limit. On-premise remains OQ-3.
 
 ---
 
+## Version retention — 2026-08-11
+
+OQ-2 asked whether to prune old versions. The DXP-P1-004 figure of 20 per page
+was inherited advice; **C-11 dropped that dependency, so the limit is ours.**
+
+**Decision: retain every version. No prune, no cap.**
+
+### The argument is FR-63, not storage
+
+FR-63 says *"a user with rights shall restore **any** prior version."* A retention
+cap silently converts that into "any of the last N". A page edited a hundred
+times cannot be restored to version 3 under a cap of 20 — and nobody discovers
+that until they need it, which is the worst moment.
+
+Pruning also fights the audit posture: `cms_publishlog` is append-only precisely
+so history cannot be quietly rewritten. Deleting the versions that log refers to
+undoes half of that.
+
+### Storage does not justify the cap either
+
+Using the measured per-version sizes:
+
+| Retention | Heavy page | 500-page site |
+|---|---|---|
+| Keep 20 | 0.16 MB | 0.08 GB |
+| Keep 50 | 0.41 MB | 0.20 GB |
+| **Unbounded** (500 versions/page) | 4.1 MB | **2 GB** |
+
+500 versions per page is a page edited every working day for two years. **Two
+gigabytes**, on File-column storage, for a scenario well beyond realistic. There
+is no saving here worth trading a Must requirement for.
+
+### What bounds growth instead
+
+- **Publish-time size gate** — no single version can exceed the ceiling (FR-65)
+- **Versions are created by human saves**, not by automation. Should an automated
+  writer ever be introduced, revisit this — a machine editing a page in a loop is
+  a different problem, and the answer is to rate-limit the writer rather than
+  destroy history.
+
+---
+
 ## Open questions
 
 | # | Question | Needs |
 |---|---|---|
 | ~~OQ-1~~ | ~~Is long-form rich text in scope? If yes, re-measure with real prose before accepting this ADR.~~ **Answered 2026-08-11: rich text is IN. Re-measured — the decision survives.** See *Re-measurement with rich text* below. | Closed |
-| OQ-2 | Do we retain every draft version, or prune? A retention limit is now **ours to set**, not inherited — the DXP-P1-004 dependency was dropped under C-11. Its figure of 20 per page is a reasonable starting point; confirm it holds when versions are File columns. | Architecture |
+| ~~OQ-2~~ | ~~Do we retain every draft version, or prune?~~ **Answered 2026-08-11: retain everything, no prune.** See *Version retention* below. | Closed |
 | OQ-3 | On-premise CRM 9.x — confirm File column support and the configured maximum, which may differ from cloud. | IT / infrastructure |
 
 ---

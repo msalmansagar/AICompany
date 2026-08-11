@@ -80,6 +80,21 @@ C-12; two carry hard-won notes and appear in the appendix.
 - **AC-03a.5** — **Given** a slot with no children, **when** the page is edited, **then** the slot has a visible drop target and a label naming what belongs there.
 - **AC-03a.6** — **Given** a stateful block such as a carousel, **when** the author sets its initial state, **then** the editor renders **that** state rather than resetting on every prop change.
 
+### FR-03b · Rich text *(derived from architecture §6 — Q1 answered yes)*
+
+The editor constrains what an author can **type**; these assert what happens when
+someone writes to the API directly, which is the only enforcement that counts.
+
+- **AC-03b.1** — **Given** a rich-text value containing a tag outside the allowlist (bold, italic, list, link, paragraph, H2–H4), **when** it is submitted directly to the API and published, **then** the offending tag is stripped and the surrounding text is preserved.
+- **AC-03b.2** — **Given** a link whose `href` is a `javascript:` or `data:` URI, **when** publish is called, **then** publish is **rejected**.
+- **AC-03b.3** — **Given** a rich-text value containing markup but no text once sanitised, **when** publish is called, **then** it is rejected rather than stored as an empty fragment. *(Same rule as an SVG that extracts to nothing — ADR-CMS-002.)*
+- **AC-03b.4** — **Given** an author uses the editor, **when** they look for font, size or colour controls, **then** none exist. *(Colour comes from theme tokens; a colour control bypasses the palette — FR-10.)*
+- **AC-03b.5** — **Given** an author uses the editor, **when** they apply the largest heading available, **then** it is **H2, never H1**. *(The page owns H1; one per page keeps the outline valid for WCAG 2.1 AA — NFR-07.)*
+- **AC-03b.6** — **Given** Arabic rich text containing an embedded Latin string such as a product name, **when** it renders, **then** the Latin run is `<bdi>`-isolated and does not reorder. *(Verified failure in the spike: "10:00 AM - 6:00 PM" rendered as "AM - 6:00 PM 10:00".)*
+- **AC-03b.7** — **Given** the Arabic editing surface, **when** it is displayed, **then** the editable region is `dir="rtl"` and the **toolbar is not**.
+- **AC-03b.8** — **Given** a rich-text value whose markup changes but whose words do not, **when** staleness is computed, **then** the translation is **not** marked stale. *(Extends AC-41.3 — the DFE trained translators to ignore the signal by flagging padded labels.)*
+- **AC-03b.9** — **Given** a page whose rich-text payload exceeds the configured ceiling, **when** publish is called, **then** it is rejected with the measured size. *(FR-65 applies unchanged; measured headroom is large — a heavy page is 0.82 % of the Memo limit.)*
+
 ### FR-04 · Render as the visitor will see it, either language, without leaving the editor
 
 - **AC-04.1** — **Given** an open page, **when** the author switches to preview, **then** the page renders with no editor chrome, in the same layout a visitor receives.
@@ -376,8 +391,9 @@ Outside C-12, recorded because two carry lessons worth not re-learning.
 | Phase C | 5 | 12 |
 | **All Must FRs** | **40** | **124** |
 | FR-03a — derived from the UI/UX spec | *(not a BRD FR)* | 6 |
+| FR-03b — derived from architecture §6 (rich text) | *(not a BRD FR)* | 9 |
 | Appendix (Should) | 3 | 5 |
-| **Document total** | **43 + 1 derived** | **135** |
+| **Document total** | **43 + 2 derived** | **144** |
 
 Verified mechanically against the BRD's Must list rather than counted by hand:
 **every one of the 40 Must FRs has at least one criterion, and none is
