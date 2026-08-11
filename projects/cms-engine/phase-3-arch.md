@@ -24,9 +24,9 @@ waiting.
 | §3 Plugin design | **Decided** |
 | §4 Adapter specification | **Decided** |
 | §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
-| §5 Approval workflow | ⛔ Blocked on **Q3** |
-| §6 Rich text handling | ⛔ Blocked on **Q1** |
-| §7 On-premise specifics | ⛔ Blocked on **Q4** |
+| §5 Approval workflow | **Decided — Q3 answered 2026-08-11, two routes** |
+| §6 Rich text handling | ⛔ **Q1 answered — rich text is in scope.** Section still to be written |
+| §7 On-premise specifics | ⛔ **Q4 partly answered** — 9.1, File columns *claimed*; Custom API still open |
 | §8 Content migration | ⛔ Blocked on **Q6** |
 
 Satisfies gate finding **SR-4**, which required a UI/UX pass producing
@@ -360,11 +360,92 @@ never been seen failing is not known to be a gate.
 
 ---
 
-## §5–§8 Blocked sections
+## §5 Approval workflow
+
+**Unblocked by Q3, answered 2026-08-11: two routes — regulated content, and everything else.**
+
+### Routing
+
+| Route | Serves | Approver |
+|---|---|---|
+| `regulated` | Legal, terms, privacy, anything carrying a compliance obligation | Legal |
+| `standard` | News, campaigns, general pages | Communications |
+
+A page carries a **classification**, and the classification selects the route. Two new
+entities and one new column:
+
+| Entity / column | Purpose | Key columns |
+|---|---|---|
+| `cms_page.cms_classification` | Which route this page's changes take | Choice: `Regulated`, `Standard` |
+| `cms_approvalroute` | The route table — routes are data, not code | `cms_routekey`, `cms_classification`, `cms_approverteamid` |
+| `cms_approval` | One row per submission decision | `cms_pageversionid`, `cms_routekey`, `cms_decision`, `cms_decidedby`, `cms_decidedon` |
+
+The route table is an entity rather than a constant because the company rule is explicit that
+business rules are not hardcoded, and because approver groups change with people. Adding a third
+route later is then a data change, not a release.
+
+### The failure mode Q3 was protecting against, and the one it introduces
+
+Q3's reasoning was that **a single queue will be routed around**: if a legal page and a news
+item both wait behind the same lawyer, someone finds a way to skip the queue. Two routes fix
+that.
+
+But two routes create a failure the single queue did not have. **The classification becomes the
+control, so misclassification becomes the bypass.** An author who marks a legal page as
+`Standard` gets it approved by Communications and reaches citizens without Legal ever seeing
+it — and does so through the system working exactly as designed.
+
+Three rules close it:
+
+1. **An author cannot set or change the classification.** It is not an authoring field. Write
+   privilege on `cms_classification` belongs to the approver roles, not the author role.
+2. **Reclassifying to a less strict route requires the stricter route's approval.** Moving a
+   page from `Regulated` to `Standard` is a Legal decision, because it is a decision to stop
+   Legal seeing it. Moving the other way needs no approval — nobody games their way into more
+   scrutiny.
+3. **Reclassification invalidates any approval not yet published.** An approval is granted for a
+   route; if the route changes, the approval was for a question no longer being asked.
+
+### Enforcement lives in the plugin
+
+`cms_PublishPage` rejects a publish whose version has no `cms_approval` row with
+`cms_decision = Approved` for the route its classification currently selects.
+
+This is the same argument §3 already makes for publish and icon upload. Browser-side enforcement
+is bypassable by a direct Web API write, so the check belongs where the write happens. An
+approval workflow enforced only in the editor is a suggestion.
+
+Two further checks in the same place:
+
+- **Approver ≠ author.** `cms_decidedby` must not equal the version's `createdby`. Maker-checker
+  is not maker-checker if one person can do both, and the BA phase names the approver as a
+  distinct role.
+- **The route is frozen onto the approval row at decision time.** `cms_approval.cms_routekey` is
+  written when the decision is made, not read from the route table at publish. Otherwise editing
+  the route table retroactively changes what past approvals meant.
+
+### Audit
+
+`cms_publishlog` gains `cms_routekey` and `cms_approvalid`, so the audit answers *who approved
+this, under which route* and not merely *this was published*. The log is plugin-written and
+append-only, unchanged from §3.
+
+### What this does not decide
+
+- **Who the approvers are.** Q3 answered how many routes, not the names. `cms_approverteamid`
+  points at a team; populating it is a deployment-time decision for QDB.
+- **Escalation and timeout.** If an approver does not respond, nothing here says what happens.
+  Not raised in Q3 and not invented; it is a Phase A backlog item and is flagged as an open
+  question below.
+- **Whether the Report Engine's `ADD-OQ-1` follows the same shape.** That is a separate product
+  with its own governance question outstanding.
+
+---
+
+## §6–§8 Blocked sections
 
 | Section | Blocked on | What cannot be designed without it |
 |---|---|---|
-| §5 Approval workflow | **Q3** | Number of approval chains, routing rules, whether regulated content needs a separate path. A single chain will be routed around. |
 | §6 Rich text | **Q1** | Editor toolset, payload sizing re-measurement (prose compresses at 3–4×, not 50×), sanitisation surface, and whether the Tiptap retirement in ADR-CMS-005 causes a capability regression |
 | §7 On-premise specifics | **Q4** | Custom API vs Process Action, File column availability and limits, browser baseline for `CompressionStream` |
 | §8 Content migration | **Q6** | Whether existing `bodyHtml` content is migrated or re-authored |
