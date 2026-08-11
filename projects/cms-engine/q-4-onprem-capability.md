@@ -130,6 +130,53 @@ question 1 may surprise us and it costs nothing to include.
 Nothing here has been verified against a QDB on-premise environment, because we have no access
 to one. It is documentary evidence about the product, not about their installation.
 
+---
+
+## 8. Ready to send — note to QDB IT
+
+Kept to three questions and a place to look for each, so it can be answered in one reply
+without research. Everything explanatory is deliberately left out; the reasoning is above, and
+sending it would invite a discussion instead of an answer.
+
+> **Subject:** Dynamics on-premise — version number and two capability checks
+>
+> Hello,
+>
+> We are completing the architecture for the CMS engine and need three facts about the
+> on-premise Dynamics environment. Each should take a moment to look up.
+>
+> **1. The exact version and build number.**
+> Found under **Settings → Customizations → Developer Resources**, or **Settings →
+> Administration → About**. The full four-part build number is what we need — for example
+> `9.1.0.xxxx` — not just "9.1".
+>
+> **2. Does the environment support Custom API?**
+> Not custom process actions, which are a different and older feature. If **Settings →
+> Customizations → Customize the System** lists a **Custom API** component, the answer is yes.
+>
+> **3. Does it support File columns, and if so what is the configured maximum size?**
+> A File column is a field data type, distinct from note attachments. If it is available it
+> appears in the field type list when creating a new field, and the maximum is set in
+> **System Settings → Email → attachment size**, or by your administrator.
+>
+> If the answer to 2 or 3 is no, that is a useful answer and not a problem — it changes how we
+> build one component, and we would rather know now than after building it.
+>
+> Thank you,
+> MSS Technologies
+
+### Why it is worded this way
+
+- **The build number, not the version.** "9.1" is what people say; the build number is what
+  determines whether a capability shipped. Asking for four parts avoids a second round trip.
+- **Custom API is distinguished from custom process actions by name.** They are routinely
+  conflated, and a "yes" that means the wrong feature is worse than a "no".
+- **File columns are distinguished from note attachments.** Same reason.
+- **"That is a useful answer and not a problem."** An IT team that suspects the answer creates
+  work for them has a reason to be vague. Removing that pressure is worth one sentence.
+
+---
+
 ## Sources
 
 - [Types of fields and field data in Dynamics 365 Customer Engagement (on-premises), op-9-1](https://learn.microsoft.com/en-us/dynamics365/customerengagement/on-premises/customize/types-of-fields?view=op-9-1)
