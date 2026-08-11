@@ -84,6 +84,46 @@ describe('runtime renderer matches Puck', () => {
     }
   }
 
+  /**
+   * ADR-CMS-004 requires a slot inside a slot inside a slot to be verified.
+   * The natural corpus only reaches depth 2, so this constructs depth 3
+   * explicitly — CardRow nests into itself via its `cards` slot.
+   *
+   * Deep nesting is where a hand-written renderer is most likely to diverge,
+   * because each level re-enters the slot resolution path.
+   */
+  it('agrees on a slot nested three levels deep, in both locales', () => {
+    const leaf = {
+      type: 'StatCard',
+      props: { labelEn: 'Deep', labelAr: 'عميق', value: '3', trendEn: 'up', trendAr: 'أعلى' },
+    };
+    const depth3 = {
+      ...(portalData as any),
+      root: {
+        props: {
+          ...(portalData as any).root.props,
+          content: [
+            { type: 'CardRow', props: { cards: [
+              { type: 'CardRow', props: { cards: [
+                { type: 'CardRow', props: { cards: [leaf] } },
+              ] } },
+            ] } },
+          ],
+        },
+      },
+    };
+
+    for (const locale of LOCALES) {
+      const puckHtml = renderThroughPuck(portalConfig, depth3, locale);
+      const ourHtml = renderThroughOurs(portalConfig, depth3, locale);
+      if (puckHtml !== ourHtml) {
+        throw new Error(`Divergence at slot depth 3 (${locale}).\n` + describeDivergence(puckHtml, ourHtml));
+      }
+      // Three nested wrappers must actually be present, or this proves nothing.
+      expect(ourHtml.split('qdb-card-row').length - 1).toBe(3);
+    }
+  });
+
   it('renders non-trivial output, so an empty-vs-empty match cannot pass', () => {
     const html = renderThroughOurs(reyadaConfig, reyadaData, 'en');
     expect(html.length).toBeGreaterThan(5000);

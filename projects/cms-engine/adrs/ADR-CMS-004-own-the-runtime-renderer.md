@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Proposed** — answers OQ-B from ADR-CMS-003 |
+| **Status** | ✅ **ACCEPTED 2026-08-11** — all five verification items evidenced. See [RATIFICATION.md](RATIFICATION.md). |
 | **Date** | 2026-08-10 |
 | **Raised by** | ADR-CMS-003, open question B |
 | **Applies to** | CMS Engine (CMS-ENG-001) |
@@ -146,8 +146,8 @@ Stated so the result is not over-read.
 
 ## Verification required before acceptance
 
-- [ ] Comparison harness runs in CI over a corpus of pages, failing on any divergence
-- [ ] Identical output confirmed with `locale: 'ar'` as well as `'en'`
-- [ ] Nested slots verified — a slot inside a slot inside a slot
-- [ ] Unknown block type renders a visible placeholder, not an empty gap
-- [ ] Confirm the published bundle contains no `@puckeditor/core` code, by inspecting the built output rather than trusting the import graph
+- [x] Comparison harness runs in CI over a corpus of pages, failing on any divergence
+- [x] Identical output confirmed with `locale: 'ar'` as well as `'en'`
+- [x] Nested slots verified — a slot inside a slot inside a slot
+- [x] Unknown block type renders a visible placeholder, not an empty gap
+- [x] Confirm the published bundle contains no `@puckeditor/core` code, by inspecting the built output rather than trusting the import graph

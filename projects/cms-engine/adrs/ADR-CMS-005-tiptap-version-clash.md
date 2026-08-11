@@ -152,7 +152,7 @@ Raised as a new open question below.
 
 ## Verification required before acceptance
 
-- [ ] Confirm no other portal-shell code imports Tiptap — currently one file, re-check at cutover
-- [ ] Confirm the visitor bundle contains no Tiptap, by inspecting built output rather than the import graph
+- [x] Confirm no other portal-shell code imports Tiptap — currently one file, re-check at cutover
+- [x] Confirm the visitor bundle contains no Tiptap, by inspecting built output rather than the import graph
 - [ ] Confirm `RichTextDisplay` remains functional after `RichTextEditor` is deleted; they are separate components and only the editor is retired
 - [ ] Measure the admin bundle during the coexistence window, so the cost is known rather than assumed
