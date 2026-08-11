@@ -182,7 +182,19 @@ async function runReportInCrm(reportId, parameterValues, drill){
 
   const response = await xrm().WebApi.online.execute(request);
   const output = await response.json();
+
+  /* Two error shapes reach here and only one was handled. The API's own failures arrive as
+     errorCode/errorMessage, but a plugin that throws — an invalid column, a refused access list —
+     comes back carrying OData's { error: { code, message } }. That shape has no errorCode, so it
+     fell through to JSON.parse(undefined) and the user saw a parser complaint instead of the
+     reason. C-1 defect 2 turned on exactly this: the real message existed and never reached the
+     person who needed it. */
+  if (output.error) throw new Error(output.error.message || output.error.code || "The report engine refused the request.");
   if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  if (!response.ok) throw new Error(`The report engine returned ${response.status}.`);
+  if (typeof output.resultJson !== "string") {
+    throw new Error("The report engine returned no result.");
+  }
   return JSON.parse(output.resultJson);
 }
 
@@ -1065,7 +1077,19 @@ async function runDashboardInCrm(dashboardId){
   };
   const response = await xrm().WebApi.online.execute(request);
   const output = await response.json();
+
+  /* Two error shapes reach here and only one was handled. The API's own failures arrive as
+     errorCode/errorMessage, but a plugin that throws — an invalid column, a refused access list —
+     comes back carrying OData's { error: { code, message } }. That shape has no errorCode, so it
+     fell through to JSON.parse(undefined) and the user saw a parser complaint instead of the
+     reason. C-1 defect 2 turned on exactly this: the real message existed and never reached the
+     person who needed it. */
+  if (output.error) throw new Error(output.error.message || output.error.code || "The report engine refused the request.");
   if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  if (!response.ok) throw new Error(`The report engine returned ${response.status}.`);
+  if (typeof output.resultJson !== "string") {
+    throw new Error("The report engine returned no result.");
+  }
   return JSON.parse(output.resultJson);
 }
 

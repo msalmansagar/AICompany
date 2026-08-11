@@ -6315,7 +6315,7 @@ function wizLayout(host, d) {
    starts the query and returns nothing, and the fetch re-renders when it lands. */
 
 const PREVIEW_ROW_LIMIT = 10;
-const previewData = { byKey: {}, pending: {} };
+const previewData = { byKey: {}, pending: {}, errorByKey: {} };
 
 const previewKey = (entity, cols) => entity + "|" + cols.map(c => c.key).join(",");
 
@@ -6335,9 +6335,15 @@ async function loadPreviewRows(key, entity, cols) {
     const rows = await dvList(entity, "?fetchXml=" + encodeURIComponent(previewFetchXml(entity, cols)));
     previewData.byKey[key] = rows.map(row => toPreviewRow(row, cols));
   } catch (error) {
-    // An entity the user cannot read, or a column that no longer exists: an empty preview is the
-    // honest answer. It must not fall back to invented rows.
+    /* An entity the user cannot read, or a column that no longer exists: an empty preview is the
+       honest answer, and it must not fall back to invented rows. But empty is honest and silent is
+       not — C-1 defect 2 was a report that produced no rows, no message and no empty state, with
+       the only evidence in the console: "'Account' entity doesn't contain attribute with Name =
+       'fullname'". A user who clicks Run and sees nothing has nothing to report. The rows stay
+       empty; the reason is kept and shown. */
     previewData.byKey[key] = [];
+    previewData.errorByKey[key] = error && error.message ? error.message : String(error);
+    toast(`Preview of ${entity} failed — ${previewData.errorByKey[key]}`, "err");
   }
   delete previewData.pending[key];
   endBusy(`Previewing ${entity}…`);
