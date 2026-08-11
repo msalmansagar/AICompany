@@ -68,21 +68,77 @@ document is for.
 
 ---
 
+## What a product owns, and what it only reads
+
+The rule above applies to components a product **creates**. It does not, and
+cannot, apply to a client's existing schema that the product merely reads.
+
+The CRM Workflow Designer makes this concrete. It reads `qdb_action`,
+`qdb_department`, `qdb_assigned`, `qdb_callworkflowontaskcompletion` and a long
+tail of similar columns. **Those are QDB's own process-engine schema, not the
+designer's.** They can never move to a product prefix, because they are not ours
+to rename — a second customer would have their own equivalents under their own
+prefix.
+
+So every product has two categories:
+
+| Category | Prefix | Example |
+|---|---|---|
+| **Owned** — tables, columns, web resources, plugins, Custom APIs the product creates | **product prefix** | `cms_pageversion` |
+| **Read** — the client's existing schema the product configures or queries | **client's prefix, unchanged** | `qdb_department` |
+
+A product that reads a lot of client schema is not thereby a client engagement.
+It means its **configuration must map client field names**, rather than assuming
+them — which is a design requirement, not a naming one.
+
+---
+
 ## Registry
 
-Each product records its values here **before its first table is created**.
+Each product records its values here **before its first table is created**. For
+products already provisioned, the row records reality rather than an intention.
 
-| Product | Prefix | Publisher unique name | Display name | Status |
+| Product | Deployed on | Reserved prefix | Publisher unique name | Status |
 |---|---|---|---|---|
-| **CMS Engine** (CMS-ENG-001) | `cms` | `msstechnologies_cmsengine` | MSS Technologies | **Adopted — no components yet** |
-| Dynamic Form Engine | `dfe` + `qdb` | `maqsad_ai` / `maqsadai` | Maqsad AI | ⚠️ Split, pre-convention. Live — not correctable. |
-| Report Engine | *(unassigned)* | — | — | Assign before provisioning |
+| **CMS Engine** (CMS-ENG-001) | *nothing yet* | **`cms`** | `msstechnologies_cmsengine` | ✅ **Adopted and binding — no components exist** |
+| **Report Engine** (RPT-ENG-001) | `qdb` | **`rpt`** | `msstechnologies_reportengine` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
+| **CRM Workflow Designer** (CWFD-001) | `qdb` | **`cwf`** | `msstechnologies_workflowdesigner` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
+| Dynamic Form Engine | `dfe` + `qdb` | — | `maqsad_ai` / `maqsadai` | ⚠️ Split across two prefixes and two publishers. Live — not correctable. |
 | Enterprise Decision Platform | `qdb_edp_` | — | — | ⚠️ Client-prefixed. Review if sold on. |
-| CRM Workflow Designer | *(unassigned)* | — | — | Assign before provisioning |
+
+**Only the CMS row is binding.** The other four are records of what exists.
+
+> ### ⚠️ Reserved ≠ rename
+>
+> Report Engine and CRM Workflow Designer were listed here as *"assign before
+> provisioning"*. **That was wrong — both are already provisioned on `qdb`.**
+>
+> Report Engine's own tables (`qdb_reportdefinition`, `qdb_reportversion` …) were
+> *"created additively in solution `qdb_reportengine`, verified via direct"* query
+> against a live organisation. The CRM Workflow Designer provisions its SOP tables
+> and reads a large amount of QDB's existing process-engine schema.
+>
+> So `rpt` and `cwf` are **reserved names for a future productised build**, not
+> instructions to rename anything. Adopting one means recreating every table and
+> migrating every row — the exact cost this document exists to avoid incurring by
+> accident. It is a decision to take deliberately, if and when either product is
+> sold to a second client, and it needs its own business case.
 
 Products already live are recorded as they are. **This convention is not a
 mandate to migrate them** — the cost is the whole point of the document. It binds
 new products and any product not yet provisioned.
+
+### If either is productised
+
+| | Report Engine | CRM Workflow Designer |
+|---|---|---|
+| Owned components to move | Report definitions, versions, run log, the designer web resource and solution | SOP/step config tables, the designer web resource |
+| Client schema that **stays** on the client prefix | Whatever entities a report reads | **Large** — `qdb_action`, `qdb_department`, `qdb_assigned`, the process-engine columns |
+| Consequence | A contained migration | Migration **plus** replacing hardcoded `qdb_` field references with configuration, since a second client's schema differs |
+
+The designer is the harder of the two, and the reason is not the prefix — it is
+that reading another organisation's schema by hardcoded name does not survive a
+second customer regardless of what the tables are called.
 
 ---
 
