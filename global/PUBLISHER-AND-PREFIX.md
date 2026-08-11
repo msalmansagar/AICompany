@@ -176,7 +176,7 @@ second customer regardless of what the tables are called.
 |---|---|
 | **Prefix** | `msst` for every product. The **product segment** on entities/APIs is what separates them. |
 | **Publisher unique name** | `MSST` — one record for every MSS product, never a second spelling |
-| **Display name** | Currently "Muhammad Salman Sagar Technologies" — **a personal name on a publisher that ships to clients.** Editable until first import; change it. |
+| **Display name** | **"MSS Technologies"** — corrected 2026-08-11 from "Muhammad Salman Sagar Technologies", a personal name on a publisher that ships to clients. This is the **only** publisher field still editable after a first import, so it is the only one a mistake can be walked back on. |
 | **Option value prefix** | 5 digits, 10000–99999, **unique per publisher.** Record it here when assigned; two publishers sharing one causes option-set value collisions on import. |
 
 ---

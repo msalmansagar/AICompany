@@ -163,7 +163,7 @@ on `org5869857f`:
 | Field | Value |
 |---|---|
 | Unique name | `MSST` |
-| Friendly name | Muhammad Salman Sagar Technologies |
+| Friendly name | MSS Technologies |
 | Customization prefix | **`msst`** |
 | Option value prefix | 46327 |
 
@@ -196,10 +196,12 @@ collision the options table warned about.
    own option set, so two products may both use `463270000` harmlessly. For a
    **global** choice the collision risk is the org-wide *name*, which the product
    segment already handles. No sub-range is required.
-2. **The publisher friendly name reads "Muhammad Salman Sagar Technologies"** — a
-   personal name on a publisher that ships to clients. Unique name and prefix are
-   permanent once components import; **the friendly name can still be changed**
-   and should be, before the first import.
+2. ~~**The publisher friendly name carries a personal name.**~~ **Resolved
+   2026-08-11.** It read *"Muhammad Salman Sagar Technologies"* — a personal name
+   on a publisher that ships to clients — and has been changed to **"MSS
+   Technologies"** in `org5869857f`. It was the only one of the four publisher
+   fields still editable after a first import; unique name, prefix and option
+   value are permanent.
 
 ### ✅ Signed off — 2026-08-11 (revised to `msst`)
 
@@ -209,7 +211,7 @@ collision the options table warned about.
 |---|---|
 | Customization prefix | **`msst`** |
 | Publisher unique name | **`MSST`** |
-| Publisher display name | Muhammad Salman Sagar Technologies — **change before first import** |
+| Publisher display name | MSS Technologies — **change before first import** |
 | Option value prefix | 46327 — shared across MSS products; see §2 note |
 
 A publisher carries exactly one prefix. With a **company** prefix that prefix is
@@ -223,9 +225,10 @@ decision and a collision with the DFE.
 - [ ] **`msst` is unused in every *other* target environment.** Less likely to
       clash than a generic code, but still unverified outside this org. Fold into
       question 8 to QDB IT.
-- [ ] **Publisher friendly name changed** from "Muhammad Salman Sagar
-      Technologies" before the first import — the only one of these four fields
-      still editable afterwards.
+- [x] **Publisher friendly name changed** — was "Muhammad Salman Sagar
+      Technologies", now **"MSS Technologies"**, applied to `org5869857f`
+      2026-08-11. It was the only one of these four fields still editable after a
+      first import.
 - [x] ~~CMS option-value sub-range~~ — **not required.** Duplicate local option
       values across different tables are harmless, and global choices are
       protected by the name segment, not by the number.

@@ -93,8 +93,8 @@ work is available.
 
 | Item | Owner | When |
 |---|---|---|
-| Publisher friendly name — currently *"Muhammad Salman Sagar Technologies"* | You | **Before the first component imports.** The only publisher field still editable afterwards. |
-| `msst` verified unused in other target environments | QDB IT | Fold into Q4's conversation |
+| ~~Publisher friendly name~~ | — | ✅ **Done 2026-08-11** — "Muhammad Salman Sagar Technologies" → **"MSS Technologies"** on `org5869857f` |
+| `msst` verified unused in other target environments | QDB IT | Fold into Q2's conversation in the session |
 
 ---
 
