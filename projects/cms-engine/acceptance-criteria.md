@@ -227,7 +227,7 @@ someone writes to the API directly, which is the only enforcement that counts.
 - **AC-62.2** — **Given** any existing version record, **when** an update is attempted against it directly, **then** it is refused.
 - **AC-62.3** — **Given** a sequence of ten saves, **when** version history is listed, **then** ten versions exist with author and timestamp on each.
 
-> **No external dependency.** FR-62 and FR-63 are satisfied by `cms_pageversion`,
+> **No external dependency.** FR-62 and FR-63 are satisfied by `msst_cmspageversion`,
 > which the CMS owns (`phase-3-arch.md` §3). An earlier note here made them rest
 > on **DXP-P1-004**; that dependency was dropped under **C-11** on 2026-08-11 —
 > the architecture never used it. These criteria are testable without any
