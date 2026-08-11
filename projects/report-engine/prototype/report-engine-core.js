@@ -813,7 +813,10 @@ const EXPORT_LIBRARIES = {
   xlsx:  { src: "qdb_reportengine_xlsx.js",              ready: () => !!window.XLSX },
   jspdf: { src: "qdb_reportengine_jspdf.js",             ready: () => !!(window.jspdf && window.jspdf.jsPDF) },
   table: { src: "qdb_reportengine_jspdf_autotable.js",   ready: () => !!(window.jspdf && window.jspdf.jsPDF
-             && typeof window.jspdf.jsPDF.API.autoTable === "function") }
+             && typeof window.jspdf.jsPDF.API.autoTable === "function") },
+  // The heaviest of the four and the least often needed, so it is worth its own entry rather than
+  // being folded into the jsPDF one: an English-only org never downloads it.
+  arabicFont: { src: "qdb_reportengine_arabicfont.js",   ready: () => !!window.QdbReportEngineArabicFont }
 };
 
 const loadedLibraries = {};
@@ -918,35 +921,87 @@ async function exportExcel(result, baseName){
 }
 
 async function exportPdf(result, baseName){
-  // The PDF standard-14 fonts jsPDF falls back on carry no Arabic glyphs, so an Arabic report
-  // exports as empty boxes. Letter shaping is NOT the gap — jsPDF bundles an Arabic parser — the
-  // font is, and fixing it means embedding one (Area 11 weighed download weight against exactly
-  // this). Refusing is the honest state: a silently unreadable PDF is worse than none, because it
-  // is the file someone forwards to a customer without opening it.
-  if (isReportRtl()) {
-    throw new Error(`PDF export cannot render ${reportLanguage().toUpperCase()} yet — its fonts carry `
-      + `no Arabic glyphs, so the file would be unreadable. Excel, CSV and PNG all export it correctly.`);
-  }
-
   await loadLibrary("jspdf");
   await loadLibrary("table");
-  const { head, body } = exportRows(result);
+  const rtl = isReportRtl();
+  const { head, body } = orderedForDirection(exportRows(result), rtl);
 
   // Landscape: report tables are wider than they are tall, and portrait squeezes columns to nothing.
   const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-  doc.setFontSize(14);
-  doc.text(String(state.current.def.name || "Report"), 40, 40);
-  doc.setFontSize(9);
-  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, 40, 56);
+  const font = rtl ? await useArabicFont(doc) : "helvetica";
 
-  doc.autoTable({
-    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
-    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
-    headStyles: { fillColor: [0, 120, 212], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [247, 247, 247] }
-  });
+  const draw = () => {
+    drawPdfHeading(doc, result, font, rtl);
+    drawPdfTable(doc, head, body, font, rtl);
+  };
+  if (rtl) withVisualTextOrder(doc, draw); else draw();
 
   saveBlob(doc.output("blob"), baseName + ".pdf");
+}
+
+function drawPdfTable(doc, head, body, font, rtl){
+  doc.autoTable({
+    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
+    styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
+    // Amiri is registered in one weight, so asking for bold would send jsPDF looking for a face
+    // that is not there. The fill colour carries the header instead.
+    headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
+    alternateRowStyles: { fillColor: [247, 247, 247] }
+  });
+}
+
+/**
+ * Runs a drawing routine with text reordered from logical order into visual order.
+ *
+ * jsPDF shapes Arabic letters but does not reorder them, so without this the words join correctly
+ * and then read backwards — which looks like Arabic and is not. Its own setR2L is no use: that
+ * reverses the entire string, turning QAR 1,234.50 into 05.432,1 RAQ. Only isInputVisual:false runs
+ * the real bidi pass, which reverses the Arabic runs and leaves Latin and numbers where they were.
+ *
+ * The flag has to be injected around doc.text because autoTable draws every cell through it and
+ * exposes no way to pass text options. text is an own property of the document, not an inherited
+ * one, so it is restored by assignment — deleting it would take jsPDF's own method with it.
+ */
+function withVisualTextOrder(doc, draw){
+  const original = doc.text;
+  doc.text = function(text, x, y, options, ...rest){
+    return original.call(this, text, x, y, { ...(options || {}), isInputVisual: false }, ...rest);
+  };
+  try { draw(); } finally { doc.text = original; }
+}
+
+/**
+ * Registers the bundled Arabic font on this document and returns the family to draw with.
+ *
+ * The PDF standard-14 fonts jsPDF falls back on contain no Arabic glyphs, so without this an Arabic
+ * report exported as empty boxes and reported success. Shaping is not the gap — jsPDF substitutes
+ * the presentation forms itself — which is also why the font has to carry U+FE70-FEFF, and why it
+ * has to carry Latin too, or every English word in a bilingual report disappears.
+ */
+async function useArabicFont(doc){
+  await loadLibrary("arabicFont");
+  const font = window.QdbReportEngineArabicFont;
+  doc.addFileToVFS(font.postScriptName, font.base64);
+  doc.addFont(font.postScriptName, font.family, "normal");
+  doc.setFont(font.family);
+  return font.family;
+}
+
+/** Right-to-left reverses the column order so the first column sits at the right edge, matching the
+    screen. autoTable lays its cells out left to right whatever the language. */
+function orderedForDirection({ head, body }, rtl){
+  if (!rtl) return { head, body };
+  return { head: [...head].reverse(), body: body.map(row => [...row].reverse()) };
+}
+
+function drawPdfHeading(doc, result, font, rtl){
+  const align = rtl ? "right" : "left";
+  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+  doc.setFont(font);
+  doc.setFontSize(14);
+  doc.text(String(state.current.def.name || "Report"), x, 40, { align });
+  doc.setFontSize(9);
+  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, x, 56, { align });
 }
 
 const PNG_PADDING = 12;
