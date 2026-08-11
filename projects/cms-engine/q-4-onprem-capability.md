@@ -177,6 +177,71 @@ sending it would invite a discussion instead of an answer.
 
 ---
 
+## 9. What replaces the File column on 9.0/9.1 — measured
+
+If QDB is on 9.0 or 9.1, `qdb_cmspageversion.qdb_contentfile` cannot be a File column. The
+question is whether Memo can carry the version store instead. Measured, it can, with room to
+spare.
+
+### The real corpus
+
+| Payload | raw | base64 of gzip | ratio | % of Memo |
+|---|---|---|---|---|
+| `reyada.data.ts` | 9.7 KB | 4.0 KB | 2.4× | **0.39%** |
+| `landing.puck.data.ts` | 8.1 KB | 2.7 KB | 3.0× | **0.26%** |
+| `portal.data.ts` | 5.1 KB | 2.5 KB | 2.0× | **0.25%** |
+
+Roughly a **250× margin** on the pages that exist.
+
+### The rich-text case, by arithmetic rather than simulation
+
+Two attempts to synthesise a prose corpus were discarded, and the reasoning is recorded because
+the numbers looked convincing and were not:
+
+- A generator drawing from a twelve-word phrase list compressed at **35–51×**. The ADR states
+  prose compresses at 3–4×. It was measuring its own repetition.
+- A random-token generator produced ratios climbing **0.8× → 47×** as length grew, which means
+  gzip was finding structure in the token alphabet. Also not prose.
+
+Synthetic text is a poor stand-in for language, so the ceiling is stated as arithmetic, which
+needs no corpus:
+
+| If prose compresses at | One Memo holds |
+|---|---|
+| 4× — the ADR's optimistic figure | 4.0 MB raw ≈ 699,000 words |
+| 3× — the ADR's pessimistic figure | 3.0 MB raw ≈ 524,000 words |
+| 2× | 2.0 MB raw ≈ 350,000 words |
+| **1× — gzip achieves nothing at all** | **1.0 MB raw ≈ 175,000 words** |
+
+Even assuming compression fails entirely, a single version holds about **175,000 words**. A web
+page is hundreds of words. The ceiling is not reachable by authoring; it is reachable only by
+embedding binaries, which `ADR-CMS-001`'s publish-time gate already rejects outright by
+refusing `data:` URIs.
+
+### What this means for the ADR
+
+The File column was not chosen because Memo was insufficient. The ADR says so: it raises
+"the ceiling from 1 MB to 128 MB — **removing the constraint entirely rather than living near
+it**". That is headroom, not necessity, and its own measurements put real pages at under 1% of
+the Memo limit.
+
+On 9.0/9.1 the headroom is unavailable. The measurements say it was never needed:
+
+- **Live payload** — Memo. Unchanged, and unaffected by the version.
+- **Version store** — Memo, one row per version. The 128 MB headroom is lost; the 250× margin
+  on real pages and 175,000-word floor on prose remain.
+- **`data:` URI rejection** becomes load-bearing rather than merely prudent, since it is now the
+  only thing standing between an author and the ceiling. It was already specified as a plugin
+  rejection, which is the right place for it.
+- **`OQ-2`** — the 20-versions-per-page retention figure is unaffected. Versions are rows, and
+  row count was never what the File column addressed.
+
+This does **not** close `OQ-1`. If Q1 puts long-form rich text in scope, the ADR asks for
+re-measurement against real prose — and real prose is exactly what could not be synthesised
+here. That measurement needs a genuine sample of QDB's content, not a generator.
+
+---
+
 ## Sources
 
 - [Types of fields and field data in Dynamics 365 Customer Engagement (on-premises), op-9-1](https://learn.microsoft.com/en-us/dynamics365/customerengagement/on-premises/customize/types-of-fields?view=op-9-1)
