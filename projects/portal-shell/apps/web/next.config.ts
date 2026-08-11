@@ -8,12 +8,9 @@ const nextConfig: NextConfig = {
   experimental: {
     typedRoutes: false,
   },
-  images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: '**.blob.core.windows.net' },
-      { protocol: 'https', hostname: 'images.unsplash.com' },
-    ],
-  },
+  // No `images.remotePatterns`: nothing imports next/image, so configuring
+  // remote hosts only exposes the /_next/image proxy to no purpose. Restore a
+  // narrowly-scoped pattern if and when a component actually uses next/image.
   env: {
     API_URL: process.env['API_URL'] ?? 'http://localhost:4001',
   },
