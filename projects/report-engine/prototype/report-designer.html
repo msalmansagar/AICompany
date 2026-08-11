@@ -7424,7 +7424,13 @@ function wizCreate() {
   const groupingLayouts = ["Grouped Report","Master-Detail Report","Drill-down Report","Nested Report","Summary Report"];
   def.layout = { type:d.layoutType, showHeader:true, showFooter:true, showLogo:true, pageNumber:true, genDate:true, genBy:true, watermark:"", orientation:"Landscape", pageSize:"A4", groupBy:(groupingLayouts.includes(d.layoutType)&&catCol)?catCol.name:"(none)", grandTotal:true, chartType:d.chartType||"Column", cardIcon:d.cardIcon||"chart", showFilterBar:true };
   def.exports = EXPORT_FORMATS.map(f => ({ format:f, enabled:d.exports.includes(f), filename:"{report}_{date}" }));
-  def.security = [{ ptype:"Security role", ref:"Report Author", view:true, run:true, export:true, edit:true, approve:false }];
+  /* No seeded access row. It used to name the security role "Report Author", which exists in no
+     organisation we have checked — and because the guard matches roles by name, a role that does
+     not exist matches nobody. Every report the wizard created was therefore locked to everyone,
+     including its own author and including a System Administrator, until somebody edited the list.
+     An empty list is read by the guard as "nobody has restricted this yet", which is the correct
+     default: restriction should be a decision, not a side effect of using the wizard. */
+  def.security = [];
   def.versions = [{ n:1, by:d.owner, on:"2026-07-15 12:00", note:"Created via wizard", current:true }];
   def.joins = d.joins.slice(); def.externalSources = d.externalSources.slice();
   def.detailTables = (d.detailTables||[]).map(t=>({ entity:t.entity, label:t.label, showTotals:t.showTotals, columns:t.columns.slice() }));
