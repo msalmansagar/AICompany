@@ -26,7 +26,7 @@ waiting.
 | §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
 | §5 Approval workflow | **Decided — Q3 answered 2026-08-11, two routes** |
 | §6 Rich text handling | **Decided — Q1 answered** |
-| §7 On-premise specifics | ⛔ **Q4 partly answered** — 9.1 confirmed, File columns *claimed not confirmed*, Custom API still open |
+| §7 On-premise specifics | ⛔ **Q4 partly answered** — 9.1 confirmed; **Custom API is now the blocker**, the File-column claim no longer gates storage |
 | §8 Content migration | ⛔ Blocked on **Q6** |
 
 Satisfies gate finding **SR-4**, which required a UI/UX pass producing
@@ -591,7 +591,7 @@ inherited from the DFE:
 
 | Section | Blocked on | What cannot be designed without it |
 |---|---|---|
-| §7 On-premise specifics | **Q4** | Custom API vs Process Action, File column availability and limits, browser baseline for `CompressionStream` |
+| §7 On-premise specifics | **Q4** | **Custom API vs Process Action** and the browser baseline for `CompressionStream`. File column availability now bears only on **image storage** — the page and version stores moved to Memo on both platforms (ADR-CMS-001, *Storage on two platforms*), which is what satisfies NFR-08. |
 | §8 Content migration | **Q6** | Whether existing `bodyHtml` content is migrated or re-authored |
 
 ---

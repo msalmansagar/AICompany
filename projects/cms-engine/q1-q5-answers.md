@@ -43,12 +43,17 @@ Both cannot be true as stated. The possibilities, in the order they are worth ch
 
 ### Why this is not a detail to wave through
 
-`ADR-CMS-001` puts the entire version store in `msst_cmspageversion.msst_contentfile`, a File
+`ADR-CMS-001` put the entire version store in `msst_cmspageversion.msst_contentfile`, a File
 column. If it exists, the ADR stands as written. If it does not, the version store moves to
 Memo — which has been measured and works comfortably, but is a different design.
 
 Building the wrong one is expensive in both directions. So this is recorded as **claimed, not
 confirmed**.
+
+> ✅ **Resolved 2026-08-11 — and not by getting the answer.** The version store moved to Memo on
+> both platforms, so the design no longer rests on the claim. The check is still worth doing for
+> image storage, but **it can now come back either way without costing anything.** The safest
+> resolution to a contradiction you cannot settle is to stop depending on it.
 
 ### The check that settles it — two minutes, on their environment
 
@@ -83,10 +88,12 @@ Consequences to work through:
   a Memo version store everywhere — simple, one code path, measured — or File on cloud and Memo
   on-premise, which means two storage paths, two plugin code paths, and a portability problem
   for pages moving between environments.
-- **Recommendation, pending the check:** Memo everywhere. It is measured at 0.25–0.39% of the
-  limit on real pages, holds ~175,000 words per version even if compression achieved nothing,
-  and gives one code path instead of two. The File column's 128 MB was headroom, never
-  necessity — `ADR-CMS-001`'s own numbers put real pages under 1% of the Memo limit.
+- ✅ **DECIDED 2026-08-11: Memo everywhere.** Recorded in `ADR-CMS-001` under
+  *Storage on two platforms*, superseding Decision §2. One column type, one code path, both
+  platforms — NFR-08 satisfied by construction rather than by a conditional. Measured at
+  0.25–0.82% of the limit on real pages and 10.94% on a deliberately absurd one; the File
+  column's 128 MB was headroom, never necessity. **This is what makes the File-column question
+  cheap to answer either way.**
 - The Report Engine already claims both on-premise and cloud, and has only ever been verified on
   cloud. The same requirement now applies to two products.
 

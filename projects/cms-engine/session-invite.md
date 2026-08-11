@@ -23,7 +23,7 @@ Ready to send. Copy the invite text below; attach or link
 | Time | Who | Decisions |
 |---|---|---|
 | **0:00 – 0:10** | Everyone | Prototype demonstration |
-| **0:10 – 0:25** | **IT** | **Q1 — the File-column check and the four-part build number**, Custom API, plus the `msst` prefix check |
+| **0:10 – 0:25** | **IT** | **Q1 — Custom API support**, the File-column check and four-part build number, plus the `msst` prefix check |
 | **0:25 – 0:35** | **Digital** | **Q2 — existing content** · Q5 Arabic URLs |
 | **0:35 – 0:40** | **Brand** | Q3 font licence · Q6 multi-colour icons |
 | **0:40 – 0:45** | **Compliance** | Q4 PDPPL |
@@ -39,13 +39,17 @@ text is decided, the question depending on it fell away, and QDB answered the
 approval-routes and Arabic-authoring questions on 11 August. **Legal and
 Communications no longer need to be in the room.**
 
-**Q1 is the whole session.** It is not a discussion — it is someone opening the
-Data Type list on a new column and telling us whether **File** is in it, then
-sending the **four-part build number**. QDB has already told us File columns are
-available; Microsoft's on-premise type reference says otherwise. Get it settled
-in the room rather than by email, because page version history is designed
-against the answer and we will build the wrong thing in one direction or the
-other. **Custom API is part of the same question and was never answered.**
+**Q1 is the whole session, and its blocking half is Custom API** — which was never
+answered and decides how publishing is built.
+
+**The File-column check has been deliberately downgraded.** It was the most urgent
+question in the previous version of this pack. It is not any more: QDB's
+"both on-premise and cloud" requirement made us re-examine the storage design, and
+version history now uses one column type on both platforms. **A "no" to File costs
+nothing today.** Still ask — image storage is unsettled — but do not spend the
+room's goodwill on it, and if anyone remembers it being critical last time, that
+is the honest explanation: they gave us a requirement, and it made a whole
+question cheaper.
 
 **Q1 also carries a hidden deadline.** The `msst` prefix goes on every table we
 create and cannot be changed once records exist. It is a two-minute check for
@@ -69,7 +73,8 @@ and expensive to retrofit — so a recorded assumption keeps architecture moving
 
 | Answer | Unblocks |
 |---|---|
-| **Q1** File column · build number · Custom API | Architecture §7 · condition C-4 · lets ADR-CMS-001 be accepted |
+| **Q1** Custom API | Architecture §7 · condition C-4 — **the blocking half** |
+| **Q1** File column · build number | Architecture §7 image storage only. ADR-CMS-001 no longer waits on it. |
 | **Q2** existing content | Architecture §8 |
 | Q3 · Q4 | Conditions C-6 · C-5 |
 
