@@ -26,8 +26,8 @@ waiting.
 | §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
 | §5 Approval workflow | **Decided — Q3 answered 2026-08-11, two routes** |
 | §6 Rich text handling | **Decided — Q1 answered** |
-| §7 On-premise specifics | ⛔ **Q4 partly answered** — 9.1 confirmed; **Custom API is now the blocker**, the File-column claim no longer gates storage |
-| §8 Content migration | ⛔ Blocked on **Q6** |
+| §7 On-premise specifics | **Decided — Custom API on cloud, Action + plugin on-premise.** Open: File columns for media, and the `msst` prefix check |
+| §8 Content migration | **Decided — nothing to migrate** |
 
 Satisfies gate finding **SR-4**, which required a UI/UX pass producing
 component-level interaction patterns, a field grouping strategy and a bilingual
@@ -256,7 +256,7 @@ never varied is a permanent tax on every query and index.
 | Entity | Purpose | Key columns |
 |---|---|---|
 | `msst_cmspage` | Page header | `msst_slug`, `msst_titleen`, `msst_titlear`, `msst_status` |
-| `msst_cmspageversion` | Append-only versions | `msst_versionnumber`, `msst_contentfile` (File column), `msst_islatest`, `msst_schemaversion` |
+| `msst_cmspageversion` | Append-only versions | `msst_versionnumber`, `msst_contentjson` (Memo, gzip+Base64), `msst_islatest`, `msst_schemaversion` |
 | `msst_cmsrendercache` | Published output | `msst_runtimejson` (Memo, gzip+Base64), `msst_languagecode` |
 | `msst_cmspublishlog` | Audit — plugin-written only | `msst_action`, `msst_versionnumber`, `msst_publishedon`, `msst_publishedby` |
 | `msst_cmsmediaasset` | Media library | `msst_assetkey`, `msst_kind`, File column |
@@ -264,8 +264,14 @@ never varied is a permanent tax on every query and index.
 | `msst_cmsthemetoken` | Design tokens | `msst_slug`, `msst_tokentype`, `msst_value`, `msst_scope` |
 | `msst_cmsnavigation` | Navigation, separately versioned | `msst_versionnumber`, `msst_treejson` |
 
-Per ADR-CMS-001: versions use a **File column** (unbounded), the render cache
-uses a **Memo column** (single-round-trip read on every page view).
+Per ADR-CMS-001 (*Storage on two platforms*, 2026-08-11): **both the version store
+and the render cache use Memo columns**, gzip + Base64. One column type across the
+whole engine, on both platforms. `msst_cmsmediaasset` is the only remaining File
+column, and §7 decides what it becomes on-premise.
+
+> Both Memo columns must be provisioned at `MaxLength` **1,048,576** — the default
+> is 2,000 (AC-08.1). Queries that list versions must name their columns, or every
+> payload comes back with the list (AC-08.2).
 
 ### Versioning is self-contained — decided under C-11, 2026-08-11
 
@@ -288,6 +294,9 @@ it observes** — which is exactly why the CMS does not need to depend on it.
 See `c-11-versioning-dependency.md` for the full reasoning.
 
 ### Custom APIs
+
+> **On-premise these are Custom Process Actions with the same names**, because
+> Custom API does not exist in CRM 9.1. See §7 — the callers do not change.
 
 | API | Mode | Stage | Does |
 |---|---|---|---|
@@ -587,12 +596,124 @@ inherited from the DFE:
 
 ---
 
-## §7 and §8 — still blocked
+## §7 On-premise specifics
 
-| Section | Blocked on | What cannot be designed without it |
-|---|---|---|
-| §7 On-premise specifics | **Q4** | **Custom API vs Process Action** and the browser baseline for `CompressionStream`. File column availability now bears only on **image storage** — the page and version stores moved to Memo on both platforms (ADR-CMS-001, *Storage on two platforms*), which is what satisfies NFR-08. |
-| §8 Content migration | **Q6** | Whether existing `bodyHtml` content is migrated or re-authored |
+**Answered 2026-08-11: Custom API on cloud; a Custom Process Action with a plugin
+registered on it, on-premise.** Custom API is a Dataverse-era message type and
+does not exist in CRM 9.1 on-premise, so this is the correct answer rather than a
+compromise.
+
+### The rule that keeps it from becoming two products
+
+**The message is named identically on both platforms.**
+
+A Custom API and a Custom Process Action both surface to a caller as an OData
+action: `POST /api/data/v9.x/msst_CmsPublishPage`. If the on-premise Action
+carries the same name and the same parameters, **every caller is byte-identical
+across platforms** — the web resource, the portal, the tests.
+
+| Layer | Cloud | On-premise | Differs? |
+|---|---|---|---|
+| Calling code | `msst_CmsPublishPage` | `msst_CmsPublishPage` | **No** |
+| Plugin assembly and business logic | Same assembly | Same assembly | **No** |
+| Message definition | `customapi` component | `workflow` (Action) + SDK step | **Yes — solution authoring only** |
+
+The divergence is confined to how the message is *declared* in the solution. No
+`if (isOnPremise)` appears anywhere in the plugin or the client. That is the same
+standard the storage decision set, and it is the one that matters: **a branch in
+packaging is a build concern; a branch in code is a permanent tax.**
+
+### What a Custom Action costs that a Custom API does not
+
+A Custom Process Action instantiates a workflow at invoke time. A Custom API is a
+thin message with none of that. The overhead is real and lands on whichever paths
+go through the message.
+
+**Which is why the read path does not go through one.** Per §1, visitors are served
+by the Next.js portal, not by a web resource. The portal reads the render-cache
+row directly over the Web API and gunzips it in Node — no message, no plugin, no
+workflow instantiation on the hot path. **NFR-01's p95 < 200 ms is therefore
+unaffected by the on-premise invocation model**, which is the single most
+important consequence of this section.
+
+`msst_CmsGetPublishedPageJson` remains, but only for the **editor**, which runs in
+a browser inside CRM and calls it perhaps once per page opened. Action overhead is
+irrelevant at that frequency.
+
+### This closes the `CompressionStream` question rather than answering it
+
+§7 was also blocked on the browser baseline for `CompressionStream`, because a
+browser-side decompressor would need it. **No browser decompresses anything.** The
+editor receives already-decoded JSON from `msst_CmsGetPublishedPageJson`; the
+portal decompresses server-side in Node. The dependency does not exist, so the
+baseline does not need establishing.
+
+Should the editor ever read the cache directly to save a round trip, this question
+returns — and the answer would be to keep the message, not to raise the baseline.
+
+### Media binaries — the one thing still open
+
+`msst_cmsmediaasset` is now the only File column in the design, and **whether File
+columns exist on-premise is still unconfirmed.** The fallback is `annotation`
+(note attachments), which has existed in every CRM version and is what the
+platform used for file storage before File columns.
+
+This is deliberately *not* decided here. Unlike the version store, media binaries
+have no measured size argument yet, and choosing note attachments has consequences
+for FR-21's reference counting that need working through. **It is the one item
+that still wants the File-column check** — and it is not on the critical path,
+because media upload is Phase A but the storage mechanism is swappable behind an
+asset key (FR-14).
+
+### What was answered, and what was not
+
+| Asked | Answer |
+|---|---|
+| Custom API support | ✅ **Cloud: yes. On-premise: Action + plugin.** |
+| File column support | ⛔ **Still unanswered** — now affects media only |
+| `msst` prefix unused in target environments | ⛔ **Still unanswered** — cannot be changed after records exist |
+
+---
+
+## §8 Content migration
+
+**Nothing to migrate. Closed 2026-08-11 without a client answer, because the
+question was already answered twice inside this repository.**
+
+The question was *"what happens to content already in the current portal CMS?"*
+It has two possible referents and neither survives contact with the documents:
+
+**1 — QDB's existing portal pages.** Already out of scope, explicitly, at the
+BRD gate. §3.2: *"Migrating existing hardcoded pages (separate engagement)."*
+That content lives in application code (§2.1), which is the problem this
+engagement exists to solve, not an input to it.
+
+**2 — `qdb_cms_contents.bodyHtml` in portal-shell.** This is what ADR-CMS-005's
+OQ-C actually meant: portal-shell carries a simple content table and a Tiptap
+editor, and retiring that editor would strand anything authored in it. But
+**portal-shell has never run in production.** Every phase completed, and every
+deployment gate still reads *"needs staging"*. A table that has never been live
+holds no authored content, so there is nothing to strand.
+
+### Why this was asked at all
+
+The question came from an ADR that correctly noted the BRD's migration exclusion
+*"may not cover"* portal-shell's own content. That caution was right. What went
+wrong is that it was escalated to the client as a blocking question without first
+checking whether the table had ever held anything — **a question we could answer
+ourselves was put on a client's critical path for weeks.**
+
+If portal-shell reaches production before the CMS ships, this reopens. The trigger
+is a deployment, not a date.
+
+### What this section would contain if it were needed
+
+Recorded so a future engagement does not start from nothing: a migration would map
+`bodyHtml` to a block tree by parsing the HTML into the allowlisted subset from §6
+(paragraph, H2–H4, lists, links, bold, italic) and dropping the rest. Anything
+outside that set has no representation in the block model, and **a migration that
+silently discards markup is worse than re-authoring** — the mapping would need to
+report what it dropped, per page, before anyone accepted it.
 
 ---
 

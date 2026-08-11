@@ -11,15 +11,20 @@ eight files and would probably get it wrong.
 ## Score
 
 ```
-CEO conditions   10 of 13 closed
+CEO conditions   11 of 13 closed
 ADRs             1 of 5 Accepted
-Architecture     7 of 9 sections decided
+Architecture     9 of 9 sections decided   ← complete
 ```
 
-**Every gate item waits on somebody outside this repository.** The last piece of
-unblocked design work — the *"both on-premise and cloud"* storage decision — was
-completed on 2026-08-11: **Memo everywhere**. There is now genuinely nothing to
-build until Q1 and Q2 come back.
+**Architecture is complete.** §7 closed on the Custom API answer (cloud: Custom
+API; on-premise: Action + plugin, same message names). §8 closed **without** a
+client answer — the question had already been answered twice inside this
+repository and should never have reached QDB.
+
+**Two small items remain outstanding, neither blocking Phase 3:** the File-column
+check, which now affects **media binaries only**, and confirming the `msst` prefix
+is unused in QDB's environments — which must be settled **before provisioning**,
+because a prefix cannot be changed once records exist.
 
 ---
 
@@ -57,7 +62,7 @@ against those. This table is the bridge.
 | **C-1** | Rich text scope confirmed | Ph 3 close | ✅ **Closed** — rich text is IN | `phase-1-ceo.md`, PR #79 |
 | **C-2** | Approval chain design confirmed | Ph 3 close | ✅ **Closed** — answered: two routes, regulated and standard | `phase-3-arch.md` §5, `q1-q5-answers.md` |
 | **C-3** | Arabic authoring UI scope | Ph 3 close | ✅ **Closed** — answered: English UI for Phase A | `q1-q5-answers.md` |
-| **C-4** | On-prem CRM version + capabilities | Ph 3 close | ⛔ **Q1 — partly answered** — 9.1 confirmed; **File columns claimed but contradict the documented type list**; Custom API unanswered | `q1-q5-answers.md`, `q-4-onprem-capability.md` |
+| **C-4** | On-prem CRM version + capabilities | Ph 3 close | ✅ **Closed** — 9.1; **Custom API on cloud, Action + plugin on-premise**, same message names. File columns now affect media only and no longer gate anything | `phase-3-arch.md` §7 |
 | **C-5** | PDPPL confirmation | Phase 6 | ⛔ **Q4 — QDB Compliance** | |
 | **C-6** | GE Dinar web font licence | Phase 7 | ⛔ **Q3 — QDB Brand** | |
 | **C-7** | Puck adapter interface enforced | Ph 3 close | ✅ **Closed** | `adrs/ADR-CMS-003` |
@@ -68,9 +73,11 @@ against those. This table is the bridge.
 | **C-12** | Acceptance criteria for Must FRs | Ph 4 start | ✅ **Closed** — 144 criteria | `acceptance-criteria.md` |
 | **C-13** | Multi-tenancy decisions | Ph 3 close | ✅ **Closed** — prefix `msst` + product segment | `phase-3-arch.md` §2 |
 
-**Phase 3 cannot close on C-4.** C-2 and C-3 closed with the 2026-08-11 answers.
-C-4 is the only Phase-3 condition left, and it is half-answered: the version is
-confirmed, the capability claim is not.
+**Every Phase-3 condition is now closed.** C-2, C-3 and C-4 all closed on
+2026-08-11. The two conditions still open — C-5 (PDPPL) and C-6 (font licence) —
+are Phase 6 and Phase 7 gates and do not block the architecture gate.
+
+**Phase 3 is ready to close. The next event is the CEO architecture gate.**
 
 ---
 
@@ -85,8 +92,8 @@ confirmed, the capability claim is not.
 | §6 Rich text handling | ✅ Decided |
 | §9 UI/UX specification | ✅ Decided — separate document |
 | §5 Approval workflow | ✅ Decided — two routes, classification-driven |
-| §7 On-premise specifics | ⛔ **Q1** |
-| §8 Content migration | ⛔ **Q2** |
+| §7 On-premise specifics | ✅ Decided — Custom API / Action, same message names |
+| §8 Content migration | ✅ Decided — nothing to migrate |
 
 ---
 
@@ -111,19 +118,21 @@ confirmed, the capability claim is not.
 |---|---|
 | ~~approval routes~~ | ✅ Landed 2026-08-11 — Arch §5 · C-2 · the approval schema |
 | ~~Arabic authoring UI~~ | ✅ Landed 2026-08-11 — C-3 |
-| **Q1** Custom API | Arch §7 — Custom API vs Process Action. **Now the blocking half of Q1.** Report Engine waits on the same answer. |
-| **Q1** the File-column check | Arch §7 only, for **media binaries** — no longer touches the version store. Also settles OQ-4's neighbour. |
-| **Q2** existing content | Arch §8 |
-| Q3 font licence · Q4 PDPPL | C-6 (Phase 7) · C-5 (Phase 6) |
+| ~~Custom API~~ | ✅ Landed 2026-08-11 — Arch §7 · C-4. **Report Engine can reuse this answer.** |
+| ~~existing content~~ | ✅ Closed 2026-08-11 — Arch §8, answered internally |
+| **File columns** | Media binary storage in §7 only. Fallback is note attachments. **Not blocking.** |
+| **`msst` prefix unused?** | ⚠️ **Must be settled before provisioning** — it cannot be changed after records exist |
+| Font licence · PDPPL | C-6 (Phase 7) · C-5 (Phase 6) |
 
-**Phase 3 closes when Q1 and Q2 are answered.** Then: CEO architecture gate
-→ schema provisioning *(needs explicit go-ahead)* → Build Phase A.
+**Phase 3 is closed.** Next: CEO architecture gate → schema provisioning
+*(needs explicit go-ahead, and the prefix check first)* → Build Phase A.
 
-> **Q1's File-column half stopped being load-bearing on 2026-08-11.** The storage
-> decision landed on **Memo everywhere**, so the version store no longer depends
-> on whether File columns exist on-premise. What still blocks §7 is **Custom API**
-> and the `CompressionStream` browser baseline. The File check is still worth two
-> minutes — media binaries in §7 are undecided — but a "no" is no longer expensive.
+> **On-premise gets Actions, not Custom APIs — and no caller notices.** Both
+> surface as the same OData action, so naming the on-premise Action
+> `msst_CmsPublishPage` makes every caller identical across platforms. The
+> divergence is in solution authoring, not in code. **The read path avoids the
+> message entirely** (the portal reads the render cache directly and decompresses
+> in Node), so a Custom Action's workflow overhead never touches NFR-01.
 
 ---
 
@@ -134,6 +143,9 @@ confirmed, the capability claim is not.
 | ~~Publisher friendly name~~ | — | ✅ **Done 2026-08-11** — "Muhammad Salman Sagar Technologies" → **"MSS Technologies"** on `org5869857f` |
 | ~~Storage design for on-premise *and* cloud~~ | — | ✅ **Done 2026-08-11** — **Memo everywhere.** One column type, one code path, both platforms; NFR-08 satisfied by construction. ADR-CMS-001 *Storage on two platforms*. Two implementation traps recorded there: the Memo column must be provisioned at `MaxLength` 1,048,576 (**the default is 2,000**), and version-list queries must name their columns or they drag every payload back. |
 | **Confirm Dataverse capacity pricing** | MSS | Before Phase A. The decision moves the version store from file storage to database storage — ≈ 210 MB for a realistic 500-page site. The direction is certain, the cost is not. |
+| **`msst` prefix unused in QDB's environments** | QDB IT | ⚠️ **Before provisioning.** The last thing that can force rework, and a two-minute check. |
+| **File columns on-premise** | QDB IT | Before media upload is built. Decides `msst_cmsmediaasset`; fallback is note attachments. |
+| **Check before escalating a question to the client** | MSS | §8 was blocked on QDB for weeks and was answerable from two documents in this repository. Ask *"can we answer this ourselves?"* before it reaches a client pack. |
 | ADR/prototype schema names still say `qdb_` | MSS | Deferred. §2 records the finding; ADR-CMS-001/005, `phase-1-ceo.md` and the seven prototype pages were never renamed to `msst`. Harmless while nothing is provisioned, wrong the moment a table is created. |
 | `msst` verified unused in other target environments | QDB IT | Fold into Q2's conversation in the session |
 

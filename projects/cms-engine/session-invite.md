@@ -7,26 +7,28 @@ Ready to send. Copy the invite text below; attach or link
 
 ## Invite
 
-**Subject:** QDB CMS Engine — decision session (45 min)
+**Subject:** QDB CMS Engine — architecture complete, 30-minute review
 
 **Body:**
 
-> We have completed the evaluation, the business case and most of the
-> architecture for the Content Management Engine. **Six decisions remain, and
-> two of them are holding up the rest of the design.**
+> The architecture for the Content Management Engine is **complete** — all nine
+> sections decided. Your answers on 11 August closed the last of it.
 >
-> We will demo the working prototype first — in our experience several of these
-> questions answer themselves once people see it.
+> This session is a demonstration and a short set of confirmations, not a
+> decision meeting. **Nothing is blocked.**
+>
+> One item does have a deadline: we need to confirm a naming prefix is unused in
+> your environments *before* we create the first table, because it cannot be
+> changed afterwards. Two minutes for whoever administers the environment.
 >
 > **The agenda is timeboxed by area, so you only need to stay for your part.**
 
-| Time | Who | Decisions |
+| Time | Who | Purpose |
 |---|---|---|
-| **0:00 – 0:10** | Everyone | Prototype demonstration |
-| **0:10 – 0:25** | **IT** | **Q1 — Custom API support**, the File-column check and four-part build number, plus the `msst` prefix check |
-| **0:25 – 0:35** | **Digital** | **Q2 — existing content** · Q5 Arabic URLs |
-| **0:35 – 0:40** | **Brand** | Q3 font licence · Q6 multi-colour icons |
-| **0:40 – 0:45** | **Compliance** | Q4 PDPPL |
+| **0:00 – 0:12** | Everyone | Prototype demonstration + what the architecture landed on |
+| **0:12 – 0:20** | **IT** | **Q1 the `msst` prefix check** *(deadline)* · Q2 the File-column check |
+| **0:20 – 0:25** | **Brand** | Q3 font licence · Q6 multi-colour icons |
+| **0:25 – 0:30** | **Compliance + Digital** | Q4 PDPPL · Q5 Arabic addresses |
 
 > Full detail and our recommendation on each is in the attached document.
 
@@ -34,22 +36,30 @@ Ready to send. Copy the invite text below; attach or link
 
 ## Notes for whoever runs it
 
-**Forty-five minutes, not ninety.** This session started at ten questions. Rich
-text is decided, the question depending on it fell away, and QDB answered the
-approval-routes and Arabic-authoring questions on 11 August. **Legal and
-Communications no longer need to be in the room.**
+**Thirty minutes, and it is no longer a decision session.** This started at ten
+questions and ninety minutes. Rich text is decided, the question depending on it
+fell away, QDB answered four on 11 August, and we withdrew one that we should
+never have asked. **Legal and Communications do not need to be in the room.**
 
-**Q1 is the whole session, and its blocking half is Custom API** — which was never
-answered and decides how publishing is built.
+**Lead with the architecture being complete.** That is the news. The nine sections
+are decided and the build is ready to start on their go-ahead.
 
-**The File-column check has been deliberately downgraded.** It was the most urgent
-question in the previous version of this pack. It is not any more: QDB's
-"both on-premise and cloud" requirement made us re-examine the storage design, and
-version history now uses one column type on both platforms. **A "no" to File costs
-nothing today.** Still ask — image storage is unsettled — but do not spend the
-room's goodwill on it, and if anyone remembers it being critical last time, that
-is the honest explanation: they gave us a requirement, and it made a whole
-question cheaper.
+**Q1 is the only thing with a deadline.** The `msst` prefix cannot be changed once
+records exist, so it must be confirmed before provisioning. It is a two-minute
+check and the last thing that could force rework.
+
+**The File-column check has been deliberately downgraded, and say so.** It was the
+most urgent question in the previous pack. It now affects image storage only,
+because their "both on-premise and cloud" requirement made us re-examine the
+design and page content moved to a large text column on both platforms. If anyone
+remembers it being critical, that is the honest explanation: **they gave us a
+requirement and it made one of our own questions cheap.**
+
+**If they raise the withdrawn question, do not defend it.** We asked what should
+happen to content in the existing portal CMS. The answer was *"this is a new
+project — what content?"* They were right. It was answerable from two of our own
+documents, and it sat on the blocking list regardless. Own it plainly; it costs
+nothing now and buys credibility for the questions that are real.
 
 **Q1 also carries a hidden deadline.** The `msst` prefix goes on every table we
 create and cannot be changed once records exist. It is a two-minute check for
@@ -73,10 +83,11 @@ and expensive to retrofit — so a recorded assumption keeps architecture moving
 
 | Answer | Unblocks |
 |---|---|
-| **Q1** Custom API | Architecture §7 · condition C-4 — **the blocking half** |
-| **Q1** File column · build number | Architecture §7 image storage only. ADR-CMS-001 no longer waits on it. |
-| **Q2** existing content | Architecture §8 |
-| Q3 · Q4 | Conditions C-6 · C-5 |
+| **Q1** `msst` prefix | **Schema provisioning** — the only hard gate left |
+| **Q2** File column | Image storage in §7. Fallback is note attachments; either answer works. |
+| Q3 · Q4 | Conditions C-6 · C-5, at the Phase 6 and Phase 7 gates |
+| Q5 · Q6 | Build-time detail, needed as Phase A reaches them |
 
-**Phase 3 closes on Q1 and Q2.** Everything downstream — executive review, schema
-provisioning, then a three-to-four month build — is sequenced behind those two.
+**Phase 3 is closed.** What remains is sequencing, not blocking: executive review
+of the architecture, then their go-ahead to provision, then a three-to-four month
+Phase A build.
