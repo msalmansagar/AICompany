@@ -64,15 +64,28 @@ order of magnitude.
 
 ---
 
-## 3. Custom API — still unresolved
+## 3. Custom API — checked properly, still unresolved
 
-Not established either way. The Dataverse documentation for Custom API makes no statement about
-on-premise applicability, and the on-premise developer guide could not be retrieved to confirm
-its absence. Custom API is a later construct than custom process actions, which *are*
-documented on-premise, so the risk is real but unproven.
+Three sources were checked and none settles it. Recorded so nobody repeats the search.
+
+| Source | What it showed |
+|---|---|
+| The Custom API guide | Lives only in the Power Apps / Dataverse doc set. Says nothing about on-premise applicability either way. Its `v9.1` examples are **Web API** versions, not product versions — easy to misread as evidence and it is not. |
+| On-premise developer guide, **Extend** section (`op-9-0`, `op-9-1`) | Lists custom business apps, plug-ins, automate business processes, asynchronous service, Azure extensions, webhooks, client scripting. **Custom API is not among them.** |
+| On-premise entity reference | Redirects to the Dataverse reference, so it could not be used to check whether the `customapi` tables exist on-premise. That check would be close to decisive, since the feature is implemented as entities. |
+
+**This remains argument from silence, and it is being left that way deliberately.** The File
+column finding is strong because the list File is missing from is *exhaustive*. The Extend
+index is not exhaustive, so its silence is suggestive and no more.
+
+The honest position: Custom API is a later construct than custom process actions, it is absent
+from the on-premise extensibility index, and its documentation lives entirely in the cloud doc
+set. That is enough to expect a "no" and not enough to plan on one.
 
 **Do not treat this as answered.** If Custom API is unavailable on QDB's build, the fallback is
-a custom process action or a plain plug-in, and the publishing mechanism changes shape.
+a custom process action or a plain plug-in, and the publishing mechanism changes shape. Getting
+this wrong in the negative direction is expensive — it would trigger a redesign for nothing —
+which is why it stays open until QDB IT answers rather than being inferred.
 
 ---
 
