@@ -11,6 +11,7 @@ import type {
 } from '@/types/WorkflowTypes';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 
 export interface TemplateGraph {
   steps: WorkflowStep[];
@@ -45,14 +46,9 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     regardingFieldName: null,
     parentEntityId: null,
     parentEntityName: null,
-    assignTo: 'user',
-    assignedUserId: null,
-    assignedUserName: null,
-    teamId: null,
-    teamName: null,
-    roundRobinTeamId: null,
-    roundRobinTeamName: null,
+    allowBulkApproval: false,
     processId,
+    ...emptyAssignmentFields(),
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
     workflowHooks: emptyWorkflowHooks(STEP_HOOKS),

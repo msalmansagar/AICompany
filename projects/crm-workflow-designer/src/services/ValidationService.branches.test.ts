@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ValidationService } from '@/services/ValidationService';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS, PROCESS_HOOKS } from '@/services/workflowHooks';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 
@@ -32,6 +33,7 @@ function buildStep(crmId: string, sequenceNo: number, branch: Partial<WorkflowSt
   return {
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
+    ...emptyAssignmentFields(),
     ...branch,
     workflowHooks: branch.workflowHooks ?? emptyWorkflowHooks(STEP_HOOKS),
     crmId,
@@ -46,13 +48,10 @@ function buildStep(crmId: string, sequenceNo: number, branch: Partial<WorkflowSt
     regardingFieldName: null,
     parentEntityId: null,
     parentEntityName: null,
-    assignTo: 'user',
-    assignedUserId: 'u1',
+    allowBulkApproval: branch.allowBulkApproval ?? false,
+    assignTo: branch.assignTo ?? 'user',
+    assignedUserId: branch.assignedUserId ?? 'u1',
     assignedUserName: 'User One',
-    teamId: null,
-    teamName: null,
-    roundRobinTeamId: null,
-    roundRobinTeamName: null,
     processId: 'p1',
   };
 }

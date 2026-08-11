@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowStep, UserOption, TeamOption } from '@/types/WorkflowTypes';
+import { ASSIGN_TO_TYPES } from '@/services/taskAssignment';
 
 const stepPanelSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -22,7 +23,7 @@ const stepPanelSchema = z.object({
   sequenceNo: z.number().int().min(1, 'Sequence must be ≥ 1'),
   taskSubject: z.string(),
   taskDescription: z.string(),
-  assignTo: z.enum(['user', 'team', 'roundRobin']),
+  assignTo: z.enum(ASSIGN_TO_TYPES),
   assignedUserId: z.string().nullable(),
   teamId: z.string().nullable(),
   roundRobinTeamId: z.string().nullable(),

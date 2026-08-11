@@ -8,6 +8,8 @@ import { confirm } from '@/components/ui/ConfirmDialog';
 import { EscalationSection } from './EscalationSection';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { BranchSection } from './BranchSection';
+import { ParentAssignmentSection } from './ParentAssignmentSection';
+import { ASSIGN_TO_LABELS, ASSIGN_TO_TYPES, emptyAssignmentFields } from '@/services/taskAssignment';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
@@ -61,6 +63,11 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   const loadAssignees = useCallback(
     async (assignTo: AssignToType) => {
+      // Read From Parent resolves its owner at runtime, so there is no list to pick from.
+      if (assignTo === 'readFromParent') {
+        setAssigneeOptions([]);
+        return;
+      }
       setIsLoadingAssignees(true);
       try {
         if (assignTo === 'user') {
@@ -104,16 +111,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
       : step.roundRobinTeamId;
 
   const handleAssignToChange = (at: AssignToType) => {
-    setStep({
-      ...step,
-      assignTo: at,
-      assignedUserId: null,
-      assignedUserName: null,
-      teamId: null,
-      teamName: null,
-      roundRobinTeamId: null,
-      roundRobinTeamName: null,
-    });
+    setStep({ ...step, ...emptyAssignmentFields(), assignTo: at });
   };
 
   const handleAssigneeChange = (id: string, name: string) => {
@@ -245,7 +243,13 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           </div>
         </div>
 
-        {isLoadingAssignees ? (
+        {step.assignTo === 'readFromParent' ? (
+          <ParentAssignmentSection
+            value={step}
+            onChange={(patch) => setStep({ ...step, ...patch })}
+            adapter={adapter}
+          />
+        ) : isLoadingAssignees ? (
           <div style={spinnerRowStyle}>
             <span style={spinnerStyle} />
             Loading…
@@ -259,6 +263,19 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
             onChange={handleAssigneeChange}
           />
         )}
+
+        <label style={bulkApprovalRowStyle}>
+          <input
+            type="checkbox"
+            checked={step.allowBulkApproval}
+            onChange={(event) => setStep({ ...step, allowBulkApproval: event.target.checked })}
+          />
+          <span style={bulkApprovalLabelStyle}>Allow bulk approval</span>
+        </label>
+        <span style={bulkApprovalHintStyle}>
+          Completing one task also closes every other task submitted with it, copying this
+          task&rsquo;s decision onto each.
+        </span>
 
         <div style={dividerStyle} />
 
@@ -390,11 +407,17 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   );
 }
 
-const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = [
-  { value: 'user', label: 'User' },
-  { value: 'team', label: 'Team' },
-  { value: 'roundRobin', label: 'Round Robin' },
-];
+const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_TO_TYPES.map(
+  (value) => ({ value, label: ASSIGN_TO_LABELS[value] })
+);
+
+const bulkApprovalRowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', paddingTop: 10,
+};
+const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: '#e2e8f0' };
+const bulkApprovalHintStyle: React.CSSProperties = {
+  fontSize: 10, color: '#64748b', lineHeight: 1.4, paddingTop: 2,
+};
 
 const panelStyle: React.CSSProperties = {
   width: 280,
@@ -466,14 +489,16 @@ const selectStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
+// Two columns: the four mode names do not fit on one row of a 280px panel.
 const toggleGroupStyle: React.CSSProperties = {
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
   gap: 4,
 };
 
 const toggleBtnStyle: React.CSSProperties = {
-  flex: 1,
   height: 28,
+  padding: '0 4px',
   fontSize: 11,
   fontWeight: 500,
   border: '1px solid #334155',

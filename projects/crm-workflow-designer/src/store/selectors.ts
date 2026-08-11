@@ -1,13 +1,14 @@
 import type { Node, Edge } from '@xyflow/react';
 import { MarkerType } from '@xyflow/react';
 import type { WorkflowDesignerState } from './workflowStore';
+import type { AssignToType } from '@/types/WorkflowTypes';
 
 export interface StepNodeData extends Record<string, unknown> {
   kind: 'step';
   crmId: string;
   name: string;
   sequenceNo: number;
-  assignTo: 'user' | 'team' | 'roundRobin';
+  assignTo: AssignToType;
   assignedUserName: string | null;
   teamName: string | null;
   roundRobinTeamName: string | null;
