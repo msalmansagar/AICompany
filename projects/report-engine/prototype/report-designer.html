@@ -2047,7 +2047,18 @@ const state = {
 
 /* ---------- small helpers ---------- */
 const $ = (sel, root=document) => root.querySelector(sel);
-const el = (html) => { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+/* Returns the one root of a fragment, and refuses two on purpose. A second sibling root used to be
+   dropped in silence — that cost the Languages card and the whole Execution & governance card, both
+   invisible for months with nothing logged. A caller that needs two roots must append them separately. */
+const el = (html) => {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  if (t.content.children.length > 1) {
+    throw new Error(`el() was given ${t.content.children.length} root elements and can only return one — ` +
+      `append them separately. Markup began: ${html.trim().slice(0, 120)}`);
+  }
+  return t.content.firstElementChild;
+};
 const money = (n) => "QAR " + n.toLocaleString("en-US", { minimumFractionDigits:2, maximumFractionDigits:2 });
 const esc = (s) => String(s==null?"":s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 function opts(list, sel) { return list.map(o => `<option ${o===sel?"selected":""}>${esc(o)}</option>`).join(""); }
