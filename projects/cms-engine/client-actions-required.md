@@ -14,9 +14,11 @@ hosted service, nothing outside your environment. Business users compose pages
 from approved building blocks, in English and Arabic, and publish them under
 approval. Developers stop being in the path of routine content work.
 
-**We are not asking you to approve a build.** We are asking for six answers.
-There were ten: we closed two ourselves, and you answered two more on
-11 August 2026.
+**We are not asking you to approve a build.** There were ten questions. **Nothing
+is blocking us any more** — you answered four, we closed three ourselves, and the
+three that remain are needed before go-live rather than before design.
+
+**The architecture is complete.**
 
 ---
 
@@ -25,10 +27,10 @@ There were ten: we closed two ourselves, and you answered two more on
 | Stage | Status |
 |---|---|
 | Business requirements | Written — **43 functional, 9 non-functional** |
-| Executive review | **Approved with conditions** — 10 of 13 now closed |
+| Executive review | **Approved with conditions** — 11 of 13 now closed |
 | Technical proof | Complete |
-| Architecture | **7 of 9 sections decided.** 2 wait on you. |
-| Build | **Not approved** |
+| Architecture | ✅ **Complete — all 9 sections decided** |
+| Build | **Not approved** — awaiting your go-ahead |
 
 Nothing has been written to a live QDB environment. No database changes have
 been made.
@@ -51,28 +53,53 @@ been made.
 | How many approval routes? | **Two** — regulated, and everything else | Approval workflow is now designed. Routes are a configurable table, not code, so a third route later is a data change rather than a release. |
 | Arabic authoring screens? | **English for the first phase** | No translation or right-to-left work on the authoring screens. Arabic *content* is unaffected and already works. |
 | *(volunteered)* Run on **both** on-premise and cloud | Taken as a requirement | We re-opened the storage design against it. Page content and version history now use **one column type on both platforms** — one code path rather than two, and no behaviour that differs by environment. |
+| Does the environment support Custom API? | **Cloud yes; on-premise uses a plugin/action** | Correct, and it costs nothing. We name the on-premise action identically, so the same code calls it on both platforms — the difference exists only in how the solution is packaged. Page-serving speed is unaffected: that path does not go through the action at all. |
+| What happens to existing portal content? | *"I don't understand — it is a new project"* | **A fair challenge, and you were right.** We withdrew the question; see below. |
 
 That is why this document is shorter than the one you may have seen.
 
 ---
 
-## 4. What we need from you — six questions
+### A question we withdrew
 
-### 🔴 These two block us today
+We asked *"what happens to the content already in the current portal CMS?"* and
+the answer that came back was, in substance, **"this is a new project — what
+content?"**
+
+That was the right response. **We should not have asked it.** The question was
+about a content table inside a platform component from an earlier engagement, and
+that component has never run in production, so it holds nothing. It was also
+already settled at the business-case gate, where migrating existing pages was put
+out of scope as a separate engagement.
+
+Two documents of ours answered it. It reached you anyway, and it sat on the
+blocking list for weeks. That is our process failing, not your understanding.
 
 ---
 
-#### Q1 · Three things from your on-premise environment
+## 4. What we still need — six questions, none of them blocking design
 
-You told us the version is **9.1**, and that you want the solution to run on
-**both on-premise and cloud**. Both answers landed; here is what is still open.
+**Sequenced by when we need them, not by importance.** Only the first has a hard
+deadline, and it is a two-minute check.
 
-**1 — Does the environment support Custom API?** *(this is the one that blocks us)*
+### 🔵 Before we create anything in your environment
 
-It was not covered in the version answer. Publishing is built differently
-depending on it, and we cannot design that part of the system without knowing.
+---
 
-**2 — Is "File" in the column Data Type list?** *(two minutes, no longer urgent)*
+#### Q1 · Is the prefix `msst` already used in your environments?
+
+**This is the only one with a deadline attached.** Every table we create carries
+the prefix `msst`, and **a Dataverse publisher prefix cannot be changed once
+records exist.** If something else already uses it, we need to know before we
+create the first table — afterwards it is a migration.
+
+A two-minute check for whoever administers the environment.
+
+*Owner: QDB IT* · *Needed: before provisioning*
+
+---
+
+#### Q2 · Is "File" in the column Data Type list?
 
 You told us File columns are available. Microsoft's field-type reference for
 Dynamics 365 Customer Engagement (on-premises) lists every available data type,
@@ -84,30 +111,14 @@ Begin creating a new column on any table, open the **Data Type** list, and tell 
 whether **File** is there. Please send the **four-part build number** at the same
 time — `9.1.0.xxxx`, not "9.1".
 
-> **This used to be our most urgent question and no longer is.** Your
-> "both on-premise and cloud" requirement made us re-examine the design, and page
-> version history now uses a large text column on both platforms rather than a
-> File column. We measured it first: a heavy page uses under 1 % of that column's
-> capacity. **So a "no" to File costs nothing now.** We still want the answer,
-> because how images are stored is not yet settled.
+> **This was our most urgent question three weeks ago. It now affects one thing:
+> how uploaded images are stored.** Your "both on-premise and cloud" requirement
+> made us re-examine the design, and page content and version history moved to a
+> large text column on both platforms — a heavy page uses under 1 % of its
+> capacity. If File columns turn out to be unavailable, images use note
+> attachments instead, which every version of CRM has. **Either answer works.**
 
-**3 — Is the prefix `msst` already in use in your environments?** Every table we
-create carries it, and it cannot be changed once records exist. A two-minute check
-now avoids a migration later.
-
-*Owner: QDB IT* · *Blocks: on-premise design*
-
----
-
-#### Q2 · What happens to content already in the current portal CMS?
-
-Your existing portal stores CMS content in a different format from the new
-system. Retiring the old editor without moving that content would strand it.
-
-**We need to know:** roughly how many pages, and does it need migrating or can it
-be re-authored?
-
-*Owner: QDB Digital* · *Blocks: migration design*
+*Owner: QDB IT* · *Needed: before media upload is built*
 
 ---
 
@@ -201,12 +212,14 @@ users this much control means anyone can break the public site.
 
 ## 6. What happens once we have answers
 
-1. We complete the architecture — roughly two weeks after Q1 and Q2
+1. ~~We complete the architecture~~ ✅ **Done — all nine sections decided**
 2. Executive review of the architecture
-3. Build Phase A
-4. Testing, security audit, and a final go-live decision
+3. **Your go-ahead to create tables in the environment** — needs Q1 first
+4. Build Phase A
+5. Testing, security audit, and a final go-live decision
 
-**Nothing proceeds without Q1 and Q2.**
+**Nothing is waiting on you to unblock design.** Q1 gates provisioning, and the
+rest are needed as the build reaches them.
 
 ---
 
@@ -217,10 +230,10 @@ minutes to answer with the right person present, and weeks by email.
 
 | Area | Questions |
 |---|---|
-| IT | **Q1** — the File-column check, the build number, Custom API, and the `msst` prefix check |
-| QDB Digital | **Q2**, Q5 |
-| Brand | Q3, Q6 |
-| Compliance | Q4 |
+| IT | **Q1** the `msst` prefix check *(the only one with a deadline)* · Q2 the File-column check |
+| Brand | Q3 font licence · Q6 multi-colour icons |
+| Compliance | Q4 PDPPL |
+| QDB Digital | Q5 Arabic addresses |
 
 We can demonstrate the working prototype in the same session, which usually makes
 several of these answer themselves.
