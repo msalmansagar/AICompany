@@ -20,7 +20,7 @@ waiting.
 | Section | Status |
 |---|---|
 | §1 Deployment topology | **Decided** |
-| §2 Multi-tenancy (C-13) | **Decided — carries a significant finding** |
+| §2 Multi-tenancy (C-13) | **Decided — A-1/A-1b signed off** |
 | §3 Plugin design | **Decided** |
 | §4 Adapter specification | **Decided** |
 | §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
@@ -92,7 +92,7 @@ portal-shell's dependency surface is part of the CMS's delivery surface. See
 
 ---
 
-## §2 Multi-tenancy — and a finding that needs a decision now
+## §2 Multi-tenancy — and the finding that forced a company-wide convention
 
 CEO condition **C-13** requires multi-tenancy decisions in Phase 3 precisely
 because retrofitting them is expensive. Working through it surfaced a conflict
@@ -166,13 +166,34 @@ do.
 Renaming now costs an afternoon. Renaming after go-live costs a migration of
 every page, version and audit row in every customer environment.
 
-**Two checks before this is final:**
+### ✅ Signed off — 2026-08-11
 
-- [ ] `cms` is unused as a prefix in every target environment — it is generic
-      enough that another vendor may hold it
-- [ ] The publisher record is settled — **one** unique name, correct display name
-      after the MSS rebrand, used by every CMS solution. This is as irreversible
-      as the prefix and DFE got it wrong twice.
+**A-1 and A-1b are decided.** The convention this establishes is company-wide,
+not CMS-specific, and lives at [`global/PUBLISHER-AND-PREFIX.md`](../../global/PUBLISHER-AND-PREFIX.md):
+
+> *One publisher record per product. Its customization prefix is the product
+> code. Every component of that product sits on that one prefix.*
+
+| Field | Value |
+|---|---|
+| Customization prefix | **`cms`** |
+| Publisher unique name | **`msstechnologies_cmsengine`** |
+| Publisher display name | **MSS Technologies** |
+| Option value prefix | *unassigned — set before provisioning, must be unique per publisher* |
+
+A publisher carries exactly one prefix, so per-product prefixes require
+per-product publishers. That is the standard ISV pattern, and it is what makes
+`cms_` reachable at all.
+
+**One check remains, and it needs organisation access:**
+
+- [ ] **`cms` is unused as a prefix in every target environment.** It is generic
+      enough that another vendor may already hold it. This cannot be answered
+      from the repository — it is question 8 to QDB IT in the decision session,
+      and it is the last thing that could invalidate the value above.
+
+Nothing is provisioned, so the sign-off costs nothing to reverse **until that
+check passes and the first table is created**. After that it is a migration.
 
 **Consequences for existing artefacts:** the BRD, ADR-CMS-001, ADR-CMS-002 and
 the prototype all use `qdb_` names. They stay as written — they record reasoning,
@@ -334,8 +355,8 @@ never been seen failing is not known to be a gate.
 
 | # | Decision | Where |
 |---|---|---|
-| A-1 | Single product prefix `cms_` across every component, not `qdb_` | §2 — **new, needs sign-off** |
-| A-1b | One publisher record, named correctly after the MSS rebrand | §2 — **new, needs sign-off** |
+| A-1 | Single product prefix `cms` across every component, not `qdb` | §2 — **SIGNED OFF 2026-08-11** |
+| A-1b | One publisher record `msstechnologies_cmsengine`, display "MSS Technologies" | §2 — **SIGNED OFF 2026-08-11** |
 | A-2 | One environment per customer, no row-level tenant discriminator | §2 |
 | A-3 | Two bundles: editor 331 KB, runtime 53 KB | §1 |
 | A-4 | ADR-CMS-001 through 005 move from Proposed to Accepted | `adrs/` |
