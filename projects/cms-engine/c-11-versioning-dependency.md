@@ -8,8 +8,28 @@ Date:           2026-08-11
 Satisfies:      CEO condition C-11 (gate: Phase 4 start)
 Audience:       Programme manager, then CEO if scope changes
 Finding:        THE DEPENDENCY IS NOT REAL AS STATED
+Outcome:        OPTION A ACCEPTED 2026-08-11 — dependency dropped
 ═══════════════════════════════════════════════════
 ```
+
+## ✅ Decided — 2026-08-11
+
+**Option A accepted: the dependency is dropped.** The CMS owns `cms_pageversion`;
+FR-62 and FR-63 ship in Phase A as Must requirements, unchanged. C-11 closes on
+the basis that the dependency does not exist, not on a delivery date.
+
+The test in the final section was put and answered: **DXP-P1-004 was not intended
+as a single audited version store.** Its own architecture describes it as *"a
+compliance audit layer … without touching the operational write path"* — an async
+observer. FR-63 is an author restoring a version, which is operational, not
+compliance. The two are different layers, and if CMS content ever needs
+compliance snapshots P1-004 captures it precisely *because* it observes.
+
+Corrections applied: BRD §2.3 and §12, acceptance criteria FR-62 note,
+architecture §3. **DXP-P1-004 remains worth building on its own merits** and is
+now re-planned on its own timeline against its own six QDB questions.
+
+---
 
 ## What C-11 asked
 

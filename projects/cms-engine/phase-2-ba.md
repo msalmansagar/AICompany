@@ -85,10 +85,15 @@ Consequences observed:
 
 ### 2.3 Why now
 
-Three enabling pieces already exist and are otherwise under-used:
-**DXP-P1-001** (component registry), **DXP-P1-003** (theme tokens) and
-**DXP-P1-004** (versioning). They were built as platform capability with no
-authoring surface on top. This engagement supplies that surface.
+Two enabling pieces already exist and are otherwise under-used:
+**DXP-P1-001** (component registry) and **DXP-P1-003** (theme tokens). They were
+built as platform capability with no authoring surface on top. This engagement
+supplies that surface.
+
+> **Corrected 2026-08-11 (C-11).** This paragraph originally named **DXP-P1-004**
+> (versioning) as a third existing piece. That was wrong twice over: its build has
+> never started — only its architecture is complete — and the CMS does not use it.
+> See `c-11-versioning-dependency.md`.
 
 ---
 
@@ -329,7 +334,7 @@ interesting work and the least valuable until authors can publish a page at all.
 |---|---|
 | DXP-P1-001 Component Registry | Delivered — CMS surfaces it |
 | DXP-P1-003 Theme Tokens | Delivered — CMS authors token values |
-| DXP-P1-004 Versioning & Snapshots | BRD approved, build gated — CMS depends on it for FR-62/63 |
+| ~~DXP-P1-004 Versioning & Snapshots~~ | **Not a dependency — removed 2026-08-11 (C-11).** The CMS owns `cms_pageversion`. P1-004 is an async *compliance audit* layer that by design does not touch the operational write path; FR-63's author-facing restore is an operational capability, not a compliance one. |
 | ADR-RPT-011 in-CRM execution | Accepted — CMS follows it |
 | ADR-CMS-001 payload storage | Proposed — accept alongside this BRD |
 | Dataverse environment (Qatar region) | Existing gate from prior engagements |

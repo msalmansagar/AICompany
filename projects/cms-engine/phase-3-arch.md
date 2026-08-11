@@ -226,6 +226,26 @@ never varied is a permanent tax on every query and index.
 Per ADR-CMS-001: versions use a **File column** (unbounded), the render cache
 uses a **Memo column** (single-round-trip read on every page view).
 
+### Versioning is self-contained — decided under C-11, 2026-08-11
+
+**`cms_pageversion` is the CMS's own version store. The CMS does not depend on
+DXP-P1-004.** Recorded here explicitly so the dependency is not re-asserted: the
+BRD originally claimed it, this architecture never used it, and the two
+disagreed for three weeks before anyone noticed.
+
+The two are different layers, not competing stores:
+
+| | DXP-P1-004 | `cms_pageversion` |
+|---|---|---|
+| Purpose | Compliance evidence | **Operational restore (FR-63)** |
+| Write path | *"without touching the operational write path"* — async, queued | Synchronous, on every save |
+| Read by | Auditors | **Authors** |
+
+If CMS content ever needs compliance snapshots, DXP-P1-004 captures it **because
+it observes** — which is exactly why the CMS does not need to depend on it.
+
+See `c-11-versioning-dependency.md` for the full reasoning.
+
 ### Custom APIs
 
 | API | Mode | Stage | Does |

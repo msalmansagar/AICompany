@@ -26,7 +26,7 @@ re-deciding:
 | ADR-RPT-011 | Report Engine | Execute inside CRM. Web resource for UI, plugin for anything auditable, no hosted middle tier. |
 | ADR-PORT-005 | Portal Shell | Auth is Auth.js v5 → JWT → Fastify → msal-node. The CMS does not invent its own. |
 | DXP-P1-003 | DXP Phase 3 | Colour and typography are theme tokens. Pages store slugs, never values. |
-| DXP-P1-004 | DXP Phase 4 | Versioning and snapshots. Pages are versioned content, not versioned code. |
+| ~~DXP-P1-004~~ | DXP Phase 4 | **No longer inherited — C-11, 2026-08-11.** The CMS owns `cms_pageversion`. P1-004 is an async compliance-audit layer; the CMS needs an operational version store. The principle *pages are versioned content, not versioned code* still holds — it just does not come from there. |
 
 ## CEO conditions addressed here
 
