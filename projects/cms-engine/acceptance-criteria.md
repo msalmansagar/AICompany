@@ -212,9 +212,11 @@ C-12; two carry hard-won notes and appear in the appendix.
 - **AC-62.2** — **Given** any existing version record, **when** an update is attempted against it directly, **then** it is refused.
 - **AC-62.3** — **Given** a sequence of ten saves, **when** version history is listed, **then** ten versions exist with author and timestamp on each.
 
-> **Dependency:** FR-62 and FR-63 rest on **DXP-P1-004**, which is not started.
-> This is flagged in `phase-3-arch.md` as an unpriced schedule risk and is the
-> subject of CEO condition **C-11**.
+> **No external dependency.** FR-62 and FR-63 are satisfied by `cms_pageversion`,
+> which the CMS owns (`phase-3-arch.md` §3). An earlier note here made them rest
+> on **DXP-P1-004**; that dependency was dropped under **C-11** on 2026-08-11 —
+> the architecture never used it. These criteria are testable without any
+> platform capability outside this engagement.
 
 ### FR-63 · Restore a prior version by copying it forward
 

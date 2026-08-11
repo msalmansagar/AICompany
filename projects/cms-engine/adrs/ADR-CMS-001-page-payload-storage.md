@@ -175,7 +175,7 @@ makes it real, for the same reason the audit log lives in the plugin.
 | # | Question | Needs |
 |---|---|---|
 | OQ-1 | Is long-form rich text in scope for the CMS? If yes, re-measure with real prose before accepting this ADR. | BA / BRD |
-| OQ-2 | Do we retain every draft version, or prune? DXP-P1-004 says 20 per page — confirm that holds when versions are File columns. | Architecture |
+| OQ-2 | Do we retain every draft version, or prune? A retention limit is now **ours to set**, not inherited — the DXP-P1-004 dependency was dropped under C-11. Its figure of 20 per page is a reasonable starting point; confirm it holds when versions are File columns. | Architecture |
 | OQ-3 | On-premise CRM 9.x — confirm File column support and the configured maximum, which may differ from cloud. | IT / infrastructure |
 
 ---
