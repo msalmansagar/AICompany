@@ -705,6 +705,10 @@ const RTL_LANGUAGES = new Set(["ar", "ur", "he", "fa"]);
 const reportLanguage = () =>
   ((state.current && state.current.def && state.current.def.layout) || {}).primaryLang || "en";
 
+/** One source of truth for direction: the screen and every exporter must agree, or a report reads
+    one way on screen and the other way in the file the user actually sends on. */
+const isReportRtl = () => RTL_LANGUAGES.has(reportLanguage());
+
 /**
  * Marks the rendered report with its language and reading direction.
  *
@@ -714,9 +718,8 @@ const reportLanguage = () =>
  */
 function applyReportDirection(host){
   if (!host) return;
-  const language = reportLanguage();
-  host.setAttribute("lang", language);
-  host.setAttribute("dir", RTL_LANGUAGES.has(language) ? "rtl" : "ltr");
+  host.setAttribute("lang", reportLanguage());
+  host.setAttribute("dir", isReportRtl() ? "rtl" : "ltr");
 }
 
 function renderResult(result){
@@ -903,12 +906,28 @@ async function exportExcel(result, baseName){
 
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Report");
+
+  // Excel reads column A first from whichever edge the sheet starts at, so an Arabic report whose
+  // sheet is left-to-right comes out with its columns in the reverse of the order it is read in.
+  // The cell text needs nothing — xlsx is UTF-8 throughout — only the sheet's own direction does.
+  if (isReportRtl()) book.Workbook = { Views: [{ RTL: true }] };
+
   const data = XLSX.write(book, { bookType: "xlsx", type: "array" });
   saveBlob(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     baseName + ".xlsx");
 }
 
 async function exportPdf(result, baseName){
+  // The PDF standard-14 fonts jsPDF falls back on carry no Arabic glyphs, so an Arabic report
+  // exports as empty boxes. Letter shaping is NOT the gap — jsPDF bundles an Arabic parser — the
+  // font is, and fixing it means embedding one (Area 11 weighed download weight against exactly
+  // this). Refusing is the honest state: a silently unreadable PDF is worse than none, because it
+  // is the file someone forwards to a customer without opening it.
+  if (isReportRtl()) {
+    throw new Error(`PDF export cannot render ${reportLanguage().toUpperCase()} yet — its fonts carry `
+      + `no Arabic glyphs, so the file would be unreadable. Excel, CSV and PNG all export it correctly.`);
+  }
+
   await loadLibrary("jspdf");
   await loadLibrary("table");
   const { head, body } = exportRows(result);
@@ -930,48 +949,108 @@ async function exportPdf(result, baseName){
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
+const PNG_PADDING = 12;
+const PNG_ROW_HEIGHT = 26;
+const PNG_HEADER_HEIGHT = 34;
+const PNG_TABLE_TOP = PNG_PADDING + 30;
+const PNG_SCALE = 2;                    // draw at 2× so the text is not soft on a normal display
+const PNG_MIN_COLUMN = 80;
+const PNG_MAX_COLUMN = 320;
+const PNG_TITLE_FONT = "600 14px Segoe UI, sans-serif";
+const PNG_HEAD_FONT = "600 12px Segoe UI, sans-serif";
+const PNG_BODY_FONT = "12px Segoe UI, sans-serif";
+
 /**
  * Renders the on-screen report to a PNG. Drawn on a canvas rather than screenshotting the DOM, which
  * would need another library — the table is simple enough to paint directly.
+ *
+ * Arabic needs no font work here, unlike PDF: canvas text is laid out by the browser's own shaper,
+ * so the letters join and mixed runs order themselves. What it does need is the table built from
+ * the right, which is what the rtl flag threads through.
  */
 async function exportPng(result, baseName){
   const { head, body } = exportRows(result);
-  const padding = 12, rowHeight = 26, headerHeight = 34, charWidth = 7;
+  const rtl = isReportRtl();
+  const widths = measuredColumnWidths(head, body);
+  const width = widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2;
+  const height = PNG_TABLE_TOP + PNG_HEADER_HEIGHT + body.length * PNG_ROW_HEIGHT + PNG_PADDING;
 
-  const widths = head.map((label, i) =>
-    Math.min(320, Math.max(80, (Math.max(String(label).length, ...body.map(r => String(r[i] ?? "").length)) + 2) * charWidth)));
-  const width = widths.reduce((a, b) => a + b, 0) + padding * 2;
-  const height = headerHeight + body.length * rowHeight + padding * 2 + 30;
+  const ctx = pngContext(width, height, rtl);
+  drawPngTitle(ctx, width, rtl);
+  drawPngHead(ctx, head, widths, width, rtl);
+  drawPngBody(ctx, body, widths, width, rtl);
 
+  const blob = await new Promise(resolve => ctx.canvas.toBlob(resolve, "image/png"));
+  saveBlob(blob, baseName + ".png");
+}
+
+/** Widths from real glyph widths. The old estimate of 7px per character is wrong for any
+    proportional font and badly wrong for Arabic, where it clipped values that would have fitted. */
+function measuredColumnWidths(head, body){
+  const measure = document.createElement("canvas").getContext("2d");
+  const widthOf = (text, font) => { measure.font = font; return measure.measureText(String(text ?? "")).width; };
+
+  return head.map((label, i) => {
+    // reduce, not Math.max(...spread): a report at the row limit would overflow the argument list.
+    const widest = body.reduce((max, row) => Math.max(max, widthOf(row[i], PNG_BODY_FONT)),
+      widthOf(label, PNG_HEAD_FONT));
+    return Math.min(PNG_MAX_COLUMN, Math.max(PNG_MIN_COLUMN, widest + 16));
+  });
+}
+
+function pngContext(width, height, rtl){
   const canvas = document.createElement("canvas");
-  const scale = 2;                      // draw at 2× so the text is not soft on a normal display
-  canvas.width = width * scale; canvas.height = height * scale;
+  canvas.width = width * PNG_SCALE;
+  canvas.height = height * PNG_SCALE;
   const ctx = canvas.getContext("2d");
-  ctx.scale(scale, scale);
-  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, width, height);
+  ctx.scale(PNG_SCALE, PNG_SCALE);
+  ctx.direction = rtl ? "rtl" : "ltr";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  return ctx;
+}
 
-  ctx.fillStyle = "#201f1e"; ctx.font = "600 14px Segoe UI, sans-serif";
-  ctx.fillText(String(state.current.def.name || "Report"), padding, padding + 14);
+/** Left edge of the cell at logical index i. Right-to-left puts the first column against the right
+    edge, so the exported table is read in the same order as the report on screen. */
+function cellLeft(widths, i, rtl){
+  const before = widths.slice(0, i).reduce((a, b) => a + b, 0);
+  if (!rtl) return PNG_PADDING + before;
+  return PNG_PADDING + widths.reduce((a, b) => a + b, 0) - before - widths[i];
+}
 
-  let y = padding + 30;
-  ctx.fillStyle = "#0078d4"; ctx.fillRect(padding, y, width - padding * 2, headerHeight);
-  ctx.fillStyle = "#ffffff"; ctx.font = "600 12px Segoe UI, sans-serif";
-  let x = padding;
-  head.forEach((label, i) => { ctx.fillText(clipToWidth(ctx, String(label), widths[i] - 10), x + 6, y + 22); x += widths[i]; });
+function drawCellText(ctx, text, widths, i, baseline, rtl){
+  const left = cellLeft(widths, i, rtl);
+  ctx.textAlign = rtl ? "right" : "left";
+  const x = rtl ? left + widths[i] - 6 : left + 6;
+  ctx.fillText(clipToWidth(ctx, String(text ?? ""), widths[i] - 12), x, baseline);
+}
 
-  y += headerHeight;
-  ctx.font = "12px Segoe UI, sans-serif";
+function drawPngTitle(ctx, width, rtl){
+  ctx.fillStyle = "#201f1e";
+  ctx.font = PNG_TITLE_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(String(state.current.def.name || "Report"),
+    rtl ? width - PNG_PADDING : PNG_PADDING, PNG_PADDING + 14);
+}
+
+function drawPngHead(ctx, head, widths, width, rtl){
+  ctx.fillStyle = "#0078d4";
+  ctx.fillRect(PNG_PADDING, PNG_TABLE_TOP, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = PNG_HEAD_FONT;
+  head.forEach((label, i) => drawCellText(ctx, label, widths, i, PNG_TABLE_TOP + 22, rtl));
+}
+
+function drawPngBody(ctx, body, widths, width, rtl){
+  ctx.font = PNG_BODY_FONT;
+  let y = PNG_TABLE_TOP + PNG_HEADER_HEIGHT;
   body.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#f7f7f7" : "#ffffff";
-    ctx.fillRect(padding, y, width - padding * 2, rowHeight);
+    ctx.fillRect(PNG_PADDING, y, width - PNG_PADDING * 2, PNG_ROW_HEIGHT);
     ctx.fillStyle = "#201f1e";
-    x = padding;
-    row.forEach((cell, i) => { ctx.fillText(clipToWidth(ctx, String(cell ?? ""), widths[i] - 10), x + 6, y + 18); x += widths[i]; });
-    y += rowHeight;
+    row.forEach((cell, i) => drawCellText(ctx, cell, widths, i, y + 18, rtl));
+    y += PNG_ROW_HEIGHT;
   });
-
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-  saveBlob(blob, baseName + ".png");
 }
 
 /** Trims with an ellipsis so a long value cannot bleed into the next column. */
