@@ -345,8 +345,24 @@ place this area's download-weight rule is stretched. It is accepted because the 
 only by a user exporting an Arabic PDF, and because jsPDF subsets the font into the output —
 a two-row Arabic report came out at 78 KB, against 4.6 KB for the same report in English.
 
-**Ordering is separate from the font and also had to be solved.** jsPDF shapes Arabic letters
-but does not reorder them, and its own `setR2L` reverses the whole string — which turns
-`QAR 1,234.50` into `05.432,1 RAQ`. Only the bidi pass behind `isInputVisual: false` reverses
-the Arabic runs while leaving Latin and numbers alone. autoTable exposes no way to pass text
-options, so the exporter injects that flag around `doc.text` for the duration of the call.
+**Ordering needs no code at all — and an attempt to "fix" it broke it.** jsPDF's default text
+path already runs the bidi pass: Arabic comes out in visual order and Latin and numbers keep
+theirs. Measured, per option, decoding each PDF through its own ToUnicode map:
+
+| passed to `doc.text` | Arabic name | `QAR 1,234.50` |
+|---|---|---|
+| **nothing (the default)** | **visual — correct** | **intact** |
+| `isInputVisual: false` | logical — mirrored | intact |
+| `isOutputVisual: true` | logical — mirrored | intact |
+| `isInputRtl: true` | logical — mirrored | reversed |
+| `setR2L(true)` | logical — mirrored | reversed |
+
+`isInputVisual: false` reads as "the input is not visual, so convert it" but does the opposite
+of what is wanted here: it turns the pass **off**, and the words then join correctly and read
+backwards. A first version of the exporter set that flag around every `doc.text` call and
+shipped mirrored Arabic.
+
+🔴 **The method that produced the wrong conclusion:** glyph ids were compared between two
+separate PDFs. They are assigned per document, so any cross-document comparison is
+meaningless — it "confirmed" that jsPDF never reorders, which is false. Decode through the
+document's own **ToUnicode** map instead; that also proves the text is real selectable text.

@@ -930,11 +930,14 @@ async function exportPdf(result, baseName){
   const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   const font = rtl ? await useArabicFont(doc) : "helvetica";
 
-  const draw = () => {
-    drawPdfHeading(doc, result, font, rtl);
-    drawPdfTable(doc, head, body, font, rtl);
-  };
-  if (rtl) withVisualTextOrder(doc, draw); else draw();
+  // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
+  // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an
+  // earlier version of this function did — tells it the input is already visual and turns the pass
+  // OFF, so the words joined correctly and then read backwards. Verified by decoding the produced
+  // PDF through its own ToUnicode map; do not compare glyph ids between two PDFs, they are
+  // per-document and any such comparison is meaningless.
+  drawPdfHeading(doc, result, font, rtl);
+  drawPdfTable(doc, head, body, font, rtl);
 
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
@@ -950,25 +953,6 @@ function drawPdfTable(doc, head, body, font, rtl){
   });
 }
 
-/**
- * Runs a drawing routine with text reordered from logical order into visual order.
- *
- * jsPDF shapes Arabic letters but does not reorder them, so without this the words join correctly
- * and then read backwards — which looks like Arabic and is not. Its own setR2L is no use: that
- * reverses the entire string, turning QAR 1,234.50 into 05.432,1 RAQ. Only isInputVisual:false runs
- * the real bidi pass, which reverses the Arabic runs and leaves Latin and numbers where they were.
- *
- * The flag has to be injected around doc.text because autoTable draws every cell through it and
- * exposes no way to pass text options. text is an own property of the document, not an inherited
- * one, so it is restored by assignment — deleting it would take jsPDF's own method with it.
- */
-function withVisualTextOrder(doc, draw){
-  const original = doc.text;
-  doc.text = function(text, x, y, options, ...rest){
-    return original.call(this, text, x, y, { ...(options || {}), isInputVisual: false }, ...rest);
-  };
-  try { draw(); } finally { doc.text = original; }
-}
 
 /**
  * Registers the bundled Arabic font on this document and returns the family to draw with.
