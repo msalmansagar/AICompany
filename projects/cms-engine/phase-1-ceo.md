@@ -363,6 +363,11 @@ The prototype is input to the designer, not a substitute for the designer.
 
 ## 8. Conditions
 
+> **Live state: [`CONDITIONS.md`](CONDITIONS.md).** This section records the
+> conditions as set at the gate; closures are tracked there. As of 2026-08-11,
+> **8 of 13 are closed**, and the three still blocking Phase 3 close — C-2, C-3,
+> C-4 — are all QDB questions.
+
 All thirteen conditions are binding. No phase gate may be passed with an open
 condition from a prior phase without explicit CEO re-approval.
 
