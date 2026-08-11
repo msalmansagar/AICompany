@@ -229,7 +229,7 @@ cap silently converts that into "any of the last N". A page edited a hundred
 times cannot be restored to version 3 under a cap of 20 — and nobody discovers
 that until they need it, which is the worst moment.
 
-Pruning also fights the audit posture: `cms_publishlog` is append-only precisely
+Pruning also fights the audit posture: `msst_cmspublishlog` is append-only precisely
 so history cannot be quietly rewritten. Deleting the versions that log refers to
 undoes half of that.
 

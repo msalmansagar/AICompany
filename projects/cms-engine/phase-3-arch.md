@@ -73,7 +73,7 @@ the risk most likely to invalidate the foundation, and it is retired.
 The editor is a Dataverse web resource. **The visitor path is not** — published
 CMS content reaches citizens through **portal-shell's Next.js application**
 (`[locale]/(portal)/pages/[slug]`), which reads the render cache via
-`cms_GetPublishedPageJson`.
+`msst_CmsGetPublishedPageJson`.
 
 This was unstated until the C-10 assessment needed it, and it matters: it means
 portal-shell's dependency surface is part of the CMS's delivery surface. See
@@ -155,72 +155,77 @@ compete for `mss_page`, `mss_field`, `mss_version`. A product prefix does not.
 | **C — Per-client prefix at build time** | Solution generated per customer. Real tooling cost, and every client becomes a separate artefact to test and support. |
 | **D — Keep `qdb_`** | Only defensible if this is a QDB-only system, which contradicts the product framing the CEO gate accepted conditionally. |
 
-### Decision
+### Decision — 2026-08-11: **Option B, the company prefix `msst`**
 
-**Option A — a single product prefix, `cms_`, across every component.**
-
-QDB is the first customer, not the namespace owner. Entities, plugins, web
-resources and the solution itself all sit on one prefix — the thing DFE did not
-do.
-
-Renaming now costs an afternoon. Renaming after go-live costs a migration of
-every page, version and audit row in every customer environment.
-
-### ⚠️ Open — a publisher now exists in the org that does not match this decision
-
-**2026-08-11.** A publisher was created on `org5869857f` while this section said
-`cms`:
-
-| Field | Value in the org |
-|---|---|
-| Unique name | `MSST` |
-| Friendly name | **Muhammad Salman Sagar Technologies** |
-| Customization prefix | **`msst`** |
-| Option value prefix | 46327 |
-
-Two divergences from the decision below, both cheap **only until the first
-component is imported**:
-
-1. **`msst` is a company prefix — option B, which this section rejected.** Every
-   MSS product would then share one namespace: the CMS and the DFE both want
-   `msst_field`, and only one can have it.
-2. **The friendly name carries a personal name**, on a publisher intended to ship
-   to clients. Unique name and prefix are permanent after import; the friendly
-   name can still be corrected.
-
-Also confirmed by the same query: **`cms` is free in this org** — no publisher
-holds it. That answers the environment half of the check below for `org5869857f`;
-other target environments remain unverified.
-
-**Not resolved here.** Either the decision moves to `msst` and this section is
-rewritten with the collision accepted, or a publisher with prefix `cms` is
-created. Nothing is provisioned yet, so both remain open.
-
-### ✅ Signed off — 2026-08-11
-
-**A-1 and A-1b are decided.** The convention this establishes is company-wide,
-not CMS-specific, and lives at [`global/PUBLISHER-AND-PREFIX.md`](../../global/PUBLISHER-AND-PREFIX.md):
-
-> *One publisher record per product. Its customization prefix is the product
-> code. Every component of that product sits on that one prefix.*
+The options above were weighed and **Option B was chosen**. The publisher exists
+on `org5869857f`:
 
 | Field | Value |
 |---|---|
-| Customization prefix | **`cms`** |
-| Publisher unique name | **`msstechnologies_cmsengine`** |
-| Publisher display name | **MSS Technologies** |
-| Option value prefix | *unassigned — set before provisioning, must be unique per publisher* |
+| Unique name | `MSST` |
+| Friendly name | Muhammad Salman Sagar Technologies |
+| Customization prefix | **`msst`** |
+| Option value prefix | 46327 |
 
-A publisher carries exactly one prefix, so per-product prefixes require
-per-product publishers. That is the standard ISV pattern, and it is what makes
-`cms_` reachable at all.
+QDB is the first customer, not the namespace owner — that part of the reasoning
+holds either way, and `msst` satisfies it. What Option B does *not* give for
+free is separation between MSS products, so that has to be bought with a naming
+rule.
 
-**One check remains, and it needs organisation access:**
+### The rule that makes a company prefix safe
 
-- [ ] **`cms` is unused as a prefix in every target environment.** It is generic
-      enough that another vendor may already hold it. This cannot be answered
-      from the repository — it is question 8 to QDB IT in the decision session,
-      and it is the last thing that could invalidate the value above.
+> **Entities and Custom APIs carry a product segment. Columns do not.**
+
+A shared prefix means the CMS and the DFE would otherwise both want `msst_page`
+and `msst_field`, and only one can have either.
+
+| Kind | Name | Why |
+|---|---|---|
+| Entity | `msst_cmspage`, `msst_cmsicon` | Entity logical names are **org-wide** — collision is real |
+| Custom API | `msst_CmsPublishPage` | Same namespace as entities |
+| Column | `msst_slug`, `msst_versionnumber` | Column names are **scoped to their entity**, so `msst_slug` on `msst_cmspage` cannot clash with `msst_slug` on a DFE table |
+| Web resource | `msst_cms_designer.html` | Flat namespace, needs the segment |
+
+Applied throughout §3 below. Without it, this decision reintroduces exactly the
+collision the options table warned about.
+
+### Two consequences to accept
+
+1. **Every MSS product shares one option-value block** (46327). Option-set values
+   must be allocated per product to avoid overlap on import — the CMS should take
+   a documented sub-range rather than counting up from the base.
+2. **The publisher friendly name reads "Muhammad Salman Sagar Technologies"** — a
+   personal name on a publisher that ships to clients. Unique name and prefix are
+   permanent once components import; **the friendly name can still be changed**
+   and should be, before the first import.
+
+### ✅ Signed off — 2026-08-11 (revised to `msst`)
+
+**A-1 and A-1b are decided.** The convention lives at [`global/PUBLISHER-AND-PREFIX.md`](../../global/PUBLISHER-AND-PREFIX.md).
+
+| Field | Value |
+|---|---|
+| Customization prefix | **`msst`** |
+| Publisher unique name | **`MSST`** |
+| Publisher display name | Muhammad Salman Sagar Technologies — **change before first import** |
+| Option value prefix | 46327 — allocate a CMS sub-range |
+
+A publisher carries exactly one prefix. With a **company** prefix that prefix is
+shared across every MSS product, which is why the product segment on entities and
+Custom APIs above is not optional — it is the thing standing between this
+decision and a collision with the DFE.
+
+**Remaining checks:**
+
+- [x] `msst` exists on `org5869857f` — publisher `MSST`, verified by query
+- [ ] **`msst` is unused in every *other* target environment.** Less likely to
+      clash than a generic code, but still unverified outside this org. Fold into
+      question 8 to QDB IT.
+- [ ] **Publisher friendly name changed** from "Muhammad Salman Sagar
+      Technologies" before the first import — the only one of these four fields
+      still editable afterwards.
+- [ ] **CMS option-value sub-range allocated** within the shared 46327 block, so
+      two MSS products cannot emit overlapping option-set values.
 
 Nothing is provisioned, so the sign-off costs nothing to reverse **until that
 check passes and the first table is created**. After that it is a migration.
@@ -244,28 +249,28 @@ never varied is a permanent tax on every query and index.
 
 | Entity | Purpose | Key columns |
 |---|---|---|
-| `cms_page` | Page header | `cms_slug`, `cms_titleen`, `cms_titlear`, `cms_status` |
-| `cms_pageversion` | Append-only versions | `cms_versionnumber`, `cms_contentfile` (File column), `cms_islatest`, `cms_schemaversion` |
-| `cms_rendercache` | Published output | `cms_runtimejson` (Memo, gzip+Base64), `cms_languagecode` |
-| `cms_publishlog` | Audit — plugin-written only | `cms_action`, `cms_versionnumber`, `cms_publishedon`, `cms_publishedby` |
-| `cms_mediaasset` | Media library | `cms_assetkey`, `cms_kind`, File column |
-| `cms_icon` | Icon library — geometry only | `cms_iconkey`, `cms_geometry` (Memo) |
-| `cms_themetoken` | Design tokens | `cms_slug`, `cms_tokentype`, `cms_value`, `cms_scope` |
-| `cms_navigation` | Navigation, separately versioned | `cms_versionnumber`, `cms_treejson` |
+| `msst_cmspage` | Page header | `msst_slug`, `msst_titleen`, `msst_titlear`, `msst_status` |
+| `msst_cmspageversion` | Append-only versions | `msst_versionnumber`, `msst_contentfile` (File column), `msst_islatest`, `msst_schemaversion` |
+| `msst_cmsrendercache` | Published output | `msst_runtimejson` (Memo, gzip+Base64), `msst_languagecode` |
+| `msst_cmspublishlog` | Audit — plugin-written only | `msst_action`, `msst_versionnumber`, `msst_publishedon`, `msst_publishedby` |
+| `msst_cmsmediaasset` | Media library | `msst_assetkey`, `msst_kind`, File column |
+| `msst_cmsicon` | Icon library — geometry only | `msst_iconkey`, `msst_geometry` (Memo) |
+| `msst_cmsthemetoken` | Design tokens | `msst_slug`, `msst_tokentype`, `msst_value`, `msst_scope` |
+| `msst_cmsnavigation` | Navigation, separately versioned | `msst_versionnumber`, `msst_treejson` |
 
 Per ADR-CMS-001: versions use a **File column** (unbounded), the render cache
 uses a **Memo column** (single-round-trip read on every page view).
 
 ### Versioning is self-contained — decided under C-11, 2026-08-11
 
-**`cms_pageversion` is the CMS's own version store. The CMS does not depend on
+**`msst_cmspageversion` is the CMS's own version store. The CMS does not depend on
 DXP-P1-004.** Recorded here explicitly so the dependency is not re-asserted: the
 BRD originally claimed it, this architecture never used it, and the two
 disagreed for three weeks before anyone noticed.
 
 The two are different layers, not competing stores:
 
-| | DXP-P1-004 | `cms_pageversion` |
+| | DXP-P1-004 | `msst_cmspageversion` |
 |---|---|---|
 | Purpose | Compliance evidence | **Operational restore (FR-63)** |
 | Write path | *"without touching the operational write path"* — async, queued | Synchronous, on every save |
@@ -280,9 +285,9 @@ See `c-11-versioning-dependency.md` for the full reasoning.
 
 | API | Mode | Stage | Does |
 |---|---|---|---|
-| `cms_PublishPage` | **Async** | PostOperation (40) | Validate → set status → gzip+Base64 → write render cache → **write audit row** |
-| `cms_GetPublishedPageJson` | **Sync** | PostOperation (40) | Read cache, decode, return. Never generates. |
-| `cms_UploadIcon` | **Sync** | PostOperation (40) | Parse SVG as XML → extract geometry allowlist → reject if nothing drawable → store |
+| `msst_CmsPublishPage` | **Async** | PostOperation (40) | Validate → set status → gzip+Base64 → write render cache → **write audit row** |
+| `msst_CmsGetPublishedPageJson` | **Sync** | PostOperation (40) | Read cache, decode, return. Never generates. |
+| `msst_CmsUploadIcon` | **Sync** | PostOperation (40) | Parse SVG as XML → extract geometry allowlist → reject if nothing drawable → store |
 
 **Why publish is a plugin and not a browser write** — the same argument
 ADR-RPT-011 makes for `qdb_RunReport`. If the browser both flips the live version
@@ -294,7 +299,7 @@ call that publishes writes it.
 control. Browser-side sanitisation is bypassable via a direct Web API write, so
 enforcement lives where the write happens (ADR-CMS-002).
 
-### Validation performed by `cms_PublishPage`
+### Validation performed by `msst_CmsPublishPage`
 
 | Rule | Action | Source |
 |---|---|---|
@@ -447,7 +452,7 @@ for WCAG 2.1 AA (NFR-07).
 ### Sanitisation — server-side, at publish
 
 The editor constrains what an author can *type*. It cannot constrain what an
-author can *write to the API*, so the control lives in `cms_PublishPage`:
+author can *write to the API*, so the control lives in `msst_CmsPublishPage`:
 
 1. Parse the stored HTML fragment
 2. Strip every element and attribute outside the allowlist above
@@ -508,7 +513,7 @@ inherited from the DFE:
 
 | # | Decision | Where |
 |---|---|---|
-| A-1 | Single product prefix `cms` across every component, not `qdb` | §2 — **SIGNED OFF 2026-08-11** |
+| A-1 | Company prefix **`msst`**, with a product segment on entities and Custom APIs | §2 — **DECIDED 2026-08-11** (Option B; supersedes the earlier `cms` sign-off) |
 | A-1b | One publisher record `msstechnologies_cmsengine`, display "MSS Technologies" | §2 — **SIGNED OFF 2026-08-11** |
 | A-2 | One environment per customer, no row-level tenant discriminator | §2 |
 | A-3 | Two bundles: editor 331 KB, runtime 53 KB | §1 |
