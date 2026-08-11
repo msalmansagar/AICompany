@@ -3,6 +3,11 @@
 Decisions taken for **CMS-ENG-001**. Each records what was decided, what was
 rejected, and what evidence the decision rests on.
 
+> **Ratification:** see [RATIFICATION.md](RATIFICATION.md) — gate item A-4.
+> **1 of 5 Accepted.** The other four have build-time or client-gated
+> verification items; Proposed means the evidence is outstanding, not that the
+> decision is optional.
+
 > **Status note.** The CMS Engine has **no approved BRD yet**. Per `CLAUDE.md`,
 > the BRD is the entry gate for any work that changes what the system promises.
 > ADRs here are therefore **Proposed** — they capture reasoning gathered during
@@ -13,7 +18,7 @@ rejected, and what evidence the decision rests on.
 | [ADR-CMS-001](ADR-CMS-001-page-payload-storage.md) | Page payload storage: where a page's JSON lives, and what bounds it | Proposed | Measured payload sizes against the Dataverse Memo limit |
 | [ADR-CMS-002](ADR-CMS-002-icon-storage-geometry-not-files.md) | Icons are stored as geometry, not as files | Proposed | Dependency research — no .NET SVG sanitiser clears the bar |
 | [ADR-CMS-003](ADR-CMS-003-editor-adapter-boundary.md) | The editor sits behind an adapter; no Puck type crosses the boundary | Proposed | CEO condition C-7; Puck is 0.22 after three years |
-| [ADR-CMS-004](ADR-CMS-004-own-the-runtime-renderer.md) | The runtime renderer is ours; Puck never reaches a visitor | Proposed | Hand-written renderer produced byte-identical output — 17,719 chars, 225 elements, zero differences |
+| [ADR-CMS-004](ADR-CMS-004-own-the-runtime-renderer.md) | The runtime renderer is ours; Puck never reaches a visitor | ✅ **Accepted** | Hand-written renderer produced byte-identical output — 17,719 chars, 225 elements, zero differences |
 | [ADR-CMS-005](ADR-CMS-005-tiptap-version-clash.md) | The Tiptap clash is a retirement, not an upgrade | Proposed | Tiptap 2.x reaches portal-shell through exactly one file, used by the two screens the CMS replaces |
 
 ## Inherited decisions

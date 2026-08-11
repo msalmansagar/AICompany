@@ -379,5 +379,5 @@ never been seen failing is not known to be a gate.
 | A-1b | One publisher record `msstechnologies_cmsengine`, display "MSS Technologies" | §2 — **SIGNED OFF 2026-08-11** |
 | A-2 | One environment per customer, no row-level tenant discriminator | §2 |
 | A-3 | Two bundles: editor 331 KB, runtime 53 KB | §1 |
-| A-4 | ADR-CMS-001 through 005 move from Proposed to Accepted | `adrs/` |
+| A-4 | ~~ADR-CMS-001 through 005 move to Accepted~~ **Partially done — 1 of 5.** ADR-CMS-004 accepted; the other four have build-time or client-gated verification items and close at the Phase 4 exit gate. | [`adrs/RATIFICATION.md`](adrs/RATIFICATION.md) |
 | A-5 | Renderer comparison harness runs in CI as a merge gate | §4 — **built**, `cms-renderer-parity.yml` |
