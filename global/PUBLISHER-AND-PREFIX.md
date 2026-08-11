@@ -37,11 +37,25 @@ segment the CMS Engine and the Dynamic Form Engine both want `msst_page` and
 Getting this wrong does not fail loudly. It fails when a second product tries to
 import into an org that already holds the name.
 
-### Option values are also shared
+### Option values are shared, but that matters less than it sounds
 
-One publisher means one option-value block (`46327` for `MSST`). **Each product
-takes a documented sub-range**; counting up from the base in two products
-independently produces overlapping option-set values that collide on import.
+One publisher means one option-value block — `46327` for `MSST`. A choice option
+gets its number from that base: `463270000`, `463270001`, and so on. Every MSS
+product now draws from the same pool.
+
+**This is mostly harmless, and an earlier version of this document overstated
+it** by requiring each product to reserve a sub-range.
+
+| Choice field | Does a duplicate number matter? |
+|---|---|
+| **Local** — a dropdown on one table | **No.** The value need only be unique *within that option set*. Two products may both use `463270000` on different tables. |
+| **Global** — shared across tables | The collision risk is the **name**, which is org-wide. The value is not the problem. |
+
+So the protection is the **product segment on names**, which the rule above
+already requires: a global choice is `msst_cmsstatus`, never `msst_status`.
+Reserving numeric sub-ranges is optional tidiness, not a correctness
+requirement — record one if it helps humans read the values, but nothing breaks
+without it.
 
 ### Why not the client's prefix
 
@@ -172,8 +186,7 @@ second customer regardless of what the tables are called.
 - [ ] Product **segment** recorded in the registry above (the prefix is always `msst`)
 - [ ] **`msst` verified unused in every target environment** — confirmed present
       and ours on `org5869857f`; unverified elsewhere
-- [ ] Publisher display name corrected, and an **option-value sub-range**
-      allocated for the product within the shared block
+- [ ] Publisher display name corrected
 - [ ] The solution manifest and every component use `msst`, and **every entity,
       Custom API and web resource carries its product segment**
 

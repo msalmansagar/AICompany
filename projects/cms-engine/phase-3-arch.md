@@ -191,9 +191,11 @@ collision the options table warned about.
 
 ### Two consequences to accept
 
-1. **Every MSS product shares one option-value block** (46327). Option-set values
-   must be allocated per product to avoid overlap on import — the CMS should take
-   a documented sub-range rather than counting up from the base.
+1. **Every MSS product shares one option-value block** (46327). This matters less
+   than it first appears: a **local** choice value need only be unique within its
+   own option set, so two products may both use `463270000` harmlessly. For a
+   **global** choice the collision risk is the org-wide *name*, which the product
+   segment already handles. No sub-range is required.
 2. **The publisher friendly name reads "Muhammad Salman Sagar Technologies"** — a
    personal name on a publisher that ships to clients. Unique name and prefix are
    permanent once components import; **the friendly name can still be changed**
@@ -208,7 +210,7 @@ collision the options table warned about.
 | Customization prefix | **`msst`** |
 | Publisher unique name | **`MSST`** |
 | Publisher display name | Muhammad Salman Sagar Technologies — **change before first import** |
-| Option value prefix | 46327 — allocate a CMS sub-range |
+| Option value prefix | 46327 — shared across MSS products; see §2 note |
 
 A publisher carries exactly one prefix. With a **company** prefix that prefix is
 shared across every MSS product, which is why the product segment on entities and
@@ -224,8 +226,9 @@ decision and a collision with the DFE.
 - [ ] **Publisher friendly name changed** from "Muhammad Salman Sagar
       Technologies" before the first import — the only one of these four fields
       still editable afterwards.
-- [ ] **CMS option-value sub-range allocated** within the shared 46327 block, so
-      two MSS products cannot emit overlapping option-set values.
+- [x] ~~CMS option-value sub-range~~ — **not required.** Duplicate local option
+      values across different tables are harmless, and global choices are
+      protected by the name segment, not by the number.
 
 Nothing is provisioned, so the sign-off costs nothing to reverse **until that
 check passes and the first table is created**. After that it is a migration.
