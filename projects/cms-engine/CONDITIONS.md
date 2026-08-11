@@ -41,8 +41,12 @@ the current pack numbers.** The map:
 | *closed* | Q3 / pack Q1 | Approval routes — **answered 2026-08-11** |
 | *closed* | Q5 / pack Q4 | Arabic authoring UI — **answered 2026-08-11** |
 
-`q1-q5-answers.md` uses the **original** numbering throughout; it is a record of
-what was asked at the time and is deliberately not renumbered.
+**`q1-q5-answers.md` and `phase-3-arch.md` use the original numbering
+throughout** — deliberately. One is a record of what was asked at the time, the
+other cites the answers that unblocked each section; renumbering either would
+falsify the record. Only the outward-facing documents — `client-actions-required.md`
+and `session-invite.md` — carry the current pack numbers, because QDB answers
+against those. This table is the bridge.
 
 ---
 
