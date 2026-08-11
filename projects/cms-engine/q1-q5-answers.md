@@ -43,7 +43,7 @@ Both cannot be true as stated. The possibilities, in the order they are worth ch
 
 ### Why this is not a detail to wave through
 
-`ADR-CMS-001` puts the entire version store in `qdb_cmspageversion.qdb_contentfile`, a File
+`ADR-CMS-001` puts the entire version store in `msst_cmspageversion.msst_contentfile`, a File
 column. If it exists, the ADR stands as written. If it does not, the version store moves to
 Memo — which has been measured and works comfortably, but is a different design.
 

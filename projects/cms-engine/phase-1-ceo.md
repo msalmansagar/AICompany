@@ -363,10 +363,15 @@ The prototype is input to the designer, not a substitute for the designer.
 
 ## 8. Conditions
 
+> **Live state: [`CONDITIONS.md`](CONDITIONS.md).** This section records the
+> conditions as set at the gate; closures are tracked there. As of 2026-08-11,
+> **8 of 13 are closed**, and the three still blocking Phase 3 close — C-2, C-3,
+> C-4 — are all QDB questions.
+
 All thirteen conditions are binding. No phase gate may be passed with an open
 condition from a prior phase without explicit CEO re-approval.
 
-**C-1 — Rich text scope confirmed (Gate: Phase 3 close)**
+**C-1 — Rich text scope confirmed (Gate: Phase 3 close)** ✅ **CLOSED 2026-08-11 — rich text is IN scope.** Recorded as a working assumption pending QDB ratification; it is the more permissive answer and the asymmetry favours it. Payload re-measured (ADR-CMS-001), architecture §6 written, ADR-CMS-005 retirement now causes no capability regression so **Q2 falls away**.
 Owner: QDB Digital
 OQ-1 must be answered: is long-form rich text in scope? If yes, ADR-CMS-001
 must be re-measured with real prose before the ADR is accepted. The architecture

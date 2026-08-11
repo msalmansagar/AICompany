@@ -14,20 +14,48 @@ This document exists because the estate already shows what that costs.
 
 ## The rule
 
-> **One publisher record per product. Its customization prefix is the product
-> code. Every component of that product — tables, columns, web resources,
-> plugins, Custom APIs, the solution itself — sits on that one prefix.**
+> **One company publisher, `MSST`, prefix `msst`. Entities and Custom APIs carry
+> a product segment; columns do not.**
 
-A publisher carries exactly **one** customization prefix, so per-product prefixes
-require per-product publishers. That is the standard ISV pattern, not a
-workaround.
+**Revised 2026-08-11.** This document originally specified *one publisher per
+product, prefix = product code*. That was overruled in favour of a single
+company publisher, and the rule below is what makes that safe.
 
-### Why not one MSS publisher with an `mss` prefix
+### Why the product segment is mandatory
 
-Because every product would then share a namespace and collide on the generic
-names each of them wants: `mss_page`, `mss_field`, `mss_version`, `mss_template`.
-The CMS Engine and the Dynamic Form Engine both want `mss_field`. Only one can
-have it.
+A shared prefix means every MSS product draws from one namespace. Without a
+segment the CMS Engine and the Dynamic Form Engine both want `msst_page` and
+`msst_field`, and only one can have either.
+
+| Kind | Name | Segment needed? |
+|---|---|---|
+| **Entity** | `msst_cmspage`, `msst_dfeformdefinition` | **Yes** — entity logical names are org-wide |
+| **Custom API** | `msst_CmsPublishPage` | **Yes** — same namespace |
+| **Web resource** | `msst_cms_designer.html` | **Yes** — flat namespace |
+| **Column** | `msst_slug`, `msst_versionnumber` | **No** — scoped to their entity, so `msst_slug` on two different tables cannot clash |
+
+Getting this wrong does not fail loudly. It fails when a second product tries to
+import into an org that already holds the name.
+
+### Option values are shared, but that matters less than it sounds
+
+One publisher means one option-value block — `46327` for `MSST`. A choice option
+gets its number from that base: `463270000`, `463270001`, and so on. Every MSS
+product now draws from the same pool.
+
+**This is mostly harmless, and an earlier version of this document overstated
+it** by requiring each product to reserve a sub-range.
+
+| Choice field | Does a duplicate number matter? |
+|---|---|
+| **Local** — a dropdown on one table | **No.** The value need only be unique *within that option set*. Two products may both use `463270000` on different tables. |
+| **Global** — shared across tables | The collision risk is the **name**, which is org-wide. The value is not the problem. |
+
+So the protection is the **product segment on names**, which the rule above
+already requires: a global choice is `msst_cmsstatus`, never `msst_status`.
+Reserving numeric sub-ranges is optional tidiness, not a correctness
+requirement — record one if it helps humans read the values, but nothing breaks
+without it.
 
 ### Why not the client's prefix
 
@@ -84,7 +112,7 @@ So every product has two categories:
 
 | Category | Prefix | Example |
 |---|---|---|
-| **Owned** — tables, columns, web resources, plugins, Custom APIs the product creates | **product prefix** | `cms_pageversion` |
+| **Owned** — tables, columns, web resources, plugins, Custom APIs the product creates | **product prefix** | `msst_cmspageversion` |
 | **Read** — the client's existing schema the product configures or queries | **client's prefix, unchanged** | `qdb_department` |
 
 A product that reads a lot of client schema is not thereby a client engagement.
@@ -100,9 +128,9 @@ products already provisioned, the row records reality rather than an intention.
 
 | Product | Deployed on | Reserved prefix | Publisher unique name | Status |
 |---|---|---|---|---|
-| **CMS Engine** (CMS-ENG-001) | *nothing yet* | **`cms`** | `msstechnologies_cmsengine` | ✅ **Adopted and binding — no components exist** |
-| **Report Engine** (RPT-ENG-001) | `qdb` | **`rpt`** | `msstechnologies_reportengine` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
-| **CRM Workflow Designer** (CWFD-001) | `qdb` | **`cwf`** | `msstechnologies_workflowdesigner` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
+| **CMS Engine** (CMS-ENG-001) | *nothing yet* | **`msst`** + segment `cms` | `MSST` | ✅ **Adopted and binding — no components exist** |
+| **Report Engine** (RPT-ENG-001) | `qdb` | `msst` + segment `rpt` | `MSST` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
+| **CRM Workflow Designer** (CWFD-001) | `qdb` | `msst` + segment `cwf` | `MSST` | ⚠️ **Live on `qdb`.** Reserved for a productised build only. |
 | Dynamic Form Engine | `dfe` + `qdb` | — | `maqsad_ai` / `maqsadai` | ⚠️ Split across two prefixes and two publishers. Live — not correctable. |
 | Enterprise Decision Platform | `qdb_edp_` | — | — | ⚠️ Client-prefixed. Review if sold on. |
 
@@ -146,21 +174,21 @@ second customer regardless of what the tables are called.
 
 | Field | Rule |
 |---|---|
-| **Prefix** | 2–8 chars, lowercase, the product code. No client name. No company name. |
-| **Publisher unique name** | `msstechnologies_<product>` — one record, never a second spelling |
-| **Display name** | `MSS Technologies` — identical across every product |
+| **Prefix** | `msst` for every product. The **product segment** on entities/APIs is what separates them. |
+| **Publisher unique name** | `MSST` — one record for every MSS product, never a second spelling |
+| **Display name** | **"MSS Technologies"** — corrected 2026-08-11 from "Muhammad Salman Sagar Technologies", a personal name on a publisher that ships to clients. This is the **only** publisher field still editable after a first import, so it is the only one a mistake can be walked back on. |
 | **Option value prefix** | 5 digits, 10000–99999, **unique per publisher.** Record it here when assigned; two publishers sharing one causes option-set value collisions on import. |
 
 ---
 
 ## Before the first table exists
 
-- [ ] Prefix is recorded in the registry above
-- [ ] **The prefix is verified unused in every target environment** — generic
-      codes like `cms` may already be held by another vendor
-- [ ] Publisher unique name, display name and option value prefix are fixed
-- [ ] The solution manifest and every component use that one prefix — no
-      second prefix for web resources
+- [ ] Product **segment** recorded in the registry above (the prefix is always `msst`)
+- [ ] **`msst` verified unused in every target environment** — confirmed present
+      and ours on `org5869857f`; unverified elsewhere
+- [ ] Publisher display name corrected
+- [ ] The solution manifest and every component use `msst`, and **every entity,
+      Custom API and web resource carries its product segment**
 
 The second box is the one that needs someone with organisation access. It cannot
 be answered from this repository.

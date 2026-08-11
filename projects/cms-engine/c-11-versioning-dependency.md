@@ -14,7 +14,7 @@ Outcome:        OPTION A ACCEPTED 2026-08-11 — dependency dropped
 
 ## ✅ Decided — 2026-08-11
 
-**Option A accepted: the dependency is dropped.** The CMS owns `cms_pageversion`;
+**Option A accepted: the dependency is dropped.** The CMS owns `msst_cmspageversion`;
 FR-62 and FR-63 ship in Phase A as Must requirements, unchanged. C-11 closes on
 the basis that the dependency does not exist, not on a delivery date.
 
@@ -54,7 +54,7 @@ store and never references the platform capability anywhere.
 
 | Evidence | Where |
 |---|---|
-| The CMS defines `cms_pageversion` — an append-only table with a File column holding the page tree, `cms_versionnumber`, `cms_islatest`, `cms_schemaversion` | `phase-3-arch.md` §3 |
+| The CMS defines `msst_cmspageversion` — an append-only table with a File column holding the page tree, `msst_versionnumber`, `msst_islatest`, `msst_schemaversion` | `phase-3-arch.md` §3 |
 | The string "DXP" and "P1-004" appear **nowhere** in the CMS architecture | verified across the whole document |
 | The BRD nonetheless lists DXP-P1-004 as a dependency: *"CMS depends on it for FR-62/63"* | `phase-2-ba.md` §12 |
 
@@ -118,7 +118,7 @@ FR-62 and FR-63 are narrow.
 | **FR-62** — every save creates a version, none edited in place | An append-only table and a write on save |
 | **FR-63** — restore any prior version, copied forward | A read and a write |
 
-`cms_pageversion` does both. Neither needs Azure Blob, a durable queue, a data
+`msst_cmspageversion` does both. Neither needs Azure Blob, a durable queue, a data
 residency decision, or a snapshot reference format.
 
 ### Half of it already runs in production
@@ -146,7 +146,7 @@ is a read plus a write.
 
 | | Option | Consequence |
 |---|---|---|
-| **A** | **Drop the dependency.** CMS owns `cms_pageversion` as already designed. | No schedule risk, no second client gate. FR-62/63 ship in Phase A as Must requirements. Two documents need correcting. |
+| **A** | **Drop the dependency.** CMS owns `msst_cmspageversion` as already designed. | No schedule risk, no second client gate. FR-62/63 ship in Phase A as Must requirements. Two documents need correcting. |
 | **B** | Deliver DXP-P1-004 first, CMS consumes it | Adds a 785-line architecture with 7 ADRs, a Service Bus dependency and **six unresolved QDB questions** to the critical path — to obtain an append-only table |
 | **C** | Cut FR-62/63 from Phase A | **Rejected.** The CEO and R-4 both say a CMS without rollback is not safe for business users. Listed only because C-11 names it. |
 
@@ -199,7 +199,7 @@ Stated so the conversation can test it rather than accept it.
 | If | Then |
 |---|---|
 | DXP-P1-004 is intended as the **single audited version store for the whole platform**, for compliance reasons | Option A creates a second, unaudited store — a governance problem, and B becomes correct despite the cost |
-| PDPPL or QDB retention policy requires content snapshots in **Azure Blob with a defined residency** | `cms_pageversion` in Dataverse may not satisfy it. Overlaps CMS question Q8. |
+| PDPPL or QDB retention policy requires content snapshots in **Azure Blob with a defined residency** | `msst_cmspageversion` in Dataverse may not satisfy it. Overlaps CMS question Q8. |
 | Snapshot volume across the platform is genuinely > 10,000/day | DXP-P1-004's own architecture must change, which strengthens the case for keeping the CMS out of it |
 
 The first is the one to test. If someone intended DXP-P1-004 to be the platform's
