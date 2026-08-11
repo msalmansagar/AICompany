@@ -25,7 +25,7 @@ waiting.
 | §4 Adapter specification | **Decided** |
 | §9 UI/UX specification | **Decided** — separate document, [`phase-3-uiux-spec.md`](phase-3-uiux-spec.md) |
 | §5 Approval workflow | ⛔ Blocked on **Q3** |
-| §6 Rich text handling | ⛔ Blocked on **Q1** |
+| §6 Rich text handling | **Decided — Q1 answered** |
 | §7 On-premise specifics | ⛔ Blocked on **Q4** |
 | §8 Content migration | ⛔ Blocked on **Q6** |
 
@@ -165,6 +165,36 @@ do.
 
 Renaming now costs an afternoon. Renaming after go-live costs a migration of
 every page, version and audit row in every customer environment.
+
+### ⚠️ Open — a publisher now exists in the org that does not match this decision
+
+**2026-08-11.** A publisher was created on `org5869857f` while this section said
+`cms`:
+
+| Field | Value in the org |
+|---|---|
+| Unique name | `MSST` |
+| Friendly name | **Muhammad Salman Sagar Technologies** |
+| Customization prefix | **`msst`** |
+| Option value prefix | 46327 |
+
+Two divergences from the decision below, both cheap **only until the first
+component is imported**:
+
+1. **`msst` is a company prefix — option B, which this section rejected.** Every
+   MSS product would then share one namespace: the CMS and the DFE both want
+   `msst_field`, and only one can have it.
+2. **The friendly name carries a personal name**, on a publisher intended to ship
+   to clients. Unique name and prefix are permanent after import; the friendly
+   name can still be corrected.
+
+Also confirmed by the same query: **`cms` is free in this org** — no publisher
+holds it. That answers the environment half of the check below for `org5869857f`;
+other target environments remain unverified.
+
+**Not resolved here.** Either the decision moves to `msst` and this section is
+rewritten with the collision accepted, or a publisher with prefix `cms` is
+created. Nothing is provisioned yet, so both remain open.
 
 ### ✅ Signed off — 2026-08-11
 
@@ -360,12 +390,115 @@ never been seen failing is not known to be a gate.
 
 ---
 
-## §5–§8 Blocked sections
+## §6 Rich text handling
+
+**Q1 answered 2026-08-11: rich text is in scope.** Recorded as a working
+assumption pending QDB's formal confirmation — it is the more permissive of the
+two answers, and the asymmetry favours it: building for rich text and not
+needing it is cheap, retrofitting it changes payload limits, the editor and the
+security surface at once.
+
+### Storage — re-measured, decision unchanged
+
+ADR-CMS-001 required re-measurement with real prose before acceptance if this
+answer came back yes. Done, with the harness committed:
+
+| Case | Stored | % of Memo |
+|---|---|---|
+| **Typical page** — 20 rich blocks | 3.8 KB | **0.37 %** |
+| **Heavy page** — 60 rich blocks | 8.4 KB | **0.82 %** |
+| Pathological — 800 rich blocks | 112 KB | 10.94 % |
+
+Rich text does not threaten the storage model. The 60 % warn / 90 % reject gates
+at publish stand unchanged.
+
+> An earlier version of this section warned that *"prose compresses at 3–4×, not
+> 50×"*. **That was asserted, not measured, and it is wrong** for a page payload:
+> measured compression is 10–35×, because JSON keys, HTML markup and bilingual
+> structure repeat even when the words do not. The fear that motivated the
+> re-measurement did not survive the re-measurement.
+
+### The editor
+
+Puck bundles **Tiptap 3.x** as a hard dependency (20 packages, 5.8 MB), imported
+at module level — it is present whether or not the rich-text field is used. So
+the field costs nothing extra in bundle terms, which the 331 KB editor
+measurement in §1 already includes.
+
+This settles ADR-CMS-005 favourably: portal-shell's `RichTextEditor` is retired
+onto Puck's Tiptap 3.x, **one major, no duplication, and no capability
+regression.** Its OQ-D closes with it.
+
+### Toolset — a closed set, not "rich text"
+
+"Rich text" is unbounded; a governed CMS cannot be. The field permits exactly:
+
+| Allowed | Deliberately excluded | Why |
+|---|---|---|
+| bold, italic | font family, size, colour | Typography and colour come from theme tokens (DXP-P1-003). An author choosing a colour bypasses the palette. |
+| ordered / unordered lists | tables | A table is a block with its own field contract, not prose |
+| inline links | images | Images are asset-key references (FR-14), never inline |
+| paragraph, H2–H4 | H1 | H1 is the page title, one per page, owned by the page not the prose |
+| — | raw HTML / embeds | The whole point of a governed surface |
+
+**H1 exclusion is not cosmetic** — it is what keeps the document outline valid
+for WCAG 2.1 AA (NFR-07).
+
+### Sanitisation — server-side, at publish
+
+The editor constrains what an author can *type*. It cannot constrain what an
+author can *write to the API*, so the control lives in `cms_PublishPage`:
+
+1. Parse the stored HTML fragment
+2. Strip every element and attribute outside the allowlist above
+3. Reject `javascript:` and `data:` URIs in `href`
+4. Reject if the content contains markup but no text after sanitisation
+
+This is the same reasoning as ADR-CMS-002 for icons: **browser-side sanitisation
+is bypassable via a direct Web API write, so enforcement sits where the write
+happens.** The visitor renderer receives only sanitised content and never
+re-sanitises at render time — sanitising on read would put the cost on every
+page view for a guarantee already made at publish.
+
+### Bilingual and RTL
+
+A rich-text field is bilingual like any other (§9, `{ en, ar }`), rendered as one
+paired control. The Arabic editing surface sets `dir="rtl"` on the editable
+region only — **not on the toolbar**, which stays in the interface direction.
+
+**Mixed-direction content inside a paragraph** — an Arabic sentence containing an
+English product name — is wrapped in `<bdi>` at render. This was found in the
+spike: `"10:00 AM - 6:00 PM"` inside Arabic reordered to `"AM - 6:00 PM 10:00"`
+without it.
+
+### Translation interaction
+
+A rich-text value is one translatable string carrying markup, not a set of
+strings per element. It participates in FR-40/41 unchanged, with one rule
+inherited from the DFE:
+
+> **Markup-only changes must not mark a translation stale.** Re-wrapping a
+> paragraph without altering its words is not a content change. The DFE flagged
+> padded labels as stale and trained translators to ignore the signal
+> (AC-41.3).
+
+### Acceptance criteria this adds
+
+**Folded into `acceptance-criteria.md` as FR-03b** (9 criteria). Listed here for readability; that file is the contract.
+
+- A tag outside the allowlist, submitted directly to the API, is stripped at publish
+- `javascript:` and `data:` URIs in `href` are rejected
+- An Arabic rich-text value renders RTL with `<bdi>` isolation on embedded Latin text
+- A markup-only change does not raise the stale flag
+- H1 cannot be produced by the editor
+
+---
+
+## §5, §7, §8 — still blocked
 
 | Section | Blocked on | What cannot be designed without it |
 |---|---|---|
 | §5 Approval workflow | **Q3** | Number of approval chains, routing rules, whether regulated content needs a separate path. A single chain will be routed around. |
-| §6 Rich text | **Q1** | Editor toolset, payload sizing re-measurement (prose compresses at 3–4×, not 50×), sanitisation surface, and whether the Tiptap retirement in ADR-CMS-005 causes a capability regression |
 | §7 On-premise specifics | **Q4** | Custom API vs Process Action, File column availability and limits, browser baseline for `CompressionStream` |
 | §8 Content migration | **Q6** | Whether existing `bodyHtml` content is migrated or re-authored |
 

@@ -170,12 +170,99 @@ makes it real, for the same reason the audit log lives in the plugin.
 
 ---
 
+## Re-measurement with rich text — 2026-08-11
+
+OQ-1 required this ADR to be re-measured with real prose before acceptance if
+rich text turned out to be in scope. **It is in scope.** Measured with
+`measure-payload-prose.mjs`, committed beside this ADR.
+
+| Case | Raw | gzip | Stored | **% of Memo** |
+|---|---|---|---|---|
+| Structural only — 2,000 blocks, no prose | 284 KB | 16.6× | 22.8 KB | 2.22 % |
+| **Typical page** — 20 rich blocks, 4 sentences | 29 KB | 10.3× | 3.8 KB | **0.37 %** |
+| **Heavy page** — 60 rich blocks, 8 sentences | 143 KB | 22.7× | 8.4 KB | **0.82 %** |
+| Very heavy — 200 rich blocks, 12 sentences | 650 KB | 31.6× | 27.5 KB | 2.68 % |
+| Pathological — 800 rich blocks, 14 sentences | 2.9 MB | 35.2× | 112 KB | **10.94 %** |
+
+**The decision survives.** A realistic heavy page consumes under 1 % of the Memo
+limit; a deliberately absurd one stays under 11 %. Rich text does not threaten
+the storage model, and the 60 % warn / 90 % reject gates remain appropriate.
+
+### Two corrections this measurement forced
+
+**1 — "Prose compresses at 3–4×" was wrong.** That figure was asserted, not
+measured, and it drove the fear behind OQ-1. Measured compression is **10–35×**.
+Plain prose alone does compress at roughly 3–4×, but a *page payload* is not
+plain prose: the JSON keys, the HTML markup and the bilingual structure repeat
+heavily even when the words do not, and that is what gzip rewards.
+
+**2 — The first run of this measurement was invalid.** It generated paragraphs
+with `.repeat()`, so gzip was compressing identical text and returned ratios up
+to 150×. The table above uses a pool of genuinely distinct sentences in both
+languages. **Repeated filler flatters a compression benchmark and must never be
+used for one.**
+
+### What is *not* claimed
+
+The structural baseline here reads 2.22 % where this ADR originally recorded
+0.90 % for a 2,000-block page. That is a difference in test data, **not evidence
+the original figure was wrong** — the blocks generated here each carry a
+bilingual heading and an accent token, so they are heavier than whatever the
+original measurement used. The two numbers are not comparable and the
+conclusion does not depend on which is right.
+
+Measured against the **Dataverse cloud** limit. On-premise remains OQ-3.
+
+---
+
+## Version retention — 2026-08-11
+
+OQ-2 asked whether to prune old versions. The DXP-P1-004 figure of 20 per page
+was inherited advice; **C-11 dropped that dependency, so the limit is ours.**
+
+**Decision: retain every version. No prune, no cap.**
+
+### The argument is FR-63, not storage
+
+FR-63 says *"a user with rights shall restore **any** prior version."* A retention
+cap silently converts that into "any of the last N". A page edited a hundred
+times cannot be restored to version 3 under a cap of 20 — and nobody discovers
+that until they need it, which is the worst moment.
+
+Pruning also fights the audit posture: `cms_publishlog` is append-only precisely
+so history cannot be quietly rewritten. Deleting the versions that log refers to
+undoes half of that.
+
+### Storage does not justify the cap either
+
+Using the measured per-version sizes:
+
+| Retention | Heavy page | 500-page site |
+|---|---|---|
+| Keep 20 | 0.16 MB | 0.08 GB |
+| Keep 50 | 0.41 MB | 0.20 GB |
+| **Unbounded** (500 versions/page) | 4.1 MB | **2 GB** |
+
+500 versions per page is a page edited every working day for two years. **Two
+gigabytes**, on File-column storage, for a scenario well beyond realistic. There
+is no saving here worth trading a Must requirement for.
+
+### What bounds growth instead
+
+- **Publish-time size gate** — no single version can exceed the ceiling (FR-65)
+- **Versions are created by human saves**, not by automation. Should an automated
+  writer ever be introduced, revisit this — a machine editing a page in a loop is
+  a different problem, and the answer is to rate-limit the writer rather than
+  destroy history.
+
+---
+
 ## Open questions
 
 | # | Question | Needs |
 |---|---|---|
-| OQ-1 | Is long-form rich text in scope for the CMS? If yes, re-measure with real prose before accepting this ADR. | BA / BRD |
-| OQ-2 | Do we retain every draft version, or prune? A retention limit is now **ours to set**, not inherited — the DXP-P1-004 dependency was dropped under C-11. Its figure of 20 per page is a reasonable starting point; confirm it holds when versions are File columns. | Architecture |
+| ~~OQ-1~~ | ~~Is long-form rich text in scope? If yes, re-measure with real prose before accepting this ADR.~~ **Answered 2026-08-11: rich text is IN. Re-measured — the decision survives.** See *Re-measurement with rich text* below. | Closed |
+| ~~OQ-2~~ | ~~Do we retain every draft version, or prune?~~ **Answered 2026-08-11: retain everything, no prune.** See *Version retention* below. | Closed |
 | OQ-3 | On-premise CRM 9.x — confirm File column support and the configured maximum, which may differ from cloud. | IT / infrastructure |
 
 ---
