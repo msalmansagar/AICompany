@@ -1,7 +1,9 @@
 # Q4 — on-premise version, Custom API, and File columns
 
 **Engagement:** CMS-ENG-001 · **Opened:** 2026-08-11 · **Owner of the answer:** QDB IT
-**Status:** Half answered from documentation. One half now looks negative.
+**Status:** Answered by QDB on 2026-08-11 — see `q1-q5-answers.md`. The File column answer
+**conflicts with the documentation below** and is recorded as claimed, not confirmed. Custom API
+remains unanswered.
 
 ---
 
