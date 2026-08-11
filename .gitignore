@@ -37,3 +37,13 @@ obj/
 # ---- OS / editor cruft ----
 .DS_Store
 Thumbs.db
+
+# Session logs — appended by .claude/hooks (session-end.js), not source.
+**/.claude/sessions/log.md
+.claude/sessions/log.md
+
+# Plugin strong-name key — private key, escrowed in the team secret store, never committed.
+*.snk
+
+# Scratch space for the ribbon solution export/import round trip.
+projects/report-engine/.ribbon-build/
