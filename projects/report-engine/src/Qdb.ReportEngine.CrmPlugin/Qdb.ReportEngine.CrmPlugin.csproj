@@ -6,13 +6,17 @@
     assemblies package, so no full framework install is required for `dotnet build`.
 
     Strong-naming is ON because on-prem registration requires a signed assembly, and signing both
-    targets keeps one assembly identity everywhere. Generate the key once with
-    `sn -k Qdb.ReportEngine.CrmPlugin.snk`.
+    targets keeps one assembly identity everywhere.
 
-    The key is deliberately NOT in source control (see .gitignore). It must be escrowed in the
-    team's secret store: the public key token forms part of the assembly identity Dataverse
-    registers, so building with a different key produces an assembly the platform treats as a
-    separate one — the existing registration could no longer be updated in place.
+    The key IS committed, against the usual advice, because the previous one was not and was lost.
+    The public key token forms part of the assembly identity Dataverse registers, so a different
+    key produces an assembly the platform treats as a separate one — the existing registration
+    can no longer be updated in place. Recovering from that cost a delete-and-re-register of the
+    assembly, its three plugin types, five steps and two Custom API bindings, plus an outage while
+    no report could run. See the note in .gitignore, and do not regenerate this key.
+
+    The InternalsVisibleTo key below is this key's public half — regenerating one without the
+    other breaks the test project.
   -->
   <PropertyGroup>
     <TargetFramework>net462</TargetFramework>
@@ -69,7 +73,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" Key="002400000480000094000000060200000024000052534131000400000100010025f0c8c61039117385599fa441506345082acc7a937a334b425d4d81a90929cf95fdcff01abbc1519e20600de83ea7afcab016480cd3adcb3fe43d6e5b38fcb8a41d4b8c7445f9b84ee0385e472f4d5293acac7dd6c060555fe607d68b2873dd4f6fc563a4fec6310e0c068783893f5ca7ded2ba36c5f6a00b570f6e6e4453cd" />
+    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" Key="002400000480000094000000060200000024000052534131000400000100010041f44f8ca8db2db2eca9d9bec9ffb47bb8477e13190171c2be1cba66b52656d1e0d4d83143f61fccf629838e7c0443f210f449e1ce501166090e52e417059fdad5240ecce7db11c2c36c151da7b187bcfeb8dcf3c07281544b2b05107d3a47e646151580ce1f10b0496fa90056b6f3566da7954d2459b10efbf24310f321dbbd" />
   </ItemGroup>
 
   <ItemGroup>

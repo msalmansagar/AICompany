@@ -46,6 +46,19 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 return;
             }
 
+            // The owner is always allowed, because refusing them buys nothing. They can open the
+            // access list and add themselves, so the rule they are being held to is one they can
+            // edit — that is friction, not a control. It also removes an incoherence found during
+            // C-1 verification, where the same user could see the data in the designer and was
+            // refused it in the runtime.
+            //
+            // Only a direct user match counts. A report owned by a team falls through to the rules
+            // below, where team membership is matched properly.
+            if (IsOwnedBy(reportId, userId))
+            {
+                return;
+            }
+
             var principals = PrincipalsOf(userId);
             foreach (var rule in rules)
             {
@@ -57,6 +70,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
             throw new InvalidPluginExecutionException(
                 "You do not have permission to run this report. Its access list does not include you.");
+        }
+
+        /// <summary>Whether this report is owned outright by the calling user.</summary>
+        private bool IsOwnedBy(Guid reportId, Guid userId)
+        {
+            var report = _asSystem.Retrieve("qdb_reportdefinition", reportId, new ColumnSet("ownerid"));
+            var owner = report.GetAttributeValue<EntityReference>("ownerid");
+            return owner != null
+                && string.Equals(owner.LogicalName, "systemuser", StringComparison.OrdinalIgnoreCase)
+                && owner.Id == userId;
         }
 
         private List<Entity> LoadRules(Guid reportId)

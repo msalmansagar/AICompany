@@ -182,7 +182,19 @@ async function runReportInCrm(reportId, parameterValues, drill){
 
   const response = await xrm().WebApi.online.execute(request);
   const output = await response.json();
+
+  /* Two error shapes reach here and only one was handled. The API's own failures arrive as
+     errorCode/errorMessage, but a plugin that throws — an invalid column, a refused access list —
+     comes back carrying OData's { error: { code, message } }. That shape has no errorCode, so it
+     fell through to JSON.parse(undefined) and the user saw a parser complaint instead of the
+     reason. C-1 defect 2 turned on exactly this: the real message existed and never reached the
+     person who needed it. */
+  if (output.error) throw new Error(output.error.message || output.error.code || "The report engine refused the request.");
   if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  if (!response.ok) throw new Error(`The report engine returned ${response.status}.`);
+  if (typeof output.resultJson !== "string") {
+    throw new Error("The report engine returned no result.");
+  }
   return JSON.parse(output.resultJson);
 }
 
@@ -680,6 +692,36 @@ async function runReport(){
   } catch(e){ host.innerHTML = errorState(e.message); toast(e.message,"error"); }
 }
 
+/* ---------- reading direction ----------
+   The Style & Language tab has offered Arabic and Urdu, both marked right-to-left, for as long as
+   it has existed, and the runtime contained no direction handling whatsoever — a grep for rtl
+   returned one hit, inside the entity name qdb_repo*rtl*ayout. C-2 recorded the consequence: the
+   settings dialog told authors reports render in multiple languages over a product that could not.
+
+   Kept as a set rather than a test for "ar" because Urdu is in the same list, and a report set to
+   Urdu must not quietly render left to right. */
+const RTL_LANGUAGES = new Set(["ar", "ur", "he", "fa"]);
+
+const reportLanguage = () =>
+  ((state.current && state.current.def && state.current.def.layout) || {}).primaryLang || "en";
+
+/** One source of truth for direction: the screen and every exporter must agree, or a report reads
+    one way on screen and the other way in the file the user actually sends on. */
+const isReportRtl = () => RTL_LANGUAGES.has(reportLanguage());
+
+/**
+ * Marks the rendered report with its language and reading direction.
+ *
+ * Direction is set on the host rather than per element so it applies to everything inside —
+ * tables, headers, charts and anything added later — and so a report that is not right-to-left
+ * says so explicitly rather than inheriting whatever the surrounding page happens to be.
+ */
+function applyReportDirection(host){
+  if (!host) return;
+  host.setAttribute("lang", reportLanguage());
+  host.setAttribute("dir", isReportRtl() ? "rtl" : "ltr");
+}
+
 function renderResult(result){
   const layout = state.current.def.layout;
   const laidOut = renderLayout(result, layout);
@@ -696,6 +738,7 @@ function renderResult(result){
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
       <div class="report-paper">${laidOut}</div>`;
     $("#asGrid").onclick = () => renderGrid(result);
+    applyReportDirection($("#resultHost"));
     applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
     return;
   }
@@ -729,6 +772,9 @@ function renderGrid(result){
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  // The grid is the path most reports render through, so direction has to be applied here too —
+  // putting it only in renderResult would leave it invisible for exactly the common case.
+  applyReportDirection($("#resultHost"));
 }
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
@@ -767,7 +813,10 @@ const EXPORT_LIBRARIES = {
   xlsx:  { src: "qdb_reportengine_xlsx.js",              ready: () => !!window.XLSX },
   jspdf: { src: "qdb_reportengine_jspdf.js",             ready: () => !!(window.jspdf && window.jspdf.jsPDF) },
   table: { src: "qdb_reportengine_jspdf_autotable.js",   ready: () => !!(window.jspdf && window.jspdf.jsPDF
-             && typeof window.jspdf.jsPDF.API.autoTable === "function") }
+             && typeof window.jspdf.jsPDF.API.autoTable === "function") },
+  // The heaviest of the four and the least often needed, so it is worth its own entry rather than
+  // being folded into the jsPDF one: an English-only org never downloads it.
+  arabicFont: { src: "qdb_reportengine_arabicfont.js",   ready: () => !!window.QdbReportEngineArabicFont }
 };
 
 const loadedLibraries = {};
@@ -860,6 +909,12 @@ async function exportExcel(result, baseName){
 
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Report");
+
+  // Excel reads column A first from whichever edge the sheet starts at, so an Arabic report whose
+  // sheet is left-to-right comes out with its columns in the reverse of the order it is read in.
+  // The cell text needs nothing — xlsx is UTF-8 throughout — only the sheet's own direction does.
+  if (isReportRtl()) book.Workbook = { Views: [{ RTL: true }] };
+
   const data = XLSX.write(book, { bookType: "xlsx", type: "array" });
   saveBlob(new Blob([data], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
     baseName + ".xlsx");
@@ -868,67 +923,173 @@ async function exportExcel(result, baseName){
 async function exportPdf(result, baseName){
   await loadLibrary("jspdf");
   await loadLibrary("table");
-  const { head, body } = exportRows(result);
+  const rtl = isReportRtl();
+  const { head, body } = orderedForDirection(exportRows(result), rtl);
 
   // Landscape: report tables are wider than they are tall, and portrait squeezes columns to nothing.
   const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-  doc.setFontSize(14);
-  doc.text(String(state.current.def.name || "Report"), 40, 40);
-  doc.setFontSize(9);
-  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, 40, 56);
+  const font = rtl ? await useArabicFont(doc) : "helvetica";
 
-  doc.autoTable({
-    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
-    styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
-    headStyles: { fillColor: [0, 120, 212], textColor: 255, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: [247, 247, 247] }
-  });
+  // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
+  // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an
+  // earlier version of this function did — tells it the input is already visual and turns the pass
+  // OFF, so the words joined correctly and then read backwards. Verified by decoding the produced
+  // PDF through its own ToUnicode map; do not compare glyph ids between two PDFs, they are
+  // per-document and any such comparison is meaningless.
+  drawPdfHeading(doc, result, font, rtl);
+  drawPdfTable(doc, head, body, font, rtl);
 
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
+function drawPdfTable(doc, head, body, font, rtl){
+  doc.autoTable({
+    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
+    styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
+    // Amiri is registered in one weight, so asking for bold would send jsPDF looking for a face
+    // that is not there. The fill colour carries the header instead.
+    headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
+    alternateRowStyles: { fillColor: [247, 247, 247] }
+  });
+}
+
+
+/**
+ * Registers the bundled Arabic font on this document and returns the family to draw with.
+ *
+ * The PDF standard-14 fonts jsPDF falls back on contain no Arabic glyphs, so without this an Arabic
+ * report exported as empty boxes and reported success. Shaping is not the gap — jsPDF substitutes
+ * the presentation forms itself — which is also why the font has to carry U+FE70-FEFF, and why it
+ * has to carry Latin too, or every English word in a bilingual report disappears.
+ */
+async function useArabicFont(doc){
+  await loadLibrary("arabicFont");
+  const font = window.QdbReportEngineArabicFont;
+  doc.addFileToVFS(font.postScriptName, font.base64);
+  doc.addFont(font.postScriptName, font.family, "normal");
+  doc.setFont(font.family);
+  return font.family;
+}
+
+/** Right-to-left reverses the column order so the first column sits at the right edge, matching the
+    screen. autoTable lays its cells out left to right whatever the language. */
+function orderedForDirection({ head, body }, rtl){
+  if (!rtl) return { head, body };
+  return { head: [...head].reverse(), body: body.map(row => [...row].reverse()) };
+}
+
+function drawPdfHeading(doc, result, font, rtl){
+  const align = rtl ? "right" : "left";
+  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+  doc.setFont(font);
+  doc.setFontSize(14);
+  doc.text(String(state.current.def.name || "Report"), x, 40, { align });
+  doc.setFontSize(9);
+  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, x, 56, { align });
+}
+
+const PNG_PADDING = 12;
+const PNG_ROW_HEIGHT = 26;
+const PNG_HEADER_HEIGHT = 34;
+const PNG_TABLE_TOP = PNG_PADDING + 30;
+const PNG_SCALE = 2;                    // draw at 2× so the text is not soft on a normal display
+const PNG_MIN_COLUMN = 80;
+const PNG_MAX_COLUMN = 320;
+const PNG_TITLE_FONT = "600 14px Segoe UI, sans-serif";
+const PNG_HEAD_FONT = "600 12px Segoe UI, sans-serif";
+const PNG_BODY_FONT = "12px Segoe UI, sans-serif";
+
 /**
  * Renders the on-screen report to a PNG. Drawn on a canvas rather than screenshotting the DOM, which
  * would need another library — the table is simple enough to paint directly.
+ *
+ * Arabic needs no font work here, unlike PDF: canvas text is laid out by the browser's own shaper,
+ * so the letters join and mixed runs order themselves. What it does need is the table built from
+ * the right, which is what the rtl flag threads through.
  */
 async function exportPng(result, baseName){
   const { head, body } = exportRows(result);
-  const padding = 12, rowHeight = 26, headerHeight = 34, charWidth = 7;
+  const rtl = isReportRtl();
+  const widths = measuredColumnWidths(head, body);
+  const width = widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2;
+  const height = PNG_TABLE_TOP + PNG_HEADER_HEIGHT + body.length * PNG_ROW_HEIGHT + PNG_PADDING;
 
-  const widths = head.map((label, i) =>
-    Math.min(320, Math.max(80, (Math.max(String(label).length, ...body.map(r => String(r[i] ?? "").length)) + 2) * charWidth)));
-  const width = widths.reduce((a, b) => a + b, 0) + padding * 2;
-  const height = headerHeight + body.length * rowHeight + padding * 2 + 30;
+  const ctx = pngContext(width, height, rtl);
+  drawPngTitle(ctx, width, rtl);
+  drawPngHead(ctx, head, widths, width, rtl);
+  drawPngBody(ctx, body, widths, width, rtl);
 
+  const blob = await new Promise(resolve => ctx.canvas.toBlob(resolve, "image/png"));
+  saveBlob(blob, baseName + ".png");
+}
+
+/** Widths from real glyph widths. The old estimate of 7px per character is wrong for any
+    proportional font and badly wrong for Arabic, where it clipped values that would have fitted. */
+function measuredColumnWidths(head, body){
+  const measure = document.createElement("canvas").getContext("2d");
+  const widthOf = (text, font) => { measure.font = font; return measure.measureText(String(text ?? "")).width; };
+
+  return head.map((label, i) => {
+    // reduce, not Math.max(...spread): a report at the row limit would overflow the argument list.
+    const widest = body.reduce((max, row) => Math.max(max, widthOf(row[i], PNG_BODY_FONT)),
+      widthOf(label, PNG_HEAD_FONT));
+    return Math.min(PNG_MAX_COLUMN, Math.max(PNG_MIN_COLUMN, widest + 16));
+  });
+}
+
+function pngContext(width, height, rtl){
   const canvas = document.createElement("canvas");
-  const scale = 2;                      // draw at 2× so the text is not soft on a normal display
-  canvas.width = width * scale; canvas.height = height * scale;
+  canvas.width = width * PNG_SCALE;
+  canvas.height = height * PNG_SCALE;
   const ctx = canvas.getContext("2d");
-  ctx.scale(scale, scale);
-  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, width, height);
+  ctx.scale(PNG_SCALE, PNG_SCALE);
+  ctx.direction = rtl ? "rtl" : "ltr";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  return ctx;
+}
 
-  ctx.fillStyle = "#201f1e"; ctx.font = "600 14px Segoe UI, sans-serif";
-  ctx.fillText(String(state.current.def.name || "Report"), padding, padding + 14);
+/** Left edge of the cell at logical index i. Right-to-left puts the first column against the right
+    edge, so the exported table is read in the same order as the report on screen. */
+function cellLeft(widths, i, rtl){
+  const before = widths.slice(0, i).reduce((a, b) => a + b, 0);
+  if (!rtl) return PNG_PADDING + before;
+  return PNG_PADDING + widths.reduce((a, b) => a + b, 0) - before - widths[i];
+}
 
-  let y = padding + 30;
-  ctx.fillStyle = "#0078d4"; ctx.fillRect(padding, y, width - padding * 2, headerHeight);
-  ctx.fillStyle = "#ffffff"; ctx.font = "600 12px Segoe UI, sans-serif";
-  let x = padding;
-  head.forEach((label, i) => { ctx.fillText(clipToWidth(ctx, String(label), widths[i] - 10), x + 6, y + 22); x += widths[i]; });
+function drawCellText(ctx, text, widths, i, baseline, rtl){
+  const left = cellLeft(widths, i, rtl);
+  ctx.textAlign = rtl ? "right" : "left";
+  const x = rtl ? left + widths[i] - 6 : left + 6;
+  ctx.fillText(clipToWidth(ctx, String(text ?? ""), widths[i] - 12), x, baseline);
+}
 
-  y += headerHeight;
-  ctx.font = "12px Segoe UI, sans-serif";
+function drawPngTitle(ctx, width, rtl){
+  ctx.fillStyle = "#201f1e";
+  ctx.font = PNG_TITLE_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(String(state.current.def.name || "Report"),
+    rtl ? width - PNG_PADDING : PNG_PADDING, PNG_PADDING + 14);
+}
+
+function drawPngHead(ctx, head, widths, width, rtl){
+  ctx.fillStyle = "#0078d4";
+  ctx.fillRect(PNG_PADDING, PNG_TABLE_TOP, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = PNG_HEAD_FONT;
+  head.forEach((label, i) => drawCellText(ctx, label, widths, i, PNG_TABLE_TOP + 22, rtl));
+}
+
+function drawPngBody(ctx, body, widths, width, rtl){
+  ctx.font = PNG_BODY_FONT;
+  let y = PNG_TABLE_TOP + PNG_HEADER_HEIGHT;
   body.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#f7f7f7" : "#ffffff";
-    ctx.fillRect(padding, y, width - padding * 2, rowHeight);
+    ctx.fillRect(PNG_PADDING, y, width - PNG_PADDING * 2, PNG_ROW_HEIGHT);
     ctx.fillStyle = "#201f1e";
-    x = padding;
-    row.forEach((cell, i) => { ctx.fillText(clipToWidth(ctx, String(cell ?? ""), widths[i] - 10), x + 6, y + 18); x += widths[i]; });
-    y += rowHeight;
+    row.forEach((cell, i) => drawCellText(ctx, cell, widths, i, y + 18, rtl));
+    y += PNG_ROW_HEIGHT;
   });
-
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-  saveBlob(blob, baseName + ".png");
 }
 
 /** Trims with an ellipsis so a long value cannot bleed into the next column. */
@@ -1034,7 +1195,19 @@ async function runDashboardInCrm(dashboardId){
   };
   const response = await xrm().WebApi.online.execute(request);
   const output = await response.json();
+
+  /* Two error shapes reach here and only one was handled. The API's own failures arrive as
+     errorCode/errorMessage, but a plugin that throws — an invalid column, a refused access list —
+     comes back carrying OData's { error: { code, message } }. That shape has no errorCode, so it
+     fell through to JSON.parse(undefined) and the user saw a parser complaint instead of the
+     reason. C-1 defect 2 turned on exactly this: the real message existed and never reached the
+     person who needed it. */
+  if (output.error) throw new Error(output.error.message || output.error.code || "The report engine refused the request.");
   if (output.errorCode) throw new Error(output.errorMessage || output.errorCode);
+  if (!response.ok) throw new Error(`The report engine returned ${response.status}.`);
+  if (typeof output.resultJson !== "string") {
+    throw new Error("The report engine returned no result.");
+  }
   return JSON.parse(output.resultJson);
 }
 
@@ -1718,8 +1891,8 @@ function buildPreviewBody(type, cols, rows, opts) {
      in the designer is no longer something only the designer can see. */
   const columnFont = designFontLookup(layout);
   const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
-  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
-  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"right":"left"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
+  const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
+  const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
   const tile = (t,v) => `<div style="flex:1;min-width:130px;border:1px solid #e1dfdd;border-radius:6px;padding:12px 14px"><div style="font-size:11px;color:#605e5c;text-transform:uppercase;letter-spacing:.5px">${esc(T(t))}</div><div style="font-size:22px;font-weight:700;color:${ac};margin-top:4px">${v}</div></div>`;
   const barChart = items => { const max = Math.max(...items.map(x=>x.v),1); return `<div style="display:flex;flex-direction:column;gap:8px">${items.map(x=>`<div style="display:flex;align-items:center;gap:10px"><div style="width:90px;font-size:11.5px">${esc(T(x.label))}</div><div style="flex:1;background:${acb};border-radius:3px"><div style="width:${Math.round(x.v/max*100)}%;background:${ac};height:16px;border-radius:3px"></div></div><div style="width:120px;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums">${valCol?money(x.v):x.v}</div></div>`).join("")}</div>`; };
   const grandRow = () => valCol ? `<tr class="grand-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Grand total"):(c===valCol?fmtTotal(sum(rows)):"")}</td>`).join("")}</tr>` : "";

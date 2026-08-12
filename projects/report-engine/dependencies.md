@@ -304,3 +304,65 @@ Rationale, and the trade being made:
 Rejected: **pdfmake** (larger, embeds fonts by default), **ExcelJS** (size), **PptxGenJS**
 (no PowerPoint requirement), and any wkhtmltopdf/headless-Chrome approach (needs a server,
 which is what the architecture removed).
+
+---
+
+## Area 11a — Arabic font for PDF export
+
+**Added 2026-08-11**, closing the RTL risk left open above. Measured, not assumed.
+
+| Font | Licence | Size | Latin | Arabic | Presentation forms (U+FE70–FEFF) | Verdict |
+|---|---|---|---|---|---|---|
+| Noto Naskh Arabic | OFL-1.1 | 174 KB | **16%** | 99% | 98% | **Reject** |
+| Noto Sans Arabic | OFL-1.1 | 235 KB | **16%** | 100% | 98% | **Reject** |
+| Scheherazade New | OFL-1.1 | 324 KB | 100% | 100% | **1%** | **Reject** |
+| **Amiri Regular** | **OFL-1.1** | **421 KB** | **100%** | **100%** | **97%** | **ADOPT** |
+
+**Decision: adopt Amiri Regular**, shipped as `qdb_reportengine_arabicfont.js` and loaded on
+demand — an English-only org never downloads it, and a verified English export embeds no
+font at all.
+
+Both rejection reasons are non-obvious and both fail **silently**, so they are recorded here
+to stop the choice being casually revisited:
+
+- **jsPDF does not shape through GSUB.** Its `processArabic` substitutes Unicode presentation
+  forms itself, so the font must have `cmap` entries across **U+FE70–FEFF**. Scheherazade New
+  covers the Arabic block completely and that range not at all, so it renders Arabic as
+  nothing while looking like a perfectly good Arabic font.
+- **An Arabic-only font blanks the English.** Both Noto faces lack Latin letters entirely
+  (they carry digits and some punctuation, which is why the gap is easy to miss). A bilingual
+  report is full of Latin — codes, entity names, column labels — and all of it would vanish.
+
+Provenance, so the committed base64 can be checked against upstream:
+
+- Source: `https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf`
+- SHA-256: `ab391c4147d054c48976e98322ad0eefe1427aa0e0502a12a4c75d80a70cfcd7`
+- Rebuild: `node scripts/build-arabic-font.mjs <Amiri-Regular.ttf>`
+- Licence text committed beside it as `prototype/vendor/Amiri-OFL.txt`
+
+**Weight.** 421 KB is well above the ~150 KB of the other three libraries, and it is the one
+place this area's download-weight rule is stretched. It is accepted because the cost is paid
+only by a user exporting an Arabic PDF, and because jsPDF subsets the font into the output —
+a two-row Arabic report came out at 78 KB, against 4.6 KB for the same report in English.
+
+**Ordering needs no code at all — and an attempt to "fix" it broke it.** jsPDF's default text
+path already runs the bidi pass: Arabic comes out in visual order and Latin and numbers keep
+theirs. Measured, per option, decoding each PDF through its own ToUnicode map:
+
+| passed to `doc.text` | Arabic name | `QAR 1,234.50` |
+|---|---|---|
+| **nothing (the default)** | **visual — correct** | **intact** |
+| `isInputVisual: false` | logical — mirrored | intact |
+| `isOutputVisual: true` | logical — mirrored | intact |
+| `isInputRtl: true` | logical — mirrored | reversed |
+| `setR2L(true)` | logical — mirrored | reversed |
+
+`isInputVisual: false` reads as "the input is not visual, so convert it" but does the opposite
+of what is wanted here: it turns the pass **off**, and the words then join correctly and read
+backwards. A first version of the exporter set that flag around every `doc.text` call and
+shipped mirrored Arabic.
+
+🔴 **The method that produced the wrong conclusion:** glyph ids were compared between two
+separate PDFs. They are assigned per document, so any cross-document comparison is
+meaningless — it "confirmed" that jsPDF never reorders, which is false. Decode through the
+document's own **ToUnicode** map instead; that also proves the text is real selectable text.

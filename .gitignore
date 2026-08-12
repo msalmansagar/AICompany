@@ -42,8 +42,21 @@ Thumbs.db
 **/.claude/sessions/log.md
 .claude/sessions/log.md
 
-# Plugin strong-name key — private key, escrowed in the team secret store, never committed.
+# Plugin strong-name keys.
 *.snk
+
+# Exception: the Report Engine key IS committed, deliberately.
+#
+# It was not, and it was lost — with it went the ability to rebuild or redeploy the plugin at all,
+# because the public key token is part of the assembly identity Dataverse registers. Recovering
+# cost a full delete-and-re-register of the assembly, its three plugin types, five steps and two
+# Custom API bindings, and an outage while reports could not run.
+#
+# A strong name is an identity, not a secret: Microsoft is explicit that it is not a security
+# boundary, and anyone holding the assembly can strip and re-sign it. Escrow in a secret store is
+# still the better practice; committing it to this private repository is the trade taken because
+# the failure mode above is certain to recur otherwise, and the key protects nothing.
+!projects/report-engine/src/Qdb.ReportEngine.CrmPlugin/Qdb.ReportEngine.CrmPlugin.snk
 
 # Scratch space for the ribbon solution export/import round trip.
 projects/report-engine/.ribbon-build/
