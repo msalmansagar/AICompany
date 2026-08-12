@@ -14,7 +14,13 @@ eight files and would probably get it wrong.
 CEO conditions   11 of 13 closed
 ADRs             1 of 5 Accepted
 Architecture     9 of 9 sections decided   ← complete
+Phase 3 gate     PASSED — approve with conditions (5)
+Schema           PROVISIONED + VERIFIED on org5869857f
 ```
+
+**Phase 4 (Build, Delivery Phase A) is authorised and the schema is live.**
+10 entities, 33 columns, solution `MssCmsEngine`. See `phase-3-gate.md` for the
+gate decision and `provisioning-record.md` for what was created and verified.
 
 **Architecture is complete.** §7 closed on the Custom API answer (cloud: Custom
 API; on-premise: Action + plugin, same message names). §8 closed **without** a
@@ -143,8 +149,8 @@ are Phase 6 and Phase 7 gates and do not block the architecture gate.
 | ~~Publisher friendly name~~ | — | ✅ **Done 2026-08-11** — "Muhammad Salman Sagar Technologies" → **"MSS Technologies"** on `org5869857f` |
 | ~~Storage design for on-premise *and* cloud~~ | — | ✅ **Done 2026-08-11** — **Memo everywhere.** One column type, one code path, both platforms; NFR-08 satisfied by construction. ADR-CMS-001 *Storage on two platforms*. Two implementation traps recorded there: the Memo column must be provisioned at `MaxLength` 1,048,576 (**the default is 2,000**), and version-list queries must name their columns or they drag every payload back. |
 | **Confirm Dataverse capacity pricing** | MSS | Before Phase A. The decision moves the version store from file storage to database storage — ≈ 210 MB for a realistic 500-page site. The direction is certain, the cost is not. |
-| **`msst` prefix unused in QDB's environments** | QDB IT | ⚠️ **Before provisioning.** The last thing that can force rework, and a two-minute check. |
-| **File columns on-premise** | QDB IT | Before media upload is built. Decides `msst_cmsmediaasset`; fallback is note attachments. |
+| **`msst` prefix unused — per environment** | QDB IT | ✅ **Verified clean on `org5869857f`** (publisher `MSST` present, 0 `msst_*` entities). ⚠️ **On-premise and production unverified** — repeat before provisioning into each. Gate condition **G-2**. |
+| **File columns on-premise** | QDB IT | Gate condition **G-1** — before FR-20 is built. Decides `msst_cmsmediaasset`'s binary column, which was deliberately left uncreated. Fallback is note attachments. |
 | **Check before escalating a question to the client** | MSS | §8 was blocked on QDB for weeks and was answerable from two documents in this repository. Ask *"can we answer this ourselves?"* before it reaches a client pack. |
 | ADR/prototype schema names still say `qdb_` | MSS | Deferred. §2 records the finding; ADR-CMS-001/005, `phase-1-ceo.md` and the seven prototype pages were never renamed to `msst`. Harmless while nothing is provisioned, wrong the moment a table is created. |
 | `msst` verified unused in other target environments | QDB IT | Fold into Q2's conversation in the session |

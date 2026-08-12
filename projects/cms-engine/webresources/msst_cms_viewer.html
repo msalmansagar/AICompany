@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CMS Engine — published page viewer</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --surface: #ffffff;
+        --ink: #1a1d21;
+        --muted: #5c6470;
+        --line: #e3e6ea;
+        --brand: #7a2c8f;
+        --ok: #1a7f4b;
+        --bad: #b3261e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+        padding: 14px 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 600; }
+      input, select, button {
+        font: inherit;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+        color: var(--ink);
+      }
+      input { min-width: 280px; }
+      button {
+        background: var(--brand);
+        color: #fff;
+        border-color: var(--brand);
+        cursor: pointer;
+      }
+      button:hover { filter: brightness(1.08); }
+      main { max-width: 900px; margin: 24px auto; padding: 0 20px; }
+      .status { margin: 0 0 16px; color: var(--muted); }
+      .status.bad { color: var(--bad); }
+      .status.ok { color: var(--ok); }
+      .page { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+      .block { padding: 22px 26px; border-bottom: 1px solid var(--line); }
+      .block:last-child { border-bottom: 0; }
+      .block-kind {
+        font-size: 11px;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .hero h2 { margin: 0; font-size: 26px; color: var(--brand); }
+      .rich :first-child { margin-top: 0; }
+      .rich :last-child { margin-bottom: 0; }
+      [dir="rtl"] { text-align: right; }
+      .unknown { color: var(--bad); font-style: italic; }
+      pre {
+        background: #10141a;
+        color: #d6deeb;
+        padding: 14px;
+        border-radius: 8px;
+        overflow: auto;
+        font-size: 12px;
+      }
+      details { margin-top: 18px; }
+      summary { cursor: pointer; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CMS Engine — published page</h1>
+      <input id="slug" placeholder="page slug" />
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="ar">العربية</option>
+      </select>
+      <button id="load">Load</button>
+    </header>
+
+    <main>
+      <p class="status" id="status">Enter a slug and press Load.</p>
+      <div class="page" id="page" hidden></div>
+      <details id="rawWrap" hidden>
+        <summary>Raw JSON returned by msst_CmsGetPublishedPageJson</summary>
+        <pre id="raw"></pre>
+      </details>
+    </main>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var statusEl = document.getElementById('status');
+        var pageEl = document.getElementById('page');
+        var rawEl = document.getElementById('raw');
+        var rawWrap = document.getElementById('rawWrap');
+
+        function setStatus(text, kind) {
+          statusEl.textContent = text;
+          statusEl.className = 'status' + (kind ? ' ' + kind : '');
+        }
+
+        /** Web resources run in an iframe; Xrm lives on the parent. */
+        function getXrm() {
+          if (window.Xrm && window.Xrm.WebApi) return window.Xrm;
+          if (window.parent && window.parent.Xrm) return window.parent.Xrm;
+          return null;
+        }
+
+        function textOf(value, language) {
+          if (value == null) return '';
+          if (typeof value === 'string') return value;
+          return value[language] != null ? value[language] : value.en || '';
+        }
+
+        function element(tag, className) {
+          var node = document.createElement(tag);
+          if (className) node.className = className;
+          return node;
+        }
+
+        var RENDERERS = {
+          Hero: function (props, language) {
+            var wrap = element('div', 'hero');
+            var heading = element('h2');
+            heading.textContent = textOf(props.heading, language);
+            wrap.appendChild(heading);
+            return wrap;
+          },
+          RichText: function (props, language) {
+            var wrap = element('div', 'rich');
+            // The payload is sanitised at publish (§6); the renderer trusts it.
+            wrap.innerHTML = textOf(props.body, language);
+            return wrap;
+          },
+        };
+
+        function renderBlock(block, language) {
+          var container = element('section', 'block');
+          var kind = element('div', 'block-kind');
+          kind.textContent = block.type;
+          container.appendChild(kind);
+
+          var renderer = RENDERERS[block.type];
+          if (!renderer) {
+            var missing = element('div', 'unknown');
+            missing.textContent = 'No renderer for block type "' + block.type + '"';
+            container.appendChild(missing);
+            return container;
+          }
+
+          var body = renderer(block.props || {}, language);
+          if (language === 'ar') body.setAttribute('dir', 'rtl');
+          container.appendChild(body);
+          return container;
+        }
+
+        function render(pageJson, language) {
+          pageEl.innerHTML = '';
+          var blocks = pageJson.content || [];
+          if (blocks.length === 0) {
+            setStatus('The page published, but carries no blocks.', 'bad');
+            return;
+          }
+          blocks.forEach(function (block) {
+            pageEl.appendChild(renderBlock(block, language));
+          });
+          pageEl.hidden = false;
+        }
+
+        function load() {
+          var slug = document.getElementById('slug').value.trim();
+          var language = document.getElementById('lang').value;
+          if (!slug) {
+            setStatus('Enter a page slug first.', 'bad');
+            return;
+          }
+
+          var xrm = getXrm();
+          if (!xrm) {
+            setStatus(
+              'Xrm is not available. Open this through main.aspx?pagetype=webresource, not the raw /WebResources/ URL.',
+              'bad'
+            );
+            return;
+          }
+
+          setStatus('Loading ' + slug + '…');
+          pageEl.hidden = true;
+          rawWrap.hidden = true;
+
+          xrm.WebApi.online
+            .execute({
+              Slug: slug,
+              LanguageCode: language,
+              getMetadata: function () {
+                return {
+                  boundParameter: null,
+                  operationType: 0,
+                  operationName: 'msst_CmsGetPublishedPageJson',
+                  parameterTypes: {
+                    Slug: { typeName: 'Edm.String', structuralProperty: 1 },
+                    LanguageCode: { typeName: 'Edm.String', structuralProperty: 1 },
+                  },
+                };
+              },
+            })
+            .then(function (response) {
+              return response.json();
+            })
+            .then(function (result) {
+              rawEl.textContent = JSON.stringify(JSON.parse(result.PageJson), null, 2);
+              rawWrap.hidden = false;
+              render(JSON.parse(result.PageJson), language);
+              setStatus('Served from the render cache — this is published content.', 'ok');
+            })
+            .catch(function (error) {
+              setStatus(error.message || String(error), 'bad');
+            });
+        }
+
+        document.getElementById('load').addEventListener('click', load);
+        document.getElementById('slug').addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') load();
+        });
+
+        var fromUrl = new URLSearchParams(window.location.search).get('data');
+        if (fromUrl) {
+          document.getElementById('slug').value = fromUrl;
+          load();
+        }
+      })();
+    </script>
+  </body>
+</html>
