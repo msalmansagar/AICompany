@@ -8,11 +8,14 @@ import {
   createSite,
   listPages,
   listSites,
+  listVersions,
   loadLatestVersion,
   publishPage,
+  restoreVersion,
   saveVersion,
   type PageSummary,
   type SiteSummary,
+  type VersionSummary,
 } from './dataverse';
 
 const EMPTY_PAGE: Data = { root: { props: {} }, content: [], zones: {} };
@@ -25,6 +28,7 @@ export function App() {
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [selected, setSelected] = useState<PageSummary | null>(null);
   const [data, setData] = useState<Data>(EMPTY_PAGE);
+  const [versions, setVersions] = useState<VersionSummary[]>([]);
   const [notice, setNotice] = useState<Notice>({ text: 'Loading portals…', tone: 'info' });
 
   const refresh = useCallback(async (forSite: SiteSummary | null) => {
@@ -86,6 +90,7 @@ export function App() {
       const version = await loadLatestVersion(page.id);
       setSelected(page);
       setData((version?.content as Data) ?? EMPTY_PAGE);
+      setVersions(await listVersions(page.id));
       setNotice(
         version
           ? { text: `Editing ${page.slug}, version ${version.versionNumber}.`, tone: 'info' }
@@ -122,6 +127,7 @@ export function App() {
     try {
       const versionNumber = await saveVersion(selected.id, selected.slug, next);
       setData(next);
+      setVersions(await listVersions(selected.id));
       setNotice({ text: `Saved as version ${versionNumber}.`, tone: 'ok' });
     } catch (error) {
       setNotice({ text: message(error), tone: 'bad' });
@@ -139,6 +145,28 @@ export function App() {
     try {
       const versionNumber = await approveLatestVersion(selected.id, selected.slug, 'standard');
       setNotice({ text: `Version ${versionNumber} approved on the standard route.`, tone: 'ok' });
+    } catch (error) {
+      setNotice({ text: message(error), tone: 'bad' });
+    }
+  }
+
+  /**
+   * Copies a prior version forward (FR-63). Nothing is deleted, and the
+   * restored content needs approval before it can go live — a rollback must not
+   * be a way around FR-60.
+   */
+  async function restore(versionNumber: number) {
+    if (!selected) return;
+    setNotice({ text: `Restoring version ${versionNumber}…`, tone: 'info' });
+    try {
+      const created = await restoreVersion(selected.id, selected.slug, versionNumber);
+      const latest = await loadLatestVersion(selected.id);
+      setData((latest?.content as Data) ?? EMPTY_PAGE);
+      setVersions(await listVersions(selected.id));
+      setNotice({
+        text: `Version ${versionNumber} restored as version ${created}. It needs approval before it goes live.`,
+        tone: 'ok',
+      });
     } catch (error) {
       setNotice({ text: message(error), tone: 'bad' });
     }
@@ -216,6 +244,22 @@ export function App() {
                 </button>
               </span>
             </div>
+            {versions.length > 1 && (
+              <details className="history">
+                <summary>Version history ({versions.length})</summary>
+                <ul>
+                  {versions.map((version) => (
+                    <li key={version.id}>
+                      <span>
+                        <strong>v{version.versionNumber}</strong> {version.label}
+                      </span>
+                      <button onClick={() => void restore(version.versionNumber)}>Restore</button>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             <Puck
               config={config}
               data={data}

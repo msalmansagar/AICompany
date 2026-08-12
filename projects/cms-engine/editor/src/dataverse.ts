@@ -43,6 +43,13 @@ export interface PageVersion {
   content: unknown;
 }
 
+export interface VersionSummary {
+  id: string;
+  versionNumber: number;
+  label: string;
+  createdOn: string;
+}
+
 interface XrmLike {
   WebApi: {
     retrieveMultipleRecords(entity: string, options: string): Promise<{ entities: any[] }>;
@@ -237,6 +244,63 @@ function currentUserId(): string {
   const context = (window.parent as any)?.Xrm?.Utility?.getGlobalContext?.();
   const raw = context?.userSettings?.userId ?? '';
   return String(raw).replace(/[{}]/g, '');
+}
+
+/**
+ * Version history, newest first. The content column is deliberately not
+ * selected: a Memo comes back with the record unless the query names its
+ * columns, and a history list would otherwise drag every payload with it
+ * (AC-08.2).
+ */
+export async function listVersions(pageId: string): Promise<VersionSummary[]> {
+  const result = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmspageversion',
+    '?$select=msst_cmspageversionid,msst_versionnumber,msst_versionlabel,createdon' +
+      `&$filter=_msst_pageid_value eq ${pageId}&$orderby=msst_versionnumber desc`,
+  );
+  return result.entities.map((row) => ({
+    id: row.msst_cmspageversionid,
+    versionNumber: row.msst_versionnumber,
+    label: row.msst_versionlabel ?? '',
+    createdOn: row.createdon ?? '',
+  }));
+}
+
+/**
+ * Restores a prior version by copying it forward as a new one (FR-63).
+ *
+ * History is never deleted, and the restored content is not live until it
+ * passes the normal approval route — a new version carries no approval, so the
+ * publish gate refuses it until someone approves. Rollback must not become a
+ * path around FR-60.
+ */
+export async function restoreVersion(
+  pageId: string,
+  slug: string,
+  restoreFrom: number,
+): Promise<number> {
+  const source = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmspageversion',
+    `?$select=msst_contentjson&$filter=_msst_pageid_value eq ${pageId}` +
+      ` and msst_versionnumber eq ${restoreFrom}&$top=1`,
+  );
+  const content = source.entities[0]?.msst_contentjson;
+  if (!content) throw new Error(`Version ${restoreFrom} could not be read.`);
+
+  const versions = await listVersions(pageId);
+  const versionNumber = (versions[0]?.versionNumber ?? 0) + 1;
+
+  await xrm().WebApi.createRecord('msst_cmspageversion', {
+    // Provenance lives in the label because the schema has no field for it.
+    msst_versionlabel: `${slug} v${versionNumber} (restored from v${restoreFrom})`,
+    msst_versionnumber: versionNumber,
+    msst_contentjson: content,
+    msst_islatest: true,
+    msst_schemaversion: '1.0',
+    'msst_pageid@odata.bind': `/${PAGE_SET}(${pageId})`,
+  });
+
+  return versionNumber;
 }
 
 export interface PublishResult {

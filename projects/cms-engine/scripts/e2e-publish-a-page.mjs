@@ -409,6 +409,133 @@ async function main() {
     scriptTag.message.slice(0, 110),
   );
 
+  // -- Reclassification (§5) -------------------------------------------------
+  // An approval is granted for a route. If the route changes, the approval was
+  // for a question no longer being asked. The gate matches on the route frozen
+  // onto the approval row, so this should already hold — but a control that has
+  // never been seen to fire is not known to work.
+  console.log('\nReclassification');
+
+  const reclassSlug = `e2e-reclass-${stamp}`;
+  const reclassPage = await send('POST', 'msst_cmspages', {
+    msst_slug: reclassSlug,
+    msst_titleen: 'Reclassified',
+    msst_status: 100000000,
+    msst_classification: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
+  });
+  await send('POST', 'msst_cmspageversions', {
+    msst_versionlabel: `${reclassSlug} v1`,
+    msst_versionnumber: 1,
+    msst_contentjson: encode(JSON.stringify({ root: {}, content: [], zones: {} })),
+    msst_islatest: true,
+    'msst_pageid@odata.bind': `/msst_cmspages(${reclassPage.id})`,
+  });
+  await approve(reclassPage.id, `${reclassSlug} v1 approval`, 'standard');
+
+  // Approved as Standard, then moved to Regulated without re-approval.
+  await send('PATCH', `msst_cmspages(${reclassPage.id})`, { msst_classification: 100000001 });
+
+  try {
+    await send('POST', 'msst_CmsPublishPage', { PageId: reclassPage.id });
+    check(
+      'reclassifying invalidates an unpublished approval',
+      false,
+      'published on a Standard approval after becoming Regulated',
+    );
+  } catch (error) {
+    check(
+      'reclassifying invalidates an unpublished approval',
+      /no approval for the 'regulated' route/i.test(error.dataverseMessage),
+      error.dataverseMessage.slice(0, 110),
+    );
+  }
+
+  // -- Version restore (FR-63) -----------------------------------------------
+  console.log('\nVersion restore');
+
+  const restoreSlug = `e2e-restore-${stamp}`;
+  const restorePage = await send('POST', 'msst_cmspages', {
+    msst_slug: restoreSlug,
+    msst_titleen: 'Restorable',
+    msst_status: 100000000,
+    msst_classification: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
+  });
+
+  const bodyOf = (text) =>
+    JSON.stringify({
+      root: {},
+      content: [{ type: 'RichText', props: { body: { en: `<p>${text}</p>`, ar: '<p>نص</p>' } } }],
+      zones: {},
+    });
+
+  async function addVersion(number, text) {
+    await send('POST', 'msst_cmspageversions', {
+      msst_versionlabel: `${restoreSlug} v${number}`,
+      msst_versionnumber: number,
+      msst_contentjson: encode(bodyOf(text)),
+      msst_islatest: true,
+      'msst_pageid@odata.bind': `/msst_cmspages(${restorePage.id})`,
+    });
+  }
+
+  await addVersion(1, 'original');
+  await approve(restorePage.id, `${restoreSlug} v1 approval`);
+  await send('POST', 'msst_CmsPublishPage', { PageId: restorePage.id });
+
+  await addVersion(2, 'a regrettable edit');
+  await approve(restorePage.id, `${restoreSlug} v2 approval`);
+  await send('POST', 'msst_CmsPublishPage', { PageId: restorePage.id });
+
+  // Restore v1 by copying it forward, exactly as the editor does.
+  const v1 = await send(
+    'GET',
+    `msst_cmspageversions?$select=msst_contentjson&$filter=_msst_pageid_value eq ${restorePage.id}` +
+      ' and msst_versionnumber eq 1&$top=1',
+  );
+  await send('POST', 'msst_cmspageversions', {
+    msst_versionlabel: `${restoreSlug} v3 (restored from v1)`,
+    msst_versionnumber: 3,
+    msst_contentjson: v1.body.value[0].msst_contentjson,
+    msst_islatest: true,
+    'msst_pageid@odata.bind': `/msst_cmspages(${restorePage.id})`,
+  });
+
+  const history = await send(
+    'GET',
+    `msst_cmspageversions?$select=msst_versionnumber&$filter=_msst_pageid_value eq ${restorePage.id}`,
+  );
+  check(
+    'restoring deletes no history',
+    history.body.value.length === 3,
+    `${history.body.value.length} versions retained`,
+  );
+
+  try {
+    await send('POST', 'msst_CmsPublishPage', { PageId: restorePage.id });
+    check('a restored version still needs approval', false, 'published without approval');
+  } catch (error) {
+    check(
+      'a restored version still needs approval',
+      /no approval/i.test(error.dataverseMessage),
+      error.dataverseMessage.slice(0, 100),
+    );
+  }
+
+  await approve(restorePage.id, `${restoreSlug} v3 approval`);
+  await send('POST', 'msst_CmsPublishPage', { PageId: restorePage.id });
+  const restored = await send('POST', 'msst_CmsGetPublishedPageJson', {
+    Site: siteKey,
+    Slug: restoreSlug,
+    LanguageCode: 'en',
+  });
+  check(
+    'the restored content is what goes live',
+    JSON.parse(restored.body.PageJson).content[0].props.body.en.includes('original'),
+    JSON.parse(restored.body.PageJson).content[0].props.body.en,
+  );
+
   // Two portals, same slug: proof that the cache key is site-scoped.
   const secondSiteKey = `e2e-site2-${stamp}`;
   const secondSite = await send('POST', 'msst_cmssites', {
