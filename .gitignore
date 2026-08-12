@@ -42,8 +42,28 @@ Thumbs.db
 **/.claude/sessions/log.md
 .claude/sessions/log.md
 
-# Plugin strong-name key — private key, escrowed in the team secret store, never committed.
+# Plugin strong-name keys.
+#
+# This rule cost the Report Engine its assembly. The key was "escrowed in the
+# team secret store"; when the build machine was rebuilt it was gone from the
+# machine and nobody could produce it, so that assembly can never be updated —
+# a new key means a new public key token, which means a new assembly identity
+# and a re-registration of every plugin step.
+#
+# A strong name is an identity, not a secret. Microsoft's own guidance is that
+# strong naming is not a security boundary: anyone can extract the public key
+# from a shipped assembly, and possession of the .snk grants no privilege beyond
+# building an assembly that claims the same identity. The cost of losing it is
+# certain and severe; the cost of committing it is close to zero.
+#
+# So keys stay ignored by default, and each project's key is un-ignored
+# deliberately, beside the project it signs.
 *.snk
+!projects/cms-engine/crm-plugins/Msst.CmsEngine.Plugins/Msst.CmsEngine.snk
 
 # Scratch space for the ribbon solution export/import round trip.
 projects/report-engine/.ribbon-build/
+
+# Editor build dependencies and the generated single-file bundle.
+projects/cms-engine/editor/node_modules/
+projects/cms-engine/webresources/msst_cms_editor.html

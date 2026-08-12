@@ -1,0 +1,88 @@
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #1a1d21;
+  --muted: #5c6470;
+  --line: #e3e6ea;
+  --brand: #7a2c8f;
+  --ok: #1a7f4b;
+  --bad: #b3261e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+.shell { display: grid; grid-template-columns: 260px 1fr; height: 100vh; }
+
+aside {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.aside-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+aside ul { list-style: none; margin: 0; padding: 0; }
+
+button {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover { background: #f0f2f5; }
+
+button.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+button.primary:hover { filter: brightness(1.08); }
+
+button.page {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  text-align: left;
+  padding: 11px 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+button.page.selected { background: #f3ecf6; box-shadow: inset 3px 0 0 var(--brand); }
+
+.slug { font-weight: 600; }
+.status { color: var(--muted); font-size: 12px; }
+.empty, .hint { color: var(--muted); padding: 16px; }
+
+main { display: flex; flex-direction: column; overflow: hidden; }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.notice { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.notice.ok { color: var(--ok); }
+.notice.bad { color: var(--bad); }
+.notice.info { color: var(--muted); }
+
+main > :global(.puck) { flex: 1; min-height: 0; }

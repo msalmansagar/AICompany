@@ -1,0 +1,26 @@
+{
+  "name": "@msst/cms-editor",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "CMS Engine authoring surface — a Dataverse web resource, per architecture §1.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node rename-output.mjs",
+    "deploy": "node ../scripts/deploy-webresources.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@measured/puck": "^0.19.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vite-plugin-singlefile": "^2.1.0"
+  }
+}
