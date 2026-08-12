@@ -19,6 +19,12 @@ const check = (name, ok, detail = '') => {
 // --- a browser-ish environment the exporters can run in -------------------------------------
 const saved = [];
 globalThis.window = globalThis;
+// jsPDF's UMD reads navigator while loading. Node 21+ has a global one and older Node does not, so
+// without this the suite passes locally and fails in CI — which is the reverse of useful.
+// defineProperty, not assignment: where it does exist it is getter-only.
+Object.defineProperty(globalThis, 'navigator', {
+  value: { userAgent: 'node', language: 'en' }, configurable: true, writable: true
+});
 globalThis.Blob = class { constructor(parts, opts){ this.parts = parts; this.type = (opts||{}).type; } };
 globalThis.URL = { createObjectURL: () => 'blob:x', revokeObjectURL(){} };
 globalThis.document = {
