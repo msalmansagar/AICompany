@@ -18,6 +18,24 @@ export interface Bilingual {
   ar: string;
 }
 
+export type PreviewLanguage = 'en' | 'ar' | 'both';
+
+/**
+ * Which language the canvas renders (FR-04).
+ *
+ * Module-scoped rather than passed through Puck's config because a Puck render
+ * function receives only its own props. The editor remounts Puck when this
+ * changes, which is what makes the switch take effect.
+ */
+let previewLanguage: PreviewLanguage = 'both';
+
+export function setPreviewLanguage(language: PreviewLanguage): void {
+  previewLanguage = language;
+}
+
+const showEnglish = () => previewLanguage !== 'ar';
+const showArabic = () => previewLanguage !== 'en';
+
 export interface HeroProps {
   heading: Bilingual;
   accent: string;
@@ -71,13 +89,22 @@ export const config: Config<CmsComponents> = {
       },
       render: ({ heading, accent }) => (
         <section style={{ padding: '32px 28px', borderBottom: '1px solid #e3e6ea' }}>
-          <h2 style={{ margin: 0, fontSize: 28, color: tokenColour(accent) }}>{heading?.en}</h2>
-          <h2
-            dir="rtl"
-            style={{ margin: '6px 0 0', fontSize: 24, color: '#5c6470', fontWeight: 500 }}
-          >
-            {heading?.ar}
-          </h2>
+          {showEnglish() && (
+            <h2 style={{ margin: 0, fontSize: 28, color: tokenColour(accent) }}>{heading?.en}</h2>
+          )}
+          {showArabic() && (
+            <h2
+              dir="rtl"
+              style={{
+                margin: showEnglish() ? '6px 0 0' : 0,
+                fontSize: showEnglish() ? 24 : 28,
+                color: showEnglish() ? '#5c6470' : tokenColour(accent),
+                fontWeight: showEnglish() ? 500 : 700,
+              }}
+            >
+              {heading?.ar}
+            </h2>
+          )}
         </section>
       ),
     },
@@ -92,12 +119,18 @@ export const config: Config<CmsComponents> = {
       },
       render: ({ body }) => (
         <section style={{ padding: '22px 28px', borderBottom: '1px solid #e3e6ea' }}>
-          <div dangerouslySetInnerHTML={{ __html: body?.en ?? '' }} />
-          <div
-            dir="rtl"
-            style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e3e6ea' }}
-            dangerouslySetInnerHTML={{ __html: body?.ar ?? '' }}
-          />
+          {showEnglish() && <div dangerouslySetInnerHTML={{ __html: body?.en ?? '' }} />}
+          {showArabic() && (
+            <div
+              dir="rtl"
+              style={
+                showEnglish()
+                  ? { marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e3e6ea' }
+                  : undefined
+              }
+              dangerouslySetInnerHTML={{ __html: body?.ar ?? '' }}
+            />
+          )}
         </section>
       ),
     },

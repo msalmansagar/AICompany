@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
-import { config } from './blocks';
+import { config, setPreviewLanguage, type PreviewLanguage } from './blocks';
+import { deriveSlug, findMissingArabic } from './authoring';
 import {
   approveLatestVersion,
   createPage,
   createSite,
+  duplicatePage,
+  saveDraft,
   listPages,
   listSites,
   listVersions,
@@ -29,7 +32,10 @@ export function App() {
   const [selected, setSelected] = useState<PageSummary | null>(null);
   const [data, setData] = useState<Data>(EMPTY_PAGE);
   const [versions, setVersions] = useState<VersionSummary[]>([]);
+  const [language, setLanguage] = useState<PreviewLanguage>('both');
+  const [width, setWidth] = useState<number | null>(null);
   const [notice, setNotice] = useState<Notice>({ text: 'Loading portals…', tone: 'info' });
+  const autoSave = useRef<number | null>(null);
 
   const refresh = useCallback(async (forSite: SiteSummary | null) => {
     if (!forSite) {
@@ -43,6 +49,10 @@ export function App() {
       setNotice({ text: message(error), tone: 'bad' });
     }
   }, []);
+
+  useEffect(() => {
+    setPreviewLanguage(language);
+  }, [language]);
 
   useEffect(() => {
     void (async () => {
@@ -106,9 +116,12 @@ export function App() {
       setNotice({ text: 'Create a portal before adding pages.', tone: 'bad' });
       return;
     }
-    const slug = window.prompt('URL slug, for example about-us');
+    const titleEn = window.prompt('Page title (English)');
+    if (!titleEn) return;
+
+    // The slug is derived and then offered for editing, per FR-01.
+    const slug = window.prompt('URL slug — edit if you want something else', deriveSlug(titleEn));
     if (!slug) return;
-    const titleEn = window.prompt('Title (English)') ?? slug;
     const titleAr = window.prompt('Title (العربية)') ?? '';
 
     try {
@@ -150,6 +163,50 @@ export function App() {
     }
   }
 
+  /** Copies a page and its content into a new page (FR-07). */
+  async function duplicate() {
+    if (!selected || !site) return;
+    const slug = window.prompt('Slug for the copy', deriveSlug(`${selected.slug} copy`));
+    if (!slug) return;
+
+    try {
+      const id = await duplicatePage(selected, site.id, slug.trim());
+      await refresh(site);
+      await openPage({
+        id,
+        slug: slug.trim(),
+        titleEn: `${selected.titleEn} (copy)`,
+        titleAr: selected.titleAr,
+        status: 'Draft',
+        siteId: site.id,
+      });
+      setNotice({ text: `Copied to ${slug.trim()}.`, tone: 'ok' });
+    } catch (error) {
+      setNotice({ text: message(error), tone: 'bad' });
+    }
+  }
+
+  /**
+   * Auto-save (FR-06). Debounced, and it updates the working version rather
+   * than creating one per pause — see saveDraft for why that reading of FR-62.
+   */
+  function scheduleAutoSave(next: Data) {
+    if (!selected) return;
+    if (autoSave.current !== null) window.clearTimeout(autoSave.current);
+
+    autoSave.current = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const versionNumber = await saveDraft(selected.id, selected.slug, next);
+          setVersions(await listVersions(selected.id));
+          setNotice({ text: `Draft saved to version ${versionNumber}.`, tone: 'info' });
+        } catch (error) {
+          setNotice({ text: message(error), tone: 'bad' });
+        }
+      })();
+    }, 2500);
+  }
+
   /**
    * Copies a prior version forward (FR-63). Nothing is deleted, and the
    * restored content needs approval before it can go live — a rollback must not
@@ -174,6 +231,21 @@ export function App() {
 
   async function publish() {
     if (!selected) return;
+
+    // FR-08: report untranslated fields before publish, but do not block.
+    // Publishing English first is a legitimate choice; not knowing is not.
+    const missing = findMissingArabic(data);
+    if (missing.length > 0) {
+      const list = missing.map((item) => `${item.block}.${item.field}`).join(', ');
+      const proceed = window.confirm(
+        `${missing.length} field(s) have no Arabic: ${list}\n\nPublish anyway?`,
+      );
+      if (!proceed) {
+        setNotice({ text: `Publish cancelled. Missing Arabic: ${list}`, tone: 'bad' });
+        return;
+      }
+    }
+
     setNotice({ text: 'Publishing…', tone: 'info' });
     try {
       const result = await publishPage(selected.id, 'Published from the editor');
@@ -236,8 +308,35 @@ export function App() {
             <div className="toolbar">
               <strong>
                 {site?.key}/{selected.slug}
+                {/* FR-67: an unpublished page is visibly marked. */}
+                {selected.status !== 'Published' && <span className="draft">Draft</span>}
               </strong>
+
               <span className="actions">
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value as PreviewLanguage)}
+                  title="Preview language"
+                >
+                  <option value="both">Both languages</option>
+                  <option value="en">English only</option>
+                  <option value="ar">العربية only</option>
+                </select>
+
+                <select
+                  value={width ?? ''}
+                  onChange={(event) =>
+                    setWidth(event.target.value === '' ? null : Number(event.target.value))
+                  }
+                  title="Preview width"
+                >
+                  <option value="">Full width</option>
+                  <option value="1280">Desktop 1280</option>
+                  <option value="768">Tablet 768</option>
+                  <option value="390">Mobile 390</option>
+                </select>
+
+                <button onClick={() => void duplicate()}>Duplicate</button>
                 <button onClick={() => void approve()}>Approve</button>
                 <button className="primary" onClick={() => void publish()}>
                   Publish
@@ -260,12 +359,22 @@ export function App() {
               </details>
             )}
 
-            <Puck
-              config={config}
-              data={data}
-              onPublish={(next) => void save(next)}
-              headerTitle={selected.slug}
-            />
+            <div
+              className="canvas"
+              style={width ? { maxWidth: width, margin: '0 auto', width: '100%' } : undefined}
+            >
+              <Puck
+                // Remounted when the preview language changes: Puck render
+                // functions read it from module scope, so nothing re-renders
+                // without this.
+                key={language}
+                config={config}
+                data={data}
+                onChange={(next) => scheduleAutoSave(next)}
+                onPublish={(next) => void save(next)}
+                headerTitle={`${selected.slug}${width ? ` — ${width}px` : ''}`}
+              />
+            </div>
           </>
         )}
       </main>

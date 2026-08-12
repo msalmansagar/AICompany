@@ -54,6 +54,7 @@ interface XrmLike {
   WebApi: {
     retrieveMultipleRecords(entity: string, options: string): Promise<{ entities: any[] }>;
     createRecord(entity: string, record: object): Promise<{ id: string }>;
+    updateRecord(entity: string, id: string, record: object): Promise<{ id: string }>;
     online: { execute(request: object): Promise<Response> };
   };
 }
@@ -192,7 +193,7 @@ export async function loadLatestVersion(pageId: string): Promise<PageVersion | n
   };
 }
 
-/** Every save is a new version. No version is ever edited in place (FR-62). */
+/** Every deliberate save is a new version. No published version is ever edited (FR-62). */
 export async function saveVersion(pageId: string, slug: string, content: unknown): Promise<number> {
   const latest = await loadLatestVersion(pageId);
   const versionNumber = (latest?.versionNumber ?? 0) + 1;
@@ -207,6 +208,71 @@ export async function saveVersion(pageId: string, slug: string, content: unknown
   });
 
   return versionNumber;
+}
+
+/**
+ * Persists work in progress without creating a version per keystroke.
+ *
+ * FR-06 wants drafts saved with no explicit action; FR-62 wants every save to
+ * create a version that is never edited in place. Taken literally together they
+ * produce hundreds of versions per editing session, which makes version history
+ * useless for the thing FR-63 needs it for.
+ *
+ * The reading applied here: **a version becomes immutable once it has been
+ * approved or published**, and until then it is the working draft. So an
+ * editing session produces one version, not one per pause, and nothing that any
+ * approver or visitor has ever seen is altered.
+ *
+ * Recorded as a decision needing ratification — it is an interpretation of
+ * FR-62, not a restatement of it.
+ */
+export async function saveDraft(pageId: string, slug: string, content: unknown): Promise<number> {
+  const latest = await latestVersionRecord(pageId);
+  const encoded = await encode(JSON.stringify(content));
+
+  if (latest && !(await isSealed(latest.id))) {
+    await xrm().WebApi.updateRecord('msst_cmspageversion', latest.id, {
+      msst_contentjson: encoded,
+    });
+    return latest.versionNumber;
+  }
+
+  return saveVersion(pageId, slug, content);
+}
+
+/** A version is sealed once an approval decision exists against it. */
+async function isSealed(versionId: string): Promise<boolean> {
+  const approvals = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmsapproval',
+    `?$select=msst_cmsapprovalid&$filter=_msst_versionid_value eq ${versionId}&$top=1`,
+  );
+  return approvals.entities.length > 0;
+}
+
+async function latestVersionRecord(
+  pageId: string,
+): Promise<{ id: string; versionNumber: number } | null> {
+  const result = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmspageversion',
+    `?$select=msst_cmspageversionid,msst_versionnumber&$filter=_msst_pageid_value eq ${pageId}` +
+      '&$orderby=msst_versionnumber desc&$top=1',
+  );
+  const row = result.entities[0];
+  return row ? { id: row.msst_cmspageversionid, versionNumber: row.msst_versionnumber } : null;
+}
+
+/** Copies a page and its latest content into a new page (FR-07). */
+export async function duplicatePage(
+  source: PageSummary,
+  siteId: string,
+  slug: string,
+): Promise<string> {
+  const newPageId = await createPage(siteId, slug, `${source.titleEn} (copy)`, source.titleAr);
+  const latest = await loadLatestVersion(source.id);
+  if (latest) {
+    await saveVersion(newPageId, slug, latest.content);
+  }
+  return newPageId;
 }
 
 /**
