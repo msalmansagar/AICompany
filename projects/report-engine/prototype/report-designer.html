@@ -4898,15 +4898,19 @@ const RAIL_PANELS = {
     ]
   },
   security: {
-    title: "Security", hint: "Enforced server-side; these are convenience only.",
+    /* Only canexecute is enforced, in the plugin. The previous hint — "enforced server-side; these
+       are convenience only" — managed to imply both at once and distinguished nothing, and this is
+       the surface an author actually ticks the boxes on. Phase 7 accepted the limit on condition it
+       was stated to users rather than left in a code comment. */
+    title: "Security", hint: "Only “Can run” is enforced, in the plugin. Export and edit are recorded, not enforced — once a report has run its rows are already in the browser, so use CRM security and column masking for anything confidential.",
     list: r => r.security, label: s => s.ref || s.ptype || "Principal",
     add: () => ({ ptype: "Security role", ref: "", view: true, run: true, export: false, edit: false, approve: false }),
     fields: [
       { k: "ptype", label: "Principal type", options: () => PRINCIPAL_TYPES },
       { k: "ref", label: "Name" },
-      { k: "run", label: "Can run", type: "check" },
-      { k: "export", label: "Can export", type: "check" },
-      { k: "edit", label: "Can edit", type: "check" }
+      { k: "run", label: "Can run — enforced", type: "check" },
+      { k: "export", label: "Can export (recorded only)", type: "check" },
+      { k: "edit", label: "Can edit (recorded only)", type: "check" }
     ]
   },
   ribbon: {
