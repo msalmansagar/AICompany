@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Runs the viewer's exporters against a real executed result, with the vendored libraries loaded
 // from disk, and checks each produces a genuinely valid file rather than merely not throwing.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const PROTO = fileURLToPath(new URL('../prototype', import.meta.url));
-const html = readFileSync(`${PROTO}/report-runtime.html`, 'utf8');
+const html = readFileSync(`${PROTO}/report-engine-core.js`, 'utf8');
 const source = html.slice(html.indexOf('/* ---------------- exports ----------------'), html.indexOf('/* ---------------- identity ----------------'));
 
 let passed = 0, failed = 0;
@@ -27,19 +27,30 @@ globalThis.document = {
   body: { appendChild(el){ saved.push(el); }, }
 };
 function makeCanvas(){
-  return { width:0, height:0,
-    getContext: () => ({ scale(){}, fillRect(){}, fillText(){}, measureText: t => ({ width: String(t).length * 7 }), set fillStyle(v){}, set font(v){} }),
+  const canvas = { width:0, height:0,
     toBlob: cb => cb(new globalThis.Blob([new Uint8Array([0x89,0x50,0x4e,0x47])], { type:'image/png' })) };
+  // A real 2D context carries a back-reference to its canvas, and the PNG exporter uses it
+  // (ctx.canvas.toBlob). A stub without it fails on code that is correct in a browser.
+  canvas.getContext = () => ({
+    canvas, scale(){}, fillRect(){}, fillText(){},
+    measureText: t => ({ width: String(t).length * 7 }),
+    set fillStyle(v){}, set font(v){}, set textAlign(v){}, set direction(v){}
+  });
+  return canvas;
 }
 
 // Capture what saveBlob would have downloaded.
 const downloads = [];
-const api = new Function('esc', 'state', 'toast', 'captureBlob', `
+// Direction is injected rather than stubbed away, so the right-to-left paths are exercised too:
+// the sheet direction Excel needs, and the Arabic font a PDF needs. Both were shipped broken once.
+let rightToLeft = false;
+const api = new Function('esc', 'state', 'toast', 'captureBlob', 'isReportRtl', 'reportLanguage', `
   ${source}
   saveBlob = (blob, filename) => captureBlob(blob, filename);
   return { exportCsv, exportExcel, exportPdf, exportPng, exportRows, loadLibrary, EXPORT_FORMATS };
 `)(s => String(s ?? ''), { current: { def: { name: 'Active Accounts', reportCode: 'RPT-EXEC-001' } } },
-   () => {}, (blob, filename) => downloads.push({ blob, filename }));
+   () => {}, (blob, filename) => downloads.push({ blob, filename }),
+   () => rightToLeft, () => rightToLeft ? 'ar' : 'en');
 
 // Load the vendored libraries the way the browser would.
 new Function(readFileSync(`${PROTO}/vendor/xlsx.mini.min.js`, 'utf8')).call(globalThis);

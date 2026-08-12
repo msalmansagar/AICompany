@@ -1871,6 +1871,10 @@ function renderLayout(result, layout){
   const model = toRenderModel(result);
   try {
     const body = buildPreviewBody(type, model.cols, model.rows, {
+      // Passed explicitly. It used to be read as a free variable inside buildPreviewBody, which
+      // threw on every call — and the catch below turned that into an empty string, so every
+      // designed layout silently fell back to the grid instead of failing.
+      layout,
       groupBy: layout && layout.groupBy,
       grandTotal: !(layout && layout.grandTotal === false),
       chartType: (layout && layout.chartType) || "Column",
@@ -1902,7 +1906,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   /* Type chosen on the design canvas reaches the reader here. The canvas design travels inside the
      layout JSON and readLayout already parses it — this is the first thing to read it, so a font set
      in the designer is no longer something only the designer can see. */
-  const columnFont = designFontLookup(layout);
+  const columnFont = designFontLookup(opts.layout);
   const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
   const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
   const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;

@@ -1,0 +1,105 @@
+name: Report Engine CI
+
+# Phase 7 condition C-3. The Phase 5 finding was that 221 green tests did not catch nineteen
+# defects, several of which had existed for weeks. The browser suites were then pointed at
+# report-runtime.html, which the engine left when ADR-RPT-011 moved it into report-engine-core.js —
+# so they threw on load and asserted nothing at all, for months, because nothing ran them.
+#
+# That is the gap this workflow closes: the suites now run on every push and pull request, and a
+# suite that cannot even load is a failure rather than a silence.
+
+on:
+  push:
+    branches: [main, 'fix/rpt-**', 'feat/rpt-**', 'docs/rpt-**']
+    paths: ['projects/report-engine/**', '.github/workflows/rpt-ci.yml']
+  pull_request:
+    branches: [main]
+    paths: ['projects/report-engine/**', '.github/workflows/rpt-ci.yml']
+
+jobs:
+  browser-engine:
+    name: Browser engine (layouts, formulas, transforms, formatting, exports, result contract)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/report-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No install step on purpose: the harnesses use only node built-ins and read the shipped
+      # web-resource sources directly, so what runs here is what the org runs.
+      - name: Browser-side suites
+        run: node tests/run-all.mjs
+
+      # A suite that loads but asserts nothing passes run-all.mjs's exit code while proving nothing.
+      # The count is checked so silent decay fails loudly, which is the whole point of C-3.
+      - name: Assert the suites actually asserted something
+        run: |
+          total=$(node tests/run-all.mjs | tail -1 | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+')
+          echo "assertions passed: ${total:-0}"
+          if [ "${total:-0}" -lt 120 ]; then
+            echo "::error::only ${total:-0} assertions ran; the suites have decayed — see C-3"
+            exit 1
+          fi
+
+  engine-dotnet:
+    name: Engine and plugin (.NET)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: projects/report-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Test the solution (engine, net8.0)
+        run: dotnet test src/Qdb.ReportEngine.sln -c Release --nologo
+
+      # Qdb.ReportEngine.CrmPlugin.Tests is deliberately NOT in the solution: it targets net462, and
+      # adding it would break `dotnet build` for anyone not on Windows. The cost of that is that
+      # `dotnet test` on the solution silently skipped it — including the two ReportQueryBuilder
+      # tests that pin the 5,000-row cap, which is the contract C-5 and C-6 both rest on. So it is
+      # named here explicitly. windows-latest carries the .NET Framework runtime, so it really runs.
+      - name: Test the CRM plugin (net462, not in the solution)
+        run: dotnet test src/Qdb.ReportEngine.CrmPlugin.Tests/Qdb.ReportEngine.CrmPlugin.Tests.csproj -c Release --nologo
+
+  web-resources-parse:
+    name: Web resources parse
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/report-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # A syntax error in a web resource is a white screen in CRM with nothing in the log, and it
+      # deploys perfectly happily. Parsing them here is the cheapest guard there is.
+      - name: Parse the shared engine
+        run: node --check prototype/report-engine-core.js
+      - name: Parse the ribbon handlers
+        run: node --check prototype/report-ribbon.js
+      - name: Parse the inline script in every HTML web resource
+        run: |
+          node -e '
+            const fs = require("fs"), path = require("path"), vm = require("vm");
+            let failed = 0;
+            for (const file of fs.readdirSync("prototype").filter(f => f.endsWith(".html"))) {
+              const html = fs.readFileSync(path.join("prototype", file), "utf8");
+              const blocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+                .filter(m => !/\bsrc\s*=/i.test(m[1]) && m[2].trim());
+              for (const [i, m] of blocks.entries()) {
+                try { new vm.Script(m[2]); }
+                catch (error) { failed++; console.log(`::error file=projects/report-engine/prototype/${file}::block ${i}: ${error.message}`); }
+              }
+              console.log(`${file}: ${blocks.length} inline block(s) checked`);
+            }
+            process.exit(failed ? 1 : 0);
+          '

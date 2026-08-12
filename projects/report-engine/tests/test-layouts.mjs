@@ -1,14 +1,32 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Drives the ported layout renderer with a realistic result and checks each type produces markup
 // rather than throwing or returning nothing.
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(VIEWER, 'utf8');
+const html = readFileSync(ENGINE, 'utf8');
 const source = html.slice(html.indexOf('/* ---------------- layout rendering'), html.indexOf('/* ---------------- self-check'));
 // esc is a viewer global the renderer relies on; supply the same implementation.
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const api = new Function('esc', `${source}; return { renderLayout, toRenderModel, inferColumnType, buildPreviewBody };`)(esc);
+// The renderer calls two helpers defined above this section. They are lifted REAL rather than
+// stubbed: a stub would answer for code the browser never runs, and this suite exists to catch the
+// case where the shipped renderer is broken. It was — buildPreviewBody read a free variable
+// `layout`, which threw on every call, and renderLayout's catch turned that into an empty string,
+// so every designed layout silently fell back to the grid. An empty return is therefore a real
+// failure signal here, never "nothing to draw".
+function liftFunction(name) {
+  const start = html.search(new RegExp('^function ' + name + '\\s*\\(', 'm'));
+  if (start < 0) throw new Error(`${name} not found in the engine — has it been renamed?`);
+  let i = html.indexOf('{', html.indexOf('(', start)), depth = 0;
+  for (let j = i; j < html.length; j++) {
+    if (html[j] === '{') depth++;
+    else if (html[j] === '}' && --depth === 0) return html.slice(start, j + 1);
+  }
+  throw new Error(`unbalanced braces in ${name}`);
+}
+const helpers = ['fontCss', 'designFontLookup'].map(liftFunction).join('\n');
+const api = new Function('esc',
+  `${helpers}\n${source}; return { renderLayout, toRenderModel, inferColumnType, buildPreviewBody };`)(esc);
 
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => {
