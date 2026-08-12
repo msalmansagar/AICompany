@@ -722,6 +722,9 @@ function applyReportDirection(host){
   host.setAttribute("dir", isReportRtl() ? "rtl" : "ltr");
 }
 
+/** "1 row", not "1 rows". Every count in the engine is rendered through this. */
+const plural = (count, word) => count === 1 ? word : word + "s";
+
 /**
  * Says what the reader actually got, rather than naming a limit.
  *
@@ -732,7 +735,7 @@ function applyReportDirection(host){
  */
 function truncationChip(result){
   if (!result.truncated) return "";
-  return `<span class="chip" style="color:var(--warning)">showing the first ${result.rowCount} rows — more match</span>`;
+  return `<span class="chip" style="color:var(--warning)">showing the first ${result.rowCount} ${plural(result.rowCount, "row")} — more match</span>`;
 }
 
 function renderResult(result){
@@ -744,7 +747,7 @@ function renderResult(result){
   // rather than leaving the user with an empty page.
   if (laidOut) {
     $("#resultHost").innerHTML = `
-      <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>
+      <div class="meta-row"><span><b>${result.rowCount}</b> ${plural(result.rowCount, "row")}</span>
         <span class="chip">${esc(layout.type)}</span>
         ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
@@ -781,7 +784,7 @@ function renderGrid(result){
     return `<tr>${tds}${drill}</tr>`;
   }).join("");
   $("#resultHost").innerHTML = `
-    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?truncationChip(result):''}<span>${result.elapsedMs||0} ms</span></div>
+    <div class="meta-row"><span><b>${result.rowCount}</b> ${plural(result.rowCount, "row")}</span>${result.truncated?truncationChip(result):''}<span>${result.elapsedMs||0} ms</span></div>
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
@@ -1929,14 +1932,14 @@ function buildPreviewBody(type, cols, rows, opts) {
     if (g == null || g === "") return "";
     const gr = rows.filter(r=>String(r[chartCat.key])===String(g));
     if (!gr.length) return "";
-    return `<div class="drill-panel"><div class="drill-head"><div class="dt">${esc(T(chartCat.name))}: ${esc(T(g))} — ${gr.length} ${T("rows")}${valCol?` · ${fmtTotal(sum(gr))}`:""}</div><button class="drill-clear" data-drillclear="1">${T("Show all")} ✕</button></div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table></div>`;
+    return `<div class="drill-panel"><div class="drill-head"><div class="dt">${esc(T(chartCat.name))}: ${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${fmtTotal(sum(gr))}`:""}</div><button class="drill-clear" data-drillclear="1">${T("Show all")} ✕</button></div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table></div>`;
   };
 
   if (type === "Grouped Report") {
     const gb = (opts.groupBy && cols.find(c=>c.name===opts.groupBy)) || catCol;
     const gs = [...new Set(rows.map(r=>r[gb.key]))]; let b = "";
     gs.forEach(g => { const gr = rows.filter(r=>r[gb.key]===g);
-      b += `<tr class="group-head"><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T("rows")}</td></tr>` + gr.map(trow).join("");
+      b += `<tr class="group-head"><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}</td></tr>` + gr.map(trow).join("");
       if (valCol) b += `<tr class="group-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Subtotal"):(c===valCol?fmtTotal(sum(gr)):"")}</td>`).join("")}</tr>`; });
     return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${b}${grandRow()}</tbody></table>`;
   }
@@ -2032,7 +2035,7 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:flex;gap:12px;overflow-x:auto">${statuses.map((s,si)=>{const items=cat2?rows.filter(r=>r[cat2.key]===s):rows.filter((r,i)=>i%3===si);return `<div style="flex:1;min-width:150px;background:#f3f2f1;border-radius:6px;padding:8px"><div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#323130">${esc(T(s))} <span style="color:#605e5c">(${items.length})</span></div>${items.slice(0,3).map(r=>`<div style="background:#fff;border:1px solid #e1dfdd;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px;border-top:2px solid ${ac}"><b>${esc(T(r[catCol.key]))}</b>${valCol?`<div style="color:#605e5c">${money(+r[valCol.key]||0)}</div>`:""}</div>`).join("")}</div>`;}).join("")}</div>`;
   }
   if (type === "Drill-down Report") {
-    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T("rows")}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
+    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
   }
   if (type === "Comparison Report") {
     const a = groups[0], b = groups[1]||groups[0]; const ga = rows.filter(r=>r[catCol.key]===a), gb = rows.filter(r=>r[catCol.key]===b);

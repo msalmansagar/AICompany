@@ -7,39 +7,10 @@ const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', impor
 //
 // It drives the SHIPPED renderers out of report-engine-core.js. Helpers are lifted real rather than
 // stubbed, because a stub answers for code the browser never runs.
-import { readFileSync } from 'node:fs';
+import { loadEngine } from './engine-harness.mjs';
 
-const engine = readFileSync(ENGINE, 'utf8');
-
-/** Lifts a top-level declaration out of the engine, whether it is `function x(){}` or `const x = …`. */
-function liftFunction(name) {
-  const declared = engine.search(new RegExp('^function ' + name + '\\s*\\(', 'm'));
-  if (declared >= 0) {
-    let i = engine.indexOf('{', engine.indexOf('(', declared)), depth = 0;
-    for (let j = i; j < engine.length; j++) {
-      if (engine[j] === '{') depth++;
-      else if (engine[j] === '}' && --depth === 0) return engine.slice(declared, j + 1);
-    }
-    throw new Error(`unbalanced braces in ${name}`);
-  }
-
-  // const/let bindings — arrow functions and lookup tables both appear as engine dependencies.
-  const bound = engine.search(new RegExp('^(const|let) ' + name + '\\s*=', 'm'));
-  if (bound < 0) throw new Error(`${name} not found in the engine — renamed, or the contract moved`);
-  let depth = 0;
-  for (let j = bound; j < engine.length; j++) {
-    const c = engine[j];
-    if ('{[('.includes(c)) depth++;
-    else if ('}])'.includes(c)) depth--;
-    else if (c === ';' && depth === 0) return engine.slice(bound, j + 1);
-  }
-  throw new Error(`could not find the end of ${name}`);
-}
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-const layoutSection = engine.slice(
-  engine.indexOf('/* ---------------- layout rendering'),
-  engine.indexOf('/* ---------------- self-check'));
 
 // renderGrid writes into the page rather than returning markup, so the host element is captured.
 // Anything it then queries for event binding answers empty — this suite is about what was rendered.
@@ -55,35 +26,19 @@ const host = {
 globalThis.document = { querySelectorAll: () => [], querySelector: () => null };
 let state = { current: { def: { relationships: [], layout: null } } };
 
-/**
- * Builds the API with `names` lifted, then keeps lifting whatever the shipped code turns out to
- * need. Resolving dependencies by hand meant this suite broke every time a helper moved — which is
- * how it came to be pointing at a file the engine had left months earlier, passing nothing.
- * A name the engine does not define is a real failure and is re-thrown.
- */
-function buildApi() {
-  const names = ['fontCss', 'designFontLookup', 'drillLabel', 'renderGrid', 'truncationChip'];
-  for (let attempt = 0; attempt < 25; attempt++) {
-    const api = new Function('esc', 'state', '$', `
-      const NUMERIC = /^-?[\\d.,]+$/;
-      ${names.map(liftFunction).join('\n')}
-      ${layoutSection}
-      return { renderGrid, toRenderModel, renderLayout, truncationChip };
-    `)(esc, new Proxy({}, { get: (_, k) => state[k] }), () => host);
-
-    try {
-      api.renderGrid({ reportName: 'smoke', rowCount: 0, columns: [], rows: [] });
-      return { api, lifted: names };
-    } catch (error) {
-      const missing = /(\w+) is not defined/.exec(error.message);
-      if (!missing) throw error;
-      if (names.includes(missing[1])) throw error;
-      names.push(missing[1]);   // liftFunction throws with a clear message if the engine lacks it
-    }
-  }
-  throw new Error('dependency chain did not settle — the engine may have a genuine missing reference');
-}
-const { api, lifted } = buildApi();
+const { api } = loadEngine({
+  enginePath: ENGINE,
+  section: ['/* ---------------- layout rendering', '/* ---------------- self-check'],
+  exports: ['renderGrid', 'toRenderModel', 'renderLayout', 'truncationChip'],
+  seed: ['fontCss', 'designFontLookup', 'drillLabel', 'renderGrid', 'truncationChip'],
+  globals: {
+    esc,
+    state: new Proxy({}, { get: (_, k) => state[k] }),
+    $: () => host,
+    NUMERIC: /^-?[\d.,]+$/
+  },
+  smoke: built => built.renderGrid({ reportName: 'smoke', rowCount: 0, columns: [], rows: [] })
+});
 
 /** Runs the shipped renderGrid and returns the markup it put on the page. */
 function gridHtml(result) {
