@@ -1988,6 +1988,13 @@ const I18N = {
 function tr(s, lang) { return (I18N[lang] && I18N[lang][s]) || s; }
 
 
+/* The most rows one execution can return. Dataverse rejects a FetchXML top above 5000, so
+   ReportQueryBuilder caps there and the engine reads a single page — see
+   Build_CapsTopAtWhatFetchXmlAccepts_RatherThanFailingTheReport. A larger row limit is accepted by
+   this form but never applied, which is the mismatch C-5 exists to remove. If paging is ever
+   implemented this constant rises with it, and C-6 must be re-measured. */
+const ENGINE_MAX_ROWS = 5000;
+
 /* Deep-ish clone helper for the working report definition */
 function newDefinition(seed) {
   return {
@@ -1996,7 +2003,7 @@ function newDefinition(seed) {
     category: seed ? seed.category : "", module: seed ? seed.module : "",
     owner: seed ? seed.owner : (state.userName || ""), approver: "",
     status: seed ? seed.status : "Draft", mainEntity: "",
-    executionMode: "Auto", rowLimit: 50000, timeout: 120, governed: seed ? seed.governed : false,
+    executionMode: "Auto", rowLimit: ENGINE_MAX_ROWS, timeout: 120, governed: seed ? seed.governed : false,
     version: seed ? seed.version : 1,
     dataSources: [ { name:"Primary", type:"FetchXML", connector:"", query:"", primary:true, joinL:"", joinR:"" } ],
     columns: [],
@@ -4179,7 +4186,7 @@ function tabGeneral(body, r) {
     <div class="hint">Runtime guards and the maker-checker gate.</div>
     <div class="field-grid">
       <div class="field"><label class="lbl">Execution mode</label><select class="fluent-select" data-g="executionMode">${opts(["Auto","Synchronous","Async"], r.executionMode)}</select><span class="hint-inline">Auto lets the engine pick sync vs async/staged.</span></div>
-      <div class="field"><label class="lbl">Row limit</label><input class="fluent-input" type="number" data-g="rowLimit" data-num value="${r.rowLimit}"><span class="hint-inline">Runaway-query guard.</span></div>
+      <div class="field"><label class="lbl">Row limit</label><input class="fluent-input" type="number" data-g="rowLimit" data-num min="1" max="${ENGINE_MAX_ROWS}" value="${Math.min(r.rowLimit || ENGINE_MAX_ROWS, ENGINE_MAX_ROWS)}"><span class="hint-inline">Runaway-query guard. The engine reads one page, so ${ENGINE_MAX_ROWS.toLocaleString()} is the most any report can return — a higher number here would not be applied.</span></div>
       <div class="field"><label class="lbl">Timeout (seconds)</label><input class="fluent-input" type="number" data-g="timeout" data-num value="${r.timeout}"></div>
       <div class="field"><label class="lbl">Governed report</label><label class="toggle"><input type="checkbox" data-g="governed" ${r.governed?"checked":""}><span class="track"></span><span class="tlabel">Requires approver ≠ author before production run</span></label></div>
     </div>
@@ -4188,7 +4195,17 @@ function tabGeneral(body, r) {
   body.querySelectorAll("[data-g]").forEach(inp => {
     const ev = comboSafeEvent(inp);
     inp.addEventListener(ev, () => {
-      const k = inp.dataset.g; r[k] = inp.type==="checkbox" ? inp.checked : (inp.dataset.num ? +inp.value : inp.value);
+      const k = inp.dataset.g;
+      const value = inp.type==="checkbox" ? inp.checked : (inp.dataset.num ? +inp.value : inp.value);
+      // Clamp in the field, not just in the model: a number the engine will silently ignore must
+      // not sit on screen looking accepted. C-6 measured the cap; C-5 is why it is stated here.
+      if (k === "rowLimit" && value > ENGINE_MAX_ROWS) {
+        r[k] = ENGINE_MAX_ROWS;
+        inp.value = ENGINE_MAX_ROWS;
+        toast(`Row limit capped at ${ENGINE_MAX_ROWS.toLocaleString()} — the engine reads a single page and cannot return more.`, "info");
+        return;
+      }
+      r[k] = value;
     });
   });
 }

@@ -722,6 +722,19 @@ function applyReportDirection(host){
   host.setAttribute("dir", isReportRtl() ? "rtl" : "ltr");
 }
 
+/**
+ * Says what the reader actually got, rather than naming a limit.
+ *
+ * "Truncated at row limit" invited the reader to check the report's row limit — which may say
+ * 50,000 while the engine applied 5,000, because it reads a single page and Dataverse rejects a
+ * FetchXML top above that. Stating the number returned is true whatever the configured limit says,
+ * and stays true if paging later raises the ceiling.
+ */
+function truncationChip(result){
+  if (!result.truncated) return "";
+  return `<span class="chip" style="color:var(--warning)">showing the first ${result.rowCount} rows — more match</span>`;
+}
+
 function renderResult(result){
   const layout = state.current.def.layout;
   const laidOut = renderLayout(result, layout);
@@ -733,7 +746,7 @@ function renderResult(result){
     $("#resultHost").innerHTML = `
       <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>
         <span class="chip">${esc(layout.type)}</span>
-        ${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}
+        ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
       <div class="report-paper">${laidOut}</div>`;
@@ -768,7 +781,7 @@ function renderGrid(result){
     return `<tr>${tds}${drill}</tr>`;
   }).join("");
   $("#resultHost").innerHTML = `
-    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${result.elapsedMs||0} ms</span></div>
+    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?truncationChip(result):''}<span>${result.elapsedMs||0} ms</span></div>
     <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
