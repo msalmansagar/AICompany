@@ -17,6 +17,7 @@ namespace Msst.CmsEngine.Plugins
     /// </remarks>
     public sealed class PublishPagePlugin : PluginBase
     {
+        private const string SiteEntity = "msst_cmssite";
         private const string PageEntity = "msst_cmspage";
         private const string VersionEntity = "msst_cmspageversion";
         private const string RenderCacheEntity = "msst_cmsrendercache";
@@ -49,12 +50,13 @@ namespace Msst.CmsEngine.Plugins
                 throw new InvalidPluginExecutionException(validation.Message);
             }
 
+            var routeKey = ResolveRouteKey(service, page);
             var versionNumber = version.GetAttributeValue<int>("msst_versionnumber");
-            tracing.Trace("Publishing {0} version {1}", page.GetAttributeValue<string>("msst_slug"), versionNumber);
+            tracing.Trace("Publishing {0} version {1}", routeKey, versionNumber);
 
-            WriteRenderCache(service, page, storedContent);
+            WriteRenderCache(service, routeKey, storedContent);
             MarkPagePublished(service, pageId);
-            WriteAuditRow(service, page, versionNumber, comment);
+            WriteAuditRow(service, routeKey, versionNumber, comment);
 
             context.OutputParameters["PublishedVersionNumber"] = versionNumber;
             context.OutputParameters["Message"] = validation.Message.Length > 0
@@ -64,9 +66,38 @@ namespace Msst.CmsEngine.Plugins
 
         private static Entity ReadPage(IOrganizationService service, Guid pageId)
         {
-            var page = service.Retrieve(PageEntity, pageId, new ColumnSet("msst_slug", "msst_status"));
+            var page = service.Retrieve(
+                PageEntity, pageId, new ColumnSet("msst_slug", "msst_status", "msst_siteid"));
             if (page == null) throw new InvalidPluginExecutionException("Page not found.");
             return page;
+        }
+
+        /// <summary>
+        /// Builds the cache key that identifies a published page: the site key
+        /// and the page slug.
+        /// </summary>
+        /// <remarks>
+        /// The slug alone is not unique. Two portals may each want an "about"
+        /// page, and keying the cache on the slug would let one silently
+        /// overwrite the other. A page therefore has to belong to a site, and
+        /// that is enforced here rather than defaulted — a page published to no
+        /// portal has no address, and guessing one would be worse than refusing.
+        /// </remarks>
+        private static string ResolveRouteKey(IOrganizationService service, Entity page)
+        {
+            var siteReference = page.GetAttributeValue<EntityReference>("msst_siteid");
+            if (siteReference == null)
+            {
+                throw new InvalidPluginExecutionException(
+                    "Publish rejected: this page does not belong to a site. Assign it to one first.");
+            }
+
+            var site = service.Retrieve(
+                SiteEntity, siteReference.Id, new ColumnSet("msst_sitekey"));
+            var siteKey = site.GetAttributeValue<string>("msst_sitekey");
+            var slug = page.GetAttributeValue<string>("msst_slug");
+
+            return siteKey + "/" + slug;
         }
 
         /// <summary>
@@ -99,14 +130,13 @@ namespace Msst.CmsEngine.Plugins
         }
 
         /// <summary>Replaces the cached output, creating it on first publish.</summary>
-        private static void WriteRenderCache(IOrganizationService service, Entity page, string storedContent)
+        private static void WriteRenderCache(IOrganizationService service, string routeKey, string storedContent)
         {
-            var slug = page.GetAttributeValue<string>("msst_slug");
-            var existing = FindRenderCache(service, slug);
+            var existing = FindRenderCache(service, routeKey);
 
             var cache = new Entity(RenderCacheEntity)
             {
-                ["msst_cachekey"] = slug,
+                ["msst_cachekey"] = routeKey,
                 ["msst_runtimejson"] = storedContent,
                 ["msst_languagecode"] = "both",
             };
@@ -146,14 +176,13 @@ namespace Msst.CmsEngine.Plugins
         /// <summary>Append-only: the log is written, never updated (FR-64).</summary>
         private static void WriteAuditRow(
             IOrganizationService service,
-            Entity page,
+            string routeKey,
             int versionNumber,
             string comment)
         {
-            var slug = page.GetAttributeValue<string>("msst_slug");
             service.Create(new Entity(PublishLogEntity)
             {
-                ["msst_logkey"] = slug + " v" + versionNumber,
+                ["msst_logkey"] = routeKey + " v" + versionNumber,
                 ["msst_action"] = string.IsNullOrEmpty(comment) ? "Publish" : "Publish: " + comment,
                 ["msst_versionnumber"] = versionNumber,
                 ["msst_publishedon"] = DateTime.UtcNow,

@@ -82,6 +82,7 @@
   <body>
     <header>
       <h1>CMS Engine — published page</h1>
+      <input id="site" placeholder="portal key" style="min-width: 150px" />
       <input id="slug" placeholder="page slug" />
       <select id="lang">
         <option value="en">English</option>
@@ -182,10 +183,11 @@
         }
 
         function load() {
+          var site = document.getElementById('site').value.trim();
           var slug = document.getElementById('slug').value.trim();
           var language = document.getElementById('lang').value;
-          if (!slug) {
-            setStatus('Enter a page slug first.', 'bad');
+          if (!site || !slug) {
+            setStatus('Enter a portal key and a page slug.', 'bad');
             return;
           }
 
@@ -198,12 +200,13 @@
             return;
           }
 
-          setStatus('Loading ' + slug + '…');
+          setStatus('Loading ' + site + '/' + slug + '…');
           pageEl.hidden = true;
           rawWrap.hidden = true;
 
           xrm.WebApi.online
             .execute({
+              Site: site,
               Slug: slug,
               LanguageCode: language,
               getMetadata: function () {
@@ -212,6 +215,7 @@
                   operationType: 0,
                   operationName: 'msst_CmsGetPublishedPageJson',
                   parameterTypes: {
+                    Site: { typeName: 'Edm.String', structuralProperty: 1 },
                     Slug: { typeName: 'Edm.String', structuralProperty: 1 },
                     LanguageCode: { typeName: 'Edm.String', structuralProperty: 1 },
                   },
@@ -237,9 +241,16 @@
           if (event.key === 'Enter') load();
         });
 
+        document.getElementById('site').addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') load();
+        });
+
+        // ?data=reyada/about-reyada opens a page directly.
         var fromUrl = new URLSearchParams(window.location.search).get('data');
         if (fromUrl) {
-          document.getElementById('slug').value = fromUrl;
+          var parts = fromUrl.split('/');
+          document.getElementById('site').value = parts[0] || '';
+          document.getElementById('slug').value = parts.slice(1).join('/');
           load();
         }
       })();

@@ -103,12 +103,25 @@ async function main() {
 
   // ── Happy path ────────────────────────────────────────────────────────────
   console.log('Publishing a page');
+
+  // A page belongs to a site. The render cache is keyed by both, so two portals
+  // can each have an "about" page without one overwriting the other.
+  const siteKey = `e2e-site-${stamp}`;
+  const site = await send('POST', 'msst_cmssites', {
+    msst_sitekey: siteKey,
+    msst_sitenameen: 'End-to-end portal',
+    msst_defaultlocale: 'en',
+    msst_locales: 'en,ar',
+    msst_sitestatus: 100000001,
+  });
+
   const page = await send('POST', 'msst_cmspages', {
     msst_slug: slug,
     msst_titleen: 'About Reyada',
     msst_titlear: 'عن ريادة',
     msst_status: 100000000,
     msst_classification: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
   });
 
   const json = JSON.stringify(DEMO_PAGE);
@@ -134,6 +147,7 @@ async function main() {
   // ── Read it back ──────────────────────────────────────────────────────────
   console.log('\nReading it back');
   const read = await send('POST', 'msst_CmsGetPublishedPageJson', {
+    Site: siteKey,
     Slug: slug,
     LanguageCode: 'en',
   });
@@ -155,7 +169,7 @@ async function main() {
   // ── The audit row ─────────────────────────────────────────────────────────
   const log = await send(
     'GET',
-    `msst_cmspublishlogs?$select=msst_action,msst_versionnumber&$filter=msst_logkey eq '${slug} v1'`,
+    `msst_cmspublishlogs?$select=msst_action,msst_versionnumber&$filter=msst_logkey eq '${siteKey}/${slug} v1'`,
   );
   check('an audit row was written by the plugin', log.body.value.length === 1,
     log.body.value[0]?.msst_action ?? 'none found');
@@ -168,6 +182,7 @@ async function main() {
     msst_slug: badSlug,
     msst_titleen: 'Inlined binary',
     msst_status: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
   });
   await send('POST', 'msst_cmspageversions', {
     msst_versionlabel: `${badSlug} v1`,
@@ -198,6 +213,7 @@ async function main() {
     msst_slug: emptySlug,
     msst_titleen: 'No versions',
     msst_status: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
   });
   try {
     await send('POST', 'msst_CmsPublishPage', { PageId: emptyPage.id });
@@ -210,8 +226,38 @@ async function main() {
     );
   }
 
+  // A page with no portal has no address, so publishing it must be refused
+  // rather than defaulted to some guessed route.
+  const orphanSlug = `e2e-orphan-${stamp}`;
+  const orphanPage = await send('POST', 'msst_cmspages', {
+    msst_slug: orphanSlug,
+    msst_titleen: 'No site',
+    msst_status: 100000000,
+  });
+  await send('POST', 'msst_cmspageversions', {
+    msst_versionlabel: `${orphanSlug} v1`,
+    msst_versionnumber: 1,
+    msst_contentjson: encode(JSON.stringify({ root: {}, content: [], zones: {} })),
+    msst_islatest: true,
+    'msst_pageid@odata.bind': `/msst_cmspages(${orphanPage.id})`,
+  });
   try {
-    await send('POST', 'msst_CmsGetPublishedPageJson', { Slug: 'never-published', LanguageCode: 'en' });
+    await send('POST', 'msst_CmsPublishPage', { PageId: orphanPage.id });
+    check('a page with no site is rejected', false, 'publish succeeded');
+  } catch (error) {
+    check(
+      'a page with no site is rejected',
+      /does not belong to a site/i.test(error.dataverseMessage),
+      error.dataverseMessage.slice(0, 120),
+    );
+  }
+
+  try {
+    await send('POST', 'msst_CmsGetPublishedPageJson', {
+      Site: siteKey,
+      Slug: 'never-published',
+      LanguageCode: 'en',
+    });
     check('an unpublished page is not served', false, 'returned content');
   } catch (error) {
     check(
@@ -220,6 +266,45 @@ async function main() {
       error.dataverseMessage.slice(0, 120),
     );
   }
+
+  // Two portals, same slug: proof that the cache key is site-scoped.
+  const secondSiteKey = `e2e-site2-${stamp}`;
+  const secondSite = await send('POST', 'msst_cmssites', {
+    msst_sitekey: secondSiteKey,
+    msst_sitenameen: 'Second portal',
+    msst_defaultlocale: 'en',
+    msst_sitestatus: 100000001,
+  });
+  const twinPage = await send('POST', 'msst_cmspages', {
+    msst_slug: slug,
+    msst_titleen: 'Same slug, different portal',
+    msst_status: 100000000,
+    'msst_siteid@odata.bind': `/msst_cmssites(${secondSite.id})`,
+  });
+  const twinJson = JSON.stringify({
+    root: {},
+    content: [{ type: 'Hero', props: { heading: { en: 'Second portal', ar: 'بوابة ثانية' }, accent: 'brand.primary' } }],
+    zones: {},
+  });
+  await send('POST', 'msst_cmspageversions', {
+    msst_versionlabel: `${slug} v1 (second)`,
+    msst_versionnumber: 1,
+    msst_contentjson: encode(twinJson),
+    msst_islatest: true,
+    'msst_pageid@odata.bind': `/msst_cmspages(${twinPage.id})`,
+  });
+  await send('POST', 'msst_CmsPublishPage', { PageId: twinPage.id });
+
+  const firstAgain = await send('POST', 'msst_CmsGetPublishedPageJson', {
+    Site: siteKey,
+    Slug: slug,
+    LanguageCode: 'en',
+  });
+  check(
+    'the same slug on two portals does not collide',
+    firstAgain.body?.PageJson === json,
+    'the first portal still serves its own content',
+  );
 
   const failed = results.filter((r) => !r.ok);
   console.log(`\n${failed.length === 0 ? 'All checks passed.' : `${failed.length} check(s) failed.`}`);

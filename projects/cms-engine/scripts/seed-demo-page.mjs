@@ -11,6 +11,7 @@
 
 import { gzipSync } from 'node:zlib';
 
+const SITE_KEY = 'reyada';
 const SLUG = 'about-reyada';
 const DATAVERSE_URL = process.env.DV_DATAVERSE_URL;
 const API_BASE = `${DATAVERSE_URL}/api/data/v9.2`;
@@ -88,6 +89,30 @@ async function send(method, path, body) {
 async function main() {
   token = await acquireToken();
 
+  // A page must belong to a site: the render cache is keyed by site and slug,
+  // so a page with no portal has no address.
+  const sites = await send(
+    'GET',
+    `msst_cmssites?$select=msst_cmssiteid&$filter=msst_sitekey eq '${SITE_KEY}'`,
+  );
+  let siteId = sites.body.value[0]?.msst_cmssiteid;
+
+  if (!siteId) {
+    const createdSite = await send('POST', 'msst_cmssites', {
+      msst_sitekey: SITE_KEY,
+      msst_sitenameen: 'Reyada Portal',
+      msst_sitenamear: 'بوابة ريادة',
+      msst_hostname: 'reyada.qdb.qa',
+      msst_defaultlocale: 'en',
+      msst_locales: 'en,ar',
+      msst_sitestatus: 100000001,
+    });
+    siteId = createdSite.id;
+    console.log(`site ${SITE_KEY} — created`);
+  } else {
+    console.log(`site ${SITE_KEY} — exists`);
+  }
+
   const found = await send('GET', `msst_cmspages?$select=msst_cmspageid&$filter=msst_slug eq '${SLUG}'`);
   let pageId = found.body.value[0]?.msst_cmspageid;
 
@@ -98,11 +123,15 @@ async function main() {
       msst_titlear: 'عن ريادة',
       msst_status: 100000000,
       msst_classification: 100000000,
+      'msst_siteid@odata.bind': `/msst_cmssites(${siteId})`,
     });
     pageId = created.id;
     console.log(`page ${SLUG} — created`);
   } else {
-    console.log(`page ${SLUG} — exists`);
+    await send('PATCH', `msst_cmspages(${pageId})`, {
+      'msst_siteid@odata.bind': `/msst_cmssites(${siteId})`,
+    });
+    console.log(`page ${SLUG} — exists, site assigned`);
   }
 
   const versions = await send(
@@ -127,7 +156,7 @@ async function main() {
   });
   console.log(`published v${published.body.PublishedVersionNumber}: ${published.body.Message}`);
   console.log(`\nView it:\n  ${DATAVERSE_URL}/main.aspx?pagetype=webresource&webresourceName=msst_cms_viewer.html`);
-  console.log(`  slug: ${SLUG}`);
+  console.log(`  site: ${SITE_KEY}   slug: ${SLUG}`);
 }
 
 await main();

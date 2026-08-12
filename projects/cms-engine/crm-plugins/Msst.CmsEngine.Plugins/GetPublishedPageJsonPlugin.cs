@@ -22,15 +22,20 @@ namespace Msst.CmsEngine.Plugins
             IOrganizationService service,
             ITracingService tracing)
         {
+            var site = RequireInput<string>(context, "Site");
             var slug = RequireInput<string>(context, "Slug");
             var languageCode = RequireInput<string>(context, "LanguageCode");
-            tracing.Trace("Reading cache for {0} ({1})", slug, languageCode);
 
-            var cache = FindRenderCache(service, slug);
+            // The slug alone is not an address. Two portals may each have an
+            // "about" page, so the cache is keyed by site and slug together.
+            var routeKey = site + "/" + slug;
+            tracing.Trace("Reading cache for {0} ({1})", routeKey, languageCode);
+
+            var cache = FindRenderCache(service, routeKey);
             if (cache == null)
             {
                 throw new InvalidPluginExecutionException(
-                    "No published content for '" + slug + "'. A draft is never served (FR-66).");
+                    "No published content at '" + routeKey + "'. A draft is never served (FR-66).");
             }
 
             var stored = cache.GetAttributeValue<string>("msst_runtimejson");

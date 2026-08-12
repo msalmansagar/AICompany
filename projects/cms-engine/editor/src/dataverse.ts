@@ -19,6 +19,14 @@ const STATUS_BY_VALUE: Record<number, PageStatus> = {
 
 const STATUS_DRAFT = 100000000;
 const CLASSIFICATION_STANDARD = 100000000;
+const SITE_LIVE = 100000001;
+
+export interface SiteSummary {
+  id: string;
+  key: string;
+  nameEn: string;
+  hostName: string;
+}
 
 export interface PageSummary {
   id: string;
@@ -26,6 +34,7 @@ export interface PageSummary {
   titleEn: string;
   titleAr: string;
   status: PageStatus;
+  siteId: string | null;
 }
 
 export interface PageVersion {
@@ -94,10 +103,36 @@ async function decode(stored: string): Promise<string> {
   return new Response(stream).text();
 }
 
-export async function listPages(): Promise<PageSummary[]> {
+export async function listSites(): Promise<SiteSummary[]> {
+  const result = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmssite',
+    '?$select=msst_cmssiteid,msst_sitekey,msst_sitenameen,msst_hostname&$orderby=msst_sitekey',
+  );
+  return result.entities.map((row) => ({
+    id: row.msst_cmssiteid,
+    key: row.msst_sitekey,
+    nameEn: row.msst_sitenameen ?? row.msst_sitekey,
+    hostName: row.msst_hostname ?? '',
+  }));
+}
+
+export async function createSite(key: string, nameEn: string, hostName: string): Promise<string> {
+  const created = await xrm().WebApi.createRecord('msst_cmssite', {
+    msst_sitekey: key,
+    msst_sitenameen: nameEn,
+    msst_hostname: hostName,
+    msst_defaultlocale: 'en',
+    msst_locales: 'en,ar',
+    msst_sitestatus: SITE_LIVE,
+  });
+  return created.id;
+}
+
+export async function listPages(siteId: string): Promise<PageSummary[]> {
   const result = await xrm().WebApi.retrieveMultipleRecords(
     'msst_cmspage',
-    '?$select=msst_cmspageid,msst_slug,msst_titleen,msst_titlear,msst_status&$orderby=msst_slug',
+    '?$select=msst_cmspageid,msst_slug,msst_titleen,msst_titlear,msst_status' +
+      `&$filter=_msst_siteid_value eq ${siteId}&$orderby=msst_slug`,
   );
   return result.entities.map((row) => ({
     id: row.msst_cmspageid,
@@ -105,16 +140,28 @@ export async function listPages(): Promise<PageSummary[]> {
     titleEn: row.msst_titleen ?? '',
     titleAr: row.msst_titlear ?? '',
     status: STATUS_BY_VALUE[row.msst_status] ?? 'Draft',
+    siteId,
   }));
 }
 
-export async function createPage(slug: string, titleEn: string, titleAr: string): Promise<string> {
-  const created = await xrm().WebApi.createRecord(PAGE_SET.slice(0, -1), {
+/**
+ * A page is always created into a site. The render cache is keyed by site and
+ * slug, so a page with no portal cannot be published — better to require the
+ * site here than to fail later inside publish.
+ */
+export async function createPage(
+  siteId: string,
+  slug: string,
+  titleEn: string,
+  titleAr: string,
+): Promise<string> {
+  const created = await xrm().WebApi.createRecord('msst_cmspage', {
     msst_slug: slug,
     msst_titleen: titleEn,
     msst_titlear: titleAr,
     msst_status: STATUS_DRAFT,
     msst_classification: CLASSIFICATION_STANDARD,
+    'msst_siteid@odata.bind': `/msst_cmssites(${siteId})`,
   });
   return created.id;
 }

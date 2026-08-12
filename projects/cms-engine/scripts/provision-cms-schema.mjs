@@ -51,6 +51,24 @@ const CHOICE = (name, displayName, options) => ({ kind: 'choice', name, displayN
  */
 const ENTITIES = [
   {
+    name: 'cmssite',
+    display: 'CMS Site',
+    plural: 'CMS Sites',
+    primary: { name: 'sitekey', displayName: 'Site Key' },
+    columns: [
+      TEXT('sitenameen', 'Name (English)', 200),
+      TEXT('sitenamear', 'Name (Arabic)', 200),
+      TEXT('hostname', 'Host Name', 300),
+      TEXT('defaultlocale', 'Default Locale', 10),
+      TEXT('locales', 'Locales', 200),
+      CHOICE('sitestatus', 'Status', [
+        ['Draft', 100000000],
+        ['Live', 100000001],
+        ['Offline', 100000002],
+      ]),
+    ],
+  },
+  {
     name: 'cmspage',
     display: 'CMS Page',
     plural: 'CMS Pages',

@@ -23,6 +23,20 @@ const API_BASE = `${DATAVERSE_URL}/api/data/v9.2`;
  */
 const RELATIONSHIPS = [
   {
+    schemaName: 'msst_cmssite_cmspage',
+    referenced: 'msst_cmssite',
+    referencing: 'msst_cmspage',
+    lookup: 'msst_siteid',
+    lookupDisplay: 'Site',
+  },
+  {
+    schemaName: 'msst_cmssite_cmsnavigation',
+    referenced: 'msst_cmssite',
+    referencing: 'msst_cmsnavigation',
+    lookup: 'msst_siteid',
+    lookupDisplay: 'Site',
+  },
+  {
     schemaName: 'msst_cmspage_cmspageversion',
     referenced: 'msst_cmspage',
     referencing: 'msst_cmspageversion',

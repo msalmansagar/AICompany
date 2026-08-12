@@ -46,6 +46,7 @@ const MESSAGES = [
     description:
       'Reads the render cache, decodes and decompresses it, and returns plain JSON. Never generates.',
     request: [
+      ['Site', 'Site Key', TYPE.STRING, false],
       ['Slug', 'Slug', TYPE.STRING, false],
       ['LanguageCode', 'Language Code', TYPE.STRING, false],
     ],
@@ -67,7 +68,7 @@ const MESSAGES = [
   },
 ];
 
-// ── Plumbing ─────────────────────────────────────────────────────────────────
+// -- Plumbing ---------------------------------------------------------------
 
 async function acquireToken() {
   const body = new URLSearchParams({
@@ -114,7 +115,7 @@ async function apiPost(token, path, body, options = {}) {
   return id ? id.match(/\(([^)]+)\)/)?.[1] : text ? JSON.parse(text) : null;
 }
 
-// ── Run ──────────────────────────────────────────────────────────────────────
+// -- Run --------------------------------------------------------------------
 
 async function findCustomApi(token, uniqueName) {
   const found = await apiGet(
@@ -124,8 +125,16 @@ async function findCustomApi(token, uniqueName) {
   return found.value[0]?.customapiid ?? null;
 }
 
-async function parameterExists(token, set, uniqueName) {
-  const found = await apiGet(token, `${set}?$select=uniquename&$filter=uniquename eq '${uniqueName}'`);
+/**
+ * Scoped to the owning message. Now that UniqueName is the bare parameter name,
+ * two messages can each have a `Slug`, and a global check would skip creating
+ * the second one.
+ */
+async function parameterExists(token, set, uniqueName, customApiId) {
+  const found = await apiGet(
+    token,
+    `${set}?$select=uniquename&$filter=uniquename eq '${uniqueName}' and _customapiid_value eq ${customApiId}`,
+  );
   return found.value.length > 0;
 }
 
@@ -141,7 +150,7 @@ async function main() {
     let customApiId = await findCustomApi(token, message.uniqueName);
 
     if (customApiId) {
-      console.log(`\n${message.uniqueName} — exists`);
+      console.log(`\n${message.uniqueName} - exists`);
     } else {
       customApiId = await apiPost(
         token,
@@ -160,13 +169,17 @@ async function main() {
         { intoSolution: true },
       );
       createdMessages += 1;
-      console.log(`\n${message.uniqueName} — created`);
+      console.log(`\n${message.uniqueName} - created`);
     }
 
     for (const [name, displayName, type, isOptional] of message.request) {
-      const uniqueName = `${message.uniqueName}.${name}`;
-      if (await parameterExists(token, 'customapirequestparameters', uniqueName)) {
-        console.log(`    request  ${name} — exists`);
+      // UniqueName is what a caller puts in the payload, NOT Name. Provisioning
+      // these as "<message>.<Name>" made every call fail with "the parameter
+      // 'PageId' is not a valid parameter", because the parameter really was
+      // called "msst_CmsPublishPage.PageId".
+      const uniqueName = name;
+      if (await parameterExists(token, 'customapirequestparameters', uniqueName, customApiId)) {
+        console.log(`    request  ${name} - exists`);
         continue;
       }
       await apiPost(
@@ -183,13 +196,13 @@ async function main() {
         { intoSolution: true },
       );
       createdParameters += 1;
-      console.log(`    request  ${name} — created${isOptional ? ' (optional)' : ''}`);
+      console.log(`    request  ${name} - created${isOptional ? ' (optional)' : ''}`);
     }
 
     for (const [name, displayName, type] of message.response) {
-      const uniqueName = `${message.uniqueName}.${name}`;
-      if (await parameterExists(token, 'customapiresponseproperties', uniqueName)) {
-        console.log(`    response ${name} — exists`);
+      const uniqueName = name;
+      if (await parameterExists(token, 'customapiresponseproperties', uniqueName, customApiId)) {
+        console.log(`    response ${name} - exists`);
         continue;
       }
       await apiPost(
@@ -205,12 +218,11 @@ async function main() {
         { intoSolution: true },
       );
       createdParameters += 1;
-      console.log(`    response ${name} — created`);
+      console.log(`    response ${name} - created`);
     }
   }
 
   console.log(`\nDone. ${createdMessages} messages created, ${createdParameters} parameters created.`);
-  console.log('No plugin is bound yet — PluginTypeId is set when the assembly is registered.');
 }
 
 await main();
