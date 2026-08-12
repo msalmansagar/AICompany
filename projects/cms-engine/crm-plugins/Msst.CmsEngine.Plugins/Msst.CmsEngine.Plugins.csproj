@@ -25,6 +25,9 @@
          package supplies the reference assemblies instead. -->
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.49" />
+    <!-- Provided by the Dataverse sandbox, so it is not merged into this
+         assembly. The Dynamic Form Engine's plugins rely on the same. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
 </Project>

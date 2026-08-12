@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xrm.Sdk;
 using Microsoft.Xrm.Sdk.Query;
@@ -44,6 +45,23 @@ namespace Msst.CmsEngine.Plugins
             }
 
             var json = PagePayload.Decode(storedContent);
+
+            // Sanitise before measuring. Removing disallowed markup can only
+            // shrink the payload, and measuring what will not be stored would
+            // reject a page for a size it never had.
+            var sanitised = PayloadSanitiser.Sanitise(json);
+            if (sanitised.IsRejected)
+            {
+                throw new InvalidPluginExecutionException("Publish rejected: " + sanitised.Rejection);
+            }
+
+            if (sanitised.WasChanged)
+            {
+                json = sanitised.Json;
+                storedContent = PagePayload.Encode(json);
+                tracing.Trace("Sanitiser removed: {0}", string.Join(", ", sanitised.Removed));
+            }
+
             var validation = PublishValidator.Validate(json, storedContent);
             if (validation.IsRejected)
             {
@@ -65,9 +83,26 @@ namespace Msst.CmsEngine.Plugins
             WriteAuditRow(service, routeKey, versionNumber, comment);
 
             context.OutputParameters["PublishedVersionNumber"] = versionNumber;
-            context.OutputParameters["Message"] = validation.Message.Length > 0
-                ? validation.Message
-                : "Published.";
+            context.OutputParameters["Message"] = BuildMessage(validation, sanitised);
+        }
+
+        /// <summary>
+        /// States what was removed rather than cleaning silently. An author who
+        /// is never told their markup was stripped will keep producing it.
+        /// </summary>
+        private static string BuildMessage(ValidationResult validation, SanitisedPayload sanitised)
+        {
+            var parts = new List<string>();
+            if (validation.Message.Length > 0) parts.Add(validation.Message);
+
+            if (sanitised.WasChanged)
+            {
+                parts.Add(
+                    "Removed disallowed markup: " +
+                    string.Join(", ", sanitised.Removed.Distinct()) + ".");
+            }
+
+            return parts.Count == 0 ? "Published." : string.Join(" ", parts);
         }
 
         private static Entity ReadPage(IOrganizationService service, Guid pageId)

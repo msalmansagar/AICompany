@@ -311,6 +311,104 @@ async function main() {
     );
   }
 
+  // -- Rich-text sanitisation (§6) -------------------------------------------
+  // The editor constrains what an author types; it cannot constrain what an
+  // author writes to the Web API. These payloads bypass the editor entirely,
+  // which is the only way to test the control that matters.
+  console.log('\nRich text sanitisation');
+
+  async function publishRichText(name, bodyEn) {
+    const s = `e2e-${name}-${stamp}`;
+    const p = await send('POST', 'msst_cmspages', {
+      msst_slug: s,
+      msst_titleen: name,
+      msst_status: 100000000,
+      'msst_siteid@odata.bind': `/msst_cmssites(${site.id})`,
+    });
+    await send('POST', 'msst_cmspageversions', {
+      msst_versionlabel: `${s} v1`,
+      msst_versionnumber: 1,
+      msst_contentjson: encode(
+        JSON.stringify({
+          root: {},
+          content: [{ type: 'RichText', props: { body: { en: bodyEn, ar: '<p>نص</p>' } } }],
+          zones: {},
+        }),
+      ),
+      msst_islatest: true,
+      'msst_pageid@odata.bind': `/msst_cmspages(${p.id})`,
+    });
+    await approve(p.id, `${s} v1 approval`);
+    const result = await send('POST', 'msst_CmsPublishPage', { PageId: p.id });
+    const back = await send('POST', 'msst_CmsGetPublishedPageJson', {
+      Site: siteKey,
+      Slug: s,
+      LanguageCode: 'en',
+    });
+    return {
+      message: result.body?.Message ?? '',
+      stored: JSON.parse(back.body.PageJson).content[0].props.body.en,
+    };
+  }
+
+  const scriptTag = await publishRichText(
+    'script',
+    '<p>Hello</p><script>alert(document.cookie)</script>',
+  );
+  check(
+    'a script tag never reaches the published page',
+    !/script/i.test(scriptTag.stored),
+    scriptTag.stored,
+  );
+  // Removing the tag is not enough: its source must go with it, or the page
+  // reads "alert(document.cookie)" to every visitor.
+  check(
+    'the script body goes with the tag',
+    !scriptTag.stored.includes('alert(') && scriptTag.stored.includes('Hello'),
+    scriptTag.stored,
+  );
+
+  const onError = await publishRichText('onerror', '<p onclick="steal()">Click me</p>');
+  check(
+    'an event-handler attribute is stripped',
+    !/onclick/i.test(onError.stored),
+    onError.stored,
+  );
+
+  const kept = await publishRichText(
+    'allowed',
+    '<p>Keep <strong>bold</strong> and <a href="https://qdb.qa">links</a>.</p>',
+  );
+  check(
+    'allowed markup survives untouched',
+    kept.stored.includes('<strong>') && kept.stored.includes('href="https://qdb.qa"'),
+    kept.stored,
+  );
+
+  const h1 = await publishRichText('h1', '<h1>Page title</h1><p>Body</p>');
+  check(
+    'H1 is removed but its words are kept',
+    !/<h1>/i.test(h1.stored) && h1.stored.includes('Page title'),
+    h1.stored,
+  );
+
+  try {
+    await publishRichText('jsurl', '<p><a href="javascript:alert(1)">x</a></p>');
+    check('a javascript: link is refused', false, 'publish succeeded');
+  } catch (error) {
+    check(
+      'a javascript: link is refused',
+      /javascript/i.test(error.dataverseMessage),
+      error.dataverseMessage.slice(0, 110),
+    );
+  }
+
+  check(
+    'the author is told what was removed',
+    /Removed disallowed markup/i.test(scriptTag.message),
+    scriptTag.message.slice(0, 110),
+  );
+
   // Two portals, same slug: proof that the cache key is site-scoped.
   const secondSiteKey = `e2e-site2-${stamp}`;
   const secondSite = await send('POST', 'msst_cmssites', {
