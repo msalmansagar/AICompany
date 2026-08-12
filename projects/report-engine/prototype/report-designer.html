@@ -4530,9 +4530,12 @@ function tabFormatting(body, r) {
 
 /* ---- Security ---- */
 function tabSecurity(body, r) {
-  body.appendChild(el(`<div class="info-banner">${ic("shield")}<div>Access is enforced <b>server-side</b> against CRM security — the designer's checks are convenience only. Only published reports run in production; masking and access control apply before every export. Stored in <span class="kbd">qdb_reportsecurity</span>.</div></div>`));
-  const card = el(`<div class="section-card"><h3>Access control</h3><div class="hint">Layered on CRM roles.</div></div>`);
-  const cols = [{t:"Principal type"},{t:"Principal"},{t:"View"},{t:"Run"},{t:"Export"},{t:"Edit"},{t:"Approve"}];
+  /* Phase 7 accepted that only Run is enforced server-side, on condition it be stated to users
+     rather than only in a code comment. This banner previously said access control "applies before
+     every export", which is the opposite of true and is the claim the condition was about. */
+  body.appendChild(el(`<div class="info-banner">${ic("shield")}<div><b>Run</b> is enforced server-side, in the plugin, on top of CRM security — a user not covered by an enabled Run rule cannot execute this report by any route.<br><b>View, Export, Edit and Approve are recorded, not enforced.</b> Once a report has run, the rows are already in the browser, so a check made there would be advice rather than a boundary; treat these as intent, and rely on CRM security and column masking for anything confidential. Stored in <span class="kbd">qdb_reportsecurity</span>.</div></div>`));
+  const card = el(`<div class="section-card"><h3>Access control</h3><div class="hint">Layered on CRM roles. Only the <b>Run</b> column changes what the engine will do.</div></div>`);
+  const cols = [{t:"Principal type"},{t:"Principal"},{t:"View"},{t:"Run — enforced"},{t:"Export"},{t:"Edit"},{t:"Approve"}];
   const rowHtml = (s,i) => `<tr>
     <td class="handle">${ic("key")}</td>
     <td><select class="fluent-select" data-i="${i}" data-k="ptype">${opts(PRINCIPAL_TYPES, s.ptype)}</select></td>
