@@ -20,6 +20,12 @@ const API_BASE = `${DATAVERSE_URL}/api/data/v9.2`;
 
 const encode = (json) => gzipSync(Buffer.from(json, 'utf8')).toString('base64');
 
+/**
+ * Any user id that is not the one running this script. The gate refuses an
+ * approver who is also the author, so the two must differ.
+ */
+const APPROVER_ID = '00000000-0000-0000-0000-0000000000aa';
+
 const DEMO_PAGE = {
   root: { props: { title: { en: 'About Reyada', ar: 'عن ريادة' } } },
   content: [
@@ -88,6 +94,28 @@ async function send(method, path, body) {
   return { id: id ? id.match(/\(([^)]+)\)/)?.[1] : null, body: text ? JSON.parse(text) : null };
 }
 
+/** The version an approval must be attached to. */
+async function latestVersionId(pageId) {
+  const found = await send(
+    'GET',
+    `msst_cmspageversions?$select=msst_cmspageversionid&$filter=_msst_pageid_value eq ${pageId}` +
+      '&$orderby=msst_versionnumber desc&$top=1',
+  );
+  return found.body.value[0].msst_cmspageversionid;
+}
+
+/** Approves a version on a route, so a publish is allowed to proceed. */
+async function approve(pageId, label, routeKey = 'standard') {
+  const versionId = await latestVersionId(pageId);
+  await send('POST', 'msst_cmsapprovals', {
+    msst_approvalkey: label,
+    msst_routekey: routeKey,
+    msst_decision: 100000001,
+    msst_decidedby: APPROVER_ID,
+    'msst_versionid@odata.bind': `/msst_cmspageversions(${versionId})`,
+  });
+}
+
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push({ name, ok, detail });
@@ -133,6 +161,22 @@ async function main() {
     msst_schemaversion: '1.0',
     'msst_pageid@odata.bind': `/msst_cmspages(${page.id})`,
   });
+
+  // FR-60: an author cannot publish alone. Prove the gate refuses first, then
+  // approve and prove it lets the page through. Testing only the approved path
+  // would leave the control unverified.
+  try {
+    await send('POST', 'msst_CmsPublishPage', { PageId: page.id });
+    check('an unapproved page cannot publish', false, 'publish succeeded without approval');
+  } catch (error) {
+    check(
+      'an unapproved page cannot publish',
+      /no approval/i.test(error.dataverseMessage),
+      error.dataverseMessage.slice(0, 110),
+    );
+  }
+
+  await approve(page.id, `${slug} v1 approval`);
 
   const published = await send('POST', 'msst_CmsPublishPage', {
     PageId: page.id,
@@ -293,6 +337,7 @@ async function main() {
     msst_islatest: true,
     'msst_pageid@odata.bind': `/msst_cmspages(${twinPage.id})`,
   });
+  await approve(twinPage.id, `${slug} v1 approval (second portal)`);
   await send('POST', 'msst_CmsPublishPage', { PageId: twinPage.id });
 
   const firstAgain = await send('POST', 'msst_CmsGetPublishedPageJson', {

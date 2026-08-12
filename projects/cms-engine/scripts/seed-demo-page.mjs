@@ -150,6 +150,23 @@ async function main() {
   });
   console.log(`version ${nextVersion} — created`);
 
+  // Publishing is refused without an approval (FR-60), so the seed records one.
+  // The approver id is a placeholder: who approves is a deployment decision,
+  // and the gate only requires that it is not the author.
+  const created = await send(
+    'GET',
+    `msst_cmspageversions?$select=msst_cmspageversionid&$filter=_msst_pageid_value eq ${pageId}` +
+      '&$orderby=msst_versionnumber desc&$top=1',
+  );
+  await send('POST', 'msst_cmsapprovals', {
+    msst_approvalkey: `${SLUG} v${nextVersion} approval`,
+    msst_routekey: 'standard',
+    msst_decision: 100000001,
+    msst_decidedby: '00000000-0000-0000-0000-0000000000aa',
+    'msst_versionid@odata.bind': `/msst_cmspageversions(${created.body.value[0].msst_cmspageversionid})`,
+  });
+  console.log(`version ${nextVersion} — approved on the standard route`);
+
   const published = await send('POST', 'msst_CmsPublishPage', {
     PageId: pageId,
     Comment: 'seeded demo page',

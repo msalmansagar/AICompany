@@ -3,6 +3,7 @@ import { Puck, type Data } from '@measured/puck';
 import '@measured/puck/puck.css';
 import { config } from './blocks';
 import {
+  approveLatestVersion,
   createPage,
   createSite,
   listPages,
@@ -127,6 +128,22 @@ export function App() {
     }
   }
 
+  /**
+   * Records an approval for the latest version. The plugin refuses a publish
+   * without one (FR-60), and refuses it again if the approver turns out to be
+   * the author — so this can legitimately fail for the person who just saved.
+   */
+  async function approve() {
+    if (!selected) return;
+    setNotice({ text: 'Recording approval…', tone: 'info' });
+    try {
+      const versionNumber = await approveLatestVersion(selected.id, selected.slug, 'standard');
+      setNotice({ text: `Version ${versionNumber} approved on the standard route.`, tone: 'ok' });
+    } catch (error) {
+      setNotice({ text: message(error), tone: 'bad' });
+    }
+  }
+
   async function publish() {
     if (!selected) return;
     setNotice({ text: 'Publishing…', tone: 'info' });
@@ -192,9 +209,12 @@ export function App() {
               <strong>
                 {site?.key}/{selected.slug}
               </strong>
-              <button className="primary" onClick={() => void publish()}>
-                Publish
-              </button>
+              <span className="actions">
+                <button onClick={() => void approve()}>Approve</button>
+                <button className="primary" onClick={() => void publish()}>
+                  Publish
+                </button>
+              </span>
             </div>
             <Puck
               config={config}

@@ -20,6 +20,7 @@ const STATUS_BY_VALUE: Record<number, PageStatus> = {
 const STATUS_DRAFT = 100000000;
 const CLASSIFICATION_STANDARD = 100000000;
 const SITE_LIVE = 100000001;
+const DECISION_APPROVED = 100000001;
 
 export interface SiteSummary {
   id: string;
@@ -199,6 +200,43 @@ export async function saveVersion(pageId: string, slug: string, content: unknown
   });
 
   return versionNumber;
+}
+
+/**
+ * Records an approval decision against the latest version.
+ *
+ * The route is written onto the row at decision time rather than read from the
+ * route table at publish, so editing the route table later cannot retroactively
+ * change what a past approval meant (§5).
+ */
+export async function approveLatestVersion(
+  pageId: string,
+  slug: string,
+  routeKey: 'standard' | 'regulated',
+): Promise<number> {
+  const result = await xrm().WebApi.retrieveMultipleRecords(
+    'msst_cmspageversion',
+    `?$select=msst_cmspageversionid,msst_versionnumber&$filter=_msst_pageid_value eq ${pageId}` +
+      '&$orderby=msst_versionnumber desc&$top=1',
+  );
+  const version = result.entities[0];
+  if (!version) throw new Error('There is no version to approve. Save the page first.');
+
+  await xrm().WebApi.createRecord('msst_cmsapproval', {
+    msst_approvalkey: `${slug} v${version.msst_versionnumber} approval`,
+    msst_routekey: routeKey,
+    msst_decision: DECISION_APPROVED,
+    msst_decidedby: currentUserId(),
+    'msst_versionid@odata.bind': `/msst_cmspageversions(${version.msst_cmspageversionid})`,
+  });
+
+  return version.msst_versionnumber;
+}
+
+function currentUserId(): string {
+  const context = (window.parent as any)?.Xrm?.Utility?.getGlobalContext?.();
+  const raw = context?.userSettings?.userId ?? '';
+  return String(raw).replace(/[{}]/g, '');
 }
 
 export interface PublishResult {

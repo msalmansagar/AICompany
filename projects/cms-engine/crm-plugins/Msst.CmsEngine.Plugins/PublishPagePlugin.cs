@@ -50,7 +50,13 @@ namespace Msst.CmsEngine.Plugins
                 throw new InvalidPluginExecutionException(validation.Message);
             }
 
+            // Address first, then permission. A page with no portal is
+            // misconfigured; a page with no approval is merely not ready, and
+            // reporting the second when the first is true sends an author to
+            // fix the wrong thing.
             var routeKey = ResolveRouteKey(service, page);
+
+            ApprovalGate.RequireApproval(service, page, version, tracing);
             var versionNumber = version.GetAttributeValue<int>("msst_versionnumber");
             tracing.Trace("Publishing {0} version {1}", routeKey, versionNumber);
 
@@ -67,7 +73,9 @@ namespace Msst.CmsEngine.Plugins
         private static Entity ReadPage(IOrganizationService service, Guid pageId)
         {
             var page = service.Retrieve(
-                PageEntity, pageId, new ColumnSet("msst_slug", "msst_status", "msst_siteid"));
+                PageEntity,
+                pageId,
+                new ColumnSet("msst_slug", "msst_status", "msst_siteid", "msst_classification"));
             if (page == null) throw new InvalidPluginExecutionException("Page not found.");
             return page;
         }
@@ -109,7 +117,9 @@ namespace Msst.CmsEngine.Plugins
         {
             var query = new QueryExpression(VersionEntity)
             {
-                ColumnSet = new ColumnSet("msst_versionnumber", "msst_contentjson"),
+                // createdby is read because the approval gate refuses an approver
+                // who is also the author.
+                ColumnSet = new ColumnSet("msst_versionnumber", "msst_contentjson", "createdby"),
                 TopCount = 1,
                 Criteria =
                 {

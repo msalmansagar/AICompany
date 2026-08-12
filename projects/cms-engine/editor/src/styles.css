@@ -55,6 +55,7 @@ aside ul { list-style: none; margin: 0; padding: 0; }
 }
 
 .host { color: var(--muted); font-size: 12px; }
+.actions { display: flex; gap: 8px; }
 
 button {
   font: inherit;
