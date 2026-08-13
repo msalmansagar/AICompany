@@ -7642,11 +7642,96 @@ function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog
   const cmd = el(`<div class="cmdbar">${newButton}${extra}<button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
   const scroll = el(`<div class="scroll"><div class="page"><div class="page-head"><div><h1>${esc(title)}</h1><div class="page-sub">${sub}</div></div></div><div class="grid-wrap">${tableHtml}</div></div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
+  wireListFilters(scroll, catalog);
+  // Delegated, so rows appended by infinite scroll are clickable without re-wiring each page.
+  scroll.addEventListener("click", e => {
+    const cell = e.target.closest("[data-logdetail]");
+    if (cell && cell.dataset.logdetail) showExecutionLogDetail(cell.dataset.logdetail);
+  });
   if (catalog && catalog.paged) wireInfiniteScroll(scroll, catalog);
   if (entityKey) $("#slNew").onclick = () => openEntityForm(entityKey);
   $("#slRefresh").onclick = () => withBusyButton("#slRefresh", "Refreshing…", async () => { catalog ? await catalog.refresh() : render(); });
-  $("#slExport").onclick = () => toast("View exported to CSV");
+  $("#slExport").onclick = () => withBusyButton("#slExport", "Preparing…", () => exportListCsv(title, catalog));
   if (commands && commands.length) wireRowCommands(scroll, commands);
+}
+
+/**
+ * Points any [data-filter] control at the catalog and re-reads when one changes.
+ *
+ * Kept generic and driven off the markup so a list gains a filter by rendering a control, not by
+ * growing another parameter on renderSimpleList — which already carries more than it should.
+ * Changing a filter resets to the first page: the skiptoken from the previous query describes a
+ * different result set and reusing it would page through the wrong rows.
+ */
+function wireListFilters(scroll, catalog) {
+  if (!catalog) return;
+  const controls = [...scroll.querySelectorAll("[data-filter]")];
+  const clear = scroll.querySelector("[data-filter-clear]");
+  if (!controls.length && !clear) return;
+  catalog.filters = catalog.filters || {};
+
+  const reload = () => withBusy("Filtering…", () => catalog.refresh());
+  controls.forEach(control => control.addEventListener("change", () => {
+    catalog.filters[control.dataset.filter] = control.value;
+    reload();
+  }));
+  if (clear) clear.onclick = () => { catalog.filters = {}; reload(); };
+}
+
+/**
+ * Downloads the list as a CSV.
+ *
+ * This button used to raise "View exported to CSV" and do nothing whatsoever, on every list in the
+ * app — a control that reported success it had not had. It matters most here: the execution log and
+ * the audit log are the two views someone exports precisely because they need the record.
+ *
+ * A paged list is read to the end first. Exporting only the rows that happen to have been scrolled
+ * into view would be the same lie in a quieter voice: a file that looks like the whole log, is not,
+ * and says nothing about it.
+ */
+async function exportListCsv(title, catalog) {
+  if (catalog && catalog.hasMore && catalog.hasMore()) {
+    let guard = 0;
+    while (catalog.hasMore() && guard++ < 500) {
+      beginBusy(`Reading all rows — ${(catalog.rows || []).length} so far…`);
+      const added = await catalog.loadMore();
+      endBusy(`Reading all rows — ${(catalog.rows || []).length} so far…`);
+      if (!added.length) break;
+    }
+    render();                                   // redraw with every row, so the file matches the screen
+    await new Promise(done => requestAnimationFrame(done));
+  }
+
+  const table = $("table.grid");
+  if (!table) { toast("Nothing to export.", "error"); return; }
+
+  const rows = gridToRows(table);
+  if (rows.length < 2) { toast("Nothing to export.", "error"); return; }
+
+  const csv = "﻿" + rows.map(cells => cells.map(csvCell).join(",")).join("\r\n");
+  const name = String(title || "list").replace(/[^\w.-]+/g, "-").toLowerCase();
+  downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), `${name}.csv`);
+  toast(`Exported ${rows.length - 1} ${plural(rows.length - 1, "row")} to ${name}.csv`, "success");
+}
+
+/** Header row plus every body row, as text — what the reader can see, not the markup behind it. */
+function gridToRows(table) {
+  const header = [...table.querySelectorAll("thead th")].map(th => th.textContent.trim());
+  const body = [...table.querySelectorAll("tbody tr")]
+    .filter(tr => tr.querySelectorAll("td").length === header.length)   // skips group and empty rows
+    .map(tr => [...tr.querySelectorAll("td")].map(td => td.textContent.trim()));
+  return [header, ...body];
+}
+
+/** RFC 4180: quote everything, double the quotes inside. Excel then reads commas and Arabic alike. */
+const csvCell = value => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
 }
 
 /* How close to the bottom the reader must be before the next page is fetched. Far enough that the
@@ -7681,19 +7766,29 @@ function wireInfiniteScroll(scroll, catalog) {
      stops rather than carrying on mutating the shared catalog. */
   const liveBody = () => scroll.isConnected ? scroll.querySelector("table.grid tbody") : null;
 
+  /* refresh() nulls rows before re-reading, so a status painted mid-refresh must not assume a list
+     is there — reading .length off null throws inside an async caller, where it surfaces as nothing
+     happening rather than as an error. */
+  const loadedCount = () => (catalog.rows || []).length;
+
   const showStatus = () => {
     if (!scroll.isConnected) return;
     if (catalog.error) {
       footer.innerHTML = `<span style="color:var(--danger)">Stopped loading — ${esc(catalog.error)}. `
-        + `Showing the first ${catalog.rows.length} of an unknown total.</span>`;
+        + `Showing the first ${loadedCount()} of an unknown total.</span>`;
     } else if (catalog.loadingMore) {
       footer.innerHTML = `<span class="spinner"></span> Loading more…`;
     } else if (catalog.hasMore()) {
-      footer.textContent = `${catalog.rows.length} loaded — scroll for more`;
+      footer.textContent = `${loadedCount()} loaded — scroll for more`;
     } else {
-      footer.textContent = `All ${catalog.rows.length} ${plural(catalog.rows.length, "row")} loaded`;
+      footer.textContent = `All ${loadedCount()} ${plural(loadedCount(), "row")} loaded`;
     }
   };
+
+  /* Painted now, not only after the first frame. The status is true the moment the rows are on
+     screen, and leaving it until the fill loop has awaited two frames meant a list that needed no
+     filling — a filtered result that fits on one page — sat with a blank footer indefinitely. */
+  showStatus();
 
   async function fillNext() {
     if (!scroll.isConnected) return false;
@@ -7806,9 +7901,10 @@ const connectorCatalog = dataverseCatalog(
 
 const executionLogCatalog = dataverseCatalog(
   "qdb_reportexecutionlog",
-  "?$select=qdb_correlationid,qdb_startedon,qdb_completedon,qdb_durationms,qdb_rowcount,qdb_status,"
+  // A function, so the current filter is read at fetch time and refresh() picks it up.
+  () => "?$select=qdb_correlationid,qdb_startedon,qdb_completedon,qdb_durationms,qdb_rowcount,qdb_status,"
   + "qdb_errorcode,qdb_resultsummary,qdb_executionstage,qdb_cachehit,_qdb_reportdefinitionid_value"
-  + "&$orderby=qdb_startedon desc",
+  + "&$orderby=qdb_startedon desc" + executionLogFilter(),
   row => ({
     correlationId: row.qdb_correlationid,
     report: formattedValue(row, "_qdb_reportdefinitionid_value"),
@@ -7986,17 +8082,121 @@ function connectorsView() {
     "No external connectors configured in this environment.");
 }
 
+/* Filters run in the QUERY, not over the rows already on screen.
+   Filtering what happens to be loaded would answer "no runs failed" from a first page of fifty
+   while the failures sat on page four — a wrong answer delivered confidently, which is worse than
+   no filter at all. Every control here narrows the OData and re-reads from the first page. */
+const LOG_PERIODS = [
+  { key: "", label: "Any time" },
+  { key: "1", label: "Last 24 hours" },
+  { key: "7", label: "Last 7 days" },
+  { key: "30", label: "Last 30 days" }
+];
+
+function executionLogFilter() {
+  const f = executionLogCatalog.filters || {};
+  const clauses = [];
+  if (f.reportId) clauses.push(`_qdb_reportdefinitionid_value eq ${f.reportId}`);
+  // An error code is written only when a run fails, so its presence is the outcome.
+  if (f.outcome === "failed") clauses.push("qdb_errorcode ne null");
+  if (f.outcome === "success") clauses.push("qdb_errorcode eq null");
+  if (f.days) {
+    const since = new Date(Date.now() - Number(f.days) * 86400000).toISOString();
+    clauses.push(`qdb_startedon ge ${since}`);
+  }
+  return clauses.length ? `&$filter=${encodeURIComponent(clauses.join(" and "))}` : "";
+}
+
+function logFilterBar() {
+  const f = executionLogCatalog.filters || {};
+  const reports = reportCatalog.get();
+  const reportOptions = [`<option value="">All reports</option>`].concat(reports.map(r =>
+    `<option value="${esc(r.id)}" ${f.reportId === r.id ? "selected" : ""}>${esc(r.name)}</option>`)).join("");
+  const outcomes = [["", "Any outcome"], ["success", "Succeeded"], ["failed", "Failed"]].map(([v, l]) =>
+    `<option value="${v}" ${f.outcome === v ? "selected" : ""}>${l}</option>`).join("");
+  const periods = LOG_PERIODS.map(p =>
+    `<option value="${p.key}" ${String(f.days || "") === p.key ? "selected" : ""}>${esc(p.label)}</option>`).join("");
+
+  return `<div class="section-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:12px">
+    <div class="field"><label class="lbl">Report</label>
+      <select class="fluent-select" data-filter="reportId" style="min-width:220px">${reportOptions}</select></div>
+    <div class="field"><label class="lbl">Outcome</label>
+      <select class="fluent-select" data-filter="outcome">${outcomes}</select></div>
+    <div class="field"><label class="lbl">Period</label>
+      <select class="fluent-select" data-filter="days">${periods}</select></div>
+    <button class="btn" data-filter-clear="1">Clear</button>
+    <div class="hint-inline" style="flex:1;text-align:end">Filters run in the query, so they cover every run — not just the rows loaded so far.</div>
+  </div>`;
+}
+
+/** A read-only dialog, built the same way as the others here: scrim, escape, click-outside, close. */
+function openDialog(title, bodyHtml) {
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:560px">
+    <div class="dialog-head"><h3>${title}</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body">${bodyHtml}</div>
+    <div class="dialog-foot"><button class="btn" data-close>Close</button></div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+  const close = () => { scrim.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.addEventListener("click", e => { if (e.target === scrim) close(); });
+  document.addEventListener("keydown", onKey);
+  return scrim;
+}
+
+/**
+ * Opens one run's detail.
+ *
+ * The correlation id has always been painted as a link — coloured, bold, pointer cursor, underlined
+ * on hover — with nothing behind it. Meanwhile the row's result summary was read from Dataverse on
+ * every page load and thrown away, so the detail this shows was already being paid for.
+ */
+function showExecutionLogDetail(correlationId) {
+  const log = executionLogCatalog.get().find(l => l.correlationId === correlationId);
+  if (!log) return;
+
+  /* Stored as "user=…; outcome=success; rows=61", and for a refusal it also carries the report that
+     was asked for — which is the one thing you want when a run was rejected. Parsed rather than
+     printed raw, but the raw line is shown too, because a summary this engine writes in a shape the
+     designer does not expect should be visible rather than silently dropped. */
+  const parts = String(log.summary || "").split(";").map(s => s.trim()).filter(Boolean)
+    .map(pair => { const at = pair.indexOf("="); return at < 0 ? [pair, ""] : [pair.slice(0, at), pair.slice(at + 1)]; });
+  const known = { user: "Run by", outcome: "Outcome", rows: "Rows returned", "requested report": "Report requested" };
+
+  const line = (label, value) => value == null || value === ""
+    ? "" : `<div class="field"><label class="lbl">${esc(label)}</label><div>${esc(value)}</div></div>`;
+
+  const detail = parts.map(([key, value]) =>
+    line(known[key] || key, key === "user" ? (userNames.byId[value] || value) : value)).join("");
+
+  openDialog(`Run ${esc(correlationId)}`, `
+    <div class="field-grid">
+      ${line("Report", log.report)}
+      ${line("Started", log.startedOn)}
+      ${line("Duration", log.durationMs == null ? null : `${log.durationMs} ms`)}
+      ${line("Rows", log.rows)}
+      ${line("Stage reached", log.stage)}
+      ${line("Served from cache", log.cacheHit ? "Yes" : "No")}
+      ${log.errorCode ? line("Error code", log.errorCode) : ""}
+      ${detail}
+    </div>
+    <div class="hint" style="margin-top:14px">Correlation ID <span class="kbd">${esc(correlationId)}</span> ties this run to the plugin trace and to the engine's own logs.</div>
+    ${log.summary ? `<div class="hint" style="margin-top:8px">Raw summary: <span class="kbd">${esc(log.summary)}</span></div>` : ""}`);
+}
+
 function logsView() {
   const logs = executionLogCatalog.get();
   resolveUserNames(logs.map(l => l.userId));
-  return catalogTable(executionLogCatalog,
+  return logFilterBar() + catalogTable(executionLogCatalog,
     ["Started", "Report", "Run by", { label: "Rows", num: true }, { label: "ms", num: true }, "Stage", "Cache", "Outcome", "Correlation ID"],
     r => `<tr><td>${cell(r.startedOn)}</td><td>${cell(r.report)}</td>
       <td>${cell(r.userId ? (userNames.byId[r.userId] || "resolving…") : null)}</td>
       <td class="num">${cell(r.rows)}</td><td class="num">${cell(r.durationMs)}</td>
       <td>${cell(r.stage)}</td><td>${r.cacheHit ? ic("check") : "No"}</td>
       <td><span class="pill ${String(r.outcome || "").toLowerCase()}">${cell(r.outcome)}</span>${r.errorCode ? ` <span class="kbd">${esc(r.errorCode)}</span>` : ""}</td>
-      <td class="link-cell" ${MONO}>${cell(r.correlationId)}</td></tr>`,
+      <td class="link-cell" ${MONO} data-logdetail="${esc(r.correlationId || "")}">${cell(r.correlationId)}</td></tr>`,
     "No report runs recorded yet.");
 }
 
