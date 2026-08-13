@@ -2305,6 +2305,35 @@ const dvDelete = (entity, id) => xrmApi().deleteRecord(entity, id);
 const dvRetrieve = (entity, id, query) => xrmApi().retrieveRecord(entity, id, query);
 const dvList = async (entity, query) => (await xrmApi().retrieveMultipleRecords(entity, query)).entities || [];
 
+/**
+ * One page of records, plus the link to the next one.
+ *
+ * dvList drops the nextLink, which is exactly what paging needs, so this keeps it. Passing a page
+ * size makes Dataverse return that many and hand back a nextLink; passing the nextLink back as the
+ * query reads the following page, which is the documented Xrm.WebApi paging shape. With no page
+ * size it behaves like dvList and reports no next page, so an unpaged caller cannot accidentally
+ * start paging.
+ */
+async function dvPage(entity, query, pageSize) {
+  const result = pageSize
+    ? await xrmApi().retrieveMultipleRecords(entity, asQueryOptions(query), pageSize)
+    : await xrmApi().retrieveMultipleRecords(entity, asQueryOptions(query));
+  return { rows: result.entities || [], nextLink: pageSize ? (result.nextLink || null) : null };
+}
+
+/**
+ * Xrm.WebApi wants "?$select=…" and rejects anything else with `Option Parameter should begin with
+ * "?"`. The nextLink it hands back for the following page is a full absolute URL, so feeding it
+ * straight back — which reads like the obvious thing to do — fails on the second page and only on
+ * the second page. Trimmed to the query string here so the caller can pass a nextLink around as if
+ * it were a query.
+ */
+function asQueryOptions(query) {
+  if (typeof query !== "string") return query;
+  const start = query.indexOf("?");
+  return /^https?:/i.test(query) && start >= 0 ? query.slice(start) : query;
+}
+
 /* Metadata does not go through Xrm.WebApi: it rejects EntityDefinitions with "the entity cannot be
    found", because retrieveMultipleRecords resolves a logical name to a record collection and the
    metadata endpoints are neither. They are read straight off the Web API on the signed-in session
@@ -2339,22 +2368,41 @@ const formattedValue = (row, attribute) => row[attribute + FORMATTED_SUFFIX] || 
  * rather than swallowed: an empty grid and a broken query are indistinguishable on screen, and
  * showing "no reports" when the query actually failed is the same class of lie as the seed data.
  */
-function dataverseCatalog(entity, query, mapRow) {
+/**
+ * A list of records read from Dataverse, loaded once and reused.
+ *
+ * Pass `{ pageSize }` to read it a page at a time instead. A paged catalog keeps the `nextLink`
+ * Dataverse returns and exposes loadMore(), which the list views use to scroll endlessly rather
+ * than pulling every row up front — the execution log grows by a row on every report run, so
+ * "fetch all of it" has a shelf life.
+ */
+function dataverseCatalog(entity, query, mapRow, options) {
+  const pageSize = (options || {}).pageSize || 0;
+  const queryFor = () => typeof query === "function" ? query() : query;
+
   const catalog = {
     rows: null,
     error: null,
     loading: false,
+    loadingMore: false,
+    nextLink: null,
+    paged: pageSize > 0,
     /** Rows if loaded, otherwise an empty list — and starts the fetch the first time it is asked. */
     get() {
       if (catalog.rows === null && !catalog.loading) catalog.load();
       return catalog.rows || [];
     },
     isLoading: () => catalog.rows === null,
+    /** Whether Dataverse said there is another page. False once the last page has been read. */
+    hasMore: () => catalog.paged && !!catalog.nextLink,
     async load() {
       catalog.loading = true;
+      catalog.nextLink = null;
       beginBusy(`Reading ${entity}…`);
       try {
-        catalog.rows = (await dvList(entity, typeof query === "function" ? query() : query)).map(mapRow);
+        const page = await dvPage(entity, queryFor(), pageSize);
+        catalog.rows = page.rows.map(mapRow);
+        catalog.nextLink = page.nextLink;
         catalog.error = null;
       } catch (error) {
         catalog.rows = [];
@@ -2364,9 +2412,38 @@ function dataverseCatalog(entity, query, mapRow) {
       endBusy(`Reading ${entity}…`);
       render();
     },
+    /**
+     * Reads the next page and returns just the rows it added.
+     *
+     * Deliberately does NOT call render(): re-rendering the list would rebuild the table and throw
+     * the reader back to the top, which is the one thing infinite scroll must not do. The caller
+     * appends what it gets. No busy shield either — a shield on every page would make scrolling
+     * feel like the app had hung.
+     */
+    async loadMore() {
+      if (!catalog.hasMore() || catalog.loadingMore) return [];
+      catalog.loadingMore = true;
+      try {
+        const page = await dvPage(entity, catalog.nextLink, pageSize);
+        const added = page.rows.map(mapRow);
+        catalog.rows = (catalog.rows || []).concat(added);
+        catalog.nextLink = page.nextLink;
+        catalog.error = null;
+        return added;
+      } catch (error) {
+        // Stop paging rather than retry forever against a failing query; the message surfaces below
+        // the grid so a truncated list never looks like a complete one.
+        catalog.nextLink = null;
+        catalog.error = error.message || String(error);
+        return [];
+      } finally {
+        catalog.loadingMore = false;
+      }
+    },
     /** Re-reads from Dataverse, for the Refresh command and after a save. */
     refresh() {
       catalog.rows = null;
+      catalog.nextLink = null;
       return catalog.load();
     }
   };
@@ -7565,10 +7642,93 @@ function renderSimpleList(c, title, sub, tableHtml, entityKey, newLabel, catalog
   const cmd = el(`<div class="cmdbar">${newButton}${extra}<button class="cmd" id="slRefresh">${ic("refresh")}Refresh</button><div class="cmd-spacer"></div><button class="cmd" id="slExport">${ic("excel")}Export to Excel</button></div>`);
   const scroll = el(`<div class="scroll"><div class="page"><div class="page-head"><div><h1>${esc(title)}</h1><div class="page-sub">${sub}</div></div></div><div class="grid-wrap">${tableHtml}</div></div></div>`);
   c.appendChild(cmd); c.appendChild(scroll); labelizeGrid(scroll);
+  if (catalog && catalog.paged) wireInfiniteScroll(scroll, catalog);
   if (entityKey) $("#slNew").onclick = () => openEntityForm(entityKey);
   $("#slRefresh").onclick = () => withBusyButton("#slRefresh", "Refreshing…", async () => { catalog ? await catalog.refresh() : render(); });
   $("#slExport").onclick = () => toast("View exported to CSV");
   if (commands && commands.length) wireRowCommands(scroll, commands);
+}
+
+/* How close to the bottom the reader must be before the next page is fetched. Far enough that the
+   rows are usually there before the scrollbar reaches them, rather than after. */
+const INFINITE_SCROLL_TRIGGER_PX = 300;
+
+/** "1 row", not "1 rows". The runtime engine has its own copy; this file cannot see it. */
+const plural = (count, word) => count === 1 ? word : word + "s";
+
+/**
+ * Loads the next page as the reader approaches the bottom of a list, and appends it in place.
+ *
+ * Appends to the existing tbody rather than re-rendering: rebuilding the table would reset the
+ * scroll position to the top on every page, which turns infinite scroll into a trap.
+ *
+ * It also fills the first screen. If the opening page is shorter than the viewport there is nothing
+ * to scroll, so the reader would see a partial list with no way to ask for the rest — the case that
+ * makes this look broken on a big monitor rather than on the developer's.
+ */
+function wireInfiniteScroll(scroll, catalog) {
+  if (!scroll.querySelector("table.grid tbody")) return;   // empty or error state — nothing to page
+  if (scroll.dataset.infiniteWired) return;                // one wiring per container
+  scroll.dataset.infiniteWired = "1";
+
+  const footer = el(`<div class="page-sub" style="padding:10px 2px 24px"></div>`);
+  scroll.querySelector(".grid-wrap").appendChild(footer);
+
+  /* Every render() rebuilds this list, so a reference captured now can be pointing at a table that
+     has since been replaced. Appending into that detached table is invisible: the catalog grows,
+     the screen does not, and the reader sees a list that has stopped loading for no reason. So the
+     tbody is looked up when it is written to, and a wiring whose container has left the document
+     stops rather than carrying on mutating the shared catalog. */
+  const liveBody = () => scroll.isConnected ? scroll.querySelector("table.grid tbody") : null;
+
+  const showStatus = () => {
+    if (!scroll.isConnected) return;
+    if (catalog.error) {
+      footer.innerHTML = `<span style="color:var(--danger)">Stopped loading — ${esc(catalog.error)}. `
+        + `Showing the first ${catalog.rows.length} of an unknown total.</span>`;
+    } else if (catalog.loadingMore) {
+      footer.innerHTML = `<span class="spinner"></span> Loading more…`;
+    } else if (catalog.hasMore()) {
+      footer.textContent = `${catalog.rows.length} loaded — scroll for more`;
+    } else {
+      footer.textContent = `All ${catalog.rows.length} ${plural(catalog.rows.length, "row")} loaded`;
+    }
+  };
+
+  async function fillNext() {
+    if (!scroll.isConnected) return false;
+    if (!catalog.hasMore() || catalog.loadingMore) return false;
+    showStatus();
+    const added = await catalog.loadMore();
+    const body = liveBody();
+    if (added.length && body) {
+      body.insertAdjacentHTML("beforeend", added.map(catalog.renderRow).join(""));
+      labelizeGrid(scroll);                 // the small-screen card labels apply to new rows too
+    }
+    showStatus();
+    return added.length > 0;
+  }
+
+  /* Keep going while the content is too short to scroll, so there is always something to pull.
+     Measured AFTER a frame, and again after every append: read straight away, scrollHeight is the
+     unlaid-out height and reads as too short, so this loop fetched every page on open and quietly
+     undid the paging it was there to support. Two frames because the first only gets us past style
+     recalculation. */
+  (async () => {
+    await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+    let guard = 0;
+    while (catalog.hasMore() && scroll.scrollHeight <= scroll.clientHeight + INFINITE_SCROLL_TRIGGER_PX
+           && guard++ < 20) {
+      if (!await fillNext()) break;
+      await new Promise(done => requestAnimationFrame(done));
+    }
+    showStatus();
+  })();
+
+  scroll.addEventListener("scroll", () => {
+    const remaining = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+    if (remaining < INFINITE_SCROLL_TRIGGER_PX) fillNext();
+  }, { passive: true });
 }
 
 /** Row selection driving the command bar, for the lists that act on a selected record. */
@@ -7661,7 +7821,11 @@ const executionLogCatalog = dataverseCatalog(
     summary: row.qdb_resultsummary,
     userId: actingUserIdOf(row.qdb_resultsummary),
     outcome: formattedValue(row, "qdb_status") || outcomeFromSummary(row.qdb_resultsummary)
-  })
+  }),
+  /* Read a page at a time and scrolled endlessly. This list gains a row on every report run, so it
+     is the one view whose cost grows without anybody adding anything. 50 fills a screen with room
+     to spare, which keeps the first paint fast without fetching a page per flick of the wheel. */
+  { pageSize: 50 }
 );
 
 const auditLogCatalog = dataverseCatalog(
@@ -7730,6 +7894,9 @@ function datasourceOptions(selectedName) {
 }
 /** Wraps a catalogue-backed table so an empty one explains itself instead of showing blank rows. */
 function catalogTable(catalog, headers, rowHtml, emptyMessage) {
+  // Remembered so a paged catalog can draw later pages with the same renderer that drew the first.
+  // Appending rows built by a second, near-identical function is how columns drift apart.
+  catalog.renderRow = rowHtml;
   const rows = catalog.get();
   if (!rows.length) {
     const skeleton = catalog.isLoading() ? `<div style="margin-top:12px">${skeletonRows(headers.length)}</div>` : "";
