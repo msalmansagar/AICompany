@@ -151,16 +151,36 @@ Every one of these is a live runtime feature with no surface in CWFD:
 three scopes on both creation and completion. DP-5 becomes *surface the existing hook*,
 which is an S/M, not the L it was estimated at.
 
-**DP-4 does not need a new sub-process entity.** `qdb_parentworkitemstep` is a step
-hierarchy the engine already walks.
+> 🔴 **CORRECTION (2026-08-13) — the paragraph below is WRONG.**
+> `qdb_parentworkitemstep` is a step→step lookup meaning *"run concurrently
+> alongside this parent"*, which `OnTaskCreate` uses to fan out sibling tasks. It
+> is **not** containment or invocation, and it does not give DP-4 sub-processes.
+> Verified by enumerating all 212 attributes on `qdb_work_item_steps`: none of the
+> 35 lookups targets a process for invocation and none of the 14 picklists encodes
+> a step kind. DP-4 needs new engine code — that is Q7 of
+> `platform-team-questions.md`. See also recommendation 6 in §6, corrected there.
+
+~~**DP-4 does not need a new sub-process entity.** `qdb_parentworkitemstep` is a step
+hierarchy the engine already walks.~~
 
 ---
 
 ## 5. The real execution contract
 
+> 🔴 **CORRECTION (2026-08-13).** The first line below is wrong about how a
+> process starts on `org5869857f`. `Workflows.ApplyProcess` is a workflow
+> activity, and **nothing invokes it** — no registered step (correct for its
+> kind) and no reference in any of the org's 1,621 workflow definitions. What is
+> actually wired is a pair of plugins on **Create of `qdb_request`**:
+> `Plugins.AttachProcess` (stage 40, sync) and `Plugins.ApplyProcessPostActivities`
+> (stage 40, async). Whether `qdb_request` is the intended entry point or this org
+> is simply missing the workflow that would call `ApplyProcess` is Q6 of
+> `platform-team-questions.md`. The rest of the contract below is unaffected —
+> it was verified from the decompiled source and re-confirmed on the org.
+
 ```
 ApplyProcess (workflow activity)
-   └─ starts a process against a record
+   └─ starts a process against a record   ← see correction above: invoked by nothing
 
 OnTaskCreate (plugin)
    ├─ CallWorkflow(qdb_callworkflowontaskcreation)
@@ -200,7 +220,10 @@ TatAndEscalations (separate assembly)
    retire the `qdb_sla_*` fields.
 4. **Keep GL-05 and the publish block** until DP-1 is re-based onto the engine's model.
 5. **DP-5 drops from L to S/M** — surface `qdb_callworkflowontask{creation,completion}`.
-6. **DP-4 re-scopes** around `qdb_parentworkitemstep` rather than a new entity.
+6. ~~**DP-4 re-scopes** around `qdb_parentworkitemstep` rather than a new entity.~~
+   🔴 **WRONG — corrected 2026-08-13, see the correction in §4.** `qdb_parentworkitemstep`
+   means "run alongside", not "contain". DP-4 cannot be delivered by surfacing anything and
+   needs the engine extended; that is Q7 of `platform-team-questions.md`.
 7. **Adopt the org-capability probe** in the BA phase. Two engagements shipped duplicate
    functionality because nothing in the pipeline asked what the org already does.
 
