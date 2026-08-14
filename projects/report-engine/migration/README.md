@@ -2,10 +2,55 @@
 
 **Written 2026-08-15.** Analysis, a recommendation, and a working triage tool.
 
-> ⚠️ Calibration warning. org5869857f contains **zero** SSRS reports, so none of this has been run
-> against real customer RDLs. The percentages people usually want here cannot be honestly given
-> until the tool is pointed at the actual inventory. Everything below is derived from the two
-> schemas and from measurements taken on this engine; the first action is to get the RDLs.
+> ⚠️ Calibration warning. None of this has been run against real customer RDLs. The percentages
+> people usually want here cannot be honestly given until the tool is pointed at the actual
+> inventory. Everything below is derived from the two schemas and from measurements taken on this
+> engine; the first action is to get the RDLs off the report server.
+
+---
+
+## The architecture this is actually migrating from
+
+**SSRS runs on its own report server. CRM opens reports by URL from JavaScript.** That is a
+different starting point from CRM-integrated SSRS, and it changes three things.
+
+**The RDLs are not in Dataverse.** Querying the `report` entity returns nothing, because the
+definitions live in the report server catalog. Get them from there (`rs.exe`, the ReportService2010
+SOAP endpoint, or the ReportServer database) — not from CRM.
+
+**Every dataset is almost certainly SQL.** A standalone report server has no `MSCRMFETCH` data
+provider, so these reports read the CRM database directly — filtered views if someone was careful,
+base tables if not. FetchXML conversion is therefore not an edge case to handle, it is the **whole
+job**. That is why `gradeSqlRewrite` exists: marking every dataset BLOCKER would be true and
+useless, so each is graded EASY / MODERATE / HARD / NOT POSSIBLE instead, and that grading is the
+estimate.
+
+**🔴 Security changes meaning, and this is the risk to check first.** In CRM-integrated SSRS the
+report runs as the caller and filtered views apply row-level security. A standalone report server
+usually connects under a **service account**. Two consequences, in opposite directions:
+
+- If the reports read **base tables**, they return every row to whoever opens the link, regardless
+  of that user's CRM privileges. The tool flags this per dataset. Worth knowing before migration,
+  because it means today's reports may be leaking.
+- Whatever they read, the migrated report **will** be security-trimmed: the engine executes as the
+  calling user, and `ReportAccessGuard` enforces its own access list on top. So a migrated report
+  can legitimately return **fewer rows than the SSRS one**. That will be reported as a bug. Agree in
+  advance that it is a fix, and reconcile against a user whose privileges you know.
+
+**What gets easier.** The launch half maps well. The JS-opens-a-URL pattern has a direct equivalent
+in `qdb_reportribbonplacement` and the ribbon flyout, and the runtime viewer already accepts a report
+id plus context — record id, selected rows, user, business unit. Passing the current record to a
+report stops being hand-written URL construction and becomes configuration.
+
+**What it is worth.** Retiring the report server removes a server, an authentication boundary, a
+network path from CRM to it, and its patching and licensing. That is usually the actual business
+case, and it is worth naming explicitly rather than selling the migration on report features.
+
+**Two answers that change the plan:**
+1. **Is Dynamics on-premise or cloud?** If a move to Dataverse cloud is coming, direct SQL dies with
+   it and this migration becomes forced rather than optional — which changes its priority entirely.
+2. **Does the report server impersonate the caller, or use a service account?** This decides whether
+   "fewer rows after migration" is a regression or the correction of a leak.
 
 ---
 

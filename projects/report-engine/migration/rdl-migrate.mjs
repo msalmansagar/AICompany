@@ -106,6 +106,65 @@ const EXPRESSION_TRAPS = [
   { pattern: /\bFirst\s*\(|\bLast\s*\(/i, severity: 'MANUAL', why: 'Positional aggregates are not supported.' }
 ];
 
+/**
+ * Grades how hard a SQL dataset is to re-express as FetchXML.
+ *
+ * On a standalone report server every dataset is SQL, so calling them all BLOCKER says nothing
+ * useful — the whole estate comes back red and the estimate is no better than a guess. What is
+ * worth knowing is which ones are an afternoon and which ones cannot be expressed in FetchXML at
+ * all, because FetchXML is a query language over one entity graph, not a relational one: it has no
+ * subqueries, no UNION, no window functions and no arbitrary expressions.
+ */
+function gradeSqlRewrite(sql) {
+  const text = String(sql).replace(/\s+/g, ' ');
+  const has = pattern => pattern.test(text);
+
+  const readsBaseTables = has(/\bfrom\s+(dbo\.)?(?!Filtered)\w+/i) && !has(/\bfrom\s+Filtered/i);
+
+  // Things FetchXML simply cannot express.
+  const impossible = [
+    [/\bunion\b/i, 'UNION — FetchXML returns one entity graph, not a union of result sets'],
+    [/\bwith\s+\w+\s+as\s*\(/i, 'a CTE'],
+    [/\bover\s*\(/i, 'a window function'],
+    [/\bpivot\b|\bunpivot\b/i, 'PIVOT'],
+    [/\binto\s+#/i, 'a temp table'],
+    [/\bexec\b|\bsp_\w+/i, 'a stored procedure'],
+    [/\(\s*select\b/i, 'a subquery in the select or where']
+  ].filter(([p]) => has(p)).map(([, label]) => label);
+
+  if (impossible.length) {
+    return {
+      grade: 'NOT POSSIBLE', severity: 'BLOCKER', readsBaseTables,
+      why: `The query uses ${impossible.join(', ')}. FetchXML has no equivalent, so this cannot be re-expressed as a single engine query.`,
+      instead: 'Keep in SSRS, or pre-compute the result — a view, a rollup field, or a scheduled job writing to an entity the report can then read simply.'
+    };
+  }
+
+  const joins = (text.match(/\bjoin\b/gi) || []).length;
+  const aggregates = has(/\b(group\s+by|sum\s*\(|count\s*\(|avg\s*\(|min\s*\(|max\s*\()/i);
+  const computed = has(/\b(datediff|dateadd|case\s+when|convert\s*\(|cast\s*\(|isnull\s*\()/i);
+
+  if (!joins && !aggregates && !computed) {
+    return {
+      grade: 'EASY', severity: 'MANUAL', readsBaseTables,
+      why: 'One table with a filter. This is a direct translation into FetchXML, or a saved view.',
+      instead: 'Rewrite as FetchXML — attributes, order, filter. Roughly an hour including reconciliation.'
+    };
+  }
+  if (joins <= 3 && !computed) {
+    return {
+      grade: 'MODERATE', severity: 'MANUAL', readsBaseTables,
+      why: `${joins} join(s)${aggregates ? ' and aggregation' : ''}. FetchXML expresses joins as link-entity and supports aggregate queries, so this translates — but the shape of the result changes and needs checking.`,
+      instead: 'Rewrite with link-entity; for aggregates confirm the engine returns them in the form the layout expects.'
+    };
+  }
+  return {
+    grade: 'HARD', severity: 'MANUAL', readsBaseTables,
+    why: `${joins} join(s)${aggregates ? ', aggregation' : ''}${computed ? ', and computed expressions (CASE/DATEDIFF/CAST)' : ''}. FetchXML cannot compute, so anything derived has to move to a computed column, a rollup, or the query it reads from.`,
+    instead: 'Rewrite the joins as link-entity and move each computed expression to a computed column — or pre-compute upstream. Estimate generously and reconcile totals.'
+  };
+}
+
 /** SSRS format strings that the engine expresses as a column type plus a transformation. */
 function mapFormat(format) {
   if (!format) return null;
@@ -203,9 +262,14 @@ function readRdl(xml, name) {
 
   const sql = datasets.filter(d => d.command && !d.isFetch);
   for (const ds of sql) {
-    note('BLOCKER', `dataset "${ds.name}" is not FetchXML`,
-      'The engine reads Dataverse through FetchXML or a saved view. A SQL/filtered-view query cannot be executed, and on Dataverse cloud it could not run at all.',
-      'Rewrite the query as FetchXML, or point the report at a saved view.');
+    const graded = gradeSqlRewrite(ds.command);
+    note(graded.severity, `dataset "${ds.name}" is SQL — rewrite is ${graded.grade}`,
+      graded.why, graded.instead);
+    if (graded.readsBaseTables) {
+      note('SECURITY', `dataset "${ds.name}" reads base tables, not Filtered* views`,
+        'A report on base tables returns every row regardless of who ran it. Filtered views are what apply CRM row-level security, so this report may be showing data the same user could not see inside CRM today.',
+        'Confirm who this report is exposed to before migrating. In the engine the equivalent query WILL be security-trimmed, so the migrated report may legitimately return fewer rows — verify that is a fix and not a regression.');
+    }
   }
   if (datasets.length > 1) {
     note('MANUAL', `${datasets.length} datasets`,
@@ -268,7 +332,7 @@ function toReportDefinition(report) {
 
 /* ---------------- reporting ---------------- */
 
-const RANK = { BLOCKER: 0, MANUAL: 1, 'AUTO-ISH': 2 };
+const RANK = { BLOCKER: 0, SECURITY: 1, MANUAL: 2, 'AUTO-ISH': 3 };
 
 function verdictOf(findings) {
   if (findings.some(f => f.severity === 'BLOCKER')) return 'REWRITE — cannot be converted as it stands';
