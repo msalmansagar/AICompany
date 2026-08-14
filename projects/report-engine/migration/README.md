@@ -46,11 +46,73 @@ report stops being hand-written URL construction and becomes configuration.
 network path from CRM to it, and its patching and licensing. That is usually the actual business
 case, and it is worth naming explicitly rather than selling the migration on report features.
 
-**Two answers that change the plan:**
-1. **Is Dynamics on-premise or cloud?** If a move to Dataverse cloud is coming, direct SQL dies with
-   it and this migration becomes forced rather than optional — which changes its priority entirely.
-2. **Does the report server impersonate the caller, or use a service account?** This decides whether
-   "fewer rows after migration" is a regression or the correction of a leak.
+---
+
+## Both answers are in, and they change the shape of this
+
+**Confirmed 2026-08-15: heading to Dataverse cloud, and the report server impersonates the calling
+user.**
+
+### The security question is closed, favourably
+
+The report server runs each report as the person who opened it, so the reports are **not** leaking
+today, and the engine's model is the same one — executes as the caller, with `ReportAccessGuard` on
+top. **Expect row-for-row parity, not fewer rows.** The whole "the migrated report shows less"
+argument disappears, which removes the nastiest class of migration dispute before it starts.
+
+It also means something is currently configured to make that impersonation work — Kerberos
+constrained delegation, most likely. That infrastructure dies with the cloud move regardless of what
+is decided here, and it is worth counting as a saving.
+
+### The migration is no longer optional, and it has a date
+
+On-premise filtered views go away with the cloud move. So the deadline is not a reporting decision,
+it is **the cloud cutover date**, and every report still on the old path that day stops working.
+That should drive the sequencing more than any feature comparison.
+
+### But there is a third option, and I should have given it earlier
+
+I framed this as "migrate to the engine or keep SSRS". On cloud there is a middle path:
+
+**Repoint the existing RDLs at the Dataverse TDS endpoint.** Dataverse exposes a read-only
+SQL (TDS) endpoint that SSRS can use as an ordinary SQL data source, and — the part that matters
+here — it **executes as the calling user and honours Dataverse security**, which is exactly the
+model already relied on. The RDL, layout, pagination, subreports, charts and page footers all
+survive untouched. The change is the data source and the table names.
+
+That is a **SQL→SQL** rewrite rather than **SQL→FetchXML**, and it is dramatically cheaper per
+report. For anything paginated, pixel-exact, or too complex for FetchXML, it is very likely the
+right answer — and it is right even though it is not this product.
+
+⚠️ Verify before relying on it: the TDS endpoint supports a subset of T-SQL. Table and column names
+are entity logical names, not `Filtered*` views, so queries still change. I have **not** confirmed
+whether CTEs and window functions are supported — if they are not, the reports graded NOT POSSIBLE
+here are stuck on that path too and need pre-computing whichever route is chosen. Test one report
+against TDS before planning around it.
+
+### So the decision is three-way, per report
+
+| Route | Best for | Cost | Retires the server? |
+|---|---|---|---|
+| **Repoint to TDS** | Paginated, pixel-exact, statutory, complex SQL | Low — data source and table names | No |
+| **Migrate to the engine** | Operational lists, form-embedded, filterable | Medium — SQL→FetchXML per the grading | Yes, once the last one moves |
+| **Rebuild as a dashboard** | Trend and KPI packs | High, but they were the wrong shape as reports anyway | Yes |
+
+**The 5,000-row cap is the cleanest discriminator.** SSRS on TDS has no such limit; this engine reads
+one page and stops (see `c6-scale-characterisation.md`). Any extract-style report over 5,000 rows
+either waits for paging (condition C-5) or stays on SSRS. Sort the inventory by expected row count
+early — it splits the estate faster than any other single question.
+
+### Recommended sequencing
+
+1. **Prove the TDS path with one report.** It is the cheapest thing to falsify, and if it works it
+   removes the deadline pressure from the complex reports immediately.
+2. **Run the grading over the full inventory.** EASY and MODERATE with modest row counts are the
+   engine's natural catchment; NOT POSSIBLE and anything paginated goes to TDS.
+3. **Move the operational lists into the engine first** — they gain filters, real export, form
+   embedding and ribbon placement, and they are the ones users touch daily.
+4. **Retire the report server last, or not at all.** Keeping it for a handful of statutory documents
+   is a legitimate end state, and pretending otherwise is how migrations overrun.
 
 ---
 
