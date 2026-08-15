@@ -17,6 +17,7 @@
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { join, basename, extname } from 'node:path';
+import { sqlToFetchXml } from './sql-to-fetchxml.mjs';
 
 /* ---------------- a small XML reader ----------------
    RDL is deep but regular, and only a handful of constructs matter here. Rather than take a
@@ -296,16 +297,32 @@ function readRdl(xml, name) {
 
 function toReportDefinition(report) {
   const primary = report.datasets.find(d => d.isFetch) || report.datasets[0];
-  const entity = primary && primary.command
-    ? (/<\s*entity\s+name\s*=\s*"([^"]+)"/i.exec(primary.command) || [])[1] || null : null;
+
+  /* A standalone report server has no FetchXML, so the query is translated here rather than left as
+     SQL the engine cannot run. A refusal is carried into the definition instead of being dropped:
+     an emitted definition holding SQL would import cleanly and fail at the first run. */
+  let query = primary ? primary.command : null;
+  let translation = null;
+  if (primary && !primary.isFetch && primary.command) {
+    translation = sqlToFetchXml(primary.command);
+    query = translation.ok ? translation.fetchXml : null;
+  }
+
+  const entity = query
+    ? (/<\s*entity\s+name\s*=\s*"([^"]+)"/i.exec(query) || [])[1] || null
+    : (translation && translation.entity) || null;
 
   return {
     name: report.name,
     mainEntityLogicalName: entity,
     // Left at the engine's real ceiling rather than SSRS's, because a larger number is not applied.
     rowLimit: ENGINE_MAX_ROWS,
-    dataSources: primary ? [{
-      name: 'Primary', type: 'FetchXML', primary: true, executionOrder: 1, query: primary.command
+    translatedFromSql: !!translation,
+    // Named so nothing can be loaded by accident while still holding an untranslatable query.
+    needsQueryByHand: !!(translation && !translation.ok),
+    queryNotes: translation ? translation.problems : [],
+    dataSources: query ? [{
+      name: 'Primary', type: 'FetchXML', primary: true, executionOrder: 1, query
     }] : [],
     columns: report.columns.map((c, index) => ({
       name: c.label, attribute: c.field, type: c.type,
