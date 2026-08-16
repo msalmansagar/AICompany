@@ -862,6 +862,9 @@
   .choice-card.sel { border-color: var(--primary); background: var(--primary-tint-2); box-shadow: var(--shadow-8); }
   .choice-card .cc-t { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
   .choice-card .cc-d { font-size: 12px; color: var(--text-secondary); }
+  .choice-card .cc-meta { font-size: 11px; color: var(--text-secondary); margin-top: 8px;
+    padding-top: 8px; border-top: 1px solid var(--border); }
+  .choice-card.sel .cc-meta { color: var(--primary); }
   .choice-card .cc-ic { width: 32px; height: 32px; border-radius: var(--radius-lg); display: flex;
     align-items: center; justify-content: center; margin-bottom: 10px;
     background: var(--primary-tint-2); color: var(--primary); }
@@ -5607,39 +5610,55 @@ const REPORT_SHAPES = {
   tabular: {
     label: "Simple table",
     desc: "Every row, straight down the page. The plainest useful report.",
+    suggests: "the name column and five more",
     layoutType: "Tabular Report",
-    exports: ["PDF", "Excel", "CSV"],
     pick: columnsForTable
   },
   grouped: {
     label: "Grouped with totals",
     desc: "Rows gathered under a category — a choice or lookup column — with a total per group.",
+    suggests: "a name, a category, a number to total",
     layoutType: "Grouped Report",
-    exports: ["PDF", "Excel", "CSV"],
     pick: columnsForGrouping
   },
   summary: {
     label: "Summary",
     desc: "One line per category with its total. The grouped report without the detail.",
+    suggests: "a name, a category, a number to total",
     layoutType: "Summary Report",
-    exports: ["PDF", "Excel"],
     pick: columnsForGrouping
   },
   chart: {
     label: "Chart",
     desc: "A category and a measure, drawn. Falls back to a count when nothing numeric exists.",
+    suggests: "a category and a measure",
     layoutType: "Chart Report",
-    exports: ["PDF", "Image (PNG)"],
     pick: columnsForGrouping
   },
   kpi: {
     label: "KPI cards",
     desc: "Headline numbers rather than rows — totals and counts across the table.",
+    suggests: "a category and a measure",
     layoutType: "Dashboard Report",
-    exports: ["PDF", "Image (PNG)"],
     pick: columnsForGrouping
   }
 };
+
+/* ---------- Which exports a layout can honestly offer ----------
+   These used to belong to the starting shape, which meant they outlived the choice that set them:
+   start from Chart (PDF + PNG), change your mind on the Layout step and pick Tabular, and you were
+   left with a table exportable to neither Excel nor CSV. The layout changed; the export list did
+   not, because nothing connected them.
+   They belong to the layout instead. A layout that draws a picture offers an image; one that
+   renders rows offers the row formats. PDF suits both. */
+const VISUAL_LAYOUTS = ["Chart Report", "Dashboard Report", "Info Cards"];
+const AGGREGATE_LAYOUTS = ["Summary Report"];
+
+function exportsForLayout(layoutType) {
+  if (VISUAL_LAYOUTS.includes(layoutType)) return ["PDF", "Image (PNG)"];
+  if (AGGREGATE_LAYOUTS.includes(layoutType)) return ["PDF", "Excel"];
+  return ["PDF", "Excel", "CSV"];
+}
 
 /** The name of the record first, then whatever else reads usefully in a plain table. */
 function columnsForTable(entity) {
@@ -5866,7 +5885,7 @@ function applyShape(d, shapeId) {
   if (!shape) return;
   d.shape = shapeId;
   d.layoutType = shape.layoutType;
-  d.exports = shape.exports.slice();
+  d.exports = exportsForLayout(shape.layoutType);
 }
 
 /**
@@ -6365,16 +6384,27 @@ function wizColumnsList(host, d) {
   host.querySelectorAll("[data-lbl]").forEach(inp => inp.oninput = () => { (d.colMeta[inp.dataset.lbl]||(d.colMeta[inp.dataset.lbl]={})).label = inp.value; });
   host.querySelectorAll("[data-lpos]").forEach(seg => seg.querySelectorAll("button").forEach(b => b.onclick = () => { (d.colMeta[seg.dataset.lpos]||(d.colMeta[seg.dataset.lpos]={})).labelPos = b.dataset.val; wizColumnsList(host,d); }));
 }
+/* What a shape will actually do to the draft, on the card that offers it.
+   Without this the step read as the layout question — the same question the Layout step asks later
+   with a preview attached and all 27 answers available — so choosing here and choosing again there
+   felt like the wizard had forgotten. A shape is a head start, not a layout decision: what makes it
+   worth a step of its own is the column suggestion, which the Layout step cannot make because it
+   runs before any table has been picked. Saying so on the card is what tells the two steps apart. */
+function shapeConsequence(shape) {
+  return `${shape.layoutType} · suggests ${shape.suggests} · ${exportsForLayout(shape.layoutType).join(", ")}`;
+}
+
 function wizStart(host, d) {
   const cards = [
-    { k:"blank", t:"Blank report", dsc:"Start from scratch" },
+    { k:"blank", t:"Blank report", dsc:"Start from scratch — choose everything yourself." },
     ...Object.keys(REPORT_SHAPES).map(id => ({
-      k: "tpl:" + id, t: REPORT_SHAPES[id].label, dsc: REPORT_SHAPES[id].desc, tag:"Shape"
+      k: "tpl:" + id, t: REPORT_SHAPES[id].label, dsc: REPORT_SHAPES[id].desc,
+      tag: "Head start", meta: shapeConsequence(REPORT_SHAPES[id])
     })),
-    { k:"duplicate", t:"Duplicate existing", dsc:"Copy a report you already have" }
+    { k:"duplicate", t:"Duplicate existing", dsc:"Copy a report you already have." }
   ];
-  host.innerHTML = `<div class="wtitle">How do you want to start?</div><div class="wsub">Pick a shape and choose the table in the next step — a shape brings the layout and suggests columns from whatever table you pick, so it works against your own data. Everything stays editable later.</div>
-    <div class="choice-cards" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">${cards.map(c=>`<div class="choice-card ${d.start===c.k?"sel":""}" data-start="${esc(c.k)}">${c.tag?`<div class="rel-tag" style="margin:0 0 8px 0">${esc(c.tag)}</div>`:""}<div class="cc-t">${esc(c.t)}</div><div class="cc-d">${esc(c.dsc)}</div></div>`).join("")}</div>
+  host.innerHTML = `<div class="wtitle">Want a head start?</div><div class="wsub">A head start fills in a layout, sensible export formats, and — once you pick a table two steps from now — a first set of columns. <b>It is not the layout decision</b>: step 8 offers all ${LAYOUT_CATALOG.length} layouts with a live preview of your own data, and whatever you choose there wins. Pick <b>Blank report</b> to skip the suggestions.</div>
+    <div class="choice-cards" style="grid-template-columns:repeat(auto-fill,minmax(230px,1fr))">${cards.map(c=>`<div class="choice-card ${d.start===c.k?"sel":""}" data-start="${esc(c.k)}">${c.tag?`<div class="rel-tag" style="margin:0 0 8px 0">${esc(c.tag)}</div>`:""}<div class="cc-t">${esc(c.t)}</div><div class="cc-d">${esc(c.dsc)}</div>${c.meta?`<div class="cc-meta">${esc(c.meta)}</div>`:""}</div>`).join("")}</div>
     <div id="wz_startextra" style="margin-top:20px;max-width:440px"></div>`;
   const extra = () => {
     const box = $("#wz_startextra");
@@ -6420,21 +6450,36 @@ const previewLabelHtml = layout =>
   `Live preview — ${ic(layout.icon)} <span style="color:var(--primary)">${esc(layout.type)}</span>`
   + ` <span class="rel-tag">your data</span>`;
 
-/** One layout, drawn as its own shape above its name. */
-function layoutChoiceCard(layout, selectedType) {
-  return `<div class="choice-card ${selectedType === layout.type ? "sel" : ""}" data-lay="${esc(layout.type)}">
+/**
+ * One layout, drawn as its own shape above its name.
+ *
+ * The card the head start chose says so. Arriving here to find something already selected, with no
+ * account of who selected it, is what made this step read as a repeat of step 1 rather than the
+ * decision step 1 was only guessing at.
+ */
+function layoutChoiceCard(layout, draft) {
+  const shape = REPORT_SHAPES[draft.shape];
+  const fromShape = shape && shape.layoutType === layout.type;
+  return `<div class="choice-card ${draft.layoutType === layout.type ? "sel" : ""}" data-lay="${esc(layout.type)}">
     <div class="cc-ic">${ic(layout.icon)}</div>
     <div class="cc-t">${esc(layout.type)}</div>
-    <div class="cc-d">${esc(layout.best)} · <em>${esc(layout.ex)}</em></div></div>`;
+    <div class="cc-d">${esc(layout.best)} · <em>${esc(layout.ex)}</em></div>
+    ${fromShape ? `<div class="cc-meta">from your ${esc(shape.label)} head start</div>` : ""}</div>`;
 }
+
+/** Says who currently owns the export list, because the answer changes the moment one is ticked. */
+const exportsLabelHtml = draft => 'Export formats <span class="hint-inline">'
+  + (draft._exportsTouched ? '— yours; the layout no longer changes these'
+                           : '— follow the layout until you change them')
+  + '</span>';
 
 function wizLayout(host, d) {
   const info = LAYOUT_CATALOG.find(l => l.type === d.layoutType) || LAYOUT_CATALOG[0];
   host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview below renders your chosen entity and columns against real rows from this environment, and re-renders instantly as you switch.</div>
     <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
-    <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d.layoutType)).join("")}</div>
+    <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
     <div id="wz_chartopts" style="margin-top:14px"></div>
-    <label class="lbl" style="display:block;margin:24px 0 10px">Export formats</label>
+    <label class="lbl" id="wz_exportslbl" style="display:block;margin:24px 0 10px">${exportsLabelHtml(d)}</label>
     <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
     <label class="lbl" id="wz_previewlbl" style="display:block;margin:26px 0 10px">${previewLabelHtml(info)}</label>
     <div id="wz_preview"></div>`;
@@ -6446,15 +6491,25 @@ function wizLayout(host, d) {
     const ct = $("#wz_charttype"); if (ct) ct.onchange = () => { d.chartType = ct.value; renderMiniPreview($("#wz_preview"), d); };
     const ci = $("#wz_cardicon"); if (ci) ci.onchange = () => { d.cardIcon = ci.value; renderMiniPreview($("#wz_preview"), d); };
   };
-  host.querySelectorAll("[data-lay]").forEach(c => c.onclick = () => {
-    d.layoutType = c.dataset.lay; d._chartDrill = null;
-    host.querySelectorAll("[data-lay]").forEach(x => x.classList.remove("sel"));
-    c.classList.add("sel");
-    $("#wz_previewlbl").innerHTML = previewLabelHtml(LAYOUT_CATALOG.find(l => l.type === d.layoutType));
-    fillChartOpts();
-    renderMiniPreview($("#wz_preview"), d);
+  /* Repaints the whole step rather than patching it: selection, chart options, the export list and
+     its hint all move together with the layout, and keeping four of them in step by hand is how one
+     gets forgotten. The scroll position is carried over because the layout grid is tall — rebuilding
+     without it throws the reader back to the top of a step they were half way down. */
+  host.querySelectorAll("[data-lay]").forEach(card => card.onclick = () => {
+    const scrollTop = host.scrollTop;
+    d.layoutType = card.dataset.lay;
+    d._chartDrill = null;
+    if (!d._exportsTouched) d.exports = exportsForLayout(d.layoutType);
+    wizLayout(host, d);
+    host.scrollTop = scrollTop;
   });
-  host.querySelectorAll("[data-exp]").forEach(cb => cb.onchange = () => { const f = cb.dataset.exp; if (cb.checked) { if (!d.exports.includes(f)) d.exports.push(f); } else d.exports = d.exports.filter(x=>x!==f); });
+  host.querySelectorAll("[data-exp]").forEach(cb => cb.onchange = () => {
+    const format = cb.dataset.exp;
+    // From here the author owns the list, and switching layout stops rewriting it.
+    d._exportsTouched = true;
+    d.exports = cb.checked ? [...d.exports, format] : d.exports.filter(x => x !== format);
+    $("#wz_exportslbl").innerHTML = exportsLabelHtml(d);
+  });
   fillChartOpts();
   renderMiniPreview($("#wz_preview"), d);
 }

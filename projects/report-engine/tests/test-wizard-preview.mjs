@@ -154,14 +154,17 @@ const iconNames = LAYOUT_CATALOG.map(l => l.icon);
 const duplicated = iconNames.filter((n, i) => iconNames.indexOf(n) !== i);
 check('no two layouts share a glyph', duplicated.length === 0, [...new Set(duplicated)].join(', '));
 
-const { layoutChoiceCard } = build(['layoutChoiceCard'], { ic, esc });
+const { REPORT_SHAPES } = build(['REPORT_SHAPES'], {
+  columnsForTable: () => [], columnsForGrouping: () => []
+});
+const { layoutChoiceCard } = build(['layoutChoiceCard'], { ic, esc, REPORT_SHAPES });
 const tabular = LAYOUT_CATALOG[0];
-const selected = layoutChoiceCard(tabular, tabular.type);
+const selected = layoutChoiceCard(tabular, { shape: '', layoutType: tabular.type });
 check('the chosen layout card is marked selected', selected.includes('choice-card sel'));
 check('the card carries its icon badge', selected.includes('cc-ic') && selected.includes('<svg'));
 check('and still names the layout', selected.includes(esc(tabular.type)));
 check('an unchosen card is not marked selected',
-  !layoutChoiceCard(tabular, 'Book Layout').includes('sel"'));
+  !layoutChoiceCard(tabular, { shape: '', layoutType: 'Book Layout' }).includes('sel"'));
 
 console.log('\nthe preview label');
 const { previewLabelHtml } = build(['previewLabelHtml'], { ic, esc });
@@ -172,6 +175,86 @@ check('shows its glyph', label.includes('<svg'));
 check('and does not call real rows sample data', !/sample data/i.test(label));
 check('the wizard step no longer promises sample data either',
   !/renders your chosen entity and columns with sample data/.test(source));
+
+/* ============================ head start vs. layout ============================ */
+
+// Step 1 and step 8 both appear to ask "what shape is this report?". They are different questions:
+// step 1 seeds a layout, exports AND a column-picking rule (which step 8 cannot do, because it runs
+// before any table is chosen); step 8 is the decision, over all 27, with a preview attached.
+
+console.log('\nthe head start states what it will do');
+
+const { exportsForLayout } = build(['VISUAL_LAYOUTS', 'AGGREGATE_LAYOUTS', 'exportsForLayout'], {});
+
+check('every head start names the columns it will suggest',
+  Object.values(REPORT_SHAPES).every(s => !!s.suggests),
+  Object.entries(REPORT_SHAPES).filter(([, s]) => !s.suggests).map(([k]) => k).join(', '));
+// A shape owning its own export list is what let a Chart's PDF+PNG outlive the Chart.
+check('and no head start carries its own export list',
+  Object.values(REPORT_SHAPES).every(s => !s.exports));
+check('every head start names a real layout',
+  Object.values(REPORT_SHAPES).every(s => LAYOUT_CATALOG.some(l => l.type === s.layoutType)));
+
+const { shapeConsequence } = build(['shapeConsequence'], { exportsForLayout });
+const consequence = shapeConsequence(REPORT_SHAPES.tabular);
+check('the card states the layout it brings', consequence.includes('Tabular Report'));
+check('what columns it will suggest', consequence.includes(REPORT_SHAPES.tabular.suggests));
+check('and the exports that come with it', consequence.includes('PDF, Excel, CSV'), consequence);
+
+console.log('\nexports follow the layout until the author takes them over');
+
+check('a row layout offers the row formats',
+  exportsForLayout('Tabular Report').join() === 'PDF,Excel,CSV');
+check('a drawn layout offers an image instead',
+  exportsForLayout('Chart Report').join() === 'PDF,Image (PNG)');
+check('an aggregate layout offers neither CSV nor an image',
+  exportsForLayout('Summary Report').join() === 'PDF,Excel');
+check('an unlisted layout falls back to the row formats',
+  exportsForLayout('Certificate Layout').join() === 'PDF,Excel,CSV');
+
+// The defect: start from Chart, switch to Tabular on the layout step, and you were left with a
+// table exportable to neither Excel nor CSV, silently, because nothing connected the two.
+const { applyShape } = build(['applyShape'], { REPORT_SHAPES, exportsForLayout });
+const chartDraft = { shape: '', layoutType: '', exports: [] };
+applyShape(chartDraft, 'chart');
+check('starting from Chart sets the image exports',
+  chartDraft.exports.join() === 'PDF,Image (PNG)', chartDraft.exports.join());
+
+/** What the layout-step click handler does to a draft when a new layout is chosen. */
+const switchLayout = (draft, layoutType) => {
+  const next = { ...draft, layoutType };
+  if (!next._exportsTouched) next.exports = exportsForLayout(layoutType);
+  return next;
+};
+
+check('switching to Tabular brings Excel and CSV back',
+  switchLayout(chartDraft, 'Tabular Report').exports.join() === 'PDF,Excel,CSV',
+  switchLayout(chartDraft, 'Tabular Report').exports.join());
+check('a list the author has edited is never overwritten',
+  switchLayout({ ...chartDraft, _exportsTouched: true, exports: ['PDF'] }, 'Tabular Report')
+    .exports.join() === 'PDF');
+
+const { exportsLabelHtml } = build(['exportsLabelHtml'], {});
+check('the label says the layout owns the list', exportsLabelHtml({}).includes('follow the layout'));
+check('and says the author owns it once touched',
+  exportsLabelHtml({ _exportsTouched: true }).includes('yours'));
+
+console.log('\nthe layout step credits the head start');
+
+const startedFromChart = { shape: 'chart', layoutType: 'Chart Report' };
+const chartLayout = LAYOUT_CATALOG.find(l => l.type === 'Chart Report');
+check('the card the head start chose says so',
+  layoutChoiceCard(chartLayout, startedFromChart).includes('head start'));
+check('another card claims no such thing',
+  !layoutChoiceCard(LAYOUT_CATALOG[0], startedFromChart).includes('head start'));
+check('and a blank start credits nothing at all',
+  !layoutChoiceCard(chartLayout, { shape: '', layoutType: 'Chart Report' }).includes('head start'));
+
+console.log('\nthe two steps no longer ask the same question');
+check('step 1 says it is not the layout decision',
+  /It is not the layout decision/.test(source));
+check('and points at the step that is',
+  /step 8 offers all \$\{LAYOUT_CATALOG\.length\} layouts/.test(source));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);
