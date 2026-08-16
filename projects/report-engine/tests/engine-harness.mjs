@@ -12,9 +12,13 @@
 // Deliberately not named test-*.mjs, so run-all.mjs does not try to run it as a suite.
 import { readFileSync } from 'node:fs';
 
-/** Lifts a top-level declaration, whether `function x(){}` or `const x = …`. */
+/* An `async function` was invisible to this until 2026-08-16: the pattern anchored on `function`,
+   so every async declaration in the engine reported itself as "genuinely missing". A loader whose
+   job is to stop tests quietly failing to find things must not have a category of thing it cannot
+   find. */
+/** Lifts a top-level declaration, whether `[async] function x(){}` or `const x = …`. */
 export function liftDeclaration(source, name) {
-  const declared = source.search(new RegExp('^function ' + name + '\\s*\\(', 'm'));
+  const declared = source.search(new RegExp('^(async )?function ' + name + '\\s*\\(', 'm'));
   if (declared >= 0) {
     let depth = 0;
     for (let j = source.indexOf('{', source.indexOf('(', declared)); j < source.length; j++) {

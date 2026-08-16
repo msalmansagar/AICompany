@@ -815,7 +815,9 @@
   .wiz-step .circ { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--border-input); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
   .wiz-step.active .circ { background: var(--primary); border-color: var(--primary); color: #fff; }
   .wiz-step.done .circ { background: var(--success); border-color: var(--success); color: #fff; }
+  .wiz-step .circ svg { width: 14px; height: 14px; }
   .wiz-step .stitle { font-size: 13.5px; font-weight: 600; }
+  .wiz-step .snum { color: var(--text-secondary); font-weight: 500; }
   .wiz-step .sdesc { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
   .wiz-content { overflow: auto; padding: 32px 40px 40px; }
   .wiz-content .wtitle { font-size: 22px; margin-bottom: 6px; }
@@ -860,6 +862,11 @@
   .choice-card.sel { border-color: var(--primary); background: var(--primary-tint-2); box-shadow: var(--shadow-8); }
   .choice-card .cc-t { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
   .choice-card .cc-d { font-size: 12px; color: var(--text-secondary); }
+  .choice-card .cc-ic { width: 32px; height: 32px; border-radius: var(--radius-lg); display: flex;
+    align-items: center; justify-content: center; margin-bottom: 10px;
+    background: var(--primary-tint-2); color: var(--primary); }
+  .choice-card .cc-ic svg { width: 18px; height: 18px; }
+  .choice-card.sel .cc-ic { background: var(--primary); color: #fff; }
   .review-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .review-row:last-child { border-bottom: none; }
   .review-row .rk { width: 150px; color: var(--text-secondary); font-size: 13px; flex-shrink: 0; }
@@ -1306,34 +1313,37 @@ const transformByCode = code => TRANSFORMS.find(t => t.code === code);
    at all — and the save mapped anything unmatched to "Rename column", so choosing "Deduplicate"
    stored a rename that renamed nothing. Both surfaces now offer the same catalogue. */
 const ETL_OPS = TRANSFORMS.map(t => ({ op: t.live ? t.label : `${t.label} — stored, not applied yet`, desc: t.desc }));
+/* Each layout carries the glyph that stands for its shape. Twenty-seven cards of identical text
+   read as a wall, and the shape is the thing being chosen — a picture of it is what a user
+   scanning for "the one with a header and rows underneath" is actually looking for. */
 const LAYOUT_CATALOG = [
-  { type:"Tabular Report", best:"Simple lists", ex:"Customer List, Loan List" },
-  { type:"Grouped Report", best:"Hierarchical data", ex:"Customers → Loans" },
-  { type:"Master-Detail Report", best:"Parent-child records", ex:"Loan → Installments" },
-  { type:"Matrix (Cross Tab)", best:"Dynamic rows/columns", ex:"Branch × Product" },
-  { type:"Summary Report", best:"KPIs", ex:"Total Loans, Total Amount" },
-  { type:"Dashboard Report", best:"Executive overview", ex:"Charts + KPIs" },
-  { type:"Chart Report", best:"Visual analytics", ex:"Bar / Line / Pie — click to drill" },
-  { type:"Info Cards", best:"Icon KPI cards", ex:"Icon + Label + Total" },
-  { type:"Card Layout", best:"Individual records", ex:"Customer Profile" },
-  { type:"Form Layout", best:"Single record", ex:"Loan Application" },
-  { type:"Label Layout", best:"Printing labels", ex:"Address Labels" },
-  { type:"Invoice Layout", best:"Printable documents", ex:"Invoice, Receipt" },
-  { type:"Statement Layout", best:"Financial statements", ex:"Account Statement" },
-  { type:"Certificate Layout", best:"Certificates", ex:"Approval Certificate" },
-  { type:"Letter Layout", best:"Mail merge", ex:"Offer Letter" },
-  { type:"Multi-Column Layout", best:"Catalogs", ex:"Product Catalog" },
-  { type:"Timeline Layout", best:"History", ex:"Case History" },
-  { type:"Calendar Layout", best:"Events", ex:"Task Calendar" },
-  { type:"Gantt Layout", best:"Project tracking", ex:"Process Timeline" },
-  { type:"Tree Layout", best:"Hierarchy", ex:"Organization Structure" },
-  { type:"Org Chart", best:"Organization", ex:"Reporting Structure" },
-  { type:"Kanban Layout", best:"Workflow", ex:"Cases by Status" },
-  { type:"Pivot Report", best:"Interactive analysis", ex:"Sales Analysis" },
-  { type:"Drill-down Report", best:"Expand/collapse", ex:"Region → Branch" },
-  { type:"Comparison Report", best:"Side-by-side", ex:"Year Comparison" },
-  { type:"Nested Report", best:"Complex hierarchy", ex:"Customer → Accounts → Loans" },
-  { type:"Book Layout", best:"Multi-page", ex:"Annual Report" }
+  { type:"Tabular Report", best:"Simple lists", ex:"Customer List, Loan List", icon:"table" },
+  { type:"Grouped Report", best:"Hierarchical data", ex:"Customers → Loans", icon:"grouped" },
+  { type:"Master-Detail Report", best:"Parent-child records", ex:"Loan → Installments", icon:"masterdetail" },
+  { type:"Matrix (Cross Tab)", best:"Dynamic rows/columns", ex:"Branch × Product", icon:"matrix" },
+  { type:"Summary Report", best:"KPIs", ex:"Total Loans, Total Amount", icon:"kpi" },
+  { type:"Dashboard Report", best:"Executive overview", ex:"Charts + KPIs", icon:"dashboard" },
+  { type:"Chart Report", best:"Visual analytics", ex:"Bar / Line / Pie — click to drill", icon:"chart" },
+  { type:"Info Cards", best:"Icon KPI cards", ex:"Icon + Label + Total", icon:"infocard" },
+  { type:"Card Layout", best:"Individual records", ex:"Customer Profile", icon:"profilecard" },
+  { type:"Form Layout", best:"Single record", ex:"Loan Application", icon:"formlayout" },
+  { type:"Label Layout", best:"Printing labels", ex:"Address Labels", icon:"labels" },
+  { type:"Invoice Layout", best:"Printable documents", ex:"Invoice, Receipt", icon:"invoice" },
+  { type:"Statement Layout", best:"Financial statements", ex:"Account Statement", icon:"statement" },
+  { type:"Certificate Layout", best:"Certificates", ex:"Approval Certificate", icon:"certificate" },
+  { type:"Letter Layout", best:"Mail merge", ex:"Offer Letter", icon:"letter" },
+  { type:"Multi-Column Layout", best:"Catalogs", ex:"Product Catalog", icon:"multicolumn" },
+  { type:"Timeline Layout", best:"History", ex:"Case History", icon:"timeline" },
+  { type:"Calendar Layout", best:"Events", ex:"Task Calendar", icon:"calendar" },
+  { type:"Gantt Layout", best:"Project tracking", ex:"Process Timeline", icon:"gantt" },
+  { type:"Tree Layout", best:"Hierarchy", ex:"Organization Structure", icon:"tree" },
+  { type:"Org Chart", best:"Organization", ex:"Reporting Structure", icon:"orgchart" },
+  { type:"Kanban Layout", best:"Workflow", ex:"Cases by Status", icon:"kanban" },
+  { type:"Pivot Report", best:"Interactive analysis", ex:"Sales Analysis", icon:"pivot" },
+  { type:"Drill-down Report", best:"Expand/collapse", ex:"Region → Branch", icon:"drilldown" },
+  { type:"Comparison Report", best:"Side-by-side", ex:"Year Comparison", icon:"compare" },
+  { type:"Nested Report", best:"Complex hierarchy", ex:"Customer → Accounts → Loans", icon:"nested" },
+  { type:"Book Layout", best:"Multi-page", ex:"Annual Report", icon:"book" }
 ];
 const LAYOUT_TYPES = LAYOUT_CATALOG.map(l => l.type);
 const EXPORT_FORMATS = ["PDF","Excel","CSV","Word","Image (PNG)","HTML"];
@@ -2222,6 +2232,8 @@ function refreshOpenWizard() {
   if (!document.getElementById("wizOverlay")) return;
   const step = WIZ_STEPS[wiz.step];
   if (step && METADATA_DRIVEN_WIZARD_STEPS.includes(step.key)) renderWizard();
+  // The steps left off that list still show a live preview, and it needs the metadata too.
+  else repaintWizardPreviews();
 }
 
 function busyElement(id, className) {
@@ -5568,17 +5580,17 @@ function bindProps(r) {
 
 /* ============================ NEW-REPORT WIZARD ============================ */
 const WIZ_STEPS = [
-  { key:"start", title:"Start", desc:"Blank or template" },
-  { key:"basics", title:"Basics", desc:"Name & category" },
-  { key:"data", title:"Data", desc:"Entity & source" },
-  { key:"columns", title:"Columns", desc:"Header / master fields" },
-  { key:"details", title:"Details & sub-reports", desc:"Child tables + embedded reports" },
-  { key:"filters", title:"Filters & parameters", desc:"Optional" },
-  { key:"etl", title:"Transform (ETL)", desc:"Clean & reshape data" },
-  { key:"layout", title:"Layout & preview", desc:"Shape & live preview" },
-  { key:"design", title:"Design & language", desc:"Theme, fonts, languages" },
-  { key:"placement", title:"Use in CRM", desc:"Form, grid or dashboard" },
-  { key:"review", title:"Review", desc:"Create report" }
+  { key:"start", title:"Start", desc:"Blank or template", icon:"star" },
+  { key:"basics", title:"Basics", desc:"Name & category", icon:"edit" },
+  { key:"data", title:"Data", desc:"Entity & source", icon:"database" },
+  { key:"columns", title:"Columns", desc:"Header / master fields", icon:"table" },
+  { key:"details", title:"Details & sub-reports", desc:"Child tables + embedded reports", icon:"masterdetail" },
+  { key:"filters", title:"Filters & parameters", desc:"Optional", icon:"filter" },
+  { key:"etl", title:"Transform (ETL)", desc:"Clean & reshape data", icon:"fx" },
+  { key:"layout", title:"Layout & preview", desc:"Shape & live preview", icon:"dashboard" },
+  { key:"design", title:"Design & language", desc:"Theme, fonts, languages", icon:"paint" },
+  { key:"placement", title:"Use in CRM", desc:"Form, grid or dashboard", icon:"ribbon" },
+  { key:"review", title:"Review", desc:"Create report", icon:"verify" }
 ];
 /* ---------- Starting shapes ----------
    These replace a catalogue of ready-made reports that named tables — qdb_loanapplication,
@@ -5903,11 +5915,22 @@ async function copyStoredReportIntoDraft(d) {
     endBusy("Reading report to duplicate…");
   }
 }
+/* The step's own glyph rather than its ordinal, so the rail says what each step is about before it
+   is read. The number stays alongside the title: eleven steps is too many to keep a place in
+   without one, and the circle is the only thing a completed step can show a tick in. */
+function wizardRailStep(step, index) {
+  const isDone = index < wiz.step;
+  const classes = ["wiz-step", index === wiz.step ? "active" : "", isDone ? "done" : ""].join(" ");
+  return `<div class="${classes.trim()}">
+    <div class="circ">${isDone ? "✓" : ic(step.icon)}</div>
+    <div><div class="stitle"><span class="snum">${index + 1}.</span> ${esc(step.title)}</div>
+    <div class="sdesc">${esc(step.desc)}</div></div></div>`;
+}
+
 function renderWizard() {
   const old = document.getElementById("wizOverlay"); if (old) old.remove();
   const last = wiz.step === WIZ_STEPS.length - 1;
-  const rail = WIZ_STEPS.map((s,i) =>
-    `<div class="wiz-step ${i===wiz.step?"active":""} ${i<wiz.step?"done":""}"><div class="circ">${i<wiz.step?"✓":(i+1)}</div><div><div class="stitle">${esc(s.title)}</div><div class="sdesc">${esc(s.desc)}</div></div></div>`).join("");
+  const rail = WIZ_STEPS.map(wizardRailStep).join("");
   const overlay = el(`<div class="wiz-overlay" id="wizOverlay" role="dialog" aria-modal="true">
     <div class="wiz-header"><div><h2>New report</h2><div class="sub">Guided setup · step ${wiz.step+1} of ${WIZ_STEPS.length}</div></div><button class="close-x" id="wizClose" aria-label="Close">✕</button></div>
     <div class="wiz-body"><div class="wiz-rail">${rail}</div><div class="wiz-content" id="wizContent"></div></div>
@@ -6390,15 +6413,30 @@ function wizFilters(host, d) {
   $("#wz_addf").onclick = () => { d.filters.push({attribute:"",operator:"Equals",value:"",param:""}); wizFilters(host,d); };
   $("#wz_addp").onclick = () => { d.parameters.push({name:"Param"+(d.parameters.length+1),prompt:"New parameter",type:"Text",required:false}); wizFilters(host,d); };
 }
+/* "sample data" is what this said before the preview started reading the org, and it stayed said
+   long after it stopped being true — a user who took it at face value had no reason to trust the
+   rows in front of them, which is the whole point of the preview. */
+const previewLabelHtml = layout =>
+  `Live preview — ${ic(layout.icon)} <span style="color:var(--primary)">${esc(layout.type)}</span>`
+  + ` <span class="rel-tag">your data</span>`;
+
+/** One layout, drawn as its own shape above its name. */
+function layoutChoiceCard(layout, selectedType) {
+  return `<div class="choice-card ${selectedType === layout.type ? "sel" : ""}" data-lay="${esc(layout.type)}">
+    <div class="cc-ic">${ic(layout.icon)}</div>
+    <div class="cc-t">${esc(layout.type)}</div>
+    <div class="cc-d">${esc(layout.best)} · <em>${esc(layout.ex)}</em></div></div>`;
+}
+
 function wizLayout(host, d) {
   const info = LAYOUT_CATALOG.find(l => l.type === d.layoutType) || LAYOUT_CATALOG[0];
-  host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview below renders your chosen entity and columns with sample data, and re-renders instantly as you switch.</div>
+  host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview below renders your chosen entity and columns against real rows from this environment, and re-renders instantly as you switch.</div>
     <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
-    <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${LAYOUT_CATALOG.map(l=>`<div class="choice-card ${d.layoutType===l.type?"sel":""}" data-lay="${esc(l.type)}"><div class="cc-t">${esc(l.type)}</div><div class="cc-d">${esc(l.best)} · <em>${esc(l.ex)}</em></div></div>`).join("")}</div>
+    <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d.layoutType)).join("")}</div>
     <div id="wz_chartopts" style="margin-top:14px"></div>
     <label class="lbl" style="display:block;margin:24px 0 10px">Export formats</label>
     <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
-    <label class="lbl" style="display:block;margin:26px 0 10px">Live preview — <span style="color:var(--primary)">${esc(info.type)}</span> <span class="rel-tag">sample data</span></label>
+    <label class="lbl" id="wz_previewlbl" style="display:block;margin:26px 0 10px">${previewLabelHtml(info)}</label>
     <div id="wz_preview"></div>`;
   const fillChartOpts = () => {
     const box = $("#wz_chartopts");
@@ -6408,7 +6446,14 @@ function wizLayout(host, d) {
     const ct = $("#wz_charttype"); if (ct) ct.onchange = () => { d.chartType = ct.value; renderMiniPreview($("#wz_preview"), d); };
     const ci = $("#wz_cardicon"); if (ci) ci.onchange = () => { d.cardIcon = ci.value; renderMiniPreview($("#wz_preview"), d); };
   };
-  host.querySelectorAll("[data-lay]").forEach(c => c.onclick = () => { d.layoutType = c.dataset.lay; d._chartDrill = null; host.querySelectorAll("[data-lay]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); const inf = LAYOUT_CATALOG.find(l=>l.type===d.layoutType); host.querySelector('label.lbl[style*="26px"]').innerHTML = `Live preview — <span style="color:var(--primary)">${esc(inf.type)}</span> <span class="rel-tag">sample data</span>`; fillChartOpts(); renderMiniPreview($("#wz_preview"), d); });
+  host.querySelectorAll("[data-lay]").forEach(c => c.onclick = () => {
+    d.layoutType = c.dataset.lay; d._chartDrill = null;
+    host.querySelectorAll("[data-lay]").forEach(x => x.classList.remove("sel"));
+    c.classList.add("sel");
+    $("#wz_previewlbl").innerHTML = previewLabelHtml(LAYOUT_CATALOG.find(l => l.type === d.layoutType));
+    fillChartOpts();
+    renderMiniPreview($("#wz_preview"), d);
+  });
   host.querySelectorAll("[data-exp]").forEach(cb => cb.onchange = () => { const f = cb.dataset.exp; if (cb.checked) { if (!d.exports.includes(f)) d.exports.push(f); } else d.exports = d.exports.filter(x=>x!==f); });
   fillChartOpts();
   renderMiniPreview($("#wz_preview"), d);
@@ -6460,6 +6505,22 @@ async function loadPreviewRows(key, entity, cols) {
   delete previewData.pending[key];
   endBusy(`Previewing ${entity}…`);
   render();
+  repaintWizardPreviews();
+}
+
+/* The wizard is a body-level overlay and render() rebuilds only #content, so rows arriving for a
+   preview started inside the wizard repainted nothing at all: the "Reading … from Dataverse"
+   skeleton stayed on screen for the life of the step, which reads as a query that never returns.
+   Repaint the preview hosts rather than re-running the step — a step re-render would discard
+   whatever the user is part-way through typing beside the preview. */
+const WIZARD_PREVIEW_HOSTS = ["wz_preview", "wz_dpreview"];
+
+function repaintWizardPreviews() {
+  if (!wiz || !wiz.draft) return;
+  WIZARD_PREVIEW_HOSTS
+    .map(id => document.getElementById(id))
+    .filter(Boolean)
+    .forEach(host => renderMiniPreview(host, wiz.draft));
 }
 
 function previewFetchXml(entity, cols) {
@@ -9465,7 +9526,38 @@ function ic(name) {
     alert:'<path d="M8 2l6 11H2L8 2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 6.5v3M8 11v.5" stroke="currentColor" stroke-width="1.3"/>',
     star:'<path d="M8 2.5l1.7 3.5 3.8.5-2.8 2.7.7 3.8L8 11.6 4.6 13.5l.7-3.8L2.5 7l3.8-.5L8 2.5z" fill="none" stroke="currentColor" stroke-width="1.2"/>',
     bank:'<path d="M8 2l6 3H2l6-3zM3 6v5M6 6v5M10 6v5M13 6v5M2 13h12" fill="none" stroke="currentColor" stroke-width="1.2"/>',
-    target:'<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="1" fill="currentColor"/>'
+    target:'<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="8" r="1" fill="currentColor"/>',
+
+    /* ---- Wizard steps ---- */
+    database:'<ellipse cx="8" cy="4" rx="5" ry="2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+    verify:'<path d="M5 2h6v2H5V2zM4 4h8v10H4V4z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 9l1.5 1.5L10.5 7" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+
+    /* ---- Layout shapes ---- */
+    table:'<rect x="2" y="3" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2 6h12M2 9.5h12M6 6v7M10 6v7" stroke="currentColor" stroke-width="1"/>',
+    grouped:'<path d="M2 3h12M2 6h9M4.5 8.5h9.5M4.5 11h9.5M2 13.5h12" stroke="currentColor" stroke-width="1.2"/>',
+    masterdetail:'<rect x="2" y="2.5" width="12" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5 9h9M5 11.5h9M5 14h5" stroke="currentColor" stroke-width="1.2"/>',
+    matrix:'<rect x="2" y="3" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2 6h12M6 3v10" stroke="currentColor" stroke-width="1.3"/><path d="M2 9.5h12M10 6v7" stroke="currentColor" stroke-width="1"/>',
+    kpi:'<rect x="2" y="4" width="5" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="4" width="5" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 7.5h2M10.5 7.5h2" stroke="currentColor" stroke-width="1.3"/>',
+    dashboard:'<rect x="2" y="2.5" width="5.5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="2.5" width="5.5" height="3" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2" y="8.5" width="5.5" height="5" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="8.5" y="6.5" width="5.5" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+    infocard:'<rect x="2" y="3.5" width="12" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="5.5" cy="8" r="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9 6.5h3.5M9 9.5h3.5" stroke="currentColor" stroke-width="1.1"/>',
+    profilecard:'<rect x="3" y="2" width="10" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="8" cy="6" r="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 11c0-1.4 1.1-2.2 2.5-2.2s2.5.8 2.5 2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+    formlayout:'<rect x="2" y="2.5" width="12" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4 5.5h3M8.5 5.5h3.5M4 8h3M8.5 8h3.5M4 10.5h3M8.5 10.5h3.5" stroke="currentColor" stroke-width="1.1"/>',
+    labels:'<rect x="1.5" y="3" width="5.5" height="4" rx=".8" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="9" y="3" width="5.5" height="4" rx=".8" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="1.5" y="9" width="5.5" height="4" rx=".8" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="9" y="9" width="5.5" height="4" rx=".8" fill="none" stroke="currentColor" stroke-width="1.1"/>',
+    invoice:'<path d="M3.5 1.5h9v13l-1.5-1-1.5 1-1.5-1-1.5 1-1.5-1-1.5 1v-13z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M5.5 5h5M5.5 7.5h5M5.5 10h3" stroke="currentColor" stroke-width="1"/>',
+    statement:'<rect x="2.5" y="2" width="11" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h4M4.5 7.5h4M4.5 10h4M10 5h1.5M10 7.5h1.5M10 10h1.5" stroke="currentColor" stroke-width="1.1"/>',
+    certificate:'<rect x="2" y="2.5" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h7M4.5 7.5h4" stroke="currentColor" stroke-width="1.1"/><circle cx="11" cy="11.5" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M9.8 13.2l-.8 2 2-.8 2 .8-.8-2" fill="none" stroke="currentColor" stroke-width="1.1"/>',
+    letter:'<rect x="2" y="3.5" width="12" height="9" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2.5 4.5L8 9l5.5-4.5" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+    multicolumn:'<path d="M2 3v10M6 3v10M10 3v10M14 3v10" stroke="currentColor" stroke-width="1"/><path d="M3 4.5h2M3 7h2M3 9.5h2M7 4.5h2M7 7h2M7 9.5h2M11 4.5h2M11 7h2M11 9.5h2" stroke="currentColor" stroke-width="1.1"/>',
+    timeline:'<path d="M4 2v12" stroke="currentColor" stroke-width="1.2"/><circle cx="4" cy="4.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><circle cx="4" cy="11.5" r="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M7 4.5h6M7 11.5h6" stroke="currentColor" stroke-width="1.1"/>',
+    calendar:'<rect x="2" y="3" width="12" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2 6.5h12M5 2v2.5M11 2v2.5" stroke="currentColor" stroke-width="1.2"/><path d="M5 9h1.5M7.5 9H9M10 9h1.5M5 11.5h1.5M7.5 11.5H9" stroke="currentColor" stroke-width="1.1"/>',
+    gantt:'<path d="M2 2.5v11h12" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="4" y="4" width="6" height="2" rx=".8" fill="currentColor" opacity=".75"/><rect x="6" y="7.5" width="7" height="2" rx=".8" fill="currentColor" opacity=".55"/><rect x="4.5" y="11" width="4" height="1.5" rx=".7" fill="currentColor" opacity=".4"/>',
+    orgchart:'<rect x="5.5" y="1.5" width="5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="1.5" y="10.5" width="4.5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="10" y="10.5" width="4.5" height="3.5" rx=".8" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 5v3.2M3.75 10.5V8.2h8.5v2.3" fill="none" stroke="currentColor" stroke-width="1.1"/>',
+    kanban:'<rect x="1.5" y="2.5" width="4" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="6" y="2.5" width="4" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="10.5" y="2.5" width="4" height="11" rx="1" fill="none" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 5h2M7 5h2M11.5 5h2M2.5 7.5h2M7 7.5h2" stroke="currentColor" stroke-width="1.1"/>',
+    pivot:'<rect x="2" y="3" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M2 6h12M6 3v10" stroke="currentColor" stroke-width="1.2"/><path d="M12 8.5a2 2 0 11-1.4 3.4M12 7.5v1.4h-1.4" fill="none" stroke="currentColor" stroke-width="1.1"/>',
+    drilldown:'<path d="M6 3h8M8.5 6.5h5.5M11 10h3" stroke="currentColor" stroke-width="1.2"/><path d="M2 2l2.5 2.5L2 7" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 5.5L7 8l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.1" opacity=".6"/>',
+    compare:'<rect x="1.5" y="3" width="5.5" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="9" y="3" width="5.5" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 2v12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5"/>',
+    nested:'<rect x="1.5" y="1.5" width="13" height="13" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="4" y="4" width="8" height="8" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.1"/><rect x="6.5" y="6.5" width="3" height="3" rx=".8" fill="none" stroke="currentColor" stroke-width="1"/>',
+    book:'<path d="M8 4c-1.5-1.3-3.2-1.6-5.5-1.5v9c2.3-.1 4 .2 5.5 1.5 1.5-1.3 3.2-1.6 5.5-1.5v-9C11.2 2.4 9.5 2.7 8 4z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M8 4v9" stroke="currentColor" stroke-width="1.1"/>'
   }[name] || "";
   return `<svg width="15" height="15" viewBox="0 0 16 16" style="flex-shrink:0">${p}</svg>`;
 }
