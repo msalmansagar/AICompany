@@ -865,6 +865,18 @@
   .choice-card .cc-meta { font-size: 11px; color: var(--text-secondary); margin-top: 8px;
     padding-top: 8px; border-top: 1px solid var(--border); }
   .choice-card.sel .cc-meta { color: var(--primary); }
+
+  /* Layout step: the picker scrolls, the preview does not.
+     Stacked, the preview sat under twenty-seven cards — so the step's whole point was below the
+     fold, and choosing a layout appeared to do nothing until you scrolled down to look. */
+  .layout-step { display: grid; grid-template-columns: minmax(260px, 33%) minmax(0, 1fr);
+    gap: 28px; align-items: start; }
+  .layout-step .layout-preview { position: sticky; top: 0;
+    max-height: calc(100vh - 230px); overflow: auto; }
+  @media (max-width: 1040px) {
+    .layout-step { grid-template-columns: 1fr; }
+    .layout-step .layout-preview { position: static; max-height: none; overflow: visible; }
+  }
   .choice-card .cc-ic { width: 32px; height: 32px; border-radius: var(--radius-lg); display: flex;
     align-items: center; justify-content: center; margin-bottom: 10px;
     background: var(--primary-tint-2); color: var(--primary); }
@@ -6475,14 +6487,20 @@ const exportsLabelHtml = draft => 'Export formats <span class="hint-inline">'
 
 function wizLayout(host, d) {
   const info = LAYOUT_CATALOG.find(l => l.type === d.layoutType) || LAYOUT_CATALOG[0];
-  host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview below renders your chosen entity and columns against real rows from this environment, and re-renders instantly as you switch.</div>
-    <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
-    <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
-    <div id="wz_chartopts" style="margin-top:14px"></div>
-    <label class="lbl" id="wz_exportslbl" style="display:block;margin:24px 0 10px">${exportsLabelHtml(d)}</label>
-    <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
-    <label class="lbl" id="wz_previewlbl" style="display:block;margin:26px 0 10px">${previewLabelHtml(info)}</label>
-    <div id="wz_preview"></div>`;
+  host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview beside them renders your chosen entity and columns against real rows from this environment, and re-renders as you switch.</div>
+    <div class="layout-step">
+      <div class="layout-pick">
+        <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
+        <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
+        <div id="wz_chartopts" style="margin-top:14px"></div>
+        <label class="lbl" id="wz_exportslbl" style="display:block;margin:24px 0 10px">${exportsLabelHtml(d)}</label>
+        <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
+      </div>
+      <div class="layout-preview">
+        <label class="lbl" id="wz_previewlbl" style="display:block;margin:0 0 10px">${previewLabelHtml(info)}</label>
+        <div id="wz_preview"></div>
+      </div>
+    </div>`;
   const fillChartOpts = () => {
     const box = $("#wz_chartopts");
     if (d.layoutType === "Chart Report") box.innerHTML = `<div class="field" style="max-width:260px"><label class="lbl">Chart type <span class="hint-inline">— data comes from the table; click a segment to drill</span></label><select class="fluent-select" id="wz_charttype">${opts(CHART_TYPES, d.chartType||"Column")}</select></div>`;
@@ -6837,14 +6855,20 @@ function renderMiniPreview(host, d) {
 function wizDesign(host, d) {
   const langChips = LANGUAGES.map(l=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-lng="${l.code}" ${d.languages.includes(l.code)?"checked":""}>${esc(l.name)}${l.rtl?' <span class="rel-tag" style="margin:0 0 0 4px">RTL</span>':""}</label>`).join("");
   host.innerHTML = `<div class="wtitle">Design &amp; language</div><div class="wsub">Choose a visual theme (colours + fonts) and the languages the report renders in. Business users get a consistent, branded look without touching CSS.</div>
-    <label class="lbl" style="display:block;margin-bottom:10px">Theme</label>
-    <div class="theme-cards" id="wz_themes">${THEMES.map(t=>`<div class="theme-card ${d.theme===t.id?"sel":""}" data-theme="${t.id}"><div class="theme-swatch" style="background:${t.accent};font-family:${t.font}">Aa</div><div class="theme-meta"><div class="tn">${esc(t.name)}</div><div class="td">${esc(t.desc)}</div><div class="tf" style="font-family:${t.font}">${esc(t.font.split(",")[0].replace(/["']/g,""))}</div></div></div>`).join("")}</div>
-    <label class="lbl" style="display:block;margin:24px 0 10px">Languages <span class="hint-inline">— first selected is the default; Arabic/Urdu render right-to-left</span></label>
-    <div class="chips" id="wz_langs">${langChips}</div>
-    <div class="field" style="max-width:260px;margin-top:14px"><label class="lbl">Default language</label><select class="fluent-select" id="wz_primary">${d.languages.map(c=>{const l=LANGUAGES.find(x=>x.code===c);return `<option value="${c}" ${d.primaryLang===c?"selected":""}>${esc(l?l.name:c)}</option>`;}).join("")}</select></div>
-    <div class="field" style="max-width:340px;margin-top:14px"><label class="lbl">Report logo</label><div style="display:flex;gap:8px;align-items:center">${d.logoData?`<img src="${d.logoData}" style="width:34px;height:34px;object-fit:contain;border:1px solid var(--border-strong);border-radius:4px">`:`<div class="rp-logo" style="width:34px;height:34px;font-size:14px">RE</div>`}<input type="file" accept="image/*" id="wz_logofile" style="font-size:12px">${d.logoData?`<button class="btn sm" id="wz_logorm">Remove</button>`:""}</div></div>
-    <label class="lbl" style="display:block;margin:26px 0 10px">Live preview <span class="rel-tag">theme + language</span></label>
-    <div id="wz_dpreview"></div>`;
+    <div class="layout-step">
+      <div class="layout-pick">
+        <label class="lbl" style="display:block;margin-bottom:10px">Theme</label>
+        <div class="theme-cards" id="wz_themes" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${THEMES.map(t=>`<div class="theme-card ${d.theme===t.id?"sel":""}" data-theme="${t.id}"><div class="theme-swatch" style="background:${t.accent};font-family:${t.font}">Aa</div><div class="theme-meta"><div class="tn">${esc(t.name)}</div><div class="td">${esc(t.desc)}</div><div class="tf" style="font-family:${t.font}">${esc(t.font.split(",")[0].replace(/["']/g,""))}</div></div></div>`).join("")}</div>
+        <label class="lbl" style="display:block;margin:24px 0 10px">Languages <span class="hint-inline">— first selected is the default; Arabic/Urdu render right-to-left</span></label>
+        <div class="chips" id="wz_langs">${langChips}</div>
+        <div class="field" style="max-width:260px;margin-top:14px"><label class="lbl">Default language</label><select class="fluent-select" id="wz_primary">${d.languages.map(c=>{const l=LANGUAGES.find(x=>x.code===c);return `<option value="${c}" ${d.primaryLang===c?"selected":""}>${esc(l?l.name:c)}</option>`;}).join("")}</select></div>
+        <div class="field" style="max-width:340px;margin-top:14px"><label class="lbl">Report logo</label><div style="display:flex;gap:8px;align-items:center">${d.logoData?`<img src="${d.logoData}" style="width:34px;height:34px;object-fit:contain;border:1px solid var(--border-strong);border-radius:4px">`:`<div class="rp-logo" style="width:34px;height:34px;font-size:14px">RE</div>`}<input type="file" accept="image/*" id="wz_logofile" style="font-size:12px">${d.logoData?`<button class="btn sm" id="wz_logorm">Remove</button>`:""}</div></div>
+      </div>
+      <div class="layout-preview">
+        <label class="lbl" style="display:block;margin:0 0 10px">Live preview <span class="rel-tag">theme + language</span></label>
+        <div id="wz_dpreview"></div>
+      </div>
+    </div>`;
   const refreshPreview = () => { d.previewLang = d.primaryLang; renderMiniPreview($("#wz_dpreview"), d); };
   host.querySelectorAll("[data-theme]").forEach(c => c.onclick = () => { d.theme = c.dataset.theme; host.querySelectorAll("[data-theme]").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); refreshPreview(); });
   host.querySelectorAll("[data-lng]").forEach(cb => cb.onchange = () => { const code = cb.dataset.lng;

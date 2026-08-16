@@ -250,6 +250,33 @@ check('another card claims no such thing',
 check('and a blank start credits nothing at all',
   !layoutChoiceCard(chartLayout, { shape: '', layoutType: 'Chart Report' }).includes('head start'));
 
+/* ============================ the preview is on screen ============================ */
+
+// Stacked under twenty-seven cards, the preview was below the fold on arrival — so choosing a
+// layout looked like it did nothing until you scrolled down to check.
+
+console.log('\nboth preview steps put the preview beside their picker, not beneath it');
+
+const twoColumnStep = source.slice(source.indexOf('function wizLayout'),
+  source.indexOf('function wizDesign'));
+check('the layout step is a two-column layout-step grid', twoColumnStep.includes('class="layout-step"'));
+check('with the cards in the scrolling column', twoColumnStep.includes('class="layout-pick"'));
+check('and the preview in the pinned one', /class="layout-preview"[\s\S]*?id="wz_preview"/.test(twoColumnStep));
+
+const designStep = source.slice(source.indexOf('function wizDesign'), source.indexOf('function wizETL'));
+check('the design step does the same', designStep.includes('class="layout-step"'));
+check('with its own preview pinned', /class="layout-preview"[\s\S]*?id="wz_dpreview"/.test(designStep));
+
+check('the preview column is sticky, so it survives scrolling the picker',
+  /\.layout-step \.layout-preview \{[^}]*position: sticky/.test(source));
+check('and scrolls internally rather than running off the bottom',
+  /\.layout-step \.layout-preview \{[^}]*overflow: auto/.test(source));
+// One column on a narrow window, or the preview would be a sliver.
+check('it stacks again below 1040px',
+  /@media \(max-width: 1040px\)[\s\S]{0,220}\.layout-step \{ grid-template-columns: 1fr/.test(source));
+check('and stops being sticky when stacked',
+  /@media \(max-width: 1040px\)[\s\S]{0,320}position: static/.test(source));
+
 console.log('\nthe two steps no longer ask the same question');
 check('step 1 says it is not the layout decision',
   /It is not the layout decision/.test(source));
