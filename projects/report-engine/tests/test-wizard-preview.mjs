@@ -160,11 +160,13 @@ const { REPORT_SHAPES } = build(['REPORT_SHAPES'], {
 const { layoutChoiceCard } = build(['layoutChoiceCard'], { ic, esc, REPORT_SHAPES });
 const tabular = LAYOUT_CATALOG[0];
 const selected = layoutChoiceCard(tabular, { shape: '', layoutType: tabular.type });
-check('the chosen layout card is marked selected', selected.includes('choice-card sel'));
-check('the card carries its icon badge', selected.includes('cc-ic') && selected.includes('<svg'));
+check('the chosen layout row is marked selected', selected.includes('pick-row sel'));
+check('and says so to a screen reader', selected.includes('aria-selected="true"'));
+check('the row carries its icon', selected.includes('pick-ic') && selected.includes('<svg'));
 check('and still names the layout', selected.includes(esc(tabular.type)));
-check('an unchosen card is not marked selected',
-  !layoutChoiceCard(tabular, { shape: '', layoutType: 'Book Layout' }).includes('sel"'));
+const unchosen = layoutChoiceCard(tabular, { shape: '', layoutType: 'Book Layout' });
+check('an unchosen row is not marked selected',
+  !unchosen.includes('pick-row sel') && unchosen.includes('aria-selected="false"'));
 
 console.log('\nthe preview label');
 const { previewLabelHtml } = build(['previewLabelHtml'], { ic, esc });
@@ -266,6 +268,50 @@ check('and the preview in the pinned one', /class="layout-preview"[\s\S]*?id="wz
 const designStep = source.slice(source.indexOf('function wizDesign'), source.indexOf('function wizETL'));
 check('the design step does the same', designStep.includes('class="layout-step"'));
 check('with its own preview pinned', /class="layout-preview"[\s\S]*?id="wz_dpreview"/.test(designStep));
+
+console.log('\nthe picker scrolls inside itself, so nothing after it is pushed off the page');
+
+// Measured on org5869857f before this: the picker ran to 2108px in a 516px window, putting the
+// Export formats checkboxes 1772px down — four screenfuls behind a list.
+check('the layout picker is height-bounded', /\.pick-list \{[^}]*max-height:/.test(source));
+check('and scrolls inside that bound', /\.pick-list \{[^}]*overflow-y: auto/.test(source));
+check('the theme grid is bounded the same way', /\.scroll-box \{[^}]*max-height:[^}]*overflow-y: auto/.test(source));
+check('the design step uses it', designStep.includes('theme-cards scroll-box'));
+// Stacked on a narrow window there is no second column to protect, and an inner scrollbar there
+// would be a box inside a box.
+check('both bounds are released when the step stacks',
+  /@media \(max-width: 1040px\) \{\s*\.pick-list, \.scroll-box \{ max-height: none/.test(source));
+check('Export formats sits after the bounded picker, not after 27 unbounded cards',
+  twoColumnStep.indexOf('wz_layouts') < twoColumnStep.indexOf('wz_exportslbl'));
+
+console.log('\nfinding a layout among twenty-seven');
+
+const { matchesSearch } = build(['matchesSearch'], {});
+const { layoutsMatching } = build(['layoutsMatching'], { LAYOUT_CATALOG, matchesSearch });
+check('an empty search shows every layout', layoutsMatching('').length === LAYOUT_CATALOG.length);
+check('a name match is found', layoutsMatching('gantt').map(l => l.type).join() === 'Gantt Layout');
+check('case does not matter', layoutsMatching('GANTT').length === 1);
+// The search covers every word the row shows, or a term the user can read finds nothing.
+check('what it is best for is searchable too',
+  layoutsMatching('hierarchy').some(l => l.type === 'Tree Layout'));
+check('and the example is searchable',
+  layoutsMatching('address labels').map(l => l.type).join() === 'Label Layout');
+check('a term that matches nothing returns nothing', layoutsMatching('zzzz').length === 0);
+check('and the step says so rather than showing an empty box',
+  twoColumnStep.includes('No layout matches that'));
+
+// The step used to re-render whole on every layout click, which would clear the search box
+// mid-typing. Each region now paints on its own. (The trailing ';' distinguishes a call from the
+// declaration, which this slice also contains.)
+check('choosing a layout repaints only the regions that depend on it',
+  /chooseLayout = layoutType => \{[\s\S]*?paintPicker\(\);[\s\S]*?paintChartOptions\(\);[\s\S]*?paintExports\(\);/
+    .test(twoColumnStep));
+check('and does not re-render the step, which would clear the search box',
+  !/wizLayout\(host, d\);/.test(twoColumnStep));
+check('the search term lives on the draft, so it survives a repaint',
+  /d\._layoutFilter = event\.target\.value/.test(twoColumnStep));
+check('and a selection out of view is scrolled to on arrival',
+  /scrollIntoView\(\{ block: "nearest" \}\)/.test(source));
 
 check('the preview column is sticky, so it survives scrolling the picker',
   /\.layout-step \.layout-preview \{[^}]*position: sticky/.test(source));

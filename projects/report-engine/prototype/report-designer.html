@@ -877,6 +877,36 @@
     .layout-step { grid-template-columns: 1fr; }
     .layout-step .layout-preview { position: static; max-height: none; overflow: visible; }
   }
+
+  /* A bounded picker. Unbounded it ran to 2,108px and pushed Export formats four screenfuls down,
+     so the page scrolled for the sake of a list — and the controls after the list paid for it. */
+  .pick-list { margin-top: 10px; max-height: clamp(150px, 38vh, 360px); overflow-y: auto;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+    background: var(--surface); }
+  .pick-row { display: flex; gap: 10px; align-items: center; padding: 8px 10px; cursor: pointer;
+    border-bottom: 1px solid var(--border); }
+  .pick-row:last-child { border-bottom: 0; }
+  .pick-row:hover { background: var(--primary-tint-2); }
+  .pick-row.sel { background: var(--primary-tint); }
+  .pick-ic { width: 26px; height: 26px; border-radius: var(--radius-lg); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--primary-tint-2); color: var(--primary); }
+  .pick-row.sel .pick-ic { background: var(--primary); color: #fff; }
+  .pick-ic svg { width: 15px; height: 15px; }
+  .pick-txt { min-width: 0; }
+  .pick-n { display: block; font-size: 13px; font-weight: 600; }
+  .pick-row.sel .pick-n { color: var(--primary); }
+  .pick-d { display: block; font-size: 11px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pick-tag { font-size: 10px; font-weight: 500; margin-left: 6px; padding: 1px 5px;
+    border-radius: 3px; background: var(--primary-tint-2); color: var(--primary); }
+  .pick-empty { padding: 16px; font-size: 12px; color: var(--text-secondary); }
+  /* Same reason as .pick-list, for a grid that has to keep its cards: nine theme swatches ran to
+     636px and pushed the language and logo fields off the bottom. */
+  .scroll-box { max-height: clamp(140px, 30vh, 300px); overflow-y: auto; padding: 2px; }
+  @media (max-width: 1040px) {
+    .pick-list, .scroll-box { max-height: none; overflow-y: visible; }
+  }
   .choice-card .cc-ic { width: 32px; height: 32px; border-radius: var(--radius-lg); display: flex;
     align-items: center; justify-content: center; margin-bottom: 10px;
     background: var(--primary-tint-2); color: var(--primary); }
@@ -6463,20 +6493,30 @@ const previewLabelHtml = layout =>
   + ` <span class="rel-tag">your data</span>`;
 
 /**
- * One layout, drawn as its own shape above its name.
+ * One layout, as a row in the picker.
  *
- * The card the head start chose says so. Arriving here to find something already selected, with no
- * account of who selected it, is what made this step read as a repeat of step 1 rather than the
- * decision step 1 was only guessing at.
+ * Cards, two across a 342px column, wrapped "Multi-Column Layout · Catalogs · Product Catalog" over
+ * four lines and stood 150px tall — so a picker bounded to fit on screen would have shown six of the
+ * twenty-seven. A row is a third of the height and reads in one pass.
+ *
+ * The row the head start chose says so. Arriving to find something already selected with no account
+ * of who selected it is what made this step read as a repeat of step 1 rather than the decision step
+ * 1 was only guessing at.
  */
 function layoutChoiceCard(layout, draft) {
   const shape = REPORT_SHAPES[draft.shape];
   const fromShape = shape && shape.layoutType === layout.type;
-  return `<div class="choice-card ${draft.layoutType === layout.type ? "sel" : ""}" data-lay="${esc(layout.type)}">
-    <div class="cc-ic">${ic(layout.icon)}</div>
-    <div class="cc-t">${esc(layout.type)}</div>
-    <div class="cc-d">${esc(layout.best)} · <em>${esc(layout.ex)}</em></div>
-    ${fromShape ? `<div class="cc-meta">from your ${esc(shape.label)} head start</div>` : ""}</div>`;
+  return `<div class="pick-row ${draft.layoutType === layout.type ? "sel" : ""}" data-lay="${esc(layout.type)}" role="option" aria-selected="${draft.layoutType === layout.type}">
+    <span class="pick-ic">${ic(layout.icon)}</span>
+    <span class="pick-txt">
+      <span class="pick-n">${esc(layout.type)}${fromShape ? `<span class="pick-tag">head start</span>` : ""}</span>
+      <span class="pick-d">${esc(layout.best)} · ${esc(layout.ex)}</span>
+    </span></div>`;
+}
+
+/** The layouts a search term matches, across every word the picker shows. */
+function layoutsMatching(term) {
+  return LAYOUT_CATALOG.filter(l => matchesSearch(term, l.type, l.best, l.ex));
 }
 
 /** Says who currently owns the export list, because the answer changes the moment one is ticked. */
@@ -6485,51 +6525,95 @@ const exportsLabelHtml = draft => 'Export formats <span class="hint-inline">'
                            : '— follow the layout until you change them')
   + '</span>';
 
+/* ---------- The layout step ----------
+   Built once and then repainted in parts. It used to re-render whole on every layout click, which
+   kept the four dependent pieces honestly in step but destroyed anything typed into it — with a
+   search box in the picker that is no longer a trade worth making. Each paint function below owns
+   exactly one region, and the click handler calls all three.
+
+   The picker is bounded so it scrolls inside itself. Left to run its natural height it was 2,108px
+   in a 516px window, which put Export formats 1,772px down the page: a checkbox row behind four
+   screenfuls of layout cards. Nothing on this step scrolls the page now. */
 function wizLayout(host, d) {
-  const info = LAYOUT_CATALOG.find(l => l.type === d.layoutType) || LAYOUT_CATALOG[0];
   host.innerHTML = `<div class="wtitle">Layout &amp; live preview</div><div class="wsub">Pick any of ${LAYOUT_CATALOG.length} layouts — the preview beside them renders your chosen entity and columns against real rows from this environment, and re-renders as you switch.</div>
     <div class="layout-step">
       <div class="layout-pick">
-        <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
-        <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(148px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
-        <div id="wz_chartopts" style="margin-top:14px"></div>
-        <label class="lbl" id="wz_exportslbl" style="display:block;margin:24px 0 10px">${exportsLabelHtml(d)}</label>
+        <label class="lbl" style="display:block;margin-bottom:8px">Layout</label>
+        <input class="fluent-input" id="wz_layoutfind" placeholder="Search ${LAYOUT_CATALOG.length} layouts…" value="${esc(d._layoutFilter || "")}" autocomplete="off">
+        <div class="pick-list" id="wz_layouts" role="listbox" aria-label="Layout"></div>
+        <div id="wz_chartopts"></div>
+        <label class="lbl" id="wz_exportslbl" style="display:block;margin:18px 0 8px">${exportsLabelHtml(d)}</label>
         <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
       </div>
       <div class="layout-preview">
-        <label class="lbl" id="wz_previewlbl" style="display:block;margin:0 0 10px">${previewLabelHtml(info)}</label>
+        <label class="lbl" id="wz_previewlbl" style="display:block;margin:0 0 10px">${previewLabelHtml(currentLayout(d))}</label>
         <div id="wz_preview"></div>
       </div>
     </div>`;
-  const fillChartOpts = () => {
-    const box = $("#wz_chartopts");
-    if (d.layoutType === "Chart Report") box.innerHTML = `<div class="field" style="max-width:260px"><label class="lbl">Chart type <span class="hint-inline">— data comes from the table; click a segment to drill</span></label><select class="fluent-select" id="wz_charttype">${opts(CHART_TYPES, d.chartType||"Column")}</select></div>`;
-    else if (d.layoutType === "Info Cards") box.innerHTML = `<div class="field" style="max-width:260px"><label class="lbl">Info card icon <span class="hint-inline">— each card shows icon + label + total</span></label><select class="fluent-select" id="wz_cardicon">${opts(CARD_ICONS, d.cardIcon||"chart")}</select></div>`;
-    else box.innerHTML = "";
-    const ct = $("#wz_charttype"); if (ct) ct.onchange = () => { d.chartType = ct.value; renderMiniPreview($("#wz_preview"), d); };
-    const ci = $("#wz_cardicon"); if (ci) ci.onchange = () => { d.cardIcon = ci.value; renderMiniPreview($("#wz_preview"), d); };
+
+  const paintPicker = () => {
+    const matches = layoutsMatching(d._layoutFilter);
+    $("#wz_layouts").innerHTML = matches.length
+      ? matches.map(l => layoutChoiceCard(l, d)).join("")
+      : `<div class="pick-empty">No layout matches that. Clear the search to see all ${LAYOUT_CATALOG.length}.</div>`;
+    $("#wz_layouts").querySelectorAll("[data-lay]").forEach(row => row.onclick = () => chooseLayout(row.dataset.lay));
   };
-  /* Repaints the whole step rather than patching it: selection, chart options, the export list and
-     its hint all move together with the layout, and keeping four of them in step by hand is how one
-     gets forgotten. The scroll position is carried over because the layout grid is tall — rebuilding
-     without it throws the reader back to the top of a step they were half way down. */
-  host.querySelectorAll("[data-lay]").forEach(card => card.onclick = () => {
-    const scrollTop = host.scrollTop;
-    d.layoutType = card.dataset.lay;
+
+  const paintChartOptions = () => {
+    const box = $("#wz_chartopts");
+    if (d.layoutType === "Chart Report") box.innerHTML = `<div class="field" style="margin-top:14px"><label class="lbl">Chart type <span class="hint-inline">— click a segment to drill</span></label><select class="fluent-select" id="wz_charttype">${opts(CHART_TYPES, d.chartType||"Column")}</select></div>`;
+    else if (d.layoutType === "Info Cards") box.innerHTML = `<div class="field" style="margin-top:14px"><label class="lbl">Info card icon <span class="hint-inline">— icon + label + total</span></label><select class="fluent-select" id="wz_cardicon">${opts(CARD_ICONS, d.cardIcon||"chart")}</select></div>`;
+    else box.innerHTML = "";
+    const chartType = $("#wz_charttype");
+    if (chartType) chartType.onchange = () => { d.chartType = chartType.value; renderMiniPreview($("#wz_preview"), d); };
+    const cardIcon = $("#wz_cardicon");
+    if (cardIcon) cardIcon.onchange = () => { d.cardIcon = cardIcon.value; renderMiniPreview($("#wz_preview"), d); };
+  };
+
+  const paintExports = () => {
+    $("#wz_exportslbl").innerHTML = exportsLabelHtml(d);
+    $("#wz_exports").querySelectorAll("[data-exp]").forEach(box => {
+      box.checked = d.exports.includes(box.dataset.exp);
+    });
+  };
+
+  const chooseLayout = layoutType => {
+    d.layoutType = layoutType;
     d._chartDrill = null;
-    if (!d._exportsTouched) d.exports = exportsForLayout(d.layoutType);
-    wizLayout(host, d);
-    host.scrollTop = scrollTop;
+    if (!d._exportsTouched) d.exports = exportsForLayout(layoutType);
+    paintPicker();
+    paintChartOptions();
+    paintExports();
+    $("#wz_previewlbl").innerHTML = previewLabelHtml(currentLayout(d));
+    renderMiniPreview($("#wz_preview"), d);
+  };
+
+  $("#wz_layoutfind").addEventListener("input", event => {
+    d._layoutFilter = event.target.value;
+    paintPicker();
   });
-  host.querySelectorAll("[data-exp]").forEach(cb => cb.onchange = () => {
-    const format = cb.dataset.exp;
+  $("#wz_exports").querySelectorAll("[data-exp]").forEach(cb => cb.onchange = () => {
     // From here the author owns the list, and switching layout stops rewriting it.
     d._exportsTouched = true;
+    const format = cb.dataset.exp;
     d.exports = cb.checked ? [...d.exports, format] : d.exports.filter(x => x !== format);
     $("#wz_exportslbl").innerHTML = exportsLabelHtml(d);
   });
-  fillChartOpts();
+
+  paintPicker();
+  paintChartOptions();
   renderMiniPreview($("#wz_preview"), d);
+  keepSelectedLayoutInView();
+}
+
+const currentLayout = draft =>
+  LAYOUT_CATALOG.find(l => l.type === draft.layoutType) || LAYOUT_CATALOG[0];
+
+/* Arriving with a layout chosen — from a head start, or from coming back to the step — must not
+   land on a picker scrolled to the top with the selection somewhere out of sight below. */
+function keepSelectedLayoutInView() {
+  const selected = document.querySelector("#wz_layouts .pick-row.sel");
+  if (selected) selected.scrollIntoView({ block: "nearest" });
 }
 /* Synthesize type-appropriate sample rows for any entity + column set */
 /* ---------- Preview rows ----------
@@ -6858,7 +6942,7 @@ function wizDesign(host, d) {
     <div class="layout-step">
       <div class="layout-pick">
         <label class="lbl" style="display:block;margin-bottom:10px">Theme</label>
-        <div class="theme-cards" id="wz_themes" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${THEMES.map(t=>`<div class="theme-card ${d.theme===t.id?"sel":""}" data-theme="${t.id}"><div class="theme-swatch" style="background:${t.accent};font-family:${t.font}">Aa</div><div class="theme-meta"><div class="tn">${esc(t.name)}</div><div class="td">${esc(t.desc)}</div><div class="tf" style="font-family:${t.font}">${esc(t.font.split(",")[0].replace(/["']/g,""))}</div></div></div>`).join("")}</div>
+        <div class="theme-cards scroll-box" id="wz_themes" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">${THEMES.map(t=>`<div class="theme-card ${d.theme===t.id?"sel":""}" data-theme="${t.id}"><div class="theme-swatch" style="background:${t.accent};font-family:${t.font}">Aa</div><div class="theme-meta"><div class="tn">${esc(t.name)}</div><div class="td">${esc(t.desc)}</div><div class="tf" style="font-family:${t.font}">${esc(t.font.split(",")[0].replace(/["']/g,""))}</div></div></div>`).join("")}</div>
         <label class="lbl" style="display:block;margin:24px 0 10px">Languages <span class="hint-inline">— first selected is the default; Arabic/Urdu render right-to-left</span></label>
         <div class="chips" id="wz_langs">${langChips}</div>
         <div class="field" style="max-width:260px;margin-top:14px"><label class="lbl">Default language</label><select class="fluent-select" id="wz_primary">${d.languages.map(c=>{const l=LANGUAGES.find(x=>x.code===c);return `<option value="${c}" ${d.primaryLang===c?"selected":""}>${esc(l?l.name:c)}</option>`;}).join("")}</select></div>
