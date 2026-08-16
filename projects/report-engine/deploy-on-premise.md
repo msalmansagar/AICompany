@@ -48,24 +48,49 @@ on every call, which a Custom API does not. C-6 measured the cloud path at 1.17s
 (`c6-scale-characterisation.md`); the on-premise path adds workflow instantiation to every report
 run. Measure it before promising anything — the 102× headroom found on cloud may not survive.
 
-### 🔴 2. Nothing creates the schema
+### 🔴 2. The solution carries the schema, but it will not import as it stands
 
-`schema-manifest.json` documents **18 entities and 172 fields**, and no script in the repository
-creates them — the cloud org's schema was built up over the engagement rather than provisioned. So
-there is currently **no reproducible way to stand this engine up in a new organisation**, on-premise
-or otherwise.
+**This section previously claimed there was no reproducible way to stand the engine up in a new
+organisation, and recommended generating a provisioning script from `schema-manifest.json`. That was
+wrong on both counts.** Solution export/import is the supported route and carries far more than a
+generated script could: entities, fields, option-set values, relationships, labels, web resources,
+the plugin assembly, security roles, the app and the sitemap. A manifest-driven provisioner would be
+strictly worse — the manifest records name, type and lookup target only, so every option value, max
+length and display name would be lost.
 
-Two ways out. Prefer the first:
+The obstacle is different and specific. Inspected on org5869857f, `qdb_reportengine` v1.0.0.0 holds
+**78 components**:
 
-1. **Export the `qdb_reportengine` solution from org5869857f as unmanaged, and import it on-premise.**
-   Carries entities, fields, option sets, web resources and the plugin registration in one artefact.
-   ⚠️ Cloud-to-on-premise solution import is only supported **downward in version**, and a solution
-   exported from current Dataverse will usually refuse to import into 9.1. Export with the target
-   version set to 9.1 if the export dialog offers it; if it does not, use option 2.
-2. **Generate a provisioning script from `schema-manifest.json`.** The manifest already holds the
-   entity names, schema names, primary attributes and field types — enough to emit
-   `EntityDefinitions` and `Attributes` calls. This is the more portable answer and is worth writing
-   regardless, because it makes every future environment reproducible.
+| Count | Component |
+|---|---|
+| 22 | Entity |
+| 14 | Web resource |
+| **21** | **Custom API (2), its request parameters (8) and response properties (11)** |
+| 3 | SDK message processing step — the audit steps |
+| 2 | Security role |
+| 1 each | Plugin assembly, model-driven app, sitemap, system form (the dashboard) |
+| 12 | Two component types this inspection could not identify — 10100 ×11 and 10034 ×1 |
+
+Those 21 are `qdb_RunReport` and `qdb_RunDashboard` with their parameters, and **their component
+types do not exist in 9.1**. Importing this solution on-premise fails on them — not with a warning,
+with a failed import.
+
+**So the export has to be assembled deliberately rather than taken wholesale.** Build a second
+unmanaged solution for the on-premise target containing only what 9.1 understands — the entities, web
+resources, plugin assembly, audit steps, roles, app, sitemap and dashboard form — and leave the
+Custom APIs out. They are being replaced by Actions anyway, so nothing is lost by omitting them.
+
+Identify components 10100 and 10034 before relying on the export; twelve unknown components is not a
+detail to discover during an import window.
+
+⚠️ Version compatibility remains open even after that surgery. Cloud-to-on-premise import is only
+supported downward in version, and a package exported from current Dataverse may be refused by 9.1 on
+its package version alone. Try the trimmed export first; if it is rejected on version, unpack with
+SolutionPackager, lower `SolutionPackageVersion`, and repack.
+
+⚠️ **The solution carries no records.** Ribbon placements (`qdb_reportribbonplacement`) are data, and
+so is every report definition, data source, column, parameter and access row. Moving the engine is
+not moving the reports — that is a separate data migration.
 
 ---
 
@@ -109,7 +134,8 @@ the existing SSRS estate already uses.
 Steps 1 and 2 are the build work from Part 0. Everything after is mechanical.
 
 **1. Build the missing pieces**
-- Resolve the schema provisioning artefact (solution export, or generator from the manifest)
+- Assemble the on-premise solution on org5869857f — everything except the Custom API components —
+  and export it unmanaged
 - Create the `qdb_RunReport` and `qdb_RunDashboard` Actions and register the plugin types on them
 - Port the scripts' authentication and API version
 
@@ -119,15 +145,19 @@ Steps 1 and 2 are the build work from Part 0. Everything after is mechanical.
 - On the build machine: .NET Framework 4.6.2 targeting pack, `sn.exe`, Node 20+
 - Confirm the sandbox processing service is running if registering in sandbox isolation
 
-**3. Create the publisher and solution**
-- Publisher with the agreed prefix; solution `qdb_reportengine` (or the renamed equivalent)
+**3. Create the publisher**
+- Publisher with the agreed prefix, matching the one the exported solution was built under —
+  a prefix mismatch on import creates a second set of attributes rather than failing
 
-**4. Provision the schema** — 18 entities, 172 fields, then verify:
+**4. Import the trimmed solution**, then verify the schema independently:
 ```
 node scripts/verify-schema.mjs <env>      # after porting auth
 ```
+The verifier checks 22 entities against `schema-manifest.json`. Do not treat a successful import as
+proof — a solution can import with warnings and leave components behind.
 
-**5. Build and import the plugin assembly**
+**5. Build and import the plugin assembly** — the solution carries the assembly, so this step is only
+needed if the import left it behind or the assembly must be rebuilt against a different key
 ```
 dotnet build src/Qdb.ReportEngine.CrmPlugin -c Release
 node scripts/import-plugin-assembly.mjs <env>
@@ -140,7 +170,8 @@ Creates the assembly and its three plugin types: `RunReportPlugin`, `RunDashboar
 - The three audit steps: `node scripts/register-audit-steps.mjs <env>` — Create, Update and Delete
   on `qdb_reportdefinition`, PostOperation, synchronous
 
-**7. Deploy the web resources**
+**7. Deploy the web resources** — also carried by the solution; run this when iterating on the
+engine afterwards, and to confirm all fourteen are present
 ```
 node scripts/deploy-webresources.mjs <env>
 ```
