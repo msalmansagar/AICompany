@@ -6491,7 +6491,7 @@ function wizLayout(host, d) {
     <div class="layout-step">
       <div class="layout-pick">
         <label class="lbl" style="display:block;margin-bottom:10px">Layout</label>
-        <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
+        <div class="choice-cards" id="wz_layouts" style="grid-template-columns:repeat(auto-fill,minmax(148px,1fr))">${LAYOUT_CATALOG.map(l=>layoutChoiceCard(l, d)).join("")}</div>
         <div id="wz_chartopts" style="margin-top:14px"></div>
         <label class="lbl" id="wz_exportslbl" style="display:block;margin:24px 0 10px">${exportsLabelHtml(d)}</label>
         <div class="chips" id="wz_exports">${EXPORT_FORMATS.map(f=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-exp="${esc(f)}" ${d.exports.includes(f)?"checked":""}>${esc(f)}</label>`).join("")}</div>
