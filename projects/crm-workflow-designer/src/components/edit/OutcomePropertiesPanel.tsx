@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
+import { hasRealCondition } from '@/services/routeFilter';
 import { OUTCOME_HOOKS, ROUTE_HOOKS, emptyWorkflowHooks } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -20,6 +21,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
     stepOrder,
     setOutcome,
     addRoute,
+    deleteRoute,
     deleteOutcome,
     selectNode,
     clearSelection,
@@ -31,6 +33,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
     stepOrder: s.stepOrder,
     setOutcome: s.setOutcome,
     addRoute: s.addRoute,
+    deleteRoute: s.deleteRoute,
     deleteOutcome: s.deleteOutcome,
     selectNode: s.selectNode,
     clearSelection: s.clearSelection,
@@ -41,6 +44,15 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   const [newRouteTarget, setNewRouteTarget] = useState<string>('__end__');
   const [newRouteIsFallback, setNewRouteIsFallback] = useState(false);
   const [addRouteError, setAddRouteError] = useState<string | null>(null);
+  /** Deleting a route removes a Dataverse record, so it goes through the same
+   * confirmation the decision delete uses rather than a bespoke pattern. */
+  const handleDeleteRoute = (route: WorkflowRoute) => {
+    void confirm({
+      title: 'Delete route',
+      message: `Delete route "${route.name || '(unnamed)'}"? Its condition will be lost.`,
+      tone: 'danger',
+    }).then((confirmed) => { if (confirmed) deleteRoute(route.crmId); });
+  };
 
   const rawId = outcomeId?.replace('outcome_', '') ?? null;
   const outcome = rawId ? outcomes[rawId] : null;
@@ -146,21 +158,6 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         </div>
 
         <div style={fieldGroupStyle}>
-          <label className="lbl">Goes To</label>
-          <div style={targetChipStyle}>
-            {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
-          </div>
-        </div>
-
-        <WorkflowHooksSection
-          value={outcome.workflowHooks}
-          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
-          kinds={OUTCOME_HOOKS}
-          adapter={adapter}
-          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
-        />
-
-        <div style={fieldGroupStyle}>
           <label className="lbl">Concurrent branches</label>
           <button
             type="button"
@@ -201,6 +198,17 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
           </button>
         </div>
 
+        {/* Where this decision leads. With conditional routing on, each route carries its
+            own target and this one is not consulted, so showing it would be misleading. */}
+        {!outcome.applyFilter && (
+          <div style={fieldGroupStyle}>
+            <label className="lbl">Next Step</label>
+            <div style={targetChipStyle}>
+              {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
+            </div>
+          </div>
+        )}
+
         {outcome.applyFilter && (
           <>
             <div style={dividerStyle} />
@@ -213,25 +221,33 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
               const nextStep = route.nextStepId ? steps[route.nextStepId] : null;
               const isFallback = route.isDefault;
               return (
-                <button
-                  key={route.crmId}
-                  type="button"
-                  style={buildRouteRowStyle(isFallback)}
-                  onClick={() => selectNode(`route_edge_${route.crmId}`)}
-                  title="Click to edit condition"
-                >
-                  <span style={routeSeqStyle}>{route.sequenceNumber}</span>
-                  <div style={routeInfoStyle}>
-                    <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
-                    <span style={routeCondStyle}>
-                      {isFallback ? 'else (fallback)' : '✎ Has condition — click to edit'}
-                    </span>
-                    <span style={routeNextStyle}>
-                      → {nextStep ? `${nextStep.sequenceNo}. ${nextStep.name}` : 'End'}
-                    </span>
-                  </div>
-                  <span style={routeArrowStyle}>›</span>
-                </button>
+                <div key={route.crmId} style={buildRouteRowStyle(isFallback)}>
+                  <button
+                    type="button"
+                    style={routeOpenStyle}
+                    onClick={() => selectNode(`route_edge_${route.crmId}`)}
+                    title="Open this route"
+                  >
+                    <span style={routeSeqStyle}>{route.sequenceNumber}</span>
+                    <div style={routeInfoStyle}>
+                      <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
+                      <span style={routeCondStyle}>{describeRouteCondition(route)}</span>
+                      <span style={routeNextStyle}>
+                        → {nextStep ? `${nextStep.sequenceNo}. ${nextStep.name}` : 'End'}
+                      </span>
+                    </div>
+                    <span style={routeArrowStyle}>›</span>
+                  </button>
+                  <button
+                    type="button"
+                    style={routeDeleteStyle()}
+                    aria-label={`Delete route ${route.name || 'unnamed'}`}
+                    title="Delete this route"
+                    onClick={() => handleDeleteRoute(route)}
+                  >
+                    ✕
+                  </button>
+                </div>
               );
             })}
 
@@ -245,7 +261,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
                   className="fluent-input"
                   autoFocus
                 />
-                <label className="lbl">Goes to</label>
+                <label className="lbl">Next Step</label>
                 <select
                   value={newRouteTarget}
                   onChange={(e) => {
@@ -296,6 +312,16 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
             )}
           </>
         )}
+
+        {/* Workflow stays last: it is the least-used section and pushing the routing
+            configuration below it buried the part people came here to change. */}
+        <WorkflowHooksSection
+          value={outcome.workflowHooks}
+          onChange={(workflowHooks) => setOutcome({ ...outcome, workflowHooks })}
+          kinds={OUTCOME_HOOKS}
+          adapter={adapter}
+          scopeNote="Runs for the task this outcome leads to, in addition to anything set on that step."
+        />
 
         <div style={dividerStyle} />
         <button type="button" style={deleteBtnStyle} onClick={handleDelete}>
@@ -377,6 +403,44 @@ const countBadgeStyle: React.CSSProperties = {
   padding: '0 5px',
   fontWeight: 700,
 };
+
+/** What the row says about a route: the fallback, a real condition, or neither. */
+function describeRouteCondition(route: WorkflowRoute): string {
+  if (route.isDefault) return 'else (fallback)';
+  if (!hasRealCondition(route.filter)) return '⚠ No condition set';
+  return '✎ Has condition — click to edit';
+}
+
+const routeOpenStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  flex: 1,
+  minWidth: 0,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  textAlign: 'left',
+  padding: 0,
+  font: 'inherit',
+  color: 'inherit',
+};
+
+function routeDeleteStyle(): React.CSSProperties {
+  return {
+    flexShrink: 0,
+    marginLeft: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1,
+    padding: '3px 7px',
+    borderRadius: 4,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-secondary)',
+    cursor: 'pointer',
+  };
+}
 
 function buildRouteRowStyle(isFallback: boolean): React.CSSProperties {
   return {
