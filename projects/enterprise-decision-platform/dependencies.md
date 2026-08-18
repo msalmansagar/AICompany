@@ -490,8 +490,11 @@ a limitation in `gateway/README.md`.
 **Option B**. Phase F1 is the collection type, iteration, bounded traversal and per-child
 fan-out. The standing adopt-over-build rule requires this research before architecture.
 
-**⚠️ Unlike the Wave 1 gateway addendum, this one DOES propose a new dependency inside the
-CRM plugin sandbox** — the first since NCalc. It must be reviewed as such.
+**⚠️ This addendum proposed a new sandbox dependency and then, on examining the integration
+seam, withdrew it.** The final position is **adopt the specification, not the package** —
+see the mode resolution at the end and **ADR-16**. Read the whole addendum before quoting any
+part of it: the research below is the evidence that produced that reversal, not a superseded
+draft.
 
 ## Constraint checklist applied
 
@@ -507,7 +510,7 @@ CRM plugin sandbox** — the first since NCalc. It must be reviewed as such.
 
 | Repo | Stars | Lang | Licence | Last push | Verdict |
 |---|---|---|---|---|---|
-| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT — but at 5.4.3, NOT 6.1.0. See correction below** |
+| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT THE SPECIFICATION, not the package** (ADR-16). Had it been taken as a dependency it would have been 5.4.3, never 6.x |
 | `zzzprojects/System.Linq.Dynamic.Core` | 1,711 | C# | Apache-2.0 | 2026-07-11 | **REJECT — CVE-2023-32571** |
 | `ncalc/ncalc` | 1,152 | C# | MIT | 2026-08-15 | Already adopted — **re-scoped, see below** |
 | `jwadhams/json-logic-js` | 1,478 | JS | MIT | 2024-07-09 | Specification and conformance-test source only |
@@ -617,20 +620,41 @@ converts a JSON array to `e.GetRawText()`, a string, before NCalc ever sees it.
 materially cheaper than the BRD assumed, and the architecture phase should test that
 assumption early — it changes the shape of the estimate.
 
-## Two adoption modes for architecture to settle
+## Mode resolution — RESOLVED 2026-08-18 by **ADR-16**: mode (b)
 
-| Mode | Description |
-|---|---|
-| **(a) Adopt the library** | PCRM carries Json.Logic fragments for collection predicates; json-everything evaluates them |
-| **(b) Adopt the semantics** | PCRM gains native collection primitives implemented to Json.Logic's operator semantics, verified against the reference implementation's conformance suite |
+| Mode | Description | Outcome |
+|---|---|---|
+| **(a) Adopt the library** | PCRM carries Json.Logic fragments; json-everything evaluates them | **Rejected** |
+| **(b) Adopt the semantics** | PCRM gains native collection primitives built to Json.Logic's operator semantics, verified against its published conformance cases | **Adopted** |
 
-**Recommend (a)**, per adopt-over-build. Mode (b) remains a credible fallback and is not a
-consolation prize: it still adopts a *specification* with a reference implementation to test
-against, which is where most of the risk in set semantics actually lives.
+This research initially leaned toward (a) on the standing adopt-over-build rule, and
+deliberately deferred the call until the integration seam had been examined. **Examining it
+reversed the answer.** Summarised — the full argument is in ADR-16:
+
+1. **Two coercion models.** EDP compares via `RuntimeValue.Compare`; JsonLogic ships JS-style
+   loose `==`. The same authored comparison would coerce differently inside a collection
+   predicate than outside one — dual-engine drift inside a single evaluation.
+2. **The trace goes black.** Every EDP condition and group writes a `TraceStep`; an embedded
+   fragment writes none, exactly where FR-F33 and ADR-AI-05 require grounded explanation.
+3. **Validation goes blind.** `RuleValidator` and `TableCompletenessAnalyzer` reason over PCRM
+   structure and cannot see inside an opaque fragment.
+4. **Two structural idioms in PCRM**, both of which the designer must generate and round-trip.
+5. **Empty-set semantics inherited by accident.** The reference implementation returns
+   `false` for `all` over an empty collection, departing from vacuous truth. Applied to the
+   specimen's G1, a DR with zero invoices would silently fail the beneficiary check. That may
+   be the right behaviour — the objection is that nobody would have chosen it.
+
+**What adopt-over-build actually buys here.** EDP already owns every hard prerequisite of
+iteration: operator evaluation, type coercion, null handling, trace, validation.
+`ConditionEvaluator` is a composite that a quantifier node slots straight into. So mode (a)
+would adopt the *trivial* part — roughly thirty lines of looping — while inheriting a semantic
+mismatch, an opaque trace and a frozen dependency chain. **The rule is honoured by adopting
+the specification and its conformance suite, which is where the real risk in set semantics
+lives.**
 
 Authors never see either representation — the designer generates PCRM from a visual editor —
-so this is an internal representation choice, not a user-facing one. **ADR-06 constrains
-channels, not internals, so neither mode conflicts with it.**
+so this was an internal representation choice throughout. ADR-06 constrains channels, not
+internals, so neither mode conflicted with it.
 
 ## Practical consequence — this rides W0-1
 
@@ -663,21 +687,30 @@ This is the **second** dependency EDP would pin to an older line for one reason:
 | Dependency | Pinned at | Current line | Cost of the pin |
 |---|---|---|---|
 | `NCalcSync` | 5.4.2 | 6.x | An accepted DoS advisory (GHSA-3w5p-95mh-gq75), ADR-SEC-NCALC |
-| `JsonLogic` | 5.4.3 | 6.1.0 | Frozen security surface on a line that will stop receiving fixes |
+| `JsonLogic` | *would have been 5.4.3* | 6.1.0 | **Avoided — ADR-16 takes the spec, not the package.** The pattern below is why that mattered |
 
 Each pin is individually defensible. **The pattern is the risk.** The net462 sandbox is
 progressively cutting EDP off from current library lines, and every pin is a security surface
-that stops moving while the world keeps moving. A third and fourth will follow.
+that stops moving while the world keeps moving.
 
-This is not a reason to reject the adoption — the alternative is building set semantics from
-scratch, which is worse. It is a reason for **architecture to decide a standing strategy**
-rather than re-litigating package-by-package: accept the freeze and monitor advisories,
-vendor a minimal subset, or source-include. That decision belongs in an ADR, not in a csproj
-comment.
+**ADR-16 declines to add the second entry** — not primarily for this reason, but the pin
+problem was a real weight on the scale. The count stays at one.
+
+The strategy question stands regardless, because a third candidate will arrive: accept the
+freeze and monitor advisories, vendor a minimal subset, or source-include. **That belongs in
+an ADR, not in a csproj comment**, and it is now the one open architecture item this research
+did not close.
 
 ---
 
-*Addendum ends. **This one does introduce a new sandbox dependency** — Phase 6 security review
-must treat it as a first-class change, not a transitive one. The version correction above is
-recorded deliberately: the first pass checked target frameworks and not the dependency graph,
-and that is the error to avoid repeating.*
+---
+
+*Addendum ends. **Net result: no new sandbox dependency.** The runtime's dependency set is
+unchanged — NCalcSync 5.4.2 and System.Text.Json 9.0.4 — and what EDP adopts from
+`json-everything` is its specification and conformance cases, which carry no supply-chain,
+ILRepack or advisory surface at all.*
+
+*Two errors are recorded above rather than quietly amended, because both are the kind that
+recur: **checking `TargetFrameworks` instead of the transitive dependency graph**, and
+**applying adopt-over-build before examining the integration seam**. The rule is sound; it
+just cannot be applied from the package page alone.*
