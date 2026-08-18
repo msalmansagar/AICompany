@@ -82,8 +82,17 @@ namespace EDP.RuleRuntime.Operators
         {
             if (right is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Array)
                 return je.EnumerateArray().Any(item => Eq(left, RuntimeValue.FromJson(item)));
-            if (right is IEnumerable<object?> list)
-                return list.Any(item => Eq(left, item));
+
+            // Non-generic IEnumerable, so value-typed collections are covered. Testing for
+            // IEnumerable<object?> silently misses List<decimal> and List<Guid>: they are
+            // IEnumerable<decimal>/IEnumerable<Guid>, and generic variance does not apply to
+            // value types, so membership fell through to the string fallback below and compared
+            // the operand against the collection's type name — a false, never an error.
+            // String is excluded deliberately: it is IEnumerable<char>, and a string right
+            // operand means the comma-separated form.
+            if (right is System.Collections.IEnumerable sequence && !(right is string))
+                return sequence.Cast<object?>().Any(item => Eq(left, item));
+
             // comma-separated fallback
             return Str(right).Split(',').Select(s => s.Trim()).Any(s => string.Equals(s, Str(left), StringComparison.OrdinalIgnoreCase));
         }

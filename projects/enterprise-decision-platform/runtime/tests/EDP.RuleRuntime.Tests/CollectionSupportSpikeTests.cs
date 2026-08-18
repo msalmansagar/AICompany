@@ -49,15 +49,33 @@ namespace EDP.RuleRuntime.Tests
         }
 
         [Fact]
-        public void In_operator_silently_falls_back_to_string_matching_for_a_value_typed_collection()
+        public void In_operator_matches_against_a_value_typed_collection()
         {
-            // InList pattern-matches IEnumerable<object?>. List<decimal> is IEnumerable<decimal>,
-            // and generic variance does not apply to value types, so this does NOT match the
-            // collection branch — it falls through to the comma-separated string fallback over
-            // "System.Collections.Generic.List`1[System.Decimal]".
+            // Regression guard. This returned a silent FALSE until 2026-08-18: InList tested for
+            // IEnumerable<object?>, List<decimal> is IEnumerable<decimal>, generic variance does
+            // not apply to value types, so membership fell through to the string fallback and
+            // compared "5000" against the collection's type name.
             var amounts = new List<decimal> { 5000m, 100000m };
 
-            Assert.False(OperatorEvaluator.Evaluate("in", 5000m, amounts, null));
+            Assert.True(OperatorEvaluator.Evaluate("in", 5000m, amounts, null));
+            Assert.False(OperatorEvaluator.Evaluate("in", 7777m, amounts, null));
+        }
+
+        [Fact]
+        public void In_operator_matches_against_a_guid_collection()
+        {
+            var matching = System.Guid.NewGuid();
+            var ids = new List<System.Guid> { matching, System.Guid.NewGuid() };
+
+            Assert.True(OperatorEvaluator.Evaluate("in", matching, ids, null));
+        }
+
+        [Fact]
+        public void In_operator_still_treats_a_string_right_operand_as_comma_separated()
+        {
+            // String is IEnumerable<char>; enumerating it would compare characters.
+            Assert.True(OperatorEvaluator.Evaluate("in", "2", "1, 2, 5", null));
+            Assert.False(OperatorEvaluator.Evaluate("in", "9", "1, 2, 5", null));
         }
 
         [Fact]
