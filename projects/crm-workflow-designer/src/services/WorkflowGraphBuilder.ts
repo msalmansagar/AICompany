@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { hasRealCondition } from '@/services/routeFilter';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
@@ -52,7 +53,7 @@ const OPERATOR_LABELS: Record<string, string> = {
 };
 
 export function conditionLabel(filter: string): string {
-  if (!filter?.trim()) return 'else';
+  if (!hasRealCondition(filter)) return 'else';
   try {
     const doc = new DOMParser().parseFromString(filter, 'text/xml');
     const conds = Array.from(doc.querySelectorAll('condition'));
@@ -215,7 +216,7 @@ export function buildGraph(
       // Gateway → each route destination
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
-        const isFallback = !route.filter?.trim();
+        const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
         const edgeLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;

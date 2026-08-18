@@ -280,7 +280,7 @@ function buildEdges(
       // Outcome pill → each route destination with condition label
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `tn_step_${route.nextStepId}` : TN_END_ID;
-        const isFallback = !route.filter?.trim();
+        const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
         const rawLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;

@@ -173,6 +173,14 @@ export interface WorkflowRoute {
   filter: string;
   outcomeId: string;
   nextStepId: string | null;
+  /**
+   * The route the engine takes when no other route on the outcome matches.
+   *
+   * Stored, not derived. It used to be inferred from an empty filter, but a default
+   * route stores the fragment <filter type="and"></filter> — a non-empty string — so
+   * every reload flipped the flag off and the engine rejected the save.
+   */
+  isDefault: boolean;
 }
 
 export interface EntityOption {

@@ -142,7 +142,7 @@ function enumerateRouteBranches(
   context: EnumerationContext
 ): void {
   for (const route of args.routes) {
-    const isFallback = !route.filter?.trim();
+    const isFallback = route.isDefault;
     const pathStep = buildPathStep(args.step, {
       outcomeId: args.outcome.crmId,
       outcomeName: args.outcome.name,

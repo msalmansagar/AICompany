@@ -1,4 +1,5 @@
 import type { Node, Edge } from '@xyflow/react';
+import { hasRealCondition } from '@/services/routeFilter';
 import { MarkerType } from '@xyflow/react';
 import type { WorkflowDesignerState } from './workflowStore';
 import type { AssignToType } from '@/types/WorkflowTypes';
@@ -143,9 +144,8 @@ export function deriveEdges(state: WorkflowDesignerState): Edge[] {
   for (const route of Object.values(state.routes)) {
     if (!route.outcomeId || !route.nextStepId) continue;
 
-    const hasFilter = route.filter.trim().length > 0;
-    const parentOutcome = state.outcomes[route.outcomeId];
-    const isFallback = !hasFilter && (parentOutcome?.applyFilter ?? false);
+    const hasFilter = hasRealCondition(route.filter);
+    const isFallback = route.isDefault;
     edges.push({
       id: `edge_route_${route.crmId}`,
       source: route.outcomeId,
