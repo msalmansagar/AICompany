@@ -56,7 +56,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
     );
   }
 
-  const isFallback = !route.filter?.trim();
+  const isFallback = route.isDefault;
 
   return (
     <div className="panel">

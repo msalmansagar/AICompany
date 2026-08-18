@@ -63,7 +63,7 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
 } {
   const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(),
       workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS), stepId: fromStepId, nextStepId: toStepId };
-  const route: WorkflowRoute = { workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS), crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
+  const route: WorkflowRoute = { workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS), crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId, isDefault: false };
   return { outcome, route };
 }
 

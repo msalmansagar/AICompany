@@ -17,6 +17,7 @@ function makeRoute(overrides: Partial<WorkflowRoute> = {}): WorkflowRoute {
     filter: '',
     outcomeId: REAL_OUTCOME,
     nextStepId: REAL_STEP,
+    isDefault: false,
     workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
     ...overrides,
   };

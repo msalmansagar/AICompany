@@ -84,6 +84,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
       workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
       outcomeId: outcome.crmId,
       nextStepId: newRouteTarget,
+      isDefault: newRouteIsFallback,
     });
     selectNode(`route_edge_${routeId}`);
     setAddingRoute(false);
@@ -110,6 +111,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId: outcome.crmId,
         nextStepId: outcome.nextStepId ?? null,
+        isDefault: false,
       });
       selectNode(`route_edge_${routeId}`);
     }
@@ -209,7 +211,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
 
             {outcomeRoutes.map((route) => {
               const nextStep = route.nextStepId ? steps[route.nextStepId] : null;
-              const isFallback = !route.filter?.trim();
+              const isFallback = route.isDefault;
               return (
                 <button
                   key={route.crmId}

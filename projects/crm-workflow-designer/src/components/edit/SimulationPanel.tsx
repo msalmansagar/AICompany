@@ -174,7 +174,7 @@ function RoutePickerDialog({
             <div style={pickerEmptyStyle}>No routes configured for this outcome.</div>
           ) : (
             routes.map((route) => {
-              const isFallback = !route.filter?.trim();
+              const isFallback = route.isDefault;
               const nextStep = route.nextStepId ? steps[route.nextStepId] : null;
 
               return (

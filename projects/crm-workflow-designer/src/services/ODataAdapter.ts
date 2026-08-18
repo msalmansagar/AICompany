@@ -3,6 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
+import { EMPTY_FILTER } from './routeFilter';
 import { mapEscalationConfig, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
 import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, mapCallableAction, dedupeActionsByMessage, CALLABLE_WORKFLOW_QUERY, CALLABLE_ACTION_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
 import type { CallableActionOption, CallableWorkflowOption } from './workflowHooks';
@@ -318,7 +319,7 @@ export class ODataAdapter implements ISopAdapter {
   async getRoutes(outcomeId: string): Promise<WorkflowRoute[]> {
     assertGuid(outcomeId, 'outcomeId');
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.route}?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}`
+      `${ENTITY_SETS.route}?$select=qdb_outcomeworktasksid,qdb_name,qdb_subject,qdb_sequencenumber,qdb_filter,qdb_isdefaultcondition,_qdb_outcome_value,_qdb_nextworkitemstep_value,${hookSelectColumns(ROUTE_HOOKS)}&$filter=_qdb_outcome_value eq ${outcomeId}`
     );
     return data.value.map(mapRoute);
   }
@@ -801,6 +802,7 @@ function mapRoute(raw: Record<string, unknown>): WorkflowRoute {
   return {
     workflowHooks: mapWorkflowHooks(raw, ROUTE_HOOKS),
     crmId: raw['qdb_outcomeworktasksid'] as string,
+    isDefault: (raw['qdb_isdefaultcondition'] as boolean) ?? false,
     name: (raw['qdb_name'] as string) ?? '',
     subject: (raw['qdb_subject'] as string) ?? '',
     sequenceNumber: (raw['qdb_sequencenumber'] as number) ?? 0,
@@ -844,9 +846,13 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.subject !== undefined) body['qdb_subject'] = data.subject;
   if (data.sequenceNumber !== undefined) body['qdb_sequencenumber'] = data.sequenceNumber;
   if (data.filter !== undefined) {
-    const hasFilter = data.filter.length > 0;
-    body['qdb_filter'] = hasFilter ? data.filter : '<filter type="and"></filter>';
-    body['qdb_isdefaultcondition'] = !hasFilter;
+    body['qdb_filter'] = data.filter.length > 0 ? data.filter : EMPTY_FILTER;
+  }
+  // Written from the model, never inferred from the filter. A default route stores
+  // EMPTY_FILTER, which is a non-empty string, so inferring flipped the flag off on
+  // every reload and the engine then rejected the save for having no condition.
+  if (data.isDefault !== undefined) {
+    body['qdb_isdefaultcondition'] = data.isDefault;
   }
   if (data.outcomeId) body['qdb_Outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
   // "Not supplied" and "deliberately cleared" are different. Omitting the bind on a
