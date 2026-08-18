@@ -3,6 +3,7 @@
 **Reference:** EDP-GAP-001
 **Date:** 2026-08-18
 **Status:** Analysis only. No implementation authorised, no BRD raised.
+**Business review:** 2026-08-18 — blocking defects resolved, see §2.5.
 **Subject:** Can the Enterprise Decision Platform, as built today, deliver the
 Disbursement Request duplicate-invoice and unit-price validation requirement?
 
@@ -23,9 +24,14 @@ the data, and calls the EDP runtime in-process to make each decision. EDP keeps
 what it is good at — versioned, approved, simulated, audited policy — and does
 not acquire a query language or an HTTP client.
 
-**This document does not recommend proceeding to build.** Four defects in the
-requirement specification change the design depending on how they are answered
-(§9.1) and should be resolved with the business first.
+**Updated 2026-08-18 — the business has answered.** All four blocking defects and
+most open questions were resolved in session (§2.5). Two consequences dominate: the
+match criteria must be **configurable**, which strengthens the case for a governed
+rule over a plugin constant; and the duplicate lookback is **unbounded**, which makes
+the legacy-table migration a requirement rather than an option (§8).
+
+**This document still does not recommend proceeding to build.** It is an input to a
+BRD, not a substitute for one.
 
 ---
 
@@ -68,6 +74,16 @@ invoice number.
 
 The verdict is reported at **invoice** grain, not line grain.
 
+**Amended 2026-08-18.** Line-item amount is a **required conjunct today**, and scope
+widens to include duplicates *within the submitted DR* as well as against history.
+Comparison sources are restricted to **paid or approved DRs only** — a rejected DR was
+never disbursed, so matching it is not a duplicate-payment risk.
+
+**Every conjunct in this predicate must be configurable** (§2.5, C-1). The business
+expects the mandatory/optional status of each criterion to change without a code
+change. This is the most consequential answer received; §7.2 records what it does to
+the architecture.
+
 ### 2.3 The unit-price tolerance bands
 
 | Age of last purchase | Permitted variance |
@@ -75,9 +91,23 @@ The verdict is reported at **invoice** grain, not line grain.
 | 0–6 months | ±5% |
 | 6–12 months | ±7.5% |
 | 1–2 years | ±10% |
-| > 2 years | *specification is contradictory — see §9.1 D-1* |
+| ≥ 2 years | **Fail** — routed to review |
+| No prior purchase at all | **Fail** — routed to review |
 
 Tolerance percentages must be pre-populated and configurable.
+
+**Resolved 2026-08-18.** Both no-benchmark cases fail rather than pass. Because the
+consequence of failure is *route-to-review plus a warning* rather than a hard block
+(§2.5, C-8), failing closed is defensible: a dormant supplier or a genuinely new item
+gets human judgement rather than a wall. The residual risk moves from blocked payments
+to **review-queue volume**, which should be measured against historical data before
+go-live.
+
+**Band boundaries — lower bound inclusive, upper exclusive.** Delegated to engineering
+and decided on internal consistency: `EffectiveVersionResolver` already uses a half-open
+`[from, to)` window for effective dating, and using one convention twice in a product is
+worth more than a marginal argument either way. So `[0, 6)` months → ±5%, `[6, 12)` →
+±7.5%, `[12, 24)` → ±10%, `[24, ∞)` → Fail.
 
 ### 2.4 Four data sources
 
@@ -87,6 +117,46 @@ Tolerance percentages must be pre-populated and configurable.
 | 2 | Legacy history (pre-2025 only) | **Denormalised** — invoice and line item in one table | Dataverse |
 | 3 | Current history (2025 onward) | **Normalised** — master + child | Dataverse |
 | 4 | MIS purchase history | External | **REST API via middleware** |
+
+### 2.5 Decisions taken by the business — 2026-08-18
+
+Recorded in session. These close all four blocking defects and most open questions.
+
+| ID | Question | Decision |
+|---|---|---|
+| **C-1** | Is amount part of the duplicate key? | **Mandatory today, but every check must be CONFIGURABLE** — the business expects criteria to become optional later without a code change |
+| **C-2** | Line-item ref semantics | **Supplier-issued, OCR-extracted.** The line-ref duplicate signal is real and is the strongest available |
+| **C-3** | Unit-price check, last purchase ≥ 2 years ago | **Fail** |
+| **C-4** | No prior purchase at all | **Fail** |
+| **C-5** | Currency | **Multiple currencies; compare same-currency purchases only** |
+| **C-6** | Beneficiary identity for matching | **Account number, IBAN AND name must all match** |
+| **C-7** | Duplicate lookback | **All history, no time limit** |
+| **C-8** | Consequence of a failed check | **Route to review, and warn with override** — not a hard block |
+| **C-9** | Eligible comparison sources | **Paid or approved DRs only** |
+| **C-10** | Intra-DR duplicates | **In scope** — check within the submitted DR as well as against history |
+| **C-11** | Unit price and unit of measure | **Stored fields, UoM captured** |
+| **C-12** | Tolerance band boundaries | Delegated to engineering → **lower inclusive, upper exclusive** |
+
+#### Consequences that follow from combining these
+
+1. **C-3 + C-4 + C-5 compound into a fail-closed price check.** A supplier who
+   previously invoiced in USD and now invoices in QAR has no same-currency history,
+   which lands in the C-4 bucket and fails. A legitimate currency switch therefore
+   fails the check. **C-8 makes this acceptable** — failure means review, not a block —
+   but the interaction should be understood rather than discovered in production.
+2. **C-6 weakens the control, and was chosen with that stated.** Beneficiary name is
+   OCR-extracted; requiring exact name equality alongside account and IBAN means any
+   OCR or formatting variant breaks the match and the duplicate goes undetected.
+   **Recommended mitigation, not yet accepted:** canonicalise the name before comparing
+   — uppercase, trim, collapse whitespace, strip punctuation. This is normalisation, not
+   fuzzy matching; it preserves the three-way match exactly while removing the trivial
+   variants. `EDP_Upper` and `EDP_Trim` already exist in the formula engine.
+3. **C-2 extends the OCR fragility to line refs.** Since refs are supplier-issued and
+   OCR-extracted, exact matching on them carries the same false-negative risk as names.
+4. **C-7 makes the legacy migration a requirement** rather than an option (§8).
+5. **C-9 materially helps performance** — restricting to paid/approved DRs shrinks an
+   otherwise unbounded search population.
+6. **C-1 is the largest architectural consequence** and is addressed in §7.2.
 
 ---
 
@@ -299,9 +369,43 @@ natural Wave-2 candidate. It should not be attempted without hard guard rails �
 mandatory filter, row ceiling, read-only — or EDP drifts into being a query
 language, which contradicts the decision-engine positioning (ADR-EDS-07).
 
+### 7.2 Configurable match criteria change where the configuration lives
+
+C-1 requires that each conjunct of the duplicate predicate can be turned on or off
+without a code change. That is straightforward for a decision, and awkward for a
+query — and the requirement touches both.
+
+**The tension:** EDP evaluates a rule *after* data has been fetched. If the match key
+is configurable inside the rule, the fact-assembly layer cannot know what to query.
+Configuration that lives only in the rule arrives too late to shape the query.
+
+**Recommended resolution — broad candidate generation, configurable narrowing.**
+
+1. The fact-assembly layer queries on the conjuncts that are **structurally always
+   required**: beneficiary identity (C-6) plus a match on invoice number *or* line-item
+   ref, restricted to paid/approved DRs (C-9). This is indexed, selective, and a safe
+   superset of any sane configuration.
+2. Every candidate pair is then evaluated by the **EDP rule**, in-process, which applies
+   the configurable conjuncts — amount, and whatever later becomes optional — and returns
+   the verdict with reason codes.
+
+This puts **all** configurable policy inside the governed rule, where changing "amount is
+mandatory" to "amount is advisory" becomes a versioned, approved, simulated rule change
+with an audit trail, rather than a plugin edit and a redeploy. It is the strongest
+argument in this document for EDP owning the decision layer.
+
+**Cost:** N evaluations per invoice rather than one. Per OQ-B1 the engine contributes
+~0 ms and the 329 ms is the cost of *invoking* a sandboxed plugin, so in-process
+evaluation makes N essentially free. It would be prohibitive over the Custom API.
+
+**Bound required:** with C-7 (unbounded history), a prolific supplier could generate a
+large candidate set. The candidate query must be paged and capped, and any truncation
+must fail loudly rather than silently return "no duplicate found" — the same defect class
+as GAP-07.
+
 ---
 
-## 8. The legacy table is a time-boxed problem
+## 8. The legacy table — time-boxed for the price check, permanent for the duplicate check
 
 Today is 2026-08-18. The unit-price check's longest lookback is two years,
 reaching back to **2024-08-18** — before the 2025 boundary. The legacy
@@ -311,11 +415,16 @@ From **2027-01-01**, a two-year window begins at 2025-01-01 and lies entirely
 within the normalised tables. The legacy source stops mattering for G5 in
 approximately four and a half months.
 
-This inverts the usual build decision. Rather than engineering a permanent
-dual-source read — two mappings, two field-name vocabularies, two sets of silent
-defect risk — **normalise the legacy table into the current shape once, as a
-migration**. If the duplicate check's lookback also proves bounded (open question
-Q-2), the legacy integration disappears from the runtime entirely.
+**But C-7 settles the larger question the other way: the duplicate lookback is
+unbounded.** Pre-2025 invoices remain in scope for G3 permanently, so the legacy
+source never ages out of the duplicate check the way it ages out of the price check.
+
+That makes the recommendation stronger, not weaker. The alternative to a migration is
+a **permanent** dual-shape read — two mappings, two field-name vocabularies, two sets
+of silent-defect risk, maintained indefinitely and exercised on every duplicate check.
+**Normalise the legacy table into the current shape once, as a migration.** The cost is
+paid once; the dual-read cost is paid forever, and every future change to the duplicate
+logic has to be made and tested twice.
 
 ⚠️ **Check before designing either way:** does the legacy table carry beneficiary
 name, account number and IBAN at all? If it does not, G3 degrades to
@@ -327,16 +436,31 @@ produce false positives on every legacy row**.
 
 ## 9. Specification defects and open questions
 
-### 9.1 Blocking — the answer changes the design
+### 9.1 Blocking defects — ALL RESOLVED 2026-08-18
 
-| ID | Issue |
-|---|---|
-| **D-1** | **The >2-year rule is self-contradictory.** *"the system must not apply a threshold check will be fail"* reads simultaneously as "no threshold applies" (pass) and "fail". These are opposite outcomes for what is likely a common case. |
-| **D-2** | **No prior purchase at all** (a genuinely new item) is unspecified and is distinct from ">2 years ago". This is a common case and needs its own defined outcome. |
-| **D-3** | **Currency is unaddressed.** Comparing a unit price against one up to two years old, in a cross-border trade-finance book, is meaningless without FX normalisation. A ±5% band applied across unconverted currencies will fire essentially at random. |
-| **D-4** | **Unit of measure is unaddressed.** Is unit price stored, or derived from amount ÷ quantity? A price per box compared against a price per unit produces garbage that will present as a data problem rather than a rule problem. |
+| ID | Issue | Resolution |
+|---|---|---|
+| **D-1** | The >2-year rule was self-contradictory — *"must not apply a threshold check will be fail"* read as both pass and fail | **C-3: Fail** |
+| **D-2** | No prior purchase at all was unspecified and distinct from ">2 years ago" | **C-4: Fail** |
+| **D-3** | Currency unaddressed — a ±5% band across unconverted currencies fires at random | **C-5: compare same-currency purchases only** |
+| **D-4** | Unit of measure unaddressed — price per box vs per unit produces garbage | **C-11: stored fields, UoM captured** |
 
-### 9.2 Important
+None of these were designed around. Each was raised, answered by the business, and
+recorded in §2.5 with its downstream consequences.
+
+### 9.2 Resolved in the same session
+
+| ID | Question | Resolution |
+|---|---|---|
+| **Q-1** | Line-item ref semantics — the load-bearing question | **C-2: supplier-issued, OCR-extracted.** The signal is real |
+| **Q-2** | Historical scope | **C-7 unbounded; C-9 paid/approved sources only** |
+| **Q-3** | Is amount part of the duplicate key? | **C-1: mandatory today, must be configurable** |
+| **Q-4** | Beneficiary identity | **C-6: account, IBAN and name must all match** |
+| **Q-6** | Band boundaries | **C-12: lower inclusive, upper exclusive** |
+| **Q-7** | Intra-DR duplicates | **C-10: in scope** |
+| **Q-8** | Consequence of failure | **C-8: route to review, warn with override** |
+
+### 9.3 Still open
 
 | ID | Question |
 |---|---|
@@ -344,11 +468,13 @@ produce false positives on every legacy row**.
 | **Q-2** | **Historical scope** — all DRs ever, or a bounded window? Do cancelled or rejected DRs still count as a duplicate source? Does a re-run DR match itself? |
 | **Q-3** | **Is amount part of the duplicate key?** It matches in every positive example but is never cited in the stated reasons. It materially changes the false-positive rate. |
 | **Q-4** | **Which field constitutes beneficiary identity** — name, account number, IBAN, or all three? See §6.3 on OCR-extracted names. |
-| **Q-5** | **Is "supplier" the same party as "beneficiary"?** The reason text says supplier; the columns say beneficiary. |
-| **Q-6** | **Band boundaries** — is exactly 6 months in band 1 or band 2? Is 12 months in band 2 or band 3? Inclusive/exclusive must be specified. |
-| **Q-7** | **Intra-DR duplicates** — checked, or history only? |
-| **Q-8** | **Consequence** — does a duplicate block submission, warn, or route to review? |
-| **Q-9** | **Key-set divergence** — G3 matches on beneficiary + invoice no / line ref; G4 matches on reference number + beneficiary + customer ref no. Confirm this is deliberate. |
+| **Q-5** | **Is "supplier" the same party as "beneficiary"?** The reason text says supplier; the columns say beneficiary. Clarification, not a design decision |
+| **Q-9** | **Key-set divergence** — G3 matches on beneficiary + invoice no / line ref; G4 matches on reference number + beneficiary + customer ref no. Confirm this is deliberate |
+| **Q-10** | **Does a DR match itself** on re-evaluation after being saved? Self-exclusion must be explicit |
+| **Q-11** | **Name canonicalisation** — accept the §2.5 mitigation, or compare OCR-extracted names raw? |
+| **Q-12** | **Volume.** With C-7 unbounded and C-8 routing failures to review, both the candidate-set size and the review-queue load need real numbers. Run the rule against historical data before go-live |
+| **Q-13** | **Does the legacy table carry beneficiary name, account and IBAN?** A data check, not a business decision — see §8 |
+| **Q-14** | **MIS API contract** — response shape, field names, paging, and whether it can be filtered server-side. Not yet seen |
 
 ---
 
@@ -364,8 +490,16 @@ produce false positives on every legacy row**.
 3. **G5 demonstrates the product thesis cleanly** and is worth using as a demo
    case: age-banded tolerance thresholds, business-tunable, governed, simulated
    before publish, audited after. That is the sale.
-4. **No BRD is raised by this document.** If the business wishes to proceed, the
-   §9.1 defects must be resolved first, then this becomes an input to a BRD.
+4. **C-1 — configurable match criteria — is the strongest commercial argument this
+   analysis produced.** The business has stated outright that the mandatory/optional
+   status of each duplicate criterion will change over time. A plugin constant cannot
+   absorb that; a versioned rule with approval, simulation and an audit trail can. This
+   is the product thesis stated back to us by a customer requirement, and it is worth
+   carrying into sales collateral.
+5. **No BRD is raised by this document.** The §9.1 defects are now resolved (§2.5), so
+   this is ready to serve as an input to a BRD. Seven questions remain open (§9.3), but
+   none of them block starting one — they are clarifications, data checks and a volume
+   measurement rather than design forks.
 
 ---
 
@@ -400,7 +534,13 @@ not hands-on; they are labelled as such wherever used.
 | Legacy-table boundary arithmetic in §8 | Computed from the stated pre-2025 boundary and a 2-year lookback | Arithmetic only; the pre-2025 boundary is as stated by the business, unverified against the data |
 | Legacy table carries beneficiary fields | **NOT verified** | Raised as a check in §8, not claimed either way |
 | MIS API response shape and field names | **NOT verified** — no access to the middleware contract | Not claimed anywhere in this document |
-| The requirement itself | Not validated with the business | §9.1 records four defects that must be resolved before design |
+| The requirement itself | **Reviewed with the business 2026-08-18** | Four blocking defects and seven open questions answered and recorded in §2.5; seven remain open in §9.3 |
+| Combined effect of C-3, C-4 and C-5 | Reasoned from the answers, not measured | A legitimate currency switch fails the price check. Raised in §2.5; C-8 mitigates it. **Not quantified against real data** |
+| Candidate-set and review-queue volumes | **NOT measured** | Q-12. C-7 is unbounded and C-8 routes failures to humans; neither load is known |
 
-**Not done, and deliberately so:** no rule was authored, no schema was touched,
-no live org was modified, and no code was written. This document is analysis only.
+**Not done, and deliberately so:** no rule was authored, no schema was touched, no live
+org was modified, and no code was written. This document is analysis only.
+
+**One recommendation is outstanding rather than accepted:** name canonicalisation before
+comparison (§2.5, consequence 2). It is recorded as advice, not as a decision, and Q-11
+tracks it.
