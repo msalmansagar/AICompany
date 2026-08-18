@@ -507,7 +507,7 @@ CRM plugin sandbox** — the first since NCalc. It must be reviewed as such.
 
 | Repo | Stars | Lang | Licence | Last push | Verdict |
 |---|---|---|---|---|---|
-| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT — primary candidate** |
+| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT — but at 5.4.3, NOT 6.1.0. See correction below** |
 | `zzzprojects/System.Linq.Dynamic.Core` | 1,711 | C# | Apache-2.0 | 2026-07-11 | **REJECT — CVE-2023-32571** |
 | `ncalc/ncalc` | 1,152 | C# | MIT | 2026-08-15 | Already adopted — **re-scoped, see below** |
 | `jwadhams/json-logic-js` | 1,478 | JS | MIT | 2024-07-09 | Specification and conformance-test source only |
@@ -515,25 +515,68 @@ CRM plugin sandbox** — the first since NCalc. It must be reviewed as such.
 | `camunda/feel-scala` | 136 | Scala | Apache-2.0 | 2026-08-18 | Below bar and wrong platform — FEEL semantics reference |
 | `yavuztor/JsonLogic.Net` | 50 | C# | MIT | 2025-01-25 | Below bar; superseded by json-everything |
 
-## ADOPT — `json-everything` / Json.Logic 6.1.0
+## ⚠️ CORRECTION 2026-08-18 — the adopt stands, the version does not
 
-**Its operator set is, almost exactly, the F1 primitive set.** The implemented rules are:
+**The first pass of this research recommended Json.Logic 6.1.0 on the strength of its
+`TargetFrameworks` including `netstandard2.0`. That check was necessary but not sufficient,
+and the recommendation was wrong.** Target frameworks say nothing about transitive package
+versions, which is where the sandbox constraint actually bites.
 
-`Add · All · And · BooleanCast · Cat · Divide · Filter · If · In · LessThan · LessThanEqual ·
-Literal · Log · LooseEquals · LooseNotEquals · Map · Max · Merge · Min · Missing · MissingSome ·
-Mod · MoreThan · MoreThanEqual · Multiply · None · Not · Or · Reduce · StrictEquals ·
-StrictNotEquals · Some · Substr · Subtract · Variable`
+Resolved through the full chain against the NuGet registration API:
+
+| Version | Chain | System.Text.Json | Verdict |
+|---|---|---|---|
+| JsonLogic **6.1.0** | → JsonPointer.Net 7.0.x → Json.More.Net 3.0.1 | **10.0.5** | ❌ **BLOCKED** |
+| JsonLogic **5.5.0** | → JsonPointer.Net 6.0.0 → Json.More.Net 2.2.0 | **10.0.0** | ❌ **BLOCKED** |
+| JsonLogic **5.4.3** | → JsonPointer.Net 5.3.1 → Json.More.Net 2.1.1 | **[9.0.0, )** | ✅ **SAFE** |
+
+**System.Text.Json 10.x is the exact wall already documented in `EDP.RuleRuntime.csproj`** —
+the reason NCalc 6.x was rejected and NCalcSync 5.4.2 retained despite an accepted DoS
+advisory (ADR-SEC-NCALC). EDP pins System.Text.Json **9.0.4**, which satisfies the 5.4.3
+chain's `[9.0.0, )` and does not satisfy the 6.x chain's `[10.0.5, )`.
+
+**How it was caught:** by tracing the dependency graph before architecture rather than after,
+which is the whole point of doing this research first. Recorded rather than quietly amended,
+in the same spirit as the C-004 corrections table.
+
+### Last sandbox-safe version of each package
+
+| Package | Last safe | First blocked | What changes |
+|---|---|---|---|
+| `JsonLogic` | **5.4.3** | 5.5.0 | Moves to JsonPointer.Net 6.0.0 |
+| `JsonPointer.Net` | **5.3.1** | 6.0.0 | Moves to Json.More.Net 2.2.0 |
+| `Json.More.Net` | **2.1.3** | 2.2.0 | Jumps System.Text.Json 9 → 10 |
+
+**Every range in this graph is open-ended (`[x, )`).** A restore will happily float to
+System.Text.Json 10 and break the net462 build. **All three transitives must be pinned
+explicitly**, not merely referenced — the same discipline the Phase 2 register applied to
+NJsonSchema.
+
+## ADOPT — `json-everything` / Json.Logic **5.4.3**
+
+**Its operator set is, almost exactly, the F1 primitive set** — and this was verified against
+the **shipped `netstandard2.0` binary of 5.4.3**, not the main branch, after the version
+correction above made that distinction matter.
+
+Types present in `lib/netstandard2.0/JsonLogic.dll` (5.4.3):
+
+`AllRule · CatRule · FilterRule · IfRule · InRule · MapRule · MergeRule · MissingRule ·
+MissingSomeRule · NoneRule · ReduceRule · SomeRule · SubstrRule · VariableRule`
+
+Operator identifiers in the same binary: `all · filter · map · merge · missing_some · none ·
+reduce · some · var`.
 
 `All`, `Some`, `None`, `Filter`, `Map`, `Reduce`, `Merge` and `In` are precisely the
-collection primitives FR-F1, FR-F2 and FR-F43 require.
+collection primitives FR-F1, FR-F2 and FR-F43 require — **all present in the sandbox-safe
+version.** Nothing needed for F1 was lost by dropping from 6.1.0 to 5.4.3.
 
 | Fit check | Result |
 |---|---|
-| Target frameworks | `netstandard2.0; net8.0; net9.0; net10.0` — **netstandard2.0 present** |
+| Target frameworks | `netstandard2.0; net8.0; net9.0` — netstandard2.0 lib present in the 5.4.3 package |
 | Licence | MIT |
 | Stars | 1,274 — above the bar |
-| Shipped dependency | `JsonPointer` only (same project family). `PolySharp` and `Microsoft.SourceLink.GitHub` are `PrivateAssets="All"`, so build-time only |
-| Serialiser | Built on `System.Text.Json` — **already used by the EDP runtime** (`PcrmModels`, `RuleDecisionService`) |
+| Shipped dependencies | `JsonPointer.Net 5.3.1` → `Json.More.Net 2.1.1` → `System.Text.Json [9.0.0, )`, plus **`Humanizer.Core 2.14.1`** via JsonPointer — a text-humanisation library with no purpose in a rules runtime, which nonetheless enters the ILRepack. Flagged for architecture |
+| Serialiser | `System.Text.Json` **9.x line — matches EDP's existing 9.0.4 pin exactly** (`PcrmModels`, `RuleDecisionService`) |
 | `Reflection.Emit` | None found |
 | Operator extensibility | `RuleRegistry` catalogs known rules and resolves by identifier — **closed by default, extended by explicit registration** |
 
@@ -601,13 +644,40 @@ entity binding and actions. W0-1 remains blocked on a vault and staging decision
 
 1. Mode (a) or mode (b).
 2. Whether `JsonPointer`'s transitive surface is acceptable inside the sandbox.
-3. Version pinning policy — Json.Logic is at **6.1.0** with `AssemblyVersion 6.0.0.0`; the
-   ILRepack recipe needs an explicit pin, as `NJsonSchema` did.
+3. **Transitive pinning is mandatory, not advisory** — JsonLogic 5.4.3, JsonPointer.Net 5.3.1
+   and Json.More.Net 2.1.1 must all be pinned explicitly. Every range is open-ended, so an
+   unpinned restore floats to System.Text.Json 10 and breaks net462.
+4. Whether `Humanizer.Core` can be excluded from the ILRepack, or must ship dead weight.
+5. **The compounding pin problem (below)** — a strategy question, not a package question.
 4. Whether FEEL's `some` / `every` semantics (DMN, via Drools and feel-scala as references)
    differ from Json.Logic's `Some` / `All` in any way that matters for authoring. Both are
    free specification prior art; neither is adoptable as code on netstandard2.0.
 
 ---
 
+## 🔴 Structural finding — the net462 pin problem is compounding
+
+This is the **second** dependency EDP would pin to an older line for one reason: **System.Text.Json
+10.x is incompatible with the net462 sandbox.**
+
+| Dependency | Pinned at | Current line | Cost of the pin |
+|---|---|---|---|
+| `NCalcSync` | 5.4.2 | 6.x | An accepted DoS advisory (GHSA-3w5p-95mh-gq75), ADR-SEC-NCALC |
+| `JsonLogic` | 5.4.3 | 6.1.0 | Frozen security surface on a line that will stop receiving fixes |
+
+Each pin is individually defensible. **The pattern is the risk.** The net462 sandbox is
+progressively cutting EDP off from current library lines, and every pin is a security surface
+that stops moving while the world keeps moving. A third and fourth will follow.
+
+This is not a reason to reject the adoption — the alternative is building set semantics from
+scratch, which is worse. It is a reason for **architecture to decide a standing strategy**
+rather than re-litigating package-by-package: accept the freeze and monitor advisories,
+vendor a minimal subset, or source-include. That decision belongs in an ADR, not in a csproj
+comment.
+
+---
+
 *Addendum ends. **This one does introduce a new sandbox dependency** — Phase 6 security review
-must treat it as a first-class change, not a transitive one.*
+must treat it as a first-class change, not a transitive one. The version correction above is
+recorded deliberately: the first pass checked target frameworks and not the dependency graph,
+and that is the error to avoid repeating.*
