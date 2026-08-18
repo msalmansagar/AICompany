@@ -6,14 +6,35 @@
 **Module in Focus:** Business Rules Engine (BRE) — the input surface and the value system
 **Prepared by:** MSS Technologies — Business Analyst
 **Date:** 2026-08-18
-**Version:** 1.0
-**Status:** **DRAFT — pending human decision. Not approved.**
+**Version:** 1.1 — sponsor decisions recorded 2026-08-18
+**Status:** **ALL FIVE BRD EXIT CRITERIA MET. Pending the sponsor's formal ratification to exit the gate.**
 
 **References:** `gap-analysis-duplicate-invoice-detection.md` (EDP-GAP-001, primary evidence) · `brd-edp-bind-001-entity-binding.md` v1.1 · `phase-3-arch.md` Appendix B · ADR-05, ADR-06, ADR-11, ADR-13, ADR-EDS-07, ADR-EDS-10 · `spikes/oq-b1-client-roundtrip-latency.md` · `spikes/oq-b6-cold-start-posture.md`
 
 **Authority note:** This BRD proposes changing a position that was deliberately taken, not one that was overlooked. §5 states the tension openly rather than assuming the reversal is free.
 
-**Separation-of-duties note:** This document was authored by the same agent that produced its evidence base. **It must be decided by a human sponsor, not by an agent.** The same caveat applied to EDP-BIND-001 v1.1 and was discharged only when the human sponsor ratified it.
+**Separation-of-duties note:** This document was authored by the same agent that produced its evidence base. **It must be decided by a human sponsor, not by an agent.** The same caveat applied to EDP-BIND-001 v1.1 and was discharged only when the human sponsor ratified it. **Partially discharged 2026-08-18** — every content decision in §0 was taken by the human sponsor. Ratification of the document as a whole remains outstanding.
+
+---
+
+## 0. What changed in v1.1
+
+The sponsor answered all seven open questions and the release-gate criterion in session on
+2026-08-18. v1.0 asked them; v1.1 records the answers and their consequences.
+
+| # | Decision | Effect on this BRD |
+|---|---|---|
+| **OQ-F1** | **Option B** — pure evaluator plus a declarative fact-assembly surface | ADR-EDS-07 and ADR-06 preserved, not superseded. Fact snapshotting becomes load-bearing |
+| **OQ-F2** | **Two hops, hard ceiling**, raised only on evidence | FR-F3 bounded to two hops. This is a structural R-1 defence, not a tuning value |
+| **OQ-F3** | **Tier snapshot retention by outcome**; permanent tamper-evident digest | FR-F34 rewritten. Follows ADR-13's two-tier precedent |
+| **OQ-F4** | **Normalisation now**; fuzzy matching decided on measured evidence | §6.2 amended — fuzzy is deferred pending measurement, not rejected |
+| **OQ-F5** | **External REST stays in this BRD** as phase F3 | Scope unchanged. F1 and F2 remain ungated by Legal |
+| **OQ-F6** | **Joint architecture phase** with EDP-BIND-001, then sequence builds | §12 amended. The per-child-verdict / directive-vocabulary seam is designed once |
+| **OQ-F7** | **Closed primitive set, extended only by ADR** — retrieval finds records, it never relates them | New boundary B-6. The stated ceiling R-1 required |
+| **Exit 5** | **FR-F31 is a release gate from F2 onward** | R-2 becomes structurally impossible rather than discouraged |
+
+**Decisions were taken by the human sponsor, discharging the separation-of-duties caveat
+below.** What remains is ratification of the document itself, not of its content.
 
 ---
 
@@ -34,8 +55,9 @@ Analysis of the specimen yielded **eleven capability primitives** that requireme
 this class need. **One is built.** Five of the remaining ten share a single root cause:
 the runtime has no collection type.
 
-This BRD requests approval to close that class of gap, and asks the sponsor to choose
-between three strategic options (§5.3). The recommendation is **Option B — keep the
+This BRD requests approval to close that class of gap. The sponsor chose **Option B** on
+2026-08-18 (§0, §5.3) and answered every open question; all five exit criteria are met
+(§13). The recommendation was **Option B — keep the
 evaluator pure and make fact assembly a second declarative, governed surface** — because
 it removes the developer from the loop without forfeiting the properties that make EDP
 sellable to a regulated buyer.
@@ -167,6 +189,16 @@ design question larger than one feasibility analysis, and the architecture phase
 that A and B converge in implementation. What must not happen is arriving at A by
 accretion without anyone deciding.
 
+> ### ✅ DECIDED 2026-08-18 — **Option B**
+> The evaluator stays a pure function. Fact assembly becomes a second declarative, governed
+> authoring surface feeding it a snapshotted fact set.
+>
+> **ADR-EDS-07 and ADR-06 are PRESERVED, not superseded.** No ratified architectural
+> commitment is reversed by this BRD.
+>
+> **Consequence:** fact snapshotting (§5.2) is no longer one design option among several —
+> it is the mechanism the whole choice depends on. FR-F31 is a release gate from F2 (§12).
+
 ---
 
 ## 6. Scope
@@ -189,7 +221,7 @@ accretion without anyone deciding.
 
 - **Writing data.** This BRD grants read reach only. ADR-EDS-07 stands for effects.
 - **Orchestration** — loops that act, scheduling, pub/sub, multi-step flows. That is the Flowon envelope and remains explicitly rejected.
-- **Fuzzy matching as an algorithm.** §6.1 grants *normalisation*; probabilistic similarity scoring is a separate question (OQ-F4).
+- **Probabilistic fuzzy matching — DEFERRED, not rejected (OQ-F4).** §6.1 grants text *normalisation* only. Whether similarity scoring is added is to be decided on **measured evidence**: how many known duplicates exact-plus-normalised matching still misses against real historical data. Deciding it on industry anecdote was explicitly declined.
 - **The duplicate-invoice requirement itself.** This BRD funds the capability; the specimen is evidence, not a deliverable.
 - **Any change to the client-side surface.** EDP-BIND-001 owns that.
 
@@ -202,6 +234,8 @@ accretion without anyone deciding.
 | B-3 | **No arbitrary code execution.** Retrieval is declarative; it never becomes a scripting host | ADR-01 |
 | B-4 | **Rules do not mutate data** under this BRD | ADR-EDS-07 |
 | B-5 | **A decision must remain replayable** | ADR-13, and §5.2 |
+| B-6 | **Retrieval FINDS records; it never RELATES them.** The retrieval primitive set is CLOSED — filter, sort, top-N, group-by with argmax, union of same-shape sources. Adding any primitive requires a written ADR and a decision, never a backlog ticket | **OQ-F7, decided 2026-08-18.** This is the stated ceiling that R-1 requires |
+| B-7 | **Traversal is bounded at two hops from the anchor.** Raised only on evidence of a real requirement, never on speculation | **OQ-F2, decided 2026-08-18** |
 
 ---
 
@@ -213,7 +247,7 @@ accretion without anyone deciding.
 |---|---|---|
 | FR-F1 | The runtime value system supports an ordered collection of records | Must |
 | FR-F2 | A rule may iterate a collection and evaluate a predicate per element | Must |
-| FR-F3 | Collection inputs may be produced by traversing parent to child to grandchild, to a bounded depth | Must |
+| FR-F3 | Collection inputs may be produced by traversing parent to child to grandchild — **bounded at two hops from the anchor record** (B-7). A third hop is rejected at author time | Must |
 | FR-F4 | Existing scalar behaviour is unchanged; every rule authored before this change evaluates identically | Must |
 | FR-F5 | Aggregate filters may compare a child field to a field on the anchor record (`valueField`) | Must |
 | FR-F6 | Folds include `Exists` and `DistinctCount` alongside the existing numeric functions | Should |
@@ -245,10 +279,10 @@ accretion without anyone deciding.
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-F30 | Every retrieved fact set is captured with the execution record | Must |
-| FR-F31 | A decision can be re-evaluated against its snapshot and reproduces the original verdict exactly | Must |
+| FR-F31 | A decision can be re-evaluated against its snapshot and reproduces the original verdict exactly | **Must — RELEASE GATE from F2 onward** |
 | FR-F32 | Simulation and saved scenarios evaluate against a snapshot or fixture, never a live population | Must |
 | FR-F33 | An explanation may cite the retrieved records that drove the verdict, not only the rule path | Must |
-| FR-F34 | Snapshot retention and size are bounded, with a declared policy for large fact sets | Must |
+| FR-F34 | Snapshot retention is **tiered by outcome** (OQ-F3): a full snapshot on every decision for a bounded window; a materially longer window for decisions that failed or routed to review, since those are the ones challenged; and a small **tamper-evident digest retained permanently** — what was queried, row count, hash of the result set — so a decision can be proven unaltered after the full snapshot is purged. Follows ADR-13's two-tier precedent | Must |
 
 ### 7.5 Authoring and configurability
 
@@ -301,17 +335,28 @@ accretion without anyone deciding.
 
 ---
 
-## 11. Open Questions
+## 11. Open Questions — ALL RESOLVED 2026-08-18
 
-| ID | Question | Blocks |
+| ID | Question | Resolution |
 |---|---|---|
-| OQ-F1 | **Option A, B or C?** The §5.3 decision | Everything |
-| OQ-F2 | How deep may traversal go? Two levels covers the specimen; is three needed? | Scope ceiling |
-| OQ-F3 | Snapshot retention — how long, and what happens to large fact sets? | FR-F34, storage sizing |
-| OQ-F4 | Is probabilistic fuzzy matching in or out? §6.1 grants normalisation only, and the AP-automation evidence says exact matching is what fails | Scope |
-| OQ-F5 | Does external retrieval belong in this BRD or a separate one? It carries a distinct security and failure profile from Dataverse retrieval | Scope, phasing |
-| OQ-F6 | Sequencing against EDP-BIND-001 — which lands first, and do they share an architecture phase? | Roadmap |
-| OQ-F7 | What is the expressiveness ceiling that stops R-1? Needs a stated principle, not a case-by-case judgement | Architecture |
+| OQ-F1 | Option A, B or C? | **B** — pure evaluator plus declarative fact assembly |
+| OQ-F2 | Traversal depth | **Two hops, hard ceiling.** Raised on evidence only → B-7 |
+| OQ-F3 | Snapshot retention | **Tiered by outcome; permanent tamper-evident digest** → FR-F34 |
+| OQ-F4 | Fuzzy matching in or out | **Normalisation now; fuzzy decided on measured miss rate** → §6.2 |
+| OQ-F5 | External retrieval here or a separate BRD | **Here, as phase F3.** F1 and F2 stay ungated by Legal |
+| OQ-F6 | Sequencing against EDP-BIND-001 | **Joint architecture phase**, then sequence builds → §12 |
+| OQ-F7 | The expressiveness ceiling | **Closed primitive set, extended only by ADR** → B-6 |
+
+### 11.1 Carried forward — measurements owed, not decisions owed
+
+These do not block the gate. They are evidence to be gathered during architecture and before go-live.
+
+| # | Item | Owner |
+|---|---|---|
+| M-1 | Duplicate miss rate under exact-plus-normalised matching, against real historical data — the input to the deferred OQ-F4 decision | Architecture / data |
+| M-2 | Candidate-set sizes under C-7's unbounded lookback, and the review-queue load implied by C-8 | Architecture / data |
+| M-3 | Whether the legacy pre-2025 table carries beneficiary name, account and IBAN | Data check |
+| M-4 | The MIS API contract — response shape, paging, server-side filtering | Middleware team |
 
 ---
 
@@ -327,15 +372,31 @@ accretion without anyone deciding.
 GAP-06, needs no new security review, and would let a rule reason over a document's own
 line items — a material capability gain on its own.
 
+**Confirmed 2026-08-18:**
+- **Phasing stands as written**, with F3 retained inside this BRD (OQ-F5).
+- **FR-F31 is a release gate from F2 onward.** F1 carries no retrieval, so it has no fact
+  set to snapshot and gating it there would be theatre.
+- **Architecture is a JOINT phase with EDP-BIND-001** (OQ-F6), then builds sequence. The two
+  interact at a specific seam: BIND Phase 1 returns a complete presentation directive set per
+  form event, and FR-F43 lets one invocation return a verdict **per child record**, so the
+  directive vocabulary must carry per-line results. Designing them apart would design that
+  seam twice. C-B9's render-first model is settled in the same phase.
+
 ---
 
-## 13. Acceptance criteria for BRD exit
+## 13. Acceptance criteria for BRD exit — ALL MET
 
-1. The sponsor has chosen A, B or C (OQ-F1), and the decision is recorded by a **human**.
-2. If A is chosen, ADR-EDS-07's scope is formally amended before architecture begins.
-3. The expressiveness ceiling (OQ-F7) is stated as a principle.
-4. Phasing is confirmed or amended.
-5. FR-F31 is confirmed as a release gate, or the sponsor accepts the R-2 residual explicitly.
+| # | Criterion | Status |
+|---|---|---|
+| 1 | Sponsor has chosen A, B or C, recorded by a **human** | ✅ **Option B**, 2026-08-18 |
+| 2 | If A chosen, ADR-EDS-07 formally amended first | ✅ **N/A** — B preserves it. No ADR is superseded |
+| 3 | Expressiveness ceiling stated as a principle | ✅ **B-6** — retrieval finds, never relates; closed primitive set |
+| 4 | Phasing confirmed or amended | ✅ **Confirmed**, F3 retained (§12) |
+| 5 | FR-F31 confirmed as a release gate, or R-2 residual accepted | ✅ **Release gate from F2** |
+
+**All five criteria are met.** What remains is the sponsor's ratification of the document
+itself — a formality relative to the content, but a distinct act, and one an agent must not
+perform on its own authored work.
 
 ---
 
@@ -368,18 +429,21 @@ line items — a material capability gain on its own.
 
 ## Approval
 
-**This BRD is DRAFT and is not approved.**
+**All content decisions have been taken by the human sponsor (§0). Ratification of the
+document is outstanding.**
 
-It requires a decision from the **human sponsor**, not an agent. The primary decision is
-OQ-F1 — Option A, B or C — and it should not be treated as a formality: Option A reverses
-a ratified architectural commitment, and Option C forgoes a stated customer need.
+The separation-of-duties caveat is **partially discharged**: the strategic choice and all
+seven open questions were decided by a human, not by the agent that authored the evidence.
+What has not happened is a human signing off the document as a whole to open the
+architecture phase.
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
-| Human sponsor | *pending* | | |
-| Architect | *pending, after sponsor decision* | | |
+| Human sponsor — content decisions | Human sponsor | **Option B + OQ-F2..F7 + FR-F31 gate** | 2026-08-18 |
+| Human sponsor — BRD ratification | *pending* | | |
+| Architect | *pending, after ratification* | | |
 
-**Recommended next step if approved:** `github-researcher` first, per the standing
+**Next step on ratification:** `github-researcher` first, per the standing
 adopt-over-build rule — collection and query semantics in decision engines are well-trodden
 ground, and DMN FEEL's list functions and Drools' `accumulate` and `exists` are directly
 relevant prior art — then the architecture phase, jointly sequenced with EDP-BIND-001 per
