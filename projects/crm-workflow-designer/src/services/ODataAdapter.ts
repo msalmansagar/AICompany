@@ -849,7 +849,14 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
     body['qdb_isdefaultcondition'] = !hasFilter;
   }
   if (data.outcomeId) body['qdb_Outcome@odata.bind'] = `/${ENTITY_SETS.outcome}(${data.outcomeId})`;
-  if (data.nextStepId) body['qdb_NextWorkItemStep@odata.bind'] = `/${ENTITY_SETS.step}(${data.nextStepId})`;
+  // "Not supplied" and "deliberately cleared" are different. Omitting the bind on a
+  // patch leaves the previous next step in place, so a route could never be turned
+  // back into a dead end once one had been set.
+  if (data.nextStepId !== undefined) {
+    body['qdb_NextWorkItemStep@odata.bind'] = data.nextStepId
+      ? `/${ENTITY_SETS.step}(${data.nextStepId})`
+      : null;
+  }
   return body;
 }
 

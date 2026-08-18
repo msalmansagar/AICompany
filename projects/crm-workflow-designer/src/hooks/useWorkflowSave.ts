@@ -5,6 +5,7 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import { assertGuid, isTemporaryId } from '@/services/assertGuid';
 import { AuditService } from '@/services/AuditService';
 import { logError } from '@/services/logError';
+import { planRouteSave, describeBlockedRoutes } from '@/services/routeSavePlanner';
 
 interface UseSaveResult {
   isSaving: boolean;
@@ -57,6 +58,10 @@ export function useWorkflowSave(): UseSaveResult {
     setError(null);
 
     try {
+      // Anything that could not be written, so the save never reports a clean
+      // success while having discarded work.
+      const blocked: { name: string; reason: string }[] = [];
+
       // 1. Create or update process
       let resolvedProcessId = process.crmId;
 
@@ -116,7 +121,10 @@ export function useWorkflowSave(): UseSaveResult {
 
       for (const outcome of Object.values(outcomes)) {
         const resolvedStepId = stepIdMap[outcome.stepId] ?? outcome.stepId;
-        if (!resolvedStepId || isTemporaryId(resolvedStepId)) continue; // skip orphaned
+        if (!resolvedStepId || isTemporaryId(resolvedStepId)) {
+          blocked.push({ name: outcome.name, reason: 'its step was not saved' });
+          continue;
+        }
 
         if (isTemporaryId(outcome.crmId) || newIds.includes(outcome.crmId)) {
           const resolvedNextStepId = outcome.nextStepId
@@ -135,26 +143,34 @@ export function useWorkflowSave(): UseSaveResult {
         }
       }
 
-      // 4. Save routes — create new, update dirty
+      // 4. Save routes — a route with no next step is legal and must persist;
+      // anything genuinely unwritable is collected rather than dropped.
       for (const route of Object.values(routes)) {
-        const resolvedOutcomeId = outcomeIdMap[route.outcomeId] ?? route.outcomeId;
-        const resolvedNextStepId = route.nextStepId ? (stepIdMap[route.nextStepId] ?? route.nextStepId) : null;
+        const plan = planRouteSave(route, { outcomeIdMap, stepIdMap, newIds, dirtyIds });
 
-        if (!resolvedOutcomeId || !resolvedNextStepId) continue;
-        if (isTemporaryId(resolvedOutcomeId) || isTemporaryId(resolvedNextStepId)) continue;
+        if (plan.action === 'blocked') {
+          blocked.push({ name: route.name, reason: plan.reason });
+          continue;
+        }
+        if (plan.action === 'unchanged') continue;
 
-        if (isTemporaryId(route.crmId) || newIds.includes(route.crmId)) {
-          assertGuid(resolvedOutcomeId, 'route.outcomeId');
-          assertGuid(resolvedNextStepId, 'route.nextStepId');
+        assertGuid(plan.ids.outcomeId, 'route.outcomeId');
+        if (plan.ids.nextStepId) assertGuid(plan.ids.nextStepId, 'route.nextStepId');
+
+        if (plan.action === 'create') {
           const newId = await adapter.createRoute({
             ...route,
-            outcomeId: resolvedOutcomeId,
-            nextStepId: resolvedNextStepId,
+            outcomeId: plan.ids.outcomeId,
+            nextStepId: plan.ids.nextStepId,
           });
           resolveTemporaryId(route.crmId, newId, 'route');
-        } else if (dirtyIds.includes(route.crmId)) {
+        } else {
           assertGuid(route.crmId, 'route.crmId');
-          await adapter.updateRoute(route.crmId, route);
+          await adapter.updateRoute(route.crmId, {
+            ...route,
+            outcomeId: plan.ids.outcomeId,
+            nextStepId: plan.ids.nextStepId,
+          });
         }
       }
 
@@ -182,6 +198,13 @@ export function useWorkflowSave(): UseSaveResult {
         await auditService.log('SAVE_DRAFT', resolvedProcessId, {
           stepCount: Object.keys(steps).length,
         });
+      }
+
+      const blockedMessage = describeBlockedRoutes(blocked);
+      if (blockedMessage) {
+        setError(blockedMessage);
+        showToast(blockedMessage, 'error');
+        return;
       }
 
       markClean();

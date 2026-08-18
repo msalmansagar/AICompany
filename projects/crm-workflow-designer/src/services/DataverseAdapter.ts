@@ -1047,8 +1047,13 @@ function buildRouteBody(data: Partial<Omit<WorkflowRoute, 'crmId'>>): Record<str
   if (data.outcomeId) {
     body['qdb_Outcome@odata.bind'] = `/${SET.outcome}(${data.outcomeId})`;
   }
-  if (data.nextStepId) {
-    body['qdb_NextWorkItemStep@odata.bind'] = `/${SET.step}(${data.nextStepId})`;
+  // "Not supplied" and "deliberately cleared" are different. Omitting the bind on an
+  // update leaves the previous next step in place, so a route could never be turned
+  // back into a dead end once one had been set.
+  if (data.nextStepId !== undefined) {
+    body['qdb_NextWorkItemStep@odata.bind'] = data.nextStepId
+      ? `/${SET.step}(${data.nextStepId})`
+      : null;
   }
   return body;
 }
