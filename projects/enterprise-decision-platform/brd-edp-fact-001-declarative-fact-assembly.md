@@ -7,7 +7,7 @@
 **Prepared by:** MSS Technologies — Business Analyst
 **Date:** 2026-08-18
 **Version:** 1.1 — sponsor decisions recorded 2026-08-18
-**Status:** **ALL FIVE BRD EXIT CRITERIA MET. Pending the sponsor's formal ratification to exit the gate.**
+**Status:** **RATIFIED BY THE HUMAN SPONSOR 2026-08-18. BRD gate CLOSED. Architecture phase authorised — implementation is NOT.**
 
 **References:** `gap-analysis-duplicate-invoice-detection.md` (EDP-GAP-001, primary evidence) · `brd-edp-bind-001-entity-binding.md` v1.1 · `phase-3-arch.md` Appendix B · ADR-05, ADR-06, ADR-11, ADR-13, ADR-EDS-07, ADR-EDS-10 · `spikes/oq-b1-client-roundtrip-latency.md` · `spikes/oq-b6-cold-start-posture.md`
 
@@ -429,19 +429,21 @@ perform on its own authored work.
 
 ## Approval
 
-**All content decisions have been taken by the human sponsor (§0). Ratification of the
-document is outstanding.**
+**RATIFIED. The BRD gate is closed.**
 
-The separation-of-duties caveat is **partially discharged**: the strategic choice and all
-seven open questions were decided by a human, not by the agent that authored the evidence.
-What has not happened is a human signing off the document as a whole to open the
-architecture phase.
+The separation-of-duties caveat is **fully discharged**: the strategic choice, all seven open
+questions and the ratification of the document itself were made by the human sponsor, not by
+the agent that authored it. This mirrors how the caveat on EDP-BIND-001 v1.1 was discharged.
+
+**What is authorised:** the joint architecture phase with EDP-BIND-001, preceded by
+adopt-over-build research. **What is NOT authorised:** implementation. Architecture output
+returns for review before any build begins.
 
 | Role | Name | Decision | Date |
 |---|---|---|---|
 | Human sponsor — content decisions | Human sponsor | **Option B + OQ-F2..F7 + FR-F31 gate** | 2026-08-18 |
-| Human sponsor — BRD ratification | *pending* | | |
-| Architect | *pending, after ratification* | | |
+| Human sponsor — BRD ratification | Human sponsor | **RATIFIED** | 2026-08-18 |
+| Architect | *not yet engaged* | | |
 
 **Next step on ratification:** `github-researcher` first, per the standing
 adopt-over-build rule — collection and query semantics in decision engines are well-trodden

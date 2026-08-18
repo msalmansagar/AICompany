@@ -481,3 +481,133 @@ a limitation in `gateway/README.md`.
 ---
 
 *Addendum ends. No new dependency enters the CRM plugin sandbox.*
+
+---
+
+# Addendum — EDP-FACT-001 Phase F1 Dependency Research (2026-08-18)
+
+**Context:** `brd-edp-fact-001-declarative-fact-assembly.md` was ratified 2026-08-18 with
+**Option B**. Phase F1 is the collection type, iteration, bounded traversal and per-child
+fan-out. The standing adopt-over-build rule requires this research before architecture.
+
+**⚠️ Unlike the Wave 1 gateway addendum, this one DOES propose a new dependency inside the
+CRM plugin sandbox** — the first since NCalc. It must be reviewed as such.
+
+## Constraint checklist applied
+
+| Constraint | Source |
+|---|---|
+| `netstandard2.0` and `net462` | Runtime targets |
+| **No `Reflection.Emit`, no `LambdaCompilation`, no `Compile()`** | ADR-11, sandbox partial-trust posture |
+| **No arbitrary code execution from author input** | ADR-01 |
+| Permissive licence | Phase 2 checklist |
+| 1000+ stars, or a written justification | Company rule |
+
+## Candidates evaluated
+
+| Repo | Stars | Lang | Licence | Last push | Verdict |
+|---|---|---|---|---|---|
+| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT — primary candidate** |
+| `zzzprojects/System.Linq.Dynamic.Core` | 1,711 | C# | Apache-2.0 | 2026-07-11 | **REJECT — CVE-2023-32571** |
+| `ncalc/ncalc` | 1,152 | C# | MIT | 2026-08-15 | Already adopted — **re-scoped, see below** |
+| `jwadhams/json-logic-js` | 1,478 | JS | MIT | 2024-07-09 | Specification and conformance-test source only |
+| `apache/incubator-kie` (Drools) | 6,297 | Java | Apache-2.0 | 2026-08-18 | Semantics source only — wrong platform |
+| `camunda/feel-scala` | 136 | Scala | Apache-2.0 | 2026-08-18 | Below bar and wrong platform — FEEL semantics reference |
+| `yavuztor/JsonLogic.Net` | 50 | C# | MIT | 2025-01-25 | Below bar; superseded by json-everything |
+
+## ADOPT — `json-everything` / Json.Logic 6.1.0
+
+**Its operator set is, almost exactly, the F1 primitive set.** The implemented rules are:
+
+`Add · All · And · BooleanCast · Cat · Divide · Filter · If · In · LessThan · LessThanEqual ·
+Literal · Log · LooseEquals · LooseNotEquals · Map · Max · Merge · Min · Missing · MissingSome ·
+Mod · MoreThan · MoreThanEqual · Multiply · None · Not · Or · Reduce · StrictEquals ·
+StrictNotEquals · Some · Substr · Subtract · Variable`
+
+`All`, `Some`, `None`, `Filter`, `Map`, `Reduce`, `Merge` and `In` are precisely the
+collection primitives FR-F1, FR-F2 and FR-F43 require.
+
+| Fit check | Result |
+|---|---|
+| Target frameworks | `netstandard2.0; net8.0; net9.0; net10.0` — **netstandard2.0 present** |
+| Licence | MIT |
+| Stars | 1,274 — above the bar |
+| Shipped dependency | `JsonPointer` only (same project family). `PolySharp` and `Microsoft.SourceLink.GitHub` are `PrivateAssets="All"`, so build-time only |
+| Serialiser | Built on `System.Text.Json` — **already used by the EDP runtime** (`PcrmModels`, `RuleDecisionService`) |
+| `Reflection.Emit` | None found |
+| Operator extensibility | `RuleRegistry` catalogs known rules and resolves by identifier — **closed by default, extended by explicit registration** |
+
+**That last row matters more than it looks.** B-6 of the BRD requires a *closed primitive
+set, extended only by ADR*. Json.Logic's registry is structurally that shape already, so the
+governance boundary can be enforced by the library's own design rather than by convention.
+
+## REJECT — `System.Linq.Dynamic.Core`, despite 1,711 stars
+
+It would otherwise be a natural fit: string-expressed `Where`, `OrderBy`, `GroupBy` over
+collections is close to what F1 and F2 need.
+
+**It is disqualified by CVE-2023-32571 — remote code execution.** The library uses
+`Reflection.Emit` to compile lambdas from supplied text without sufficient validation.
+Versions 1.0.7.10 through 1.2.25 are affected; 1.3.0 remediates the disclosed vector.
+
+The version is not the point. **Rule authors are untrusted input by definition** — that is
+what a business-authored rule *is*. Adopting an expression compiler that turns author text
+into emitted IL contradicts ADR-01 directly, and is the same reasoning that rejected
+`microsoft/RulesEngine` in Phase 2 and that led ADR-11 to choose NCalc over DynamicExpresso.
+
+**What is new is the evidence class.** That decision was previously a judgement about risk.
+There is now a CVE against exactly the mechanism, in exactly this category of library. The
+Phase 2 rejection is retrospectively vindicated and should be cited as precedent, not
+re-argued.
+
+## Correction — NCalc is not what limits us
+
+`FormulaEngine`'s class comment states that collection aggregates are Horizon 2 and
+"raise a clear error rather than silently guessing scalar semantics". That reads as an NCalc
+limitation. **It is not.**
+
+NCalc's `IN` operator accepts an `IEnumerable` as its right operand — the adopted expression
+engine already carries collections. The flattening is **ours**: `RuntimeValue.FromJson`
+converts a JSON array to `e.GetRawText()`, a string, before NCalc ever sees it.
+
+**The ceiling is EDP's own normalisation layer, not the library.** F1 may therefore be
+materially cheaper than the BRD assumed, and the architecture phase should test that
+assumption early — it changes the shape of the estimate.
+
+## Two adoption modes for architecture to settle
+
+| Mode | Description |
+|---|---|
+| **(a) Adopt the library** | PCRM carries Json.Logic fragments for collection predicates; json-everything evaluates them |
+| **(b) Adopt the semantics** | PCRM gains native collection primitives implemented to Json.Logic's operator semantics, verified against the reference implementation's conformance suite |
+
+**Recommend (a)**, per adopt-over-build. Mode (b) remains a credible fallback and is not a
+consolation prize: it still adopts a *specification* with a reference implementation to test
+against, which is where most of the risk in set semantics actually lives.
+
+Authors never see either representation — the designer generates PCRM from a visual editor —
+so this is an internal representation choice, not a user-facing one. **ADR-06 constrains
+channels, not internals, so neither mode conflicts with it.**
+
+## Practical consequence — this rides W0-1
+
+The runtime ships as a single ILRepacked, signed assembly. Adding Json.Logic and JsonPointer
+changes that assembly, so it cannot deploy until the SNK rotation completes.
+
+**This would be the fifth change queued behind W0-1** — after the pin guard, `ExecutionId`,
+entity binding and actions. W0-1 remains blocked on a vault and staging decision.
+
+## Open for the architecture phase
+
+1. Mode (a) or mode (b).
+2. Whether `JsonPointer`'s transitive surface is acceptable inside the sandbox.
+3. Version pinning policy — Json.Logic is at **6.1.0** with `AssemblyVersion 6.0.0.0`; the
+   ILRepack recipe needs an explicit pin, as `NJsonSchema` did.
+4. Whether FEEL's `some` / `every` semantics (DMN, via Drools and feel-scala as references)
+   differ from Json.Logic's `Some` / `All` in any way that matters for authoring. Both are
+   free specification prior art; neither is adoptable as code on netstandard2.0.
+
+---
+
+*Addendum ends. **This one does introduce a new sandbox dependency** — Phase 6 security review
+must treat it as a first-class change, not a transitive one.*
