@@ -4,14 +4,20 @@
 **Date:** 2026-08-18
 **Status:** Analysis only. No implementation authorised, no BRD raised.
 **Business review:** 2026-08-18 — blocking defects resolved, see §2.5.
-**Subject:** Can the Enterprise Decision Platform, as built today, deliver the
-Disbursement Request duplicate-invoice and unit-price validation requirement?
+**Subject:** Can the Enterprise Decision Platform absorb requirements of the shape the
+Disbursement Request duplicate-invoice and unit-price validation requirement represents?
+**Reframed 2026-08-18:** the business confirmed this requirement is a **specimen, not the
+job** — requirements of this class will keep arriving, and the engine is expected to
+absorb them. The instance question is answered in §4; the class question, which is the
+one that matters, is answered in §10.
 
 ---
 
 ## 1. Verdict
 
-**No — not as an EDP rule alone.** The requirement decomposes into a **policy**
+**Two questions, two answers. The second is the important one.**
+
+**On the instance — no, not as an EDP rule alone.** The requirement decomposes into a **policy**
 layer that EDP is well suited to own and a **data acquisition** layer that EDP
 cannot perform and was deliberately designed not to perform.
 
@@ -19,10 +25,18 @@ Of the five checks in the requirement, **two are expressible in the engine
 today**, one needs a single small additive change, and two are categorically
 outside the engine's scope.
 
-The recommended shape is a **fact-assembly layer** that retrieves and normalises
-the data, and calls the EDP runtime in-process to make each decision. EDP keeps
-what it is good at — versioned, approved, simulated, audited policy — and does
-not acquire a query language or an HTTP client.
+The recommended shape is a **fact-assembly layer** that retrieves and normalises the
+data, and calls the EDP runtime in-process to make each decision. EDP keeps what it is
+good at — versioned, approved, simulated, audited policy — and does not acquire a query
+language or an HTTP client.
+
+**On the class — no, and the tactical answer above does not scale to it.** A
+hand-written fact-assembly layer per requirement means a developer engagement per rule.
+That is the same "a published rule never fires until a developer wires it up" deficit
+that EDP-BIND-001 exists to close, relocated one layer up rather than removed. If
+requirements of this shape are the norm, **the three additive engine changes in §7.1
+stop being cleanup and become the start of a roadmap** (§10.1), and a strategic decision
+is required about what EDP is (§10.2).
 
 **Updated 2026-08-18 — the business has answered.** All four blocking defects and
 most open questions were resolved in session (§2.5). Two consequences dominate: the
@@ -369,7 +383,18 @@ natural Wave-2 candidate. It should not be attempted without hard guard rails �
 mandatory filter, row ceiling, read-only — or EDP drifts into being a query
 language, which contradicts the decision-engine positioning (ADR-EDS-07).
 
-### 7.2 Configurable match criteria change where the configuration lives
+### 7.2 This answer is tactical and does not generalise
+
+**Read §7 as the answer to one requirement, not to the class.** Everything below assumes
+a developer writes the fact-assembly layer for this specimen. That is correct and
+economical for a single requirement, and wrong as a repeatable pattern: each new
+requirement of this shape would need its own hand-written traversal, query, API call and
+reshaping — a developer engagement per rule, which is the deficit EDP exists to remove.
+
+§10.1 records what the engine would need for this class to be *authored* rather than
+engineered. §10.2 records the strategic choice that follows.
+
+### 7.3 Configurable match criteria change where the configuration lives
 
 C-1 requires that each conjunct of the duplicate predicate can be turned on or off
 without a code change. That is straightforward for a decision, and awkward for a
@@ -478,7 +503,7 @@ recorded in §2.5 with its downstream consequences.
 
 ---
 
-## 10. Consequences for EDP
+## 10. Consequences for EDP — and the capability class this specimen reveals
 
 1. **This requirement is concrete evidence for the C-004 position** that EDP is
    not a drop-in North52 replacement until EDP-BIND-001 ships. It extends that
@@ -490,6 +515,8 @@ recorded in §2.5 with its downstream consequences.
 3. **G5 demonstrates the product thesis cleanly** and is worth using as a demo
    case: age-banded tolerance thresholds, business-tunable, governed, simulated
    before publish, audited after. That is the sale.
+### 10.0 Instance-level consequences
+
 4. **C-1 — configurable match criteria — is the strongest commercial argument this
    analysis produced.** The business has stated outright that the mandatory/optional
    status of each duplicate criterion will change over time. A plugin constant cannot
@@ -500,6 +527,61 @@ recorded in §2.5 with its downstream consequences.
    this is ready to serve as an input to a BRD. Seven questions remain open (§9.3), but
    none of them block starting one — they are clarifications, data checks and a volume
    measurement rather than design forks.
+
+### 10.1 The capability class, derived from one specimen
+
+This requirement is an unusually good probe because it exercises nearly every gap at
+once. Generalised away from invoices, the primitives a rule author would need are:
+
+| # | Primitive | Needed for any requirement that… | Gap |
+|---|---|---|---|
+| 1 | Collection type and iteration | produces a verdict per child record | GAP-01 |
+| 2 | Multi-level traversal (parent → child → grandchild) | reasons over a document with line detail | GAP-02 |
+| 3 | Population query with runtime-parameterised filters | asks "has this happened before?" | GAP-04 |
+| 4 | Group-by and argmax | needs the latest, highest or first per key | GAP-10 |
+| 5 | Existence and set-membership over a fetched population | matches or reconciles against other records | GAP-06 |
+| 6 | External data source (REST) | checks against a system of record we do not own | GAP-09 |
+| 7 | Multi-source union and canonicalisation | spans legacy and current data shapes | GAP-11 |
+| 8 | Per-child fan-out returning per-child results | validates at line level | GAP-05 |
+| 9 | Author-configurable criteria | has a definition of "match" that will evolve | C-1 |
+| 10 | Normalised or fuzzy comparison | keys on OCR-extracted or human-entered text | §6.3 |
+| 11 | Banding and tolerance thresholds | grades a value against configurable limits | **already LIVE** |
+
+**One of eleven is built.** That is the honest measure of the distance between what EDP
+does today and what this class of requirement needs.
+
+Primitives 1–5 are the dense cluster: they are all consequences of the same root cause,
+the absence of a collection type. Closing GAP-01 does not deliver them, but nothing else
+can be delivered before it.
+
+### 10.2 The strategic choice this forces
+
+This is not a backlog item. It is a decision about what EDP is, and it should be taken
+deliberately rather than arrived at by accretion.
+
+| Option | What it means | Cost |
+|---|---|---|
+| **A — Grow set logic and data reach into the engine** | EDP moves toward the North52 / Flowon capability envelope | Contradicts ADR-EDS-07 (deliberately side-effect-free) and the "decision engine, not logic platform" positioning. Reads are not side effects, so it is defensible — but it is a reversal and must be argued as one, not drifted into |
+| **B — Keep the engine pure; make FACT ASSEMBLY declarative and governed** | A second authorable surface that shapes data and feeds the evaluator. The customer authors both halves; neither half is C# | Preserves ADR-06's single evaluator, determinism, simulation and replay. Larger build than A looks like, but it does not reverse a ratified position |
+| **C — Accept EDP is the wrong tool for this requirement class** | Position and sell accordingly | Cheapest engineering answer, most expensive commercial one, given the customer has said these requirements will keep coming |
+
+**Recommendation: Option B**, held loosely. It removes the developer from the loop —
+which is the actual business need — without reversing the architectural commitment that
+makes EDP governable, simulatable and explainable. Those properties are the moat (B.3 of
+`phase-3-arch.md` Appendix B), and Option A puts them at risk in exchange for capability
+two competitors already have more of.
+
+This is a design question larger than one feasibility analysis should settle. It is
+raised here, not decided here.
+
+### 10.3 Governance consequence
+
+By our own workflow test this is **a capability that changes what the system promises**,
+so it requires a BRD and a CEO gate — not an enhancement note. The size of the change is
+not the test; the contract is.
+
+BRD raised as **EDP-FACT-001** (`brd-edp-fact-001-declarative-fact-assembly.md`),
+DRAFT, pending human decision. This document is its primary evidence base.
 
 ---
 
