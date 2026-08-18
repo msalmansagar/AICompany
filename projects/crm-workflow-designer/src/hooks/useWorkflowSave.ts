@@ -6,6 +6,7 @@ import { assertGuid, isTemporaryId } from '@/services/assertGuid';
 import { AuditService } from '@/services/AuditService';
 import { logError } from '@/services/logError';
 import { planRouteSave, describeBlockedRoutes } from '@/services/routeSavePlanner';
+import { findSaveBlockers, describeSaveBlockers } from '@/services/saveBlockers';
 
 interface UseSaveResult {
   isSaving: boolean;
@@ -51,6 +52,14 @@ export function useWorkflowSave(): UseSaveResult {
   const save = useCallback(async () => {
     if (!process) {
       setError('No process loaded. Cannot save.');
+      return;
+    }
+
+    const saveBlockers = findSaveBlockers({ outcomes, routes });
+    const blockerMessage = describeSaveBlockers(saveBlockers);
+    if (blockerMessage) {
+      setError(blockerMessage);
+      showToast(blockerMessage, 'error');
       return;
     }
 
