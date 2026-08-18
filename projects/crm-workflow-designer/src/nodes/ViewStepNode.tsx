@@ -3,6 +3,7 @@ import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import { branchSummaryText } from '../services/branchFields';
 import type { ViewStepData, StepOutcomeRow } from '../services/WorkflowGraphBuilder';
+import { NODE_NEUTRAL_CHIP } from '@/styles/surfacePairs';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
   'Specific User': { bg: 'var(--primary-tint-2)', text: 'var(--primary-pressed)' },
@@ -47,7 +48,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
       <div style={chipsRow}>
         <span style={chip(assignColor.bg, assignColor.text)}>{assignLabel}</span>
         {assigneeName && (
-          <span style={chip('var(--text)', 'var(--text)')} title={assigneeName}>
+          <span style={chip(NODE_NEUTRAL_CHIP.background, NODE_NEUTRAL_CHIP.foreground)} title={assigneeName}>
             {truncate(assigneeName, 22)}
           </span>
         )}
@@ -157,7 +158,7 @@ function chip(bg: string, color: string): React.CSSProperties {
     fontWeight: 500,
     background: bg,
     color,
-    border: `1px solid ${color}22`,
+    border: `1px solid ${NODE_NEUTRAL_CHIP.border}`,
     borderRadius: 4,
     padding: '1px 7px',
     maxWidth: 120,
