@@ -208,7 +208,7 @@ function RouteEntry({
   index: number;
   adapter: ICrmAdapter;
 }) {
-  const isFallback = !route.filter?.trim();
+  const isFallback = route.isDefault;
   const [resolveState, setResolveState] = useState<ResolveState>(isFallback ? null : 'loading');
 
   useEffect(() => {

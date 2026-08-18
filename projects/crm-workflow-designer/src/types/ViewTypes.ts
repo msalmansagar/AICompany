@@ -58,6 +58,8 @@ export interface CrmRoute {
   nextStepName: string | null;
   filter: string;
   outcomeId: string;
+  /** Whether this is the route taken when nothing else matches. Stored, not inferred. */
+  isDefault: boolean;
 }
 
 export interface WorkflowData {

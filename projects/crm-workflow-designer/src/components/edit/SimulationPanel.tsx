@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { hasRealCondition } from '@/services/routeFilter';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowOutcome, WorkflowRoute } from '@/types/WorkflowTypes';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
@@ -210,7 +211,7 @@ function RoutePickerDialog({
 }
 
 function RouteConditionLabel({ filter, adapter }: { filter: string; adapter: ICrmAdapter }) {
-  const isFallback = !filter?.trim();
+  const isFallback = !hasRealCondition(filter);
   const [label, setLabel] = useState<string>(isFallback ? 'else (fallback)' : 'Resolving…');
 
   useEffect(() => {
