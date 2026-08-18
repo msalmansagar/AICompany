@@ -4,6 +4,7 @@ import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuil
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { ROUTE_HOOKS } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
+import { EMPTY_FILTER, hasRealCondition } from '@/services/routeFilter';
 
 interface RoutePropertiesPanelProps {
   routeId: string;
@@ -105,11 +106,11 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
             </div>
           ) : (
             <div style={filterBlock}>
-              <pre style={filterCode}>{route.filter}</pre>
+              <pre style={filterCode}>{hasRealCondition(route.filter) ? route.filter : 'No condition set'}</pre>
               <button
                 type="button"
                 style={clearBtn}
-                onClick={() => setRoute({ ...route, filter: '' })}
+                onClick={() => setRoute({ ...route, filter: EMPTY_FILTER, isDefault: true })}
                 title="Remove condition — makes this route the fallback"
               >
                 ✕ Clear (make fallback)
@@ -148,8 +149,8 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
           entityLogicalName={entityLogicalName}
           objectTypeCode={objectTypeCode}
           clientUrl={clientUrl}
-          initialFetchXml={route.filter}
-          onApply={(xml) => { setRoute({ ...route, filter: xml }); setIsFetchXmlOpen(false); }}
+          initialFetchXml={hasRealCondition(route.filter) ? route.filter : ''}
+          onApply={(xml) => { setRoute({ ...route, filter: xml, isDefault: false }); setIsFetchXmlOpen(false); }}
           onDismiss={() => setIsFetchXmlOpen(false)}
         />
       )}
