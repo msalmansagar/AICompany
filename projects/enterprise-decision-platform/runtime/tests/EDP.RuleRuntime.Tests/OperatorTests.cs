@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using EDP.RuleRuntime.Operators;
 using Xunit;
 
@@ -59,6 +60,31 @@ namespace EDP.RuleRuntime.Tests
         [InlineData("NotIn", "Active", "Active,Pending,Closed", false)]
         public void In_operators_match_comma_separated_lists(string op, string left, string list, bool expected)
             => Assert.Equal(expected, OperatorEvaluator.Evaluate(op, left, list));
+
+        [Fact] // Regression: returned a silent false until 2026-08-18. List<decimal> is
+               // IEnumerable<decimal>, variance does not apply to value types, so the
+               // collection branch was missed and the operand was compared against the
+               // collection's type name.
+        public void In_matches_value_typed_collections()
+        {
+            var amounts = new List<decimal> { 5000m, 100000m };
+            Assert.True(OperatorEvaluator.Evaluate("In", 5000m, amounts));
+            Assert.False(OperatorEvaluator.Evaluate("In", 7777m, amounts));
+
+            var matching = Guid.NewGuid();
+            var ids = new List<Guid> { matching, Guid.NewGuid() };
+            Assert.True(OperatorEvaluator.Evaluate("In", matching, ids));
+
+            Assert.True(OperatorEvaluator.Evaluate("In", 2, new[] { 1, 2, 3 }));
+        }
+
+        [Fact]
+        public void In_matches_reference_typed_collections()
+        {
+            var statuses = new List<object?> { "Active", "Pending" };
+            Assert.True(OperatorEvaluator.Evaluate("In", "Active", statuses));
+            Assert.True(OperatorEvaluator.Evaluate("NotIn", "Closed", statuses));
+        }
 
         [Fact]
         public void Date_operators_order_by_instant()
