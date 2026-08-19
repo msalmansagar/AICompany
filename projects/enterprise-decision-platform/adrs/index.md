@@ -24,6 +24,9 @@ Changes to any ADR require a new ADR that explicitly supersedes the named decisi
 | ADR-13 | Two-Tier Write Path — Durable Audit vs. Async Sampled Trace (triage W5) | Accepted | 2026-07-04 | Architect |
 | ADR-14 | Version-Pin Least-Privilege via Field-Level Security; Justification Plugin Deferred (amends ADR-12) | Proposed | 2026-07-19 | Architect |
 | ADR-15 | Decision Gateway is Node + TypeScript + Fastify (refines ADR-EDS-02) | Accepted | 2026-07-22 | Architect |
+| ADR-16 | Collection Semantics Adopt the JsonLogic Specification, Not the Library (implements EDP-FACT-001 F1) | Proposed | 2026-08-18 | Architect |
+| ADR-17 | Per-Child Verdicts Reach the Form as an Anchor Summary First (resolves the FACT/BIND seam) | Proposed | 2026-08-18 | Architect |
+| ADR-18 | Dependency Pinning is a Symptom — the Packaging Model is the Cause (answers OQ-A2; may remove W0-1) | Proposed | 2026-08-18 | Architect |
 | ADR-EDS-01 | Enterprise Decision Service is a Logical Façade, Not a New Engine | Accepted | 2026-07-06 | Architect |
 | ADR-EDS-02 | Web API Gateway is Transport-Only (never executes rules) | Accepted | 2026-07-06 | Architect |
 | ADR-EDS-03 | Command–Query Split Maps to Custom API Action vs Function | Accepted | 2026-07-06 | Architect |
