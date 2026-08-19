@@ -3,6 +3,7 @@ import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
 import { escapeODataLiteral } from './odataEscape';
+import { buildUserLookupFilter } from './userLookupFilter';
 import { EMPTY_FILTER } from './routeFilter';
 import { mapEscalationConfig, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
 import { mapWorkflowHooks, buildWorkflowHookBindPatches, hookSelectColumns, mapCallableWorkflow, mapCallableAction, dedupeActionsByMessage, CALLABLE_WORKFLOW_QUERY, CALLABLE_ACTION_QUERY, WORKFLOW_SET, STEP_HOOKS, OUTCOME_HOOKS, ROUTE_HOOKS, PROCESS_HOOKS } from './workflowHooks';
@@ -421,9 +422,7 @@ export class ODataAdapter implements ISopAdapter {
   }
 
   async getUsers(search?: string): Promise<UserOption[]> {
-    const filter = search
-      ? `&$filter=isdisabled eq false and contains(fullname,'${escapeODataLiteral(search)}')`
-      : `&$filter=isdisabled eq false`;
+    const filter = `&$filter=${buildUserLookupFilter(search ? escapeODataLiteral(search) : undefined)}`;
     const data = await this.get<{ value: Record<string, unknown>[] }>(
       `systemusers?$select=systemuserid,fullname,domainname${filter}&$top=5000&$orderby=fullname asc`
     );

@@ -132,6 +132,9 @@ const closeBtn: React.CSSProperties = {
 const listStyle: React.CSSProperties = {
   flex: 1,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
 };
 
 function rowStyle(isError: boolean, clickable: boolean): React.CSSProperties {

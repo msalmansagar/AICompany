@@ -1,6 +1,7 @@
 import type { ISopAdapter } from './ISopAdapter';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
+import { buildUserLookupFilter } from './userLookupFilter';
 import { EMPTY_FILTER } from './routeFilter';
 import { logError } from './logError';
 import { mapEscalationConfig, ESCALATION_CONFIG_ENTITY, mapEscalationFields, buildEscalationBody, buildEscalationConfigBindPatch, ESCALATION_SELECT_COLUMNS, ESCALATION_CONFIG_SET, ESCALATION_CONFIG_ID, ODATA_FORMATTED_VALUE_ANNOTATION as FMT } from './escalationFields';
@@ -446,13 +447,14 @@ export class DataverseAdapter implements ISopAdapter {
 
   async getUsers(search?: string): Promise<UserOption[]> {
     try {
-      const searchFilter = search
-        ? ` and (contains(fullname,'${escapeODataLiteral(search)}') or contains(domainname,'${escapeODataLiteral(search)}'))`
-        : '';
+      const filter = buildUserLookupFilter(
+        search ? escapeODataLiteral(search) : undefined,
+        ['fullname', 'domainname']
+      );
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.user,
-          `?$select=systemuserid,fullname,domainname&$filter=isdisabled eq false${searchFilter}&$top=5000&$orderby=fullname asc`
+          `?$select=systemuserid,fullname,domainname&$filter=${filter}&$top=5000&$orderby=fullname asc`
         )
       );
       return result.entities.map((u) => ({

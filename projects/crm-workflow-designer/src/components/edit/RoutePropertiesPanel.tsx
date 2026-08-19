@@ -272,6 +272,9 @@ const filterCode: React.CSSProperties = {
   wordBreak: 'break-all',
   maxHeight: 100,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
   margin: 0,
   color: 'var(--text-disabled)',
 };

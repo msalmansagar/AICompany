@@ -494,6 +494,9 @@ const pickerBodyStyle: React.CSSProperties = {
   gap: 6,
   maxHeight: 320,
   overflowY: 'auto',
+  // Without this the flex item will not shrink below its content, so overflowY
+  // never engages and the panel is clipped instead of scrolling.
+  minHeight: 0,
 };
 
 const pickerEmptyStyle: React.CSSProperties = {
