@@ -61,11 +61,11 @@ const ANY = OP('Any', '— any —', 0);
 
 export function operatorsFor(cat: string): OpDef[] {
   switch (cat) {
-    case 'number': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('GreaterThan', '>', 1), OP('GreaterThanOrEqual', '≥', 1), OP('LessThan', '<', 1), OP('LessThanOrEqual', '≤', 1), OP('Between', 'between', 2), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
-    case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsNull', 'is empty', 0)];
+    case 'number': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('GreaterThan', '>', 1), OP('GreaterThanOrEqual', '≥', 1), OP('LessThan', '<', 1), OP('LessThanOrEqual', '≤', 1), OP('Between', 'between', 2), OP('In', 'in (a,b,…)', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0), OP('IsNull', 'is null', 0), OP('IsNotNull', 'is not null', 0)];
+    case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0), OP('IsNull', 'is null', 0), OP('IsNotNull', 'is not null', 0)];
     case 'boolean': return [ANY, OP('Equals', '=', 1)];
-    case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
-    default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
+    case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0), OP('IsNull', 'is null', 0), OP('IsNotNull', 'is not null', 0)];
+    default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0), OP('IsNull', 'is null', 0), OP('IsNotNull', 'is not null', 0)];
   }
 }
 export function arity(cat: string, op?: string): 0 | 1 | 2 {
