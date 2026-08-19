@@ -133,6 +133,10 @@ the existing SSRS estate already uses.
 
 Steps 1 and 2 are the build work from Part 0. Everything after is mechanical.
 
+> **The two Actions now have their own build sheet** with the exact argument names, the
+> registration steps and a smoke test: `onprem-actions-build-sheet.md`. The scripts' authentication
+> is done — see `scripts/.env.example` for DV_AUTH_MODE (entra | adfs | windows).
+
 **1. Build the missing pieces**
 - Assemble the on-premise solution on org5869857f — everything except the Custom API components —
   and export it unmanaged
