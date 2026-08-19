@@ -67,7 +67,7 @@ export function SopOutcomePanel({ outcome, steps, onUpdate, onRemove, onClose }:
         </div>
 
         <div style={deleteSectionStyle}>
-          <button type="button" style={deleteBtnStyle} onClick={onRemove}>
+          <button type="button" className="btn sm block danger" onClick={onRemove}>
             Delete Outcome
           </button>
         </div>
@@ -80,9 +80,3 @@ const fieldGroupStyle: React.CSSProperties = { display: 'flex', flexDirection: '
 const labelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text)' };
 
 const deleteSectionStyle: React.CSSProperties = { paddingTop: 8, borderTop: '1px solid var(--border)' };
-const deleteBtnStyle: React.CSSProperties = {
-  width: '100%', height: 30,
-  background: 'var(--error-bg)', border: '1px solid var(--error)',
-  borderRadius: 5, fontSize: 12, fontWeight: 500,
-  color: 'var(--error)', cursor: 'pointer',
-};

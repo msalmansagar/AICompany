@@ -298,6 +298,12 @@ textarea.fluent-input { height: auto; padding: 6px 8px; resize: vertical; min-he
 .btn.primary.danger-fill { background: var(--error); border-color: var(--error); color: #fff; }
 .btn.primary.danger-fill:hover { filter: brightness(1.08); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 13px; }
+.btn.block { width: 100%; }
+/* A control must never be compressed below its control height: as a flex item in a
+   column that overflows, the default flex-shrink:1 crushed these to ~19px. */
+.btn { flex-shrink: 0; }
+/* Fluent requires a visible focus indicator on every command; inline styles cannot express one. */
+.btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
