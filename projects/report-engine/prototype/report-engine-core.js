@@ -1917,6 +1917,20 @@ function renderLayout(result, layout){
   }
 }
 
+/* ---------- A cell with nothing in it ----------
+   Blank values were dressed up as real ones. An absent amount rendered "QAR 0.00" — a number a
+   reader acts on, and indistinguishable from a genuine zero. An absent date rendered the literal
+   "null" at runtime and "undefined" in the designer preview, because String(null) was split on a
+   hyphen. An absent decimal rendered "0", or "NaN" when the value was missing rather than null.
+
+   The em dash is the product's own convention for this: it is the default placeholder the
+   NullHandling transform offers. A genuine 0 is NOT blank and still formats as 0.
+
+   Deliberately duplicated in report-designer.html, which carries its own copy of these renderers
+   in its own scope. Change one, change both. */
+const EMPTY_CELL = "—";
+const isBlankCell = value => value === null || value === undefined || value === "";
+
 function buildPreviewBody(type, cols, rows, opts) {
   opts = opts || {};
   const lang = opts.lang || "en", T = s => tr(s, lang);
@@ -1928,7 +1942,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   const cat2 = cols.find(c => c.type === "Option set" && c !== catCol) || catCols[1] || null;
   const valCol = cols.find(c => ["Currency","Decimal","Whole number"].includes(c.type));
   const dateCol = cols.find(c => c.type === "Date/Time");
-  const fmt = (c,v) => c.type==="Currency"?money(+v||0):(c.type==="Date/Time"?String(v).split("-").reverse().join("/"):(c.type==="Decimal"?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):v));
+  const fmt = (c,v) => isBlankCell(v) ? EMPTY_CELL : c.type==="Currency"?money(+v||0):(c.type==="Date/Time"?String(v).split("-").reverse().join("/"):(c.type==="Decimal"?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):v));
   const disp = (c,v) => (num(c)||c.type==="Date/Time") ? fmt(c,v) : T(fmt(c,v));
   const sum = list => valCol ? list.reduce((s,r)=>s+(+r[valCol.key]||0),0) : 0;
   const fmtTotal = n => (valCol && valCol.type==="Currency") ? money(n) : (+n).toLocaleString(undefined,{maximumFractionDigits:2});
