@@ -133,6 +133,18 @@ timeout means a duplicate can pass unchecked; fail-closed means a cold sandbox b
 legitimate disbursement for fourteen seconds. Neither is obviously right, and the choice is
 theirs, not ours. Recorded as **OQ-A1**.
 
+> ### ✅ OQ-A1 DECIDED 2026-08-19 — **the save proceeds and routes to review**
+> On timeout the save succeeds, the record is stamped as not-yet-validated, and it routes to a
+> reviewer. The checks then re-run server-side out of band.
+>
+> **This is the same consequence C-8 already chose for a *failed* check**, so failure and
+> timeout land in one place and the model stays consistent. Nothing is silently approved and
+> no legitimate disbursement is blocked by a cold sandbox.
+>
+> **Accepted cost:** the review queue absorbs cold starts, which makes measurement M-2 (review
+> load) more load-bearing than it was — a rising timeout rate now surfaces as reviewer effort
+> rather than as user-visible failure, so NFR-F4 telemetry is how anyone would notice.
+
 ---
 
 ## 4. Fact assembly
