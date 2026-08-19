@@ -8,8 +8,10 @@ interface EditToolbarProps {
   canSimulate: boolean;
   canSimStepBack: boolean;
   validationErrorCount: number;
+  showMiniMap: boolean;
   onAddStep: () => void;
   onReLayout: () => void;
+  onToggleMiniMap: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -36,8 +38,10 @@ export function EditToolbar({
   canSimulate,
   canSimStepBack,
   validationErrorCount,
+  showMiniMap,
   onAddStep,
   onReLayout,
+  onToggleMiniMap,
   onSave,
   onPublish,
   onDiscard,
@@ -84,6 +88,14 @@ export function EditToolbar({
           </button>
           <button type="button" className="cmd" onClick={onReLayout} title="Auto-arrange all steps">
             ⊞ Layout
+          </button>
+          <button
+            type="button"
+            className={showMiniMap ? 'cmd primary' : 'cmd'}
+            onClick={onToggleMiniMap}
+            title="Toggle minimap"
+          >
+            {showMiniMap ? 'Hide map' : 'Mini map'}
           </button>
           <span className="cmd-sep" />
           <button

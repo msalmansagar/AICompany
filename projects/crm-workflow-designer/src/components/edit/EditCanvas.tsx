@@ -6,8 +6,10 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  MiniMap,
   useReactFlow,
 } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
@@ -116,6 +118,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
   const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
 
   // Live, debounced validation — keeps node error badges and the toolbar count
   // current as the workflow is edited, without waiting for the Validate button.
@@ -205,8 +208,10 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         canSimulate={canSimulate}
         canSimStepBack={canSimStepBack}
         validationErrorCount={validationErrorCount}
+        showMiniMap={showMiniMap}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
+        onToggleMiniMap={() => setShowMiniMap((isOn) => !isOn)}
         onSave={() => void save()}
         onPublish={() => void publish()}
         onDiscard={handleDiscard}
@@ -288,6 +293,13 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              {showMiniMap && (
+                <MiniMap
+                  nodeColor={minimapColor}
+                  maskColor="rgba(248,250,252,0.75)"
+                  style={{ bottom: 60 }}
+                />
+              )}
             </ReactFlow>
           )}
 
@@ -410,4 +422,12 @@ function Toast({
       </button>
     </div>
   );
+}
+
+function minimapColor(node: Node): string {
+  if (node.type === 'editStep') return 'var(--primary)';
+  if (node.type === 'routeGateway') return 'var(--accent-branch)';
+  if (node.type === 'viewStart') return 'var(--success)';
+  if (node.type === 'viewEnd') return 'var(--error)';
+  return 'var(--text-disabled)';
 }
