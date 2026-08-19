@@ -46,6 +46,18 @@ const ROUTE_LABEL_PAIRS: Readonly<Record<RouteLabelKind, SurfacePair>> = {
   },
 };
 
+/**
+ * The label on a branch edge — the link to a step that runs alongside another.
+ *
+ * It was drawn with the accent as both the text and the fill, so the words were
+ * invisible. Registering it here is what puts it under the contrast guard.
+ */
+export const BRANCH_EDGE_LABEL: SurfacePair = {
+  background: 'var(--accent-branch-bg)',
+  foreground: 'var(--accent-branch)',
+  border: 'var(--accent-branch)',
+};
+
 /** The unaccented chip used for names inside a node, such as an assignee. */
 export const NODE_NEUTRAL_CHIP: SurfacePair = {
   background: 'var(--neutral-chip)',
@@ -71,4 +83,5 @@ export const ALL_SURFACE_PAIRS: Readonly<Record<string, SurfacePair>> = {
   'route label · conditional': ROUTE_LABEL_PAIRS.conditional,
   'route label · plain': ROUTE_LABEL_PAIRS.plain,
   'node chip · neutral': NODE_NEUTRAL_CHIP,
+  'branch edge label': BRANCH_EDGE_LABEL,
 };
