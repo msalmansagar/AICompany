@@ -7,6 +7,8 @@ import type { EdgeProps } from '@xyflow/react';
 import { useState } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { RouteEdgeData } from '@/store/selectors';
+import { routeLabelPair } from '@/styles/surfacePairs';
+import type { RouteLabelKind } from '@/styles/surfacePairs';
 
 export function RouteEdge({
   id,
@@ -37,6 +39,7 @@ export function RouteEdge({
   const hasFilter = edgeData?.hasFilter ?? false;
   const isFallback = edgeData?.isFallback ?? false;
   const isConditional = hasFilter;
+  const labelKind: RouteLabelKind = isFallback ? 'fallback' : isConditional ? 'conditional' : 'plain';
 
   const strokeColor = selected ? 'var(--primary)' : isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text-secondary)';
   const strokeDasharray = isFallback ? '4 4' : isConditional ? '6 3' : undefined;
@@ -68,7 +71,7 @@ export function RouteEdge({
           onMouseLeave={() => setIsHovered(false)}
         >
           {edgeData?.name && (
-            <span style={labelTextStyle(isConditional, isFallback)}>{edgeData.name}</span>
+            <span style={labelTextStyle(labelKind)}>{edgeData.name}</span>
           )}
           {hasFilter && <span style={filterBadgeStyle}>FetchXML</span>}
           {isFallback && <span style={fallbackBadgeStyle}>ELSE</span>}
@@ -98,16 +101,14 @@ function labelContainerStyle(x: number, y: number): React.CSSProperties {
   };
 }
 
-function labelTextStyle(isConditional: boolean, isFallback: boolean): React.CSSProperties {
-  const color = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text-secondary)';
-  const bg    = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text)';
-  const border = isFallback ? 'var(--success)' : isConditional ? 'var(--warning)' : 'var(--text)';
+function labelTextStyle(kind: RouteLabelKind): React.CSSProperties {
+  const pair = routeLabelPair(kind);
   return {
     fontSize: 10,
     fontWeight: 600,
-    color,
-    background: bg,
-    border: `1px solid ${border}`,
+    color: pair.foreground,
+    background: pair.background,
+    border: `1px solid ${pair.border}`,
     borderRadius: 4,
     padding: '1px 6px',
   };

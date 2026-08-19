@@ -3,6 +3,8 @@ import { analyseBranchRegions } from '@/validators/branchRegions';
 import type { BranchFinding } from '@/validators/branchRegions';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import { ASSIGN_TO_LABELS, assigneeIsMissing } from '@/services/taskAssignment';
+import { hasRealCondition } from '@/services/routeFilter';
+import { findSaveBlockers } from '@/services/saveBlockers';
 
 /** What is missing when a step's chosen assignment mode has no assignee. */
 const MISSING_ASSIGNEE_REASON: Record<AssignToType, string> = {
@@ -29,7 +31,10 @@ export type ViolationCode =
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
-  | 'MISSING_FALLBACK_ROUTE'  | 'BRANCH_SELF_PARENT'
+  | 'MISSING_FALLBACK_ROUTE'
+  | 'MULTIPLE_DEFAULT_ROUTES'
+  | 'ROUTE_WITHOUT_CONDITION'
+  | 'BRANCH_SELF_PARENT'
   | 'BRANCH_PARENT_CYCLE'
   | 'BRANCH_PARENT_MISSING'
   | 'BRANCH_FILTER_MISSING'
@@ -88,6 +93,7 @@ export class ValidationService {
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
     this.checkMissingFetchXml(state, violations);
+    this.checkRoutesTheEngineWouldReject(state, violations);
     this.checkInvalidNextStep(state, violations);
     this.checkDeadLoops(state, violations);
     this.checkMissingTaskSubject(steps, violations);
@@ -286,7 +292,7 @@ export class ValidationService {
     for (const outcome of Object.values(state.outcomes)) {
       if (!outcome.applyFilter) continue;
       const hasFilter = Object.values(state.routes).some(
-        (r) => r.outcomeId === outcome.crmId && r.filter.trim().length > 0
+        (r) => r.outcomeId === outcome.crmId && hasRealCondition(r.filter)
       );
       if (!hasFilter) {
         violations.push({
@@ -492,6 +498,26 @@ export class ValidationService {
     }
   }
 
+  /**
+   * Surfaces, on the canvas, the states the engine refuses to store.
+   *
+   * Shares its logic with the pre-save gate so the message a user sees while editing
+   * is the same one that would stop the save, rather than a second opinion.
+   */
+  private checkRoutesTheEngineWouldReject(
+    state: Pick<WorkflowDesignerState, 'outcomes' | 'routes'>,
+    violations: Violation[]
+  ): void {
+    for (const blocker of findSaveBlockers(state)) {
+      violations.push({
+        code: blocker.routeId ? 'ROUTE_WITHOUT_CONDITION' : 'MULTIPLE_DEFAULT_ROUTES',
+        message: blocker.message,
+        nodeId: blocker.outcomeId,
+        nodeType: 'outcome',
+        severity: 'error',
+      });
+    }
+  }
   private checkMissingFallbackRoute(
     state: Pick<WorkflowDesignerState, 'steps' | 'outcomes' | 'routes'>,
     violations: Violation[]
@@ -500,7 +526,7 @@ export class ValidationService {
       if (!outcome.applyFilter) continue;
       const outcomeRoutes = Object.values(state.routes).filter((r) => r.outcomeId === outcome.crmId);
       if (outcomeRoutes.length < 2) continue; // single route — missing FetchXML caught elsewhere
-      const hasFallback = outcomeRoutes.some((r) => !r.filter.trim());
+      const hasFallback = outcomeRoutes.some((r) => r.isDefault);
       if (!hasFallback) {
         const stepName = state.steps[outcome.stepId]?.name ?? outcome.stepId;
         violations.push({

@@ -106,6 +106,7 @@ export async function deriveProcessFromSop(
         workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS),
         outcomeId,
         nextStepId: nextWorkflowStepId,
+        isDefault: false,
       });
     }
   }

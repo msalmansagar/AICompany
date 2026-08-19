@@ -4,6 +4,8 @@ import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuil
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { ROUTE_HOOKS } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
+import { EMPTY_FILTER, hasRealCondition } from '@/services/routeFilter';
+import { parseFetchXmlFilter, formatReadableFilter } from '@/services/fetchXmlReadable';
 
 interface RoutePropertiesPanelProps {
   routeId: string;
@@ -56,7 +58,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
     );
   }
 
-  const isFallback = !route.filter?.trim();
+  const isFallback = route.isDefault;
 
   return (
     <div className="panel">
@@ -105,11 +107,11 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
             </div>
           ) : (
             <div style={filterBlock}>
-              <pre style={filterCode}>{route.filter}</pre>
+              <ReadableFilter filter={route.filter} />
               <button
                 type="button"
                 style={clearBtn}
-                onClick={() => setRoute({ ...route, filter: '' })}
+                onClick={() => setRoute({ ...route, filter: EMPTY_FILTER, isDefault: true })}
                 title="Remove condition — makes this route the fallback"
               >
                 ✕ Clear (make fallback)
@@ -148,8 +150,8 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
           entityLogicalName={entityLogicalName}
           objectTypeCode={objectTypeCode}
           clientUrl={clientUrl}
-          initialFetchXml={route.filter}
-          onApply={(xml) => { setRoute({ ...route, filter: xml }); setIsFetchXmlOpen(false); }}
+          initialFetchXml={hasRealCondition(route.filter) ? route.filter : ''}
+          onApply={(xml) => { setRoute({ ...route, filter: xml, isDefault: false }); setIsFetchXmlOpen(false); }}
           onDismiss={() => setIsFetchXmlOpen(false)}
         />
       )}
@@ -157,6 +159,24 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
   );
 }
 
+/** Shows the stored query as readable lines, with the raw XML available underneath. */
+function ReadableFilter({ filter }: { filter: string }) {
+  const parsed = parseFetchXmlFilter(filter);
+  if (!parsed) return <div style={filterEmpty}>No condition set</div>;
+  return (
+    <div>
+      <div style={filterReadable}>
+        {formatReadableFilter(parsed).map((line, i) => (
+          <div key={i} style={filterLine}>{line}</div>
+        ))}
+      </div>
+      <details style={rawWrap}>
+        <summary style={rawSummary}>Show FetchXML</summary>
+        <pre style={filterCode}>{filter}</pre>
+      </details>
+    </div>
+  );
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={fieldGroup}>
@@ -165,6 +185,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+const filterReadable: React.CSSProperties = {
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  padding: '8px 10px',
+  fontSize: 12,
+};
+
+const filterLine: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  lineHeight: 1.65,
+  whiteSpace: 'pre',
+  color: 'var(--text)',
+};
+
+const filterEmpty: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  fontStyle: 'italic',
+};
+
+const rawWrap: React.CSSProperties = { marginTop: 6 };
+
+const rawSummary: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+};
 
 const fieldGroup: React.CSSProperties = {
   display: 'flex',

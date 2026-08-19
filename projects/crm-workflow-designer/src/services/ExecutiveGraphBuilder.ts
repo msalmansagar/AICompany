@@ -142,7 +142,7 @@ export function buildExecutiveGraph(
 
       for (const route of outcomeRoutes) {
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
-        const isFallback = !route.filter?.trim();
+        const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
         const label = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;

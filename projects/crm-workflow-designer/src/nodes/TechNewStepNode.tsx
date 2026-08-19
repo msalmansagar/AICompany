@@ -3,6 +3,7 @@ import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { TechNewStepData } from '../services/TechNewGraphBuilder';
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
+import { NODE_NEUTRAL_CHIP } from '@/styles/surfacePairs';
 
 const ASSIGN_COLOR: Record<string, { bg: string; text: string }> = {
   'Specific User': { bg: 'var(--primary-tint-2)', text: 'var(--primary-pressed)' },
@@ -39,7 +40,7 @@ export function TechNewStepNode({ data, selected }: NodeProps) {
       <div style={chipsRow}>
         <span style={chip(assignColor.bg, assignColor.text)}>{assignLabel}</span>
         {assigneeName && (
-          <span style={chip('var(--text)', 'var(--text)')} title={assigneeName}>{assigneeName}</span>
+          <span style={chip(NODE_NEUTRAL_CHIP.background, NODE_NEUTRAL_CHIP.foreground)} title={assigneeName}>{assigneeName}</span>
         )}
       </div>
 
@@ -133,7 +134,7 @@ function containerStyle(selected: boolean): React.CSSProperties {
 function chip(bg: string, color: string): React.CSSProperties {
   return {
     display: 'inline-block', fontSize: 10, fontWeight: 500, background: bg, color,
-    border: `1px solid ${color}22`, borderRadius: 4, padding: '1px 6px',
+    border: `1px solid ${NODE_NEUTRAL_CHIP.border}`, borderRadius: 4, padding: '1px 6px',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130,
   };
 }

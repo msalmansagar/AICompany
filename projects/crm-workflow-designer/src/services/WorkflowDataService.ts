@@ -62,6 +62,7 @@ const ROUTE_SELECT = [
   'qdb_subject',
   'qdb_sequencenumber',
   'qdb_filter',
+  'qdb_isdefaultcondition',
   '_qdb_nextworkitemstep_value',
   '_qdb_outcome_value',
 ].join(',');
@@ -253,6 +254,7 @@ function mapRoute(raw: Record<string, unknown>): CrmRoute {
     nextStepName: fmt(raw, '_qdb_nextworkitemstep_value'),
     filter: str(raw, 'qdb_filter'),
     outcomeId: guid(raw, '_qdb_outcome_value'),
+    isDefault: bool(raw, 'qdb_isdefaultcondition'),
   };
 }
 

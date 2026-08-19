@@ -239,6 +239,26 @@ function remapRouteId(state: WorkflowDesignerState, tmpId: string, realId: strin
   }
 }
 
+/**
+ * Keeps the one-fallback-per-decision rule true by construction.
+ *
+ * The engine refuses a second default with "You cann't define multiple default
+ * conditions", so promoting a route demotes whichever sibling held the role. Enforcing
+ * it here means the state can never reach the save in a shape the server would reject,
+ * rather than being told about it afterwards.
+ */
+function demoteOtherDefaults(
+  state: { routes: Record<string, WorkflowRoute>; dirtyIds: string[] },
+  promoted: WorkflowRoute
+): void {
+  if (!promoted.isDefault) return;
+  for (const other of Object.values(state.routes)) {
+    if (other.crmId === promoted.crmId) continue;
+    if (other.outcomeId !== promoted.outcomeId || !other.isDefault) continue;
+    other.isDefault = false;
+    if (!state.dirtyIds.includes(other.crmId)) state.dirtyIds.push(other.crmId);
+  }
+}
 export const useWorkflowStore = create<WorkflowDesignerState>()(
   temporal(
     immer((set) => ({
@@ -293,6 +313,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       setRoute: (route) =>
         set((state) => {
           state.routes[route.crmId] = route;
+          demoteOtherDefaults(state, route);
           if (!state.dirtyIds.includes(route.crmId)) {
             state.dirtyIds.push(route.crmId);
           }
@@ -385,6 +406,7 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       addRoute: (route) =>
         set((state) => {
           state.routes[route.crmId] = route;
+          demoteOtherDefaults(state, route);
           if (!state.routeOrder[route.outcomeId]) {
             state.routeOrder[route.outcomeId] = [];
           }
