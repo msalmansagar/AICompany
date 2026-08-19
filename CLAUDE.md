@@ -35,6 +35,30 @@ Claude Code questions.
 - `code-reviewer` runs after every code-producing agent.
 - Live-org schema provisioning requires explicit user go-ahead, every time.
 
+## Stay in the project the user is working in
+
+**One session, one project.** When the user is working on a project, do not
+propose, suggest, or start work on a different one — not as a "next step", not
+to fill a wait, not because another project has open PRs or looks blocked.
+
+This applies even when the other work is genuinely useful and even when the
+user asks an open question like *"what should I do next?"* or *"what should we
+do while waiting?"* — answer **within the current project**.
+
+If the current project is blocked and there is nothing to do, **say exactly
+that**. "There is nothing to do on this until X" is the correct answer. Filling
+the gap with another engagement is not.
+
+The user may switch projects whenever they like. **They name it; you do not
+offer it.** If something in another project genuinely cannot wait — data at
+risk, a live defect — state it in one line and let the user decide, then stay
+put unless they say otherwise.
+
+Why this is a rule: an engagement's context is expensive to rebuild, and a
+suggested detour reads as a recommendation. Following one four steps deep left
+a user unable to tell how a CMS session had become live-org QA on a different
+product.
+
 ## Available agents
 orchestrator, ba, ceo, architect, backend, frontend, middleware,
 crm-onprem, power-platform, fo-developer, mobile, agent-developer,
