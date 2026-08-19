@@ -205,10 +205,11 @@ Added to the list this project already owes them:
 
 ---
 
-## 8. Note for whoever picks up CWFD-006
+## 8. Note for whoever picks up CWFD-006 — ✅ DONE
 
-`src/panels/` — `PropertiesPanel`, `StepPanel`, `OutcomePanel`, `ProcessPanel`,
+~~`src/panels/` — `PropertiesPanel`, `StepPanel`, `OutcomePanel`, `ProcessPanel`,
 `RoutePanel` and `shared/` — is **unreferenced**, superseded by
-`src/components/edit/*PropertiesPanel.tsx`. It was left in place here because
-deleting it is not DP-3's business, but it is dead and it made this change look
-larger than it was.
+`src/components/edit/*PropertiesPanel.tsx`.~~
+
+**Resolved in PR #68** (design-system adoption): `src/panels/` was deleted after
+checking both the import graph and the JSX. Nothing to pick up.
