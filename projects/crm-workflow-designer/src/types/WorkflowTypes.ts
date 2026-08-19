@@ -14,6 +14,11 @@ export interface WorkflowProcess {
   versionMinor: number;
   workflowState: 'draft' | 'published' | 'archived';
   snapshot: string | null;
+  /** When the record was created. Server-populated, so absent while constructing one. */
+  createdOn?: string | null;
+  /** Who created it. Expanded rather than read from a formatted-value annotation,
+   *  because the OData path does not ask for annotations. */
+  createdByName?: string | null;
   /** ID of the qdb_sop this process was derived from. Only set on SOP-derived processes. */
   sopId?: string | null;
 }

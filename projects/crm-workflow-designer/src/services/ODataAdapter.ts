@@ -162,7 +162,10 @@ export class ODataAdapter implements ISopAdapter {
 
   async getProcessList(): Promise<WorkflowProcess[]> {
     const data = await this.get<{ value: Record<string, unknown>[] }>(
-      `${ENTITY_SETS.process}?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}`
+      // createdby is expanded rather than read from a formatted-value annotation:
+      // buildODataHeaders does not ask for annotations, so the name would come back empty.
+      `${ENTITY_SETS.process}?$select=qdb_work_item_record_typeid,qdb_name,createdon,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}` +
+      `&$expand=createdby($select=fullname)`
     );
     return data.value.map(mapProcess);
   }
@@ -748,6 +751,8 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
     workflowHooks: mapWorkflowHooks(raw, PROCESS_HOOKS),
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
+    createdOn: (raw['createdon'] as string | null) ?? null,
+    createdByName: readCreatedByName(raw),
     name: (raw['qdb_name'] as string) ?? '',
     recordEntity: (raw['_qdb_recordentity_value'] as string) ?? '',
     recordEntityName: (raw[`_qdb_recordentity_value${FMT}`] as string | null) ?? null,
@@ -942,4 +947,10 @@ function buildODataHeaders(): HeadersInit {
     'OData-MaxVersion': '4.0',
     Accept: 'application/json',
   };
+}
+
+/** The expanded createdby record, or null when the caller did not ask for it. */
+function readCreatedByName(raw: Record<string, unknown>): string | null {
+  const createdBy = raw['createdby'] as { fullname?: string } | null | undefined;
+  return createdBy?.fullname ?? null;
 }

@@ -130,7 +130,10 @@ export class DataverseAdapter implements ISopAdapter {
       const result = await withRetry(() =>
         this.xrm.WebApi.retrieveMultipleRecords(
           LOGICAL.process,
-          `?$select=qdb_work_item_record_typeid,qdb_name,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}&$top=100&$orderby=qdb_name asc`
+          // createdby is expanded so the name comes back the same way on both adapters,
+          // rather than depending on formatted-value annotations being present.
+          `?$select=qdb_work_item_record_typeid,qdb_name,createdon,_qdb_recordentity_value,_qdb_regardingfield_value,_qdb_parententity_value,${hookSelectColumns(PROCESS_HOOKS)}` +
+          `&$expand=createdby($select=fullname)&$top=100&$orderby=qdb_name asc`
         )
       );
       return result.entities.map(mapProcess);
@@ -945,6 +948,8 @@ function mapProcess(raw: Record<string, unknown>): WorkflowProcess {
   return {
     workflowHooks: mapWorkflowHooks(raw, PROCESS_HOOKS),
     crmId: (raw['qdb_work_item_record_typeid'] as string) ?? '',
+    createdOn: (raw['createdon'] as string | null) ?? null,
+    createdByName: readCreatedByName(raw),
     name: (raw['qdb_name'] as string) ?? '',
     recordEntity: (raw['_qdb_recordentity_value'] as string) ?? '',
     recordEntityName: (raw[`_qdb_recordentity_value${FMT}`] as string | null) ?? null,
@@ -1161,4 +1166,10 @@ function asError(err: unknown, context: string): Error {
     return new Error(`[${context}] ${msg}`);
   }
   return new Error(`[${context}] ${String(err)}`);
+}
+
+/** The expanded createdby record, or null when the caller did not ask for it. */
+function readCreatedByName(raw: Record<string, unknown>): string | null {
+  const createdBy = raw['createdby'] as { fullname?: string } | null | undefined;
+  return createdBy?.fullname ?? null;
 }
