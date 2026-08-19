@@ -392,6 +392,13 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
   width: 300px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   background: var(--surface); border-left: 1px solid var(--border);
 }
+
+/* The editor stacks its panels in a column, where .panel's flex-shrink:0 - right for a
+   300px column in a row - stops them shrinking to the space available. They grew past
+   the sidebar instead, so the body never had a reason to scroll and the overflow was
+   clipped with no way to reach it. */
+.editor-sidebar { min-height: 0; }
+.editor-sidebar > .panel { flex: 1 1 auto; min-height: 0; }
 .panel-head, .dialog-head {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 14px 16px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
