@@ -17,7 +17,6 @@ import type { WorkflowStep } from '@/types/WorkflowTypes';
  */
 
 interface RouteConfigDialogProps {
-  open: boolean;
   /** Steps this route may lead to. */
   availableSteps: readonly WorkflowStep[];
   /** Sequence to suggest, normally one past the highest already used. */
@@ -32,7 +31,6 @@ interface RouteConfigDialogProps {
 }
 
 export function RouteConfigDialog({
-  open,
   availableSteps,
   suggestedSequence,
   hasExistingFallback,
@@ -52,6 +50,9 @@ export function RouteConfigDialog({
   const builderRef = useRef<ConditionBuilderHandle>(null);
 
   const draft: RouteDraft = { name, sequenceNumber, nextStepId, isDefault, filter };
+  // A fallback route needs no condition, so the builder is not shown and never
+  // reports ready. Gating on it there would disable Save permanently.
+  const isReady = isDefault || isBuilderReady;
   const errors = findRouteDraftErrors(draft);
   const showErrors = hasAttemptedSave;
 
@@ -68,14 +69,13 @@ export function RouteConfigDialog({
     setHasAttemptedSave(true);
     const captured = isDefault ? EMPTY_FILTER : captureCondition();
     const finalDraft: RouteDraft = { ...draft, filter: captured };
-    if (!canSaveRouteDraft(finalDraft, isBuilderReady)) return;
+    if (!canSaveRouteDraft(finalDraft, isReady)) return;
     onSave(finalDraft);
   }
 
-  if (!open) return null;
 
   const readable = parseFetchXmlFilter(filter);
-  const saveBlockedReason = !isBuilderReady
+  const saveBlockedReason = !isReady
     ? 'Waiting for the condition builder to load…'
     : errors.length > 0
       ? `${errors.length} field${errors.length === 1 ? '' : 's'} still to complete`
@@ -173,7 +173,7 @@ export function RouteConfigDialog({
             type="button"
             className="btn primary"
             onClick={handleSave}
-            disabled={!isBuilderReady}
+            disabled={!isReady}
             title={saveBlockedReason ?? 'Save this route'}
           >
             Save route

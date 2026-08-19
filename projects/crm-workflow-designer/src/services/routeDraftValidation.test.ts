@@ -80,6 +80,14 @@ describe('canSaveRouteDraft', () => {
     expect(canSaveRouteDraft(draft(), false)).toBe(false);
   });
 
+  // A fallback route hides the condition builder, so the builder never reports ready.
+  // Gating a fallback on builder readiness left Save disabled for ever - the host now
+  // passes ready=true for that case, and this pins the contract it relies on.
+  it('should_allow_a_fallback_route_to_save_without_waiting_for_a_builder', () => {
+    const fallback = draft({ isDefault: true, filter: EMPTY_FILTER });
+    expect(canSaveRouteDraft(fallback, true)).toBe(true);
+  });
+
   it('should_refuse_a_complete_looking_route_that_is_missing_a_target', () => {
     expect(canSaveRouteDraft(draft({ nextStepId: null }), true)).toBe(false);
   });

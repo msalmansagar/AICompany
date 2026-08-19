@@ -267,17 +267,20 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
           Delete Decision
         </button>
 
-        <RouteConfigDialog
-          open={addingRoute}
-          availableSteps={availableSteps}
-          suggestedSequence={nextSequence}
-          hasExistingFallback={outcomeRoutes.some((r) => r.isDefault)}
-          entityLogicalName={fetchXmlContext.entityLogicalName}
-          objectTypeCode={fetchXmlContext.objectTypeCode}
-          clientUrl={fetchXmlContext.clientUrl}
-          onSave={handleAddRoute}
-          onDismiss={() => setAddingRoute(false)}
-        />
+        {/* Mounted only while open, so every Add Route starts from a clean form rather
+            than whatever the previous one was left holding. */}
+        {addingRoute && (
+          <RouteConfigDialog
+            availableSteps={availableSteps}
+            suggestedSequence={nextSequence}
+            hasExistingFallback={outcomeRoutes.some((r) => r.isDefault)}
+            entityLogicalName={fetchXmlContext.entityLogicalName}
+            objectTypeCode={fetchXmlContext.objectTypeCode}
+            clientUrl={fetchXmlContext.clientUrl}
+            onSave={handleAddRoute}
+            onDismiss={() => setAddingRoute(false)}
+          />
+        )}
       </div>
     </div>
   );
