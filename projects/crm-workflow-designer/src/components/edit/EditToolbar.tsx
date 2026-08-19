@@ -7,7 +7,7 @@ interface EditToolbarProps {
   isSimulating: boolean;
   canSimulate: boolean;
   canSimStepBack: boolean;
-  validationErrorCount: number;
+  validationErrorCount: number;
   onAddStep: () => void;
   onReLayout: () => void;
   onSave: () => void;
@@ -18,6 +18,7 @@ interface EditToolbarProps {
   canUndo: boolean;
   canRedo: boolean;
   onValidate: () => void;
+  onEditProperties: () => void;
   onSimulate: () => void;
   onAutoSimulate: () => void;
   onExitSimulation: () => void;
@@ -34,7 +35,7 @@ export function EditToolbar({
   isSimulating,
   canSimulate,
   canSimStepBack,
-  validationErrorCount,
+  validationErrorCount,
   onAddStep,
   onReLayout,
   onSave,
@@ -45,6 +46,7 @@ export function EditToolbar({
   canUndo,
   canRedo,
   onValidate,
+  onEditProperties,
   onSimulate,
   onAutoSimulate,
   onExitSimulation,
@@ -92,6 +94,14 @@ export function EditToolbar({
           >
             ✓ Validate
             {validationErrorCount > 0 && <span className="pill error">{validationErrorCount}</span>}
+          </button>
+          <button
+            type="button"
+            className="cmd"
+            onClick={onEditProperties}
+            title="View or edit this process's own settings"
+          >
+            ⚙ Properties
           </button>
           <span className="cmd-sep" />
           <button type="button" className="cmd" onClick={onSave} disabled={isSaving} title="Save as draft">
