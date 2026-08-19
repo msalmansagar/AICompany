@@ -5,6 +5,7 @@ import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { ROUTE_HOOKS } from '@/services/workflowHooks';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { EMPTY_FILTER, hasRealCondition } from '@/services/routeFilter';
+import { parseFetchXmlFilter, formatReadableFilter } from '@/services/fetchXmlReadable';
 
 interface RoutePropertiesPanelProps {
   routeId: string;
@@ -106,7 +107,7 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
             </div>
           ) : (
             <div style={filterBlock}>
-              <pre style={filterCode}>{hasRealCondition(route.filter) ? route.filter : 'No condition set'}</pre>
+              <ReadableFilter filter={route.filter} />
               <button
                 type="button"
                 style={clearBtn}
@@ -158,6 +159,24 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
   );
 }
 
+/** Shows the stored query as readable lines, with the raw XML available underneath. */
+function ReadableFilter({ filter }: { filter: string }) {
+  const parsed = parseFetchXmlFilter(filter);
+  if (!parsed) return <div style={filterEmpty}>No condition set</div>;
+  return (
+    <div>
+      <div style={filterReadable}>
+        {formatReadableFilter(parsed).map((line, i) => (
+          <div key={i} style={filterLine}>{line}</div>
+        ))}
+      </div>
+      <details style={rawWrap}>
+        <summary style={rawSummary}>Show FetchXML</summary>
+        <pre style={filterCode}>{filter}</pre>
+      </details>
+    </div>
+  );
+}
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={fieldGroup}>
@@ -166,6 +185,35 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+const filterReadable: React.CSSProperties = {
+  background: 'var(--surface-alt)',
+  border: '1px solid var(--border)',
+  borderRadius: 4,
+  padding: '8px 10px',
+  fontSize: 12,
+};
+
+const filterLine: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  lineHeight: 1.65,
+  whiteSpace: 'pre',
+  color: 'var(--text)',
+};
+
+const filterEmpty: React.CSSProperties = {
+  fontSize: 12,
+  color: 'var(--text-secondary)',
+  fontStyle: 'italic',
+};
+
+const rawWrap: React.CSSProperties = { marginTop: 6 };
+
+const rawSummary: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+};
 
 const fieldGroup: React.CSSProperties = {
   display: 'flex',
