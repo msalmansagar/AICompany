@@ -8,6 +8,7 @@ using EDP.RuleRuntime;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Metadata;
+using EDP.RuleRuntime.Operators;
 using EDP.RuleRuntime.Pcrm;
 
 namespace EDP.RuleRuntime.Crm
@@ -106,6 +107,17 @@ namespace EDP.RuleRuntime.Crm
                 case JsonValueKind.Number: return e.GetDecimal();
                 case JsonValueKind.True: return true;
                 case JsonValueKind.False: return false;
+
+                // Collections delegate to the core so that a caller's array reaches the engine as
+                // a collection by this route too. Before F1 this returned null here while
+                // RuntimeValue.FromJson returned the array's raw text — the same payload became
+                // two different values depending on which door it came through.
+                case JsonValueKind.Array: return RuntimeValue.ToCollection(e);
+                case JsonValueKind.Object: return RuntimeValue.ToRecord(e);
+
+                // Scalars stay on this path deliberately: RuntimeValue.FromJson also parses
+                // date-like strings into DateTime, and changing that for every InputsJson caller
+                // is a semantic change no requirement asked for.
                 default: return null;
             }
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text.Json;
 
@@ -27,9 +28,52 @@ namespace EDP.RuleRuntime.Operators
                 case JsonValueKind.Null:
                 case JsonValueKind.Undefined:
                     return null;
+                case JsonValueKind.Array:
+                    return ToCollection(e);
+                case JsonValueKind.Object:
+                    return ToRecord(e);
                 default:
                     return e.GetRawText();
             }
+        }
+
+        /// <summary>
+        /// A JSON array becomes an ordered collection of runtime values. Before F1 this
+        /// returned the array's raw text, which made collections unreachable to quantifiers
+        /// and to the In operator alike.
+        /// </summary>
+        public static IReadOnlyList<object?> ToCollection(JsonElement array)
+        {
+            var items = new List<object?>();
+            foreach (var item in array.EnumerateArray()) items.Add(FromJson(item));
+            return items;
+        }
+
+        /// <summary>
+        /// A JSON object becomes a field-addressable record, so a quantifier body can compare
+        /// an element's fields by name. Field lookup is case-insensitive, matching how the
+        /// execution context resolves every other symbol.
+        /// </summary>
+        public static IReadOnlyDictionary<string, object?> ToRecord(JsonElement obj)
+        {
+            var record = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var property in obj.EnumerateObject()) record[property.Name] = FromJson(property.Value);
+            return record;
+        }
+
+        /// <summary>A collection is any enumerable that is not a string (a string enumerates characters).</summary>
+        public static bool IsCollection(object? value)
+            => value is System.Collections.IEnumerable && !(value is string) && !(value is IReadOnlyDictionary<string, object?>);
+
+        /// <summary>
+        /// Enumerate a value as a collection. A non-collection yields nothing rather than
+        /// throwing: the quantifier records that it saw no elements, which is visible in the
+        /// trace, instead of failing an entire decision on one mistyped input.
+        /// </summary>
+        public static IEnumerable<object?> AsCollection(object? value)
+        {
+            if (!IsCollection(value)) return System.Linq.Enumerable.Empty<object?>();
+            return System.Linq.Enumerable.Cast<object?>((System.Collections.IEnumerable)value!);
         }
 
         public static bool IsNullOrEmpty(object? v)
