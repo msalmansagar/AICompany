@@ -16,6 +16,7 @@ import {
 } from '@/services/branchFields';
 import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
+import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
 import { computeEditLayout } from '@/services/EditGraphLayout';
 
 interface UseEditModeResult {
@@ -98,9 +99,32 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       selectable: false,
     };
 
+    const outcomesByStep = new Map<string, WorkflowOutcome[]>();
+    for (const outcome of Object.values(outcomes)) {
+      const forStep = outcomesByStep.get(outcome.stepId) ?? [];
+      forStep.push(outcome);
+      outcomesByStep.set(outcome.stepId, forStep);
+    }
+
     const stepNodes: Node[] = stepOrder.map((stepId, index) => {
       const step = steps[stepId];
       if (!step) return null as unknown as Node;
+
+      const outcomeRows: StepOutcomeRow[] = (outcomesByStep.get(stepId) ?? [])
+        .slice()
+        .sort((a, b) => a.sequenceNumber - b.sequenceNumber)
+        .map((outcome) => {
+          const target = outcome.nextStepId ? steps[outcome.nextStepId] : null;
+          return {
+            id: outcome.crmId,
+            name: outcome.name,
+            nextStepId: outcome.nextStepId,
+            nextStepName: target?.name ?? null,
+            applyFilter: outcome.applyFilter,
+            isBackEdge: Boolean(target && target.sequenceNo < step.sequenceNo),
+            isTerminal: !outcome.nextStepId,
+          };
+        });
 
       const defaultPosition = { x: 300, y: index * 160 + 80 };
       const position = nodePositions[`step_${stepId}`] ?? defaultPosition;
@@ -114,6 +138,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         isSelected: selectedId === `step_${stepId}`,
         hasError: errorStepIds.has(step.crmId),
         slaSummary: escalationSummaryText(step),
+        outcomeRows,
         controlFlowSummary:
           branchSummaryText(step) ?? fanOutSummaryText(branchChildrenOf(step.crmId, steps).length),
         controlFlowDescription: describeConcurrency(step, branchChildrenOf(step.crmId, steps).length),
@@ -130,7 +155,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     }).filter(Boolean);
 
     return [startNode, ...stepNodes, endNode];
-  }, [steps, stepOrder, nodePositions, selectedId, validationResults]);
+  }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes]);
 
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];
