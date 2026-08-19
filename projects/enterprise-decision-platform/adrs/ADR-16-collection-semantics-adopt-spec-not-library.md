@@ -1,6 +1,6 @@
 # ADR-16: Collection Semantics Adopt the JsonLogic Specification, Not the JsonLogic Library
 
-**Status:** Proposed
+**Status:** **Accepted** by the human sponsor 2026-08-19. Built and merged as EDP-FACT-001 F1 (PR #97).
 **Date:** 2026-08-18
 **Decided by:** Solution Architect. Implements EDP-FACT-001 phase F1. Constrained by ADR-01 (no arbitrary code execution), ADR-06 (one evaluator), ADR-11 (bounded deterministic grammar), ADR-13 (trace tiering), ADR-AI-05 (grounded explainability), ADR-SEC-NCALC (the net462 / System.Text.Json ceiling).
 
@@ -111,6 +111,15 @@ and account number* — a Disbursement Request with **zero invoices** would sile
 *"Beneficiary details are consistent = No"*. That may well be the behaviour the business
 wants; an empty DR is itself suspicious. **The objection is not the answer, it is that nobody
 would have chosen it.**
+
+> ### ✅ CHOSEN 2026-08-19 — **vacuous truth: `all` over an empty collection is TRUE**
+> The sponsor confirmed the semantics built in F1. Returning `false` conflates "do all
+> elements satisfy P?" with "are there any elements?", and a rule needing the second states it
+> directly.
+>
+> **Consequence accepted:** an empty Disbursement Request **passes** G1. Catching one requires
+> its own `count(invoices) > 0` condition, which must be added to the specimen rule set rather
+> than assumed.
 
 EDP has already faced this question once and answered it explicitly: `ResolveAggregate`'s fold
 documents that "empty collection is deterministic (Count/Sum 0, others null)". Empty-set
