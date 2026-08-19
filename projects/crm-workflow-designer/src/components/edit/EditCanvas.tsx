@@ -9,6 +9,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
+import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
 import { usePublish } from '@/hooks/usePublish';
 import { useEditMode } from '@/hooks/useEditMode';
@@ -40,9 +41,11 @@ interface EditCanvasProps {
 
 export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const { fitView } = useReactFlow();
+  const [isEditingProperties, setEditingProperties] = useState(false);
 
   const {
     process,
+    setProcess,
     selectedId,
     isDirty,
     toastMessage,
@@ -69,6 +72,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     stopAutoSimulation,
   } = useWorkflowStore((s) => ({
     process: s.process,
+    setProcess: s.setProcess,
     selectedId: s.selectedId,
     isDirty: s.isDirty,
     toastMessage: s.toastMessage,
@@ -132,7 +136,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
   useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+    setTimeout(() => fitView({ padding: 0.25, maxZoom: 1, duration: 300 }), 80);
   }, [fitView]);
 
   const handleKeyDown = useCallback(
@@ -211,6 +215,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         canUndo={canUndo}
         canRedo={canRedo}
         onValidate={handleValidate}
+        onEditProperties={() => setEditingProperties(true)}
         onSimulate={startSimulation}
         onAutoSimulate={startAutoSimulation}
         onExitSimulation={stopSimulation}
@@ -232,7 +237,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable={false}
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
@@ -252,7 +257,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable={false}
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
@@ -276,7 +281,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
@@ -307,6 +312,17 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
           </div>
         )}
       </div>
+
+      {/* Mounted only while open, so it always opens showing what is stored now. */}
+      {isEditingProperties && process && (
+        <ProcessPropertiesDialog
+          process={process}
+          adapter={adapter}
+          stepCount={Object.keys(steps).length}
+          onSave={(updated) => { setProcess(updated); setEditingProperties(false); }}
+          onDismiss={() => setEditingProperties(false)}
+        />
+      )}
     </div>
   );
 }

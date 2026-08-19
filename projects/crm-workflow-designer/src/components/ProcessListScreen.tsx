@@ -28,7 +28,7 @@ interface ProcessRow extends WorkflowProcess {
   resolvedParentEntity: string;
 }
 
-type SortKey = 'name' | 'resolvedTaskEntity' | 'resolvedParentEntity';
+type SortKey = 'name' | 'resolvedTaskEntity' | 'resolvedParentEntity' | 'createdOn' | 'createdByName';
 type SortDir = 'asc' | 'desc';
 
 const PAGE_TITLE: Record<ProcessStatusFilter, string> = {
@@ -134,8 +134,11 @@ export function ProcessListScreen({
   const sorted = useMemo(
     () =>
       [...filtered].sort((a, b) => {
-        const av = a[sortKey].toLowerCase();
-        const bv = b[sortKey].toLowerCase();
+        // Created On and Created By can both be absent, and a created-on stamp is an ISO
+        // string, which sorts chronologically as text — so one comparator serves every
+        // column, provided the empty ones are treated as empty rather than crashed on.
+        const av = (a[sortKey] ?? '').toLowerCase();
+        const bv = (b[sortKey] ?? '').toLowerCase();
         return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
       }),
     [filtered, sortKey, sortDir]
@@ -221,6 +224,8 @@ export function ProcessListScreen({
                     <SortTh col="name" label="Name" current={sortKey} dir={sortDir} onSort={handleSort} width={280} />
                     <SortTh col="resolvedTaskEntity" label="Task Entity" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <SortTh col="resolvedParentEntity" label="Parent Entity" current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh col="createdOn" label="Created On" current={sortKey} dir={sortDir} onSort={handleSort} width={150} />
+                    <SortTh col="createdByName" label="Created By" current={sortKey} dir={sortDir} onSort={handleSort} width={170} />
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -322,9 +327,24 @@ function GridRow({
       </td>
       <td>{row.resolvedTaskEntity || <Dash />}</td>
       <td>{row.resolvedParentEntity || <Dash />}</td>
+      <td>{formatCreatedOn(row.createdOn)}</td>
+      <td>{row.createdByName || <Dash />}</td>
       <td><StatusPill state={row.workflowState} /></td>
     </tr>
   );
+}
+
+/**
+ * A created-on stamp as a date, in the reader's own locale.
+ *
+ * The time is dropped: the column exists to answer "which of these is recent", and a
+ * full timestamp costs width the entity columns need more.
+ */
+function formatCreatedOn(value: string | null | undefined): React.ReactNode {
+  if (!value) return <Dash />;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return <Dash />;
+  return <span title={parsed.toLocaleString()}>{parsed.toLocaleDateString()}</span>;
 }
 
 function Dash() {

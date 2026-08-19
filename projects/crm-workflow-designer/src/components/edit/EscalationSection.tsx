@@ -24,13 +24,19 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
   const [expanded, setExpanded] = useState(false);
   const [configs, setConfigs] = useState<EscalationConfigOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
+  // An empty list and a list that has not arrived yet look identical, and saying
+  // "no policies exist" before the fetch returns states something not yet known.
+  const [hasLoaded, setHasLoaded] = useState(false);
   const summary = escalationSummaryText(value);
 
   useEffect(() => {
     if (!expanded || configs.length > 0 || loadFailed) return;
     adapter
       .getEscalationConfigs()
-      .then(setConfigs)
+      .then((loaded) => {
+        setConfigs(loaded);
+        setHasLoaded(true);
+      })
       .catch((error) => {
         logError('EscalationSection:loadConfigs', error);
         setLoadFailed(true);
@@ -73,7 +79,7 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
             </span>
           </div>
 
-          {configs.length === 0 && !loadFailed && (
+          {hasLoaded && configs.length === 0 && !loadFailed && (
             <div className="notice warning">
               No escalation policies exist in this environment yet. They are created outside the
               designer, on the escalation configuration table.

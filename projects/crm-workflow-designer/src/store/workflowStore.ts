@@ -259,6 +259,18 @@ function demoteOtherDefaults(
     if (!state.dirtyIds.includes(other.crmId)) state.dirtyIds.push(other.crmId);
   }
 }
+/**
+ * Whether the canvas is being watched rather than edited.
+ *
+ * Simulation and preview are separate flags and components kept checking only one of
+ * them, so editing controls stayed live while a process was being played back - you
+ * could delete a route mid-simulation. Asking one question in one place is what stops
+ * the next control getting it wrong too.
+ */
+export function selectCanvasIsReadOnly(state: { isSimulating: boolean; isPreviewMode: boolean }): boolean {
+  return state.isSimulating || state.isPreviewMode;
+}
+
 export const useWorkflowStore = create<WorkflowDesignerState>()(
   temporal(
     immer((set) => ({
@@ -387,6 +399,23 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           if (!state.outcomeOrder[fromStepId]) state.outcomeOrder[fromStepId] = [];
           state.outcomeOrder[fromStepId]!.push(outcomeId);
           state.newIds.push(outcomeId);
+
+          // The new step needs a decision of its own. The engine stops on a task
+          // completed without one, so a step created without an outcome is not a
+          // half-built step - it is a broken one, and it would block the next save.
+          const terminalOutcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[terminalOutcomeId] = {
+            crmId: terminalOutcomeId,
+            name: 'Complete',
+            sequenceNumber: maxSeq + 2,
+            applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
+            stepId: newStepId,
+            nextStepId: null,
+          };
+          state.outcomeOrder[newStepId] = [terminalOutcomeId];
+          state.newIds.push(terminalOutcomeId);
 
           state.selectedId = `step_${newStepId}`;
           state.isDirty = true;

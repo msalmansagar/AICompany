@@ -1,4 +1,5 @@
 import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
+import { BRANCH_EDGE_LABEL } from '@/styles/surfacePairs';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
@@ -357,8 +358,8 @@ function buildBranchEdge(parentStepId: string, childStepId: string, isConditiona
     type: 'smoothstep',
     animated: false,
     label: isConditional ? 'AT SAME TIME · IF' : 'AT SAME TIME',
-    labelStyle: { fill: BRANCH_STROKE, fontSize: 10, fontWeight: 700 },
-    labelBgStyle: { fill: 'var(--accent-branch)' },
+    labelStyle: { fill: BRANCH_EDGE_LABEL.foreground, fontSize: 10, fontWeight: 700 },
+    labelBgStyle: { fill: BRANCH_EDGE_LABEL.background },
     style: { stroke: BRANCH_STROKE, strokeWidth: 2, strokeDasharray: '6 4' },
     markerEnd: { type: 'arrowclosed' as const, color: BRANCH_STROKE },
     selectable: false,

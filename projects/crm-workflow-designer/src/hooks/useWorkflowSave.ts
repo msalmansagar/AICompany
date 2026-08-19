@@ -7,6 +7,7 @@ import { AuditService } from '@/services/AuditService';
 import { logError } from '@/services/logError';
 import { planRouteSave, describeBlockedRoutes } from '@/services/routeSavePlanner';
 import { findSaveBlockers, describeSaveBlockers } from '@/services/saveBlockers';
+import { findStepsWithoutDecision, describeStepDecisionBlockers } from '@/services/stepDecisionRules';
 
 interface UseSaveResult {
   isSaving: boolean;
@@ -55,8 +56,12 @@ export function useWorkflowSave(): UseSaveResult {
       return;
     }
 
+    // Two kinds of refusal, both before the first write: states the server would
+    // reject, and a process that would stall on a step offering no decision.
+    const strandedSteps = findStepsWithoutDecision({ steps, outcomes });
     const saveBlockers = findSaveBlockers({ outcomes, routes });
-    const blockerMessage = describeSaveBlockers(saveBlockers);
+    const blockerMessage =
+      describeStepDecisionBlockers(strandedSteps) ?? describeSaveBlockers(saveBlockers);
     if (blockerMessage) {
       setError(blockerMessage);
       showToast(blockerMessage, 'error');

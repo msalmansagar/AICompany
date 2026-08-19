@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { BRANCH_EDGE_LABEL } from '@/styles/surfacePairs';
 import { hasRealCondition } from '@/services/routeFilter';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
@@ -310,7 +311,16 @@ export function buildGraph(
     };
   });
 
-  const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges];
+  // A branch step has no outcome pointing at it - the engine creates its task from
+  // the parent's. Without a synthesised edge it has nothing tying it to the parent,
+  // so the layout places it with no regard for where the parent sits and the two
+  // collide. The edit canvas already does this; the view canvas did not, which is
+  // why parallel tasks overlapped here and not there.
+  const branchEdges: Edge[] = steps
+    .filter((step) => step.parentStepId && stepById.has(step.parentStepId))
+    .map((step) => buildViewBranchEdge(step));
+
+  const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges, ...branchEdges];
   let positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
 
   // Move route-destination step nodes to the RIGHT of their gateway so routes
@@ -476,4 +486,31 @@ export function branchRouteDestinations(
     if (!isRelocatable) return node;
     return { ...node, position: newPos };
   });
+}
+
+/**
+ * The link from a step to one that runs alongside it, for the read-only canvas.
+ *
+ * Dashed, because nothing transitions here — the engine creates both tasks at once
+ * (`OnTaskCreate` fans out over `qdb_parentworkitemstep`). The label carries the
+ * meaning rather than the colour, so the notation survives a greyscale export, and it
+ * matches the edit canvas so the same relationship reads the same way in both.
+ */
+function buildViewBranchEdge(step: CrmStep): Edge {
+  return {
+    id: `branch_${step.parentStepId}_${step.id}`,
+    source: `step_${step.parentStepId}`,
+    target: `step_${step.id}`,
+    sourceHandle: 'out',
+    targetHandle: 'in',
+    type: 'smoothstep',
+    label: step.applyBranchFilter ? 'AT SAME TIME · IF' : 'AT SAME TIME',
+    labelStyle: { fill: BRANCH_EDGE_LABEL.foreground, fontSize: 10, fontWeight: 700 },
+    labelBgStyle: { fill: BRANCH_EDGE_LABEL.background },
+    labelBgPadding: [4, 2] as [number, number],
+    labelBgBorderRadius: 3,
+    style: { stroke: BRANCH_EDGE_LABEL.foreground, strokeWidth: 2, strokeDasharray: '6 4' },
+    markerEnd: { type: MarkerType.ArrowClosed, color: BRANCH_EDGE_LABEL.foreground },
+    selectable: false,
+  };
 }
