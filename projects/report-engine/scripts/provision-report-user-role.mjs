@@ -12,6 +12,14 @@
 //
 // Usage: node provision-report-user-role.mjs <path-to-.env> [systemuserid-to-assign]
 import { readFileSync } from 'node:fs';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const ROLE_NAME = 'Report User';
 const SOLUTION = 'qdb_reportengine';
@@ -27,32 +35,12 @@ const CONFIG_TABLES = [
 // "Global" because report configuration is shared reference data, not owned per user or business unit.
 const ORGANISATION_DEPTH = 'Global';
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default`
-  });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-let baseUrl, token;
-const headers = (extra = {}) => ({
-  Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json',
+const headers = (extra = {}) => ({ Accept: 'application/json', 'Content-Type': 'application/json',
   'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra
 });
 
 async function api(method, path, body, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method, headers: headers(extraHeaders), body: body ? JSON.stringify(body) : undefined
   });
   if (!res.ok) throw new Error(`${method} ${path} ${res.status}: ${await res.text()}`);
@@ -60,7 +48,7 @@ async function api(method, path, body, extraHeaders = {}) {
 }
 
 async function post(path, body, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method: 'POST', headers: headers(extraHeaders), body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(`POST ${path} ${res.status}: ${await res.text()}`);
@@ -118,17 +106,13 @@ async function assignToUser(roleId, userId) {
   }
 
   await api('POST', `systemusers(${userId})/systemuserroles_association/$ref`,
-    { '@odata.id': `${baseUrl}/api/data/v9.2/roles(${roleId})` });
+    { '@odata.id': `${baseUrl}/${API_PATH}/roles(${roleId})` });
   console.log(`  + role assigned to user ${userId}`);
 }
 
 async function main() {
   const [envPath, assignUserId] = process.argv.slice(2);
   if (!envPath) throw new Error('Usage: node provision-report-user-role.mjs <path-to-.env> [systemuserid]');
-
-  const env = loadEnv(envPath);
-  baseUrl = env.DV_DATAVERSE_URL.replace(/\/$/, '');
-  token = await getToken(env.DV_TENANT_ID, env.DV_CLIENT_ID, env.DV_CLIENT_SECRET, baseUrl);
 
   console.log(`Provisioning "${ROLE_NAME}" on ${baseUrl}`);
   const roleId = await ensureRole();

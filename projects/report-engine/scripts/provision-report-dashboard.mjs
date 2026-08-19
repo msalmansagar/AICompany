@@ -17,6 +17,14 @@
 //
 // Usage: node provision-report-dashboard.mjs <path-to-.env>
 import { readFileSync } from 'node:fs';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const SOLUTION = 'qdb_reportengine';
 const APP_UNIQUE_NAME = 'qdb_ReportEngine';
@@ -72,32 +80,12 @@ const DASHBOARD_FORM_XML = `<form><tabs>`
   + `<DisplayConditions FallbackForm="true"><Everyone /></DisplayConditions>`
   + `</form>`;
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (match) env[match[1]] = match[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default`
-  });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-let baseUrl, token;
-const headers = (extra = {}) => ({
-  Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json',
+const headers = (extra = {}) => ({ Accept: 'application/json', 'Content-Type': 'application/json',
   'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra
 });
 
 async function api(method, path, body, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method, headers: headers(extraHeaders), body: body ? JSON.stringify(body) : undefined
   });
   if (!res.ok) throw new Error(`${method} ${path} ${res.status}: ${await res.text()}`);
@@ -105,7 +93,7 @@ async function api(method, path, body, extraHeaders = {}) {
 }
 
 async function createReturningId(entitySet, record, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${entitySet}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${entitySet}`, {
     method: 'POST', headers: headers(extraHeaders), body: JSON.stringify(record)
   });
   if (!res.ok) throw new Error(`POST ${entitySet} ${res.status}: ${await res.text()}`);
@@ -170,12 +158,6 @@ async function confirmPublished(formId) {
   if (!found) throw new Error(`dashboard ${formId} is not retrievable after publish — it did not materialise`);
   console.log(`  ✓ confirmed: "${found.name}" type=${found.type} active=${found.formactivationstate}`);
 }
-
-const env = loadEnv(process.argv[2]);
-baseUrl = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, '');
-token = await getToken(
-  env.DV_TENANT_ID || env.AZURE_TENANT_ID, env.DV_CLIENT_ID || env.AZURE_CLIENT_ID,
-  env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 
 console.log(`\n== Provision native CRM dashboard → ${baseUrl} ==\n`);
 const formId = await ensureDashboard();
