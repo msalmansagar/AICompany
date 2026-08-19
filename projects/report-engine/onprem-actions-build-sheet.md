@@ -81,6 +81,35 @@ Four outputs, not seven. `RunDashboardPlugin` writes only these.
 
 ---
 
+## 🔴 The Actions cannot be created by inserting a record — proven on cloud
+
+Tested against org5869857f on 2026-08-19 and cleaned up afterwards. Inserting a `workflow` row
+with `category 3`, valid XAML and `statecode 1` **succeeds and reports itself as activated**, and
+then:
+
+| Check | Result |
+|---|---|
+| Workflow row created | ✅ |
+| Reports `statecode 1` (activated) | ✅ |
+| `sdkmessage` generated | ❌ **none** |
+| Callable over the Web API | ❌ **404** |
+
+Run twice to rule out the publisher prefix — once as `qdbprobe_RunReport` and once as
+`qdb_RunReportProbe` under the organisation own prefix. Identical outcome, so the prefix is not
+the cause.
+
+**The message plumbing is not part of the workflow row.** `sdkmessage`, `sdkmessagepair` and the
+request/response field rows that carry the eighteen argument names are created by the Process
+designer and by solution import. A record insert produces an Action that looks finished and cannot
+be called — the worst outcome available, and why `scripts/create-onprem-actions.mjs` now refuses to
+run its create path.
+
+**So build them by hand from the steps below**, or emit a solution package (the XAML that script
+generates is verified — the platform accepted and activated it; only the messaging around it was
+missing).
+
+---
+
 ## Steps
 
 **1. Create the Actions.** Settings → Processes → New. Category **Action**, Entity **None (global)**,
