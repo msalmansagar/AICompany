@@ -96,18 +96,25 @@ not moving the reports — that is a separate data migration.
 
 ## Part 1 — What else differs on-premise
 
-**The deployment scripts cannot authenticate.** Every script in `scripts/` obtains a token from
-`https://login.microsoftonline.com/...` with a client secret. There is no Entra tenant on-premise.
-Each needs its `getToken`/`fetch` pair replaced with either:
-- **Windows integrated auth** for an internal deployment — Negotiate/NTLM as the running user, or
-- **ADFS OAuth** if the deployment is internet-facing (IFD), where the authority is your ADFS server
-  rather than Microsoft's.
+**✅ The deployment scripts now authenticate on-premise.** They used to build their own Entra token
+against `login.microsoftonline.com`, which made every one of them cloud-only. `scripts/lib/dataverse.mjs`
+now owns that, and `DV_AUTH_MODE` picks the method — see `scripts/.env.example`:
 
-This is one shared change: every script builds its own token the same way, so extract it once.
+| Mode | For | How |
+|---|---|---|
+| `entra` (default) | Dataverse online | Client credentials, unchanged |
+| `adfs` | On-premise, internet-facing (IFD) | OAuth against your ADFS server |
+| `windows` | On-premise, internal | Negotiate/NTLM as the account running the script |
 
-**The Web API version differs.** Scripts call `/api/data/v9.2/`. On-premise 9.1 serves
-`/api/data/v9.1/`. A wrong version returns 404 on every call, which reads like a permissions problem
-and is not.
+The ten scripts this sequence uses are migrated. ⚠️ **The `adfs` and `windows` paths have never been
+run** — there is no on-premise organisation here to run them against. Treat the first attempt as a
+test of that module.
+
+**✅ The Web API version is no longer hardcoded.** Both the scripts and the three web resources used
+to name `/api/data/v9.2/`; on-premise 9.1 serves `/api/data/v9.1/` and answers v9.2 with 404, which
+reads like a permissions problem and is not. The web resources now read the version off
+`getGlobalContext().getVersion()`, and the scripts off `RetrieveVersion` on v9.0 (the one version
+every 9.x org serves). Both fall back to 9.1. `DV_API_VERSION` pins it if ever needed.
 
 **`register-customapi.mjs` and `register-dashboard-api.mjs` become obsolete.** They create
 `customapi` records. Replace with the Action creation described above.
