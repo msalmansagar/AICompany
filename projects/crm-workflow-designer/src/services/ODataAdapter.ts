@@ -946,6 +946,9 @@ function buildODataHeaders(): HeadersInit {
     'OData-Version': '4.0',
     'OData-MaxVersion': '4.0',
     Accept: 'application/json',
+    // Xrm.WebApi returns formatted values by default and CRM therefore showed the
+    // assignee; this path did not ask for them, so every *Name read as null in dev.
+    Prefer: 'odata.include-annotations="*"',
   };
 }
 

@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre';
+import { STEP_W, computeStepHeight } from './WorkflowGraphBuilder';
 
-const EDIT_STEP_W = 260;
-const EDIT_STEP_H = 72;
+
 
 const START_ID = 'edit_start';
 const END_ID = 'edit_end';
@@ -27,8 +27,16 @@ export function computeEditLayout(
   g.setNode(START_ID, { width: 40, height: 40 });
   g.setNode(END_ID, { width: 40, height: 40 });
 
+  const outcomeCountByStep = new Map<string, number>();
+  for (const o of outcomes) {
+    outcomeCountByStep.set(o.stepId, (outcomeCountByStep.get(o.stepId) ?? 0) + 1);
+  }
+
   for (const id of stepIds) {
-    g.setNode(`step_${id}`, { width: EDIT_STEP_W, height: EDIT_STEP_H });
+    g.setNode(`step_${id}`, {
+      width: STEP_W,
+      height: computeStepHeight(outcomeCountByStep.get(id) ?? 0),
+    });
   }
 
   if (stepIds[0]) {
