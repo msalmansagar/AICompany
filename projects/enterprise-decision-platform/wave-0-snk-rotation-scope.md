@@ -4,7 +4,16 @@
 **Owner:** DevOps · **Accountable:** Architect · **Sign-off:** QDB IT / Security · **Effort:** Medium (choreography, not code)
 
 
-> ## ⛔ STOP — DO NOT EXECUTE THIS RUNBOOK AS WRITTEN (2026-08-19)
+> ## ⛔ SUPERSEDED FOR CLOUD — PROVEN ON THE REAL ASSEMBLY (2026-08-19)
+>
+> **Upgraded from "may be unnecessary" to "is unnecessary for cloud".** The earlier note rested
+> on a throwaway probe. EDP’s OWN assembly has since been registered in org5869857f as an
+> unsigned plug-in package — `EDP.RuleRuntime.Crm` v1.0.24.0, `publickeytoken: null`,
+> isolationmode 2, **9 plugin types including the pin guard this runbook was blocking** — and a
+> live Custom API (`qdb_edp_ValidateRule`) was re-pointed to it and answered with `EDP041`, a
+> diagnostic that exists only in 1.0.24. Evidence: `spikes/adr-18-p1-real-assembly.md`.
+>
+> **A strong-name key is not required to ship EDP to cloud. Do not run a key ceremony for it.**
 >
 > **This runbook exists because the plug-in assembly must be signed. That premise no longer
 > holds for the cloud line.**
