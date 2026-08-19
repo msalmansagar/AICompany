@@ -12,18 +12,54 @@
          string.IsNullOrWhiteSpace with [NotNullWhen(false)], so a correct guard still needs `!`
          at the use site — always with a comment naming the guard. -->
     <WarningsAsErrors>$(WarningsAsErrors);CS8602;CS8604</WarningsAsErrors>
-    <!-- Bump on every plugin change so the Dataverse sandbox reloads (it caches by version). -->
-    <AssemblyVersion>1.0.23.0</AssemblyVersion>
-    <FileVersion>1.0.23.0</FileVersion>
+    <!-- Bump on every plugin change so the Dataverse sandbox reloads (it caches by version).
+         1.0.24 carries the pin guard, ExecutionId, F1 collections/quantifiers and per-child fan-out. -->
+    <AssemblyVersion>1.0.24.0</AssemblyVersion>
+    <FileVersion>1.0.24.0</FileVersion>
   </PropertyGroup>
 
+  <!--
+    Dataverse plug-in PACKAGE build (cloud only, ADR-18) — OPT-IN via -p:PackForDataverse=true.
+
+    It is opt-in for a concrete reason: the PowerApps plugin targets insert
+    _PowerAppsPlugin_PublishAfterBuild into the Publish graph, which makes `dotnet publish`
+    fail with a circular dependency (MSB4006). `pack.sh` publishes before ILRepacking, so
+    importing these unconditionally breaks the ON-PREMISES build, which cannot use packages
+    and still needs the single signed assembly.
+
+    Build the cloud package with:
+      dotnet build src/EDP.RuleRuntime.Crm -c Release -p:PackForDataverse=true
+  -->
+  <PropertyGroup Condition="'$(PackForDataverse)' == 'true'">
+    <!-- The package id must carry the solution publisher prefix or Dataverse rejects the import. -->
+    <PackageId>qdb_EdpRuleRuntime</PackageId>
+    <Version>$(FileVersion)</Version>
+    <Authors>MSS Technologies</Authors>
+    <Company>MSS Technologies</Company>
+    <Description>EDP Rule Runtime — Dataverse plug-in package (cloud). On-premises uses the ILRepacked signed assembly instead.</Description>
+    <PowerAppsTargetsPath>$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\PowerApps</PowerAppsTargetsPath>
+  </PropertyGroup>
+
+  <Import Project="$(PowerAppsTargetsPath)\Microsoft.PowerApps.VisualStudio.Plugin.props"
+          Condition="'$(PackForDataverse)' == 'true' And Exists('$(PowerAppsTargetsPath)\Microsoft.PowerApps.VisualStudio.Plugin.props')" />
+
   <ItemGroup>
-    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.51" />
+    <!-- PrivateAssets: the sandbox already provides the SDK assemblies, and the docs are explicit
+         that they must not be uploaded with a plug-in. Without this they land in the package and
+         risk a type-identity conflict with the ones already loaded. -->
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.51" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(PackForDataverse)' == 'true'">
+    <PackageReference Include="Microsoft.PowerApps.MSBuild.Plugin" Version="1.*" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EDP.RuleRuntime\EDP.RuleRuntime.csproj" />
   </ItemGroup>
+
+  <Import Project="$(PowerAppsTargetsPath)\Microsoft.PowerApps.VisualStudio.Plugin.targets"
+          Condition="'$(PackForDataverse)' == 'true' And Exists('$(PowerAppsTargetsPath)\Microsoft.PowerApps.VisualStudio.Plugin.targets')" />
 
 </Project>
