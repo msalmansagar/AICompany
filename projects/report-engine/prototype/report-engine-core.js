@@ -511,11 +511,38 @@ const parameterChoices = parameter => String(parameter.defaultValue || "")
    type-ahead instead — the same choice the designer already makes for its own entity pickers. */
 const DROPDOWN_ROW_LIMIT = 200;
 
+/* ---------- Which Web API version this org serves ----------
+   Every raw fetch in this product named v9.2. Dataverse online serves that; the last on-premises
+   release is 9.1 and answers a v9.2 path with 404 — which reads like a permissions problem and is
+   not. The org states its own version, so ask it rather than assume.
+
+   Deliberately duplicated in report-designer.html and report-ribbon.js. The three are separately
+   loaded web resources with no shared scope: the designer carries its own inline script and the
+   ribbon is loaded by the ribbon framework with no engine present. Change one, change all three. */
+const FALLBACK_WEB_API_VERSION = "9.1";   // served by every 9.x org, cloud and on-premises alike
+let webApiVersionCache = "";
+
+/** The major.minor the org reports, e.g. "9.1" from "9.1.0.4967". */
+function webApiVersion(){
+  if (webApiVersionCache) return webApiVersionCache;
+  let reported = "";
+  try { reported = xrm().Utility.getGlobalContext().getVersion() || ""; }
+  catch (error) { reported = ""; }
+  const majorMinor = /^(\d+\.\d+)/.exec(reported);
+  webApiVersionCache = majorMinor ? majorMinor[1] : FALLBACK_WEB_API_VERSION;
+  return webApiVersionCache;
+}
+
+/** An absolute Web API url on this org, at the version this org actually serves. */
+function webApiUrl(path){
+  return `${xrm().Utility.getGlobalContext().getClientUrl()}/api/data/v${webApiVersion()}/${path}`;
+}
+
 /* Metadata does not go through Xrm.WebApi: it resolves a logical name to a record collection, and
    EntityDefinitions is neither, so it answers "the entity cannot be found". Read it off the Web API
    on the signed-in session instead. $top is rejected on these endpoints — never add paging. */
 async function readMetadata(path){
-  const url = `${xrm().Utility.getGlobalContext().getClientUrl()}/api/data/v9.2/${path}`;
+  const url = webApiUrl(path);
   const response = await fetch(url, { headers: { Accept: "application/json", "OData-Version": "4.0" } });
   if (!response.ok) throw new Error(`metadata ${response.status}`);
   return response.json();

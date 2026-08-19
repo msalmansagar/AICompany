@@ -2398,7 +2398,7 @@ function asQueryOptions(query) {
 async function dvMetadata(path) {
   const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
   if (!xrm || !xrm.Utility) throw new Error("Reading metadata needs a CRM session.");
-  const url = `${xrm.Utility.getGlobalContext().getClientUrl()}/api/data/v9.2/${path}`;
+  const url = webApiUrl(path);
   const response = await fetch(url, {
     headers: { Accept: "application/json", "OData-Version": "4.0", "OData-MaxVersion": "4.0" }
   });
@@ -3170,15 +3170,46 @@ const APPACTION_TYPE = { button: 0, dropdown: 1, group: 3 };
 // resolves to the record's own id on a form, which reads as a valid report id and opens the wrong thing.
 const APPACTION_PARAMETER = { literalString: 21, primaryControl: 7 };
 
+/* ---------- Which Web API version this org serves ----------
+   The designer named v9.2 in three places. Dataverse online serves that; the last on-premises
+   release is 9.1 and answers a v9.2 path with 404, so every table and column picker came back empty
+   and publishing failed — all of which reads like a permissions problem and is not.
+
+   Deliberately duplicated in report-engine-core.js and report-ribbon.js. The three are separately
+   loaded web resources with no shared scope: this file carries its own inline script and the ribbon
+   is loaded by the ribbon framework with no engine present. Change one, change all three. */
+const FALLBACK_WEB_API_VERSION = "9.1";   // served by every 9.x org, cloud and on-premises alike
+let webApiVersionCache = "";
+
+/** The major.minor the org reports, e.g. "9.1" from "9.1.0.4967". */
+function webApiVersion() {
+  if (webApiVersionCache) return webApiVersionCache;
+  let reported = "";
+  try {
+    const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
+    reported = (xrm && xrm.Utility && xrm.Utility.getGlobalContext().getVersion()) || "";
+  } catch (error) {
+    reported = "";
+  }
+  const majorMinor = /^(\d+\.\d+)/.exec(reported);
+  webApiVersionCache = majorMinor ? majorMinor[1] : FALLBACK_WEB_API_VERSION;
+  return webApiVersionCache;
+}
+
+/** An absolute Web API url on this org, at the version this org actually serves. */
+function webApiUrl(path) {
+  return `${crmClientUrl()}/api/data/v${webApiVersion()}/${path}`;
+}
+
 function crmClientUrl() {
   const xrm = window.Xrm || (window.parent && window.parent.Xrm) || (window.top && window.top.Xrm);
-  if (!xrm || !xrm.Utility) throw new Error("Publishing needs a CRM session.");
+  if (!xrm || !xrm.Utility) throw new Error("Reaching Dataverse needs a CRM session — open the designer as a web resource.");
   return xrm.Utility.getGlobalContext().getClientUrl();
 }
 
 /** Single-object metadata read: dvMetadata returns a collection and these endpoints return an entity. */
 async function crmEntityMetadataId(logicalName) {
-  const url = `${crmClientUrl()}/api/data/v9.2/EntityDefinitions(LogicalName='${logicalName}')?$select=MetadataId`;
+  const url = webApiUrl(`EntityDefinitions(LogicalName='${logicalName}')?$select=MetadataId`);
   const response = await fetch(url, { headers: { Accept: "application/json" } });
   const payload = await response.json();
   if (!response.ok) throw new Error(`No table named "${logicalName}" in this environment.`);
@@ -3186,7 +3217,7 @@ async function crmEntityMetadataId(logicalName) {
 }
 
 async function crmPublish(path, body) {
-  const response = await fetch(`${crmClientUrl()}/api/data/v9.2/${path}`, {
+  const response = await fetch(webApiUrl(path), {
     method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body
   });
   if (!response.ok) throw new Error(`Publish failed (${response.status}).`);
