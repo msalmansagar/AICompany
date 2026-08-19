@@ -89,16 +89,18 @@ namespace EDP.RuleRuntime.Tests
         // ---- Q4: where the flattening actually happens ------------------------------------
 
         [Fact]
-        public void RuntimeValue_flattens_a_json_array_to_its_raw_text()
+        public void RuntimeValue_turns_a_json_array_into_a_collection()
         {
             using var document = JsonDocument.Parse("{\"refs\":[11,12]}");
             var refs = document.RootElement.GetProperty("refs");
 
             var converted = RuntimeValue.FromJson(refs);
 
-            // THIS is the ceiling, and it is ours — not NCalc's.
-            Assert.IsType<string>(converted);
-            Assert.Equal("[11,12]", converted);
+            // Updated when F1 landed. This previously asserted the raw text "[11,12]", which was
+            // the ceiling the spike set out to locate — and it was ours, not NCalc's, exactly as
+            // the spike concluded. Removing that one line is what made collections reachable.
+            var collection = Assert.IsAssignableFrom<IReadOnlyList<object?>>(converted);
+            Assert.Equal(new object?[] { 11m, 12m }, collection);
         }
 
         // ---- Q5: does the formula engine reach a collection parameter? ---------------------
