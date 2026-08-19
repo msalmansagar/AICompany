@@ -3,7 +3,7 @@ import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import { ASSIGN_TO_ACCENTS, ASSIGN_TO_LABELS } from '@/services/taskAssignment';
-import { useWorkflowStore } from '@/store/workflowStore';
+import { useWorkflowStore, selectCanvasIsReadOnly } from '@/store/workflowStore';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -24,7 +24,7 @@ export function EditStepNode({ data }: NodeProps) {
   const stepData = data as EditStepData;
   const isSelected = stepData.isSelected ?? false;
   const addStepAfter = useWorkflowStore((s) => s.addStepAfter);
-  const isPreviewMode = useWorkflowStore((s) => s.isPreviewMode);
+  const isReadOnly = useWorkflowStore(selectCanvasIsReadOnly);
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -63,7 +63,7 @@ export function EditStepNode({ data }: NodeProps) {
         )}
       </div>
 
-      {!isPreviewMode && (
+      {!isReadOnly && (
         <button
           type="button"
           style={addNextStyle(isHovered)}

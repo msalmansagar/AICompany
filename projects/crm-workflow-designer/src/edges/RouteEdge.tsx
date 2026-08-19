@@ -5,7 +5,7 @@ import {
 } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 import { useState } from 'react';
-import { useWorkflowStore } from '@/store/workflowStore';
+import { useWorkflowStore, selectCanvasIsReadOnly } from '@/store/workflowStore';
 import type { RouteEdgeData } from '@/store/selectors';
 import { routeLabelPair } from '@/styles/surfacePairs';
 import type { RouteLabelKind } from '@/styles/surfacePairs';
@@ -25,7 +25,7 @@ export function RouteEdge({
   const edgeData = data as unknown as RouteEdgeData | undefined;
   const [isHovered, setIsHovered] = useState(false);
   const deleteOutcome = useWorkflowStore((s) => s.deleteOutcome);
-  const isPreviewMode = useWorkflowStore((s) => s.isPreviewMode);
+  const isReadOnly = useWorkflowStore(selectCanvasIsReadOnly);
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -75,7 +75,7 @@ export function RouteEdge({
           )}
           {hasFilter && <span style={filterBadgeStyle}>FetchXML</span>}
           {isFallback && <span style={fallbackBadgeStyle}>ELSE</span>}
-          {isHovered && !isPreviewMode && (
+          {isHovered && !isReadOnly && (
             <button
               style={deleteButtonStyle}
               onClick={handleDeleteClick}

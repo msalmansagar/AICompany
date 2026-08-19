@@ -132,7 +132,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
   useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
+    setTimeout(() => fitView({ padding: 0.25, maxZoom: 1, duration: 300 }), 80);
   }, [fitView]);
 
   const handleKeyDown = useCallback(
@@ -232,7 +232,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable={false}
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
@@ -252,7 +252,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable={false}
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
@@ -276,7 +276,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               elementsSelectable
               deleteKeyCode={null}
               fitView
-              fitViewOptions={{ padding: 0.2 }}
+              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}

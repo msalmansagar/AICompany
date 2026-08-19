@@ -115,7 +115,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   useEffect(() => {
     if (pendingFit === 0 || measuredNodeIds === null) return;
     if (measuredNodeIds !== requestedNodeIds) return;
-    fitView({ padding: 0.2, duration: 300 });
+    fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
     setPendingFit(0);
   }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView]);
 
@@ -145,7 +145,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
 
   const handleFitView = useCallback(() => {
     fitViewTrigger.current += 1;
-    fitView({ padding: 0.2, duration: 300 });
+    fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
   }, [fitView]);
 
   const handleAutoLayout = useCallback(() => {
