@@ -3,6 +3,27 @@
 **Engagement:** EDP-BRE-001 · **Closes:** F-05 (part 2) · **Blocks:** pin-plugin deploy (ADR-14/ADR-12 layer 1), all future assembly changes
 **Owner:** DevOps · **Accountable:** Architect · **Sign-off:** QDB IT / Security · **Effort:** Medium (choreography, not code)
 
+
+> ## ⛔ STOP — DO NOT EXECUTE THIS RUNBOOK AS WRITTEN (2026-08-19)
+>
+> **This runbook exists because the plug-in assembly must be signed. That premise no longer
+> holds for the cloud line.**
+>
+> ADR-18 P0 was run against org5869857f on 2026-08-19 and observed, not reasoned, that an
+> **unsigned** assembly inside a Dataverse **plug-in package** registers and executes in
+> sandbox isolation — and that the package binds the dependency versions it ships rather than
+> the sandbox's own. Evidence: `spikes/adr-18-p0-packaging-probe.md`.
+>
+> **Consequence:** rotating a strong-name key may be work that does not need doing at all for
+> cloud. Five changes currently queue behind this runbook; they may be unblocked by a packaging
+> migration instead of a key ceremony.
+>
+> **What is still true:** on-premises cannot use plug-in packages, so the on-prem line keeps
+> ILRepack and signing, and this runbook still applies there. And P0 proved the mechanism with
+> a trivial probe, **not with EDP's own assembly** — that migration is unproven.
+>
+> **Before executing:** settle the cloud packaging decision (ADR-18) first.
+
 ---
 
 ## 1. Objective
