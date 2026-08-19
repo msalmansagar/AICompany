@@ -244,7 +244,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
 
             <button
               type="button"
-              style={addRouteBtnStyle}
+              className="btn sm block"
               onClick={() => setAddingRoute(true)}
             >
               + Add Route
@@ -263,7 +263,7 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         />
 
         <div style={dividerStyle} />
-        <button type="button" style={deleteBtnStyle} onClick={handleDelete}>
+        <button type="button" className="btn sm block danger" onClick={handleDelete}>
           Delete Decision
         </button>
 
@@ -473,34 +473,6 @@ const routeArrowStyle: React.CSSProperties = {
 
 
 
-
-const addRouteBtnStyle: React.CSSProperties = {
-  height: 28,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px dashed var(--border)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 30,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid var(--error)',
-  background: 'transparent',
-  color: 'var(--error)',
-  cursor: 'pointer',
-  marginTop: 4,
-};
 
 const emptyStyle: React.CSSProperties = {
   padding: 16,

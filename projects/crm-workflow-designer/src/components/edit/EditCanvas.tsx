@@ -301,7 +301,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         </div>
 
         {!isSimulating && !isAutoSimulating && (
-          <div style={sidebarStyle}>
+          <div className="editor-sidebar" style={sidebarStyle}>
             {showValidationPanel && (
               <ValidationPanel
                 onNodeFocus={selectNode}

@@ -332,12 +332,12 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               ))}
             </select>
             <div style={addFormActionsStyle}>
-              <button type="button" style={addConfirmBtnStyle} onClick={handleAddDecision}>
+              <button type="button" className="btn sm primary" style={{ flex: 1 }} onClick={handleAddDecision}>
                 Add
               </button>
               <button
                 type="button"
-                style={cancelBtnStyle}
+                className="btn sm"
                 onClick={() => setAddingDecision(false)}
               >
                 Cancel
@@ -347,7 +347,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         ) : (
           <button
             type="button"
-            style={addDecisionBtnStyle}
+            className="btn sm block"
             onClick={() => setAddingDecision(true)}
           >
             + Add Decision
@@ -384,7 +384,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
         <div style={dividerStyle} />
 
-        <button type="button" style={deleteBtnStyle} onClick={handleDeleteStep}>
+        <button type="button" className="btn sm block danger" onClick={handleDeleteStep}>
           Delete Step
         </button>
       </div>
@@ -600,58 +600,6 @@ const addFormStyle: React.CSSProperties = {
 const addFormActionsStyle: React.CSSProperties = {
   display: 'flex',
   gap: 6,
-};
-
-const addConfirmBtnStyle: React.CSSProperties = {
-  flex: 1,
-  height: 28,
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: 'none',
-  background: 'var(--primary-pressed)',
-  color: 'var(--text-on-primary)',
-  cursor: 'pointer',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-  height: 28,
-  padding: '0 12px',
-  fontSize: 11,
-  fontWeight: 500,
-  borderRadius: 4,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--text-disabled)',
-  cursor: 'pointer',
-};
-
-const addDecisionBtnStyle: React.CSSProperties = {
-  height: 28,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px dashed var(--border)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteBtnStyle: React.CSSProperties = {
-  height: 30,
-  width: '100%',
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 4,
-  border: '1px solid var(--error)',
-  background: 'transparent',
-  color: 'var(--error)',
-  cursor: 'pointer',
-  marginTop: 4,
 };
 
 const emptyStyle: React.CSSProperties = {
