@@ -5,6 +5,8 @@ interface FetchXmlIframeBuilderProps {
   objectTypeCode: number;
   initialFetchXml?: string;
   onError: (error: string) => void;
+  /** Raised when the CRM page finishes loading, so a host can gate Save on it. */
+  onLoadedChange?: (isLoaded: boolean) => void;
 }
 
 /** Imperative handle: read the current query out of the builder on demand. */
@@ -28,7 +30,7 @@ const MAX_SEED_ATTEMPTS = 6;
 const SEED_RETRY_MS = 2000;
 
 export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIframeBuilderProps>(
-  function FetchXmlIframeBuilder({ clientUrl, objectTypeCode, initialFetchXml, onError }, ref) {
+  function FetchXmlIframeBuilder({ clientUrl, objectTypeCode, initialFetchXml, onError, onLoadedChange }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [isLoaded, setIsLoaded] = useState(false);
 
@@ -110,8 +112,12 @@ export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIf
           src={iframeUrl}
           style={iframeStyle(isLoaded)}
           title="CRM Advanced Find Condition Builder"
-          onLoad={() => setIsLoaded(true)}
-          onError={() => onError('Failed to load the CRM condition builder. Falling back to manual builder.')}
+          onLoad={() => { setIsLoaded(true); onLoadedChange?.(true); }}
+          onError={() => {
+            setIsLoaded(false);
+            onLoadedChange?.(false);
+            onError('Failed to load the CRM condition builder. Falling back to manual builder.');
+          }}
         />
       </div>
     );
