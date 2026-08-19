@@ -1,6 +1,6 @@
 # ADR-17: Per-Child Verdicts Reach the Form as an Anchor Summary First, Child Detail Second
 
-**Status:** Proposed
+**Status:** **Accepted** by the human sponsor 2026-08-19. Not yet built — per-child fan-out (FR-F43) is the next increment.
 **Date:** 2026-08-18
 **Decided by:** Solution Architect. Resolves the EDP-FACT-001 / EDP-BIND-001 seam (OQ-F6). Constrained by ADR-EDS-07 (side-effect-free runtime), FR-B24 and condition C-B9 (render-first), FR-B43 (versioned directive schema), FR-B9 (one binding per entity), FR-F43 (per-child verdicts), FR-F30–F33 (fact snapshotting).
 
