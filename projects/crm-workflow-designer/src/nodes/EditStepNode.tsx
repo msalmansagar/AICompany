@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import { ASSIGN_TO_ACCENTS, ASSIGN_TO_LABELS } from '@/services/taskAssignment';
+import { useWorkflowStore } from '@/store/workflowStore';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -21,9 +23,16 @@ export interface EditStepData extends Record<string, unknown> {
 export function EditStepNode({ data }: NodeProps) {
   const stepData = data as EditStepData;
   const isSelected = stepData.isSelected ?? false;
+  const addStepAfter = useWorkflowStore((s) => s.addStepAfter);
+  const isPreviewMode = useWorkflowStore((s) => s.isPreviewMode);
+  const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div style={buildContainerStyle(isSelected, stepData.hasError ?? false)}>
+    <div
+      style={buildContainerStyle(isSelected, stepData.hasError ?? false)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <Handle
         type="target"
         position={Position.Left}
@@ -53,6 +62,19 @@ export function EditStepNode({ data }: NodeProps) {
           <span style={slaBadgeStyle} title={stepData.slaSummary}>{stepData.slaSummary}</span>
         )}
       </div>
+
+      {!isPreviewMode && (
+        <button
+          type="button"
+          style={addNextStyle(isHovered)}
+          title="Add the step that follows this one"
+          aria-label={`Add a step after ${stepData.name || 'this step'}`}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); addStepAfter(stepData.stepId); }}
+        >
+          + Next step
+        </button>
+      )}
 
       <Handle
         type="source"
@@ -186,3 +208,30 @@ const handleStyle: React.CSSProperties = {
   border: '2px solid var(--border)',
   borderRadius: '50%',
 };
+
+/**
+ * The add-next-step control, low-contrast until the step is hovered.
+ *
+ * It sits on the box beside the outgoing handle it stands for, so the two readings of
+ * "what comes next" are in the same place. Kept quiet by default because a canvas of
+ * eighty steps would otherwise carry eighty buttons competing with the step names.
+ */
+function addNextStyle(isHovered: boolean): React.CSSProperties {
+  return {
+    position: 'absolute',
+    right: 8,
+    bottom: -11,
+    fontSize: 10,
+    fontWeight: 600,
+    lineHeight: 1,
+    padding: '4px 8px',
+    borderRadius: 10,
+    border: `1px solid ${isHovered ? 'var(--primary)' : 'var(--border-strong)'}`,
+    background: isHovered ? 'var(--primary)' : 'var(--surface)',
+    color: isHovered ? 'var(--text-on-primary)' : 'var(--text-secondary)',
+    cursor: 'pointer',
+    opacity: isHovered ? 1 : 0.55,
+    transition: 'opacity 0.12s, background 0.12s, color 0.12s',
+    zIndex: 4,
+  };
+}

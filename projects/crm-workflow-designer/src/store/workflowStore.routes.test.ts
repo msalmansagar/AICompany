@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { EMPTY_FILTER } from '@/services/routeFilter';
-import { emptyWorkflowHooks, ROUTE_HOOKS } from '@/services/workflowHooks';
+import { emptyWorkflowHooks, ROUTE_HOOKS, PROCESS_HOOKS } from '@/services/workflowHooks';
 import type { WorkflowRoute } from '@/types/WorkflowTypes';
 
 /**
@@ -80,5 +80,55 @@ describe('one fallback route per decision', () => {
 
     expect(routesById()['r1']!.isDefault).toBe(true);
     expect(routesById()['r2']!.isDefault).toBe(false);
+  });
+});
+
+/**
+ * Add Next Step must produce a process that can still be saved.
+ *
+ * The engine stops on a task completed without a decision, and the designer refuses to
+ * save a step that has none — so a new step arriving empty would have made the button
+ * that created it immediately block the next save.
+ */
+describe('addStepAfter', () => {
+  beforeEach(() => {
+    useWorkflowStore.setState({
+      process: {
+        crmId: 'p1', name: 'P', recordEntity: null, recordEntityName: null,
+        regardingField: null, parentEntity: null, parentEntityName: null,
+        versionMajor: 1, versionMinor: 0, workflowHooks: emptyWorkflowHooks(PROCESS_HOOKS),
+        workflowState: 'draft', snapshot: null,
+      } as never,
+      steps: {}, stepOrder: [], outcomes: {}, outcomeOrder: {},
+      routes: {}, routeOrder: {}, nodePositions: {}, dirtyIds: [], newIds: [],
+    });
+    useWorkflowStore.setState({
+      steps: { s1: { crmId: 's1', name: 'First', sequenceNo: 1 } as never },
+      stepOrder: ['s1'],
+    });
+  });
+
+  it('should_connect_the_new_step_to_the_one_it_follows', () => {
+    useWorkflowStore.getState().addStepAfter('s1');
+    const outcomes = Object.values(useWorkflowStore.getState().outcomes);
+    const link = outcomes.find((o) => o.stepId === 's1');
+    expect(link).toBeDefined();
+    expect(link!.nextStepId).not.toBeNull();
+  });
+
+  it('should_give_the_new_step_a_decision_of_its_own', () => {
+    useWorkflowStore.getState().addStepAfter('s1');
+    const state = useWorkflowStore.getState();
+    const newStepId = state.stepOrder.find((id) => id !== 's1')!;
+    const owned = Object.values(state.outcomes).filter((o) => o.stepId === newStepId);
+    expect(owned).toHaveLength(1);
+    expect(owned[0]!.nextStepId).toBeNull();
+  });
+
+  it('should_leave_no_step_stranded_without_a_decision', () => {
+    useWorkflowStore.getState().addStepAfter('s1');
+    const state = useWorkflowStore.getState();
+    const withDecision = new Set(Object.values(state.outcomes).map((o) => o.stepId));
+    expect(state.stepOrder.filter((id) => !withDecision.has(id))).toEqual([]);
   });
 });

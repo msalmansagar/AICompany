@@ -388,6 +388,23 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.outcomeOrder[fromStepId]!.push(outcomeId);
           state.newIds.push(outcomeId);
 
+          // The new step needs a decision of its own. The engine stops on a task
+          // completed without one, so a step created without an outcome is not a
+          // half-built step - it is a broken one, and it would block the next save.
+          const terminalOutcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[terminalOutcomeId] = {
+            crmId: terminalOutcomeId,
+            name: 'Complete',
+            sequenceNumber: maxSeq + 2,
+            applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
+            stepId: newStepId,
+            nextStepId: null,
+          };
+          state.outcomeOrder[newStepId] = [terminalOutcomeId];
+          state.newIds.push(terminalOutcomeId);
+
           state.selectedId = `step_${newStepId}`;
           state.isDirty = true;
         }),
