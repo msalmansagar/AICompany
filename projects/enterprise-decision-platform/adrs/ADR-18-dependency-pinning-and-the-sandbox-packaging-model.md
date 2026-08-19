@@ -1,6 +1,6 @@
 # ADR-18: Dependency Pinning is a Symptom — the Packaging Model is the Cause
 
-**Status:** Proposed — **contains a correction to a standing assumption and a claim that must be tested before it is acted on**
+**Status:** **P0 PASSED 2026-08-19 — ready for sponsor acceptance.** Both claims are now observed, not reasoned: a plug-in package binds the version it ships, and an unsigned assembly loads in sandbox isolation. Evidence: `spikes/adr-18-p0-packaging-probe.md`. Held at Proposed only until the sponsor accepts.
 **Date:** 2026-08-18
 **Decided by:** Solution Architect. Answers OQ-A2, left open by ADR-16 and carried out of `architecture-edp-fact-bind-joint.md`.
 **Touches:** ADR-SEC-NCALC · ADR-16 · W0-1 (`wave-0-snk-rotation-scope.md`) · `dependencies.md` F1 addendum
