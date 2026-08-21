@@ -18,11 +18,13 @@ const PROTOTYPE = resolve(dirname(fileURLToPath(import.meta.url)), '../prototype
 const MESSAGES = {
   qdb_RunReport: {
     plugin: 'RunReportPlugin',
+    activity: 'RunReportActivity',
     inputs: ['reportId', 'parametersJson', 'format', 'async', 'relationshipId', 'parentKey'],
     outputs: ['resultJson', 'executionId', 'mode', 'jobId', 'statusPollUrl', 'errorCode', 'errorMessage']
   },
   qdb_RunDashboard: {
     plugin: 'RunDashboardPlugin',
+    activity: 'RunDashboardActivity',
     inputs: ['dashboardId'],
     outputs: ['resultJson', 'executionId', 'errorCode', 'errorMessage']
   }
@@ -135,14 +137,36 @@ try {
   record('warn', 'assembly', `could not be read: ${error.message}`);
 }
 
-console.log('\nSteps — a registered assembly with no step on the message does nothing');
+/* Two different shapes reach the same code, and only one of them registers a step.
+     cloud      — a Custom API, with the plugin registered on its message.
+     on-premise — a Process Action whose body contains a Custom Workflow Activity.
+   An earlier version of this check knew only the first, so on-premise it would have reported "no
+   step registered" as a blocker against a correctly built system and sent someone chasing it. */
+console.log('\nHow the message is implemented — a plugin step, or an activity inside the Action');
 for (const [name, spec] of Object.entries(MESSAGES)) {
   try {
+    const workflows = await dv.fetchJson(
+      `workflows?$select=uniquename,statecode,xaml&$filter=uniquename eq '${name}' and category eq 3`);
+    const action = workflows.value[0];
+    if (action && (action.xaml || '').includes(spec.activity)) {
+      const live = action.statecode === 1;
+      record(live ? 'pass' : 'fail', `${name} implementation`,
+        `Process Action containing ${spec.activity}${live ? '' : ' — NOT ACTIVATED'}`,
+        'Activate the Action, or it is not a callable message.');
+      continue;
+    }
+    if (action) {
+      record('fail', `${name} implementation`,
+        'a Process Action exists but its body does not contain the activity',
+        `Add ${spec.activity} as a step inside the Action and map the arguments onto it.`);
+      continue;
+    }
+
     const steps = await dv.fetchJson(
       `sdkmessageprocessingsteps?$select=name,stage,mode,statecode&$filter=sdkmessageid/name eq '${name}'`);
     if (!steps.value.length) {
-      record('fail', `step on ${name}`, 'none registered',
-        `Register ${spec.plugin} on ${name}, PostOperation, synchronous, no primary entity.`);
+      record('fail', `${name} implementation`, 'no plugin step and no Process Action',
+        `On-premise: create the Action and add ${spec.activity} as a step inside it. Cloud: register ${spec.plugin} on the message.`);
       continue;
     }
     const active = steps.value.filter(s => s.statecode === 0);
@@ -158,15 +182,15 @@ for (const [name, spec] of Object.entries(MESSAGES)) {
        ignored. */
     const unexpected = active.filter(s => s.stage !== 30 && s.stage !== 40);
     if (!active.length) {
-      record('warn', `step on ${name}`, `${detail} — none active`, 'Enable the step, or it does nothing.');
+      record('warn', `${name} implementation`, `${detail} — none active`, 'Enable the step, or it does nothing.');
     } else if (unexpected.length) {
-      record('warn', `step on ${name}`, detail,
+      record('warn', `${name} implementation`, detail,
         'Expected MainOperation (Custom API) or PostOperation (Custom Action).');
     } else {
-      record('pass', `step on ${name}`, detail);
+      record('pass', `${name} implementation`, detail);
     }
   } catch (error) {
-    record('warn', `step on ${name}`, `could not be read: ${error.message}`);
+    record('warn', `${name} implementation`, `could not be read: ${error.message}`);
   }
 }
 

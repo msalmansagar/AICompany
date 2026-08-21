@@ -112,32 +112,63 @@ missing).
 
 ## Steps
 
-**1. Create the Actions.** Settings → Processes → New. Category **Action**, Entity **None (global)**,
-name **RunReport**. The publisher prefix is prepended automatically, so confirm the unique name comes
-out as exactly `qdb_RunReport` — if your on-premises publisher prefix is not `qdb`, the message name
-will not match what the web resources call and nothing will work. Add the arguments above under
-Process Arguments. Repeat for **RunDashboard**.
+This follows the pattern the Form Engine already uses on-premise: the work is a **Custom Workflow
+Activity**, and the Action is what carries it. **No plugin step is registered on the message** — an
+earlier version of this document said to do that, and it was wrong.
 
-**2. Leave the Action body empty.** The plugin does the work. An Action with no steps is valid; it
-exists to define the message.
+**1. Import the assembly.**
+`src/Qdb.ReportEngine.CrmPlugin/bin/Release/net462/Qdb.ReportEngine.CrmPlugin.dll` — one DLL, five
+registerable types: three plugins and two workflow activities. The activities live in the same
+assembly rather than a sibling because a plugin assembly cannot resolve siblings from the sandbox
+(ADR-RPT-011).
 
-**3. Activate both.** An unactivated Action is not callable and does not appear as a message.
+**2. Register both activities**, in the Plugin Registration Tool under **Register New Activity** —
+not Register New Step:
 
-**4. Register the plugin steps.** Plugin Registration Tool → your `Qdb.ReportEngine.CrmPlugin`
-assembly:
+| Type | Serves |
+|---|---|
+| `Qdb.ReportEngine.CrmPlugin.Workflows.RunReportActivity` | `qdb_RunReport` |
+| `Qdb.ReportEngine.CrmPlugin.Workflows.RunDashboardActivity` | `qdb_RunDashboard` |
 
-| Plugin type | Message | Stage | Mode |
-|---|---|---|---|
-| `Qdb.ReportEngine.CrmPlugin.RunReportPlugin` | `qdb_RunReport` | PostOperation | Synchronous |
-| `Qdb.ReportEngine.CrmPlugin.RunDashboardPlugin` | `qdb_RunDashboard` | PostOperation | Synchronous |
+**3. Create the Actions.** Settings → Processes → New. Category **Action**, Entity **None (global)**,
+name **RunReport**. Confirm the unique name comes out as exactly `qdb_RunReport` — if your publisher
+prefix is not `qdb`, the message name will not match what the web resources call and nothing works.
+Add the arguments from the contract tables above. Repeat for **RunDashboard**.
 
-Primary entity **none** on both. The message only appears in the list after step 3.
+**4. Add the activity as a step inside each Action**, then map the Action's arguments onto the
+activity's properties:
 
-**5. Confirm the audit steps came across.** The solution carried three
-(`ReportConfigurationAuditPlugin` on Create, Update and Delete of `qdb_reportdefinition`). If the
+| Action argument | Activity property | Direction |
+|---|---|---|
+| `reportId` | Report id | in |
+| `parametersJson` | Parameters JSON | in |
+| `format` | Format | in |
+| `async` | Async | in |
+| `relationshipId` | Relationship id | in |
+| `parentKey` | Parent key | in |
+| `resultJson` | Result JSON | out |
+| `executionId` | Execution id | out |
+| `mode` | Mode | out |
+| `jobId` | Job id | out |
+| `statusPollUrl` | Status poll url | out |
+| `errorCode` | Error code | out |
+| `errorMessage` | Error message | out |
+
+For `qdb_RunDashboard`: `dashboardId` in; `resultJson`, `executionId`, `errorCode`, `errorMessage`
+out.
+
+🔴 **This mapping is the step people skip.** The Action activates happily with an unmapped activity
+and then returns empty strings for everything — which looks exactly like a report with no data.
+
+**5. Activate both Actions.** An unactivated Action is not a callable message.
+
+**6. Confirm the audit steps came across.** Three of them —
+`ReportConfigurationAuditPlugin` on Create, Update and Delete of `qdb_reportdefinition`. If the
 import dropped them: `node scripts/register-audit-steps.mjs <path-to-.env>`.
 
----
+**7. Verify.** `node scripts/verify-onprem.mjs <path-to-.env>`. It recognises both shapes — a plugin
+step on the message (cloud) and an activity inside the Action (on-premise) — and it will tell you if
+the Action exists but has no activity in it.
 
 ## Smoke test — prove it by a change in result
 
