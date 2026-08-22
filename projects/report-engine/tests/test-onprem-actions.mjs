@@ -57,8 +57,11 @@ check('declares the XAML namespace', xaml.includes('xmlns:x="http://schemas.micr
 check('names the Sdk.Workflow assembly exactly',
   xaml.includes('Microsoft.Xrm.Sdk.Workflow, Version=9.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35'));
 check('the class name matches the Activity', xaml.includes(`x:Class="${classNameFor('qdb_RunReport')}"`));
+// Self-closing, not a `<mxswa:Workflow><Sequence /></mxswa:Workflow>` wrapper: the wrapper form was
+// what a live organisation rejected, so the shape itself is the assertion.
 check('the body is empty, because the plugin does the work',
-  /<Sequence DisplayName="[^"]*" \/>/.test(xaml));
+  /<mxswa:Workflow \/>/.test(xaml));
+check('and holds no activity of its own', !xaml.includes('<Sequence'));
 check('the class name is stable for a given unique name',
   classNameFor('qdb_RunReport') === classNameFor('qdb_RunReport'));
 check('and differs between the two Actions',
