@@ -14,7 +14,7 @@ work item; this file is updated as each PR lands.
 | PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#TBD, stacked on #110) | ✅ implemented, verified live |
 | PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#TBD, stacked on #111) | ✅ implemented, verified live |
 | PR 6 | Hygiene / dead code | `feat/cwfd-canvas-pr6-hygiene` (#TBD, stacked on #112) | ✅ implemented |
-| PR 7 | Guided replay / demo mode | — | ⬜ |
+| PR 7 | Guided replay / demo mode | `feat/cwfd-canvas-pr7-demo` (#TBD, stacked on #113) | ✅ implemented, verified live |
 
 ---
 
@@ -82,11 +82,11 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ✅ one subscription |
 | 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ✅ computed --canvas-bg |
 
-## PR 7 — Guided replay / demo mode ⬜
+## PR 7 — Guided replay / demo mode ✅
 
 | # | Item | Status |
 |---|---|---|
-| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ⬜ |
+| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ✅ ▶ Demo build: 11 narrated beats on an in-memory draft; recorded (cwfd-demo-build-mode.gif) |
 
 ## Deferred (user decision needed) ⏸
 

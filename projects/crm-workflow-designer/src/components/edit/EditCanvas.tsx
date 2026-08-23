@@ -31,6 +31,8 @@ import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
 import { notify } from '../ui/Notify';
+import { useDemoPlayback } from '@/hooks/useDemoPlayback';
+import { DemoHUD } from './DemoHUD';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
 import { CanvasLegend } from '../common/CanvasLegend';
@@ -107,6 +109,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const { isSaving, save } = useWorkflowSave();
   const { isPublishing, publish } = usePublish();
   const editMode = useEditMode(adapter);
+  const demo = useDemoPlayback();
   const simMode = useSimulationMode();
   const autoSimMode = useAutoSimMode();
   useAutoSimPlayback();
@@ -118,6 +121,9 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const canPublish = process !== null && !isTemporaryId(process.crmId);
   const processName = process?.name ?? 'New Process';
   const canSimulate = stepOrder.length > 0;
+  // The demo replaces the editor's content with its own in-memory draft, so
+  // it is offered whenever there is no unsaved work to clobber.
+  const canDemo = !isDirty && !isSimulating && !isAutoSimulating;
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
   const [showValidationPanel, setShowValidationPanel] = useState(false);
@@ -208,6 +214,8 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     >
       <EditToolbar
         processName={processName}
+        canDemo={canDemo || demo.isPlaying}
+        onDemo={demo.isPlaying ? demo.stop : demo.start}
         workflowState={process?.workflowState}
         isDirty={isDirty}
         isSaving={isSaving}
@@ -316,6 +324,14 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             </ReactFlow>
           )}
 
+          {demo.isPlaying && demo.narration && (
+            <DemoHUD
+              narration={demo.narration}
+              beatIndex={demo.beatIndex}
+              beatCount={demo.beatCount}
+              onStop={demo.stop}
+            />
+          )}
           {isSimulating && <SimulationPanel adapter={adapter} onExit={stopSimulation} />}
           {isAutoSimulating && autoSimPhase !== 'done' && (
             <AutoSimPlaybackHUD onStop={stopAutoSimulation} />
