@@ -1,4 +1,5 @@
 import type {
+  FormBand,
   FormDefinition,
   TabDefinition,
   SectionDefinition,
@@ -61,6 +62,24 @@ function resolveFormRoot(
     infocardContinueLabel: resolveString(e, id, 'qdb_infocard_continue_label', form.infocardContinueLabel, map),
     infocardStartLabel: resolveString(e, id, 'qdb_infocard_start_label', form.infocardStartLabel, map),
     infocardSkipLabel: resolveString(e, id, 'qdb_infocard_skip_label', form.infocardSkipLabel, map),
+    // Header and footer bands carry maker-authored copy, so they translate like any other
+    // label. The image is not translated — it is a URL, not a string a translator reads.
+    ...(form.header ? { header: resolveBand(id, 'qdb_header_text', form.header, map) } : {}),
+    ...(form.footer ? { footer: resolveBand(id, 'qdb_footer_text', form.footer, map) } : {}),
+  };
+}
+
+function resolveBand(
+  formId: string,
+  fieldName: string,
+  band: FormBand,
+  map: TranslationMap,
+): FormBand {
+  return {
+    ...band,
+    ...(band.text
+      ? { text: resolveString('qdb_form_definition', formId, fieldName, band.text, map) }
+      : {}),
   };
 }
 

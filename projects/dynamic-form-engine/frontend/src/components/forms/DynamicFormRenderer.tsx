@@ -48,6 +48,7 @@ import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
 import { getAllTabFields } from './tabFields';
 import { evaluateTabConfirmation } from './tabConfirmation';
+import { FormBandRegion } from './FormBandRegion';
 import { FormMark } from './FormMark';
 import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
@@ -129,6 +130,13 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalXS,
     flex: '1 1 auto',
+  },
+  // The bands sit outside <main>, so they need main's own centring to line up with it —
+  // a full-bleed band above a 960px form reads as belonging to the page, not the form.
+  bandContainer: {
+    margin: '0 auto',
+    padding: `0 ${tokens.spacingHorizontalL}`,
+    width: '100%',
   },
   accordionHeaderContent: {
     display: 'flex',
@@ -481,6 +489,14 @@ function FormRendererInner({
     fontSize: resolvedTheme.baseFontSize,
   };
 
+  // The bands follow the form's own width and alignment, including a maker's custom
+  // maxWidth — the sidebar layout is wider, so its bands are too.
+  const bandWidthStyle = {
+    maxWidth: isSidebarNav ? '1100px' : (design.formDesign.maxWidth ?? '960px'),
+    margin: resolveFormMargin(design.formDesign.alignment),
+    fontFamily: resolvedTheme.fontFamily,
+  };
+
   const accordionContent = (
     <Accordion
       openItems={activeTab ? [activeTab.id] : []}
@@ -623,7 +639,27 @@ function FormRendererInner({
     <ResponsiveEngine>
       <ThemeProvider theme={resolvedTheme}>
         <DesignContext.Provider value={design}>
+          {/*
+            The bands wrap every layout branch rather than being repeated inside each of the
+            five, and so cover the info-card, form and summary phases alike. They do NOT
+            appear on the confirmation screen, which returns earlier and sits outside this
+            provider tree entirely.
+          */}
+          <div className={styles.bandContainer} style={bandWidthStyle}>
+            <FormBandRegion
+              band={formDefinition.header}
+              landmark="banner"
+              label={`${formDefinition.title} header`}
+            />
+          </div>
           {renderFormBody()}
+          <div className={styles.bandContainer} style={bandWidthStyle}>
+            <FormBandRegion
+              band={formDefinition.footer}
+              landmark="contentinfo"
+              label={`${formDefinition.title} footer`}
+            />
+          </div>
         </DesignContext.Provider>
       </ThemeProvider>
     </ResponsiveEngine>

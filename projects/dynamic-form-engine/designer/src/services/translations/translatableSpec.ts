@@ -47,6 +47,7 @@ export const TRANSLATABLE_ENTITIES: readonly TranslatableEntitySpec[] = [
       'qdb_submit_confirmation_label', 'qdb_submit_confirmation_message',
       'qdb_infocard_back_label', 'qdb_infocard_continue_label',
       'qdb_infocard_skip_label', 'qdb_infocard_start_label',
+      'qdb_header_text', 'qdb_footer_text',
     ],
   },
   {

@@ -20,6 +20,12 @@ export interface DesignerFormModel {
   iconName?: string | null;
   /** Absolute https image shown beside the title, in place of the icon. */
   imageUrl?: string | null;
+  // Header and footer bands. Held flat, matching the CRM columns; the published contract
+  // groups them into FormBand objects. Text is plain — no markup is interpreted.
+  headerText?: string | null;
+  headerImageUrl?: string | null;
+  footerText?: string | null;
+  footerImageUrl?: string | null;
   status: FormStatus;
   currentVersion: string;
   themeId: string | null;

@@ -22,6 +22,7 @@ import type {
   BusinessRuleAction,
   ConditionOperator,
   LogicalOperator,
+  FormBand,
   GridColumnConfig,
   GridColumnOptionValue,
   GridColumnFilterType,
@@ -179,6 +180,8 @@ export class CrmMetadataService extends CrmBaseService {
       // Emitted only when set, so forms with no mark publish byte-identical JSON.
       ...(raw.qdb_icon_name ? { iconName: raw.qdb_icon_name } : {}),
       ...(isRenderableImageUrl(raw.qdb_image_url) ? { imageUrl: raw.qdb_image_url } : {}),
+      ...buildBand('header', raw.qdb_header_text, raw.qdb_header_image_url),
+      ...buildBand('footer', raw.qdb_footer_text, raw.qdb_footer_image_url),
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
       // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
@@ -1306,6 +1309,10 @@ interface RawFormDefinition {
   qdb_version?: number;
   qdb_icon_name?: string;
   qdb_image_url?: string;
+  qdb_header_text?: string;
+  qdb_header_image_url?: string;
+  qdb_footer_text?: string;
+  qdb_footer_image_url?: string;
   qdb_allow_save_draft?: boolean;
   qdb_draft_expiry_days?: number;
   qdb_power_automate_flow_id?: string;
@@ -1628,6 +1635,25 @@ interface RawGridColumnConfig {
   qdb_validation_format?: string;
   qdb_validation_pattern?: string;
   qdb_validation_message?: string;
+}
+
+/**
+ * A header or footer band, keyed for spreading into the form definition.
+ *
+ * Emitted only when the maker set at least one part, so a form with no bands publishes the
+ * same JSON it always did. An image URL that would not render is dropped rather than carried
+ * — see isRenderableImageUrl for why the runtime must not be handed one.
+ */
+function buildBand(
+  key: 'header' | 'footer',
+  text: string | undefined,
+  imageUrl: string | undefined,
+): Record<string, FormBand> | Record<string, never> {
+  const band: FormBand = {
+    ...(text ? { text } : {}),
+    ...(isRenderableImageUrl(imageUrl) ? { imageUrl } : {}),
+  };
+  return Object.keys(band).length > 0 ? { [key]: band } : {};
 }
 
 const GRID_VALIDATION_FORMATS: readonly GridValidationFormat[] =

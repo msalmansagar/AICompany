@@ -752,6 +752,21 @@ export interface SubmitConfirmationConfig {
   dialogMessage?: string;          // body text of the confirmation dialog
 }
 
+/**
+ * A maker-authored band above or below the form.
+ *
+ * `text` is PLAIN text, not HTML — line breaks survive rendering, markup does not. Accepting
+ * HTML would need a sanitiser the form side does not have, and an unsanitised banner authored
+ * by anyone with designer access reaches every user of the form.
+ *
+ * Emitted only when at least one part is set, so a form with no bands publishes unchanged.
+ */
+export interface FormBand {
+  text?: string;
+  /** Absolute https image. Guarded by isRenderableImageUrl before it is published. */
+  imageUrl?: string;
+}
+
 export interface FormDefinition {
   id: string;
   formCode: string;                // URL-safe identifier, e.g. 'loan-application'
@@ -763,6 +778,10 @@ export interface FormDefinition {
   iconName?: string;
   /** Absolute https image shown beside the title, in place of the icon. */
   imageUrl?: string;
+  /** Maker-authored band above the form. Absent when the maker configured neither part. */
+  header?: FormBand;
+  /** Maker-authored band below the form. */
+  footer?: FormBand;
   allowSaveDraft: boolean;
   draftExpiryDays: number;
   powerAutomateFlowId?: string;    // triggered on successful submit

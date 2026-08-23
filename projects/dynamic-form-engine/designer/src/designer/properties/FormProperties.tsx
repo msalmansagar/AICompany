@@ -80,6 +80,8 @@ export function FormProperties(): React.ReactElement {
   // Only absolute http(s) URLs render — see isRenderableImageUrl. Saying so in the panel
   // beats a maker discovering it as a missing image in the published form.
   const imageUrlState = describeImageUrl(form?.imageUrl);
+  const headerImageState = describeImageUrl(form?.headerImageUrl);
+  const footerImageState = describeImageUrl(form?.footerImageUrl);
 
   if (!form) return <></>;
 
@@ -216,6 +218,64 @@ export function FormProperties(): React.ReactElement {
           value={form.imageUrl ?? ''}
           onChange={(_, data) => updateForm({ imageUrl: data.value || null })}
           placeholder="https://example.com/logo.png"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
+      <SectionHeading label="Header Band" />
+
+      <Field
+        label="Header Text"
+        hint="Plain text shown above the form. Line breaks are kept; HTML is not interpreted."
+      >
+        <Textarea
+          value={form.headerText ?? ''}
+          onChange={(_, data) => updateForm({ headerText: data.value || null })}
+          placeholder="e.g. Applications close on 31 March."
+          rows={3}
+        />
+      </Field>
+
+      <Field
+        label="Header Image URL"
+        hint="Absolute https image shown in the header band."
+        validationState={headerImageState.state}
+        validationMessage={headerImageState.message}
+      >
+        <Input
+          value={form.headerImageUrl ?? ''}
+          onChange={(_, data) => updateForm({ headerImageUrl: data.value || null })}
+          placeholder="https://example.com/banner.png"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
+      <SectionHeading label="Footer Band" />
+
+      <Field
+        label="Footer Text"
+        hint="Plain text shown below the form. Line breaks are kept; HTML is not interpreted."
+      >
+        <Textarea
+          value={form.footerText ?? ''}
+          onChange={(_, data) => updateForm({ footerText: data.value || null })}
+          placeholder="e.g. Need help? Call 800 0000."
+          rows={3}
+        />
+      </Field>
+
+      <Field
+        label="Footer Image URL"
+        hint="Absolute https image shown in the footer band."
+        validationState={footerImageState.state}
+        validationMessage={footerImageState.message}
+      >
+        <Input
+          value={form.footerImageUrl ?? ''}
+          onChange={(_, data) => updateForm({ footerImageUrl: data.value || null })}
+          placeholder="https://example.com/seal.png"
           style={{ fontFamily: 'monospace' }}
         />
       </Field>

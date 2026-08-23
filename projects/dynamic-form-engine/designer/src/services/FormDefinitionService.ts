@@ -27,6 +27,10 @@ export interface UpdateFormDto {
   entityLogicalName?: string | null;
   iconName?: string | null;
   imageUrl?: string | null;
+  headerText?: string | null;
+  headerImageUrl?: string | null;
+  footerText?: string | null;
+  footerImageUrl?: string | null;
   status?: FormStatus;
   currentVersion?: string;
   themeId?: string | null;
@@ -61,6 +65,12 @@ export interface FormListFilter {
 function picklistToStatus(raw: unknown): FormStatus {
   const n = typeof raw === 'number' ? raw : Number(raw);
   return (PICKLIST_TO_STATUS[n] ?? 'draft') as FormStatus;
+}
+
+/** A nullable CRM string as the model holds it: the text, or null when blank or absent. */
+function readOptionalText(record: Record<string, unknown>, attribute: string): string | null {
+  const value = record[attribute];
+  return value ? String(value) : null;
 }
 
 function versionToString(raw: unknown): string {
@@ -110,6 +120,10 @@ export class FormDefinitionService {
     if (dto.showProgressBar !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR] = dto.showProgressBar;
     if (dto.iconName !== undefined) data[FORM_DEFINITION_ATTRS.ICON_NAME] = dto.iconName || null;
     if (dto.imageUrl !== undefined) data[FORM_DEFINITION_ATTRS.IMAGE_URL] = dto.imageUrl || null;
+    if (dto.headerText !== undefined) data[FORM_DEFINITION_ATTRS.HEADER_TEXT] = dto.headerText || null;
+    if (dto.headerImageUrl !== undefined) data[FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL] = dto.headerImageUrl || null;
+    if (dto.footerText !== undefined) data[FORM_DEFINITION_ATTRS.FOOTER_TEXT] = dto.footerText || null;
+    if (dto.footerImageUrl !== undefined) data[FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL] = dto.footerImageUrl || null;
     if (dto.powerAutomateFlowId !== undefined) {
       data[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID] = dto.powerAutomateFlowId;
     }
@@ -151,6 +165,10 @@ export class FormDefinitionService {
       // ENTITY_LOGICAL_NAME excluded — not deployed on qdb_form_definition entity
       FORM_DEFINITION_ATTRS.ICON_NAME,
       FORM_DEFINITION_ATTRS.IMAGE_URL,
+      FORM_DEFINITION_ATTRS.HEADER_TEXT,
+      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
+      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
+      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
       FORM_DEFINITION_ATTRS.STATUS,
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
@@ -185,6 +203,10 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.DESCRIPTION,
       FORM_DEFINITION_ATTRS.ICON_NAME,
       FORM_DEFINITION_ATTRS.IMAGE_URL,
+      FORM_DEFINITION_ATTRS.HEADER_TEXT,
+      FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL,
+      FORM_DEFINITION_ATTRS.FOOTER_TEXT,
+      FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL,
       FORM_DEFINITION_ATTRS.STATUS,
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
@@ -281,6 +303,10 @@ export class FormDefinitionService {
       imageUrl: record[FORM_DEFINITION_ATTRS.IMAGE_URL]
         ? String(record[FORM_DEFINITION_ATTRS.IMAGE_URL])
         : null,
+      headerText: readOptionalText(record, FORM_DEFINITION_ATTRS.HEADER_TEXT),
+      headerImageUrl: readOptionalText(record, FORM_DEFINITION_ATTRS.HEADER_IMAGE_URL),
+      footerText: readOptionalText(record, FORM_DEFINITION_ATTRS.FOOTER_TEXT),
+      footerImageUrl: readOptionalText(record, FORM_DEFINITION_ATTRS.FOOTER_IMAGE_URL),
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
       themeId: null,

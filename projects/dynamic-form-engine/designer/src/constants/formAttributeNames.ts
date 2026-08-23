@@ -11,6 +11,11 @@ export const FORM_DEFINITION_ATTRS = {
   // Form-level mark shown beside the title — same icon convention as tabs and sections.
   ICON_NAME: 'qdb_icon_name',
   IMAGE_URL: 'qdb_image_url',
+  // Maker-authored bands above and below the form.
+  HEADER_TEXT: 'qdb_header_text',
+  HEADER_IMAGE_URL: 'qdb_header_image_url',
+  FOOTER_TEXT: 'qdb_footer_text',
+  FOOTER_IMAGE_URL: 'qdb_footer_image_url',
   STATUS: 'qdb_status',
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',

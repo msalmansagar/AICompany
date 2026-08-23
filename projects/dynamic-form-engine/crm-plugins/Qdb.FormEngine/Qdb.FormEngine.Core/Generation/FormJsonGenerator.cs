@@ -61,6 +61,8 @@ namespace Qdb.FormEngine.Core.Generation
                 Version = form.GetAttributeValue<int>("qdb_version"),
                 IconName = NullIfBlank(form.GetAttributeValue<string>("qdb_icon_name")),
                 ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>("qdb_image_url")),
+                Header = BuildBand(rawData, form, formId, "qdb_header_text", "qdb_header_image_url"),
+                Footer = BuildBand(rawData, form, formId, "qdb_footer_text", "qdb_footer_image_url"),
                 AllowSaveDraft = form.GetAttributeValue<bool>("qdb_allow_save_draft"),
                 DraftExpiryDays = form.Contains("qdb_draft_expiry_days") ? (int?)form.GetAttributeValue<int>("qdb_draft_expiry_days") : null,
                 PowerAutomateFlowId = form.GetAttributeValue<string>("qdb_power_automate_flow_id"),
@@ -90,6 +92,24 @@ namespace Qdb.FormEngine.Core.Generation
         private string Resolve(FormRawData rawData, string entityName, Guid recordId, string fieldName, string fallback)
         {
             return _translationResolver.Resolve(rawData.TranslationMap, entityName, recordId, fieldName, fallback);
+        }
+
+        /// <summary>
+        /// A header or footer band, or null when the maker set neither part — a form with no
+        /// bands then publishes byte-identical JSON. The text is translated like any other
+        /// label; the image URL is not, being a URL rather than a string a translator reads.
+        /// </summary>
+        private FormBand BuildBand(
+            FormRawData rawData, Entity form, Guid formId, string textAttribute, string imageAttribute)
+        {
+            var text = Resolve(rawData, "qdb_form_definition", formId, textAttribute,
+                form.GetAttributeValue<string>(textAttribute));
+            var band = new FormBand
+            {
+                Text = NullIfBlank(text),
+                ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>(imageAttribute)),
+            };
+            return band.Text == null && band.ImageUrl == null ? null : band;
         }
 
         /// <summary>Blank strings publish as null so the JSON omits the property entirely.</summary>

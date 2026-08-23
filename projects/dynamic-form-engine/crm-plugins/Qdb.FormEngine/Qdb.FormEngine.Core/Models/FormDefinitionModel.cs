@@ -17,6 +17,10 @@ namespace Qdb.FormEngine.Core.Models
         // mark publishes byte-identical JSON.
         [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
         [JsonProperty("imageUrl", NullValueHandling = NullValueHandling.Ignore)] public string ImageUrl { get; set; }
+        // Maker-authored bands above and below the form. Null unless the maker set a part,
+        // so a form with no bands publishes byte-identical JSON.
+        [JsonProperty("header", NullValueHandling = NullValueHandling.Ignore)] public FormBand Header { get; set; }
+        [JsonProperty("footer", NullValueHandling = NullValueHandling.Ignore)] public FormBand Footer { get; set; }
         [JsonProperty("allowSaveDraft")] public bool AllowSaveDraft { get; set; }
         [JsonProperty("draftExpiryDays")] public int? DraftExpiryDays { get; set; }
         [JsonProperty("powerAutomateFlowId")] public string PowerAutomateFlowId { get; set; }
@@ -407,6 +411,17 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
         [JsonProperty("lookupValueAttribute")] public string LookupValueAttribute { get; set; }
         [JsonProperty("options")] public List<GridColumnOptionValue> Options { get; set; }
+    }
+
+    /// <summary>
+    /// A maker-authored band above or below the form. Text is PLAIN, not HTML — the form side
+    /// has no sanitiser, and a banner authored by anyone with designer access reaches every
+    /// user of the form.
+    /// </summary>
+    public sealed class FormBand
+    {
+        [JsonProperty("text", NullValueHandling = NullValueHandling.Ignore)] public string Text { get; set; }
+        [JsonProperty("imageUrl", NullValueHandling = NullValueHandling.Ignore)] public string ImageUrl { get; set; }
     }
 
     /// <summary>A selectable option within a grid column.</summary>
