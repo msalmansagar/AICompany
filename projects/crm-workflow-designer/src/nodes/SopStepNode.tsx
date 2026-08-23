@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ENTITY_CHIP } from '../styles/surfacePairs';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { SopStepNodeData } from '@/store/sopSelectors';
@@ -153,9 +154,9 @@ function channelBadgeStyle(channel: 'crm' | 'manual'): React.CSSProperties {
   const isCrm = channel === 'crm';
   return {
     fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
-    color: isCrm ? 'var(--primary-pressed)' : 'var(--warning)',
-    background: isCrm ? 'var(--primary-tint)' : 'var(--warning-bg)',
-    border: `1px solid ${isCrm ? 'var(--primary-tint)' : 'var(--warning)'}`,
+    color: isCrm ? ENTITY_CHIP.foreground : 'var(--warning)',
+    background: isCrm ? ENTITY_CHIP.background : 'var(--warning-bg)',
+    border: `1px solid ${isCrm ? ENTITY_CHIP.border : 'var(--warning)'}`,
     borderRadius: 3, padding: '1px 5px',
     flexShrink: 0, lineHeight: '14px',
   };

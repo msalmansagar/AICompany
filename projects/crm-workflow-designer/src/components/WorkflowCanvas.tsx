@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
@@ -32,6 +32,8 @@ import type { ViewMode } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
+import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
+import { CanvasLegend } from './common/CanvasLegend';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -82,7 +84,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
-  const fitViewTrigger = useRef(0);
   const measuredNodeIds = useMeasuredNodeIds();
   const [pendingFit, setPendingFit] = useState(0);
 
@@ -144,7 +145,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   }, [view]);
 
   const handleFitView = useCallback(() => {
-    fitViewTrigger.current += 1;
     fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
   }, [fitView]);
 
@@ -186,8 +186,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     const { x, y, zoom } = getViewportForBounds(bounds, EXPORT_W, EXPORT_H, 0.05, 4, 0.08);
     const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewportEl) throw new Error('Viewport element not found.');
+    // html-to-image serialises the clone into a standalone SVG image, where
+    // CSS variables from this document do not resolve — a var() here exports
+    // a transparent background. Hand it the computed colour instead.
+    const canvasBackground =
+      getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#ffffff';
     return toPng(viewportEl, {
-      backgroundColor: 'var(--surface-alt)',
+      backgroundColor: canvasBackground,
       width: EXPORT_W,
       height: EXPORT_H,
       style: {
@@ -271,12 +276,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
             panOnDrag
             selectionOnDrag={false}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
+            <CanvasLegend />
             {showMiniMap && (
               <MiniMap
-                nodeColor={minimapColor}
-                maskColor="rgba(248,250,252,0.75)"
+                nodeColor={minimapNodeColor}
+                maskColor={MINIMAP_MASK_COLOR}
                 style={{ bottom: 60 }}
               />
             )}
@@ -350,14 +356,6 @@ function extractRouteId(edgeId: string): string | null {
     if (edgeId.startsWith(prefix)) return edgeId.slice(prefix.length);
   }
   return null;
-}
-
-function minimapColor(node: Node): string {
-  if (node.type === 'viewStep') return 'var(--primary)';
-  if (node.type === 'viewDecision') return 'var(--accent-branch)';
-  if (node.type === 'viewStart') return 'var(--success)';
-  if (node.type === 'viewEnd') return 'var(--error)';
-  return 'var(--text-disabled)';
 }
 
 const shellStyle: React.CSSProperties = {

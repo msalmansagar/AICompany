@@ -25,12 +25,12 @@ export type ViolationCode =
   | 'INVALID_ASSIGNMENT'
   | 'MISSING_FETCHXML'
   | 'DEAD_LOOP'
-  | 'MISSING_START'
   | 'MISSING_END'
   | 'INVALID_NEXT_STEP'
   | 'MISSING_TASK_SUBJECT'
   | 'DUPLICATE_OUTCOME_NAME'
   | 'TOO_MANY_OUTCOMES'
+  | 'ALL_OUTCOMES_CONDITIONAL'
   | 'MISSING_FALLBACK_ROUTE'
   | 'MULTIPLE_DEFAULT_ROUTES'
   | 'ROUTE_WITHOUT_CONDITION'
@@ -102,11 +102,11 @@ export class ValidationService {
     }
 
     this.checkMissingStepNames(steps, violations);
-    this.checkStartNode(steps, violations);
     this.checkEndNodes(state, violations);
     this.checkOrphanSteps(state, violations);
     this.checkNoOutcomes(state, violations);
     this.checkNoTerminalOutcome(state, violations);
+    this.checkAllOutcomesConditional(state, violations);
     this.checkDuplicateSequence(steps, violations);
     this.checkInvalidAssignment(steps, violations);
     this.checkMissingFetchXml(state, violations);
@@ -167,18 +167,21 @@ export class ValidationService {
     }
   }
 
-  private checkStartNode(
-    steps: WorkflowDesignerState['steps'][string][],
-    violations: Violation[]
-  ): void {
-    const hasStart = steps.some((s) => s.sequenceNo === 1);
-    if (!hasStart) {
-      violations.push({
-        code: 'MISSING_START',
-        message: 'No step has sequence number 1 (start step).',
-        severity: 'error',
-      });
+  /**
+   * The step an instance starts on: the lowest sequence number. The engine,
+   * the canvases and stepOrder all agree on this; the retired MISSING_START
+   * check instead demanded a literal sequence number 1 and reported working
+   * processes (numbered 2, 3, 4 on the live org) as broken — then cascaded
+   * into a false ORPHAN_STEP on the entry step itself.
+   */
+  private entryStepIdOf(steps: WorkflowDesignerState['steps'][string][]): string | null {
+    let entry: { id: string; sequenceNo: number } | null = null;
+    for (const step of steps) {
+      if (!entry || step.sequenceNo < entry.sequenceNo) {
+        entry = { id: step.crmId, sequenceNo: step.sequenceNo };
+      }
     }
+    return entry?.id ?? null;
   }
 
   /**
@@ -210,11 +213,12 @@ export class ValidationService {
   ): void {
     const allNextStepIds = this.buildReachableStepIds(state);
     const stepsWithOutcomes = new Set(Object.values(state.outcomes).map((o) => o.stepId));
+    const entryStepId = this.entryStepIdOf(Object.values(state.steps));
 
     for (const step of Object.values(state.steps)) {
       const hasOutcome = stepsWithOutcomes.has(step.crmId);
       const isReachableAsNext = allNextStepIds.has(step.crmId);
-      const isStartStep = step.sequenceNo === 1;
+      const isStartStep = step.crmId === entryStepId;
 
       if (!hasOutcome && !isStartStep && !isReachableAsNext) {
         violations.push({
@@ -233,9 +237,10 @@ export class ValidationService {
   ): void {
     const allNextStepIds = this.buildReachableStepIds(state);
     const steps = Object.values(state.steps);
+    const entryStepId = this.entryStepIdOf(steps);
 
     for (const step of steps) {
-      const isStart = step.sequenceNo === 1;
+      const isStart = step.crmId === entryStepId;
       if (!isStart && !allNextStepIds.has(step.crmId)) {
         violations.push({
           code: 'ORPHAN_STEP',
@@ -244,6 +249,35 @@ export class ValidationService {
           severity: 'warning',
         });
       }
+    }
+  }
+
+  /**
+   * A step whose every outcome carries a condition has no default path: when
+   * no condition matches, the instance is stuck on the step forever. The same
+   * rule already exists one level down for routes (MISSING_FALLBACK_ROUTE);
+   * this is the outcome-level counterpart.
+   */
+  private checkAllOutcomesConditional(
+    state: Pick<WorkflowDesignerState, 'steps' | 'outcomes'>,
+    violations: Violation[]
+  ): void {
+    const outcomesByStep = new Map<string, number[]>();
+    for (const outcome of Object.values(state.outcomes)) {
+      const counts = outcomesByStep.get(outcome.stepId) ?? [0, 0];
+      counts[0] += 1;
+      if (outcome.applyFilter) counts[1] += 1;
+      outcomesByStep.set(outcome.stepId, counts);
+    }
+    for (const [stepId, [total, conditional]] of outcomesByStep) {
+      if (total === 0 || conditional < total) continue;
+      const name = state.steps[stepId]?.name ?? stepId;
+      violations.push({
+        code: 'ALL_OUTCOMES_CONDITIONAL',
+        message: `Every outcome of "${name}" is conditional. Add an unconditional outcome as the fallback, or an instance is stuck when no condition matches.`,
+        nodeId: stepId,
+        severity: 'warning',
+      });
     }
   }
 

@@ -1,6 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { TechNewOutcomeData } from '../services/TechNewGraphBuilder';
+import { techOutcomePillPair } from '../styles/surfacePairs';
 
 export function TechNewOutcomeNode({ data }: NodeProps) {
   const { name, isReturn, isTerminal, nextStepName, layoutDir } = data as unknown as TechNewOutcomeData;
@@ -45,30 +46,13 @@ interface OutcomeVisuals {
 }
 
 function outcomeStyle(isReturn: boolean, isTerminal: boolean): OutcomeVisuals {
-  if (isTerminal) {
-    return {
-      container: pillContainer('var(--error)', 'var(--error)'),
-      icon: iconStyle('var(--error)'),
-      name: nameStyle('var(--error)'),
-      target: targetStyle('var(--error)'),
-      handleColor: 'var(--error)',
-    };
-  }
-  if (isReturn) {
-    return {
-      container: pillContainer('var(--accent-branch)', 'var(--accent-branch)'),
-      icon: iconStyle('var(--accent-branch)'),
-      name: nameStyle('var(--accent-branch)'),
-      target: targetStyle('var(--accent-branch)'),
-      handleColor: 'var(--accent-branch)',
-    };
-  }
+  const pair = techOutcomePillPair(isTerminal ? 'terminal' : isReturn ? 'return' : 'forward');
   return {
-    container: pillContainer('var(--primary)', 'var(--primary)'),
-    icon: iconStyle('var(--primary)'),
-    name: nameStyle('var(--primary-pressed)'),
-    target: targetStyle('var(--primary)'),
-    handleColor: 'var(--primary)',
+    container: pillContainer(pair.background, pair.border),
+    icon: iconStyle(pair.foreground),
+    name: nameStyle(pair.foreground),
+    target: targetStyle(pair.foreground),
+    handleColor: pair.border,
   };
 }
 

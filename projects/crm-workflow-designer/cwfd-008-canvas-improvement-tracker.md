@@ -1,5 +1,7 @@
 # CWFD-008 — Canvas Improvement Tracker
 
+**Merge order: #108 → #109 → #110 → #111 → #112 → #113 → #114** (each PR is stacked on the previous branch; GitHub retargets automatically as each base merges).
+
 Source: canvas audit of 2026-08-23 (18 findings, code-verified + confirmed live
 against org data) plus the FlowOn Process Orchestrator comparison. One row per
 work item; this file is updated as each PR lands.
@@ -9,12 +11,12 @@ work item; this file is updated as each PR lands.
 | PR | Scope | Branch | Status |
 |---|---|---|---|
 | PR 1 | Canvas correctness | `feat/cwfd-edit-minimap` (#108) | ✅ implemented, verified live |
-| PR 2 | Theme & contrast | — | ⬜ |
-| PR 3 | Validator & entry-step truth | — | ⬜ |
-| PR 4 | FlowOn quick canvas wins | — | ⬜ |
-| PR 5 | Step panel tabs | — | ⬜ |
-| PR 6 | Hygiene / dead code | — | ⬜ |
-| PR 7 | Guided replay / demo mode | — | ⬜ |
+| PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
+| PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#110, stacked on #109) | ✅ implemented, verified live |
+| PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#111, stacked on #110) | ✅ implemented, verified live |
+| PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#112, stacked on #111) | ✅ implemented, verified live |
+| PR 6 | Hygiene / dead code | `feat/cwfd-canvas-pr6-hygiene` (#113, stacked on #112) | ✅ implemented |
+| PR 7 | Guided replay / demo mode | `feat/cwfd-canvas-pr7-demo` (#114, stacked on #113) | ✅ implemented, verified live |
 
 ---
 
@@ -37,56 +39,56 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 
 ---
 
-## PR 2 — Theme & contrast ⬜
+## PR 2 — Theme & contrast ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 2.1 | Technical (New) outcome pills: text = `--text-on-primary`, never the pill's own accent (today text colour === background colour, invisible in every theme) | A7 | ⬜ |
-| 2.2 | Executive edge labels: real surface pair (today label bg = `--text`, text = `--text-secondary` — text-on-text in both themes) | A8 | ⬜ |
-| 2.3 | SOP swimlane body `rgba(248,250,252,0.6)` → token (light slabs in dark theme) | A9 | ⬜ |
-| 2.4 | Minimap: tokenized `maskColor`; node colours for exec/tech/technew/swimlane types (today they fall through to grey) | A10, A11 | ⬜ |
-| 2.5 | Sweep remaining hardcoded `rgba()` accents: SimStepNode pulse + white overlay, RouteGatewayNode, SopGateway/SopOutcome/SopEnd, SOP "CRM" chip (~2.4:1) | A12 | ⬜ |
-| 2.6 | Extend the `surfacePairs` test to edge `labelStyle`/`labelBgStyle` and node pill pairs so 2.1/2.2 stay dead | A12 | ⬜ |
+| 2.1 | Technical (New) outcome pills: text = `--text-on-primary`, never the pill's own accent (today text colour === background colour, invisible in every theme) | A7 | ✅ |
+| 2.2 | Executive edge labels: real surface pair (today label bg = `--text`, text = `--text-secondary` — text-on-text in both themes) | A8 | ✅ |
+| 2.3 | SOP swimlane body `rgba(248,250,252,0.6)` → token (light slabs in dark theme) | A9 | ✅ |
+| 2.4 | Minimap: tokenized `maskColor`; node colours for exec/tech/technew/swimlane types (today they fall through to grey) | A10, A11 | ✅ |
+| 2.5 | Sweep remaining hardcoded `rgba()` accents: SimStepNode pulse + white overlay, RouteGatewayNode, SopGateway/SopOutcome/SopEnd, SOP "CRM" chip (~2.4:1) | A12 | ✅ (bonus: ${ACCENT}30 built an invalid colour — SOP selection glow never rendered) |
+| 2.6 | Extend the `surfacePairs` test to edge `labelStyle`/`labelBgStyle` and node pill pairs so 2.1/2.2 stay dead | A12 | ✅ (30 new contrast checks) |
 
-## PR 3 — Validator & entry-step truth ⬜
+## PR 3 — Validator & entry-step truth ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 3.1 | One entry-step rule (lowest sequenceNo vs literal 1) across validator + canvases; kills the false MISSING_START error and the cascading false ORPHAN_STEP on a working process | A3 | ⬜ |
-| 3.2 | One numbering scheme: canvas badge (seqNo) vs navigator (ordinal) vs properties ("Order #") — pick one user-facing number | A13 | ⬜ |
-| 3.3 | New rule: warn when all of a step's outcomes are conditional and none is an unconditional fallback (FlowOn "default transition prevents stuck instances") | FlowOn #8 | ⬜ |
+| 3.1 | One entry-step rule (lowest sequenceNo vs literal 1) across validator + canvases; kills the false MISSING_START error and the cascading false ORPHAN_STEP on a working process | A3 | ✅ entry = lowest sequenceNo; MISSING_START retired |
+| 3.2 | One numbering scheme: canvas badge (seqNo) vs navigator (ordinal) vs properties ("Order #") — pick one user-facing number | A13 | ✅ sequenceNo everywhere (canvas · navigator · properties) |
+| 3.3 | New rule: warn when all of a step's outcomes are conditional and none is an unconditional fallback (FlowOn "default transition prevents stuck instances") | FlowOn #8 | ✅ ALL_OUTCOMES_CONDITIONAL warning |
 
-## PR 4 — FlowOn quick canvas wins ⬜
+## PR 4 — FlowOn quick canvas wins ✅
 
 | # | Item | Source | Status |
 |---|---|---|---|
-| 4.1 | Labels on outcome edges in edit mode | FlowOn #2 | ⬜ |
-| 4.2 | Back edges visible (drop the 0.45-opacity near-invisible dashes) | Audit | ⬜ |
-| 4.3 | Per-step accent colour: card bar → step navigator → panel header | FlowOn #1 | ⬜ |
-| 4.4 | "Terminating" badge on cards whose outcomes end the process | FlowOn #4 | ⬜ |
-| 4.5 | Canvas legend per view mode (edge/severity encodings) | FlowOn #5 | ⬜ |
-| 4.6 | Draft/published status pill beside the process name in edit + view | FlowOn #6 | ⬜ |
+| 4.1 | Labels on outcome edges in edit mode | FlowOn #2 | ✅ labels via edge data (custom edges ignore the label prop) |
+| 4.2 | Back edges visible (drop the 0.45-opacity near-invisible dashes) | Audit | ✅ 0.85 opacity, 1.5px, labelled arc |
+| 4.3 | Per-step accent colour: card bar → step navigator → panel header | FlowOn #1 | ✅ stepAccent(crmId) — card bar + navigator + panel header |
+| 4.4 | "Terminating" badge on cards whose outcomes end the process | FlowOn #4 | ✅ registered contrast pair |
+| 4.5 | Canvas legend per view mode (edge/severity encodings) | FlowOn #5 | ✅ CanvasLegend in view + edit |
+| 4.6 | Draft/published status pill beside the process name in edit + view | FlowOn #6 | ✅ edit toolbar; view deferred — adapters do not load process status (workflowState hardcoded draft) |
 
-## PR 5 — Step panel tabs ⬜
+## PR 5 — Step panel tabs ✅
 
 | # | Item | Status |
 |---|---|---|
-| 5.1 | `StepPropertiesPanel` → General / Assignment / SLA & Escalation / Automation tabs (610-line single scroll today) | ⬜ |
+| 5.1 | `StepPropertiesPanel` → General / Assignment / SLA & Escalation / Automation tabs (610-line single scroll today) | ✅ General · Assignment · SLA · Automation; Delete pinned below |
 
-## PR 6 — Hygiene ⬜
+## PR 6 — Hygiene ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 6.1 | Delete dead code: `LayoutService`, `useAutoLayout`, `useExport` + `ExportService` (duplicate of WorkflowCanvas's inline export), `WorkflowToolbox`, legacy Start/Step/Outcome/End nodes + `deriveNodes`/`deriveEdges`, `fitViewTrigger` ref | A6, A16 | ⬜ |
-| 6.2 | One toast implementation (`Notify`); EditCanvas + SopCanvas bespoke toasts removed (z-index 8000 off-scale; SOP timer hides a second toast early) | A14 | ⬜ |
-| 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ⬜ |
-| 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ⬜ |
+| 6.1 | Delete dead code: `LayoutService`, `useAutoLayout`, `useExport` + `ExportService` (duplicate of WorkflowCanvas's inline export), `WorkflowToolbox`, legacy Start/Step/Outcome/End nodes + `deriveNodes`/`deriveEdges`, `fitViewTrigger` ref | A6, A16 | ✅ 10 files deleted |
+| 6.2 | One toast implementation (`Notify`); EditCanvas + SopCanvas bespoke toasts removed (z-index 8000 off-scale; SOP timer hides a second toast early) | A14 | ✅ notify() everywhere |
+| 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ✅ one subscription |
+| 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ✅ computed --canvas-bg |
 
-## PR 7 — Guided replay / demo mode ⬜
+## PR 7 — Guided replay / demo mode ✅
 
 | # | Item | Status |
 |---|---|---|
-| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ⬜ |
+| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ✅ ▶ Demo build: 11 narrated beats on an in-memory draft; recorded (cwfd-demo-build-mode.gif) |
 
 ## Deferred (user decision needed) ⏸
 
@@ -96,3 +98,4 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | Retire old "Technical" view | Technical and Technical (New) both ship — retire the old one once (New) is accepted? |
 | `fitViewOptions maxZoom` 1 vs 1.2 | Edit opens slightly smaller than view — changing it also reframes both simulation canvases. |
 | Runtime track (RT-1..3, DP-4, Q2 deletion) | Still blocked on the #90 platform-team answers. |
+| View-canvas status pill | Needs adapters to load real process status — workflowState is hardcoded 'draft' in mapProcess. |

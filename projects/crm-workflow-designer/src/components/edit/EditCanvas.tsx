@@ -8,7 +8,6 @@ import {
   Controls,
   MiniMap,
 } from '@xyflow/react';
-import type { Node } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
@@ -31,7 +30,12 @@ import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
+import { notify } from '../ui/Notify';
+import { useDemoPlayback } from '@/hooks/useDemoPlayback';
+import { DemoHUD } from './DemoHUD';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
+import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
+import { CanvasLegend } from '../common/CanvasLegend';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -105,6 +109,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const { isSaving, save } = useWorkflowSave();
   const { isPublishing, publish } = usePublish();
   const editMode = useEditMode(adapter);
+  const demo = useDemoPlayback();
   const simMode = useSimulationMode();
   const autoSimMode = useAutoSimMode();
   useAutoSimPlayback();
@@ -116,6 +121,9 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const canPublish = process !== null && !isTemporaryId(process.crmId);
   const processName = process?.name ?? 'New Process';
   const canSimulate = stepOrder.length > 0;
+  // The demo replaces the editor's content with its own in-memory draft, so
+  // it is offered whenever there is no unsaved work to clobber.
+  const canDemo = !isDirty && !isSimulating && !isAutoSimulating;
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
   const [showValidationPanel, setShowValidationPanel] = useState(false);
@@ -187,6 +195,14 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     });
   }, [onExitEdit]);
 
+  // Store-raised toasts go through the one shared toast host. The bespoke
+  // inline Toast lived at z-index 8000, off the layering scale entirely.
+  useEffect(() => {
+    if (!toastMessage) return;
+    notify(toastMessage, toastType ?? 'success');
+    clearToast();
+  }, [toastMessage, toastType, clearToast]);
+
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
 
   return (
@@ -196,11 +212,11 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
       tabIndex={-1}
       aria-label="Workflow edit canvas"
     >
-      {toastMessage && (
-        <Toast message={toastMessage} type={toastType ?? 'success'} onClose={clearToast} />
-      )}
       <EditToolbar
         processName={processName}
+        canDemo={canDemo || demo.isPlaying}
+        onDemo={demo.isPlaying ? demo.stop : demo.start}
+        workflowState={process?.workflowState}
         isDirty={isDirty}
         isSaving={isSaving}
         isPublishing={isPublishing}
@@ -248,7 +264,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
@@ -269,7 +285,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
@@ -294,19 +310,28 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
+              <CanvasLegend />
               {showMiniMap && (
                 <MiniMap
-                  nodeColor={minimapColor}
-                  maskColor="rgba(248,250,252,0.75)"
+                  nodeColor={minimapNodeColor}
+                  maskColor={MINIMAP_MASK_COLOR}
                   style={{ bottom: 60 }}
                 />
               )}
             </ReactFlow>
           )}
 
+          {demo.isPlaying && demo.narration && (
+            <DemoHUD
+              narration={demo.narration}
+              beatIndex={demo.beatIndex}
+              beatCount={demo.beatCount}
+              onStop={demo.stop}
+            />
+          )}
           {isSimulating && <SimulationPanel adapter={adapter} onExit={stopSimulation} />}
           {isAutoSimulating && autoSimPhase !== 'done' && (
             <AutoSimPlaybackHUD onStop={stopAutoSimulation} />
@@ -394,44 +419,3 @@ const sidebarStyle: React.CSSProperties = {
   flexDirection: 'column',
   overflow: 'hidden',
 };
-
-function Toast({
-  message,
-  type,
-  onClose,
-}: {
-  message: string;
-  type: 'success' | 'error';
-  onClose: () => void;
-}) {
-  const isError = type === 'error';
-  return (
-    <div style={{
-      position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
-      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
-      borderRadius: 8, padding: '10px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
-      maxWidth: 480, minWidth: 260,
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button
-        type="button"
-        onClick={onClose}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', padding: 0, lineHeight: 1 }}
-      >
-        ×
-      </button>
-    </div>
-  );
-}
-
-function minimapColor(node: Node): string {
-  if (node.type === 'editStep') return 'var(--primary)';
-  if (node.type === 'routeGateway') return 'var(--accent-branch)';
-  if (node.type === 'viewStart') return 'var(--success)';
-  if (node.type === 'viewEnd') return 'var(--error)';
-  return 'var(--text-disabled)';
-}

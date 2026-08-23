@@ -12,6 +12,7 @@ import {
   stepCardStyle,
   stepHandleStyle,
 } from './stepCard';
+import { stepAccent } from '@/styles/stepAccents';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -39,7 +40,7 @@ export function EditStepNode({ data }: NodeProps) {
 
   return (
     <div
-      style={stepCardStyle({ isSelected, hasError: stepData.hasError ?? false })}
+      style={stepCardStyle({ isSelected, hasError: stepData.hasError ?? false, accentColor: stepAccent(stepData.stepId) })}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -48,6 +49,7 @@ export function EditStepNode({ data }: NodeProps) {
       <StepCardHeader
         sequenceNo={stepData.sequenceNo}
         name={stepData.name}
+        isTerminating={(stepData.outcomeRows ?? []).some((row) => row.isTerminal)}
         controlFlow={
           stepData.controlFlowSummary
             ? {

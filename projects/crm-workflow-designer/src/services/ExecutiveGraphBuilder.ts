@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { routeLabelPair, EXEC_EDGE_LABEL } from '../styles/surfacePairs';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
@@ -154,8 +155,8 @@ export function buildExecutiveGraph(
           type: 'smoothstep',
           animated: !isFallback,
           label,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? 'var(--success)' : 'var(--warning)' },
-          labelBgStyle: { fill: isFallback ? 'var(--success)' : 'var(--warning)', fillOpacity: 1 },
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').foreground },
+          labelBgStyle: { fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').background, fillOpacity: 1 },
           style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
           markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
           selectable: true,
@@ -171,8 +172,8 @@ export function buildExecutiveGraph(
         sourceHandle: 'out', targetHandle: 'in',
         type: 'smoothstep',
         label: primaryLabelByStep.get(o.stepId) ?? undefined,
-        labelStyle: { fontSize: 11, fill: 'var(--text-secondary)', fontWeight: 500 },
-        labelBgStyle: { fill: 'var(--text)', fillOpacity: 0.9, rx: 4 },
+        labelStyle: { fontSize: 11, fill: EXEC_EDGE_LABEL.foreground, fontWeight: 500 },
+        labelBgStyle: { fill: EXEC_EDGE_LABEL.background, fillOpacity: 1, rx: 4 },
         style: { stroke: 'var(--text-secondary)', strokeWidth: 2 },
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
         selectable: false,

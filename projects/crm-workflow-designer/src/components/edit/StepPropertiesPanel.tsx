@@ -1,4 +1,5 @@
 import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
+import { stepAccent } from '@/styles/stepAccents';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
@@ -58,6 +59,12 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   const [showBranchFilterBuilder, setShowBranchFilterBuilder] = useState(false);
   const fetchXmlContext = useFetchXmlEntityContext(adapter);
   const [addingDecision, setAddingDecision] = useState(false);
+
+  // Which tab of the panel is open. Survives step switches on purpose —
+
+  // comparing the same facet across steps is the common flow.
+
+  const [activeTab, setActiveTab] = useState<PanelTab>('general');
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
 
@@ -182,9 +189,25 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   };
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ borderTop: `3px solid ${stepAccent(step.crmId)}` }}>
       <div style={panelHeaderStyle}>Step Properties</div>
+      <div style={tabRowStyle} role="tablist" aria-label="Step property groups">
+        {PANEL_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={activeTab === tab.id ? 'pivot-tab active' : 'pivot-tab'}
+            style={tabBtnStyle}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       <div style={panelBodyStyle}>
+        {activeTab === 'general' && (<>
 
         <div style={fieldGroupStyle}>
           <label className="lbl">Name</label>
@@ -200,7 +223,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         <div style={fieldGroupStyle}>
           <label className="lbl">Order</label>
           <div style={orderRowStyle}>
-            <span style={seqChipStyle}>#{stepIndex + 1}</span>
+            <span style={seqChipStyle}>#{step.sequenceNo}</span>
             <button
               type="button"
               style={buildMoveBtn(canMoveUp)}
@@ -222,7 +245,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           </div>
         </div>
 
-        <div style={dividerStyle} />
+        </>)}
+
+        {activeTab === 'assignment' && (<>
 
         <div style={fieldGroupStyle}>
           <label className="lbl">Assign To</label>
@@ -277,7 +302,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           task&rsquo;s decision onto each.
         </span>
 
-        <div style={dividerStyle} />
+        </>)}
+
+        {activeTab === 'general' && (<>
 
         <div className="panel-section">
           Decisions
@@ -364,8 +391,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           onEditCondition={() => setShowBranchFilterBuilder(true)}
         />
 
-        <div style={dividerStyle} />
+        </>)}
 
+        {activeTab === 'automation' && (
         <WorkflowHooksSection
           value={step.workflowHooks}
           onChange={(workflowHooks) => setStep({ ...step, workflowHooks })}
@@ -373,14 +401,15 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           adapter={adapter}
           scopeNote="Runs for every task this step creates. The engine also runs any workflow set on the outcome and on the process, so more than one can fire."
         />
+        )}
 
-        <div style={dividerStyle} />
-
+        {activeTab === 'sla' && (
         <EscalationSection
           value={step}
           onChange={(patch) => setStep({ ...step, ...patch })}
           adapter={adapter}
           />
+        )}
 
         <div style={dividerStyle} />
 
@@ -406,6 +435,28 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     </div>
   );
 }
+
+type PanelTab = 'general' | 'assignment' | 'sla' | 'automation';
+
+const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
+  { id: 'general', label: 'General' },
+  { id: 'assignment', label: 'Assignment' },
+  { id: 'sla', label: 'SLA' },
+  { id: 'automation', label: 'Automation' },
+];
+
+const tabRowStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 2,
+  padding: '0 8px',
+  borderBottom: '1px solid var(--border)',
+  flexShrink: 0,
+};
+
+const tabBtnStyle: React.CSSProperties = {
+  fontSize: 11,
+  padding: '7px 8px',
+};
 
 const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_TO_TYPES.map(
   (value) => ({ value, label: ASSIGN_TO_LABELS[value] })

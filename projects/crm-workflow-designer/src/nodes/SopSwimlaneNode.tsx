@@ -55,5 +55,5 @@ const roleLabelStyle: React.CSSProperties = {
 
 const bodyStyle: React.CSSProperties = {
   flex: 1, height: '100%',
-  background: 'rgba(248,250,252,0.6)',
+  background: 'var(--lane-bg)',
 };
