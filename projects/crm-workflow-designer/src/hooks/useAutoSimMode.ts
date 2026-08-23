@@ -108,7 +108,7 @@ export function useAutoSimMode(): UseAutoSimModeResult {
         target: `step_${entryStepId}`,
         sourceHandle: 'out',
         targetHandle: 'in',
-        type: 'smoothstep',
+        type: 'default',
         animated: isFirstActive,
         style: { stroke, strokeWidth: isFirstActive ? 2 : 1.5 },
         markerEnd: { type: 'arrowclosed' as const, color: stroke },
