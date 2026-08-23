@@ -19,7 +19,7 @@ export function StepNavigatorPanel() {
         {stepOrder.length === 0 ? (
           <div className="empty-state">No steps yet. Click "Add Step" to begin.</div>
         ) : (
-          stepOrder.map((stepId, idx) => {
+          stepOrder.map((stepId) => {
             const step = steps[stepId];
             if (!step) return null;
             const assignDisplay =
@@ -35,7 +35,7 @@ export function StepNavigatorPanel() {
                 style={navRowStyle}
                 onClick={() => selectNode(`step_${stepId}`)}
               >
-                <span style={navSeqStyle}>{idx + 1}</span>
+                <span style={navSeqStyle}>{step.sequenceNo}</span>
                 <div style={navInfoStyle}>
                   <span style={navStepNameStyle}>{step.name || 'Unnamed Step'}</span>
                   <span style={navAssignStyle}>{assignDisplay}</span>

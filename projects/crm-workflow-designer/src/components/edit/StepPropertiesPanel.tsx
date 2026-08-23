@@ -200,7 +200,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         <div style={fieldGroupStyle}>
           <label className="lbl">Order</label>
           <div style={orderRowStyle}>
-            <span style={seqChipStyle}>#{stepIndex + 1}</span>
+            <span style={seqChipStyle}>#{step.sequenceNo}</span>
             <button
               type="button"
               style={buildMoveBtn(canMoveUp)}

@@ -10,7 +10,7 @@ work item; this file is updated as each PR lands.
 |---|---|---|---|
 | PR 1 | Canvas correctness | `feat/cwfd-edit-minimap` (#108) | ✅ implemented, verified live |
 | PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
-| PR 3 | Validator & entry-step truth | — | ⬜ |
+| PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#TBD, stacked on #109) | ✅ implemented, verified live |
 | PR 4 | FlowOn quick canvas wins | — | ⬜ |
 | PR 5 | Step panel tabs | — | ⬜ |
 | PR 6 | Hygiene / dead code | — | ⬜ |
@@ -48,13 +48,13 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | 2.5 | Sweep remaining hardcoded `rgba()` accents: SimStepNode pulse + white overlay, RouteGatewayNode, SopGateway/SopOutcome/SopEnd, SOP "CRM" chip (~2.4:1) | A12 | ✅ (bonus: ${ACCENT}30 built an invalid colour — SOP selection glow never rendered) |
 | 2.6 | Extend the `surfacePairs` test to edge `labelStyle`/`labelBgStyle` and node pill pairs so 2.1/2.2 stay dead | A12 | ✅ (30 new contrast checks) |
 
-## PR 3 — Validator & entry-step truth ⬜
+## PR 3 — Validator & entry-step truth ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 3.1 | One entry-step rule (lowest sequenceNo vs literal 1) across validator + canvases; kills the false MISSING_START error and the cascading false ORPHAN_STEP on a working process | A3 | ⬜ |
-| 3.2 | One numbering scheme: canvas badge (seqNo) vs navigator (ordinal) vs properties ("Order #") — pick one user-facing number | A13 | ⬜ |
-| 3.3 | New rule: warn when all of a step's outcomes are conditional and none is an unconditional fallback (FlowOn "default transition prevents stuck instances") | FlowOn #8 | ⬜ |
+| 3.1 | One entry-step rule (lowest sequenceNo vs literal 1) across validator + canvases; kills the false MISSING_START error and the cascading false ORPHAN_STEP on a working process | A3 | ✅ entry = lowest sequenceNo; MISSING_START retired |
+| 3.2 | One numbering scheme: canvas badge (seqNo) vs navigator (ordinal) vs properties ("Order #") — pick one user-facing number | A13 | ✅ sequenceNo everywhere (canvas · navigator · properties) |
+| 3.3 | New rule: warn when all of a step's outcomes are conditional and none is an unconditional fallback (FlowOn "default transition prevents stuck instances") | FlowOn #8 | ✅ ALL_OUTCOMES_CONDITIONAL warning |
 
 ## PR 4 — FlowOn quick canvas wins ⬜
 
