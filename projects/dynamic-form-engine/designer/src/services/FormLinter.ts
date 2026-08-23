@@ -25,6 +25,7 @@ import {
   buildFieldCodeSet,
   buildConditionalRequiredFieldIdSet,
   collectOrphanedBusinessRuleCodes,
+  collectOrphanedBusinessRuleTargets,
 } from '@/services/FormLinterHelpers';
 
 // ─── Public result contract ───────────────────────────────────────────────────
@@ -218,6 +219,9 @@ export class FormLinter {
     const validFieldCodes = buildFieldCodeSet(input.fields);
     const findings: LintFinding[] = [];
 
+    const validTabIds = new Set(Object.keys(input.tabs));
+    const validSectionIds = new Set(Object.keys(input.sections));
+
     for (const rule of Object.values(input.businessRules)) {
       const orphanedCodes = collectOrphanedBusinessRuleCodes(rule.definition, validFieldCodes);
       for (const orphanedCode of orphanedCodes) {
@@ -225,6 +229,21 @@ export class FormLinter {
           severity: 'error',
           code: 'L005',
           message: `Business rule "${rule.name}" references field code "${orphanedCode}" which does not exist in this form`,
+          nodeType: 'rule',
+          nodeId: rule.id,
+        });
+      }
+
+      // A rule aimed at a deleted tab or section fails silently at runtime — the tab simply
+      // never hides — so the linter is the only place it can surface.
+      const orphanedTargets = collectOrphanedBusinessRuleTargets(
+        rule.definition, validTabIds, validSectionIds,
+      );
+      for (const orphanedTarget of orphanedTargets) {
+        findings.push({
+          severity: 'error',
+          code: 'L005',
+          message: `Business rule "${rule.name}" targets ${orphanedTarget}, which does not exist in this form`,
           nodeType: 'rule',
           nodeId: rule.id,
         });

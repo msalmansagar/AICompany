@@ -33,6 +33,7 @@ import type {
   RuleActionType,
   RuleCondition,
 } from '@/types/businessRule';
+import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES } from '@/types/businessRule';
 
 const useStyles = makeStyles({
   root: {
@@ -163,6 +164,10 @@ const OPERATORS: Array<{ value: ConditionOperator; label: string }> = [
 const ACTION_TYPES: Array<{ value: RuleActionType; label: string }> = [
   { value: 'show_field', label: 'Show Field' },
   { value: 'hide_field', label: 'Hide Field' },
+  { value: 'show_tab', label: 'Show Tab' },
+  { value: 'hide_tab', label: 'Hide Tab' },
+  { value: 'show_section', label: 'Show Section' },
+  { value: 'hide_section', label: 'Hide Section' },
   { value: 'set_required', label: 'Set Required' },
   { value: 'clear_required', label: 'Clear Required' },
   { value: 'set_value', label: 'Set Value' },
@@ -192,9 +197,81 @@ function buildDefaultDefinition(fieldCodes: string[]): BusinessRuleDefinition {
   };
 }
 
+/** A tab or section a rule can target, as the picker needs it. */
+export interface RuleTarget {
+  id: string;
+  label: string;
+}
+
+interface ActionTargetPickerProps {
+  action: RuleAction;
+  fieldCodes: string[];
+  tabs: RuleTarget[];
+  sections: RuleTarget[];
+  onChange: (patch: Partial<RuleAction>) => void;
+}
+
+/**
+ * The target selector for one action, switched on what the action acts upon.
+ *
+ * Tabs and sections are chosen by record id, not by code — neither carries one. Switching
+ * the action type clears the other kinds of target, so a rule cannot carry a stale field
+ * code alongside the tab it now targets.
+ */
+function ActionTargetPicker({
+  action, fieldCodes, tabs, sections, onChange,
+}: ActionTargetPickerProps): React.ReactElement {
+  if (TAB_ACTION_TYPES.has(action.action_type)) {
+    return (
+      <Field label="Target Tab" style={{ flex: 1 }}>
+        <Select
+          value={action.target_tab_id ?? ''}
+          onChange={(_, d) => onChange({ target_tab_id: d.value, target_field_code: undefined, target_section_id: undefined })}
+        >
+          <option value="">Select a tab…</option>
+          {tabs.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  if (SECTION_ACTION_TYPES.has(action.action_type)) {
+    return (
+      <Field label="Target Section" style={{ flex: 1 }}>
+        <Select
+          value={action.target_section_id ?? ''}
+          onChange={(_, d) => onChange({ target_section_id: d.value, target_field_code: undefined, target_tab_id: undefined })}
+        >
+          <option value="">Select a section…</option>
+          {sections.map(section => (
+            <option key={section.id} value={section.id}>{section.label}</option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  return (
+    <Field label="Target Field" style={{ flex: 1 }}>
+      <Select
+        value={action.target_field_code ?? ''}
+        onChange={(_, d) => onChange({ target_field_code: d.value, target_tab_id: undefined, target_section_id: undefined })}
+      >
+        {fieldCodes.map(code => (
+          <option key={code} value={code}>{code}</option>
+        ))}
+      </Select>
+    </Field>
+  );
+}
+
 interface RuleEditorProps {
   rule: DesignerBusinessRule;
   fieldCodes: string[];
+  tabs: RuleTarget[];
+  sections: RuleTarget[];
   onSave: (updated: DesignerBusinessRule) => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
@@ -212,7 +289,7 @@ function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): Bu
   };
 }
 
-function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
+function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
@@ -386,16 +463,13 @@ function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditor
                 ))}
               </Select>
             </Field>
-            <Field label="Target Field" style={{ flex: 1 }}>
-              <Select
-                value={action.target_field_code}
-                onChange={(_, d) => updateAction(idx, { target_field_code: d.value })}
-              >
-                {fieldCodes.map(code => (
-                  <option key={code} value={code}>{code}</option>
-                ))}
-              </Select>
-            </Field>
+            <ActionTargetPicker
+              action={action}
+              fieldCodes={fieldCodes}
+              tabs={tabs}
+              sections={sections}
+              onChange={patch => updateAction(idx, patch)}
+            />
             {VALUE_ACTION_TYPES.has(action.action_type) && (
               <Field label="Value" style={{ flex: 1 }}>
                 <Input
@@ -445,11 +519,32 @@ export function RuleConfigScreen(): React.ReactElement {
   const navigateTo = useDesignerStore(s => s.navigateTo);
   const storeBusinessRules = useDesignerStore(s => s.businessRules);
   const fields = useDesignerStore(s => s.fields);
+  const storeTabs = useDesignerStore(s => s.tabs);
+  const storeSections = useDesignerStore(s => s.sections);
   const form = useDesignerStore(s => s.form);
 
   const fieldCodes = useMemo(
     () => Object.values(fields).map(f => f.code).filter(Boolean),
     [fields],
+  );
+
+  // Tabs and sections are targeted by record id, since neither carries a code. A tab still
+  // waiting to be saved has a tmp_ id that means nothing to the runtime, so it is not
+  // offered — a rule pointing at one would publish as a rule pointing at nothing.
+  const tabTargets = useMemo<RuleTarget[]>(
+    () => Object.values(storeTabs)
+      .filter(tab => !tab.id.startsWith('tmp_'))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(tab => ({ id: tab.id, label: tab.label || '(untitled tab)' })),
+    [storeTabs],
+  );
+
+  const sectionTargets = useMemo<RuleTarget[]>(
+    () => Object.values(storeSections)
+      .filter(section => !section.id.startsWith('tmp_'))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(section => ({ id: section.id, label: section.label || '(untitled section)' })),
+    [storeSections],
   );
 
   const [localRules, setLocalRules] = useState<DesignerBusinessRule[]>(
@@ -653,6 +748,8 @@ export function RuleConfigScreen(): React.ReactElement {
               key={selectedRule.id}
               rule={selectedRule}
               fieldCodes={fieldCodes.length > 0 ? fieldCodes : ['(no fields)']}
+              tabs={tabTargets}
+              sections={sectionTargets}
               onSave={handleSaveRule}
               onCancel={handleCancelEdit}
               onDelete={handleDeleteRule}

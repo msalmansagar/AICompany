@@ -11,6 +11,32 @@ import type {
 } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
 
+/**
+ * Suffix for the second fact carrying a lookup's display name.
+ *
+ * Chosen to be unusable as a Dataverse schema name, so it can never collide with a real
+ * field's fact.
+ */
+const DISPLAY_FACT_SUFFIX = '::displayName';
+
+function displayFactName(fieldId: string): string {
+  return `${fieldId}${DISPLAY_FACT_SUFFIX}`;
+}
+
+/** A lookup cell's stored shape: the record it points at, plus the text the user saw. */
+function isLookupValue(value: unknown): value is { id: string; displayName: string } {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && typeof (value as { id?: unknown }).id === 'string'
+    && typeof (value as { displayName?: unknown }).displayName === 'string'
+  );
+}
+
+/** Operators whose paired lookup conditions must both hold — see convertCondition. */
+const NEGATIVE_OPERATORS: ReadonlySet<string> = new Set(['notEquals', 'notInList']);
+
 const OPERATOR_MAP: Record<string, string> = {
   equals: 'equal',
   notEquals: 'notEqual',
@@ -190,6 +216,8 @@ export class RuleEngine {
   }
 
   private convertCondition(condition: RuleCondition): ConditionProperties {
+    // Emptiness is a property of the value itself, so the id fact answers it alone —
+    // pairing here would make "is empty" true whenever EITHER half was blank.
     if (condition.operator === 'isEmpty') {
       return {
         fact: condition.fieldId,
@@ -214,11 +242,17 @@ export class RuleEngine {
       );
     }
 
-    return {
-      fact: condition.fieldId,
-      operator: engineOperator,
-      value: condition.value ?? null,
-    } as ConditionProperties;
+    const value = condition.value ?? null;
+    const onId = { fact: condition.fieldId, operator: engineOperator, value } as ConditionProperties;
+    const onDisplay = { fact: displayFactName(condition.fieldId), operator: engineOperator, value } as ConditionProperties;
+
+    // A lookup matches on either its id or its display name. Which combinator that needs
+    // depends on the operator: "equals X" holds if EITHER half is X, but "not equals X"
+    // only holds if BOTH halves differ — an `any` there would make every lookup condition
+    // true, since the two halves are never both equal to the same string.
+    return (NEGATIVE_OPERATORS.has(condition.operator)
+      ? { all: [onId, onDisplay] }
+      : { any: [onId, onDisplay] }) as unknown as ConditionProperties;
   }
 
   private buildEvent(rule: BusinessRule): Event {
@@ -241,7 +275,22 @@ export class RuleEngine {
     const facts: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(fieldValues)) {
-      facts[key] = value ?? null;
+      const normalised = value ?? null;
+
+      if (isLookupValue(normalised)) {
+        // A lookup stores { id, displayName }. Comparing that object against a maker's
+        // string never matched, so no lookup could ever drive a rule. Both halves become
+        // facts and convertCondition tries each — a maker may reasonably have configured
+        // either the record id or the name they see on screen.
+        facts[key] = normalised.id;
+        facts[displayFactName(key)] = normalised.displayName;
+        continue;
+      }
+
+      facts[key] = normalised;
+      // Registered for every field so the paired condition below is always well defined;
+      // for a non-lookup both facts hold the same value and the pair is a no-op.
+      facts[displayFactName(key)] = normalised;
     }
 
     return facts;

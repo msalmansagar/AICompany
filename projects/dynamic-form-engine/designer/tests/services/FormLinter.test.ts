@@ -438,6 +438,74 @@ describe('FormLinter — L004 orphaned validation rule reference', () => {
   });
 });
 
+// ─── L005 — Orphaned tab and section targets ─────────────────────────────────
+//
+// Rules can now target a tab or a section, by record id rather than by code. A rule left
+// pointing at a deleted tab fails silently at runtime — the tab simply never hides — so the
+// linter is the only place it can surface.
+
+describe('FormLinter — L005 orphaned rule targets', () => {
+  function ruleTargeting(target: Record<string, string>, actionType: string): DesignerBusinessRule {
+    return makeBusinessRule({
+      definition: {
+        version: '1.0',
+        trigger_field_code: 'full_name',
+        trigger_event: 'on_change',
+        condition_group: {
+          logical_operator: 'AND',
+          conditions: [{ field_code: 'full_name', operator: 'equals', value: 'x' }],
+        },
+        actions: [{ action_type: actionType as 'hide_tab', ...target }],
+      },
+    });
+  }
+
+  it('reportsNothing_whenTheTargetedTabExists', () => {
+    const input = makeCleanInput({
+      businessRules: { 'brule-1': ruleTargeting({ target_tab_id: 'tab-1' }, 'hide_tab') },
+    });
+
+    expect(FormLinter.checkOrphanedBusinessRuleReferences(input)).toHaveLength(0);
+  });
+
+  it('reportsAnError_whenTheTargetedTabIsGone', () => {
+    const input = makeCleanInput({
+      businessRules: { 'brule-1': ruleTargeting({ target_tab_id: 'tab-deleted' }, 'hide_tab') },
+    });
+
+    const findings = FormLinter.checkOrphanedBusinessRuleReferences(input);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('tab-deleted');
+  });
+
+  it('reportsAnError_whenTheTargetedSectionIsGone', () => {
+    const input = makeCleanInput({
+      businessRules: {
+        'brule-1': ruleTargeting({ target_section_id: 'section-deleted' }, 'hide_section'),
+      },
+    });
+
+    const findings = FormLinter.checkOrphanedBusinessRuleReferences(input);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain('section-deleted');
+  });
+
+  // A tab action carries no field code. Reading one off it used to be safe only because
+  // the designer format could not express tab actions at all.
+  it('doesNotReportAMissingFieldCode_forATabAction', () => {
+    const input = makeCleanInput({
+      businessRules: { 'brule-1': ruleTargeting({ target_tab_id: 'tab-1' }, 'hide_tab') },
+    });
+
+    const findings = FormLinter.checkOrphanedBusinessRuleReferences(input);
+
+    expect(findings.some(f => f.message.includes('field code'))).toBe(false);
+  });
+});
+
 // ─── L005 — Orphaned business rule reference ──────────────────────────────────
 
 describe('FormLinter — L005 orphaned business rule reference', () => {

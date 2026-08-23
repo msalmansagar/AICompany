@@ -295,6 +295,13 @@ namespace Qdb.FormEngine.Core.Generation
                 .ToList();
         }
 
+        /// <summary>A record id from the rule JSON, or null when it is absent or malformed.</summary>
+        private static Guid? ParseGuid(string value)
+        {
+            Guid parsed;
+            return Guid.TryParse(value, out parsed) ? (Guid?)parsed : null;
+        }
+
         /// <summary>Grid validation formats the runtime knows how to check.</summary>
         private static readonly string[] GridValidationFormats =
             { "none", "email", "phone", "url", "numeric", "alphanumeric", "custom" };
@@ -403,9 +410,19 @@ namespace Qdb.FormEngine.Core.Generation
         private static readonly Dictionary<string, string> DesignerActionMap = new Dictionary<string, string>
         {
             { "show_field", "showField" }, { "hide_field", "hideField" },
+            { "show_tab", "showTab" }, { "hide_tab", "hideTab" },
+            { "show_section", "showSection" }, { "hide_section", "hideSection" },
             { "set_required", "makeRequired" }, { "clear_required", "makeOptional" },
             { "set_value", "setValue" }
         };
+
+        /// <summary>Designer action types that name a tab rather than a field.</summary>
+        private static readonly HashSet<string> TabActions =
+            new HashSet<string> { "show_tab", "hide_tab" };
+
+        /// <summary>Designer action types that name a section rather than a field.</summary>
+        private static readonly HashSet<string> SectionActions =
+            new HashSet<string> { "show_section", "hide_section" };
 
         private Dictionary<string, Guid> _schemaToGuid;
         private Dictionary<Guid, string> _guidToSchema;
@@ -488,9 +505,28 @@ namespace Qdb.FormEngine.Core.Generation
                 var actionType = (string)action["action_type"];
                 string mappedAction;
                 if (actionType == null || !DesignerActionMap.TryGetValue(actionType, out mappedAction)) continue;
-                var targetCode = (string)action["target_field_code"];
-                Guid targetGuid;
-                if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out targetGuid)) continue;
+
+                // A tab or section action names a record id directly; only a field action
+                // names a schema code that has to be resolved to one. Resolving every action
+                // as a field is what dropped tab-targeted rules on the floor.
+                Guid? targetField = null, targetTab = null, targetSection = null;
+                if (TabActions.Contains(actionType))
+                {
+                    targetTab = ParseGuid((string)action["target_tab_id"]);
+                    if (targetTab == null) continue;
+                }
+                else if (SectionActions.Contains(actionType))
+                {
+                    targetSection = ParseGuid((string)action["target_section_id"]);
+                    if (targetSection == null) continue;
+                }
+                else
+                {
+                    var targetCode = (string)action["target_field_code"];
+                    Guid fieldGuid;
+                    if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out fieldGuid)) continue;
+                    targetField = fieldGuid;
+                }
 
                 result.Add(new BusinessRule
                 {
@@ -500,7 +536,9 @@ namespace Qdb.FormEngine.Core.Generation
                     Conditions = conditions,
                     ConditionsLogic = logic,
                     Action = mappedAction,
-                    TargetFieldId = targetGuid,
+                    TargetFieldId = targetField,
+                    TargetTabId = targetTab,
+                    TargetSectionId = targetSection,
                     ActionValue = (string)action["value"],
                     Priority = priority,
                     IsActive = true

@@ -913,6 +913,8 @@ export class CrmMetadataService extends CrmBaseService {
     for (const action of def.actions) {
       const mappedAction = DESIGNER_ACTION_MAP[action.action_type];
       if (!mappedAction) continue; // e.g. show_message has no runtime equivalent
+      const target = resolveDesignerActionTarget(action, schemaToGuid);
+      if (!target) continue; // an action naming no target cannot be applied to anything
       rules.push({
         id: rule.qdb_form_business_ruleid,
         name: rule.qdb_name,
@@ -920,9 +922,7 @@ export class CrmMetadataService extends CrmBaseService {
         conditions,
         conditionsLogic,
         action: mappedAction,
-        targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
-        targetSectionId: undefined,
-        targetTabId: undefined,
+        ...target,
         actionValue: action.value,
         priority: rule.qdb_priority ?? 100,
         isActive: true,
@@ -1588,7 +1588,13 @@ interface RawDesignerRuleDefinition {
     logical_operator?: 'AND' | 'OR';
     conditions?: Array<{ field_code: string; operator: string; value?: string | null }>;
   };
-  actions: Array<{ action_type: string; target_field_code: string; value?: string }>;
+  actions: Array<{
+    action_type: string;
+    target_field_code?: string;
+    target_tab_id?: string;
+    target_section_id?: string;
+    value?: string;
+  }>;
 }
 
 // Designer snake_case operators/actions → runtime camelCase vocab. Unmapped entries
@@ -1606,10 +1612,52 @@ const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
 const DESIGNER_ACTION_MAP: Record<string, BusinessRuleAction> = {
   show_field: 'showField',
   hide_field: 'hideField',
+  // Tab and section targets. The runtime has honoured these since they existed; the
+  // designer format could not express them, so a rule aimed at a tab published as one
+  // aimed at nothing.
+  show_tab: 'showTab',
+  hide_tab: 'hideTab',
+  show_section: 'showSection',
+  hide_section: 'hideSection',
   set_required: 'makeRequired',
   clear_required: 'makeOptional',
   set_value: 'setValue',
 };
+
+/** Designer action types that name a tab rather than a field. */
+const DESIGNER_TAB_ACTIONS = new Set(['show_tab', 'hide_tab']);
+
+/** Designer action types that name a section rather than a field. */
+const DESIGNER_SECTION_ACTIONS = new Set(['show_section', 'hide_section']);
+
+/**
+ * The record a designer action targets, keyed for spreading onto a BusinessRule.
+ *
+ * A tab or section action names a record id directly; only a field action names a schema
+ * code that has to be resolved to one. Treating every action as a field target is what
+ * dropped tab- and section-targeted rules.
+ */
+function resolveDesignerActionTarget(
+  action: { action_type: string; target_field_code?: string; target_tab_id?: string; target_section_id?: string },
+  schemaToGuid: Map<string, string>,
+): Pick<BusinessRule, 'targetFieldId' | 'targetTabId' | 'targetSectionId'> | null {
+  if (DESIGNER_TAB_ACTIONS.has(action.action_type)) {
+    return action.target_tab_id
+      ? { targetFieldId: undefined, targetTabId: action.target_tab_id, targetSectionId: undefined }
+      : null;
+  }
+  if (DESIGNER_SECTION_ACTIONS.has(action.action_type)) {
+    return action.target_section_id
+      ? { targetFieldId: undefined, targetTabId: undefined, targetSectionId: action.target_section_id }
+      : null;
+  }
+  if (!action.target_field_code) return null;
+  return {
+    targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
+    targetTabId: undefined,
+    targetSectionId: undefined,
+  };
+}
 
 interface RawFieldLabel {
   qdb_fieldlabelid: string;
