@@ -360,7 +360,7 @@ function buildStartEdge(entryStepId: string): Edge {
     target: `step_${entryStepId}`,
     sourceHandle: 'out',
     targetHandle: 'in',
-    type: 'smoothstep',
+    type: 'default',
     style: { stroke: 'var(--text-secondary)' },
     markerEnd: { type: 'arrowclosed' as const, color: 'var(--text-secondary)' },
   };
@@ -380,7 +380,7 @@ function buildBranchEdge(parentStepId: string, childStepId: string, isConditiona
     target: `step_${childStepId}`,
     sourceHandle: 'out',
     targetHandle: 'in',
-    type: 'smoothstep',
+    type: 'default',
     animated: false,
     label: isConditional ? 'AT SAME TIME · IF' : 'AT SAME TIME',
     labelStyle: { fill: BRANCH_EDGE_LABEL.foreground, fontSize: 10, fontWeight: 700 },

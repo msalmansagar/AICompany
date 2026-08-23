@@ -157,7 +157,7 @@ function buildStartEdge(
     target: `step_${entryStepId}`,
     sourceHandle: 'out',
     targetHandle: 'in',
-    type: 'smoothstep',
+    type: 'default',
     style: { stroke, strokeWidth },
     markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };

@@ -1,4 +1,4 @@
-import { getSmoothStepPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
+import { getBezierPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
 import type { EdgeProps } from '@xyflow/react';
 
 export interface OutcomeEdgeData extends Record<string, unknown> {
@@ -19,7 +19,7 @@ export function OutcomeEdge({
   markerEnd,
   style,
 }: EdgeProps) {
-  const [edgePath] = getSmoothStepPath({
+  const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
