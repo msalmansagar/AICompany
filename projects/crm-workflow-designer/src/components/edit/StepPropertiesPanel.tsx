@@ -1,4 +1,5 @@
 import { emptyWorkflowHooks, OUTCOME_HOOKS, STEP_HOOKS } from '@/services/workflowHooks';
+import { stepAccent } from '@/styles/stepAccents';
 import { useEffect, useState, useCallback } from 'react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
@@ -182,7 +183,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   };
 
   return (
-    <div className="panel">
+    <div className="panel" style={{ borderTop: `3px solid ${stepAccent(step.crmId)}` }}>
       <div style={panelHeaderStyle}>Step Properties</div>
       <div style={panelBodyStyle}>
 

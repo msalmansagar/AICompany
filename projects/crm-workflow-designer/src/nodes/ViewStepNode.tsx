@@ -10,6 +10,7 @@ import {
   stepCardStyle,
   stepHandleStyle,
 } from './stepCard';
+import { stepAccent } from '@/styles/stepAccents';
 
 export function ViewStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows, layoutDir } = data as unknown as ViewStepData;
@@ -29,7 +30,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   const backInPos = isLR ? Position.Top : Position.Left;
 
   return (
-    <div style={stepCardStyle({ isSelected: selected ?? false })}>
+    <div style={stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) })}>
       <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
       <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
       <Handle type="target" position={backInPos} id="back-in" style={backHandleStyle(isLR, 'in')} />
@@ -37,6 +38,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
       <StepCardHeader
         sequenceNo={step.sequenceNo}
         name={step.name}
+        isTerminating={outcomeRows.some((row) => row.isTerminal)}
         controlFlow={
           controlFlowLabel
             ? {

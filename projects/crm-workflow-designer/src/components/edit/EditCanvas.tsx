@@ -32,6 +32,7 @@ import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
+import { CanvasLegend } from '../common/CanvasLegend';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -201,6 +202,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
       )}
       <EditToolbar
         processName={processName}
+        workflowState={process?.workflowState}
         isDirty={isDirty}
         isSaving={isSaving}
         isPublishing={isPublishing}
@@ -297,6 +299,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
+              <CanvasLegend />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={minimapNodeColor}

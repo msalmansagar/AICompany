@@ -33,6 +33,7 @@ import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
+import { CanvasLegend } from './common/CanvasLegend';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -274,6 +275,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
+            <CanvasLegend />
             {showMiniMap && (
               <MiniMap
                 nodeColor={minimapNodeColor}

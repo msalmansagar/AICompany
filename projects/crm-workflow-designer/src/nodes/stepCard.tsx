@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
-import { NODE_NEUTRAL_CHIP } from '@/styles/surfacePairs';
+import { NODE_NEUTRAL_CHIP, TERMINATING_BADGE_REGISTRATION } from '@/styles/surfacePairs';
 import type { AssignToType } from '@/types/WorkflowTypes';
 
 /**
@@ -41,9 +41,11 @@ export function truncate(value: string, max: number): string {
 export interface StepCardState {
   isSelected: boolean;
   hasError?: boolean;
+  /** The step's identity colour, drawn as the card's left bar. */
+  accentColor?: string;
 }
 
-export function stepCardStyle({ isSelected, hasError = false }: StepCardState): React.CSSProperties {
+export function stepCardStyle({ isSelected, hasError = false, accentColor }: StepCardState): React.CSSProperties {
   return {
     background: hasError ? 'var(--error-bg)' : 'var(--surface)',
     border: hasError
@@ -51,6 +53,11 @@ export function stepCardStyle({ isSelected, hasError = false }: StepCardState): 
       : isSelected
         ? '2px solid var(--primary)'
         : '1.5px solid var(--border)',
+    borderLeft: hasError
+      ? '4px solid var(--error)'
+      : accentColor
+        ? `4px solid ${accentColor}`
+        : undefined,
     borderRadius: 10,
     padding: '10px 14px 10px',
     width: STEP_CARD_WIDTH,
@@ -76,15 +83,23 @@ export function StepCardHeader({
   sequenceNo,
   name,
   controlFlow,
+  isTerminating = false,
 }: {
   sequenceNo: number;
   name: string;
   controlFlow?: ControlFlowBadge | null;
+  /** True when one of the step's outcomes ends the process. */
+  isTerminating?: boolean;
 }) {
   return (
     <div style={headerRow}>
       <span style={seqBadge}>{sequenceNo}</span>
       <span style={nameText}>{name || 'Unnamed Step'}</span>
+      {isTerminating && (
+        <span style={terminatingBadge} title="An outcome of this step ends the process">
+          ● Terminating
+        </span>
+      )}
       {controlFlow && (
         <span style={controlFlowBadge} title={controlFlow.description}>
           ⧉ {controlFlow.label}
@@ -249,6 +264,19 @@ const controlFlowBadge: React.CSSProperties = {
   background: 'var(--accent-branch-bg)',
   color: 'var(--accent-branch)',
   border: '1px solid var(--accent-branch)',
+  borderRadius: 4,
+  fontSize: 9,
+  fontWeight: 700,
+  padding: '1px 5px',
+  flexShrink: 0,
+  lineHeight: '16px',
+  whiteSpace: 'nowrap',
+};
+
+const terminatingBadge: React.CSSProperties = {
+  background: TERMINATING_BADGE_REGISTRATION.background,
+  color: TERMINATING_BADGE_REGISTRATION.foreground,
+  border: `1px solid ${TERMINATING_BADGE_REGISTRATION.border}`,
   borderRadius: 4,
   fontSize: 9,
   fontWeight: 700,

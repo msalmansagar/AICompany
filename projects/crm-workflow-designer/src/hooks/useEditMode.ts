@@ -1,5 +1,5 @@
 import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
-import { BRANCH_EDGE_LABEL } from '@/styles/surfacePairs';
+import { BRANCH_EDGE_LABEL, routeLabelPair } from '@/styles/surfacePairs';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
 import type { Node, Edge, Connection, NodeChange } from '@xyflow/react';
@@ -413,6 +413,7 @@ function buildOutcomeEdge(
   const isConditional = outcome.applyFilter;
 
   if (isBackEdge) {
+    const backPair = routeLabelPair('conditional');
     return {
       id: `outcome_${outcome.crmId}`,
       source: sourceNodeId,
@@ -421,14 +422,18 @@ function buildOutcomeEdge(
       targetHandle: 'in',
       type: 'editBack',
       animated: false,
-      style: { stroke: 'var(--warning)', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.45 },
-      data: { isBackEdge: true, isConditional },
+      // 0.45 opacity at 1px made return paths effectively invisible — the
+      // dash carries the 'backwards' meaning, the colour needs to be seen.
+      style: { stroke: 'var(--warning)', strokeWidth: 1.5, strokeDasharray: '5 4', opacity: 0.85 },
+      // custom edge components ignore the built-in label prop — labels travel in data
+      data: { isBackEdge: true, isConditional, label: outcome.name, labelColor: backPair.foreground },
       markerEnd: { type: 'arrowclosed' as const, color: 'var(--warning)' },
     };
   }
 
   const stroke = isConditional ? 'var(--primary)' : 'var(--text-secondary)';
   const strokeWidth = isConditional ? 1.5 : 1;
+  const labelPair = routeLabelPair(isConditional ? 'conditional' : 'plain');
 
   return {
     id: `outcome_${outcome.crmId}`,
@@ -439,7 +444,7 @@ function buildOutcomeEdge(
     type: 'outcome',
     animated: false,
     style: { stroke, strokeWidth },
-    data: { isBackEdge: false, isConditional },
+    data: { isBackEdge: false, isConditional, label: outcome.name, labelColor: labelPair.foreground },
     markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };
 }

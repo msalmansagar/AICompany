@@ -1,5 +1,7 @@
 interface EditToolbarProps {
   processName: string;
+  /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
+  workflowState?: string;
   isDirty: boolean;
   isSaving: boolean;
   isPublishing: boolean;
@@ -30,6 +32,7 @@ interface EditToolbarProps {
 
 export function EditToolbar({
   processName,
+  workflowState,
   isDirty,
   isSaving,
   isPublishing,
@@ -157,6 +160,11 @@ export function EditToolbar({
       <span style={processNameStyle} title={processName}>
         {isSimulating ? `Simulating: ${processName}` : displayName}
       </span>
+      {!isSimulating && workflowState && (
+        <span className={workflowState === 'published' ? 'pill published' : 'pill draft'}>
+          {workflowState === 'published' ? 'Published' : workflowState === 'archived' ? 'Archived' : 'Draft'}
+        </span>
+      )}
     </div>
   );
 }

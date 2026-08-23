@@ -132,6 +132,15 @@ export const ENTITY_CHIP: SurfacePair = {
 };
 
 /**
+ * The badge on a card whose outcome ends the process ('Terminating').
+ */
+export const TERMINATING_BADGE_REGISTRATION: SurfacePair = {
+  background: 'var(--error-bg)',
+  foreground: 'var(--error)',
+  border: 'var(--error)',
+};
+
+/**
  * Every pairing the contrast guard checks. A new pair must be registered here,
  * which is what stops the next one from going unmeasured.
  */
@@ -146,4 +155,5 @@ export const ALL_SURFACE_PAIRS: Readonly<Record<string, SurfacePair>> = {
   'tech outcome pill · terminal': TECH_OUTCOME_PILLS.terminal,
   'executive edge label': EXEC_EDGE_LABEL,
   'node chip · entity': ENTITY_CHIP,
+  'terminating badge': TERMINATING_BADGE_REGISTRATION,
 };

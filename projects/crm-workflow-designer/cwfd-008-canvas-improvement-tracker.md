@@ -11,7 +11,7 @@ work item; this file is updated as each PR lands.
 | PR 1 | Canvas correctness | `feat/cwfd-edit-minimap` (#108) | ✅ implemented, verified live |
 | PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
 | PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#TBD, stacked on #109) | ✅ implemented, verified live |
-| PR 4 | FlowOn quick canvas wins | — | ⬜ |
+| PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#TBD, stacked on #110) | ✅ implemented, verified live |
 | PR 5 | Step panel tabs | — | ⬜ |
 | PR 6 | Hygiene / dead code | — | ⬜ |
 | PR 7 | Guided replay / demo mode | — | ⬜ |
@@ -56,16 +56,16 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | 3.2 | One numbering scheme: canvas badge (seqNo) vs navigator (ordinal) vs properties ("Order #") — pick one user-facing number | A13 | ✅ sequenceNo everywhere (canvas · navigator · properties) |
 | 3.3 | New rule: warn when all of a step's outcomes are conditional and none is an unconditional fallback (FlowOn "default transition prevents stuck instances") | FlowOn #8 | ✅ ALL_OUTCOMES_CONDITIONAL warning |
 
-## PR 4 — FlowOn quick canvas wins ⬜
+## PR 4 — FlowOn quick canvas wins ✅
 
 | # | Item | Source | Status |
 |---|---|---|---|
-| 4.1 | Labels on outcome edges in edit mode | FlowOn #2 | ⬜ |
-| 4.2 | Back edges visible (drop the 0.45-opacity near-invisible dashes) | Audit | ⬜ |
-| 4.3 | Per-step accent colour: card bar → step navigator → panel header | FlowOn #1 | ⬜ |
-| 4.4 | "Terminating" badge on cards whose outcomes end the process | FlowOn #4 | ⬜ |
-| 4.5 | Canvas legend per view mode (edge/severity encodings) | FlowOn #5 | ⬜ |
-| 4.6 | Draft/published status pill beside the process name in edit + view | FlowOn #6 | ⬜ |
+| 4.1 | Labels on outcome edges in edit mode | FlowOn #2 | ✅ labels via edge data (custom edges ignore the label prop) |
+| 4.2 | Back edges visible (drop the 0.45-opacity near-invisible dashes) | Audit | ✅ 0.85 opacity, 1.5px, labelled arc |
+| 4.3 | Per-step accent colour: card bar → step navigator → panel header | FlowOn #1 | ✅ stepAccent(crmId) — card bar + navigator + panel header |
+| 4.4 | "Terminating" badge on cards whose outcomes end the process | FlowOn #4 | ✅ registered contrast pair |
+| 4.5 | Canvas legend per view mode (edge/severity encodings) | FlowOn #5 | ✅ CanvasLegend in view + edit |
+| 4.6 | Draft/published status pill beside the process name in edit + view | FlowOn #6 | ✅ edit toolbar; view deferred — adapters do not load process status (workflowState hardcoded draft) |
 
 ## PR 5 — Step panel tabs ⬜
 
@@ -96,3 +96,4 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | Retire old "Technical" view | Technical and Technical (New) both ship — retire the old one once (New) is accepted? |
 | `fitViewOptions maxZoom` 1 vs 1.2 | Edit opens slightly smaller than view — changing it also reframes both simulation canvases. |
 | Runtime track (RT-1..3, DP-4, Q2 deletion) | Still blocked on the #90 platform-team answers. |
+| View-canvas status pill | Needs adapters to load real process status — workflowState is hardcoded 'draft' in mapProcess. |

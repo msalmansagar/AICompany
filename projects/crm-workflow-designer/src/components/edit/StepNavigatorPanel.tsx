@@ -1,4 +1,5 @@
 import React from 'react';
+import { stepAccent } from '@/styles/stepAccents';
 import { useWorkflowStore } from '@/store/workflowStore';
 
 /** Right-hand navigator listing every workflow step; shown when nothing is selected. */
@@ -35,7 +36,7 @@ export function StepNavigatorPanel() {
                 style={navRowStyle}
                 onClick={() => selectNode(`step_${stepId}`)}
               >
-                <span style={navSeqStyle}>{step.sequenceNo}</span>
+                <span style={{ ...navSeqStyle, color: stepAccent(stepId), border: `1px solid ${stepAccent(stepId)}` }}>{step.sequenceNo}</span>
                 <div style={navInfoStyle}>
                   <span style={navStepNameStyle}>{step.name || 'Unnamed Step'}</span>
                   <span style={navAssignStyle}>{assignDisplay}</span>
