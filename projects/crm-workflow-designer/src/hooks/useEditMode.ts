@@ -18,6 +18,8 @@ import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
 import { computeEditLayout } from '@/services/EditGraphLayout';
+import { collectErrorNodeIds } from '@/services/ValidationService';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
 interface UseEditModeResult {
   nodes: Node[];
@@ -67,14 +69,8 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     setNodePositions: s.setNodePositions,
   }));
 
-  const nodes = useMemo<Node[]>(() => {
-    const errorStepIds = new Set<string>();
-    for (const v of validationResults) {
-      if (v.nodeId && (!v.nodeType || v.nodeType === 'step')) {
-        errorStepIds.add(v.nodeId);
-      }
-      for (const id of (v.affectedNodeIds ?? [])) errorStepIds.add(id);
-    }
+  const blueprint = useMemo<Node[]>(() => {
+    const errorStepIds = collectErrorNodeIds(validationResults);
 
     const stepCount = stepOrder.length;
 
@@ -220,7 +216,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     [outcomes, addOutcome]
   );
 
-  const onNodesChange = useCallback(
+  const persistNodePositions = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
         if (change.type === 'position' && 'position' in change && change.position != null) {
@@ -232,6 +228,10 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     },
     [updateNodePosition]
   );
+
+  // React Flow reports measured sizes through onNodesChange; the synced state
+  // keeps them across blueprint rebuilds so the minimap sees a measured graph.
+  const { nodes, onNodesChange } = useSyncedNodes(blueprint, persistNodePositions);
 
   const onNodeClick = useCallback(
     (_event: MouseEvent, node: Node) => {

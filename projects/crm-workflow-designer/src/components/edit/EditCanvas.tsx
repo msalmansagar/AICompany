@@ -6,8 +6,9 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  useReactFlow,
+  MiniMap,
 } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
@@ -30,9 +31,12 @@ import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
+import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
+
+const FIT_OPTIONS = { padding: 0.25, maxZoom: 1, duration: 300 } as const;
 
 interface EditCanvasProps {
   adapter: ICrmAdapter;
@@ -40,7 +44,6 @@ interface EditCanvasProps {
 }
 
 export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
-  const { fitView } = useReactFlow();
   const [isEditingProperties, setEditingProperties] = useState(false);
 
   const {
@@ -116,6 +119,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
   const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
 
   // Live, debounced validation — keeps node error badges and the toolbar count
   // current as the workflow is edited, without waiting for the Validate button.
@@ -135,9 +139,9 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     setShowValidationPanel(true);
   }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
-  useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.25, maxZoom: 1, duration: 300 }), 80);
-  }, [fitView]);
+  // No manual delayed fit: each canvas passes the fitView prop to React Flow,
+  // which now fires correctly because useSyncedNodes keeps nodes measured —
+  // the old fixed 80ms delay raced measurement and mis-framed simulation.
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -205,8 +209,10 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         canSimulate={canSimulate}
         canSimStepBack={canSimStepBack}
         validationErrorCount={validationErrorCount}
+        showMiniMap={showMiniMap}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
+        onToggleMiniMap={() => setShowMiniMap((isOn) => !isOn)}
         onSave={() => void save()}
         onPublish={() => void publish()}
         onDiscard={handleDiscard}
@@ -244,6 +250,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
           ) : isAutoSimulating && autoSimPhase !== 'done' ? (
             <ReactFlow
@@ -264,6 +271,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
           ) : (
             <ReactFlow
@@ -288,6 +296,14 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
+              {showMiniMap && (
+                <MiniMap
+                  nodeColor={minimapColor}
+                  maskColor="rgba(248,250,252,0.75)"
+                  style={{ bottom: 60 }}
+                />
+              )}
             </ReactFlow>
           )}
 
@@ -410,4 +426,12 @@ function Toast({
       </button>
     </div>
   );
+}
+
+function minimapColor(node: Node): string {
+  if (node.type === 'editStep') return 'var(--primary)';
+  if (node.type === 'routeGateway') return 'var(--accent-branch)';
+  if (node.type === 'viewStart') return 'var(--success)';
+  if (node.type === 'viewEnd') return 'var(--error)';
+  return 'var(--text-disabled)';
 }
