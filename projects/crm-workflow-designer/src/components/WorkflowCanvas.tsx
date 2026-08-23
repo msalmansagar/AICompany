@@ -32,6 +32,7 @@ import type { ViewMode } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
+import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -271,12 +272,12 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
             panOnDrag
             selectionOnDrag={false}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
             {showMiniMap && (
               <MiniMap
-                nodeColor={minimapColor}
-                maskColor="rgba(248,250,252,0.75)"
+                nodeColor={minimapNodeColor}
+                maskColor={MINIMAP_MASK_COLOR}
                 style={{ bottom: 60 }}
               />
             )}
@@ -350,14 +351,6 @@ function extractRouteId(edgeId: string): string | null {
     if (edgeId.startsWith(prefix)) return edgeId.slice(prefix.length);
   }
   return null;
-}
-
-function minimapColor(node: Node): string {
-  if (node.type === 'viewStep') return 'var(--primary)';
-  if (node.type === 'viewDecision') return 'var(--accent-branch)';
-  if (node.type === 'viewStart') return 'var(--success)';
-  if (node.type === 'viewEnd') return 'var(--error)';
-  return 'var(--text-disabled)';
 }
 
 const shellStyle: React.CSSProperties = {

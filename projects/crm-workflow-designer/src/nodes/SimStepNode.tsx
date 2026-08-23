@@ -24,8 +24,8 @@ export function SimStepNode({ data }: NodeProps) {
       {d.simStatus === 'active' && (
         <style>{`
           @keyframes simPulse {
-            0%, 100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(37,99,235,0.08); }
+            0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 40%, transparent); }
+            50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 8%, transparent); }
           }
         `}</style>
       )}
@@ -100,7 +100,7 @@ const seqBadgeStyle: React.CSSProperties = {
   minWidth: 20,
   height: 20,
   borderRadius: 4,
-  background: 'rgba(255,255,255,0.15)',
+  background: 'var(--neutral-chip)',
   color: 'var(--text-disabled)',
   fontSize: 10,
   fontWeight: 700,

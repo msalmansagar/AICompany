@@ -8,7 +8,6 @@ import {
   Controls,
   MiniMap,
 } from '@xyflow/react';
-import type { Node } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
@@ -32,6 +31,7 @@ import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
+import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
@@ -248,7 +248,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
@@ -269,7 +269,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
@@ -294,13 +294,13 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
               minZoom={0.08}
               maxZoom={2.5}
             >
-              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
               <FitOnceMeasured options={FIT_OPTIONS} />
               {showMiniMap && (
                 <MiniMap
-                  nodeColor={minimapColor}
-                  maskColor="rgba(248,250,252,0.75)"
+                  nodeColor={minimapNodeColor}
+                  maskColor={MINIMAP_MASK_COLOR}
                   style={{ bottom: 60 }}
                 />
               )}
@@ -428,10 +428,4 @@ function Toast({
   );
 }
 
-function minimapColor(node: Node): string {
-  if (node.type === 'editStep') return 'var(--primary)';
-  if (node.type === 'routeGateway') return 'var(--accent-branch)';
-  if (node.type === 'viewStart') return 'var(--success)';
-  if (node.type === 'viewEnd') return 'var(--error)';
-  return 'var(--text-disabled)';
-}
+

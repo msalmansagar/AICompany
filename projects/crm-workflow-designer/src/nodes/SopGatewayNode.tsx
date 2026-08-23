@@ -30,10 +30,10 @@ export function SopGatewayNode({ data, selected }: NodeProps) {
   const bg        = gatewayData.hasError ? 'var(--error)' : isActive ? 'var(--accent-branch)' : 'var(--accent-branch)';
   const border    = gatewayData.hasError ? 'var(--error)' : ACCENT;
   const shadow    = gatewayData.hasError
-    ? '0 0 0 3px rgba(239,68,68,0.2)'
+    ? '0 0 0 3px color-mix(in srgb, var(--error) 20%, transparent)'
     : isActive
-    ? `0 0 0 3px ${ACCENT}30`
-    : '0 2px 8px rgba(124,58,237,0.15)';
+    ? `0 0 0 3px color-mix(in srgb, ${ACCENT} 19%, transparent)`
+    : '0 2px 8px color-mix(in srgb, var(--accent-branch) 15%, transparent)';
 
   const label = gatewayData.decisionLabel?.trim() || null;
 

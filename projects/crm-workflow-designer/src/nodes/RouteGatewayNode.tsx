@@ -46,7 +46,7 @@ function buildDiamondStyle(isSelected: boolean): React.CSSProperties {
     position: 'relative',
     width: 52,
     height: 52,
-    filter: isSelected ? 'drop-shadow(0 0 4px rgba(217,119,6,0.6))' : undefined,
+    filter: isSelected ? 'drop-shadow(0 0 4px color-mix(in srgb, var(--accent-route) 60%, transparent))' : undefined,
     cursor: 'pointer',
   };
 }

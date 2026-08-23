@@ -216,7 +216,7 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
             minZoom={0.08}
             maxZoom={2.5}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
             <FitOnceMeasured options={{ padding: 0.2, duration: 300 }} />
           </ReactFlow>
