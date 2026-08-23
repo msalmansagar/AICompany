@@ -9,7 +9,7 @@ work item; this file is updated as each PR lands.
 | PR | Scope | Branch | Status |
 |---|---|---|---|
 | PR 1 | Canvas correctness | `feat/cwfd-edit-minimap` (#108) | ✅ implemented, verified live |
-| PR 2 | Theme & contrast | — | ⬜ |
+| PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
 | PR 3 | Validator & entry-step truth | — | ⬜ |
 | PR 4 | FlowOn quick canvas wins | — | ⬜ |
 | PR 5 | Step panel tabs | — | ⬜ |
@@ -37,16 +37,16 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 
 ---
 
-## PR 2 — Theme & contrast ⬜
+## PR 2 — Theme & contrast ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 2.1 | Technical (New) outcome pills: text = `--text-on-primary`, never the pill's own accent (today text colour === background colour, invisible in every theme) | A7 | ⬜ |
-| 2.2 | Executive edge labels: real surface pair (today label bg = `--text`, text = `--text-secondary` — text-on-text in both themes) | A8 | ⬜ |
-| 2.3 | SOP swimlane body `rgba(248,250,252,0.6)` → token (light slabs in dark theme) | A9 | ⬜ |
-| 2.4 | Minimap: tokenized `maskColor`; node colours for exec/tech/technew/swimlane types (today they fall through to grey) | A10, A11 | ⬜ |
-| 2.5 | Sweep remaining hardcoded `rgba()` accents: SimStepNode pulse + white overlay, RouteGatewayNode, SopGateway/SopOutcome/SopEnd, SOP "CRM" chip (~2.4:1) | A12 | ⬜ |
-| 2.6 | Extend the `surfacePairs` test to edge `labelStyle`/`labelBgStyle` and node pill pairs so 2.1/2.2 stay dead | A12 | ⬜ |
+| 2.1 | Technical (New) outcome pills: text = `--text-on-primary`, never the pill's own accent (today text colour === background colour, invisible in every theme) | A7 | ✅ |
+| 2.2 | Executive edge labels: real surface pair (today label bg = `--text`, text = `--text-secondary` — text-on-text in both themes) | A8 | ✅ |
+| 2.3 | SOP swimlane body `rgba(248,250,252,0.6)` → token (light slabs in dark theme) | A9 | ✅ |
+| 2.4 | Minimap: tokenized `maskColor`; node colours for exec/tech/technew/swimlane types (today they fall through to grey) | A10, A11 | ✅ |
+| 2.5 | Sweep remaining hardcoded `rgba()` accents: SimStepNode pulse + white overlay, RouteGatewayNode, SopGateway/SopOutcome/SopEnd, SOP "CRM" chip (~2.4:1) | A12 | ✅ (bonus: ${ACCENT}30 built an invalid colour — SOP selection glow never rendered) |
+| 2.6 | Extend the `surfacePairs` test to edge `labelStyle`/`labelBgStyle` and node pill pairs so 2.1/2.2 stay dead | A12 | ✅ (30 new contrast checks) |
 
 ## PR 3 — Validator & entry-step truth ⬜
 
