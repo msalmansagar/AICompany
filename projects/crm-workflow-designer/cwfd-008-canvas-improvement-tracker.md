@@ -90,6 +90,13 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 |---|---|---|
 | 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ✅ ▶ Demo build: 11 narrated beats on an in-memory draft; recorded (cwfd-demo-build-mode.gif) |
 
+## Follow-ups (post-stack, user-driven) ✅
+
+| PR | Item | Status |
+|---|---|---|
+| #116 | Edges flex as bezier curves (FlowOn comparison) | ✅ merged + deployed |
+| #117 | View declutter: Hide-labels toggle, 3-state return-path filter (on / lines off / hidden), route-label truncation, TechNew return-label contrast fix | ✅ |
+
 ## Deferred (user decision needed) ⏸
 
 | Item | Question |

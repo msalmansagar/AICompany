@@ -34,6 +34,8 @@ import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { CanvasLegend } from './common/CanvasLegend';
+import { applyReturnPathFilter, RETURN_PATH_MODES } from '../services/viewFilters';
+import type { ReturnPathMode } from '../services/viewFilters';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -82,6 +84,8 @@ function useMeasuredNodeIds(): string | null {
 export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
+  const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
   const measuredNodeIds = useMeasuredNodeIds();
@@ -128,7 +132,9 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
       prev.map((edge) => {
         const routeId = extractRouteId(edge.id);
         const label = routeId ? resolvedLabels.get(routeId) : undefined;
-        return label ? { ...edge, label } : edge;
+        // A full condition can run to banner width at low zoom — clamp it; the
+        // route inspector panel still shows the whole thing on click.
+        return label ? { ...edge, label: truncateLabel(label) } : edge;
       })
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -177,6 +183,19 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     view.setNodes((prev) => applyNodeChanges(changes, prev));
   }, [view]);
+
+  const handleCycleReturnPaths = useCallback(() => {
+    setReturnPathMode((mode) => {
+      const next = RETURN_PATH_MODES[(RETURN_PATH_MODES.indexOf(mode) + 1) % RETURN_PATH_MODES.length];
+      return next;
+    });
+  }, []);
+
+  // What the canvas actually draws, after the declutter filters.
+  const visible = useMemo(
+    () => applyReturnPathFilter(view.nodes, view.edges, returnPathMode),
+    [view.nodes, view.edges, returnPathMode]
+  );
 
   // Captures the React Flow viewport element scaled to fit all nodes.
   const captureImage = useCallback(async (): Promise<string> => {
@@ -239,12 +258,16 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
         isLoading={view.phase === 'loading-list' || view.phase === 'loading-workflow'}
         isExporting={isExporting}
         showMiniMap={showMiniMap}
+        showEdgeLabels={showEdgeLabels}
+        returnPathMode={returnPathMode}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
         onRefresh={() => void view.refresh()}
         onFitView={handleFitView}
         onAutoLayout={handleAutoLayout}
         onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+        onToggleEdgeLabels={() => setShowEdgeLabels((v) => !v)}
+        onCycleReturnPaths={handleCycleReturnPaths}
         onDownloadPng={() => void handleDownloadPng()}
         onDownloadPdf={() => void handleDownloadPdf()}
         onViewModeChange={view.setViewMode}
@@ -254,10 +277,10 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
       />
 
       <div style={bodyStyle}>
-        <div style={canvasWrap}>
+        <div style={canvasWrap} className={showEdgeLabels ? undefined : 'edge-labels-hidden'}>
           <ReactFlow
-            nodes={view.nodes}
-            edges={view.edges}
+            nodes={visible.nodes}
+            edges={visible.edges}
             nodeTypes={nodeTypes}
             onNodesChange={handleNodesChange}
             onNodeClick={handleNodeClick}
@@ -349,6 +372,12 @@ function EmptyState({ onOpen, hasNoSteps }: { onOpen(): void; hasNoSteps: boolea
       </div>
     </Panel>
   );
+}
+
+const MAX_EDGE_LABEL_CHARS = 34;
+
+function truncateLabel(label: string): string {
+  return label.length > MAX_EDGE_LABEL_CHARS ? `${label.slice(0, MAX_EDGE_LABEL_CHARS - 1)}…` : label;
 }
 
 function extractRouteId(edgeId: string): string | null {
