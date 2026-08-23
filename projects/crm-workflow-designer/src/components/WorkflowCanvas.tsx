@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { toPng } from 'html-to-image';
 import jsPDF from 'jspdf';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
@@ -84,7 +84,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
-  const fitViewTrigger = useRef(0);
   const measuredNodeIds = useMeasuredNodeIds();
   const [pendingFit, setPendingFit] = useState(0);
 
@@ -146,7 +145,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   }, [view]);
 
   const handleFitView = useCallback(() => {
-    fitViewTrigger.current += 1;
     fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
   }, [fitView]);
 
@@ -188,8 +186,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     const { x, y, zoom } = getViewportForBounds(bounds, EXPORT_W, EXPORT_H, 0.05, 4, 0.08);
     const viewportEl = document.querySelector('.react-flow__viewport') as HTMLElement | null;
     if (!viewportEl) throw new Error('Viewport element not found.');
+    // html-to-image serialises the clone into a standalone SVG image, where
+    // CSS variables from this document do not resolve — a var() here exports
+    // a transparent background. Hand it the computed colour instead.
+    const canvasBackground =
+      getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg').trim() || '#ffffff';
     return toPng(viewportEl, {
-      backgroundColor: 'var(--surface-alt)',
+      backgroundColor: canvasBackground,
       width: EXPORT_W,
       height: EXPORT_H,
       style: {

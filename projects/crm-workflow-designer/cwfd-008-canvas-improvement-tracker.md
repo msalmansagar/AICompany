@@ -13,7 +13,7 @@ work item; this file is updated as each PR lands.
 | PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#TBD, stacked on #109) | ✅ implemented, verified live |
 | PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#TBD, stacked on #110) | ✅ implemented, verified live |
 | PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#TBD, stacked on #111) | ✅ implemented, verified live |
-| PR 6 | Hygiene / dead code | — | ⬜ |
+| PR 6 | Hygiene / dead code | `feat/cwfd-canvas-pr6-hygiene` (#TBD, stacked on #112) | ✅ implemented |
 | PR 7 | Guided replay / demo mode | — | ⬜ |
 
 ---
@@ -73,14 +73,14 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 |---|---|---|
 | 5.1 | `StepPropertiesPanel` → General / Assignment / SLA & Escalation / Automation tabs (610-line single scroll today) | ✅ General · Assignment · SLA · Automation; Delete pinned below |
 
-## PR 6 — Hygiene ⬜
+## PR 6 — Hygiene ✅
 
 | # | Item | Audit ref | Status |
 |---|---|---|---|
-| 6.1 | Delete dead code: `LayoutService`, `useAutoLayout`, `useExport` + `ExportService` (duplicate of WorkflowCanvas's inline export), `WorkflowToolbox`, legacy Start/Step/Outcome/End nodes + `deriveNodes`/`deriveEdges`, `fitViewTrigger` ref | A6, A16 | ⬜ |
-| 6.2 | One toast implementation (`Notify`); EditCanvas + SopCanvas bespoke toasts removed (z-index 8000 off-scale; SOP timer hides a second toast early) | A14 | ⬜ |
-| 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ⬜ |
-| 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ⬜ |
+| 6.1 | Delete dead code: `LayoutService`, `useAutoLayout`, `useExport` + `ExportService` (duplicate of WorkflowCanvas's inline export), `WorkflowToolbox`, legacy Start/Step/Outcome/End nodes + `deriveNodes`/`deriveEdges`, `fitViewTrigger` ref | A6, A16 | ✅ 10 files deleted |
+| 6.2 | One toast implementation (`Notify`); EditCanvas + SopCanvas bespoke toasts removed (z-index 8000 off-scale; SOP timer hides a second toast early) | A14 | ✅ notify() everywhere |
+| 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ✅ one subscription |
+| 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ✅ computed --canvas-bg |
 
 ## PR 7 — Guided replay / demo mode ⬜
 

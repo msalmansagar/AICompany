@@ -24,6 +24,7 @@ import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/Creat
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { notify } from '@/components/ui/Notify';
 import { FitOnceMeasured } from '@/components/common/FitOnceMeasured';
 
 interface SopCanvasProps {
@@ -31,15 +32,13 @@ interface SopCanvasProps {
 }
 
 export function SopCanvas({ adapter }: SopCanvasProps) {
-  const store = useSopStore();
   const { saveSopCanvas } = useSopSave();
 
   const [showWizard, setShowWizard] = useState(false);
   const [showSopProperties, setShowSopProperties] = useState(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastIsError, setToastIsError] = useState(false);
-
+  // One store subscription; the same object carries state and actions.
   const state = useSopStore();
+  const store = state;
 
   const blueprint = useMemo(
     () => selectSopNodes(state),
@@ -56,10 +55,10 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
 
   const sopSteps: SopStep[] = state.stepOrder.map((id) => state.steps[id]).filter(Boolean);
 
+  // The shared toast host replaces the bespoke banner, whose 3.5s timer
+  // hid a second toast raised within the window of the first.
   const showToast = useCallback((msg: string, isError = false) => {
-    setToastMsg(msg);
-    setToastIsError(isError);
-    setTimeout(() => setToastMsg(null), 3500);
+    notify(msg, isError ? 'error' : 'success');
   }, []);
 
   const handleAddStep = useCallback(() => {
@@ -141,10 +140,6 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
 
   return (
     <div style={shellStyle}>
-      {toastMsg && (
-        <ToastBanner message={toastMsg} isError={toastIsError} onClose={() => setToastMsg(null)} />
-      )}
-
       {/* The sitemap owns navigation, so there is no back button here — the
           command bar carries only what acts on this SOP. */}
       <div className="cmdbar">
@@ -316,26 +311,6 @@ function ValidationBanner({ results, onDismiss }: { results: SopValidationResult
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
-
-function ToastBanner({ message, isError, onClose }: { message: string; isError: boolean; onClose(): void }) {
-  return (
-    <div style={{
-      position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
-      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
-      borderRadius: 8, padding: '10px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
-      maxWidth: 480, minWidth: 260,
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', padding: 0 }}>
-        ×
-      </button>
     </div>
   );
 }

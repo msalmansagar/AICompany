@@ -30,6 +30,7 @@ import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
+import { notify } from '../ui/Notify';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
 import { CanvasLegend } from '../common/CanvasLegend';
@@ -188,6 +189,14 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     });
   }, [onExitEdit]);
 
+  // Store-raised toasts go through the one shared toast host. The bespoke
+  // inline Toast lived at z-index 8000, off the layering scale entirely.
+  useEffect(() => {
+    if (!toastMessage) return;
+    notify(toastMessage, toastType ?? 'success');
+    clearToast();
+  }, [toastMessage, toastType, clearToast]);
+
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
 
   return (
@@ -197,9 +206,6 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
       tabIndex={-1}
       aria-label="Workflow edit canvas"
     >
-      {toastMessage && (
-        <Toast message={toastMessage} type={toastType ?? 'success'} onClose={clearToast} />
-      )}
       <EditToolbar
         processName={processName}
         workflowState={process?.workflowState}
@@ -397,38 +403,3 @@ const sidebarStyle: React.CSSProperties = {
   flexDirection: 'column',
   overflow: 'hidden',
 };
-
-function Toast({
-  message,
-  type,
-  onClose,
-}: {
-  message: string;
-  type: 'success' | 'error';
-  onClose: () => void;
-}) {
-  const isError = type === 'error';
-  return (
-    <div style={{
-      position: 'absolute', top: 56, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 8000, display: 'flex', alignItems: 'center', gap: 10,
-      background: isError ? 'var(--error-bg)' : 'var(--success-bg)',
-      border: `1px solid ${isError ? 'var(--error)' : 'var(--success)'}`,
-      borderRadius: 8, padding: '10px 16px',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
-      fontSize: 13, color: isError ? 'var(--error)' : 'var(--success)',
-      maxWidth: 480, minWidth: 260,
-    }}>
-      <span style={{ flex: 1 }}>{message}</span>
-      <button
-        type="button"
-        onClick={onClose}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', padding: 0, lineHeight: 1 }}
-      >
-        ×
-      </button>
-    </div>
-  );
-}
-
-
