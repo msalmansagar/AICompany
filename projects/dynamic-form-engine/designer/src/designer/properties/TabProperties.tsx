@@ -16,6 +16,7 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
 
@@ -146,10 +147,12 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
             label="Submit Confirmation Label"
             hint="Text shown beside the checkbox. Leave blank for a default acknowledgement."
           >
-            <Input
+            <Textarea
               value={tab.submitConfirmationLabel ?? ''}
               onChange={(_, data) => updateTab(tabId, { submitConfirmationLabel: data.value || null })}
               placeholder="I confirm the information on this tab is correct."
+              maxLength={SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH}
+              rows={2}
             />
           </Field>
 

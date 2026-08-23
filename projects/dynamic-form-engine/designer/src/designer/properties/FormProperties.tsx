@@ -19,6 +19,7 @@ import {
 } from '@fluentui/react-components';
 import type { SummaryMode } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
+import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
@@ -207,10 +208,12 @@ export function FormProperties(): React.ReactElement {
         label="Acknowledgement Checkbox Label"
         hint="When set, the final step shows this checkbox and Submit stays disabled until it is ticked. Leave blank to disable the gate."
       >
-        <Input
+        <Textarea
           value={form.submitConfirmationLabel ?? ''}
           onChange={(_, data) => updateForm({ submitConfirmationLabel: data.value || null })}
           placeholder="e.g. I confirm the information is accurate and complete"
+          maxLength={SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH}
+          rows={2}
         />
       </Field>
 
