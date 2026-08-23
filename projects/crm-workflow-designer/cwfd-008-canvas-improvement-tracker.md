@@ -12,7 +12,7 @@ work item; this file is updated as each PR lands.
 | PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
 | PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#TBD, stacked on #109) | ✅ implemented, verified live |
 | PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#TBD, stacked on #110) | ✅ implemented, verified live |
-| PR 5 | Step panel tabs | — | ⬜ |
+| PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#TBD, stacked on #111) | ✅ implemented, verified live |
 | PR 6 | Hygiene / dead code | — | ⬜ |
 | PR 7 | Guided replay / demo mode | — | ⬜ |
 
@@ -67,11 +67,11 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | 4.5 | Canvas legend per view mode (edge/severity encodings) | FlowOn #5 | ✅ CanvasLegend in view + edit |
 | 4.6 | Draft/published status pill beside the process name in edit + view | FlowOn #6 | ✅ edit toolbar; view deferred — adapters do not load process status (workflowState hardcoded draft) |
 
-## PR 5 — Step panel tabs ⬜
+## PR 5 — Step panel tabs ✅
 
 | # | Item | Status |
 |---|---|---|
-| 5.1 | `StepPropertiesPanel` → General / Assignment / SLA & Escalation / Automation tabs (610-line single scroll today) | ⬜ |
+| 5.1 | `StepPropertiesPanel` → General / Assignment / SLA & Escalation / Automation tabs (610-line single scroll today) | ✅ General · Assignment · SLA · Automation; Delete pinned below |
 
 ## PR 6 — Hygiene ⬜
 
