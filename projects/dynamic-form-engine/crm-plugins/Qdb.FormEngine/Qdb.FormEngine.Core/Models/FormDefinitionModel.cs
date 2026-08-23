@@ -378,6 +378,26 @@ namespace Qdb.FormEngine.Core.Models
         /// them from the JSON altogether.
         /// </summary>
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
+
+        /// <summary>Whether every row must carry a value in this column.</summary>
+        [JsonProperty("isRequired")] public bool IsRequired { get; set; }
+
+        /// <summary>Character ceiling, or null for no limit.</summary>
+        [JsonProperty("maxLength", NullValueHandling = NullValueHandling.Ignore)]
+        public int? MaxLength { get; set; }
+
+        /// <summary>Named shape the value must take — GridValidationFormat in the shared types.</summary>
+        [JsonProperty("validationFormat", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationFormat { get; set; }
+
+        /// <summary>Regular expression, honoured only when ValidationFormat is 'custom'.</summary>
+        [JsonProperty("validationPattern", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationPattern { get; set; }
+
+        /// <summary>Message shown when this column fails; blank falls back to a generated one.</summary>
+        [JsonProperty("validationMessage", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationMessage { get; set; }
+
         [JsonProperty("filterType")] public string FilterType { get; set; }
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }

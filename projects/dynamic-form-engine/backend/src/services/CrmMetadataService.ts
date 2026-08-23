@@ -25,6 +25,7 @@ import type {
   GridColumnConfig,
   GridColumnOptionValue,
   GridColumnFilterType,
+  GridValidationFormat,
   FileUploadConfig,
   FieldPlacement,
 } from '@qdb/shared';
@@ -594,6 +595,11 @@ export class CrmMetadataService extends CrmBaseService {
         targetAttribute: col.qdb_column_attribute,
         columnFieldType,
         isVisible: col.qdb_is_visible !== false,
+        isRequired: col.qdb_is_required === true,
+        maxLength: col.qdb_max_length ?? undefined,
+        validationFormat: normaliseValidationFormat(col.qdb_validation_format),
+        validationPattern: col.qdb_validation_pattern ?? undefined,
+        validationMessage: col.qdb_validation_message ?? undefined,
         options: meta.options,
         filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
         lookupTargetEntity: meta.lookupTargetEntity,
@@ -1611,6 +1617,26 @@ interface RawGridColumnConfig {
   qdb_is_visible?: boolean;
   qdb_is_editable?: boolean;
   qdb_column_options_json?: string;
+  qdb_is_required?: boolean;
+  qdb_max_length?: number;
+  qdb_validation_format?: string;
+  qdb_validation_pattern?: string;
+  qdb_validation_message?: string;
+}
+
+const GRID_VALIDATION_FORMATS: readonly GridValidationFormat[] =
+  ['none', 'email', 'phone', 'url', 'numeric', 'alphanumeric', 'custom'];
+
+/**
+ * Maps the stored format string onto the contract. An unrecognised value publishes as
+ * undefined rather than passing through — a typo in the column must not reach the runtime
+ * as a format nothing knows how to check.
+ */
+function normaliseValidationFormat(stored: string | undefined): GridValidationFormat | undefined {
+  if (!stored) return undefined;
+  return GRID_VALIDATION_FORMATS.includes(stored as GridValidationFormat)
+    ? (stored as GridValidationFormat)
+    : undefined;
 }
 
 function deriveColumnFilterType(fieldType: string): GridColumnFilterType {

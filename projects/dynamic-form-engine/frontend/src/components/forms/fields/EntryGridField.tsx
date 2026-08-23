@@ -4,7 +4,7 @@
 // BC-009: Warning banner when approaching 450-operation ceiling.
 // BC-010: Required validation applies even if tab was never visited.
 
-import { useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -31,6 +31,8 @@ import {
   DismissRegular,
 } from '@fluentui/react-icons';
 import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb/shared';
+import { validateGridCell } from '@qdb/shared';
+import { useFormContext } from '../../../contexts/FormContext';
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
@@ -93,6 +95,19 @@ const useStyles = makeStyles({
   warningBanner: {
     marginBottom: tokens.spacingVerticalXS,
   },
+  requiredMark: {
+    color: tokens.colorPaletteRedForeground1,
+  },
+  invalidCell: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
+  cellError: {
+    color: tokens.colorPaletteRedForeground1,
+    fontSize: tokens.fontSizeBase100,
+    lineHeight: tokens.lineHeightBase100,
+  },
 });
 
 export function EntryGridField({
@@ -103,6 +118,7 @@ export function EntryGridField({
   errorId,
 }: ControlProps) {
   const styles = useStyles();
+  const { validationErrors } = useFormContext();
 
   const gridConfig = field.gridConfig;
   const columnConfigs = gridConfig?.columnConfigs ?? [];
@@ -119,21 +135,53 @@ export function EntryGridField({
     [columnConfigs],
   );
 
+  // A blank required cell is not a mistake the moment a row is added — it is a row the user
+  // has not filled in yet. Cell errors therefore appear once the user has touched that cell,
+  // or once the form's own validation has already objected to this grid.
+  const [touchedCells, setTouchedCells] = useState<ReadonlySet<string>>(() => new Set());
+  const shouldShowCellErrors = (validationErrors[field.id]?.length ?? 0) > 0;
+
+  const handleCellChange = useCallback(
+    (rowIndex: number, columnKey: string, value: unknown) => {
+      const column = columnConfigs.find((c) => c.targetAttribute === columnKey);
+      if (column) {
+        setTouchedCells((previous) => new Set(previous).add(cellKey(rowIndex, column.columnId)));
+      }
+      updateCell(rowIndex, columnKey, value);
+    },
+    [columnConfigs, updateCell],
+  );
+
   const columns = useMemo<ColumnDef<GridRow>[]>(() => {
     const colDefs: ColumnDef<GridRow>[] = sortedColumns.map((col) => ({
       id: col.columnId,
-      header: col.columnLabel,
+      header: () => (
+        <span>
+          {col.columnLabel}
+          {col.isRequired && (
+            <span aria-hidden="true" className={styles.requiredMark}> *</span>
+          )}
+        </span>
+      ),
       cell: ({ row }) => (
-        <EntryGridCell
+        <ValidatedCell
           col={col}
           rowIndex={row.index}
           value={rows[row.index]?.[col.targetAttribute]}
-          isReadonly={isReadonly}
-          onCellChange={updateCell}
-          tableId={inputId}
-          headerId={`${inputId}-col-${col.columnId}`}
-          uploadFieldId={field.schemaName}
-        />
+          showError={shouldShowCellErrors || touchedCells.has(cellKey(row.index, col.columnId))}
+          cellId={`cell-${row.index}-${col.columnId}`}
+        >
+          <EntryGridCell
+            col={col}
+            rowIndex={row.index}
+            value={rows[row.index]?.[col.targetAttribute]}
+            isReadonly={isReadonly}
+            onCellChange={handleCellChange}
+            tableId={inputId}
+            headerId={`${inputId}-col-${col.columnId}`}
+            uploadFieldId={field.schemaName}
+          />
+        </ValidatedCell>
       ),
     }));
 
@@ -154,7 +202,10 @@ export function EntryGridField({
     }
 
     return colDefs;
-  }, [sortedColumns, rows, isReadonly, updateCell, deleteRow, inputId, field.schemaName]);
+  }, [
+    sortedColumns, rows, isReadonly, handleCellChange, deleteRow, inputId, field.schemaName,
+    shouldShowCellErrors, touchedCells, styles.requiredMark, styles.deleteButton,
+  ]);
 
   const table = useReactTable({
     data: rows,
@@ -243,6 +294,43 @@ export function EntryGridField({
           Add row
         </Button>
       )}
+    </div>
+  );
+}
+
+// ─── Per-cell validation ─────────────────────────────────────────────────────
+
+function cellKey(rowIndex: number, columnId: string): string {
+  return `${rowIndex}:${columnId}`;
+}
+
+interface ValidatedCellProps {
+  col: GridColumnConfig;
+  rowIndex: number;
+  value: unknown;
+  showError: boolean;
+  cellId: string;
+  children: React.ReactNode;
+}
+
+/**
+ * Wraps a cell editor with its column's validation message.
+ *
+ * The verdict comes from the same helper the submit gate uses, so a cell that shows no error
+ * cannot block submission and one that shows an error always does.
+ */
+function ValidatedCell({ col, value, showError, cellId, children }: ValidatedCellProps) {
+  const styles = useStyles();
+  const failure = validateGridCell(col, value);
+
+  if (!failure || !showError) return <>{children}</>;
+
+  return (
+    <div className={styles.invalidCell}>
+      {children}
+      <Text id={`${cellId}-error`} role="alert" className={styles.cellError}>
+        {failure}
+      </Text>
     </div>
   );
 }

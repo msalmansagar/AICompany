@@ -17,6 +17,12 @@ export {
 export { calculateContrastRatio } from './utils/contrastRatio.js';
 export type { ContrastResult } from './utils/contrastRatio.js';
 export * from './validation/design.schema.js';
+export {
+  validateGridCell,
+  validateGridRow,
+  isGridValid,
+} from './validation/gridCellValidation.js';
+export type { GridRowErrors } from './validation/gridCellValidation.js';
 export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
 // Grid depends-on filter template: one parser, one emitter per query dialect, so the
 // portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.

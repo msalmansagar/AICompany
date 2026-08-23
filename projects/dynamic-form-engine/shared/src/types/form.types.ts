@@ -631,6 +631,20 @@ export type GridViewMode = 'both' | 'table' | 'card';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/**
+ * Shape a grid cell's value must take. 'custom' defers to the column's validationPattern;
+ * every other member carries its own pattern (see GRID_FORMAT_PATTERNS) so a maker picks a
+ * name rather than writing a regular expression.
+ */
+export type GridValidationFormat =
+  | 'none'
+  | 'email'
+  | 'phone'
+  | 'url'
+  | 'numeric'
+  | 'alphanumeric'
+  | 'custom';
+
 export interface GridColumnOptionValue {
   value: string;
   label: string;
@@ -646,6 +660,15 @@ export interface GridColumnConfig {
   // out of the query, so a hidden column vanished from the JSON entirely and its value
   // could not round-trip. Absent ⇒ visible, so forms published before this stay unchanged.
   isVisible?: boolean;
+  // Per-column validation. All optional and all default to off, so a grid published before
+  // these existed validates exactly as it did. See validateGridCell for how they combine.
+  isRequired?: boolean;
+  maxLength?: number;
+  validationFormat?: GridValidationFormat;
+  /** Regular expression source, honoured only when validationFormat is 'custom'. */
+  validationPattern?: string;
+  /** Shown when this column fails. Blank falls back to a generated message. */
+  validationMessage?: string;
   filterType?: GridColumnFilterType;
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;

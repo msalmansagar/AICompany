@@ -295,6 +295,21 @@ namespace Qdb.FormEngine.Core.Generation
                 .ToList();
         }
 
+        /// <summary>Grid validation formats the runtime knows how to check.</summary>
+        private static readonly string[] GridValidationFormats =
+            { "none", "email", "phone", "url", "numeric", "alphanumeric", "custom" };
+
+        /// <summary>
+        /// Publishes a stored format only when the runtime recognises it. A typo would
+        /// otherwise reach the renderer as a format nothing can check, which reads as
+        /// "validation is configured but never fires".
+        /// </summary>
+        private static string NormalizeValidationFormat(string stored)
+        {
+            if (string.IsNullOrWhiteSpace(stored)) return null;
+            return Array.IndexOf(GridValidationFormats, stored) >= 0 ? stored : null;
+        }
+
         private GridColumnConfig BuildGridColumn(Entity column)
         {
             var config = new GridColumnConfig
@@ -305,6 +320,14 @@ namespace Qdb.FormEngine.Core.Generation
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
                 IsVisible = EntityHelper.GetBoolOrTrue(column, "qdb_is_visible"),
+                IsRequired = column.GetAttributeValue<bool>("qdb_is_required"),
+                MaxLength = column.Contains("qdb_max_length")
+                    ? column.GetAttributeValue<int>("qdb_max_length")
+                    : (int?)null,
+                ValidationFormat = NormalizeValidationFormat(
+                    column.GetAttributeValue<string>("qdb_validation_format")),
+                ValidationPattern = column.GetAttributeValue<string>("qdb_validation_pattern"),
+                ValidationMessage = column.GetAttributeValue<string>("qdb_validation_message"),
                 Options = new List<GridColumnOptionValue>()
             };
             ApplyColumnOptionsJson(config, column.GetAttributeValue<string>("qdb_column_options_json"));

@@ -12,7 +12,7 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, ArrowUpRegular, ArrowDownRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
-import type { DesignerGridColumnConfig, GridColumnFilterType } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
 
 const COLUMN_FIELD_TYPES = [
   { value: 'text',    label: 'Text' },
@@ -22,6 +22,16 @@ const COLUMN_FIELD_TYPES = [
   { value: 'dropdown', label: 'Dropdown' },
   { value: 'lookup',  label: 'Lookup' },
   { value: 'file',    label: 'File / Document' },
+];
+
+const VALIDATION_FORMATS: { value: GridValidationFormat; label: string }[] = [
+  { value: 'none',         label: 'No format check' },
+  { value: 'email',        label: 'Email address' },
+  { value: 'phone',        label: 'Phone number' },
+  { value: 'url',          label: 'URL' },
+  { value: 'numeric',      label: 'Number' },
+  { value: 'alphanumeric', label: 'Letters and numbers' },
+  { value: 'custom',       label: 'Custom pattern…' },
 ];
 
 const FILTER_TYPES: { value: GridColumnFilterType | 'auto'; label: string }[] = [
@@ -60,6 +70,16 @@ const useStyles = makeStyles({
   },
   columnActions: { display: 'flex', gap: '4px' },
   columnBadges: { display: 'flex', gap: '4px', alignItems: 'center' },
+  groupHeading: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: '10px',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    marginTop: '2px',
+    borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
+    paddingTop: '8px',
+  },
   // The properties panel is 320px, leaving a measured 246px inside this card.
   // Three controls forced across it left ~82px each — narrower than a select's own
   // option text or the switch's Yes/No label, which is why they overlapped.
@@ -80,6 +100,20 @@ const useStyles = makeStyles({
 
 function generateTempColId(): string {
   return `tmp_col_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+// A cleared box means "no limit", not zero. Anything that is not a positive whole number
+// stores as null rather than NaN, which would reach Dataverse as an invalid Integer.
+function parseMaxLength(raw: string): number | null {
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/** Whether the column has any rule that could produce a message worth wording. */
+function hasAnyValidation(col: DesignerGridColumnConfig): boolean {
+  return col.isRequired
+    || col.maxLength != null
+    || (col.validationFormat !== 'none' && col.validationFormat !== undefined);
 }
 
 interface Props {
@@ -103,6 +137,11 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       displayOrder: columns.length,
       isVisible: true,
       isEditable: false,
+      isRequired: false,
+      maxLength: null,
+      validationFormat: 'none',
+      validationPattern: null,
+      validationMessage: null,
       optionsJson: null,
       filterType: 'text',
       lookupTargetEntity: null,
@@ -333,6 +372,64 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
                 placeholder='[{"value":"a","label":"Option A"}]'
                 onChange={(_, d) => handleUpdate(col.id, { optionsJson: d.value || null })}
                 style={{ fontFamily: 'monospace', fontSize: '11px' }}
+              />
+            </Field>
+          )}
+
+          <Text className={styles.groupHeading}>Validation</Text>
+
+          <div className={styles.fieldRow}>
+            <Field label="Required" className={styles.fieldRowItem}>
+              <Switch
+                checked={col.isRequired}
+                onChange={(_, d) => handleUpdate(col.id, { isRequired: d.checked })}
+                label={col.isRequired ? 'Yes' : 'No'}
+              />
+            </Field>
+
+            <Field label="Max Length" className={styles.fieldRowItem} hint="blank ⇒ no limit">
+              <Input
+                size="small"
+                type="number"
+                min={1}
+                value={col.maxLength != null ? String(col.maxLength) : ''}
+                placeholder="—"
+                onChange={(_, d) => handleUpdate(col.id, { maxLength: parseMaxLength(d.value) })}
+              />
+            </Field>
+
+            <Field label="Format" className={styles.fieldRowItem}>
+              <Select
+                size="small"
+                value={col.validationFormat}
+                onChange={(_, d) => handleUpdate(col.id, { validationFormat: d.value as GridValidationFormat })}
+              >
+                {VALIDATION_FORMATS.map(f => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          {col.validationFormat === 'custom' && (
+            <Field label="Pattern" hint="Regular expression, e.g. ^[A-Z]{2}[0-9]{6}$">
+              <Input
+                size="small"
+                value={col.validationPattern ?? ''}
+                placeholder="^[A-Z]{2}[0-9]{6}$"
+                onChange={(_, d) => handleUpdate(col.id, { validationPattern: d.value || null })}
+                style={{ fontFamily: 'monospace', fontSize: '11px' }}
+              />
+            </Field>
+          )}
+
+          {hasAnyValidation(col) && (
+            <Field label="Error Message" hint="Blank ⇒ a message is generated from the rule.">
+              <Input
+                size="small"
+                value={col.validationMessage ?? ''}
+                placeholder="e.g. Enter a valid CR number"
+                onChange={(_, d) => handleUpdate(col.id, { validationMessage: d.value || null })}
               />
             </Field>
           )}

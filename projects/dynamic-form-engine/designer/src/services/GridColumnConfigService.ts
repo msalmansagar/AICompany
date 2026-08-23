@@ -2,7 +2,7 @@ import type { IWebApiAdapter } from './IWebApiAdapter';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { GRID_COLUMN_CONFIG_ATTRS } from '@/constants/attributeNames';
-import type { DesignerGridColumnConfig, GridColumnFilterType } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
 
 // Encodes filter metadata into the v2 extended options JSON format.
@@ -65,6 +65,31 @@ function decodeOptionsJson(raw: string | null | undefined): {
   return defaults;
 }
 
+const VALIDATION_FORMATS: GridValidationFormat[] =
+  ['none', 'email', 'phone', 'url', 'numeric', 'alphanumeric', 'custom'];
+
+// An unrecognised stored value reads as 'none' rather than passing through, so a typo in
+// the column shows in the panel as "no format" instead of as a blank dropdown.
+function readValidationFormat(stored: unknown): GridValidationFormat {
+  return VALIDATION_FORMATS.includes(stored as GridValidationFormat)
+    ? (stored as GridValidationFormat)
+    : 'none';
+}
+
+// The validation columns, as a CRM payload. A format of 'none' and a blank pattern or
+// message are written as null rather than as strings, so a column a maker has cleared
+// reads back as "no rule" rather than as a rule that matches nothing.
+function validationPayload(col: Partial<DesignerGridColumnConfig>): Record<string, unknown> {
+  return {
+    [GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED]: col.isRequired ?? false,
+    [GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH]: col.maxLength ?? null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT]:
+      col.validationFormat && col.validationFormat !== 'none' ? col.validationFormat : null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN]: col.validationPattern || null,
+    [GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE]: col.validationMessage || null,
+  };
+}
+
 export class GridColumnConfigService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
@@ -80,6 +105,7 @@ export class GridColumnConfigService {
           [GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER]: col.displayOrder,
           [GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE]: col.isVisible,
           [GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]: col.isEditable,
+          ...validationPayload(col),
           ...(encodedOptionsJson != null ? { [GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON]: encodedOptionsJson } : {}),
         }),
       'createGridColumn',
@@ -95,6 +121,13 @@ export class GridColumnConfigService {
     if (col.displayOrder !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] = col.displayOrder;
     if (col.isVisible !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] = col.isVisible;
     if (col.isEditable !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE] = col.isEditable;
+
+    const validationChanged = col.isRequired !== undefined
+      || col.maxLength !== undefined
+      || col.validationFormat !== undefined
+      || col.validationPattern !== undefined
+      || col.validationMessage !== undefined;
+    if (validationChanged) Object.assign(data, validationPayload(col));
     // Re-encode options JSON whenever any filter-related field changes.
     const filterFieldChanged = col.optionsJson !== undefined
       || col.filterType !== undefined
@@ -131,6 +164,11 @@ export class GridColumnConfigService {
       GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE,
       GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE,
       GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON,
+      GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED,
+      GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN,
+      GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE,
     ].join(',');
 
     // Hidden columns are listed too. Filtering them out here made them invisible to the
@@ -185,6 +223,17 @@ export class GridColumnConfigService {
       displayOrder: Number(record[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] ?? 0),
       isVisible: record[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] !== false,
       isEditable: Boolean(record[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]),
+      isRequired: record[GRID_COLUMN_CONFIG_ATTRS.IS_REQUIRED] === true,
+      maxLength: record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH] != null
+        ? Number(record[GRID_COLUMN_CONFIG_ATTRS.MAX_LENGTH])
+        : null,
+      validationFormat: readValidationFormat(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_FORMAT]),
+      validationPattern: record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN] != null
+        ? String(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_PATTERN])
+        : null,
+      validationMessage: record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE] != null
+        ? String(record[GRID_COLUMN_CONFIG_ATTRS.VALIDATION_MESSAGE])
+        : null,
       optionsJson,
       filterType,
       lookupTargetEntity,

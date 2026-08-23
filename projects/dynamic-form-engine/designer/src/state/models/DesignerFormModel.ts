@@ -1,7 +1,9 @@
 // Domain model for a form definition as held in the designer local state.
 // Temp IDs are prefixed with 'tmp_' until the record is persisted to CRM.
 
-import type { SummaryMode } from '@qdb/shared';
+import type { SummaryMode, GridValidationFormat } from '@qdb/shared';
+
+export type { GridValidationFormat };
 
 export type FormStatus = 'draft' | 'published' | 'archived';
 
@@ -122,6 +124,13 @@ export interface DesignerGridColumnConfig {
   /** Whether the runtime draws this column. Hidden columns are still saved and published. */
   isVisible: boolean;
   isEditable: boolean;
+  /** Per-column validation. All off by default — see validateGridCell in @qdb/shared. */
+  isRequired: boolean;
+  maxLength: number | null;
+  validationFormat: GridValidationFormat;
+  /** Regular expression, used only when validationFormat is 'custom'. */
+  validationPattern: string | null;
+  validationMessage: string | null;
   optionsJson: string | null;
   filterType: GridColumnFilterType;
   lookupTargetEntity: string | null;
