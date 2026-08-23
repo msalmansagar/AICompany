@@ -7,7 +7,6 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
-  useReactFlow,
 } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -32,9 +31,12 @@ import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
 import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
+import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 
 const validationService = new ValidationService();
+
+const FIT_OPTIONS = { padding: 0.25, maxZoom: 1, duration: 300 } as const;
 
 interface EditCanvasProps {
   adapter: ICrmAdapter;
@@ -42,7 +44,6 @@ interface EditCanvasProps {
 }
 
 export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
-  const { fitView } = useReactFlow();
   const [isEditingProperties, setEditingProperties] = useState(false);
 
   const {
@@ -138,9 +139,9 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     setShowValidationPanel(true);
   }, [process, steps, outcomes, routes, stepOrder, outcomeOrder, setValidationResults]);
 
-  useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.25, maxZoom: 1, duration: 300 }), 80);
-  }, [fitView]);
+  // No manual delayed fit: each canvas passes the fitView prop to React Flow,
+  // which now fires correctly because useSyncedNodes keeps nodes measured —
+  // the old fixed 80ms delay raced measurement and mis-framed simulation.
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -249,6 +250,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
           ) : isAutoSimulating && autoSimPhase !== 'done' ? (
             <ReactFlow
@@ -269,6 +271,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
             </ReactFlow>
           ) : (
             <ReactFlow
@@ -293,6 +296,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
               <Controls showInteractive={false} />
+              <FitOnceMeasured options={FIT_OPTIONS} />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={minimapColor}

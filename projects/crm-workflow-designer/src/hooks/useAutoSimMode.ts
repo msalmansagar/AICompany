@@ -1,7 +1,9 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Node, Edge, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { SimStepData } from '@/nodes/SimStepNode';
+import { resolveSimEndpoints } from '@/services/simEndpoints';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
 const AUTO_SIM_START_ID = 'auto_sim_start';
 const AUTO_SIM_END_ID = 'auto_sim_end';
@@ -33,18 +35,16 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     autoSimTakenOutcomeIds: s.autoSimTakenOutcomeIds,
   }));
 
-  const nodes = useMemo<Node[]>(() => {
+  const blueprint = useMemo<Node[]>(() => {
     if (stepOrder.length === 0) return [];
 
-    const firstStepPos = nodePositions[`step_${stepOrder[0]}`] ?? { x: 300, y: 80 };
-    const lastIndex = stepOrder.length - 1;
-    const lastStepPos = nodePositions[`step_${stepOrder[lastIndex]}`] ?? { x: 300, y: lastIndex * 160 + 80 };
+    const { start, end, dir } = resolveSimEndpoints(nodePositions, stepOrder);
 
     const startNode: Node = {
       id: AUTO_SIM_START_ID,
       type: 'viewStart',
-      position: { x: firstStepPos.x, y: firstStepPos.y - 100 },
-      data: { layoutDir: 'TB' },
+      position: start,
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -52,8 +52,8 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     const endNode: Node = {
       id: AUTO_SIM_END_ID,
       type: 'viewEnd',
-      position: { x: lastStepPos.x, y: lastStepPos.y + 120 },
-      data: { layoutDir: 'TB' },
+      position: end,
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -149,9 +149,9 @@ export function useAutoSimMode(): UseAutoSimModeResult {
     return result;
   }, [stepOrder, steps, outcomes, outcomeOrder, autoSimTakenOutcomeIds, autoSimCurrentStepId, autoSimVisitedStepIds]);
 
-  const onNodesChange = useCallback((_changes: NodeChange[]) => {
-    // read-only in auto sim
-  }, []);
+  // Applies the NodeChanges React Flow emits (dimensions above all) so the
+  // canvas fits a measured graph; playback stays read-only otherwise.
+  const { nodes, onNodesChange } = useSyncedNodes(blueprint);
 
   return { nodes, edges, onNodesChange };
 }

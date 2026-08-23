@@ -1,18 +1,16 @@
 // src/components/SopCanvas/SopCanvas.tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Controls,
-  useReactFlow,
-  type NodeChange,
   type Connection,
-  applyNodeChanges,
 } from '@xyflow/react';
 import type { Node } from '@xyflow/react';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 import { useSopStore } from '@/store/sopStore';
-import type { SopDesignerState, SopValidationResult } from '@/store/sopStore';
+import type { SopValidationResult } from '@/store/sopStore';
 import { selectSopNodes, selectSopEdges, SOP_SYNTHETIC_PREFIX, SOP_GATEWAY_PREFIX } from '@/store/sopSelectors';
 import { validateSopForPublish } from '@/validators/sopValidator';
 import { emptyEscalationFields } from '@/services/escalationFields';
@@ -26,21 +24,16 @@ import { CreateProcessWizardModal } from '@/components/CreateProcessWizard/Creat
 import { SopStepPanel } from './SopStepPanel';
 import { SopOutcomePanel } from './SopOutcomePanel';
 import { confirm } from '@/components/ui/ConfirmDialog';
+import { FitOnceMeasured } from '@/components/common/FitOnceMeasured';
 
 interface SopCanvasProps {
   adapter: ISopAdapter;
 }
 
 export function SopCanvas({ adapter }: SopCanvasProps) {
-  const { fitView } = useReactFlow();
   const store = useSopStore();
   const { saveSopCanvas } = useSopSave();
 
-  // Lazy init so the first render already has nodes; edges referencing those nodes
-  // will be visible immediately instead of being silently dropped by ReactFlow.
-  const [nodes, setNodes] = useState<Node[]>(() =>
-    selectSopNodes(useSopStore.getState() as unknown as SopDesignerState)
-  );
   const [showWizard, setShowWizard] = useState(false);
   const [showSopProperties, setShowSopProperties] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -48,17 +41,20 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
 
   const state = useSopStore();
 
-  useEffect(() => {
-    setNodes(selectSopNodes(state));
-  }, [state.steps, state.stepOrder, state.outcomes, state.nodePositions, state.selectedId, state.validationResults, state]);
+  const blueprint = useMemo(
+    () => selectSopNodes(state),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.steps, state.stepOrder, state.outcomes, state.outcomeOrder, state.nodePositions, state.selectedId, state.validationResults]
+  );
+
+  // Keeps React Flow's measured dimensions across blueprint rebuilds, so the
+  // initial fitView frames a measured graph — the old fixed 80ms delayed fit
+  // raced measurement and is gone.
+  const { nodes, onNodesChange: handleNodesChange } = useSyncedNodes(blueprint);
 
   const edges = selectSopEdges(state);
 
   const sopSteps: SopStep[] = state.stepOrder.map((id) => state.steps[id]).filter(Boolean);
-
-  useEffect(() => {
-    setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 80);
-  }, [fitView]);
 
   const showToast = useCallback((msg: string, isError = false) => {
     setToastMsg(msg);
@@ -109,10 +105,6 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
 
   // Leaving is the sitemap's job now; SopListScreen carries the unsaved-changes
   // guard that used to live behind this screen's back button.
-
-  const handleNodesChange = useCallback((changes: NodeChange[]) => {
-    setNodes((nds) => applyNodeChanges(changes, nds));
-  }, []);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     if (node.id.startsWith(SOP_SYNTHETIC_PREFIX)) return;
@@ -226,6 +218,7 @@ export function SopCanvas({ adapter }: SopCanvasProps) {
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--text)" />
             <Controls showInteractive={false} />
+            <FitOnceMeasured options={{ padding: 0.2, duration: 300 }} />
           </ReactFlow>
         </div>
 

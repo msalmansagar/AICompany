@@ -1,8 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Node, Edge, NodeChange } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import type { WorkflowOutcome } from '@/types/WorkflowTypes';
 import type { SimStepData, SimStepStatus } from '@/nodes/SimStepNode';
+import { resolveSimEndpoints } from '@/services/simEndpoints';
+import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
 interface UseSimulationModeResult {
   nodes: Node[];
@@ -32,16 +34,14 @@ export function useSimulationMode(): UseSimulationModeResult {
     simTakenOutcomeIds: s.simTakenOutcomeIds,
   }));
 
-  const nodes = useMemo<Node[]>(() => {
-    const stepCount = stepOrder.length;
-    const startPos = nodePositions[SIM_START_ID] ?? { x: 300, y: -80 };
-    const endPos = nodePositions[SIM_END_ID] ?? { x: 300, y: stepCount * 160 + 80 };
+  const blueprint = useMemo<Node[]>(() => {
+    const { start: startPos, end: endPos, dir } = resolveSimEndpoints(nodePositions, stepOrder);
 
     const startNode: Node = {
       id: SIM_START_ID,
       type: 'viewStart',
       position: startPos,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -50,7 +50,7 @@ export function useSimulationMode(): UseSimulationModeResult {
       id: SIM_END_ID,
       type: 'viewEnd',
       position: endPos,
-      data: { layoutDir: 'TB' },
+      data: { layoutDir: dir },
       draggable: false,
       selectable: false,
     };
@@ -80,9 +80,9 @@ export function useSimulationMode(): UseSimulationModeResult {
     return result;
   }, [outcomes, stepOrder, simTakenOutcomeIds, simCurrentStepId, simVisitedStepIds]);
 
-  const onNodesChange = useCallback((_changes: NodeChange[]) => {
-    // read-only in simulation — no mutations
-  }, []);
+  // Applies the NodeChanges React Flow emits (dimensions above all) so the
+  // canvas fits a measured graph; simulation stays read-only otherwise.
+  const { nodes, onNodesChange } = useSyncedNodes(blueprint);
 
   return { nodes, edges, onNodesChange };
 }

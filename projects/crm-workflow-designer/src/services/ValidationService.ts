@@ -54,6 +54,23 @@ export interface Violation {
 }
 
 /**
+ * The node ids the canvas should ring with the error border. Warnings stay
+ * out: painting them red made a process with three advisory findings look
+ * broken everywhere, which buried the one violation that actually was.
+ */
+export function collectErrorNodeIds(violations: Violation[]): Set<string> {
+  const errorNodeIds = new Set<string>();
+  for (const violation of violations) {
+    if (violation.severity !== 'error') continue;
+    if (violation.nodeId && (!violation.nodeType || violation.nodeType === 'step')) {
+      errorNodeIds.add(violation.nodeId);
+    }
+    for (const id of violation.affectedNodeIds ?? []) errorNodeIds.add(id);
+  }
+  return errorNodeIds;
+}
+
+/**
  * Which concurrency defects block a publish. The two "guard" findings are
  * warnings: the engine tolerates both — a parent without a guard simply finishes
  * early, a guard without branches simply finds none — so they are modelling
