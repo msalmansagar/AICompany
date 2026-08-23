@@ -1,25 +1,17 @@
-// Lightweight DynamicIcon for the in-CRM build. The portal version dynamically imports the
-// entire @fluentui/react-icons set (~15 MB) to resolve any icon by name; in a single-file web
-// resource that would inline the whole set. Here we map a curated set of common icon names to
-// tree-shakeable named imports and render nothing for unknown names (icons are decorative).
-import type { ComponentType } from 'react';
-import {
-  PersonRegular, DocumentRegular, MailRegular, CallRegular, CalendarRegular,
-  CheckmarkCircleRegular, InfoRegular, WarningRegular, ErrorCircleRegular,
-  MoneyRegular, BuildingRegular, HomeRegular, LocationRegular, AttachRegular,
-  ImageRegular, FolderRegular, StarRegular, HeartRegular, SettingsRegular,
-  EditRegular, DeleteRegular, AddRegular, ArrowDownloadRegular, ShieldRegular,
-  ClipboardRegular, type FluentIconsProps,
-} from '@fluentui/react-icons';
-
-const ICONS: Record<string, ComponentType<FluentIconsProps>> = {
-  PersonRegular, DocumentRegular, MailRegular, CallRegular, CalendarRegular,
-  CheckmarkCircleRegular, InfoRegular, WarningRegular, ErrorCircleRegular,
-  MoneyRegular, BuildingRegular, HomeRegular, LocationRegular, AttachRegular,
-  ImageRegular, FolderRegular, StarRegular, HeartRegular, SettingsRegular,
-  EditRegular, DeleteRegular, AddRegular, ArrowDownloadRegular, ShieldRegular,
-  ClipboardRegular,
-};
+// In-CRM DynamicIcon. The build swaps this in for the portal component (see
+// inCrmModuleSwap in vite.webresource.config.ts) because the single-file web resource
+// inlines everything it references.
+//
+// It used to carry its own hand-written list of 25 icon names, which drifted from what
+// makers actually store: of the 19 distinct qdb_icon_name values in org5869857f, TEN did
+// not resolve here — CalendarLtr, CheckMark, CheckboxChecked, Contact, DocumentBulletList,
+// LockClosed, Phone, Product, ProductList and Search all silently drew nothing, because
+// this list only ever matched an exact name or name + "Regular".
+//
+// The list now lives in one place, iconRegistry, shared with the portal component. Only the
+// rendering differs, and only because this file must not import anything whose path ends in
+// DynamicIcon — the swap rule would resolve that back to this file.
+import { resolveIcon } from '../../src/components/forms/iconRegistry';
 
 interface DynamicIconProps {
   iconName: string;
@@ -27,7 +19,14 @@ interface DynamicIconProps {
 }
 
 export function DynamicIcon({ iconName, size = 16 }: DynamicIconProps) {
-  const Icon = ICONS[iconName] ?? ICONS[`${iconName}Regular`];
+  const Icon = resolveIcon(iconName);
+
   if (!Icon) return null;
-  return <Icon aria-hidden="true" style={{ fontSize: size }} />;
+
+  return (
+    <Icon
+      aria-hidden="true"
+      style={{ width: `${size}px`, height: `${size}px`, fontSize: `${size}px` }}
+    />
+  );
 }

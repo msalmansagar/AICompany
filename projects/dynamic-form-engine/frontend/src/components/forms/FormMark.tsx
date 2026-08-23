@@ -64,7 +64,13 @@ export function FormMark({ imageUrl, iconName, formTitle }: FormMarkProps) {
   if (iconName) {
     return (
       <div className={styles.mark} aria-hidden="true">
-        <DynamicIcon iconName={iconName} size={32} />
+        {/*
+          24, not 32. DynamicIcon resolves an icon by name+size and renders NOTHING when that
+          combination does not exist, and most Fluent icons ship only 16/20/24 — asking for 32
+          silently produced an empty 40px box for a perfectly valid icon name. 24 is the
+          largest size every other call site relies on.
+        */}
+        <DynamicIcon iconName={iconName} size={24} />
       </div>
     );
   }

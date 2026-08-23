@@ -132,7 +132,7 @@ const CHECKS = [
     () => rules.some(r => r.action === 'hideTab' && !!r.targetTabId)],
   [4, 'that rule is triggered by the lookup field',
     () => rules.some(r => r.action === 'hideTab'
-      && r.conditions?.some(c => c.fieldId === 'qdb_country'))],
+      && r.conditions?.some(c => c.fieldId === 'qdb_partner_bank'))],
   [5, 'the hidden column is PUBLISHED, not dropped',
     () => !!column('Internal Key')],
   [5, 'and it is marked not visible',

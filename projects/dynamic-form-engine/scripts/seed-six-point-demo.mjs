@@ -27,6 +27,12 @@ const SECTION_COLUMNS = { one: 100000001, two: 100000002 };
 const FORM_STATUS_ACTIVE = 100000001;
 const GRID_MODE_ENTRY = 100000001;
 
+/** Schema name of the lookup that drives the tab rule; the rule's trigger must match it. */
+const LOOKUP_FIELD_CODE = 'qdb_partner_bank';
+
+/** An account that exists in this org, so the rule can actually be triggered by clicking. */
+const RULE_MATCH_VALUE = 'Qatar National Bank';
+
 // Point 3: longer than the old String(200) cap, so the widened column is visibly in use.
 const LONG_ACKNOWLEDGEMENT = 'I confirm that every detail supplied in this application is '
   + 'accurate and complete to the best of my knowledge, that I am authorised to submit it on '
@@ -179,22 +185,27 @@ async function run() {
   // The lookup that drives point 4. A dropdown would have worked too, but the whole point
   // is that a LOOKUP can now drive a rule — its stored { id, displayName } used to make
   // every equals comparison fail.
-  const countryField = await post(token, 'qdb_form_fields', {
+  //
+  // It points at `account`, not at `qdb_country`. The country table has 75 rows whose
+  // primary name is blank on every one, so a lookup against it can only ever show an empty
+  // list — nothing to select, and nothing for the rule to match. Accounts carry real names,
+  // which is what makes this demo clickable rather than merely configured.
+  const partnerField = await post(token, 'qdb_form_fields', {
     'qdb_form_section_id@odata.bind': `/qdb_form_sections(${applicantSection.qdb_form_sectionid})`,
-    qdb_schema_name: 'qdb_country', qdb_field_type: FIELD_TYPE.lookup,
-    qdb_label: 'Country of Registration', qdb_display_order: 2, qdb_column_span: COLUMN_SPAN.one,
+    qdb_schema_name: LOOKUP_FIELD_CODE, qdb_field_type: FIELD_TYPE.lookup,
+    qdb_label: 'Banking Partner', qdb_display_order: 2, qdb_column_span: COLUMN_SPAN.one,
     qdb_is_required: false, qdb_is_readonly: false, qdb_is_hidden: false,
   });
 
   // Where the lookup searches. This lives on its own entity, not on the field.
   await post(token, 'qdb_form_lookup_configs', {
-    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${countryField.qdb_form_fieldid})`,
-    qdb_entity_logical_name: 'qdb_country',
-    qdb_display_attribute: 'qdb_name',
+    'qdb_form_field_id@odata.bind': `/qdb_form_fields(${partnerField.qdb_form_fieldid})`,
+    qdb_entity_logical_name: 'account',
+    qdb_display_attribute: 'name',
     qdb_search_min_chars: 1,
     qdb_max_results: 20,
   });
-  console.log(`✓ tab "Applicant" with the Country lookup (${countryField.qdb_form_fieldid})`);
+  console.log(`✓ tab "Applicant" with the Banking Partner lookup (${partnerField.qdb_form_fieldid})`);
 
   // ── Tab 2: the tab point 4 hides ──────────────────────────────────────────
   const documentsTab = await post(token, 'qdb_form_tabs', {
@@ -260,24 +271,26 @@ async function run() {
   console.log('  · point 5 — "Internal Key" hidden but published');
 
   // ── Point 4 — the rule the designer could not previously author ────────────
+  // Matched against the lookup's DISPLAY NAME. The engine tries the record id and the
+  // display name, so a maker can configure either; the name is what they see on screen.
   const ruleDefinition = {
     version: '1.0',
-    trigger_field_code: 'qdb_country',
+    trigger_field_code: LOOKUP_FIELD_CODE,
     trigger_event: 'on_change',
     condition_group: {
       logical_operator: 'AND',
-      conditions: [{ field_code: 'qdb_country', operator: 'equals', value: 'Qatar' }],
+      conditions: [{ field_code: LOOKUP_FIELD_CODE, operator: 'equals', value: RULE_MATCH_VALUE }],
     },
     actions: [{ action_type: 'hide_tab', target_tab_id: documentsTab.qdb_form_tabid }],
   };
   await post(token, 'qdb_form_business_rules', {
     'qdb_form_definition_id@odata.bind': `/qdb_form_definitions(${formId})`,
-    qdb_name: 'Hide Company Documents when the country is Qatar',
+    qdb_name: `Hide Company Documents when the partner is ${RULE_MATCH_VALUE}`,
     qdb_conditions_json: JSON.stringify(ruleDefinition),
     qdb_priority: 1,
     qdb_is_active: true,
   });
-  console.log('✓ point 4 — rule: Country = Qatar hides the Company Documents tab');
+  console.log(`✓ point 4 — rule: Banking Partner = "${RULE_MATCH_VALUE}" hides the Company Documents tab`);
 
   console.log(`\nSeeded. Form code: ${FORM_CODE}\n`);
   return formId;
