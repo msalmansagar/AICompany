@@ -759,6 +759,10 @@ export interface FormDefinition {
   description?: string;
   status: FormStatus;
   version: number;
+  /** Fluent icon name shown beside the title. Ignored when imageUrl is set. */
+  iconName?: string;
+  /** Absolute https image shown beside the title, in place of the icon. */
+  imageUrl?: string;
   allowSaveDraft: boolean;
   draftExpiryDays: number;
   powerAutomateFlowId?: string;    // triggered on successful submit

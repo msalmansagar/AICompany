@@ -25,6 +25,8 @@ export interface UpdateFormDto {
   code?: string;
   description?: string;
   entityLogicalName?: string | null;
+  iconName?: string | null;
+  imageUrl?: string | null;
   status?: FormStatus;
   currentVersion?: string;
   themeId?: string | null;
@@ -106,6 +108,8 @@ export class FormDefinitionService {
       data[FORM_DEFINITION_ATTRS.SUMMARY_MODE] = dto.summaryMode != null ? SUMMARY_MODE_TO_PICKLIST[dto.summaryMode] : null;
     }
     if (dto.showProgressBar !== undefined) data[FORM_DEFINITION_ATTRS.SHOW_PROGRESS_BAR] = dto.showProgressBar;
+    if (dto.iconName !== undefined) data[FORM_DEFINITION_ATTRS.ICON_NAME] = dto.iconName || null;
+    if (dto.imageUrl !== undefined) data[FORM_DEFINITION_ATTRS.IMAGE_URL] = dto.imageUrl || null;
     if (dto.powerAutomateFlowId !== undefined) {
       data[FORM_DEFINITION_ATTRS.POWER_AUTOMATE_FLOW_ID] = dto.powerAutomateFlowId;
     }
@@ -145,6 +149,8 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.CODE,
       FORM_DEFINITION_ATTRS.DESCRIPTION,
       // ENTITY_LOGICAL_NAME excluded — not deployed on qdb_form_definition entity
+      FORM_DEFINITION_ATTRS.ICON_NAME,
+      FORM_DEFINITION_ATTRS.IMAGE_URL,
       FORM_DEFINITION_ATTRS.STATUS,
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
@@ -177,6 +183,8 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.NAME,
       FORM_DEFINITION_ATTRS.CODE,
       FORM_DEFINITION_ATTRS.DESCRIPTION,
+      FORM_DEFINITION_ATTRS.ICON_NAME,
+      FORM_DEFINITION_ATTRS.IMAGE_URL,
       FORM_DEFINITION_ATTRS.STATUS,
       FORM_DEFINITION_ATTRS.CURRENT_VERSION,
       FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT,
@@ -267,6 +275,12 @@ export class FormDefinitionService {
       code: String(record[FORM_DEFINITION_ATTRS.CODE] ?? ''),
       description: String(record[FORM_DEFINITION_ATTRS.DESCRIPTION] ?? ''),
       entityLogicalName: '', // not stored in CRM — populated by wizard and held in store only
+      iconName: record[FORM_DEFINITION_ATTRS.ICON_NAME]
+        ? String(record[FORM_DEFINITION_ATTRS.ICON_NAME])
+        : null,
+      imageUrl: record[FORM_DEFINITION_ATTRS.IMAGE_URL]
+        ? String(record[FORM_DEFINITION_ATTRS.IMAGE_URL])
+        : null,
       status: picklistToStatus(record[FORM_DEFINITION_ATTRS.STATUS]),
       currentVersion: versionToString(record[FORM_DEFINITION_ATTRS.CURRENT_VERSION]),
       themeId: null,

@@ -29,6 +29,7 @@ import type {
   FileUploadConfig,
   FieldPlacement,
 } from '@qdb/shared';
+import { isRenderableImageUrl } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
@@ -175,6 +176,9 @@ export class CrmMetadataService extends CrmBaseService {
       description: raw.qdb_description,
       status: this.mapFormStatus(raw.qdb_status),
       version: raw.qdb_version ?? 1,
+      // Emitted only when set, so forms with no mark publish byte-identical JSON.
+      ...(raw.qdb_icon_name ? { iconName: raw.qdb_icon_name } : {}),
+      ...(isRenderableImageUrl(raw.qdb_image_url) ? { imageUrl: raw.qdb_image_url } : {}),
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
       // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
@@ -1300,6 +1304,8 @@ interface RawFormDefinition {
   qdb_description?: string;
   qdb_status: number;
   qdb_version?: number;
+  qdb_icon_name?: string;
+  qdb_image_url?: string;
   qdb_allow_save_draft?: boolean;
   qdb_draft_expiry_days?: number;
   qdb_power_automate_flow_id?: string;

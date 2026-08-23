@@ -48,6 +48,7 @@ import { FormNavigation } from './FormNavigation';
 import { TabRenderer } from './TabRenderer';
 import { getAllTabFields } from './tabFields';
 import { evaluateTabConfirmation } from './tabConfirmation';
+import { FormMark } from './FormMark';
 import { FormProgressBar } from './FormProgressBar';
 import { FormActionBar } from './FormActionBar';
 import { FormSummary } from './FormSummary';
@@ -417,6 +418,11 @@ function FormRendererInner({
   const formHeader = (
     <>
     <header className={styles.header}>
+      <FormMark
+        imageUrl={formDefinition.imageUrl}
+        iconName={formDefinition.iconName}
+        formTitle={formDefinition.title}
+      />
       <div className={styles.headerText}>
         <h1 className={styles.title}>{formDefinition.title}</h1>
         {formDefinition.description && (

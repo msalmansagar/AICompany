@@ -14,6 +14,12 @@ export interface DesignerFormModel {
   code: string;
   description: string;
   entityLogicalName: string;
+  // Optional like summaryMode and showProgressBar: absent on a form created before these
+  // existed, and absent from the fixtures that predate them.
+  /** Fluent icon shown beside the form title. Ignored while imageUrl is set. */
+  iconName?: string | null;
+  /** Absolute https image shown beside the title, in place of the icon. */
+  imageUrl?: string | null;
   status: FormStatus;
   currentVersion: string;
   themeId: string | null;

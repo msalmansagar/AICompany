@@ -13,6 +13,10 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("description")] public string Description { get; set; }
         [JsonProperty("status")] public string Status { get; set; }
         [JsonProperty("version")] public int Version { get; set; }
+        // Form-level mark shown beside the title. Both omitted when unset so a form with no
+        // mark publishes byte-identical JSON.
+        [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
+        [JsonProperty("imageUrl", NullValueHandling = NullValueHandling.Ignore)] public string ImageUrl { get; set; }
         [JsonProperty("allowSaveDraft")] public bool AllowSaveDraft { get; set; }
         [JsonProperty("draftExpiryDays")] public int? DraftExpiryDays { get; set; }
         [JsonProperty("powerAutomateFlowId")] public string PowerAutomateFlowId { get; set; }

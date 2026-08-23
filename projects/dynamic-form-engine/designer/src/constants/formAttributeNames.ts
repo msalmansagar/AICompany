@@ -8,6 +8,9 @@ export const FORM_DEFINITION_ATTRS = {
   CODE: 'qdb_form_code',
   DESCRIPTION: 'qdb_description',
   ENTITY_LOGICAL_NAME: 'qdb_entity_logical_name',
+  // Form-level mark shown beside the title — same icon convention as tabs and sections.
+  ICON_NAME: 'qdb_icon_name',
+  IMAGE_URL: 'qdb_image_url',
   STATUS: 'qdb_status',
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',

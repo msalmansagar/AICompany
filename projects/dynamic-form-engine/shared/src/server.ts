@@ -15,6 +15,7 @@ export {
   MAX_EXPRESSION_DURATION_MS,
 } from './engines/ExpressionEngineServer.js';
 export { calculateContrastRatio } from './utils/contrastRatio.js';
+export { isRenderableImageUrl, renderableImageUrl } from './utils/imageUrl.js';
 export type { ContrastResult } from './utils/contrastRatio.js';
 export * from './validation/design.schema.js';
 export {

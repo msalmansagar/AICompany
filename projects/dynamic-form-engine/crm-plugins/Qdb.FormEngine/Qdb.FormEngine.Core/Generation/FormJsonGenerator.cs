@@ -59,6 +59,8 @@ namespace Qdb.FormEngine.Core.Generation
                 Description = Resolve(rawData, "qdb_form_definition", formId, "qdb_description", form.GetAttributeValue<string>("qdb_description")),
                 Status = PicklistMapper.ToFormStatus(EntityHelper.GetOptionSetValue(form, "qdb_status")),
                 Version = form.GetAttributeValue<int>("qdb_version"),
+                IconName = NullIfBlank(form.GetAttributeValue<string>("qdb_icon_name")),
+                ImageUrl = RenderableImageUrl(form.GetAttributeValue<string>("qdb_image_url")),
                 AllowSaveDraft = form.GetAttributeValue<bool>("qdb_allow_save_draft"),
                 DraftExpiryDays = form.Contains("qdb_draft_expiry_days") ? (int?)form.GetAttributeValue<int>("qdb_draft_expiry_days") : null,
                 PowerAutomateFlowId = form.GetAttributeValue<string>("qdb_power_automate_flow_id"),
@@ -88,6 +90,29 @@ namespace Qdb.FormEngine.Core.Generation
         private string Resolve(FormRawData rawData, string entityName, Guid recordId, string fieldName, string fallback)
         {
             return _translationResolver.Resolve(rawData.TranslationMap, entityName, recordId, fieldName, fallback);
+        }
+
+        /// <summary>Blank strings publish as null so the JSON omits the property entirely.</summary>
+        private static string NullIfBlank(string value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+
+        /// <summary>
+        /// Publishes a maker-configured image URL only when it is an absolute http(s) URL.
+        /// Mirrors isRenderableImageUrl in the shared types: a javascript: URL executes when
+        /// some browsers resolve it, and a relative path resolves against whichever host is
+        /// serving the form, which differs between the portal, the web resource and dev.
+        /// </summary>
+        private static string RenderableImageUrl(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+
+            Uri parsed;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out parsed)) return null;
+            return parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp
+                ? value
+                : null;
         }
 
         private List<TabDefinition> BuildTabs(FormRawData rawData, Guid formId, FieldBuilder fieldBuilder)

@@ -18,6 +18,7 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import type { SummaryMode } from '@qdb/shared';
+import { isRenderableImageUrl } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
 import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { EntityCombobox } from '@/components/EntityCombobox';
@@ -52,6 +53,17 @@ function SectionHeading({ label }: { label: string }): React.ReactElement {
   );
 }
 
+interface ValidationHint {
+  state: 'none' | 'error';
+  message?: string;
+}
+
+function describeImageUrl(url: string | null | undefined): ValidationHint {
+  if (!url) return { state: 'none' };
+  if (isRenderableImageUrl(url)) return { state: 'none' };
+  return { state: 'error', message: 'Must be an absolute http:// or https:// URL — this will not render.' };
+}
+
 export function FormProperties(): React.ReactElement {
   const styles = useStyles();
   const form = useDesignerStore(state => state.form);
@@ -64,6 +76,10 @@ export function FormProperties(): React.ReactElement {
     },
     [updateForm]
   );
+
+  // Only absolute http(s) URLs render — see isRenderableImageUrl. Saying so in the panel
+  // beats a maker discovering it as a missing image in the published form.
+  const imageUrlState = describeImageUrl(form?.imageUrl);
 
   if (!form) return <></>;
 
@@ -171,6 +187,35 @@ export function FormProperties(): React.ReactElement {
           value={form.powerAutomateFlowId ?? ''}
           onChange={(_, data) => updateForm({ powerAutomateFlowId: data.value || null })}
           placeholder="e.g. 00000000-0000-0000-0000-000000000000"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
+      <SectionHeading label="Form Mark" />
+
+      <Field
+        label="Icon"
+        hint="Fluent icon shown beside the form title. Ignored while an image URL is set."
+      >
+        <Input
+          value={form.iconName ?? ''}
+          onChange={(_, data) => updateForm({ iconName: data.value || null })}
+          placeholder="e.g. DocumentBulletList"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Field
+        label="Image URL"
+        hint="Absolute https image shown instead of the icon. The portal CSP must allow the host."
+        validationState={imageUrlState.state}
+        validationMessage={imageUrlState.message}
+      >
+        <Input
+          value={form.imageUrl ?? ''}
+          onChange={(_, data) => updateForm({ imageUrl: data.value || null })}
+          placeholder="https://example.com/logo.png"
           style={{ fontFamily: 'monospace' }}
         />
       </Field>
