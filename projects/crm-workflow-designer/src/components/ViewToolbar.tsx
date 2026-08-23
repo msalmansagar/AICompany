@@ -1,4 +1,5 @@
 import type { ViewMode } from '../types/ViewMode';
+import type { ReturnPathMode } from '../services/viewFilters';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
@@ -7,12 +8,16 @@ interface ViewToolbarProps {
   isLoading: boolean;
   isExporting: boolean;
   showMiniMap: boolean;
+  showEdgeLabels: boolean;
+  returnPathMode: ReturnPathMode;
   viewMode: ViewMode;
   layoutDir: LayoutDir;
   onRefresh(): void;
   onFitView(): void;
   onAutoLayout(): void;
   onToggleMiniMap(): void;
+  onToggleEdgeLabels(): void;
+  onCycleReturnPaths(): void;
   onDownloadPng(): void;
   onDownloadPdf(): void;
   onViewModeChange(mode: ViewMode): void;
@@ -26,12 +31,16 @@ export function ViewToolbar({
   isLoading,
   isExporting,
   showMiniMap,
+  showEdgeLabels,
+  returnPathMode,
   viewMode,
   layoutDir,
   onRefresh,
   onFitView,
   onAutoLayout,
   onToggleMiniMap,
+  onToggleEdgeLabels,
+  onCycleReturnPaths,
   onDownloadPng,
   onDownloadPdf,
   onViewModeChange,
@@ -80,6 +89,22 @@ export function ViewToolbar({
           title="Toggle minimap"
         >
           {showMiniMap ? 'Hide map' : 'Mini map'}
+        </button>
+        <button
+          type="button"
+          className={showEdgeLabels ? 'cmd' : 'cmd primary'}
+          onClick={onToggleEdgeLabels}
+          title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+        >
+          {showEdgeLabels ? 'Hide labels' : 'Labels'}
+        </button>
+        <button
+          type="button"
+          className={returnPathMode === 'show' ? 'cmd' : 'cmd primary'}
+          onClick={onCycleReturnPaths}
+          title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
+        >
+          {RETURN_LABELS[returnPathMode]}
         </button>
 
         <span className="cmd-spacer" />
@@ -131,6 +156,12 @@ export function ViewToolbar({
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────
+
+const RETURN_LABELS: Record<ReturnPathMode, string> = {
+  show: 'Returns: on',
+  'hide-lines': 'Returns: lines off',
+  'hide-all': 'Returns: hidden',
+};
 
 const modeDescription: React.CSSProperties = {
   fontSize: 11,

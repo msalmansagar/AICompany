@@ -625,3 +625,10 @@ tr.selected .row-check .box { border-color: var(--primary); background: var(--pr
 
 .spin { animation: pe-spin .8s linear infinite; }
 @keyframes pe-spin { to { transform: rotate(360deg); } }
+
+/* ─── Edge-label visibility toggle (view toolbar) ─────────────────────── */
+/* Hides both SVG edge labels (built-in) and HTML label chips rendered
+   through EdgeLabelRenderer, without rebuilding the graph. */
+.edge-labels-hidden .react-flow__edge-text,
+.edge-labels-hidden .react-flow__edge-textbg { display: none; }
+.edge-labels-hidden .react-flow__edgelabel-renderer { display: none; }
