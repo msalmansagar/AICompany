@@ -1,5 +1,7 @@
 # CWFD-008 — Canvas Improvement Tracker
 
+**Merge order: #108 → #109 → #110 → #111 → #112 → #113 → #114** (each PR is stacked on the previous branch; GitHub retargets automatically as each base merges).
+
 Source: canvas audit of 2026-08-23 (18 findings, code-verified + confirmed live
 against org data) plus the FlowOn Process Orchestrator comparison. One row per
 work item; this file is updated as each PR lands.
@@ -10,11 +12,11 @@ work item; this file is updated as each PR lands.
 |---|---|---|---|
 | PR 1 | Canvas correctness | `feat/cwfd-edit-minimap` (#108) | ✅ implemented, verified live |
 | PR 2 | Theme & contrast | `feat/cwfd-canvas-pr2-theme` (#109, stacked on #108) | ✅ implemented, verified live |
-| PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#TBD, stacked on #109) | ✅ implemented, verified live |
-| PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#TBD, stacked on #110) | ✅ implemented, verified live |
-| PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#TBD, stacked on #111) | ✅ implemented, verified live |
-| PR 6 | Hygiene / dead code | `feat/cwfd-canvas-pr6-hygiene` (#TBD, stacked on #112) | ✅ implemented |
-| PR 7 | Guided replay / demo mode | — | ⬜ |
+| PR 3 | Validator & entry-step truth | `feat/cwfd-canvas-pr3-validator` (#110, stacked on #109) | ✅ implemented, verified live |
+| PR 4 | FlowOn quick canvas wins | `feat/cwfd-canvas-pr4-flowon` (#111, stacked on #110) | ✅ implemented, verified live |
+| PR 5 | Step panel tabs | `feat/cwfd-canvas-pr5-panel-tabs` (#112, stacked on #111) | ✅ implemented, verified live |
+| PR 6 | Hygiene / dead code | `feat/cwfd-canvas-pr6-hygiene` (#113, stacked on #112) | ✅ implemented |
+| PR 7 | Guided replay / demo mode | `feat/cwfd-canvas-pr7-demo` (#114, stacked on #113) | ✅ implemented, verified live |
 
 ---
 
@@ -82,11 +84,11 @@ Files: `hooks/useSyncedNodes.ts` (new), `services/simEndpoints.ts` (new),
 | 6.3 | SopCanvas store subscription cleanup (whole-store double subscribe) — partially improved by PR 1's memoized blueprint | A15 | ✅ one subscription |
 | 6.4 | PNG/PDF export: pass the computed background colour (CSS `var()` doesn't resolve in the serialized SVG) | A17 | ✅ computed --canvas-bg |
 
-## PR 7 — Guided replay / demo mode ⬜
+## PR 7 — Guided replay / demo mode ✅
 
 | # | Item | Status |
 |---|---|---|
-| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ⬜ |
+| 7.1 | Scripted build playback (add step → assign → wire → publish) reusing `useAutoSimPlayback` + HUD, with narration line à la FlowOn | ✅ ▶ Demo build: 11 narrated beats on an in-memory draft; recorded (cwfd-demo-build-mode.gif) |
 
 ## Deferred (user decision needed) ⏸
 

@@ -1,5 +1,8 @@
 interface EditToolbarProps {
   processName: string;
+  /** Demo build is offered only on an empty, clean draft. */
+  canDemo?: boolean;
+  onDemo?: () => void;
   /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
   workflowState?: string;
   isDirty: boolean;
@@ -32,6 +35,8 @@ interface EditToolbarProps {
 
 export function EditToolbar({
   processName,
+  canDemo,
+  onDemo,
   workflowState,
   isDirty,
   isSaving,
@@ -132,6 +137,16 @@ export function EditToolbar({
             {isPublishing ? 'Publishing…' : 'Publish'}
           </button>
           <span className="cmd-sep" />
+          {canDemo && onDemo && (
+            <button
+              type="button"
+              className="cmd"
+              onClick={onDemo}
+              title="Watch a narrated demo build a small process on this canvas"
+            >
+              ▶ Demo build
+            </button>
+          )}
           <button
             type="button"
             className="cmd"
