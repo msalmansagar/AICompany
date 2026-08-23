@@ -15,6 +15,7 @@ import type { UploadedFileReference } from '../../api/filesApi';
 import { filesApi } from '../../api/filesApi';
 import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
 import { getTabZoneFields } from './tabFields';
+import { visibleGridColumns } from './gridColumns';
 
 interface FormSummaryProps {
   onEditTab: (tabIndex: number) => void;
@@ -345,8 +346,7 @@ function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
     );
   }
 
-  const cols: GridColumnConfig[] = [...(field.gridConfig?.columnConfigs ?? [])]
-    .sort((a, b) => a.displayOrder - b.displayOrder)
+  const cols: GridColumnConfig[] = visibleGridColumns(field.gridConfig?.columnConfigs ?? [])
     .slice(0, MAX_GRID_COLS);
 
   if (cols.length === 0) {

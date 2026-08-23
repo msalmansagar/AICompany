@@ -304,6 +304,7 @@ namespace Qdb.FormEngine.Core.Generation
                 ColumnLabel = Resolve(column.Id, "qdb_grid_column_config", "qdb_column_label", column.GetAttributeValue<string>("qdb_column_label")),
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
+                IsVisible = EntityHelper.GetBoolOrTrue(column, "qdb_is_visible"),
                 Options = new List<GridColumnOptionValue>()
             };
             ApplyColumnOptionsJson(config, column.GetAttributeValue<string>("qdb_column_options_json"));

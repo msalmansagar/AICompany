@@ -46,6 +46,7 @@ type ViewMode = 'table' | 'card';
 import { useFormContext } from '../../../contexts/FormContext';
 import { useSelectionGridData } from '../../../hooks/useSelectionGridData';
 import { DynamicIcon } from '../DynamicIcon';
+import { visibleGridColumns } from '../gridColumns';
 import type { ControlProps } from '../FieldRenderer';
 
 const useStyles = makeStyles({
@@ -642,7 +643,7 @@ export function SelectionGridField({
   }, [isReadonly]);
 
   const sortedCols = useMemo(
-    () => [...columnConfigs].sort((a, b) => a.displayOrder - b.displayOrder),
+    () => visibleGridColumns(columnConfigs),
     [columnConfigs],
   );
 

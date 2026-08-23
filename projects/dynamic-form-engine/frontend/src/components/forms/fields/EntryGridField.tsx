@@ -34,6 +34,7 @@ import type { GridColumnConfig, GridColumnOptionValue, LookupResult } from '@qdb
 import { useEntryGridRows, type GridRow } from '../../../hooks/useEntryGridRows';
 import { useLookupSearch } from '../../../hooks/useLookupSearch';
 import { filesApi, type UploadedFileReference } from '../../../api/filesApi';
+import { visibleGridColumns } from '../gridColumns';
 import type { ControlProps } from '../FieldRenderer';
 
 // BC-009: warn when approaching 450 batch operations (rows × columns).
@@ -114,8 +115,7 @@ export function EntryGridField({
   const isApproachingLimit = operationCount >= OPERATION_WARNING_THRESHOLD;
 
   const sortedColumns = useMemo(
-    () =>
-      [...columnConfigs].sort((a, b) => a.displayOrder - b.displayOrder),
+    () => visibleGridColumns(columnConfigs),
     [columnConfigs],
   );
 

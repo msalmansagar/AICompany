@@ -119,6 +119,8 @@ export interface DesignerGridColumnConfig {
   targetAttribute: string;
   columnFieldType: string;
   displayOrder: number;
+  /** Whether the runtime draws this column. Hidden columns are still saved and published. */
+  isVisible: boolean;
   isEditable: boolean;
   optionsJson: string | null;
   filterType: GridColumnFilterType;

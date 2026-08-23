@@ -642,6 +642,10 @@ export interface GridColumnConfig {
   columnLabel: string;
   targetAttribute: string;
   columnFieldType: string;
+  // Hidden means "not drawn", NOT "not published". Readers used to filter qdb_is_visible
+  // out of the query, so a hidden column vanished from the JSON entirely and its value
+  // could not round-trip. Absent ⇒ visible, so forms published before this stay unchanged.
+  isVisible?: boolean;
   filterType?: GridColumnFilterType;
   // Only populated when filterType === 'lookup'; used by backend to generate link-entity join.
   lookupTargetEntity?: string;

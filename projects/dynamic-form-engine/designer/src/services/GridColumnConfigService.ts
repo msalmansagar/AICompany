@@ -78,7 +78,7 @@ export class GridColumnConfigService {
           [GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR]: col.targetAttribute,
           [GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE]: col.columnFieldType,
           [GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER]: col.displayOrder,
-          [GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE]: true,
+          [GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE]: col.isVisible,
           [GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]: col.isEditable,
           ...(encodedOptionsJson != null ? { [GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON]: encodedOptionsJson } : {}),
         }),
@@ -93,6 +93,7 @@ export class GridColumnConfigService {
     if (col.targetAttribute !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR] = col.targetAttribute;
     if (col.columnFieldType !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE] = col.columnFieldType;
     if (col.displayOrder !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] = col.displayOrder;
+    if (col.isVisible !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] = col.isVisible;
     if (col.isEditable !== undefined) data[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE] = col.isEditable;
     // Re-encode options JSON whenever any filter-related field changes.
     const filterFieldChanged = col.optionsJson !== undefined
@@ -127,11 +128,14 @@ export class GridColumnConfigService {
       GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR,
       GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE,
       GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER,
+      GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE,
       GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE,
       GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON,
     ].join(',');
 
-    const filter = `${GRID_COLUMN_CONFIG_ATTRS.FIELD_ID_VALUE} eq ${fieldId} and ${GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE} eq true`;
+    // Hidden columns are listed too. Filtering them out here made them invisible to the
+    // designer as well as the runtime, so a maker could neither see nor un-hide one.
+    const filter = `${GRID_COLUMN_CONFIG_ATTRS.FIELD_ID_VALUE} eq ${fieldId}`;
     const orderBy = `${GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER} asc`;
 
     const result = await withRetry(
@@ -179,6 +183,7 @@ export class GridColumnConfigService {
       targetAttribute: String(record[GRID_COLUMN_CONFIG_ATTRS.TARGET_ATTR] ?? ''),
       columnFieldType: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_TYPE] ?? 'text'),
       displayOrder: Number(record[GRID_COLUMN_CONFIG_ATTRS.DISPLAY_ORDER] ?? 0),
+      isVisible: record[GRID_COLUMN_CONFIG_ATTRS.IS_VISIBLE] !== false,
       isEditable: Boolean(record[GRID_COLUMN_CONFIG_ATTRS.IS_EDITABLE]),
       optionsJson,
       filterType,

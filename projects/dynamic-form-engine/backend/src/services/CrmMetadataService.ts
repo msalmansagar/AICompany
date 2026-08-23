@@ -576,7 +576,10 @@ export class CrmMetadataService extends CrmBaseService {
   private async fetchGridColumnConfigs(fieldIds: string[]): Promise<Map<string, GridColumnConfig[]>> {
     const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawGridColumnConfig>>(
-      `/qdb_grid_column_configs?$filter=(${filter}) and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
+      // Hidden columns are published too, carrying isVisible: false. Filtering them out here
+      // dropped them from the JSON entirely, so their values could not round-trip and a maker
+      // who hid a column saw it disappear rather than stop being drawn.
+      `/qdb_grid_column_configs?$filter=(${filter})&$orderby=qdb_display_order asc`,
     );
     const map = new Map<string, GridColumnConfig[]>();
     for (const col of response.value) {
@@ -590,6 +593,7 @@ export class CrmMetadataService extends CrmBaseService {
         columnLabel: col.qdb_column_label,
         targetAttribute: col.qdb_column_attribute,
         columnFieldType,
+        isVisible: col.qdb_is_visible !== false,
         options: meta.options,
         filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
         lookupTargetEntity: meta.lookupTargetEntity,

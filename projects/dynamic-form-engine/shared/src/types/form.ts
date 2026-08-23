@@ -54,6 +54,9 @@ export interface GridColumnConfig {
   columnLabel: string;
   displayOrder: number;
   columnFieldType: string;
+  // Hidden means "not drawn", NOT "not published" — see form.types.ts.
+  // Absent ⇒ visible, so forms published before this stay unchanged.
+  isVisible?: boolean;
   filterType?: GridColumnFilterType;
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
@@ -72,7 +75,8 @@ export interface GridFieldConfig {
   cardLayout?: GridCardLayout;     // info-card arrangement: 'grid' (default) or 'row' (list)
   selectable?: boolean;            // default true for selection; false = read-only display
   cardIconName?: string;           // optional Fluent icon shown on each info card
-  // Backend pre-filters to visible columns only; absent if no column configs are defined.
+  // Every configured column, visible or not; absent if no column configs are defined.
+  // Renderers skip isVisible === false — they must not assume the backend filtered.
   columnConfigs?: GridColumnConfig[];
   maxRows?: number;
   pageSize?: number;               // records per page for entity selection grids (runtime default 50)

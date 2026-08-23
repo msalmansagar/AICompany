@@ -430,7 +430,9 @@ namespace Qdb.FormEngine.Data
                 ColumnSet = new ColumnSet(true),
                 NoLock = true
             };
-            query.Criteria.AddCondition("qdb_is_visible", ConditionOperator.Equal, true);
+            // Hidden columns are fetched too and published with isVisible: false. Filtering on
+            // qdb_is_visible here removed them from the generated JSON entirely, so a maker who
+            // hid a column lost it rather than stopping it being drawn.
             query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);

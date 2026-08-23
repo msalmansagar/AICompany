@@ -59,6 +59,7 @@ const useStyles = makeStyles({
     justifyContent: 'space-between',
   },
   columnActions: { display: 'flex', gap: '4px' },
+  columnBadges: { display: 'flex', gap: '4px', alignItems: 'center' },
   // The properties panel is 320px, leaving a measured 246px inside this card.
   // Three controls forced across it left ~82px each — narrower than a select's own
   // option text or the switch's Yes/No label, which is why they overlapped.
@@ -100,6 +101,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       targetAttribute: '',
       columnFieldType: 'text',
       displayOrder: columns.length,
+      isVisible: true,
       isEditable: false,
       optionsJson: null,
       filterType: 'text',
@@ -172,9 +174,16 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       {columns.map((col, index) => (
         <div key={col.id} className={styles.columnCard}>
           <div className={styles.columnHeader}>
-            <Badge appearance="filled" color="informative" size="small">
-              Col {index + 1}
-            </Badge>
+            <div className={styles.columnBadges}>
+              <Badge appearance="filled" color="informative" size="small">
+                Col {index + 1}
+              </Badge>
+              {!col.isVisible && (
+                <Badge appearance="tint" color="subtle" size="small">
+                  Hidden
+                </Badge>
+              )}
+            </div>
             <div className={styles.columnActions}>
               <Button
                 size="small"
@@ -256,6 +265,18 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
               </Select>
+            </Field>
+
+            <Field
+              label="Visible"
+              className={styles.fieldRowItem}
+              hint="Hidden columns are still saved and published — the grid just does not draw them."
+            >
+              <Switch
+                checked={col.isVisible}
+                onChange={(_, d) => handleUpdate(col.id, { isVisible: d.checked })}
+                label={col.isVisible ? 'Yes' : 'No'}
+              />
             </Field>
 
             {showIsEditable && (

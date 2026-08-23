@@ -371,6 +371,13 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("columnLabel")] public string ColumnLabel { get; set; }
         [JsonProperty("targetAttribute")] public string TargetAttribute { get; set; }
         [JsonProperty("columnFieldType")] public string ColumnFieldType { get; set; }
+
+        /// <summary>
+        /// Whether the renderer draws this column. Hidden columns are still published so their
+        /// values round-trip; the reader used to filter them out of the query, which removed
+        /// them from the JSON altogether.
+        /// </summary>
+        [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("filterType")] public string FilterType { get; set; }
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
