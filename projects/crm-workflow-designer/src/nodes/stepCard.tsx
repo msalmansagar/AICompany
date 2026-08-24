@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 import { NODE_NEUTRAL_CHIP, TERMINATING_BADGE_REGISTRATION } from '@/styles/surfacePairs';
 import type { AssignToType } from '@/types/WorkflowTypes';
@@ -121,7 +122,14 @@ export function StepCardChips({
   const colour = ASSIGN_CHIP[assignLabel] ?? { bg: 'var(--surface-alt)', text: 'var(--text-secondary)' };
   return (
     <div style={chipsRow}>
-      <span style={chip(colour.bg, colour.text)}>{assignLabel}</span>
+      <span
+        style={iconChip(colour.bg, colour.text)}
+        title={assignLabel}
+        aria-label={assignLabel}
+        role="img"
+      >
+        <AssignIcon type={assignTypeFromLabel(assignLabel)} />
+      </span>
       {assigneeName && (
         <span style={chip(NODE_NEUTRAL_CHIP.background, NODE_NEUTRAL_CHIP.foreground)} title={assigneeName}>
           {truncate(assigneeName, 22)}
@@ -201,6 +209,22 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
 
 export function stepHandleStyle(color: string): React.CSSProperties {
   return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
+}
+
+/** The assignment chip: a glyph, sized so it reads as a badge not a button. */
+function iconChip(bg: string, color: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: bg,
+    color,
+    border: `1px solid ${NODE_NEUTRAL_CHIP.border}`,
+    borderRadius: 4,
+    width: 20,
+    height: 18,
+    flexShrink: 0,
+  };
 }
 
 function chip(bg: string, color: string): React.CSSProperties {

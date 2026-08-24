@@ -1,4 +1,5 @@
 import { Panel } from '@xyflow/react';
+import { AssignIcon, ASSIGN_ICON_ORDER, assignLabelOf } from '@/nodes/assignIcons';
 
 interface LegendEntry {
   color: string;
@@ -33,6 +34,15 @@ export function CanvasLegend() {
           {entry.label}
         </span>
       ))}
+      <span style={dividerStyle} aria-hidden="true" />
+      {ASSIGN_ICON_ORDER.map((type) => (
+        <span key={type} style={itemStyle}>
+          <span style={{ display: 'inline-flex', color: 'var(--text-secondary)' }}>
+            <AssignIcon type={type} size={13} />
+          </span>
+          {assignLabelOf(type)}
+        </span>
+      ))}
     </Panel>
   );
 }
@@ -48,6 +58,13 @@ const panelStyle: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 10,
   color: 'var(--text-secondary)',
+};
+
+const dividerStyle: React.CSSProperties = {
+  width: 1,
+  height: 12,
+  background: 'var(--border-strong)',
+  flexShrink: 0,
 };
 
 const itemStyle: React.CSSProperties = {
