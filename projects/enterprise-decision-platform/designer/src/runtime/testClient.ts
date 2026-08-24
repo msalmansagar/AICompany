@@ -2,6 +2,8 @@
 //  - In CRM (deployed web resource): calls the qdb_edp_EvaluateDecision Custom API.
 //  - In local dev: calls the C# harness via the /runtime vite proxy.
 
+import { crmApiBase } from '../dataverse/apiBase';
+
 export interface TraceStep { kind: string; description: string; result: boolean | null; }
 export interface Diagnostic { code: string; message: string; severity: string; }
 export interface EvaluateResult {
@@ -12,14 +14,6 @@ export interface EvaluateResult {
   elapsedMs: number;
   trace: TraceStep[];
   diagnostics: Diagnostic[];
-}
-
-function crmApiBase(): string | null {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return null;
 }
 
 export async function evaluate(pcrm: unknown, inputs: Record<string, unknown>): Promise<EvaluateResult> {

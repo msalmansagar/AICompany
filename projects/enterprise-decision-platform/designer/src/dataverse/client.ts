@@ -1,5 +1,6 @@
 import type { DecisionGraphType } from '@gorules/jdm-editor';
 import { functionRequest, messageMode } from './messaging';
+import { apiBase } from './apiBase';
 
 // Dataverse Web API client — all calls go through the local /dataverse dev proxy
 // (which injects the bearer token). Targets the qdb_edp_ tables in BusinessRuleEngine.
@@ -7,17 +8,6 @@ import { functionRequest, messageMode } from './messaging';
 const RULES = 'qdb_edp_rules';
 const VERSIONS = 'qdb_edp_ruleversions';
 const RULETESTS = 'qdb_edp_ruletests';
-
-// Dual-mode base URL: inside CRM use the org Web API (same-origin session auth);
-// in local dev use the /dataverse proxy (which injects a service-principal token).
-function apiBase(): string {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  // Hosted as a web resource (same-origin, session-authenticated) but no Xrm in scope.
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return '/dataverse'; // local dev proxy
-}
 
 async function req<T>(path: string, method = 'GET', body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {

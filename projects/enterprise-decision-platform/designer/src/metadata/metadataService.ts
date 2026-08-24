@@ -1,13 +1,7 @@
 // Reads CRM entity/attribute/option-set metadata via the Web API. Dual-mode:
 // CRM (Xrm or *.dynamics.com same-origin) or the local /dataverse dev proxy.
 
-function apiBase(): string {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return '/dataverse';
-}
+import { apiBase } from '../dataverse/apiBase';
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
