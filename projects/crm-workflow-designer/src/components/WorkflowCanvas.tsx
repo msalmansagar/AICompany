@@ -172,6 +172,11 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     view.selectElement(node.id);
   }, [view]);
 
+  // Double-clicking a step is the universal 'edit this' gesture.
+  const handleNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === 'viewStep' && onEditProcess) onEditProcess();
+  }, [onEditProcess]);
+
   const handleEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
     view.selectElement(edge.id);
   }, [view]);
@@ -281,6 +286,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
             nodeTypes={nodeTypes}
             onNodesChange={handleNodesChange}
             onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
             onEdgeClick={handleEdgeClick}
             onPaneClick={handlePaneClick}
             nodesDraggable={true}

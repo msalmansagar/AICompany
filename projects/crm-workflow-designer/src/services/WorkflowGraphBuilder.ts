@@ -208,8 +208,9 @@ export function buildGraph(
           target: `gw_${o.id}`,
           // The gateway sits beside the card in TB — connect side to side, or
           // the edge loops out of the bottom and doubles back up.
+          // TB exits the card's side; LR's main 'out' is already the right edge.
           sourceHandle: dir === 'TB' ? 'side-out' : 'out',
-          targetHandle: dir === 'TB' ? 'in-side' : 'in',
+          targetHandle: 'in-side',
           type: 'default',
           style: { stroke: 'var(--warning)', strokeWidth: 1.5, strokeDasharray: '5 3' },
           markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--warning)' },
@@ -229,7 +230,7 @@ export function buildGraph(
           id: `e_route_${route.id}`,
           source: `gw_${o.id}`,
           target: targetId,
-          sourceHandle: dir === 'TB' ? 'out-side' : 'out',
+          sourceHandle: 'out-side',
           targetHandle: 'in',
           type: 'default',
           animated: !isFallback,
@@ -331,8 +332,11 @@ export function buildGraph(
   let positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
 
   // Move route-destination step nodes to the RIGHT of their gateway so routes
-  // branch horizontally instead of stacking in the center column.
-  if (dir === 'TB' && routes.length > 0) {
+  // branch horizontally instead of stacking in the center column. This must
+  // run in BOTH directions: in LR, Dagre puts the destinations in one rank and
+  // the centre-line pass then forces every step to the same y — CEO and
+  // Chairman rendered exactly on top of each other until this branched them.
+  if (routes.length > 0) {
     positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, STEP_W);
   }
 
@@ -385,10 +389,11 @@ function addLocalEndStubs(
     void hasDirectEnd;
     const h = (stepNode.data as { nodeHeight?: number }).nodeHeight ?? 78;
     const stubId = `end_stub_${stepId}`;
-    // Tucked under the card's left corner, tight enough to clear the next
-    // card in a 72px destination stack (36 + 22px stub < 72).
-    const x = dir === 'TB' ? stepNode.position.x + 10 : stepNode.position.x + STEP_W + 48;
-    const y = dir === 'TB' ? stepNode.position.y + h + 34 : stepNode.position.y + h + 24;
+    // Tucked under the card's left corner in both directions — tight enough
+    // to clear the next card in a 72px destination stack (34 + 22px < 72),
+    // and off the main flow, which runs rightward in LR.
+    const x = stepNode.position.x + 10;
+    const y = stepNode.position.y + h + 34;
     stubNodes.push(stub(stubId, x, y));
     stubEdges.push({
       id: `e_end_${stepId}`,
