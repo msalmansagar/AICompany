@@ -18,6 +18,18 @@ export type ReturnPathMode = 'show' | 'hide-lines' | 'hide-all';
 /** The order the toolbar cycles through. */
 export const RETURN_PATH_MODES: readonly ReturnPathMode[] = ['show', 'hide-lines', 'hide-all'];
 
+/** What the toolbars print for each mode. */
+export const RETURN_MODE_LABELS: Record<ReturnPathMode, string> = {
+  show: 'Returns: on',
+  'hide-lines': 'Returns: lines off',
+  'hide-all': 'Returns: hidden',
+};
+
+/** The next mode in the toolbar cycle. */
+export function nextReturnPathMode(mode: ReturnPathMode): ReturnPathMode {
+  return RETURN_PATH_MODES[(RETURN_PATH_MODES.indexOf(mode) + 1) % RETURN_PATH_MODES.length];
+}
+
 interface ReturnFlaggedEdgeData {
   isBackEdge?: boolean;
 }

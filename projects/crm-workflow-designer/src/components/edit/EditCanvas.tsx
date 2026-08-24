@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import React from 'react';
 import { useStore } from 'zustand';
 import {
@@ -33,6 +33,8 @@ import { confirm } from '../ui/ConfirmDialog';
 import { notify } from '../ui/Notify';
 import { useDemoPlayback } from '@/hooks/useDemoPlayback';
 import { DemoHUD } from './DemoHUD';
+import { applyReturnPathFilter, nextReturnPathMode } from '@/services/viewFilters';
+import type { ReturnPathMode } from '@/services/viewFilters';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
 import { CanvasLegend } from '../common/CanvasLegend';
@@ -128,6 +130,8 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
   const [showValidationPanel, setShowValidationPanel] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const [showEdgeLabels, setShowEdgeLabels] = useState(true);
+  const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
 
   // Live, debounced validation — keeps node error badges and the toolbar count
   // current as the workflow is edited, without waiting for the Validate button.
@@ -203,6 +207,13 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
     clearToast();
   }, [toastMessage, toastType, clearToast]);
 
+  // The same declutter filters the view toolbar has. Filtering the rendered
+  // arrays leaves the store untouched — hidden work is still there on save.
+  const visibleEdit = useMemo(
+    () => applyReturnPathFilter(editMode.nodes, editMode.edges, returnPathMode),
+    [editMode.nodes, editMode.edges, returnPathMode]
+  );
+
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
 
   return (
@@ -226,9 +237,13 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
         canSimStepBack={canSimStepBack}
         validationErrorCount={validationErrorCount}
         showMiniMap={showMiniMap}
+        showEdgeLabels={showEdgeLabels}
+        returnPathMode={returnPathMode}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
         onToggleMiniMap={() => setShowMiniMap((isOn) => !isOn)}
+        onToggleEdgeLabels={() => setShowEdgeLabels((isOn) => !isOn)}
+        onCycleReturnPaths={() => setReturnPathMode(nextReturnPathMode)}
         onSave={() => void save()}
         onPublish={() => void publish()}
         onDiscard={handleDiscard}
@@ -246,7 +261,10 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
       />
 
       <div style={bodyStyle}>
-        <div style={canvasWrapStyle}>
+        <div
+          style={canvasWrapStyle}
+          className={!isSimulating && !isAutoSimulating && !showEdgeLabels ? 'edge-labels-hidden' : undefined}
+        >
           {isSimulating ? (
             <ReactFlow
               nodes={simMode.nodes}
@@ -291,8 +309,8 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
             </ReactFlow>
           ) : (
             <ReactFlow
-              nodes={editMode.nodes}
-              edges={editMode.edges}
+              nodes={visibleEdit.nodes}
+              edges={visibleEdit.edges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={editMode.onNodesChange}

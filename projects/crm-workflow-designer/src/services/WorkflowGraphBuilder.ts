@@ -1,4 +1,5 @@
 import dagre from '@dagrejs/dagre';
+import { routeLabelPair } from '../styles/surfacePairs';
 import { BRANCH_EDGE_LABEL } from '@/styles/surfacePairs';
 import { hasRealCondition } from '@/services/routeFilter';
 import { MarkerType } from '@xyflow/react';
@@ -231,14 +232,18 @@ export function buildGraph(
           type: 'default',
           animated: !isFallback,
           label: edgeLabel,
+          // Text and fill were the SAME colour — a solid orange bar with
+          // invisible writing. The registered route-label pairs sit the text
+          // on the neutral raised ground the contrast guard checks.
           labelStyle: {
-            fontSize: 9,
+            fontSize: 10,
             fontWeight: 600,
-            fill: isFallback ? 'var(--success)' : 'var(--warning)',
+            fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').foreground,
           },
           labelBgStyle: {
-            fill: isFallback ? 'var(--success)' : 'var(--warning)',
+            fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').background,
             fillOpacity: 1,
+            rx: 4,
           },
           style: {
             stroke,
@@ -401,8 +406,10 @@ function nodeDimensions(node: Node): { w: number; h: number } {
 }
 
 const STEP_NODE_TYPES = new Set(['viewStep', 'execStep', 'techStep']);
-const BRANCH_GAP = 80;
-const ROUTE_STACK_GAP = 40;
+// 80/40 crammed the conditional fan-out: destination cards nearly touched
+// the gateway and each other, and the route labels overlapped both.
+const BRANCH_GAP = 140;
+const ROUTE_STACK_GAP = 72;
 
 /**
  * After Dagre layout, explicitly positions both gateway diamonds and their
