@@ -299,6 +299,11 @@ export function buildGraph(
     .sort((a, b) => b.sequenceNo - a.sequenceNo)[0];
   const lastTerminalStepId = lastTerminalStep?.id ?? null;
 
+  // Every terminating step draws its END edge. These used to be transparent
+  // for all but the last terminal step (kept only to rank the layout), which
+  // showed a 'Terminating' card with no line to END — the canvas was lying
+  // about which steps can finish the process. The main path stays bold; the
+  // others are thin and dashed so many endings do not read as spaghetti.
   const endEdges: Edge[] = [...terminalStepIds].map((stepId) => {
     const isLast = stepId === lastTerminalStepId;
     return {
@@ -310,8 +315,8 @@ export function buildGraph(
       type: 'default',
       style: isLast
         ? { stroke: 'var(--error)', strokeWidth: 2 }
-        : { stroke: 'transparent', strokeWidth: 0 },
-      markerEnd: isLast ? { type: MarkerType.ArrowClosed, color: 'var(--error)' } : undefined,
+        : { stroke: 'var(--error)', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.55 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
       selectable: false,
     };
   });

@@ -209,10 +209,12 @@ export function buildExecutiveGraph(
       source: `step_${stepId}`, target: END_NODE_ID,
       sourceHandle: 'out', targetHandle: 'in',
       type: 'default',
+      // A terminating step with an invisible END edge reads as not ending the
+      // process — every ending is drawn; only the main one is bold.
       style: isLast
         ? { stroke: 'var(--error)', strokeWidth: 2 }
-        : { stroke: 'transparent', strokeWidth: 0 },
-      markerEnd: isLast ? { type: MarkerType.ArrowClosed, color: 'var(--error)' } : undefined,
+        : { stroke: 'var(--error)', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.55 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
       selectable: false,
     };
   });
