@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { SwimStepData } from '../services/SwimlaneGraphBuilder';
@@ -89,7 +90,14 @@ export function SwimStepNode({ data, selected }: NodeProps) {
       </div>
 
       <div style={swimChips}>
-        <span style={chip(colors.bg, colors.text, colors.border)}>{assignLabel}</span>
+        <span
+          style={{ ...chip(colors.bg, colors.text, colors.border), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18, padding: 0 }}
+          title={assignLabel}
+          aria-label={assignLabel}
+          role="img"
+        >
+          <AssignIcon type={assignTypeFromLabel(assignLabel)} />
+        </span>
         {assigneeName && (
           <span style={ownerText} title={assigneeName}>{truncate(assigneeName, 18)}</span>
         )}

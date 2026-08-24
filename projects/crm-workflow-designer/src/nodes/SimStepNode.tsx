@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import type { AssignToType } from '@/types/WorkflowTypes';
 import { ASSIGN_TO_ACCENTS, ASSIGN_TO_LABELS as ASSIGN_LABELS } from '@/services/taskAssignment';
@@ -42,7 +43,14 @@ export function SimStepNode({ data }: NodeProps) {
       </div>
 
       <div style={bodyStyle}>
-        <span style={buildChipStyle(d.assignTo, mono)}>{ASSIGN_LABELS[d.assignTo]}</span>
+        <span
+          style={{ ...buildChipStyle(d.assignTo, mono), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18 }}
+          title={ASSIGN_LABELS[d.assignTo]}
+          aria-label={ASSIGN_LABELS[d.assignTo]}
+          role="img"
+        >
+          <AssignIcon type={d.assignTo} />
+        </span>
         {d.assigneeName && <span style={assigneeStyle}>{d.assigneeName}</span>}
       </div>
 

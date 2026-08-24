@@ -1,4 +1,5 @@
 import { Handle, Position } from '@xyflow/react';
+import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { ExecStepData } from '../services/ExecutiveGraphBuilder';
@@ -33,7 +34,14 @@ export function ExecStepNode({ data, selected }: NodeProps) {
           <span style={nameText}>{step.name || 'Unnamed Step'}</span>
         </div>
         <div style={chipRow}>
-          <span style={chip(accentColor)}>{assignLabel}</span>
+          <span
+            style={{ ...chip(accentColor), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 18, padding: 0 }}
+            title={assignLabel}
+            aria-label={assignLabel}
+            role="img"
+          >
+            <AssignIcon type={assignTypeFromLabel(assignLabel)} />
+          </span>
           {(assignLabel === 'Specific User' ? step.assignedUserName
             : assignLabel === 'Team' ? step.teamName
             : step.roundRobinTeamName) && (
