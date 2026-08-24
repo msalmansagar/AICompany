@@ -146,10 +146,16 @@ export function StepOutcomeList({ rows }: { rows: StepOutcomeRow[] }) {
   );
 }
 
+function outcomeRowTitle(row: StepOutcomeRow): string {
+  const target = row.isTerminal ? 'ends the process' : row.nextStepName ? `→ ${row.nextStepName}` : '';
+  const kind = row.isBackEdge ? ' (returns to an earlier step)' : row.applyFilter ? ' (conditional)' : '';
+  return `${row.name}${kind} ${target}`.trim();
+}
+
 function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   if (row.isBackEdge) {
     return (
-      <div style={outcomeRow}>
+      <div style={outcomeRow} title={outcomeRowTitle(row)}>
         <span style={icon('var(--accent-branch)')}>↩</span>
         <span style={outcomeLabel('var(--accent-branch)')}>{truncate(row.name, 20)}</span>
         {row.nextStepName && (
@@ -161,7 +167,7 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
 
   if (row.isTerminal && row.applyFilter) {
     return (
-      <div style={outcomeRow}>
+      <div style={outcomeRow} title={outcomeRowTitle(row)}>
         <span style={icon('var(--warning)')}>◈</span>
         <span style={outcomeLabel('var(--warning)')}>{truncate(row.name, 20)}</span>
         <span style={conditionBadge}>CONDITION</span>
@@ -171,7 +177,7 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
 
   if (row.isTerminal) {
     return (
-      <div style={outcomeRow}>
+      <div style={outcomeRow} title={outcomeRowTitle(row)}>
         <span style={icon('var(--error)')}>⊘</span>
         <span style={outcomeLabel('var(--error)')}>{truncate(row.name, 20)}</span>
         <span style={outcomeTarget('var(--error)')}>→ END</span>
@@ -180,7 +186,7 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   }
 
   return (
-    <div style={outcomeRow}>
+    <div style={outcomeRow} title={outcomeRowTitle(row)}>
       <span style={icon('var(--success)')}>→</span>
       <span style={outcomeLabel('var(--text)')}>{truncate(row.name, 20)}</span>
       <div style={forwardRight}>

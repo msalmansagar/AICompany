@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { stepAccent } from '@/styles/stepAccents';
 import type { WorkflowData, CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
 
@@ -92,8 +93,12 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
     );
   }
 
+  // The same identity colour the card wears — the panel names which step it
+  // is describing without the reader checking the canvas selection.
+  const accent = selected.type === 'step' ? stepAccent(selected.step.id) : undefined;
+
   return (
-    <div className="panel">
+    <div className="panel" style={accent ? { borderTop: `3px solid ${accent}` } : undefined}>
       <div className="panel-body">
         <ProcessInfo process={data.process} stepCount={data.steps.length} />
         {selected.type === 'step' && <StepDetails step={selected.step} />}
