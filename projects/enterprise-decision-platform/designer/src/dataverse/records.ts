@@ -5,11 +5,11 @@ import { webApiGet } from './apiBase';
 
 export interface RecordRef { id: string; name: string; }
 
-interface EntityAccess { entitySet: string; primaryId: string; primaryName: string; }
+export interface EntityAccess { entitySet: string; primaryId: string; primaryName: string; }
 
 const accessCache = new Map<string, Promise<EntityAccess>>();
 
-function entityAccess(entity: string): Promise<EntityAccess> {
+export function entityAccess(entity: string): Promise<EntityAccess> {
   const cached = accessCache.get(entity);
   if (cached) return cached;
   const pending = webApiGet<any>(

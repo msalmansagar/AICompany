@@ -5,6 +5,8 @@ import {
   saveRule, loadLatestVersion, getVersionState, validateRule, setEffectiveWindow, type ValidationResult,
 } from './dataverse/client';
 import { evaluate, type EvaluateResult } from './runtime/testClient';
+import { inputsFromRecord } from './runtime/recordInputs';
+import { RecordPicker } from './table/RecordPicker';
 import { performAction, type GovernanceAction } from './governance/governanceClient';
 import { searchEntities, type EntityMeta } from './metadata/metadataService';
 import { EntityCombobox } from './metadata/EntityCombobox';
@@ -82,6 +84,7 @@ export function App() {
   const [conditions, setConditions] = useState<ConditionModel>(emptyConditions());
 
   const [showTest, setShowTest] = useState(false);
+  const [testRecordName, setTestRecordName] = useState('');
   const [testInputs, setTestInputs] = useState('{}');
   const [testResult, setTestResult] = useState<EvaluateResult | null>(null);
   const [testError, setTestError] = useState('');
@@ -250,7 +253,20 @@ export function App() {
     const seed: Record<string, unknown> = {};
     for (const i of pcrm.inputs ?? []) seed[i.name] = '';
     setTestInputs(JSON.stringify(seed, null, 2));
-    setTestResult(null); setTestError(''); setShowTest(true);
+    setTestResult(null); setTestError(''); setTestRecordName(''); setShowTest(true);
+  }
+
+  // Resolve every input of the current rule from a real record: anchor fields from
+  // the row, via fields from the parent, aggregates computed over the children.
+  async function fillFromRecord(recordId: string, recordName: string) {
+    setTestError(''); setTestRecordName(recordName);
+    try {
+      const inputs = await inputsFromRecord(currentPcrm(), recordId);
+      setTestInputs(JSON.stringify(inputs, null, 2));
+      setStatus(`Test inputs filled from “${recordName}”.`);
+    } catch (e: any) {
+      setTestError(`Could not read the record: ${e.message}`);
+    }
   }
 
   async function runTest() {
@@ -501,6 +517,13 @@ export function App() {
                       <strong>Test rule</strong><span className="tp-sub">via C# runtime</span>
                       <span className="spacer" /><button className="tp-close" onClick={() => setShowTest(false)}>✕</button>
                     </div>
+                    {targetEntity && (
+                      <label className="tp-record">
+                        Fill from a {entityLabel || targetEntity} record
+                        <RecordPicker entity={targetEntity} valueLabel={testRecordName}
+                          onPick={(r) => void fillFromRecord(r.id, r.name)} />
+                      </label>
+                    )}
                     <label>Input values (JSON)</label>
                     <textarea value={testInputs} onChange={(e) => setTestInputs(e.target.value)} spellCheck={false} />
                     <button className="tb test" onClick={runTest}>▶ Run test</button>

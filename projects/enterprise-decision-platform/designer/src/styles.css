@@ -746,3 +746,8 @@ h1, h2, h3 { text-wrap: balance; }
 .rpick-list button:hover { background: var(--n-bg1-hover); }
 .rpick-msg { font-size: 12px; color: var(--n-fg2); padding: 5px 8px; }
 .rpick-err { color: var(--danger); }
+
+/* Test panel — fill-from-record row */
+.tp-record { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--n-fg2); }
+.tp-record .rpick input { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 7px; background: var(--n-bg1); color: var(--n-fg1); }
+.tp-record .rpick { display: flex; }
