@@ -68,6 +68,14 @@ export interface ICrmAdapter {
 
   // Audit
   logAuditEntry(entry: AuditLogEntry): Promise<void>;
+
+  /**
+   * The designer layout for a process, stored as an annotation on the
+   * process record (subject 'cwfd:designer-layout') — the entity has notes
+   * enabled, so no schema was added for this.
+   */
+  loadDesignerLayout(processId: string): Promise<string | null>;
+  saveDesignerLayout(processId: string, layoutJson: string): Promise<void>;
 }
 
 export interface AuditLogEntry {

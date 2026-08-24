@@ -1,4 +1,5 @@
 import type { ISopAdapter } from './ISopAdapter';
+import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
@@ -180,6 +181,31 @@ export class ODataAdapter implements ISopAdapter {
 
   async createProcess(data: Omit<WorkflowProcess, 'crmId'>): Promise<string> {
     return this.post(ENTITY_SETS.process, await this.buildProcessBodyResolved(data));
+  }
+
+  async loadDesignerLayout(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const data = await this.get<{ value: Array<{ annotationid: string; notetext: string | null }> }>(
+      `annotations?$select=annotationid,notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return data.value[0]?.notetext ?? null;
+  }
+
+  async saveDesignerLayout(processId: string, layoutJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.get<{ value: Array<{ annotationid: string }> }>(
+      `annotations?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1`
+    );
+    const found = existing.value[0];
+    if (found) {
+      await this.patch(`annotations(${found.annotationid})`, { notetext: layoutJson });
+      return;
+    }
+    await this.post('annotations', {
+      subject: DESIGNER_LAYOUT_SUBJECT,
+      notetext: layoutJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/${ENTITY_SETS.process}(${processId})`,
+    });
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
