@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DecisionGraph, JdmConfigProvider, type DecisionGraphType } from '@gorules/jdm-editor';
-import { toPcrm } from './translator/toPcrm';
+import { toPcrm, translate } from './translator/toPcrm';
 import {
   saveRule, loadLatestVersion, getVersionState, validateRule, setEffectiveWindow, type ValidationResult,
 } from './dataverse/client';
@@ -263,7 +263,13 @@ export function App() {
     setDrawerTab('test'); setDrawerOpen(true);
   }
 
-  const drawerHasContent = !!(testResult || testError || validation) || drawerTab === 'scenarios';
+  // What would be lost or broken if the canvas saved right now — shown before any save.
+  const translationWarnings = useMemo(
+    () => (authorMode === 'canvas' ? translate(graph, { name: ruleName, targetEntity }).warnings : []),
+    [authorMode, graph, ruleName, targetEntity]
+  );
+
+  const drawerHasContent = !!(testResult || testError || validation) || translationWarnings.length > 0 || drawerTab === 'scenarios';
   function openScenarios() { setDrawerTab('scenarios'); setDrawerOpen(true); }
   const verdict = (r: EvaluateResult) => (!r.success ? '✗ Did not execute' : r.matched ? '✓ Matched' : '— No branch matched');
 
@@ -510,6 +516,7 @@ export function App() {
                     <button className={`dt-tab ${drawerTab === 'test' ? 'on' : ''}`} onClick={() => setDrawerTab('test')}>▶ Test result</button>
                     <button className={`dt-tab ${drawerTab === 'validation' ? 'on' : ''}`} onClick={() => setDrawerTab('validation')}>
                       Validation{validation && <span className={`b ${validation.isValid ? 'okb' : 'warnb'}`}>{validation.isValid ? '0' : validation.errorCount}</span>}
+                      {translationWarnings.length > 0 && <span className="b warnb">⚠ {translationWarnings.length}</span>}
                     </button>
                     <button className={`dt-tab ${drawerTab === 'scenarios' ? 'on' : ''}`} onClick={() => setDrawerTab('scenarios')}>⚑ Scenarios</button>
                     <span className="spacer" />
@@ -551,6 +558,14 @@ export function App() {
                           )}
                         </>
                       ) : <p className="tp-sub">Run a test to see the decision and its trace here.</p>
+                    )}
+                    {drawerTab === 'validation' && translationWarnings.length > 0 && (
+                      <div className="res-block">
+                        <span className="res-label">Canvas translation warnings</span>
+                        {translationWarnings.map((w, i) => (
+                          <div key={i} className="diag warning"><span className="diag-sev">warning</span><span className="diag-msg">{w}</span></div>
+                        ))}
+                      </div>
                     )}
                     {drawerTab === 'validation' && (
                       validation ? (

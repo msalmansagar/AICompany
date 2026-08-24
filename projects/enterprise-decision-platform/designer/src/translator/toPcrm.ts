@@ -40,7 +40,7 @@ export function translate(graph: DecisionGraphType, meta: PcrmMeta): Translation
     Object.assign(pcrm, { outputs: (table.content?.outputs ?? []).map((c: any) => ({ name: c.name || c.field, type: 'Text' })) });
     pcrm.logic = tableToLogic(table);
   } else if (switchNode) {
-    pcrm.logic = switchToLogic(switchNode);
+    pcrm.logic = switchToLogic(switchNode, warnings);
   } else {
     warnings.push('No decision table or switch node found — nothing executable to translate.');
   }
@@ -153,22 +153,30 @@ function tableToLogic(table: any): any {
   };
 }
 
-function switchToLogic(switchNode: any): any {
+function switchToLogic(switchNode: any, warnings: string[]): any {
   // Each switch statement -> a conditionSet rule that outputs the branch it took.
   const statements: any[] = switchNode.content?.statements ?? [];
   const rules = statements
     .filter((s) => !s.isDefault && s.condition)
-    .map((s) => ({ when: conditionFromZen(s.condition), then: { branch: s.id } }));
+    .map((s) => ({ when: conditionFromZen(s.condition, warnings), then: { branch: s.id } }));
   const def = statements.find((s) => s.isDefault);
   return { type: 'conditionSet', rules, otherwise: def ? { branch: def.id } : {} };
 }
 
 // --- ZEN helpers (best-effort MVP) ---------------------------------------------
 
-function conditionFromZen(zen: string): any {
+// A condition the translator can't parse must NEVER become an empty AND group —
+// empty AND is true, so the branch would silently fire for every record. Binding
+// it to a symbol no rule can declare makes the runtime validator reject the save.
+const UNPARSEABLE = '__unparseable_condition__';
+
+function conditionFromZen(zen: string, warnings: string[]): any {
   // Support simple "field OP value" comparisons for switch conditions.
   const m = zen.match(/^\s*([A-Za-z_][\w.]*)\s*(==|!=|>=|<=|>|<)\s*(.+?)\s*$/);
-  if (!m) return { op: 'and', conditions: [] };
+  if (!m) {
+    warnings.push(`Switch condition "${zen}" is not in the supported "field op value" form — the rule will fail validation until it is rewritten.`);
+    return { op: 'and', conditions: [{ field: UNPARSEABLE, operator: 'Equals', value: zen }] };
+  }
   const opMap: Record<string, string> = { '==': 'Equals', '!=': 'NotEquals', '>=': 'GreaterThanOrEqual', '<=': 'LessThanOrEqual', '>': 'GreaterThan', '<': 'LessThan' };
   return { op: 'and', conditions: [{ field: m[1], operator: opMap[m[2]], value: coerce(m[3]) }] };
 }
