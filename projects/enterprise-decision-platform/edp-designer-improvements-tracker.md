@@ -30,9 +30,32 @@
 | 11 | Docs: related-entity depth limit documented; change note for this batch; follow-ups list (cascade delete config, paste-from-Excel) | docs | ✅ done | — | `change-note-edp-dsn-002.md` |
 | 12 | Wrap-up: full test + build, code review pass, push branch, open PR | release prep | ✅ done | — | **PR #123** open vs main. Designer 86 tests + build green; runtime 127 + 69 dotnet tests green. Review: delegated /code-review stalled 3× on infra (first run reviewed the wrong diff — stale local `main`); replaced with an inline verification pass — no blocking findings |
 
-## Not done in this batch (deliberate)
+| 13 | **Merge + deploy + live verification** | release | ✅ done | PR #123 merged (`71821a20`), PR #124 merged | See below |
 
-- **Deployment**: the designer web resource in org5869857f still runs the pre-batch build. Deploying needs the web-resource build + upload (pac auth is revoked — use `node --env-file=scripts/.env` per RESUME-DFE-DESIGN convention) and should happen after PR review.
+## Step 13 — merge, deploy, and what live verification caught
+
+1. PR #123 merged to main; designer rebuilt and deployed to org5869857f via
+   `EDP_DIST_PATH="$PWD/designer/dist" node deploy/bre-webresources.js` (9 files + publish).
+   ⚠️ The script's `DIST` default points at the **main checkout**, not a worktree — always pass `EDP_DIST_PATH`.
+2. Live check in CRM confirmed the new bundle served and **step 5 working** (a lookup column offers
+   is / is not / is empty / has a value).
+3. 🔴 **The step-1 save fix did not work in the org.** Two saves produced **two rule records**.
+   Root cause: a plain Dataverse POST returns **204 with an empty body** (id only in `OData-EntityId`),
+   so every create read `undefined` as the new id — the editor never learned its `ruleId`, and the
+   version bind `/qdb_edp_rules(undefined)` orphaned the version where no list can see it.
+   This is **pre-existing** (it also explains why the whole Lifecycle/Effective/Scenarios/History UI
+   never appeared: it renders only when `versionId` is set) but #123 had not fixed it.
+4. Fixed in **PR #124** (`createRecord()` with `Prefer: return=representation`, `OData-EntityId`
+   fallback, throws when neither yields an id). The unit-test mock returned a body on every POST —
+   a response real Dataverse never sends — which is why 86 green tests missed it; the mock now
+   mirrors the real contract and 3 regression tests cover it.
+5. Redeployed and re-verified **in the org**: two saves → **1 rule, 1 linked version, 0 orphans**,
+   `modified` ≠ `created` (patched in place), and the governance bars now render. Test data removed.
+
+**Lesson worth keeping:** a fetch mock that is kinder than the real service turns a defect into a
+green suite. Model the transport contract (status + empty body), not just the happy-path JSON.
+
+## Not done in this batch (deliberate)
 - Cascade-delete schema config, CSV/Excel import, multi-value In editors — listed as follow-ups in the change note.
 
 ## Log
