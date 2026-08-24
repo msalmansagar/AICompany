@@ -1,5 +1,6 @@
 import type { DecisionGraphType } from '@gorules/jdm-editor';
 import { functionRequest, messageMode } from './messaging';
+import { apiBase } from './apiBase';
 
 // Dataverse Web API client — all calls go through the local /dataverse dev proxy
 // (which injects the bearer token). Targets the qdb_edp_ tables in BusinessRuleEngine.
@@ -7,17 +8,6 @@ import { functionRequest, messageMode } from './messaging';
 const RULES = 'qdb_edp_rules';
 const VERSIONS = 'qdb_edp_ruleversions';
 const RULETESTS = 'qdb_edp_ruletests';
-
-// Dual-mode base URL: inside CRM use the org Web API (same-origin session auth);
-// in local dev use the /dataverse proxy (which injects a service-principal token).
-function apiBase(): string {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  // Hosted as a web resource (same-origin, session-authenticated) but no Xrm in scope.
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return '/dataverse'; // local dev proxy
-}
 
 async function req<T>(path: string, method = 'GET', body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
@@ -94,51 +84,89 @@ export async function duplicateRule(ruleId: string): Promise<SaveResult> {
   const v = data.value[0];
   const newName = `${src.qdb_edp_rulename ?? 'Rule'} (copy)`;
   const rule = await req<any>(`/${RULES}`, 'POST', { qdb_edp_rulename: newName });
-  const ruleId2: string = rule.qdb_edp_ruleid;
-  const body: any = {
-    qdb_edp_ruleversionname: `${newName} v1`, qdb_edp_versionnumber: 1,
-    qdb_edp_jdmsourcejson: v?.qdb_edp_jdmsourcejson ?? '{}', qdb_edp_pcrmjson: v?.qdb_edp_pcrmjson ?? '{}',
-    'qdb_edp_ruleid@odata.bind': `/${RULES}(${ruleId2})`,
-  };
-  let version: any;
-  try { version = await req<any>(`/${VERSIONS}`, 'POST', body); }
-  catch { delete body['qdb_edp_ruleid@odata.bind']; version = await req<any>(`/${VERSIONS}`, 'POST', body); }
-  return { ruleId: ruleId2, versionId: version.qdb_edp_ruleversionid };
+  return createVersion(rule.qdb_edp_ruleid, newName, 1, {
+    qdb_edp_jdmsourcejson: v?.qdb_edp_jdmsourcejson ?? '{}',
+    qdb_edp_pcrmjson: v?.qdb_edp_pcrmjson ?? '{}',
+  });
 }
 
-/** Delete a rule and its versions (caller gates on non-Published status). */
+/**
+ * Delete a rule with its versions AND its test suite (caller gates on non-Published
+ * status). Children go first, so a mid-way failure leaves the rule record in place
+ * and the whole delete retryable — never a rule whose versions are half gone.
+ */
 export async function deleteRule(ruleId: string): Promise<void> {
-  const versions = await req<{ value: any[] }>(
-    `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruleversionid`
-  );
-  for (const v of versions.value) await req<void>(`/${VERSIONS}(${v.qdb_edp_ruleversionid})`, 'DELETE');
+  const [versions, tests] = await Promise.all([
+    req<{ value: any[] }>(`/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruleversionid`),
+    req<{ value: any[] }>(`/${RULETESTS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruletestid`),
+  ]);
+  await deleteAll(VERSIONS, versions.value.map((v) => v.qdb_edp_ruleversionid), 'version');
+  await deleteAll(RULETESTS, tests.value.map((t) => t.qdb_edp_ruletestid), 'test suite');
   await req<void>(`/${RULES}(${ruleId})`, 'DELETE');
 }
 
-export interface SaveResult { ruleId: string; versionId: string; }
+async function deleteAll(entitySet: string, ids: string[], kind: string): Promise<void> {
+  for (const id of ids) {
+    try {
+      await req<void>(`/${entitySet}(${id})`, 'DELETE');
+    } catch (e: any) {
+      throw new Error(`Could not delete rule ${kind} ${id}: ${e.message}. The rule itself was left in place — fix the cause and retry the delete.`);
+    }
+  }
+}
 
-export async function saveRule(input: { name: string; jdmGraph: unknown; pcrm: unknown }): Promise<SaveResult> {
-  const rule = await req<any>(`/${RULES}`, 'POST', { qdb_edp_rulename: input.name });
-  const ruleId: string = rule.qdb_edp_ruleid;
+export interface SaveInput { ruleId?: string | null; name: string; jdmGraph: unknown; pcrm: unknown; }
+export interface SaveResult { ruleId: string; versionId: string; versionNumber: number; lifecycle: string; updatedInPlace: boolean; }
 
-  const versionBody: any = {
-    qdb_edp_ruleversionname: `${input.name} v1`,
-    qdb_edp_versionnumber: 1,
+/**
+ * Save a rule. A new rule gets a rule record + version 1. An existing rule NEVER
+ * gets a second rule record: while its latest version is still a Draft the draft
+ * is updated in place; once it has moved past Draft, saving cuts version N+1.
+ */
+export async function saveRule(input: SaveInput): Promise<SaveResult> {
+  const content = {
     qdb_edp_jdmsourcejson: JSON.stringify(input.jdmGraph),
     qdb_edp_pcrmjson: JSON.stringify(input.pcrm),
+  };
+  if (!input.ruleId) {
+    const rule = await req<any>(`/${RULES}`, 'POST', { qdb_edp_rulename: input.name });
+    return createVersion(rule.qdb_edp_ruleid, input.name, 1, content);
+  }
+  await req(`/${RULES}(${input.ruleId})`, 'PATCH', { qdb_edp_rulename: input.name });
+  const latest = await latestVersionHeader(input.ruleId);
+  if (!latest) return createVersion(input.ruleId, input.name, 1, content);
+  if (lifecycleLabel(latest.state) === 'Draft') {
+    await req(`/${VERSIONS}(${latest.id})`, 'PATCH', content);
+    return { ruleId: input.ruleId, versionId: latest.id, versionNumber: latest.number, lifecycle: 'Draft', updatedInPlace: true };
+  }
+  return createVersion(input.ruleId, input.name, latest.number + 1, content);
+}
+
+async function latestVersionHeader(ruleId: string): Promise<{ id: string; number: number; state: number | null } | null> {
+  const data = await req<{ value: any[] }>(
+    `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}` +
+      `&$select=qdb_edp_ruleversionid,qdb_edp_versionnumber,qdb_edp_lifecyclestate&$orderby=qdb_edp_versionnumber desc&$top=1`
+  );
+  const v = data.value[0];
+  return v ? { id: v.qdb_edp_ruleversionid, number: v.qdb_edp_versionnumber ?? 1, state: v.qdb_edp_lifecyclestate ?? null } : null;
+}
+
+async function createVersion(ruleId: string, name: string, versionNumber: number, content: Record<string, string>): Promise<SaveResult> {
+  const body: any = {
+    ...content,
+    qdb_edp_ruleversionname: `${name} v${versionNumber}`,
+    qdb_edp_versionnumber: versionNumber,
     'qdb_edp_ruleid@odata.bind': `/${RULES}(${ruleId})`,
   };
-
   let version: any;
   try {
-    version = await req<any>(`/${VERSIONS}`, 'POST', versionBody);
+    version = await req<any>(`/${VERSIONS}`, 'POST', body);
   } catch {
     // Fall back if the single-valued nav property name differs — still lands the version record.
-    delete versionBody['qdb_edp_ruleid@odata.bind'];
-    version = await req<any>(`/${VERSIONS}`, 'POST', versionBody);
+    delete body['qdb_edp_ruleid@odata.bind'];
+    version = await req<any>(`/${VERSIONS}`, 'POST', body);
   }
-
-  return { ruleId, versionId: version.qdb_edp_ruleversionid };
+  return { ruleId, versionId: version.qdb_edp_ruleversionid, versionNumber, lifecycle: 'Draft', updatedInPlace: false };
 }
 
 export interface LoadedVersion {

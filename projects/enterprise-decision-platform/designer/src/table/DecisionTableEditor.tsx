@@ -5,8 +5,9 @@ import {
 } from '../metadata/metadataService';
 import {
   type TableModel, type Row, type Cell, type AggFn, HIT_POLICIES, AGG_FNS,
-  operatorsFor, arity, category, newRow, colReady, inputName,
+  operatorsFor, arity, category, newRow, colReady, inputName, moveRow, moveInput, tableToCsv,
 } from './tableModel';
+import { RecordPicker } from './RecordPicker';
 
 /** Friendly label for a column when it's used as a field-to-field comparison operand. */
 function columnLabel(c: TableModel['inputs'][number]): string {
@@ -58,11 +59,25 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     value.inputs.forEach((i) => {
       const src = i.via?.entity ?? entity;
       const k = optKey(i.via?.entity, i.field);
-      if (category(i.type) === 'optionset' && i.field && !options[k] && src) {
-        listOptions(src, i.field).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
+      const cat = category(i.type);
+      if ((cat === 'optionset' || cat === 'multiselect') && i.field && !options[k] && src) {
+        listOptions(src, i.field, i.type).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
       }
     });
   }, [value.inputs, entity]); // eslint-disable-line
+
+  // Aggregate-filter fields on child entities need their option sets too.
+  useEffect(() => {
+    value.inputs.forEach((i) => {
+      const f = i.agg?.filter;
+      if (!i.agg || !f?.field) return;
+      const fa = (childAttrs[i.agg.childEntity] ?? []).find((a) => a.logicalName === f.field);
+      const k = optKey(i.agg.childEntity, f.field);
+      if (fa && (category(fa.type) === 'optionset' || category(fa.type) === 'multiselect') && !options[k]) {
+        listOptions(i.agg.childEntity, f.field, fa.type).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
+      }
+    });
+  }, [value.inputs, childAttrs]); // eslint-disable-line
 
   const set = (m: TableModel) => onChange(m);
   const fieldsFor = (col: TableModel['inputs'][number]) =>
@@ -128,6 +143,15 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
   function removeOutput(oi: number) { const m = clone(value); const name = m.outputs[oi].name; m.outputs.splice(oi, 1); m.rows.forEach((r) => delete r.outputs[name]); set(m); }
   function setOutput(oi: number, patch: Partial<TableModel['outputs'][number]>) { const m = clone(value); m.outputs[oi] = { ...m.outputs[oi], ...patch }; set(m); }
   function addRow() { const m = clone(value); m.rows.push(newRow(m.inputs.length, m.outputs.length)); set(m); }
+  const shiftRow = (ri: number, delta: number) => set(moveRow(value, ri, ri + delta));
+  const shiftCol = (ci: number, delta: number) => set(moveInput(value, ci, ci + delta));
+  function exportCsv() {
+    const url = URL.createObjectURL(new Blob([tableToCsv(value)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${entity || 'rules'}-decision-table.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   function dupRow(ri: number) { const m = clone(value); m.rows.splice(ri + 1, 0, clone(m.rows[ri])); set(m); }
   function removeRow(ri: number) { const m = clone(value); m.rows.splice(ri, 1); set(m); }
   function setCell(ri: number, ci: number, patch: Partial<Cell>) { const m = clone(value); m.rows[ri].cells[ci] = { ...m.rows[ri].cells[ci], ...patch }; set(m); }
@@ -188,25 +212,39 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                         </select>
                       )}
                     </div>
+                    <span className="dt2-col-move">
+                      <button title="Move column left" disabled={ci === 0} onClick={() => shiftCol(ci, -1)}>‹</button>
+                      <button title="Move column right" disabled={ci === value.inputs.length - 1} onClick={() => shiftCol(ci, 1)}>›</button>
+                    </span>
                     <button className="dt2-col-x" title="Remove column" onClick={() => removeInput(ci)}>✕</button>
                   </div>
                   {col.agg && (
                     <div className="dt2-aggfilter">
                       <span>where</span>
-                      <select value={col.agg.filter?.field ?? ''} onChange={(e) => { const a = fieldsFor(col).find((x) => x.logicalName === e.target.value); setAggFilter(ci, { field: e.target.value, label: a?.displayName ?? e.target.value }); }}>
+                      <select value={col.agg.filter?.field ?? ''} onChange={(e) => { const a = fieldsFor(col).find((x) => x.logicalName === e.target.value); setAggFilter(ci, { field: e.target.value, label: a?.displayName ?? e.target.value, operator: 'Equals', value: '' }); }}>
                         <option value="">— all —</option>
                         {fieldsFor(col).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
                       </select>
-                      {col.agg.filter?.field && (
-                        <>
-                          <select value={col.agg.filter.operator} onChange={(e) => setAggFilter(ci, { operator: e.target.value })}>
-                            <option value="Equals">=</option><option value="NotEquals">≠</option>
-                            <option value="GreaterThan">&gt;</option><option value="GreaterThanOrEqual">≥</option>
-                            <option value="LessThan">&lt;</option><option value="LessThanOrEqual">≤</option>
-                          </select>
-                          <input className="dt2-aggval" value={col.agg.filter.value} onChange={(e) => setAggFilter(ci, { value: e.target.value })} placeholder="value" />
-                        </>
-                      )}
+                      {col.agg.filter?.field && (() => {
+                        const fa = fieldsFor(col).find((a) => a.logicalName === col.agg!.filter!.field);
+                        const fcat = fa ? category(fa.type) : 'text';
+                        const fopts = options[optKey(col.agg!.childEntity, col.agg!.filter!.field)];
+                        return (
+                          <>
+                            <select value={col.agg!.filter!.operator} onChange={(e) => setAggFilter(ci, { operator: e.target.value })}>
+                              <option value="Equals">=</option><option value="NotEquals">≠</option>
+                              {/* Ordering runs numerically in the runtime — only offer it for numbers. */}
+                              {fcat === 'number' && (
+                                <>
+                                  <option value="GreaterThan">&gt;</option><option value="GreaterThanOrEqual">≥</option>
+                                  <option value="LessThan">&lt;</option><option value="LessThanOrEqual">≤</option>
+                                </>
+                              )}
+                            </select>
+                            {valueEditor(fcat, fopts, col.agg!.filter!.value, (v) => setAggFilter(ci, { value: v }))}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                   {colReady(col) && <span className="dt2-col-type">{col.agg ? `∑ ${col.agg.childLabel} · ${col.agg.fn}` : col.via ? `${col.via.relLabel} › ${col.type}` : col.type}</span>}
@@ -248,6 +286,8 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 </td>
                 <td className="dt2-gap" />
                 <td className="dt2-rowact">
+                  <button onClick={() => shiftRow(ri, -1)} disabled={ri === 0} title="Move up — earlier rows win first">↑</button>
+                  <button onClick={() => shiftRow(ri, 1)} disabled={ri === value.rows.length - 1} title="Move down">↓</button>
                   <button onClick={() => dupRow(ri)} title="Duplicate row">⧉</button>
                   <button onClick={() => removeRow(ri)} title="Delete row">✕</button>
                 </td>
@@ -255,7 +295,12 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
             ))}
           </tbody>
         </table>
-        <button className="dt2-addrow" onClick={addRow}><span>+</span> Add rule row</button>
+        <div className="dt2-tablebar">
+          <button className="dt2-addrow" onClick={addRow}><span>+</span> Add rule row</button>
+          {value.rows.length > 0 && (
+            <button className="dt2-export" onClick={exportCsv} title="Download this table as CSV">⤓ Export CSV</button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -273,6 +318,11 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     // related (N:1) field, or aggregate. Any column may compare against any other.
     const operandCols = value.inputs.map((c, i) => ({ c, i })).filter((x) => x.i !== ci && colReady(x.c));
     const allowFieldMode = n >= 1 && ready && operandCols.length > 0;
+    // A lookup cell on an anchor column gets a record picker (the N:1 list knows the
+    // target entity). Related/aggregate lookup columns fall back to a GUID input.
+    const lookupTarget = cat === 'lookup' && !col.via && !col.agg
+      ? rels.find((r) => r.relationship === col.field)?.targetEntity
+      : undefined;
     return (
       <div className="dt2-cellbox">
         <select className="dt2-op" value={op} disabled={!ready}
@@ -292,7 +342,10 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 <option value="">— pick column —</option>
                 {operandCols.map(({ c, i }) => <option key={i} value={inputName(c)}>{columnLabel(c)}</option>)}
               </select>
-            : valueEditor(cat, cellOpts, cell.value ?? '', (v) => patch({ value: v }))
+            : lookupTarget
+              ? <RecordPicker entity={lookupTarget} valueLabel={cell.valueLabel ?? cell.value ?? ''}
+                  onPick={(r) => patch({ value: r.id, valueLabel: r.name })} />
+              : valueEditor(cat, cellOpts, cell.value ?? '', (v) => patch({ value: v }))
         )}
         {n === 2 && <span className="dt2-and">and</span>}
         {n === 2 && valueEditor(cat, cellOpts, cell.value2 ?? '', (v) => patch({ value2: v }))}
@@ -303,7 +356,7 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
 
 function valueEditor(cat: string, opts: OptionMeta[] | undefined, val: string, onChange: (v: string) => void) {
   if (cat === 'boolean') return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select>;
-  if (cat === 'optionset' && opts?.length) return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+  if ((cat === 'optionset' || cat === 'multiselect') && opts?.length) return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
   if (cat === 'number') return <input type="number" value={val} onChange={(e) => onChange(e.target.value)} placeholder="value" />;
   if (cat === 'date') return <input type="date" value={val} onChange={(e) => onChange(e.target.value)} />;
   return <input value={val} onChange={(e) => onChange(e.target.value)} placeholder="value" />;

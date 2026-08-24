@@ -91,3 +91,32 @@ describe('toPcrm.translate', () => {
     expect(translate(g, meta).warnings.some((w) => w.includes('function node'))).toBe(true);
   });
 });
+
+// An unparseable switch condition must never translate to an empty AND group —
+// empty AND evaluates true, which shipped branches that fired on every record
+// (EDP-DSN-002 step 4).
+function switchGraph(condition: string) {
+  return {
+    nodes: [
+      { id: 's1', type: 'switchNode', content: { statements: [{ id: 'b1', condition }, { id: 'b2', isDefault: true }] } },
+    ],
+    edges: [],
+  } as any;
+}
+
+describe('translate — unparseable switch conditions', () => {
+  it('should_flag_an_unparseable_condition_and_poison_the_rule', () => {
+    const { pcrm, warnings } = translate(switchGraph('len(items) > 2 and amount > 5'), meta);
+    expect(warnings.some((w) => w.includes('not in the supported'))).toBe(true);
+    const cond = (pcrm as any).logic.rules[0].when.conditions[0];
+    expect(cond.field).toBe('__unparseable_condition__'); // undeclared symbol → validator EDP004 error
+    expect(cond.value).toContain('len(items)');
+  });
+
+  it('should_never_emit_an_empty_always_true_condition_group', () => {
+    const { pcrm } = translate(switchGraph('!!!garbage!!!'), meta);
+    for (const rule of (pcrm as any).logic.rules) {
+      expect(rule.when.conditions.length).toBeGreaterThan(0);
+    }
+  });
+});
