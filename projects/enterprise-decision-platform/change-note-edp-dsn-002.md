@@ -26,6 +26,28 @@
 - The `In` value editor for option sets still picks a single value (pre-existing).
 - Canvas switch conditions support the `field op value` form only; anything else is a validation error by design.
 
+## Post-deploy addendum — 2026-08-24, found by verifying in the org
+
+The step-1 save fix was **logically right but inert in the org**, and live verification caught it
+minutes after deployment. Root cause: `req()` POSTs without `Prefer: return=representation`, and
+Dataverse answers a plain POST with **204 No Content and an empty body** — the new id is only in the
+`OData-EntityId` header. So `rule.qdb_edp_ruleid` was always `undefined`:
+
+- the editor never learned its own `ruleId`, so a second save still created a **second rule record**;
+- `'qdb_edp_ruleid@odata.bind': '/qdb_edp_rules(undefined)'` failed, and the old catch-fallback
+  dropped the bind and created an **orphan version** — invisible to every list, which all filter on
+  the parent lookup. Two orphans were found and removed during verification.
+
+This is pre-existing (it predates EDP-DSN-002; it explains rules that show no entity and never leave v1),
+but the batch did not fix it as intended. Fixed by a `createRecord()` helper that sends
+`Prefer: return=representation`, falls back to the `OData-EntityId` header, and **throws** when neither
+yields an id. Bind failures now surface instead of silently orphaning.
+
+**Why the unit tests missed it:** the fetch mock returned a created-entity body on every POST — a
+response real Dataverse never sends. The mock now mirrors the real contract (204 + empty body unless
+`Prefer` is set), and there are regression tests for the bind carrying a real id, header-only id
+recovery, and the no-id-at-all failure.
+
 ## Follow-ups (not in this batch)
 
 1. Cascade-delete configuration on the rule→version/test relationships (schema change — **needs explicit go-ahead for the live org**).
