@@ -90,13 +90,29 @@ export async function duplicateRule(ruleId: string): Promise<SaveResult> {
   });
 }
 
-/** Delete a rule and its versions (caller gates on non-Published status). */
+/**
+ * Delete a rule with its versions AND its test suite (caller gates on non-Published
+ * status). Children go first, so a mid-way failure leaves the rule record in place
+ * and the whole delete retryable — never a rule whose versions are half gone.
+ */
 export async function deleteRule(ruleId: string): Promise<void> {
-  const versions = await req<{ value: any[] }>(
-    `/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruleversionid`
-  );
-  for (const v of versions.value) await req<void>(`/${VERSIONS}(${v.qdb_edp_ruleversionid})`, 'DELETE');
+  const [versions, tests] = await Promise.all([
+    req<{ value: any[] }>(`/${VERSIONS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruleversionid`),
+    req<{ value: any[] }>(`/${RULETESTS}?$filter=_qdb_edp_ruleid_value eq ${ruleId}&$select=qdb_edp_ruletestid`),
+  ]);
+  await deleteAll(VERSIONS, versions.value.map((v) => v.qdb_edp_ruleversionid), 'version');
+  await deleteAll(RULETESTS, tests.value.map((t) => t.qdb_edp_ruletestid), 'test suite');
   await req<void>(`/${RULES}(${ruleId})`, 'DELETE');
+}
+
+async function deleteAll(entitySet: string, ids: string[], kind: string): Promise<void> {
+  for (const id of ids) {
+    try {
+      await req<void>(`/${entitySet}(${id})`, 'DELETE');
+    } catch (e: any) {
+      throw new Error(`Could not delete rule ${kind} ${id}: ${e.message}. The rule itself was left in place — fix the cause and retry the delete.`);
+    }
+  }
 }
 
 export interface SaveInput { ruleId?: string | null; name: string; jdmGraph: unknown; pcrm: unknown; }

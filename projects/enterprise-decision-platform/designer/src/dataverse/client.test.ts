@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveRule } from './client';
+import { deleteRule, saveRule } from './client';
 
 // saveRule must never create a second qdb_edp_rules record for an existing rule —
 // that defect duplicated the catalog on every edit-and-save (EDP-DSN-002 step 1).
@@ -70,6 +70,31 @@ describe('saveRule', () => {
     expect(calls.some((c) => c.method === 'POST' && c.path.includes('qdb_edp_rules') && !c.path.includes('ruleversion'))).toBe(false);
     const post = calls.find((c) => c.method === 'POST' && c.path.includes('ruleversions'));
     expect(post?.body.qdb_edp_versionnumber).toBe(5);
+  });
+
+  it('should_delete_versions_test_suite_then_rule', async () => {
+    mockFetch((c) => {
+      if (c.method === 'GET' && c.path.includes('ruleversions')) return { value: [{ qdb_edp_ruleversionid: 'v1' }, { qdb_edp_ruleversionid: 'v2' }] };
+      if (c.method === 'GET' && c.path.includes('ruletests')) return { value: [{ qdb_edp_ruletestid: 't1' }] };
+      return {};
+    });
+    await deleteRule(RULE_ID);
+    const deletes = calls.filter((c) => c.method === 'DELETE').map((c) => c.path.split('/').pop());
+    expect(deletes).toEqual(['qdb_edp_ruleversions(v1)', 'qdb_edp_ruleversions(v2)', 'qdb_edp_ruletests(t1)', `qdb_edp_rules(${RULE_ID})`]);
+  });
+
+  it('should_leave_the_rule_record_when_a_child_delete_fails', async () => {
+    (globalThis as any).fetch = vi.fn(async (url: string, init?: any) => {
+      const call: Call = { method: init?.method ?? 'GET', path: String(url), body: init?.body ? JSON.parse(init.body) : undefined };
+      calls.push(call);
+      if (call.method === 'DELETE' && call.path.includes('ruleversions'))
+        return { ok: false, status: 403, text: async () => JSON.stringify({ error: { message: 'no permission' } }) };
+      if (call.method === 'GET' && call.path.includes('ruleversions'))
+        return { ok: true, status: 200, text: async () => JSON.stringify({ value: [{ qdb_edp_ruleversionid: 'v1' }] }) };
+      return { ok: true, status: 200, text: async () => JSON.stringify({ value: [] }) };
+    });
+    await expect(deleteRule(RULE_ID)).rejects.toThrow(/left in place/);
+    expect(calls.some((c) => c.method === 'DELETE' && c.path.includes(`qdb_edp_rules(${RULE_ID})`))).toBe(false);
   });
 
   it('should_rename_rule_record_when_saving_existing_rule', async () => {
