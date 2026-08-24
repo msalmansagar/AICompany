@@ -183,9 +183,13 @@ export function App() {
     setBusy(true); setStatus('Translating + saving to Dataverse…');
     try {
       const pcrm = currentPcrm();
-      const res = await saveRule({ name: ruleName, jdmGraph: currentSource(), pcrm });
-      setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(1); setLifecycle('Draft'); setSavedLabel('Saved just now');
-      setStatus(`Saved ✓  rule ${res.ruleId.slice(0, 8)}… · version ${res.versionId.slice(0, 8)}…`);
+      const res = await saveRule({ ruleId, name: ruleName, jdmGraph: currentSource(), pcrm });
+      setRuleId(res.ruleId); setVersionId(res.versionId); setVersionNumber(res.versionNumber); setLifecycle(res.lifecycle);
+      setSavedLabel(res.updatedInPlace ? 'Draft updated just now' : 'Saved just now');
+      if (!res.updatedInPlace) { setEffFrom(''); setEffTo(''); } // a new version starts with no effective window
+      setStatus(res.updatedInPlace
+        ? `Saved ✓  draft version ${res.versionNumber} updated`
+        : `Saved ✓  version ${res.versionNumber} created`);
       void runValidation(pcrm);
     } catch (e: any) { setStatus(`Save failed: ${e.message}`); } finally { setBusy(false); }
   }
