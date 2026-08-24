@@ -22,6 +22,40 @@ async function req<T>(path: string, method = 'GET', body?: unknown, extraHeaders
   return json as T;
 }
 
+/** The record id out of an `OData-EntityId` header — `https://…/qdb_edp_rules(<guid>)`. */
+export function idFromEntityIdHeader(header: string | null | undefined): string | null {
+  const m = /\(([0-9a-fA-F-]{36})\)\s*$/.exec(header ?? '');
+  return m ? m[1] : null;
+}
+
+/**
+ * Create a record and return its id.
+ *
+ * Dataverse answers a plain POST with `204 No Content` and an empty body — the new id
+ * arrives only via `Prefer: return=representation` (201 + body) or the `OData-EntityId`
+ * response header. Reading `json.<id>` off a bare POST therefore yielded `undefined`,
+ * which silently broke every caller that needed the new id (rules saved without ever
+ * learning their own ruleId, so the rule→version link was never made).
+ */
+async function createRecord(entitySet: string, idAttribute: string, body: unknown, extraHeaders?: Record<string, string>): Promise<string> {
+  const res = await fetch(`${apiBase()}/${entitySet}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json', Accept: 'application/json',
+      'OData-Version': '4.0', 'OData-MaxVersion': '4.0',
+      Prefer: 'return=representation', ...(extraHeaders ?? {}),
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  const id = json?.[idAttribute] ?? idFromEntityIdHeader(res.headers?.get?.('OData-EntityId'));
+  if (!id) throw new Error(`Created ${entitySet} but the service returned no id — cannot link related records.`);
+  return id as string;
+}
+
 export interface RuleSummary { ruleId: string; name: string; }
 
 export async function listRules(): Promise<RuleSummary[]> {
@@ -83,8 +117,8 @@ export async function duplicateRule(ruleId: string): Promise<SaveResult> {
   );
   const v = data.value[0];
   const newName = `${src.qdb_edp_rulename ?? 'Rule'} (copy)`;
-  const rule = await req<any>(`/${RULES}`, 'POST', { qdb_edp_rulename: newName });
-  return createVersion(rule.qdb_edp_ruleid, newName, 1, {
+  const newRuleId = await createRecord(RULES, 'qdb_edp_ruleid', { qdb_edp_rulename: newName });
+  return createVersion(newRuleId, newName, 1, {
     qdb_edp_jdmsourcejson: v?.qdb_edp_jdmsourcejson ?? '{}',
     qdb_edp_pcrmjson: v?.qdb_edp_pcrmjson ?? '{}',
   });
@@ -129,8 +163,8 @@ export async function saveRule(input: SaveInput): Promise<SaveResult> {
     qdb_edp_pcrmjson: JSON.stringify(input.pcrm),
   };
   if (!input.ruleId) {
-    const rule = await req<any>(`/${RULES}`, 'POST', { qdb_edp_rulename: input.name });
-    return createVersion(rule.qdb_edp_ruleid, input.name, 1, content);
+    const newRuleId = await createRecord(RULES, 'qdb_edp_ruleid', { qdb_edp_rulename: input.name });
+    return createVersion(newRuleId, input.name, 1, content);
   }
   await req(`/${RULES}(${input.ruleId})`, 'PATCH', { qdb_edp_rulename: input.name });
   const latest = await latestVersionHeader(input.ruleId);
@@ -158,15 +192,10 @@ async function createVersion(ruleId: string, name: string, versionNumber: number
     qdb_edp_versionnumber: versionNumber,
     'qdb_edp_ruleid@odata.bind': `/${RULES}(${ruleId})`,
   };
-  let version: any;
-  try {
-    version = await req<any>(`/${VERSIONS}`, 'POST', body);
-  } catch {
-    // Fall back if the single-valued nav property name differs — still lands the version record.
-    delete body['qdb_edp_ruleid@odata.bind'];
-    version = await req<any>(`/${VERSIONS}`, 'POST', body);
-  }
-  return { ruleId, versionId: version.qdb_edp_ruleversionid, versionNumber, lifecycle: 'Draft', updatedInPlace: false };
+  // An unlinked version is invisible to every list (they all filter on the parent lookup),
+  // so a failed bind must surface rather than quietly land an orphan.
+  const versionId = await createRecord(VERSIONS, 'qdb_edp_ruleversionid', body);
+  return { ruleId, versionId, versionNumber, lifecycle: 'Draft', updatedInPlace: false };
 }
 
 export interface LoadedVersion {
@@ -256,13 +285,13 @@ export async function saveScenarios(ruleId: string, ruleName: string, scenarios:
   const body = { qdb_edp_testcasesjson: JSON.stringify(scenarios) };
   if (existing) { await req(`/${RULETESTS}(${existing.id})`, 'PATCH', body); return; }
 
-  const createBody: any = {
+  // Bind failures must surface: findRuleTest looks the suite up by its parent lookup,
+  // so an unlinked test record is invisible and the next save creates another one.
+  await createRecord(RULETESTS, 'qdb_edp_ruletestid', {
     ...body,
     qdb_edp_ruletestname: `${ruleName} — scenarios`,
     'qdb_edp_ruleid@odata.bind': `/${RULES}(${ruleId})`,
-  };
-  try { await req(`/${RULETESTS}`, 'POST', createBody); }
-  catch { delete createBody['qdb_edp_ruleid@odata.bind']; await req(`/${RULETESTS}`, 'POST', createBody); }
+  });
 }
 
 export interface ScenarioOutcome { name: string; passed: boolean; mismatches: string[]; error?: string | null; actual: Record<string, unknown>; }
@@ -414,8 +443,7 @@ export async function saveRuleSet(input: SaveRuleSetInput): Promise<string> {
     qdb_edp_setpolicy: input.policy, qdb_edp_membersjson: JSON.stringify(input.members),
   };
   if (input.id) { await req(`/${RULESETS}(${input.id})`, 'PATCH', body); return input.id; }
-  const created = await req<any>(`/${RULESETS}`, 'POST', body, { Prefer: 'return=representation' });
-  return created.qdb_edp_rulesetid;
+  return createRecord(RULESETS, 'qdb_edp_rulesetid', body);
 }
 
 export async function deleteRuleSet(id: string): Promise<void> {
