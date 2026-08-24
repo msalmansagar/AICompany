@@ -66,6 +66,19 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     });
   }, [value.inputs, entity]); // eslint-disable-line
 
+  // Aggregate-filter fields on child entities need their option sets too.
+  useEffect(() => {
+    value.inputs.forEach((i) => {
+      const f = i.agg?.filter;
+      if (!i.agg || !f?.field) return;
+      const fa = (childAttrs[i.agg.childEntity] ?? []).find((a) => a.logicalName === f.field);
+      const k = optKey(i.agg.childEntity, f.field);
+      if (fa && (category(fa.type) === 'optionset' || category(fa.type) === 'multiselect') && !options[k]) {
+        listOptions(i.agg.childEntity, f.field, fa.type).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
+      }
+    });
+  }, [value.inputs, childAttrs]); // eslint-disable-line
+
   const set = (m: TableModel) => onChange(m);
   const fieldsFor = (col: TableModel['inputs'][number]) =>
     col.agg ? (childAttrs[col.agg.childEntity] ?? []) : col.via ? relAttrs[col.via.relationship] ?? [] : attrs;
@@ -195,20 +208,30 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                   {col.agg && (
                     <div className="dt2-aggfilter">
                       <span>where</span>
-                      <select value={col.agg.filter?.field ?? ''} onChange={(e) => { const a = fieldsFor(col).find((x) => x.logicalName === e.target.value); setAggFilter(ci, { field: e.target.value, label: a?.displayName ?? e.target.value }); }}>
+                      <select value={col.agg.filter?.field ?? ''} onChange={(e) => { const a = fieldsFor(col).find((x) => x.logicalName === e.target.value); setAggFilter(ci, { field: e.target.value, label: a?.displayName ?? e.target.value, operator: 'Equals', value: '' }); }}>
                         <option value="">— all —</option>
                         {fieldsFor(col).map((a) => <option key={a.logicalName} value={a.logicalName}>{a.displayName}</option>)}
                       </select>
-                      {col.agg.filter?.field && (
-                        <>
-                          <select value={col.agg.filter.operator} onChange={(e) => setAggFilter(ci, { operator: e.target.value })}>
-                            <option value="Equals">=</option><option value="NotEquals">≠</option>
-                            <option value="GreaterThan">&gt;</option><option value="GreaterThanOrEqual">≥</option>
-                            <option value="LessThan">&lt;</option><option value="LessThanOrEqual">≤</option>
-                          </select>
-                          <input className="dt2-aggval" value={col.agg.filter.value} onChange={(e) => setAggFilter(ci, { value: e.target.value })} placeholder="value" />
-                        </>
-                      )}
+                      {col.agg.filter?.field && (() => {
+                        const fa = fieldsFor(col).find((a) => a.logicalName === col.agg!.filter!.field);
+                        const fcat = fa ? category(fa.type) : 'text';
+                        const fopts = options[optKey(col.agg!.childEntity, col.agg!.filter!.field)];
+                        return (
+                          <>
+                            <select value={col.agg!.filter!.operator} onChange={(e) => setAggFilter(ci, { operator: e.target.value })}>
+                              <option value="Equals">=</option><option value="NotEquals">≠</option>
+                              {/* Ordering runs numerically in the runtime — only offer it for numbers. */}
+                              {fcat === 'number' && (
+                                <>
+                                  <option value="GreaterThan">&gt;</option><option value="GreaterThanOrEqual">≥</option>
+                                  <option value="LessThan">&lt;</option><option value="LessThanOrEqual">≤</option>
+                                </>
+                              )}
+                            </select>
+                            {valueEditor(fcat, fopts, col.agg!.filter!.value, (v) => setAggFilter(ci, { value: v }))}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                   {colReady(col) && <span className="dt2-col-type">{col.agg ? `∑ ${col.agg.childLabel} · ${col.agg.fn}` : col.via ? `${col.via.relLabel} › ${col.type}` : col.type}</span>}
