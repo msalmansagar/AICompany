@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { parseDesignerLayout } from '@/services/designerLayout';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CrmEnvironmentService } from './services/CrmEnvironmentService';
 import { WorkflowDataService } from './services/WorkflowDataService';
@@ -200,9 +201,10 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const handleEditProcess = useCallback(async (processId: string) => {
     setLoadingMessage('Loading process for editing…');
     try {
-      const [process, steps] = await Promise.all([
+      const [process, steps, layoutJson] = await Promise.all([
         adapter.getProcess(processId),
         adapter.getSteps(processId),
+        adapter.loadDesignerLayout(processId).catch(() => null),
       ]);
       const outcomeArrays = await Promise.all(steps.map((s) => adapter.getOutcomes(s.crmId)));
       const allOutcomes: WorkflowOutcome[] = outcomeArrays.flat();
@@ -211,7 +213,15 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
       const routeArrays = await Promise.all(conditionalOutcomes.map((o) => adapter.getRoutes(o.crmId)));
       const allRoutes: WorkflowRoute[] = routeArrays.flat();
 
-      loadWorkflow(process as WorkflowProcess, steps as WorkflowStep[], allOutcomes, allRoutes, {});
+      const layout = parseDesignerLayout(layoutJson);
+      loadWorkflow(
+        process as WorkflowProcess,
+        steps as WorkflowStep[],
+        allOutcomes,
+        allRoutes,
+        layout?.nodePositions ?? {}
+      );
+      if (layout) useWorkflowStore.getState().applyDesignerLayout(layout);
       setPreviousMode(appMode === 'view' ? 'view' : 'list');
       setAppMode('edit');
     } catch (err) {

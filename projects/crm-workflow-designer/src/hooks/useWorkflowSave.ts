@@ -1,4 +1,5 @@
 import { emptyWorkflowHooks, PROCESS_HOOKS } from '@/services/workflowHooks';
+import { serializeDesignerLayout } from '@/services/designerLayout';
 import { useState, useCallback } from 'react';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -188,10 +189,26 @@ export function useWorkflowSave(): UseSaveResult {
         }
       }
 
-      // 5. Save node positions into the workflow snapshot
-      const positionPayload = JSON.stringify(nodePositions);
+      // 5. Persist the designer layout. The old snapshot write silently did
+      // nothing: buildProcessBody only maps qdb_name, so the PATCH body was
+      // empty — positions were never stored. The layout now lives in an
+      // annotation on the process. Read fresh state: the temp ids were
+      // resolved above and the store remapped the keys.
       if (!isTemporaryId(resolvedProcessId)) {
-        await adapter.updateProcess(resolvedProcessId, { snapshot: positionPayload });
+        const fresh = useWorkflowStore.getState();
+        try {
+          await adapter.saveDesignerLayout(
+            resolvedProcessId,
+            serializeDesignerLayout({
+              nodePositions: fresh.nodePositions,
+              edgeAnchors: fresh.edgeAnchors,
+              labelOffsets: fresh.labelOffsets,
+            })
+          );
+        } catch (layoutError) {
+          // Layout is cosmetic — its failure must not fail the save.
+          logError('save:designer-layout', layoutError);
+        }
       }
 
       // 6. Process deletions (each recorded to the audit log)

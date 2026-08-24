@@ -21,6 +21,10 @@ export interface WorkflowDesignerState {
   outcomeOrder: Record<string, string[]>;
   routeOrder: Record<string, string[]>;
   nodePositions: Record<string, { x: number; y: number }>;
+  /** Edge bends, keyed by edge id (`outcome_<id>`). Persisted with the layout. */
+  edgeAnchors: Record<string, { x: number; y: number }>;
+  /** Label drags, keyed by edge id. Persisted with the layout. */
+  labelOffsets: Record<string, { dx: number; dy: number }>;
   newIds: string[];
   dirtyIds: string[];
   deletedIds: string[];
@@ -69,6 +73,14 @@ export interface WorkflowDesignerState {
   deleteOutcome: (id: string) => void;
   deleteRoute: (id: string) => void;
   updateNodePosition: (id: string, position: { x: number; y: number }) => void;
+  /** Bend one edge through a point; null straightens it. Marks dirty. */
+  setEdgeAnchor: (edgeId: string, point: { x: number; y: number } | null) => void;
+  /** Nudge one edge label away from its computed spot; null resets. Marks dirty. */
+  setLabelOffset: (edgeId: string, offset: { dx: number; dy: number } | null) => void;
+  /** Drop every bend and label nudge — auto-layout calls this. */
+  clearEdgeDecorations: () => void;
+  /** Restores a persisted layout wholesale, without dirtying. */
+  applyDesignerLayout: (layout: { nodePositions?: Record<string, { x: number; y: number }>; edgeAnchors?: Record<string, { x: number; y: number }>; labelOffsets?: Record<string, { dx: number; dy: number }> }) => void;
   selectNode: (id: string | null) => void;
   clearSelection: () => void;
   markClean: () => void;
@@ -111,7 +123,7 @@ const emptyState: Omit<
   | 'setProcess' | 'setStep' | 'setOutcome' | 'setRoute'
   | 'addStep' | 'addStepAfter' | 'addOutcome' | 'addRoute'
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
-  | 'updateNodePosition' | 'selectNode' | 'clearSelection'
+  | 'updateNodePosition' | 'setEdgeAnchor' | 'setLabelOffset' | 'clearEdgeDecorations' | 'applyDesignerLayout' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
   | 'startSimulation' | 'stopSimulation' | 'simTakeOutcome' | 'simOpenRoutePicker' | 'simCloseRoutePicker' | 'simTakeRoute' | 'simStepBack'
   | 'startAutoSimulation' | 'stopAutoSimulation'
@@ -128,6 +140,8 @@ const emptyState: Omit<
   outcomeOrder: {},
   routeOrder: {},
   nodePositions: {},
+  edgeAnchors: {},
+  labelOffsets: {},
   newIds: [],
   dirtyIds: [],
   deletedIds: [],
@@ -168,7 +182,14 @@ function remapStepId(state: WorkflowDesignerState, tmpId: string, realId: string
   state.steps[realId] = { ...step, crmId: realId };
   delete state.steps[tmpId];
   state.stepOrder = state.stepOrder.map((id) => (id === tmpId ? realId : id));
-  state.nodePositions[realId] = state.nodePositions[tmpId] ?? { x: 0, y: 0 };
+  // The canvas keys positions as `step_<id>`; the old raw-id remap never
+  // matched, so a newly created step lost its position on first save.
+  const tmpKey = `step_${tmpId}`;
+  const realKey = `step_${realId}`;
+  if (state.nodePositions[tmpKey]) {
+    state.nodePositions[realKey] = state.nodePositions[tmpKey];
+    delete state.nodePositions[tmpKey];
+  }
   delete state.nodePositions[tmpId];
   if (state.outcomeOrder[tmpId]) {
     state.outcomeOrder[realId] = state.outcomeOrder[tmpId]!;
@@ -185,6 +206,16 @@ function remapStepId(state: WorkflowDesignerState, tmpId: string, realId: string
 
 /** Rewrites an outcome's temp id to its real id across all references. */
 function remapOutcomeId(state: WorkflowDesignerState, tmpId: string, realId: string): void {
+  const tmpEdge = `outcome_${tmpId}`;
+  const realEdge = `outcome_${realId}`;
+  if (state.edgeAnchors[tmpEdge]) {
+    state.edgeAnchors[realEdge] = state.edgeAnchors[tmpEdge];
+    delete state.edgeAnchors[tmpEdge];
+  }
+  if (state.labelOffsets[tmpEdge]) {
+    state.labelOffsets[realEdge] = state.labelOffsets[tmpEdge];
+    delete state.labelOffsets[tmpEdge];
+  }
   const outcome = state.outcomes[tmpId];
   if (!outcome) return;
   state.outcomes[realId] = { ...outcome, crmId: realId };
@@ -518,6 +549,36 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
       updateNodePosition: (id, position) =>
         set((state) => {
           state.nodePositions[id] = position;
+          // Layout persists now, so a drag is a change worth saving.
+          state.isDirty = true;
+        }),
+
+      setEdgeAnchor: (edgeId, point) =>
+        set((state) => {
+          if (point) state.edgeAnchors[edgeId] = point;
+          else delete state.edgeAnchors[edgeId];
+          state.isDirty = true;
+        }),
+
+      setLabelOffset: (edgeId, offset) =>
+        set((state) => {
+          if (offset) state.labelOffsets[edgeId] = offset;
+          else delete state.labelOffsets[edgeId];
+          state.isDirty = true;
+        }),
+
+      clearEdgeDecorations: () =>
+        set((state) => {
+          state.edgeAnchors = {};
+          state.labelOffsets = {};
+          state.isDirty = true;
+        }),
+
+      applyDesignerLayout: (layout) =>
+        set((state) => {
+          if (layout.nodePositions) state.nodePositions = { ...layout.nodePositions };
+          if (layout.edgeAnchors) state.edgeAnchors = { ...layout.edgeAnchors };
+          if (layout.labelOffsets) state.labelOffsets = { ...layout.labelOffsets };
         }),
 
       selectNode: (id) =>
@@ -819,6 +880,8 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           state.outcomeOrder = {};
           state.routeOrder = {};
           state.nodePositions = positions;
+          state.edgeAnchors = {};
+          state.labelOffsets = {};
           state.newIds = [];
           state.dirtyIds = [];
           state.deletedIds = [];

@@ -256,6 +256,9 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     const outcomeList = Object.values(outcomes);
     const positions = computeEditLayout(stepOrder, outcomeList);
     setNodePositions(positions);
+    // A fresh layout with last session's bends applied reads as broken —
+    // auto-layout is the reset gesture for edge decorations too.
+    useWorkflowStore.getState().clearEdgeDecorations();
   }, [stepOrder, outcomes, setNodePositions]);
 
   const nodePositionsRef = useRef(nodePositions);

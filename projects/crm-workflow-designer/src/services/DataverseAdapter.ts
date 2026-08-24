@@ -1,4 +1,5 @@
 import type { ISopAdapter } from './ISopAdapter';
+import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { buildUserLookupFilter } from './userLookupFilter';
@@ -158,6 +159,33 @@ export class DataverseAdapter implements ISopAdapter {
     const body = await this.buildProcessBodyResolved(data);
     const result = await withRetry(() => this.xrm.WebApi.createRecord(LOGICAL.process, body));
     return result.id;
+  }
+
+  async loadDesignerLayout(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid,notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerLayout(processId: string, layoutJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_LAYOUT_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: layoutJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_LAYOUT_SUBJECT,
+      notetext: layoutJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
