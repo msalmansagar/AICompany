@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { ProcessSummaryScreen } from '@/components/ProcessSummaryScreen';
 import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { parseDesignerLayout } from '@/services/designerLayout';
 import { parseDesignerState, withDesignerState } from '@/services/designerState';
@@ -27,7 +28,7 @@ import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
 
-type AppMode = 'list' | 'view' | 'edit' | 'sop-list' | 'roles';
+type AppMode = 'list' | 'view' | 'edit' | 'summary' | 'sop-list' | 'roles';
 
 /** Environment identity for the app bar, resolved once at start-up. */
 interface HostContext {
@@ -174,6 +175,14 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
 
   const handleNewProcess = () => setShowWizard(true);
 
+  // The summary is its own screen: it loads what is stored, so it reads the
+  // same from the viewer and the editor.
+  const [summaryProcessId, setSummaryProcessId] = useState<string | null>(null);
+  const openSummary = useCallback((processId: string) => {
+    setSummaryProcessId(processId);
+    setAppMode('summary');
+  }, []);
+
   // Wizard "Blank" / template path: build the process graph in memory and open
   // it in the editor. Nothing is persisted until the user clicks Save Draft.
   const handleCreateInMemory = useCallback((
@@ -292,14 +301,29 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
       {/* A column, so a screen can stack a command bar, its page and a status
           strip as siblings the way the design system expects. */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        {appMode === 'edit' ? (
-          <EditCanvas adapter={adapter} onExitEdit={handleExitEdit} />
+        {appMode === 'summary' && summaryProcessId ? (
+          <ProcessSummaryScreen
+            processId={summaryProcessId}
+            service={service}
+            adapter={adapter}
+            onBack={() => setAppMode(previousMode === 'view' ? 'view' : 'list')}
+          />
+        ) : appMode === 'edit' ? (
+          <EditCanvas
+            adapter={adapter}
+            onExitEdit={handleExitEdit}
+            onOpenSummary={() => {
+              const current = useWorkflowStore.getState().process;
+              if (current) openSummary(current.crmId);
+            }}
+          />
         ) : appMode === 'view' ? (
           <WorkflowCanvas
             view={view}
             adapter={adapter}
             onNewProcess={handleNewProcess}
-            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
+            onEditProcess={view.data ? handleEditCurrentProcess : undefined}
+            onOpenSummary={view.data ? () => openSummary(view.data!.process.id) : undefined}
           />
         ) : appMode === 'sop-list' && sopAdapter ? (
           <SopListScreen
