@@ -18,6 +18,12 @@ export interface CanvasOffset {
 
 export interface DesignerLayout {
   v: 1;
+  /**
+   * Node positions for the READ-ONLY view canvases, keyed by view mode and
+   * layout direction (`business:TB`) because each mode draws a different
+   * graph — one shared map would fight itself every time the mode changed.
+   */
+  viewLayouts: Record<string, Record<string, CanvasPoint>>;
   /** Node positions, keyed the way the edit canvas keys them (`step_<id>`, `edit_start`…). */
   nodePositions: Record<string, CanvasPoint>;
   /** A point an edge is bent through, keyed by edge id (`outcome_<id>`). */
@@ -26,8 +32,45 @@ export interface DesignerLayout {
   labelOffsets: Record<string, CanvasOffset>;
 }
 
-export function serializeDesignerLayout(layout: Omit<DesignerLayout, 'v'>): string {
-  return JSON.stringify({ v: 1, ...layout });
+/** Each view mode keeps its own map; malformed ones are dropped whole. */
+function cleanViewLayouts(raw: unknown): Record<string, Record<string, CanvasPoint>> {
+  const out: Record<string, Record<string, CanvasPoint>> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      const cleaned = cleanMap<CanvasPoint>(value, (v) => isFinitePair(v, 'x', 'y'));
+      if (Object.keys(cleaned).length > 0) out[key] = cleaned;
+    }
+  }
+  return out;
+}
+
+export function serializeDesignerLayout(layout: Partial<Omit<DesignerLayout, 'v'>>): string {
+  return JSON.stringify({
+    v: 1,
+    nodePositions: layout.nodePositions ?? {},
+    edgeAnchors: layout.edgeAnchors ?? {},
+    labelOffsets: layout.labelOffsets ?? {},
+    viewLayouts: layout.viewLayouts ?? {},
+  });
+}
+
+/**
+ * Writes one part of the layout without discarding the rest.
+ *
+ * The editor and the view canvases own different halves of this blob and save
+ * at different times; a plain overwrite from either would erase the other.
+ */
+export function mergeDesignerLayout(
+  existingJson: string | null | undefined,
+  patch: Partial<Omit<DesignerLayout, 'v'>>
+): string {
+  const existing = parseDesignerLayout(existingJson);
+  return serializeDesignerLayout({
+    nodePositions: patch.nodePositions ?? existing?.nodePositions ?? {},
+    edgeAnchors: patch.edgeAnchors ?? existing?.edgeAnchors ?? {},
+    labelOffsets: patch.labelOffsets ?? existing?.labelOffsets ?? {},
+    viewLayouts: patch.viewLayouts ?? existing?.viewLayouts ?? {},
+  });
 }
 
 function isFinitePair(value: unknown, a: string, b: string): boolean {
@@ -62,6 +105,7 @@ export function parseDesignerLayout(json: string | null | undefined): DesignerLa
     return {
       v: 1,
       nodePositions: cleanMap<CanvasPoint>(raw.nodePositions, (v) => isFinitePair(v, 'x', 'y')),
+      viewLayouts: cleanViewLayouts(raw.viewLayouts),
       edgeAnchors: cleanMap<CanvasPoint>(raw.edgeAnchors, (v) => isFinitePair(v, 'x', 'y')),
       labelOffsets: cleanMap<CanvasOffset>(raw.labelOffsets, (v) => isFinitePair(v, 'dx', 'dy')),
     };

@@ -29,6 +29,28 @@ const LANE_COLORS: Record<string, { bg: string; border: string; text: string }> 
 };
 const DEFAULT_LANE_COLOR = { bg: 'var(--surface-alt)', border: 'var(--border)', text: 'var(--text-secondary)' };
 
+/**
+ * Which lane a step belongs in: the person or team who actually does it.
+ *
+ * Lanes used to be the assignment MODE, so three differently-named users
+ * collapsed into one "SPECIFIC USER" lane — losing exactly the who-does-what
+ * the swimlane view exists to show. Steps with no assignee yet fall back to
+ * the mode, which is all that is known about them.
+ */
+export function laneNameOf(step: CrmStep): string {
+  const label = getAssignToLabel(step.assignToCode);
+  if (label === 'Team') return step.teamName?.trim() || 'Unassigned team';
+  if (label === 'Round Robin') return step.roundRobinTeamName?.trim() || 'Round robin (no team)';
+  if (label === 'Read From Parent') return 'From parent record';
+  return step.assignedUserName?.trim() || 'Unassigned';
+}
+
+/** Lane tint by assignment mode, so the bands still read as kinds of work. */
+function laneColorsOf(step: CrmStep | undefined) {
+  if (!step) return DEFAULT_LANE_COLOR;
+  return LANE_COLORS[getAssignToLabel(step.assignToCode)] ?? DEFAULT_LANE_COLOR;
+}
+
 export function buildSwimlaneGraph(
   steps: CrmStep[],
   outcomes: CrmOutcome[]
@@ -57,7 +79,7 @@ export function buildSwimlaneGraph(
   const laneOrder: string[] = [];
   const seenLanes = new Set<string>();
   for (const step of sorted) {
-    const lane = getAssignToLabel(step.assignToCode);
+    const lane = laneNameOf(step);
     if (!seenLanes.has(lane)) { laneOrder.push(lane); seenLanes.add(lane); }
   }
   const laneIndex = new Map(laneOrder.map((l, i) => [l, i]));
@@ -66,7 +88,7 @@ export function buildSwimlaneGraph(
 
   // Swimlane background nodes (rendered behind steps).
   const laneNodes: Node[] = laneOrder.map((lane, i) => {
-    const colors = LANE_COLORS[lane] ?? DEFAULT_LANE_COLOR;
+    const colors = laneColorsOf(sorted.find((step) => laneNameOf(step) === lane));
     return {
       id: `lane_${i}`,
       type: 'swimlane',
@@ -86,7 +108,7 @@ export function buildSwimlaneGraph(
 
   // Step nodes positioned in their lane at their sequence x.
   const stepNodes: Node[] = sorted.map((step, seqIndex) => {
-    const lane = getAssignToLabel(step.assignToCode);
+    const lane = laneNameOf(step);
     const li = laneIndex.get(lane) ?? 0;
     const stepOutcomes = outcomesByStep.get(step.id) ?? [];
     const outcomeRows: StepOutcomeRow[] = stepOutcomes.map((o) => ({

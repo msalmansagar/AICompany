@@ -76,6 +76,16 @@ export interface ICrmAdapter {
    */
   loadDesignerLayout(processId: string): Promise<string | null>;
   saveDesignerLayout(processId: string, layoutJson: string): Promise<void>;
+
+  /**
+   * The designer's own state for a process — published/draft, version, and
+   * the comparison snapshot. Same annotation home as the layout, for the
+   * same reason: the entity carries no column for any of it.
+   */
+  loadDesignerState(processId: string): Promise<string | null>;
+  saveDesignerState(processId: string, stateJson: string): Promise<void>;
+  /** Every process id that has stored state, for the list screen. */
+  loadAllDesignerStates(): Promise<Record<string, string>>;
 }
 
 export interface AuditLogEntry {

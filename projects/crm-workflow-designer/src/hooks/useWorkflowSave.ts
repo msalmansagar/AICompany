@@ -1,5 +1,5 @@
 import { emptyWorkflowHooks, PROCESS_HOOKS } from '@/services/workflowHooks';
-import { serializeDesignerLayout } from '@/services/designerLayout';
+import { mergeDesignerLayout } from '@/services/designerLayout';
 import { useState, useCallback } from 'react';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
@@ -197,9 +197,11 @@ export function useWorkflowSave(): UseSaveResult {
       if (!isTemporaryId(resolvedProcessId)) {
         const fresh = useWorkflowStore.getState();
         try {
+          const existingLayout = await adapter.loadDesignerLayout(resolvedProcessId).catch(() => null);
           await adapter.saveDesignerLayout(
             resolvedProcessId,
-            serializeDesignerLayout({
+            // Merge: the view canvases keep their own positions in this blob.
+            mergeDesignerLayout(existingLayout, {
               nodePositions: fresh.nodePositions,
               edgeAnchors: fresh.edgeAnchors,
               labelOffsets: fresh.labelOffsets,

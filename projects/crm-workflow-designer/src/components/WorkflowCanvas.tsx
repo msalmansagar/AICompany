@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { buildGraph } from '../services/WorkflowGraphBuilder';
 import { logError } from '../services/logError';
 import { buildExecutiveGraph } from '../services/ExecutiveGraphBuilder';
-import { buildTechnicalGraph } from '../services/TechnicalGraphBuilder';
 import { buildTechNewGraph } from '../services/TechNewGraphBuilder';
 import { buildSwimlaneGraph } from '../services/SwimlaneGraphBuilder';
 import { nodeTypes } from '../nodes/nodeTypes';
@@ -35,6 +34,8 @@ import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { CanvasLegend } from './common/CanvasLegend';
 import { applyReturnPathFilter, nextReturnPathMode } from '../services/viewFilters';
+import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLayout';
+import { notify } from './ui/Notify';
 import type { ReturnPathMode } from '../services/viewFilters';
 
 interface WorkflowCanvasProps {
@@ -58,7 +59,6 @@ type BuildFn = (
 const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   executive:      buildExecutiveGraph as BuildFn,
   business:       buildGraph as BuildFn,
-  technical:      buildTechnicalGraph as BuildFn,
   'technical-new': buildTechNewGraph as BuildFn,
   swimlane:       buildSwimlaneGraph as BuildFn,
 };
@@ -86,6 +86,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
+  // The view canvases arrange themselves, but a reader who nudges a card
+  // into place should be able to keep that — per mode and direction, since
+  // each draws a different graph.
+  const [storedViewLayouts, setStoredViewLayouts] = useState<Record<string, Record<string, { x: number; y: number }>>>({});
+  const [isLayoutDirty, setIsLayoutDirty] = useState(false);
+  const [isSavingLayout, setIsSavingLayout] = useState(false);
+  const layoutKey = `${view.viewMode}:${view.layoutDir}`;
   const [isExporting, setIsExporting] = useState(false);
   const { fitView, getNodes } = useReactFlow();
   const measuredNodeIds = useMeasuredNodeIds();
@@ -103,11 +110,37 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
       view.layoutDir,
       view.data.routes,
     );
-    view.setNodes(() => rebuilt);
+    const saved = storedViewLayouts[`${view.viewMode}:${view.layoutDir}`];
+    view.setNodes(() =>
+      saved
+        ? rebuilt.map((node) => (saved[node.id] ? { ...node, position: saved[node.id] } : node))
+        : rebuilt
+    );
     view.setEdges(() => rebuiltEdges);
     setPendingFit((token) => token + 1);
+    setIsLayoutDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.data, view.viewMode, view.layoutDir]);
+  }, [view.data, view.viewMode, view.layoutDir, storedViewLayouts]);
+
+  const processId = view.data?.process.id ?? null;
+  useEffect(() => {
+    if (!processId) {
+      setStoredViewLayouts({});
+      return;
+    }
+    let cancelled = false;
+    void adapter
+      .loadDesignerLayout(processId)
+      .then((json) => {
+        if (cancelled) return;
+        setStoredViewLayouts(parseDesignerLayout(json)?.viewLayouts ?? {});
+        setIsLayoutDirty(false);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [processId, adapter]);
 
   const requestedNodeIds = useMemo(
     () => view.nodes.map((node) => node.id).sort().join(';'),
@@ -166,7 +199,10 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     view.setNodes(() => positioned);
     view.setEdges(() => rebuilt);
     setPendingFit((token) => token + 1);
-  }, [view]);
+    // Re-deriving the layout is the reset gesture: the saved arrangement
+    // for this mode is what the user just discarded.
+    if (storedViewLayouts[layoutKey]) setIsLayoutDirty(true);
+  }, [view, storedViewLayouts, layoutKey]);
 
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     view.selectElement(node.id);
@@ -187,7 +223,31 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
     view.setNodes((prev) => applyNodeChanges(changes, prev));
+    if (changes.some((c) => c.type === 'position' && c.dragging === false)) {
+      setIsLayoutDirty(true);
+    }
   }, [view]);
+
+  const handleSaveLayout = useCallback(async () => {
+    if (!processId) return;
+    setIsSavingLayout(true);
+    try {
+      const positions: Record<string, { x: number; y: number }> = {};
+      for (const node of view.nodes) positions[node.id] = node.position;
+      const nextLayouts = { ...storedViewLayouts, [layoutKey]: positions };
+      const existing = await adapter.loadDesignerLayout(processId).catch(() => null);
+      // Merge: the editor owns the other half of this blob.
+      await adapter.saveDesignerLayout(processId, mergeDesignerLayout(existing, { viewLayouts: nextLayouts }));
+      setStoredViewLayouts(nextLayouts);
+      setIsLayoutDirty(false);
+      notify('Layout saved for this view.', 'success');
+    } catch (err) {
+      logError('view:save-layout', err);
+      notify('Could not save the layout.', 'error');
+    } finally {
+      setIsSavingLayout(false);
+    }
+  }, [processId, adapter, view.nodes, storedViewLayouts, layoutKey]);
 
   const handleCycleReturnPaths = useCallback(() => {
     setReturnPathMode(nextReturnPathMode);
@@ -257,10 +317,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
     <div style={shellStyle}>
       <ViewToolbar
         processName={view.data?.process.name ?? null}
+        workflowState={view.data?.process.workflowState ?? null}
         isLoading={view.phase === 'loading-list' || view.phase === 'loading-workflow'}
         isExporting={isExporting}
         showMiniMap={showMiniMap}
         showEdgeLabels={showEdgeLabels}
+        isLayoutDirty={isLayoutDirty}
+        isSavingLayout={isSavingLayout}
         returnPathMode={returnPathMode}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
@@ -269,6 +332,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
         onAutoLayout={handleAutoLayout}
         onToggleMiniMap={() => setShowMiniMap((v) => !v)}
         onToggleEdgeLabels={() => setShowEdgeLabels((v) => !v)}
+        onSaveLayout={() => void handleSaveLayout()}
         onCycleReturnPaths={handleCycleReturnPaths}
         onDownloadPng={() => void handleDownloadPng()}
         onDownloadPdf={() => void handleDownloadPdf()}

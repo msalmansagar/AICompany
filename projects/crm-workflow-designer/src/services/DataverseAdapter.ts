@@ -1,5 +1,6 @@
 import type { ISopAdapter } from './ISopAdapter';
 import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
+import { DESIGNER_STATE_SUBJECT } from './designerState';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import { escapeODataLiteral } from './odataEscape';
 import { buildUserLookupFilter } from './userLookupFilter';
@@ -186,6 +187,47 @@ export class DataverseAdapter implements ISopAdapter {
       notetext: layoutJson,
       [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
     });
+  }
+
+  async loadDesignerState(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return (result.entities[0]?.notetext as string | undefined) ?? null;
+  }
+
+  async saveDesignerState(processId: string, stateJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1`
+    );
+    const found = existing.entities[0];
+    if (found) {
+      await this.xrm.WebApi.updateRecord('annotation', found.annotationid as string, { notetext: stateJson });
+      return;
+    }
+    await this.xrm.WebApi.createRecord('annotation', {
+      subject: DESIGNER_STATE_SUBJECT,
+      notetext: stateJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/qdb_work_item_record_types(${processId})`,
+    });
+  }
+
+  async loadAllDesignerStates(): Promise<Record<string, string>> {
+    const result = await this.xrm.WebApi.retrieveMultipleRecords(
+      'annotation',
+      `?$select=notetext,_objectid_value&$filter=subject eq '${DESIGNER_STATE_SUBJECT}'&$orderby=modifiedon desc`
+    );
+    const byProcess: Record<string, string> = {};
+    for (const note of result.entities) {
+      const id = note._objectid_value as string | undefined;
+      const text = note.notetext as string | undefined;
+      if (id && text && !byProcess[id]) byProcess[id] = text;
+    }
+    return byProcess;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {
