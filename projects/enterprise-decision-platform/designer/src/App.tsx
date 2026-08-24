@@ -14,6 +14,7 @@ import { emptyTable, tableToPcrm, type TableModel } from './table/tableModel';
 import { ConditionBuilder } from './conditions/ConditionBuilder';
 import { emptyConditions, conditionsToPcrm, type ConditionModel } from './conditions/conditionModel';
 import { installGoRulesDocRedirect, type DocGuide } from './gorules/docRedirect';
+import { buildEntitySchema, withEntitySchema } from './gorules/entitySchema';
 import { DocsSidePane } from './gorules/DocsSidePane';
 import { ExecutionLogViewer } from './logs/ExecutionLogViewer';
 import { AnalyticsDashboard } from './analytics/AnalyticsDashboard';
@@ -114,6 +115,17 @@ export function App() {
     if (authorMode !== 'canvas') return;
     return installGoRulesDocRedirect(setDocsGuide);
   }, [authorMode]);
+
+  // Canvas ↔ Dataverse bridge: pin the target entity's field schema on the Input
+  // node so the JDM table and expressions autocomplete real fields with real types.
+  useEffect(() => {
+    if (view !== 'editor' || authorMode !== 'canvas' || !targetEntity) return;
+    let cancelled = false;
+    buildEntitySchema(targetEntity)
+      .then((schema) => { if (!cancelled) setGraph((g) => withEntitySchema(g, schema)); })
+      .catch(() => { /* the schema is a convenience — the canvas still works without it */ });
+    return () => { cancelled = true; };
+  }, [view, authorMode, targetEntity]);
 
   const conditionHasClauses = (g: ConditionModel['when']): boolean => g.clauses.some((c) => c.field) || g.groups.some(conditionHasClauses);
   const hasContent = authorMode === 'table' ? table.inputs.length > 0

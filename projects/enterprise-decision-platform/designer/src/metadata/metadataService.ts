@@ -39,8 +39,20 @@ export async function searchEntities(term: string): Promise<EntityMeta[]> {
   return entityCache.filter((e) => e.logicalName.toLowerCase().includes(t) || e.displayName.toLowerCase().includes(t));
 }
 
-/** Non-virtual attributes of an entity, sorted by display name. */
-export async function listAttributes(entity: string): Promise<AttributeMeta[]> {
+// Attribute metadata is immutable within a session and requested by several surfaces
+// (table editor, canvas schema, aggregates) — cache the in-flight promise per entity.
+const attributeCache = new Map<string, Promise<AttributeMeta[]>>();
+
+/** Non-virtual attributes of an entity, sorted by display name. Cached per entity. */
+export function listAttributes(entity: string): Promise<AttributeMeta[]> {
+  const cached = attributeCache.get(entity);
+  if (cached) return cached;
+  const pending = fetchAttributes(entity).catch((e) => { attributeCache.delete(entity); throw e; });
+  attributeCache.set(entity, pending);
+  return pending;
+}
+
+async function fetchAttributes(entity: string): Promise<AttributeMeta[]> {
   const d = await get<{ value: any[] }>(
     `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType`
   );
