@@ -7,6 +7,7 @@ import {
   type TableModel, type Row, type Cell, type AggFn, HIT_POLICIES, AGG_FNS,
   operatorsFor, arity, category, newRow, colReady, inputName,
 } from './tableModel';
+import { RecordPicker } from './RecordPicker';
 
 /** Friendly label for a column when it's used as a field-to-field comparison operand. */
 function columnLabel(c: TableModel['inputs'][number]): string {
@@ -273,6 +274,11 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     // related (N:1) field, or aggregate. Any column may compare against any other.
     const operandCols = value.inputs.map((c, i) => ({ c, i })).filter((x) => x.i !== ci && colReady(x.c));
     const allowFieldMode = n >= 1 && ready && operandCols.length > 0;
+    // A lookup cell on an anchor column gets a record picker (the N:1 list knows the
+    // target entity). Related/aggregate lookup columns fall back to a GUID input.
+    const lookupTarget = cat === 'lookup' && !col.via && !col.agg
+      ? rels.find((r) => r.relationship === col.field)?.targetEntity
+      : undefined;
     return (
       <div className="dt2-cellbox">
         <select className="dt2-op" value={op} disabled={!ready}
@@ -292,7 +298,10 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 <option value="">— pick column —</option>
                 {operandCols.map(({ c, i }) => <option key={i} value={inputName(c)}>{columnLabel(c)}</option>)}
               </select>
-            : valueEditor(cat, cellOpts, cell.value ?? '', (v) => patch({ value: v }))
+            : lookupTarget
+              ? <RecordPicker entity={lookupTarget} valueLabel={cell.valueLabel ?? cell.value ?? ''}
+                  onPick={(r) => patch({ value: r.id, valueLabel: r.name })} />
+              : valueEditor(cat, cellOpts, cell.value ?? '', (v) => patch({ value: v }))
         )}
         {n === 2 && <span className="dt2-and">and</span>}
         {n === 2 && valueEditor(cat, cellOpts, cell.value2 ?? '', (v) => patch({ value2: v }))}

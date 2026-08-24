@@ -19,7 +19,8 @@ export function inputName(i: InputCol): string {
 /** A column can be used in conditions once it has a field, or is a Count aggregate. */
 export function colReady(i: InputCol): boolean { return !!i.field || (!!i.agg && i.agg.fn === 'Count'); }
 export interface OutputCol { name: string; type: 'Text' | 'Number' | 'Boolean'; }
-export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; }
+// valueLabel is display-only (a picked record's name); PCRM serialization never emits it.
+export interface Cell { any?: boolean; operator?: string; value?: string; value2?: string; valueField?: string; value2Field?: string; valueLabel?: string; }
 export interface Row { cells: Cell[]; outputs: Record<string, string>; reasonCodes?: string[]; }
 export interface TableModel {
   editor: 'edp-table';
@@ -39,12 +40,13 @@ export function newRow(inputCount: number, outputCount: number): Row {
 }
 
 // CRM attribute type -> editor category
-export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' {
+export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' | 'lookup' {
   switch (crmType) {
     case 'Integer': case 'BigInt': case 'Decimal': case 'Double': case 'Money': return 'number';
     case 'DateTime': return 'date';
     case 'Boolean': return 'boolean';
     case 'Picklist': case 'State': case 'Status': return 'optionset';
+    case 'Lookup': case 'Customer': case 'Owner': return 'lookup';
     default: return 'text';
   }
 }
@@ -64,6 +66,7 @@ export function operatorsFor(cat: string): OpDef[] {
     case 'number': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('GreaterThan', '>', 1), OP('GreaterThanOrEqual', '≥', 1), OP('LessThan', '<', 1), OP('LessThanOrEqual', '≤', 1), OP('Between', 'between', 2), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
     case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsNull', 'is empty', 0)];
     case 'boolean': return [ANY, OP('Equals', '=', 1)];
+    case 'lookup': return [ANY, OP('Equals', 'is', 1), OP('NotEquals', 'is not', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0)];
     case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
     default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
   }

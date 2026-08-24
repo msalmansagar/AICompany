@@ -40,3 +40,15 @@ export function crmApiBase(): string | null {
 export function apiBase(): string {
   return crmApiBase() ?? '/dataverse';
 }
+
+/** Plain OData GET against the Web API base, with the error envelope unwrapped. */
+export async function webApiGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${apiBase()}${path}`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json', 'OData-Version': '4.0', 'OData-MaxVersion': '4.0' },
+  });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
+  return json as T;
+}

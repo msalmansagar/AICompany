@@ -730,3 +730,19 @@ h1, h2, h3 { text-wrap: balance; }
   color: var(--n-fg2); width: 28px; height: 28px; border-radius: var(--radius); }
 .docs-pane-close:hover { background: var(--n-bg1-hover); color: var(--n-fg1); }
 .docs-pane-frame { flex: 1 1 auto; width: 100%; border: none; background: var(--n-bg1); }
+
+/* ── Record picker (lookup condition cells) ─────────────────────────────── */
+.rpick { position: relative; display: inline-flex; }
+.rpick input { width: 130px; }
+.rpick-list {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 40; min-width: 190px; max-height: 220px; overflow-y: auto;
+  display: flex; flex-direction: column; background: var(--n-bg1); border: 1px solid var(--n-stroke2);
+  border-radius: var(--radius); box-shadow: var(--shadow8); padding: 3px;
+}
+.rpick-list button {
+  text-align: left; font: inherit; font-size: 12.5px; color: var(--n-fg1); background: none; border: none;
+  border-radius: var(--radius-sm); padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rpick-list button:hover { background: var(--n-bg1-hover); }
+.rpick-msg { font-size: 12px; color: var(--n-fg2); padding: 5px 8px; }
+.rpick-err { color: var(--danger); }
