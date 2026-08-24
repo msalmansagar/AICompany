@@ -1,4 +1,5 @@
 import { useWorkflowStore } from '@/store/workflowStore';
+import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { computeEditLayout } from '@/services/EditGraphLayout';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyAssignmentFields } from '@/services/taskAssignment';
@@ -103,6 +104,7 @@ export function buildDemoBeats(): DemoBeat[] {
       holdMs: 2200,
       run: () => {
         s().loadWorkflow(demoProcess(), [], [], [], {});
+        clearUndoHistorySoon();
       },
     },
     {

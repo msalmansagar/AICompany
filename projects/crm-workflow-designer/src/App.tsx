@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { parseDesignerLayout } from '@/services/designerLayout';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CrmEnvironmentService } from './services/CrmEnvironmentService';
@@ -181,6 +182,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
     routes: WorkflowRoute[],
   ) => {
     loadWorkflow(process, steps, outcomes, routes, {});
+    clearUndoHistorySoon();
     setShowWizard(false);
     setPreviousMode('list');
     setAppMode('edit');
@@ -222,6 +224,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
         layout?.nodePositions ?? {}
       );
       if (layout) useWorkflowStore.getState().applyDesignerLayout(layout);
+      clearUndoHistorySoon();
       setPreviousMode(appMode === 'view' ? 'view' : 'list');
       setAppMode('edit');
     } catch (err) {
