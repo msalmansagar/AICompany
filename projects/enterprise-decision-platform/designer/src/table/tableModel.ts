@@ -58,6 +58,64 @@ export function pcrmType(crmType: string): string {
   return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' || c === 'multiselect' ? 'OptionSet' : 'Text';
 }
 
+// ---- structural edits (pure — the editor clones via these) ----
+
+function moved<T>(arr: T[], from: number, to: number): T[] {
+  const next = [...arr];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+/** Move a rule row — row order IS priority (first match wins under First/Priority). */
+export function moveRow(m: TableModel, from: number, to: number): TableModel {
+  if (to < 0 || to >= m.rows.length) return m;
+  return { ...m, rows: moved(m.rows, from, to) };
+}
+
+/** Move a condition column together with every row's cell for it. */
+export function moveInput(m: TableModel, from: number, to: number): TableModel {
+  if (to < 0 || to >= m.inputs.length) return m;
+  return {
+    ...m,
+    inputs: moved(m.inputs, from, to),
+    rows: m.rows.map((r) => ({ ...r, cells: moved(r.cells, from, to) })),
+  };
+}
+
+// ---- CSV export ----
+
+const csvEscape = (s: string) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+
+function cellText(cell: Cell | undefined, input: InputCol): string {
+  if (!cell || cell.any || !cell.operator || cell.operator === 'Any') return 'any';
+  const ops = operatorsFor(category(input.type));
+  const label = ops.find((o) => o.op === cell.operator)?.label ?? cell.operator;
+  const n = arity(category(input.type), cell.operator);
+  if (n === 0) return label;
+  const one = cell.valueField ? `[${cell.valueField}]` : (cell.valueLabel ?? cell.value ?? '');
+  if (n === 1) return `${label} ${one}`;
+  const two = cell.value2Field ? `[${cell.value2Field}]` : (cell.value2 ?? '');
+  return `${label} ${one} and ${two}`;
+}
+
+/** The whole table as CSV — headers are column labels, condition cells are readable text. */
+export function tableToCsv(m: TableModel): string {
+  const head = [
+    '#',
+    ...m.inputs.map((i) => i.label || i.field || '(column)'),
+    ...m.outputs.map((o) => o.name),
+    'reason codes',
+  ];
+  const lines = m.rows.map((r, ri) => [
+    String(ri + 1),
+    ...m.inputs.map((i, ci) => cellText(r.cells[ci], i)),
+    ...m.outputs.map((o) => r.outputs[o.name] ?? ''),
+    (r.reasonCodes ?? []).filter(Boolean).join(' | '),
+  ]);
+  return [head, ...lines].map((row) => row.map(csvEscape).join(',')).join('\n');
+}
+
 interface OpDef { op: string; label: string; arity: 0 | 1 | 2; }
 const OP = (op: string, label: string, arity: 0 | 1 | 2): OpDef => ({ op, label, arity });
 const ANY = OP('Any', '— any —', 0);

@@ -751,3 +751,14 @@ h1, h2, h3 { text-wrap: balance; }
 .tp-record { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font-size: 12px; color: var(--n-fg2); }
 .tp-record .rpick input { width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px; border: 1px solid var(--n-stroke-acc); border-radius: var(--radius); padding: 4px 7px; background: var(--n-bg1); color: var(--n-fg1); }
 .tp-record .rpick { display: flex; }
+
+/* Table ergonomics: column move arrows, table bar, CSV export */
+.dt2-col-move { display: inline-flex; flex: none; }
+.dt2-col-move button { background: transparent; border: 0; color: var(--n-fg3); cursor: pointer; font-size: 13px; padding: 2px 2px; }
+.dt2-col-move button:hover:not(:disabled) { color: var(--n-fg1); }
+.dt2-col-move button:disabled { opacity: .35; cursor: default; }
+.dt2-rowact button:disabled { opacity: .35; cursor: default; }
+.dt2-tablebar { display: flex; align-items: center; gap: 10px; }
+.dt2-export { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font: inherit; font-size: 12.5px;
+  color: var(--n-fg2); background: transparent; border: 1px dashed var(--n-stroke2); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+.dt2-export:hover { color: var(--n-fg1); border-style: solid; background: var(--n-bg1-hover); }

@@ -5,7 +5,7 @@ import {
 } from '../metadata/metadataService';
 import {
   type TableModel, type Row, type Cell, type AggFn, HIT_POLICIES, AGG_FNS,
-  operatorsFor, arity, category, newRow, colReady, inputName,
+  operatorsFor, arity, category, newRow, colReady, inputName, moveRow, moveInput, tableToCsv,
 } from './tableModel';
 import { RecordPicker } from './RecordPicker';
 
@@ -143,6 +143,15 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
   function removeOutput(oi: number) { const m = clone(value); const name = m.outputs[oi].name; m.outputs.splice(oi, 1); m.rows.forEach((r) => delete r.outputs[name]); set(m); }
   function setOutput(oi: number, patch: Partial<TableModel['outputs'][number]>) { const m = clone(value); m.outputs[oi] = { ...m.outputs[oi], ...patch }; set(m); }
   function addRow() { const m = clone(value); m.rows.push(newRow(m.inputs.length, m.outputs.length)); set(m); }
+  const shiftRow = (ri: number, delta: number) => set(moveRow(value, ri, ri + delta));
+  const shiftCol = (ci: number, delta: number) => set(moveInput(value, ci, ci + delta));
+  function exportCsv() {
+    const url = URL.createObjectURL(new Blob([tableToCsv(value)], { type: 'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${entity || 'rules'}-decision-table.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   function dupRow(ri: number) { const m = clone(value); m.rows.splice(ri + 1, 0, clone(m.rows[ri])); set(m); }
   function removeRow(ri: number) { const m = clone(value); m.rows.splice(ri, 1); set(m); }
   function setCell(ri: number, ci: number, patch: Partial<Cell>) { const m = clone(value); m.rows[ri].cells[ci] = { ...m.rows[ri].cells[ci], ...patch }; set(m); }
@@ -203,6 +212,10 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                         </select>
                       )}
                     </div>
+                    <span className="dt2-col-move">
+                      <button title="Move column left" disabled={ci === 0} onClick={() => shiftCol(ci, -1)}>‹</button>
+                      <button title="Move column right" disabled={ci === value.inputs.length - 1} onClick={() => shiftCol(ci, 1)}>›</button>
+                    </span>
                     <button className="dt2-col-x" title="Remove column" onClick={() => removeInput(ci)}>✕</button>
                   </div>
                   {col.agg && (
@@ -273,6 +286,8 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
                 </td>
                 <td className="dt2-gap" />
                 <td className="dt2-rowact">
+                  <button onClick={() => shiftRow(ri, -1)} disabled={ri === 0} title="Move up — earlier rows win first">↑</button>
+                  <button onClick={() => shiftRow(ri, 1)} disabled={ri === value.rows.length - 1} title="Move down">↓</button>
                   <button onClick={() => dupRow(ri)} title="Duplicate row">⧉</button>
                   <button onClick={() => removeRow(ri)} title="Delete row">✕</button>
                 </td>
@@ -280,7 +295,12 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
             ))}
           </tbody>
         </table>
-        <button className="dt2-addrow" onClick={addRow}><span>+</span> Add rule row</button>
+        <div className="dt2-tablebar">
+          <button className="dt2-addrow" onClick={addRow}><span>+</span> Add rule row</button>
+          {value.rows.length > 0 && (
+            <button className="dt2-export" onClick={exportCsv} title="Download this table as CSV">⤓ Export CSV</button>
+          )}
+        </div>
       </div>
     </div>
   );
