@@ -5,7 +5,6 @@ import { ViewStartNode } from './ViewStartNode';
 import { ViewEndNode } from './ViewEndNode';
 import { ViewDecisionNode } from './ViewDecisionNode';
 import { ExecStepNode } from './ExecStepNode';
-import { TechStepNode } from './TechStepNode';
 import { SwimlaneNode, SwimStepNode } from './SwimlaneNode';
 import { EditStepNode } from './EditStepNode';
 import { SimStepNode } from './SimStepNode';
@@ -31,9 +30,6 @@ export const nodeTypes: NodeTypes = {
 
   // Executive view
   execStep: ExecStepNode,
-
-  // Technical view
-  techStep: TechStepNode,
 
   // Technical (New) view
   techNewStep: TechNewStepNode,

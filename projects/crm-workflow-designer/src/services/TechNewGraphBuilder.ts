@@ -4,7 +4,22 @@ import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir, StepOutcomeRow } from './WorkflowGraphBuilder';
 import { conditionLabel } from './WorkflowGraphBuilder';
-import { computeTechStepHeight } from './TechnicalGraphBuilder';
+
+// Card height, inherited from the technical canvas this view replaced.
+const TECH_BASE_H = 90;
+const TECH_TASK_ROW_H = 18;
+const TECH_ENTITY_ROW_H = 18;
+const TECH_OUTCOME_ROW_H = 18;
+const TECH_DIVIDER_H = 10;
+const TECH_ALWAYS_H = 22;
+
+export function computeTechStepHeight(step: CrmStep, outcomeCount: number): number {
+  let h = TECH_BASE_H + TECH_ALWAYS_H;
+  if (step.taskSubject) h += TECH_TASK_ROW_H;
+  if (step.recordEntityName) h += TECH_ENTITY_ROW_H;
+  if (outcomeCount > 0) h += TECH_DIVIDER_H + outcomeCount * TECH_OUTCOME_ROW_H;
+  return h + 8;
+}
 
 // TB layout: steps in a vertical column, outcome pills branch to the right
 const STEP_W = 280;

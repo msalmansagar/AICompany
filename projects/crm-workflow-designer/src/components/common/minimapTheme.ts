@@ -15,7 +15,6 @@ const NODE_COLORS: Readonly<Record<string, string>> = {
   viewOutcome: 'var(--accent-route)',
   viewDecision: 'var(--accent-branch)',
   execStep: 'var(--primary)',
-  techStep: 'var(--primary)',
   techNewStep: 'var(--primary)',
   techNewOutcome: 'var(--accent-route)',
   swimlane: 'var(--lane-bg)',

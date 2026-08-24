@@ -6,10 +6,15 @@ import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
 interface ViewToolbarProps {
   processName: string | null;
+  /** 'draft' | 'published' | 'archived' — drawn as a pill beside the name. */
+  workflowState?: string | null;
   isLoading: boolean;
   isExporting: boolean;
   showMiniMap: boolean;
   showEdgeLabels: boolean;
+  /** True once a node has been dragged and the arrangement is unsaved. */
+  isLayoutDirty: boolean;
+  isSavingLayout: boolean;
   returnPathMode: ReturnPathMode;
   viewMode: ViewMode;
   layoutDir: LayoutDir;
@@ -18,6 +23,7 @@ interface ViewToolbarProps {
   onAutoLayout(): void;
   onToggleMiniMap(): void;
   onToggleEdgeLabels(): void;
+  onSaveLayout(): void;
   onCycleReturnPaths(): void;
   onDownloadPng(): void;
   onDownloadPdf(): void;
@@ -29,10 +35,13 @@ interface ViewToolbarProps {
 
 export function ViewToolbar({
   processName,
+  workflowState,
   isLoading,
   isExporting,
   showMiniMap,
   showEdgeLabels,
+  isLayoutDirty,
+  isSavingLayout,
   returnPathMode,
   viewMode,
   layoutDir,
@@ -41,6 +50,7 @@ export function ViewToolbar({
   onAutoLayout,
   onToggleMiniMap,
   onToggleEdgeLabels,
+  onSaveLayout,
   onCycleReturnPaths,
   onDownloadPng,
   onDownloadPdf,
@@ -99,6 +109,17 @@ export function ViewToolbar({
         >
           {showEdgeLabels ? 'Hide labels' : 'Labels'}
         </button>
+        {isLayoutDirty && (
+          <button
+            type="button"
+            className="cmd primary"
+            onClick={onSaveLayout}
+            disabled={isSavingLayout}
+            title="Keep this arrangement for everyone who opens this view"
+          >
+            {isSavingLayout ? 'Saving…' : '⌸ Save layout'}
+          </button>
+        )}
         <button
           type="button"
           className={returnPathMode === 'show' ? 'cmd' : 'cmd primary'}
@@ -110,7 +131,16 @@ export function ViewToolbar({
 
         <span className="cmd-spacer" />
         {isLoading && <span className="pill info">Loading…</span>}
-        {!isLoading && processName && <span style={processNameStyle}>{processName}</span>}
+        {!isLoading && processName && (
+          <>
+            {workflowState && (
+              <span className={workflowState === 'published' ? 'pill published' : 'pill draft'}>
+                {workflowState === 'published' ? 'Published' : workflowState === 'archived' ? 'Archived' : 'Draft'}
+              </span>
+            )}
+            <span style={processNameStyle}>{processName}</span>
+          </>
+        )}
       </div>
 
       {/* Row 2 — view mode selector + layout direction toggle */}

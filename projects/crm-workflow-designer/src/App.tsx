@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { parseDesignerLayout } from '@/services/designerLayout';
+import { parseDesignerState, withDesignerState } from '@/services/designerState';
 import { ReactFlowProvider } from '@xyflow/react';
 import { CrmEnvironmentService } from './services/CrmEnvironmentService';
 import { WorkflowDataService } from './services/WorkflowDataService';
@@ -146,7 +147,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const [destination, setDestination] = useState<NavDestination>('processes-all');
   const [search, setSearch] = useState('');
   const [sopResetToken, setSopResetToken] = useState(0);
-  const view = useWorkflowView(service);
+  const view = useWorkflowView(service, adapter);
   const loadWorkflow = useWorkflowStore((s) => s.loadWorkflow);
 
   // The sitemap owns which screen is showing, and stays visible everywhere —
@@ -203,10 +204,11 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
   const handleEditProcess = useCallback(async (processId: string) => {
     setLoadingMessage('Loading process for editing…');
     try {
-      const [process, steps, layoutJson] = await Promise.all([
+      const [process, steps, layoutJson, stateJson] = await Promise.all([
         adapter.getProcess(processId),
         adapter.getSteps(processId),
         adapter.loadDesignerLayout(processId).catch(() => null),
+        adapter.loadDesignerState(processId).catch(() => null),
       ]);
       const outcomeArrays = await Promise.all(steps.map((s) => adapter.getOutcomes(s.crmId)));
       const allOutcomes: WorkflowOutcome[] = outcomeArrays.flat();
@@ -217,7 +219,7 @@ function DesignerRoot({ service, adapter, isDevMode, host }: DesignerRootProps) 
 
       const layout = parseDesignerLayout(layoutJson);
       loadWorkflow(
-        process as WorkflowProcess,
+        withDesignerState(process as WorkflowProcess, parseDesignerState(stateJson)),
         steps as WorkflowStep[],
         allOutcomes,
         allRoutes,

@@ -1,5 +1,6 @@
 import type { ISopAdapter } from './ISopAdapter';
 import { DESIGNER_LAYOUT_SUBJECT } from './designerLayout';
+import { DESIGNER_STATE_SUBJECT } from './designerState';
 import { deriveProcessFromSop } from './deriveProcessFromSop';
 import type { CrmEnvironmentService } from './CrmEnvironmentService';
 import { assertGuid } from './assertGuid';
@@ -206,6 +207,45 @@ export class ODataAdapter implements ISopAdapter {
       notetext: layoutJson,
       [`objectid_qdb_work_item_record_type@odata.bind`]: `/${ENTITY_SETS.process}(${processId})`,
     });
+  }
+
+  async loadDesignerState(processId: string): Promise<string | null> {
+    assertGuid(processId, 'processId');
+    const data = await this.get<{ value: Array<{ notetext: string | null }> }>(
+      `annotations?$select=notetext&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1&$orderby=modifiedon desc`
+    );
+    return data.value[0]?.notetext ?? null;
+  }
+
+  async saveDesignerState(processId: string, stateJson: string): Promise<void> {
+    assertGuid(processId, 'processId');
+    const existing = await this.get<{ value: Array<{ annotationid: string }> }>(
+      `annotations?$select=annotationid&$filter=_objectid_value eq ${processId} and subject eq '${DESIGNER_STATE_SUBJECT}'&$top=1`
+    );
+    const found = existing.value[0];
+    if (found) {
+      await this.patch(`annotations(${found.annotationid})`, { notetext: stateJson });
+      return;
+    }
+    await this.post('annotations', {
+      subject: DESIGNER_STATE_SUBJECT,
+      notetext: stateJson,
+      [`objectid_qdb_work_item_record_type@odata.bind`]: `/${ENTITY_SETS.process}(${processId})`,
+    });
+  }
+
+  async loadAllDesignerStates(): Promise<Record<string, string>> {
+    const data = await this.get<{ value: Array<{ notetext: string | null; _objectid_value: string }> }>(
+      `annotations?$select=notetext,_objectid_value&$filter=subject eq '${DESIGNER_STATE_SUBJECT}'&$orderby=modifiedon desc`
+    );
+    const byProcess: Record<string, string> = {};
+    for (const note of data.value) {
+      // Ordered newest first, so the first entry per process wins.
+      if (note.notetext && !byProcess[note._objectid_value]) {
+        byProcess[note._objectid_value] = note.notetext;
+      }
+    }
+    return byProcess;
   }
 
   async updateProcess(id: string, data: Partial<Omit<WorkflowProcess, 'crmId'>>): Promise<void> {

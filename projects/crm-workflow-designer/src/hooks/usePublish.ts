@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { serializeDesignerState } from '@/services/designerState';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ValidationService } from '@/services/ValidationService';
@@ -66,6 +67,17 @@ export function usePublish(): UsePublishResult {
       const snapshot = versioningService.createSnapshot({ process, steps, outcomes, routes, nodePositions: {} });
 
       // Update process in CRM
+      // updateProcess only maps qdb_name, so these fields never reached CRM;
+      // the designer state annotation is what actually persists a publish.
+      await adapter.saveDesignerState(
+        process.crmId,
+        serializeDesignerState({
+          workflowState: 'published',
+          versionMajor: newVersion.versionMajor,
+          versionMinor: newVersion.versionMinor,
+          snapshot,
+        })
+      );
       await adapter.updateProcess(process.crmId, {
         versionMajor: newVersion.versionMajor,
         versionMinor: newVersion.versionMinor,

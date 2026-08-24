@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseDesignerLayout, serializeDesignerLayout } from './designerLayout';
+import { parseDesignerLayout, serializeDesignerLayout, mergeDesignerLayout } from './designerLayout';
 import { pathThroughPoint, pointOnPathThrough } from './edgeGeometry';
 
 describe('designer layout round trip', () => {
@@ -8,11 +8,13 @@ describe('designer layout round trip', () => {
       nodePositions: { step_a: { x: 10, y: 20 } },
       edgeAnchors: { outcome_b: { x: 5, y: 6 } },
       labelOffsets: { outcome_b: { dx: -4, dy: 9 } },
+      viewLayouts: { 'business:TB': { step_a: { x: 1, y: 2 } } },
     });
     const parsed = parseDesignerLayout(json);
     expect(parsed?.nodePositions.step_a).toEqual({ x: 10, y: 20 });
     expect(parsed?.edgeAnchors.outcome_b).toEqual({ x: 5, y: 6 });
     expect(parsed?.labelOffsets.outcome_b).toEqual({ dx: -4, dy: 9 });
+    expect(parsed?.viewLayouts['business:TB'].step_a).toEqual({ x: 1, y: 2 });
   });
 
   it('should_drop_malformed_entries_and_survive_junk', () => {
@@ -53,5 +55,27 @@ describe('pathThroughPoint', () => {
     expect(pointOnPathThrough(s, t, a, 0)).toEqual(s);
     expect(pointOnPathThrough(s, t, a, 1)).toEqual(t);
     expect(pathThroughPoint(s, t, a)).toContain('M 0,0 Q');
+  });
+});
+
+describe('mergeDesignerLayout', () => {
+  it('should_keep_the_half_it_is_not_writing', () => {
+    const editorBlob = serializeDesignerLayout({
+      nodePositions: { step_a: { x: 5, y: 6 } },
+      viewLayouts: { 'business:TB': { step_a: { x: 1, y: 1 } } },
+    });
+    // A view canvas saving its own arrangement must not erase editor positions.
+    const afterView = parseDesignerLayout(
+      mergeDesignerLayout(editorBlob, { viewLayouts: { 'swimlane:LR': { step_b: { x: 9, y: 9 } } } })
+    );
+    expect(afterView?.nodePositions.step_a).toEqual({ x: 5, y: 6 });
+    expect(afterView?.viewLayouts['swimlane:LR'].step_b).toEqual({ x: 9, y: 9 });
+
+    // And the editor saving must not erase the view arrangements.
+    const afterEditor = parseDesignerLayout(
+      mergeDesignerLayout(editorBlob, { nodePositions: { step_a: { x: 7, y: 8 } } })
+    );
+    expect(afterEditor?.nodePositions.step_a).toEqual({ x: 7, y: 8 });
+    expect(afterEditor?.viewLayouts['business:TB'].step_a).toEqual({ x: 1, y: 1 });
   });
 });
