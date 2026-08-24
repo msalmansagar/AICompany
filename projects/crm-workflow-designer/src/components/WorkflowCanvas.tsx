@@ -43,6 +43,7 @@ interface WorkflowCanvasProps {
   adapter: ICrmAdapter;
   onNewProcess: () => void;
   onEditProcess?: () => void;
+  onOpenSummary?: () => void;
   onBackToList?: () => void;
 }
 
@@ -81,7 +82,7 @@ function useMeasuredNodeIds(): string | null {
   });
 }
 
-export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onOpenSummary }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
@@ -340,6 +341,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
         onLayoutDirChange={view.setLayoutDir}
         onNewProcess={onNewProcess}
         onEditProcess={onEditProcess}
+        onOpenSummary={onOpenSummary}
       />
 
       <div style={bodyStyle}>
@@ -386,7 +388,11 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
           </ReactFlow>
         </div>
 
-        <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} adapter={adapter} />
+        {/* The panel appears only for a selection now; the process facts it
+            used to hold permanently live on the summary screen. */}
+        {view.selectedId && (
+          <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} adapter={adapter} />
+        )}
       </div>
 
       {selectorOpen && (

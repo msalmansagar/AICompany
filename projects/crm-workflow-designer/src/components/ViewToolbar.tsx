@@ -3,6 +3,7 @@ import type { ReturnPathMode } from '../services/viewFilters';
 import { RETURN_MODE_LABELS } from '../services/viewFilters';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
+import { ToolbarButton, ToolbarOverflow } from './common/ToolbarButton';
 
 interface ViewToolbarProps {
   processName: string | null;
@@ -17,7 +18,7 @@ interface ViewToolbarProps {
   isSavingLayout: boolean;
   returnPathMode: ReturnPathMode;
   viewMode: ViewMode;
-  layoutDir: LayoutDir;
+  layoutDir: LayoutDir;
   onRefresh(): void;
   onFitView(): void;
   onAutoLayout(): void;
@@ -30,7 +31,8 @@ interface ViewToolbarProps {
   onViewModeChange(mode: ViewMode): void;
   onLayoutDirChange(dir: LayoutDir): void;
   onNewProcess(): void;
-  onEditProcess?(): void;
+  onEditProcess?(): void;
+  onOpenSummary?(): void;
 }
 
 export function ViewToolbar({
@@ -44,7 +46,7 @@ export function ViewToolbar({
   isSavingLayout,
   returnPathMode,
   viewMode,
-  layoutDir,
+  layoutDir,
   onRefresh,
   onFitView,
   onAutoLayout,
@@ -57,78 +59,67 @@ export function ViewToolbar({
   onViewModeChange,
   onLayoutDirChange,
   onNewProcess,
-  onEditProcess,
+  onEditProcess,
+  onOpenSummary,
 }: ViewToolbarProps) {
   return (
     <>
       {/* Navigation lives in the sitemap, so this bar carries only what acts on
           the process being viewed. */}
       <div className="cmdbar" role="toolbar" aria-label="Workflow viewer">
-        <button type="button" className="cmd primary" onClick={onNewProcess} title="Create a new workflow process">
-          New process
-        </button>
+        <ToolbarButton icon="new" label="New" title="Create a new workflow process" tone="primary" onClick={onNewProcess} />
         {onEditProcess && processName && (
-          <>
-            <span className="cmd-sep" />
-            <button type="button" className="cmd" onClick={onEditProcess} title="Edit this workflow">
-              Edit
-            </button>
-          </>
+          <ToolbarButton icon="edit" label="Edit" title="Edit this workflow" onClick={onEditProcess} />
+        )}
+        {onOpenSummary && processName && (
+          <ToolbarButton icon="summary" label="Summary" title="Open the full process summary" onClick={onOpenSummary} />
         )}
         <span className="cmd-sep" />
-        <button type="button" className="cmd" onClick={onRefresh} title="Reload from CRM" disabled={isLoading}>
-          Refresh
-        </button>
-        <button type="button" className="cmd" onClick={onFitView} title="Fit diagram to screen">
-          Fit view
-        </button>
-        <button type="button" className="cmd" onClick={onAutoLayout} title="Re-apply layout and reset positions">
-          Auto layout
-        </button>
-        <span className="cmd-sep" />
-        <button type="button" className="cmd" onClick={onDownloadPng} title="Download as PNG image" disabled={isExporting}>
-          {isExporting ? 'Exporting…' : 'PNG'}
-        </button>
-        <button type="button" className="cmd" onClick={onDownloadPdf} title="Download as PDF document" disabled={isExporting}>
-          {isExporting ? 'Exporting…' : 'PDF'}
-        </button>
-        <span className="cmd-sep" />
-        <button
-          type="button"
-          className={showMiniMap ? 'cmd primary' : 'cmd'}
-          onClick={onToggleMiniMap}
-          title="Toggle minimap"
-        >
-          {showMiniMap ? 'Hide map' : 'Mini map'}
-        </button>
-        <button
-          type="button"
-          className={showEdgeLabels ? 'cmd' : 'cmd primary'}
-          onClick={onToggleEdgeLabels}
-          title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
-        >
-          {showEdgeLabels ? 'Hide labels' : 'Labels'}
-        </button>
-        {isLayoutDirty && (
-          <button
-            type="button"
-            className="cmd primary"
-            onClick={onSaveLayout}
-            disabled={isSavingLayout}
-            title="Keep this arrangement for everyone who opens this view"
-          >
-            {isSavingLayout ? 'Saving…' : '⌸ Save layout'}
-          </button>
-        )}
-        <button
-          type="button"
-          className={returnPathMode === 'show' ? 'cmd' : 'cmd primary'}
-          onClick={onCycleReturnPaths}
-          title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
-        >
-          {RETURN_MODE_LABELS[returnPathMode]}
-        </button>
 
+        {/* Canvas controls shrink to their glyph — the label lives in the tooltip. */}
+        <ToolbarButton icon="refresh" label="Reload from CRM" iconOnly disabled={isLoading} onClick={onRefresh} />
+        <ToolbarButton icon="fit" label="Fit diagram to screen" iconOnly onClick={onFitView} />
+        <ToolbarButton icon="layout" label="Re-apply layout and reset positions" iconOnly onClick={onAutoLayout} />
+        <span className="cmd-sep" />
+        <ToolbarButton
+          icon="minimap"
+          label={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+          iconOnly
+          active={showMiniMap}
+          onClick={onToggleMiniMap}
+        />
+        <ToolbarButton
+          icon="labels"
+          label={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+          iconOnly
+          active={!showEdgeLabels}
+          onClick={onToggleEdgeLabels}
+        />
+        <ToolbarButton
+          icon="returns"
+          label={RETURN_MODE_LABELS[returnPathMode]}
+          title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
+          iconOnly={returnPathMode === 'show'}
+          active={returnPathMode !== 'show'}
+          onClick={onCycleReturnPaths}
+        />
+        {isLayoutDirty && (
+          <ToolbarButton
+            icon="saveLayout"
+            label={isSavingLayout ? 'Saving…' : 'Save layout'}
+            title="Keep this arrangement for everyone who opens this view"
+            tone="primary"
+            disabled={isSavingLayout}
+            onClick={onSaveLayout}
+          />
+        )}
+        <ToolbarOverflow
+          label="Export"
+          items={[
+            { icon: 'png', label: isExporting ? 'Exporting…' : 'Download as PNG', onClick: onDownloadPng, disabled: isExporting },
+            { icon: 'pdf', label: isExporting ? 'Exporting…' : 'Download as PDF', onClick: onDownloadPdf, disabled: isExporting },
+          ]}
+        />
         <span className="cmd-spacer" />
         {isLoading && <span className="pill info">Loading…</span>}
         {!isLoading && processName && (

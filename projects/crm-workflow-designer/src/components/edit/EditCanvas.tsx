@@ -28,7 +28,6 @@ import { AutoSimPlaybackHUD } from './AutoSimPlaybackHUD';
 import { ValidationPanel } from './ValidationPanel';
 import { ValidationService } from '@/services/ValidationService';
 import { RoutePropertiesPanel } from './RoutePropertiesPanel';
-import { StepNavigatorPanel } from './StepNavigatorPanel';
 import { confirm } from '../ui/ConfirmDialog';
 import { notify } from '../ui/Notify';
 import { useDemoPlayback } from '@/hooks/useDemoPlayback';
@@ -47,9 +46,10 @@ const FIT_OPTIONS = { padding: 0.25, maxZoom: 1, duration: 300 } as const;
 interface EditCanvasProps {
   adapter: ICrmAdapter;
   onExitEdit: () => void;
+  onOpenSummary?: () => void;
 }
 
-export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
+export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasProps) {
   const [isEditingProperties, setEditingProperties] = useState(false);
 
   const {
@@ -226,6 +226,7 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
       <EditToolbar
         processName={processName}
         canDemo={canDemo || demo.isPlaying}
+        onOpenSummary={onOpenSummary}
         onDemo={demo.isPlaying ? demo.stop : demo.start}
         workflowState={process?.workflowState}
         isDirty={isDirty}
@@ -359,7 +360,9 @@ export function EditCanvas({ adapter, onExitEdit }: EditCanvasProps) {
           )}
         </div>
 
-        {!isSimulating && !isAutoSimulating && (
+        {/* The sidebar is for the selection. With nothing selected the canvas
+            gets the full width; the step list lives on the summary screen. */}
+        {!isSimulating && !isAutoSimulating && (showValidationPanel || propertiesPanel) && (
           <div className="editor-sidebar" style={sidebarStyle}>
             {showValidationPanel && (
               <ValidationPanel
@@ -390,7 +393,7 @@ function resolvePropertiesPanel(
   selectedId: string | null,
   adapter: ICrmAdapter
 ): ReactNode {
-  if (!selectedId) return <StepNavigatorPanel />;
+  if (!selectedId) return null;
 
   if (selectedId.startsWith('step_')) {
     const stepId = selectedId.replace('step_', '');
@@ -406,7 +409,7 @@ function resolvePropertiesPanel(
     return <RoutePropertiesPanel routeId={routeId} adapter={adapter} />;
   }
 
-  return <StepNavigatorPanel />;
+  return null;
 }
 
 const shellStyle: React.CSSProperties = {
