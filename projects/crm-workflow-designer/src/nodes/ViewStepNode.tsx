@@ -28,12 +28,16 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   const mainOutPos = isLR ? Position.Right : Position.Bottom;
   const backOutPos = isLR ? Position.Bottom : Position.Left;
   const backInPos = isLR ? Position.Top : Position.Left;
+  // Gateway entries leave from the side the gateway sits on, so the edge runs
+  // straight across instead of looping out of the bottom and doubling back.
+  const sideOutPos = isLR ? Position.Bottom : Position.Right;
 
   return (
     <div style={stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) })}>
       <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
       <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
       <Handle type="target" position={backInPos} id="back-in" style={backHandleStyle(isLR, 'in')} />
+      <Handle type="source" position={sideOutPos} id="side-out" style={stepHandleStyle('var(--warning)')} />
 
       <StepCardHeader
         sequenceNo={step.sequenceNo}

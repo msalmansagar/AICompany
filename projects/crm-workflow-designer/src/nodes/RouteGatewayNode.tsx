@@ -14,6 +14,7 @@ export function RouteGatewayNode({ data }: NodeProps) {
   return (
     <div style={wrapperStyle}>
       <Handle type="target" position={Position.Top} id="in" style={handleStyle} />
+      <Handle type="target" position={Position.Left} id="in-side" style={handleStyle} />
 
       <div style={buildDiamondStyle(d.isSelected)}>
         <svg width="52" height="52" viewBox="0 0 52 52">
@@ -37,6 +38,7 @@ export function RouteGatewayNode({ data }: NodeProps) {
       </div>
 
       <Handle type="source" position={Position.Bottom} id="out" style={handleStyle} />
+      <Handle type="source" position={Position.Right} id="out-side" style={handleStyle} />
     </div>
   );
 }

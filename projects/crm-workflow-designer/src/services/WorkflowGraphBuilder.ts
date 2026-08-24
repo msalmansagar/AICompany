@@ -206,8 +206,10 @@ export function buildGraph(
           id: `e_entry_${o.id}`,
           source: `step_${o.stepId}`,
           target: `gw_${o.id}`,
-          sourceHandle: 'out',
-          targetHandle: 'in',
+          // The gateway sits beside the card in TB — connect side to side, or
+          // the edge loops out of the bottom and doubles back up.
+          sourceHandle: dir === 'TB' ? 'side-out' : 'out',
+          targetHandle: dir === 'TB' ? 'in-side' : 'in',
           type: 'default',
           style: { stroke: 'var(--warning)', strokeWidth: 1.5, strokeDasharray: '5 3' },
           markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--warning)' },
@@ -217,7 +219,7 @@ export function buildGraph(
 
       // Gateway → each route destination
       for (const route of outcomeRoutes) {
-        const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
+        const targetId = route.nextStepId ? `step_${route.nextStepId}` : `end_stub_gw_${o.id}`;
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
@@ -227,7 +229,7 @@ export function buildGraph(
           id: `e_route_${route.id}`,
           source: `gw_${o.id}`,
           target: targetId,
-          sourceHandle: 'out',
+          sourceHandle: dir === 'TB' ? 'out-side' : 'out',
           targetHandle: 'in',
           type: 'default',
           animated: !isFallback,
@@ -299,27 +301,22 @@ export function buildGraph(
     .sort((a, b) => b.sequenceNo - a.sequenceNo)[0];
   const lastTerminalStepId = lastTerminalStep?.id ?? null;
 
-  // Every terminating step draws its END edge. These used to be transparent
-  // for all but the last terminal step (kept only to rank the layout), which
-  // showed a 'Terminating' card with no line to END — the canvas was lying
-  // about which steps can finish the process. The main path stays bold; the
-  // others are thin and dashed so many endings do not read as spaghetti.
-  const endEdges: Edge[] = [...terminalStepIds].map((stepId) => {
-    const isLast = stepId === lastTerminalStepId;
-    return {
-      id: `e_end_${stepId}`,
-      source: `step_${stepId}`,
-      target: END_NODE_ID,
-      sourceHandle: 'out',
-      targetHandle: 'in',
-      type: 'default',
-      style: isLast
-        ? { stroke: 'var(--error)', strokeWidth: 2 }
-        : { stroke: 'var(--error)', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.55 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
-      selectable: false,
-    };
-  });
+  // Only the main path runs to the global END. Every other terminating step
+  // ends at a LOCAL stub beside its own card (added after layout) — visible
+  // endings without canvas-length sweeps.
+  const endEdges: Edge[] = lastTerminalStepId
+    ? [{
+        id: `e_end_${lastTerminalStepId}`,
+        source: `step_${lastTerminalStepId}`,
+        target: END_NODE_ID,
+        sourceHandle: 'out',
+        targetHandle: 'in',
+        type: 'default',
+        style: { stroke: 'var(--error)', strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
+        selectable: false,
+      } as Edge]
+    : [];
 
   // A branch step has no outcome pointing at it - the engine creates its task from
   // the parent's. Without a synthesised edge it has nothing tying it to the parent,
@@ -339,7 +336,91 @@ export function buildGraph(
     positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, STEP_W);
   }
 
-  return { nodes: positionedNodes, edges: layoutEdges };
+  const withStubs = addLocalEndStubs(
+    positionedNodes,
+    layoutEdges,
+    terminalStepIds,
+    lastTerminalStepId,
+    dir
+  );
+  return withStubs;
+}
+
+/**
+ * A terminating branch ends where it is: each terminal step (other than the
+ * main path's) gets a small end marker beside its card, and a gateway whose
+ * routes terminate gets one beneath the diamond. BPMN draws an end event per
+ * branch for the same reason — endings should be visible without dragging a
+ * line across the whole canvas to one global END.
+ */
+function addLocalEndStubs(
+  nodes: Node[],
+  edges: Edge[],
+  terminalStepIds: Set<string>,
+  lastTerminalStepId: string | null,
+  dir: LayoutDir
+): { nodes: Node[]; edges: Edge[] } {
+  const STUB = 22;
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const stubNodes: Node[] = [];
+  const stubEdges: Edge[] = [];
+
+  const stub = (id: string, x: number, y: number): Node => ({
+    id,
+    type: 'viewEnd',
+    position: { x, y },
+    data: { layoutDir: dir, compact: true },
+    draggable: false,
+    selectable: false,
+  });
+
+  // Direct terminal steps (except the main path) end beside their card.
+  for (const stepId of terminalStepIds) {
+    if (stepId === lastTerminalStepId) continue;
+    const stepNode = nodeById.get(`step_${stepId}`);
+    if (!stepNode) continue;
+    const hasDirectEnd = edges.some(
+      (e) => e.source === `step_${stepId}` && e.id.startsWith('e_end_')
+    );
+    void hasDirectEnd;
+    const h = (stepNode.data as { nodeHeight?: number }).nodeHeight ?? 78;
+    const stubId = `end_stub_${stepId}`;
+    // Tucked under the card's left corner, tight enough to clear the next
+    // card in a 72px destination stack (36 + 22px stub < 72).
+    const x = dir === 'TB' ? stepNode.position.x + 10 : stepNode.position.x + STEP_W + 48;
+    const y = dir === 'TB' ? stepNode.position.y + h + 34 : stepNode.position.y + h + 24;
+    stubNodes.push(stub(stubId, x, y));
+    stubEdges.push({
+      id: `e_end_${stepId}`,
+      source: `step_${stepId}`,
+      target: stubId,
+      sourceHandle: 'out',
+      targetHandle: 'in',
+      type: 'default',
+      style: { stroke: 'var(--error)', strokeWidth: 1.5, strokeDasharray: '4 4', opacity: 0.7 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--error)' },
+      selectable: false,
+    });
+  }
+
+  // Gateways whose routes terminate: the stub hangs beneath the diamond, so
+  // the terminal route is as short as the ones that continue.
+  for (const edge of edges) {
+    if (typeof edge.target !== 'string' || !edge.target.startsWith('end_stub_gw_')) continue;
+    if (nodeById.has(edge.target) || stubNodes.some((n) => n.id === edge.target)) continue;
+    const gwNode = nodeById.get(edge.source);
+    if (!gwNode) continue;
+    const x = dir === 'TB' ? gwNode.position.x + GATEWAY_SIZE / 2 - STUB / 2 : gwNode.position.x + GATEWAY_SIZE / 2 - STUB / 2;
+    const y = gwNode.position.y + GATEWAY_SIZE + 56;
+    stubNodes.push(stub(edge.target, x, y));
+  }
+
+  // The rank-only end edges for non-main terminals are gone; drop any stale
+  // global-END edge that a stub now replaces.
+  const replaced = new Set(stubEdges.map((e) => e.id));
+  const keptEdges = edges.filter((e) => !replaced.has(e.id));
+
+  return { nodes: [...nodes, ...stubNodes], edges: [...keptEdges, ...stubEdges] };
 }
 
 
