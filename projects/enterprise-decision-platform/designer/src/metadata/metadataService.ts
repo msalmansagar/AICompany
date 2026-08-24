@@ -52,13 +52,21 @@ export function listAttributes(entity: string): Promise<AttributeMeta[]> {
   return pending;
 }
 
+// Multi-select picklists report AttributeType 'Virtual'; only AttributeTypeName tells them
+// apart from genuinely virtual columns, so they need a type of their own here.
+const isMultiSelect = (a: any) => a.AttributeTypeName?.Value === 'MultiSelectPicklistType';
+
 async function fetchAttributes(entity: string): Promise<AttributeMeta[]> {
   const d = await get<{ value: any[] }>(
-    `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType`
+    `/EntityDefinitions(LogicalName='${entity}')/Attributes?$select=LogicalName,DisplayName,AttributeType,AttributeTypeName`
   );
   return d.value
-    .filter((a) => a.AttributeType && a.AttributeType !== 'Virtual')
-    .map((a) => ({ logicalName: a.LogicalName as string, displayName: label(a.DisplayName, a.LogicalName), type: a.AttributeType as string }))
+    .filter((a) => a.AttributeType && (a.AttributeType !== 'Virtual' || isMultiSelect(a)))
+    .map((a) => ({
+      logicalName: a.LogicalName as string,
+      displayName: label(a.DisplayName, a.LogicalName),
+      type: isMultiSelect(a) ? 'MultiSelectPicklist' : (a.AttributeType as string),
+    }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
@@ -106,10 +114,11 @@ export async function listRelationships(entity: string): Promise<RelationshipMet
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
-/** Option-set members for a Picklist/State/Status attribute. */
-export async function listOptions(entity: string, attribute: string): Promise<OptionMeta[]> {
+/** Option-set members for a Picklist/State/Status/MultiSelectPicklist attribute. */
+export async function listOptions(entity: string, attribute: string, crmType?: string): Promise<OptionMeta[]> {
+  const cast = crmType === 'MultiSelectPicklist' ? 'MultiSelectPicklistAttributeMetadata' : 'PicklistAttributeMetadata';
   const path = `/EntityDefinitions(LogicalName='${entity}')/Attributes(LogicalName='${attribute}')`
-    + `/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet`;
+    + `/Microsoft.Dynamics.CRM.${cast}?$select=LogicalName&$expand=OptionSet`;
   try {
     const d = await get<any>(path);
     const opts = d?.OptionSet?.Options ?? [];

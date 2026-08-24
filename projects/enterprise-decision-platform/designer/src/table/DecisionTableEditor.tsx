@@ -59,8 +59,9 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
     value.inputs.forEach((i) => {
       const src = i.via?.entity ?? entity;
       const k = optKey(i.via?.entity, i.field);
-      if (category(i.type) === 'optionset' && i.field && !options[k] && src) {
-        listOptions(src, i.field).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
+      const cat = category(i.type);
+      if ((cat === 'optionset' || cat === 'multiselect') && i.field && !options[k] && src) {
+        listOptions(src, i.field, i.type).then((o) => setOptions((prev) => ({ ...prev, [k]: o }))).catch(() => {});
       }
     });
   }, [value.inputs, entity]); // eslint-disable-line
@@ -312,7 +313,7 @@ export function DecisionTableEditor({ entity, value, onChange }: { entity: strin
 
 function valueEditor(cat: string, opts: OptionMeta[] | undefined, val: string, onChange: (v: string) => void) {
   if (cat === 'boolean') return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option><option value="true">Yes</option><option value="false">No</option></select>;
-  if (cat === 'optionset' && opts?.length) return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
+  if ((cat === 'optionset' || cat === 'multiselect') && opts?.length) return <select value={val} onChange={(e) => onChange(e.target.value)}><option value="">—</option>{opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
   if (cat === 'number') return <input type="number" value={val} onChange={(e) => onChange(e.target.value)} placeholder="value" />;
   if (cat === 'date') return <input type="date" value={val} onChange={(e) => onChange(e.target.value)} />;
   return <input value={val} onChange={(e) => onChange(e.target.value)} placeholder="value" />;

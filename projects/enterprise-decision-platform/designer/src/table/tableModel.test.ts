@@ -16,6 +16,17 @@ describe('lookup category', () => {
   });
 });
 
+describe('multiselect category', () => {
+  it('should_categorise_multiselectpicklist_and_type_it_optionset', () => {
+    expect(category('MultiSelectPicklist')).toBe('multiselect');
+  });
+
+  it('should_offer_membership_operators', () => {
+    const ops = operatorsFor('multiselect').map((o) => o.op);
+    expect(ops).toEqual(['Any', 'Contains', 'NotContains', 'In', 'IsEmpty', 'IsNotEmpty']);
+  });
+});
+
 describe('lookup cell serialization', () => {
   it('should_emit_the_guid_and_never_the_display_label', () => {
     const model = emptyTable();

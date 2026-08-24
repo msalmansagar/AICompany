@@ -40,12 +40,13 @@ export function newRow(inputCount: number, outputCount: number): Row {
 }
 
 // CRM attribute type -> editor category
-export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' | 'lookup' {
+export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean' | 'optionset' | 'lookup' | 'multiselect' {
   switch (crmType) {
     case 'Integer': case 'BigInt': case 'Decimal': case 'Double': case 'Money': return 'number';
     case 'DateTime': return 'date';
     case 'Boolean': return 'boolean';
     case 'Picklist': case 'State': case 'Status': return 'optionset';
+    case 'MultiSelectPicklist': return 'multiselect';
     case 'Lookup': case 'Customer': case 'Owner': return 'lookup';
     default: return 'text';
   }
@@ -54,7 +55,7 @@ export function category(crmType: string): 'text' | 'number' | 'date' | 'boolean
 // PCRM output type from CRM category
 export function pcrmType(crmType: string): string {
   const c = category(crmType);
-  return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' ? 'OptionSet' : 'Text';
+  return c === 'number' ? 'Decimal' : c === 'date' ? 'DateTime' : c === 'boolean' ? 'Boolean' : c === 'optionset' || c === 'multiselect' ? 'OptionSet' : 'Text';
 }
 
 interface OpDef { op: string; label: string; arity: 0 | 1 | 2; }
@@ -67,6 +68,7 @@ export function operatorsFor(cat: string): OpDef[] {
     case 'date': return [ANY, OP('On', 'on', 1), OP('Before', 'before', 1), OP('After', 'after', 1), OP('OnOrBefore', 'on/before', 1), OP('OnOrAfter', 'on/after', 1), OP('Between', 'between', 2), OP('IsNull', 'is empty', 0)];
     case 'boolean': return [ANY, OP('Equals', '=', 1)];
     case 'lookup': return [ANY, OP('Equals', 'is', 1), OP('NotEquals', 'is not', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0)];
+    case 'multiselect': return [ANY, OP('Contains', 'includes', 1), OP('NotContains', 'does not include', 1), OP('In', 'includes any of (a,b,…)', 1), OP('IsEmpty', 'is empty', 0), OP('IsNotEmpty', 'has a value', 0)];
     case 'optionset': return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
     default: return [ANY, OP('Equals', '=', 1), OP('NotEquals', '≠', 1), OP('Contains', 'contains', 1), OP('StartsWith', 'starts with', 1), OP('EndsWith', 'ends with', 1), OP('In', 'in (a,b,…)', 1), OP('IsNull', 'is empty', 0)];
   }

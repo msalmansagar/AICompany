@@ -44,6 +44,34 @@ namespace EDP.RuleRuntime.Tests
             Assert.False(OperatorEvaluator.Evaluate("IsNotNull", null, null));
         }
 
+        [Fact] // EDP-DSN-002 S6 — a multi-select field's value is a collection
+        public void Contains_on_a_collection_left_is_membership_not_substring()
+        {
+            var selected = new List<object?> { 100000000m, 100000002m };
+            Assert.True(OperatorEvaluator.Evaluate("Contains", selected, 100000002m));
+            Assert.False(OperatorEvaluator.Evaluate("Contains", selected, 100000001m));
+            Assert.True(OperatorEvaluator.Evaluate("NotContains", selected, 100000001m));
+        }
+
+        [Fact] // EDP-DSN-002 S6
+        public void In_on_a_collection_left_means_overlap()
+        {
+            var selected = new List<object?> { 100000000m, 100000002m };
+            Assert.True(OperatorEvaluator.Evaluate("In", selected, "100000002,100000005"));
+            Assert.False(OperatorEvaluator.Evaluate("In", selected, "100000001,100000005"));
+            Assert.True(OperatorEvaluator.Evaluate("NotIn", selected, "100000001,100000005"));
+        }
+
+        [Fact] // EDP-DSN-002 S6
+        public void Empty_collection_is_empty_but_not_null()
+        {
+            var none = new List<object?>();
+            Assert.True(OperatorEvaluator.Evaluate("IsEmpty", none, null));
+            Assert.False(OperatorEvaluator.Evaluate("IsNotEmpty", none, null));
+            Assert.False(OperatorEvaluator.Evaluate("IsNull", none, null));
+            Assert.False(OperatorEvaluator.Evaluate("Contains", none, 1m));
+        }
+
         [Fact]
         public void IsNull_is_strict_and_distinct_from_IsEmpty() // QA-M1
         {
