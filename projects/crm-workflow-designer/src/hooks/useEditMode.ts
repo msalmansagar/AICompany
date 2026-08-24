@@ -1,4 +1,5 @@
 import { emptyWorkflowHooks, STEP_HOOKS, OUTCOME_HOOKS } from '@/services/workflowHooks';
+import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { BRANCH_EDGE_LABEL, routeLabelPair } from '@/styles/surfacePairs';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { MouseEvent } from 'react';
@@ -277,6 +278,9 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       const positions = computeEditLayout(stepOrder, outcomeList);
       setNodePositions(positions);
     }
+    // This first layout is the canvas arranging itself, not an edit — undoing
+    // into it would leave the user staring at coordinates they never chose.
+    clearUndoHistorySoon();
   }, [stepOrder, setNodePositions]);
 
   const handleAddStep = useCallback(() => {
