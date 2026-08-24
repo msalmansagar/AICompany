@@ -28,7 +28,12 @@
 | 9 | Table ergonomics: row reorder (priority is row order), column reorder, CSV export of rows | enhancement | ✅ done | `1bc2f747` | Pure model helpers + 4 unit tests (reorder keeps cells aligned, CSV readable + escaped); 84 green |
 | 10 | Delete robustness: `deleteRule` also removes the orphaned `qdb_edp_ruletest` record; ordered deletes with clear failure surfacing | enhancement | ✅ done | `07435930` | 2 unit tests (delete order incl. test suite; child failure leaves rule intact); 86 green |
 | 11 | Docs: related-entity depth limit documented; change note for this batch; follow-ups list (cascade delete config, paste-from-Excel) | docs | ✅ done | — | `change-note-edp-dsn-002.md` |
-| 12 | Wrap-up: full test + build, code review pass, push branch, open PR | release prep | in progress | — | — |
+| 12 | Wrap-up: full test + build, code review pass, push branch, open PR | release prep | ✅ done | — | **PR #123** open vs main. Designer 86 tests + build green; runtime 127 + 69 dotnet tests green. Review: delegated /code-review stalled 3× on infra (first run reviewed the wrong diff — stale local `main`); replaced with an inline verification pass — no blocking findings |
+
+## Not done in this batch (deliberate)
+
+- **Deployment**: the designer web resource in org5869857f still runs the pre-batch build. Deploying needs the web-resource build + upload (pac auth is revoked — use `node --env-file=scripts/.env` per RESUME-DFE-DESIGN convention) and should happen after PR review.
+- Cascade-delete schema config, CSV/Excel import, multi-value In editors — listed as follow-ups in the change note.
 
 ## Log
 
