@@ -1,5 +1,6 @@
 import type { ViewMode } from '../types/ViewMode';
 import type { ReturnPathMode } from '../services/viewFilters';
+import { RETURN_MODE_LABELS } from '../services/viewFilters';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 
@@ -104,7 +105,7 @@ export function ViewToolbar({
           onClick={onCycleReturnPaths}
           title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
         >
-          {RETURN_LABELS[returnPathMode]}
+          {RETURN_MODE_LABELS[returnPathMode]}
         </button>
 
         <span className="cmd-spacer" />
@@ -156,12 +157,6 @@ export function ViewToolbar({
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────
-
-const RETURN_LABELS: Record<ReturnPathMode, string> = {
-  show: 'Returns: on',
-  'hide-lines': 'Returns: lines off',
-  'hide-all': 'Returns: hidden',
-};
 
 const modeDescription: React.CSSProperties = {
   fontSize: 11,

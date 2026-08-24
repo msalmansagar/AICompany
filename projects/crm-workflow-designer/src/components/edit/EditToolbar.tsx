@@ -1,3 +1,6 @@
+import type { ReturnPathMode } from '@/services/viewFilters';
+import { RETURN_MODE_LABELS } from '@/services/viewFilters';
+
 interface EditToolbarProps {
   processName: string;
   /** Demo build is offered only on an empty, clean draft. */
@@ -14,9 +17,13 @@ interface EditToolbarProps {
   canSimStepBack: boolean;
   validationErrorCount: number;
   showMiniMap: boolean;
+  showEdgeLabels: boolean;
+  returnPathMode: ReturnPathMode;
   onAddStep: () => void;
   onReLayout: () => void;
   onToggleMiniMap: () => void;
+  onToggleEdgeLabels: () => void;
+  onCycleReturnPaths: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -47,9 +54,13 @@ export function EditToolbar({
   canSimStepBack,
   validationErrorCount,
   showMiniMap,
+  showEdgeLabels,
+  returnPathMode,
   onAddStep,
   onReLayout,
   onToggleMiniMap,
+  onToggleEdgeLabels,
+  onCycleReturnPaths,
   onSave,
   onPublish,
   onDiscard,
@@ -104,6 +115,22 @@ export function EditToolbar({
             title="Toggle minimap"
           >
             {showMiniMap ? 'Hide map' : 'Mini map'}
+          </button>
+          <button
+            type="button"
+            className={showEdgeLabels ? 'cmd' : 'cmd primary'}
+            onClick={onToggleEdgeLabels}
+            title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+          >
+            {showEdgeLabels ? 'Hide labels' : 'Labels'}
+          </button>
+          <button
+            type="button"
+            className={returnPathMode === 'show' ? 'cmd' : 'cmd primary'}
+            onClick={onCycleReturnPaths}
+            title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
+          >
+            {RETURN_MODE_LABELS[returnPathMode]}
           </button>
           <span className="cmd-sep" />
           <button

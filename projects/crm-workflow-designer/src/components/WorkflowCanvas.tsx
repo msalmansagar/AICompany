@@ -34,7 +34,7 @@ import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { CanvasLegend } from './common/CanvasLegend';
-import { applyReturnPathFilter, RETURN_PATH_MODES } from '../services/viewFilters';
+import { applyReturnPathFilter, nextReturnPathMode } from '../services/viewFilters';
 import type { ReturnPathMode } from '../services/viewFilters';
 
 interface WorkflowCanvasProps {
@@ -185,10 +185,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess }: W
   }, [view]);
 
   const handleCycleReturnPaths = useCallback(() => {
-    setReturnPathMode((mode) => {
-      const next = RETURN_PATH_MODES[(RETURN_PATH_MODES.indexOf(mode) + 1) % RETURN_PATH_MODES.length];
-      return next;
-    });
+    setReturnPathMode(nextReturnPathMode);
   }, []);
 
   // What the canvas actually draws, after the declutter filters.
