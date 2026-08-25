@@ -50,6 +50,13 @@ export function liftDeclaration(source, name) {
  * @param options.globals     ambient values the engine reads, as an object
  * @param options.smoke       called with the built api; should exercise it enough to surface
  *                            missing references. Throwing a ReferenceError drives the next lift.
+ *
+ *                            🔴 The resolver only lifts what it SEES RUN. A smoke call that renders
+ *                            an empty result never reaches the per-column or per-row helpers, and a
+ *                            smoke that renders one result shape never reaches the code for another
+ *                            — those surface later as a ReferenceError from inside a test, or from a
+ *                            different suite entirely when the engine is refactored. Exercise every
+ *                            path the suite depends on, with real columns and rows.
  */
 export function loadEngine(options) {
   const source = readFileSync(options.enginePath, 'utf8');

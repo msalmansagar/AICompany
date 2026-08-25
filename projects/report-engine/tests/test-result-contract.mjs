@@ -37,7 +37,13 @@ const { api } = loadEngine({
     $: () => host,
     NUMERIC: /^-?[\d.,]+$/
   },
-  smoke: built => built.renderGrid({ reportName: 'smoke', rowCount: 0, columns: [], rows: [] })
+  /* The smoke must exercise a column AND a row: the resolver only lifts what it sees run, so an
+     empty result left the per-column and per-row helpers unresolved until a real test hit them. */
+  smoke: built => built.renderGrid({
+    reportName: 'smoke', rowCount: 1,
+    columns: [{ alias: 'name', label: 'Name' }],
+    rows: [{ cells: { name: { value: null, text: 'x' } } }]
+  })
 });
 
 /** Runs the shipped renderGrid and returns the markup it put on the page. */

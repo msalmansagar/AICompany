@@ -798,6 +798,14 @@ function truncationChip(result){
 
 function renderResult(result){
   const layout = state.current.def.layout;
+
+  /* A designed layout describes ONE table — it binds to a single set of columns. A multi-dataset
+     result has no single set, so rendering it through the layout would read result.rowCount and
+     result.columns off a shape that has neither, and print "undefined rows" above an empty design.
+     Placing each block within a layout is MDS-FR-021's remaining half and is not built yet, so these
+     reports render as blocks. */
+  if (isMultiDataset(result)) { renderGrid(result); return; }
+
   const laidOut = renderLayout(result, layout);
 
   // Anything other than a plain table renders in its designed layout. The grid stays the fallback:
@@ -822,9 +830,7 @@ function renderResult(result){
 
 function renderGrid(result){
   const rels = (state.current.def.relationships||[]).filter(r => r.childKey && r.parentKey);
-  const cols = result.columns;
   const drillCol = rels.length ? rels[0] : null;
-  const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
   /* The grid is what most reports actually render through — the designed layouts are the exception —
      so the fonts chosen on the canvas have to be honoured here or they reach almost nobody. A result
      column names itself by alias at run time and by attribute in the design; the lookup carries both
@@ -834,22 +840,59 @@ function renderGrid(result){
     const css = fontCss(gridFont[c.alias] || gridFont[String(c.label || "").toLowerCase()]);
     return css ? ` style="${css}"` : "";
   };
-  const head = cols.map(c=>`<th${gridFontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
-  const rows = result.rows.map(row => {
-    const tds = cols.map(c => { const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text; const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!==""; return `<td class="${num?"num":""}"${gridFontOf(c)}>${esc(t)}</td>`; }).join("");
-    const key = hasKey ? (row.cells[drillCol.parentKey]||{}).text : null;
-    const drill = hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(drillCol))} ↗</button></td>` : "";
-    return `<tr>${tds}${drill}</tr>`;
-  }).join("");
-  $("#resultHost").innerHTML = `
-    <div class="meta-row"><span><b>${result.rowCount}</b> ${plural(result.rowCount, "row")}</span>${result.truncated?truncationChip(result):''}<span>${result.elapsedMs||0} ms</span></div>
-    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
+  /* A report with one dataset renders exactly the markup it always has (ADR-RPT-012 §2). Only a
+     report that declares a second one gets headed blocks, so nothing already deployed changes.
+
+     Drilldown stays on the root block (MDS-FR-025): a standalone dataset is not related to the
+     report's relationships, and offering the button there would follow a key its rows do not carry. */
+  const datasets = datasetsOf(result);
+  $("#resultHost").innerHTML = datasets.length > 1
+    ? datasets.map(d => datasetBlock(d, d.role === "root" ? drillCol : null, gridFontOf)).join("")
+    : datasetBody(datasets[0], drillCol, gridFontOf);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
   // The grid is the path most reports render through, so direction has to be applied here too —
   // putting it only in renderResult would leave it invisible for exactly the common case.
   applyReportDirection($("#resultHost"));
 }
+/* One dataset's meta row and table. This is the markup a report has always produced, kept in one
+   place now that more than one dataset can ask for it. */
+function datasetBody(dataset, drillCol, fontOf){
+  const cols = dataset.columns || [];
+  const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
+  const head = cols.map(c=>`<th${fontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
+  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey }, fontOf)).join("");
+  const empty = `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`;
+  return `
+    <div class="meta-row"><span><b>${dataset.rowCount}</b> ${plural(dataset.rowCount, "row")}</span>${dataset.truncated?truncationChip(dataset):''}<span>${dataset.elapsedMs||0} ms</span></div>
+    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||empty}</tbody></table></div>`;
+}
+
+function datasetRow(row, shape, fontOf){
+  const tds = shape.cols.map(c => {
+    const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
+    const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
+    return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
+  }).join("");
+  const key = shape.hasKey ? (row.cells[shape.drillCol.parentKey]||{}).text : null;
+  const drill = shape.hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(shape.drillCol))} ↗</button></td>` : "";
+  return `<tr>${tds}${drill}</tr>`;
+}
+
+/* A named block, for reports that declare more than one dataset (MDS-FR-021).
+
+   A FAILED dataset renders its reason instead of a table. Drawing it as an empty table would be
+   indistinguishable from a query that legitimately matched nothing — the same silence this feature
+   exists to remove, reintroduced at the last step. */
+function datasetBlock(dataset, drillCol, fontOf){
+  const body = dataset.status === "failed"
+    ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
+    : datasetBody(dataset, drillCol, fontOf);
+  return `<section class="dataset-block">
+    <div class="meta-row"><b>${esc(dataset.name || "Dataset")}</b></div>
+    ${body}</section>`;
+}
+
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
 // The child query is built and run by the plugin, not here — that is what keeps the drilldown
