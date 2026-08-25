@@ -378,6 +378,31 @@ const rootDatasetOf = result => datasetsOf(result)[0] || null;
 
 const isMultiDataset = result => datasetsOf(result).length > 1;
 
+/* Formulas and transformations run here rather than in the plugin (ADR-RPT-011), and they mutate a
+   table's columns and rows. A multi-dataset result has no columns of its own — its tables live under
+   `datasets` — so running the pipeline over the envelope threw "Cannot read properties of undefined
+   (reading 'push')" on the first formula, before anything rendered.
+
+   They apply to the ROOT dataset only. They are authored against the report's own columns, and a
+   standalone block has its own; evaluating them there would resolve every reference to nothing and
+   then graft the empty results on as new columns. Per-dataset formulas are not in ADD-002's scope.
+
+   A transformation may RETURN A NEW result rather than editing one in place, so the root is replaced
+   by whatever comes back instead of being assumed to have been mutated. */
+function applyReportPipeline(result, def){
+  const run = table => applyTransformations(applyFormulas(table, def.formulas), def.transformations);
+  if (!isMultiDataset(result)) return run(result);
+
+  const datasets = result.datasets.slice();
+  datasets[0] = Object.assign({}, datasets[0], run(datasets[0]));
+  return Object.assign({}, result, { datasets });
+}
+
+/* Datasets an export or chart cannot represent, so the user can be told rather than left to notice
+   a report arriving one table short (MDS-FR-023). */
+const omittedDatasetNames = result =>
+  datasetsOf(result).slice(1).map(d => d.name).filter(Boolean);
+
 async function openReport(id){
   state.view="run";
   const c=$("#content");
@@ -742,11 +767,12 @@ async function runReport(){
     // The plugin returns stored columns; computed ones are derived here, then shaped (ADR-RPT-011).
     // Transformations run last so they can format a formula's output too.
     const executed = await runReportInCrm(def.id, await collectParams());
-    const result = applyTransformations(applyFormulas(executed, def.formulas), def.transformations);
+    const result = applyReportPipeline(executed, def);
     result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
     renderResult(result);
-    toast(`${result.rowCount} row${result.rowCount===1?"":"s"} returned`, "success");
+    const root = rootDatasetOf(result) || { rowCount: 0 };
+    toast(`${root.rowCount} row${root.rowCount===1?"":"s"} returned`, "success");
   } catch(e){ host.innerHTML = errorState(e.message); toast(e.message,"error"); }
 }
 
@@ -850,7 +876,14 @@ function renderGrid(result){
     ? datasets.map(d => datasetBlock(d, d.role === "root" ? drillCol : null, gridFontOf)).join("")
     : datasetBody(datasets[0], drillCol, gridFontOf);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
-  applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
+     are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
+     the host by cell position — with several blocks on the page it would colour rows of unrelated
+     tables using the root's rules. Scoping it per block is still to build; wrong colours on real
+     data are worse than none. */
+  if (!isMultiDataset(result)) {
+    applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  }
   // The grid is the path most reports render through, so direction has to be applied here too —
   // putting it only in renderResult would leave it invisible for exactly the common case.
   applyReportDirection($("#resultHost"));
@@ -978,6 +1011,7 @@ async function exportReport(fmt){
     try {
       await format.run(result, exportBaseName());
       toast(`${format.label} downloaded`, "success");
+      warnAboutOmittedDatasets(result);
     } catch (error) {
       toast(error.message, "error");
     }
@@ -989,12 +1023,25 @@ const exportBaseName = () => {
   return String(def.reportCode || def.name || "report").replace(/[^\w.-]+/g, "_").slice(0, 80);
 };
 
-/** Header labels plus each row's display text — what the user sees is what they export. */
+/** Header labels plus each row's display text — what the user sees is what they export.
+ *
+ *  Every export format is single-table today, so a multi-dataset report exports its ROOT and the
+ *  caller announces what was left out (MDS-FR-023). Exporting one table out of three without saying
+ *  so is the failure this feature exists to remove; a sheet per dataset is still to build.
+ */
 function exportRows(result){
+  const table = rootDatasetOf(result) || result;
+  const cols = table.columns || [];
   return {
-    head: result.columns.map(c => c.label || c.alias),
-    body: result.rows.map(row => result.columns.map(c => (row.cells[c.alias] || {}).text ?? ""))
+    head: cols.map(c => c.label || c.alias),
+    body: (table.rows || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""))
   };
+}
+
+/** Tells the user which datasets an export could not carry, rather than shipping a short file. */
+function warnAboutOmittedDatasets(result){
+  const omitted = omittedDatasetNames(result);
+  if (omitted.length) toast(`Exported the main table only — not yet included: ${omitted.join(", ")}`, "error");
 }
 
 function saveBlob(blob, filename){
@@ -1221,9 +1268,12 @@ function clipToWidth(ctx, text, maxWidth){
 function chartReport(type){
   const result = state.current && state.current.result;
   const host = $("#chartHost");
-  if (!result || !result.rows.length) { toast("Run the report first.", "error"); return; }
+  // Charts read the root dataset: a chart plots one series from one table, and a multi-dataset
+  // result has no rows of its own to read.
+  const root = rootDatasetOf(result);
+  if (!root || !(root.rows || []).length) { toast("Run the report first.", "error"); return; }
 
-  const points = chartPoints(result);
+  const points = chartPoints(root);
   if (!points.length) { toast("No numeric column to chart.", "error"); return; }
 
   const body = (type === "pie") ? wDonut(points) : wBars(points);

@@ -6,9 +6,18 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { liftDeclaration } from './engine-harness.mjs';
+
 const PROTO = fileURLToPath(new URL('../prototype', import.meta.url));
 const html = readFileSync(`${PROTO}/report-engine-core.js`, 'utf8');
-const source = html.slice(html.indexOf('/* ---------------- exports ----------------'), html.indexOf('/* ---------------- identity ----------------'));
+const exportsSection = html.slice(html.indexOf('/* ---------------- exports ----------------'), html.indexOf('/* ---------------- identity ----------------'));
+
+/* The exporters read the result through the dataset normaliser, which lives outside this section.
+   Lifted from the engine rather than stubbed here: a stub would answer for code the browser never
+   runs, and the whole point of these suites is that they exercise the shipped path. */
+const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames']
+  .map(name => liftDeclaration(html, name)).join('\n');
+const source = `${normaliser}\n${exportsSection}`;
 
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => {
