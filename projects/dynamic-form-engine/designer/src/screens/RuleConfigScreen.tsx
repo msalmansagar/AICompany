@@ -568,7 +568,12 @@ export function RuleConfigScreen(): React.ReactElement {
     setLoadError(null);
     try {
       const svc = new BusinessRuleService(crmService.getWebApi());
-      const freshRules = await svc.listRulesForForm(form.id);
+      // A legacy rule names its fields by record id; the map turns those into codes so the
+      // editor shows field names rather than raw GUIDs.
+      const fieldIdToCode = new Map(
+        Object.values(fields).filter(f => f.code).map(f => [f.id, f.code]),
+      );
+      const freshRules = await svc.listRulesForForm(form.id, fieldIdToCode);
       const sorted = freshRules.sort((a, b) => a.sortOrder - b.sortOrder);
       setLocalRules(sorted);
       setSelectedRuleId(prev => {

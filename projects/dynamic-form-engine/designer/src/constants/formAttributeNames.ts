@@ -316,9 +316,15 @@ export const FORM_BUSINESS_RULE_ATTRS = {
   // are what a CRM view, a report or an admin opening the record sees — and they are real
   // lookups, so a deleted tab cannot leave a rule pointing at nothing.
   ACTION: 'qdb_action',
+  ACTION_VALUE: 'qdb_action_value',
+  CONDITIONS_LOGIC: 'qdb_conditions_logic',
   TARGET_FIELD_ID: 'qdb_target_field_id',
   TARGET_TAB_ID: 'qdb_target_tab_id',
   TARGET_SECTION_ID: 'qdb_target_section_id',
+  // Read forms of the lookups — writes use the bare name with @odata.bind.
+  TARGET_FIELD_ID_VALUE: '_qdb_target_field_id_value',
+  TARGET_TAB_ID_VALUE: '_qdb_target_tab_id_value',
+  TARGET_SECTION_ID_VALUE: '_qdb_target_section_id_value',
 } as const;
 
 /** qdb_action option values. Mirrors PicklistMapper.ToBusinessRuleAction in the plugin. */
@@ -333,6 +339,14 @@ export const BUSINESS_RULE_ACTION_VALUE: Record<string, number> = {
   clear_required: 100000008,
   set_value: 100000011,
 };
+
+/** qdb_action option value → designer action type, for importing a legacy rule. */
+export const BUSINESS_RULE_ACTION_TYPE: Record<number, string> = Object.fromEntries(
+  Object.entries(BUSINESS_RULE_ACTION_VALUE).map(([type, value]) => [value, type]),
+);
+
+/** qdb_conditions_logic: 100000001 is OR, everything else (including absent) is AND. */
+export const CONDITIONS_LOGIC_OR = 100000001;
 
 export const FORM_OPTION_VALUE_ATTRS = {
   ID: 'qdb_form_option_valueid',

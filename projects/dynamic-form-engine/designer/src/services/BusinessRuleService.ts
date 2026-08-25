@@ -1,9 +1,19 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
-import { FORM_BUSINESS_RULE_ATTRS, BUSINESS_RULE_ACTION_VALUE } from '@/constants/attributeNames';
+import {
+  FORM_BUSINESS_RULE_ATTRS,
+  BUSINESS_RULE_ACTION_VALUE,
+  BUSINESS_RULE_ACTION_TYPE,
+  CONDITIONS_LOGIC_OR,
+} from '@/constants/attributeNames';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
-import type { BusinessRuleDefinition } from '@/types/businessRule';
+import type {
+  BusinessRuleDefinition,
+  ConditionOperator,
+  RuleAction,
+  RuleActionType,
+} from '@/types/businessRule';
 import { withRetry } from './crmRetry';
 import { toDataversePriority, fromDataversePriority } from './priorityCodec';
 
@@ -80,6 +90,91 @@ function buildActionMirror(
   return mirror;
 }
 
+/** Maps a field's record id to its code — the reverse of FieldCodeToId, for legacy import. */
+export type FieldIdToCode = ReadonlyMap<string, string>;
+
+/** A legacy condition row as stored in qdb_conditions_json. */
+interface LegacyCondition {
+  fieldId?: string;
+  operator?: string;
+  value?: unknown;
+}
+
+/** True when the stored JSON is the designer's own object form rather than the legacy array. */
+function isDesignerDefinition(parsed: unknown): boolean {
+  return !!parsed
+    && typeof parsed === 'object'
+    && !Array.isArray(parsed)
+    && (parsed as Partial<BusinessRuleDefinition>).trigger_field_code !== undefined
+    && Array.isArray((parsed as Partial<BusinessRuleDefinition>).actions);
+}
+
+/**
+ * Rebuilds a designer definition from a legacy rule's structured columns.
+ *
+ * Loading a legacy rule used to produce a BLANK definition: normaliseDefinition saw a flat
+ * array with no trigger_field_code and no actions, so it returned its defaults — an empty
+ * trigger, one empty condition and a show_field aimed at nothing. The designer then showed a
+ * blank rule, and saving wrote that blank over the real one. Both the conditions and the
+ * action were lost, and the structured columns are now overwritten too, so nothing survived.
+ *
+ * Legacy conditions name a field by RECORD ID while designer conditions name it by CODE. An
+ * id that cannot be resolved is left in place as the code rather than replaced by a guess:
+ * lint rule L005 already reports an unknown field code, so it surfaces instead of silently
+ * pointing at the wrong field.
+ */
+function importLegacyRule(
+  record: Record<string, unknown>,
+  rawConditions: unknown,
+  fieldIdToCode?: FieldIdToCode,
+): BusinessRuleDefinition {
+  const legacyConditions: LegacyCondition[] = Array.isArray(rawConditions) ? rawConditions : [];
+
+  const conditions = legacyConditions.map(condition => {
+    const rawFieldId = condition.fieldId ?? '';
+    return {
+      field_code: fieldIdToCode?.get(rawFieldId) ?? rawFieldId,
+      operator: (condition.operator ?? 'equals') as ConditionOperator,
+      value: condition.value != null ? String(condition.value) : '',
+    };
+  });
+
+  const actionCode = record[FORM_BUSINESS_RULE_ATTRS.ACTION];
+  const actionType = actionCode != null
+    ? BUSINESS_RULE_ACTION_TYPE[Number(actionCode)]
+    : undefined;
+
+  const targetFieldId = record[FORM_BUSINESS_RULE_ATTRS.TARGET_FIELD_ID_VALUE];
+  const targetTabId = record[FORM_BUSINESS_RULE_ATTRS.TARGET_TAB_ID_VALUE];
+  const targetSectionId = record[FORM_BUSINESS_RULE_ATTRS.TARGET_SECTION_ID_VALUE];
+  const actionValue = record[FORM_BUSINESS_RULE_ATTRS.ACTION_VALUE];
+
+  const action: RuleAction = { action_type: (actionType ?? 'show_field') as RuleActionType };
+  if (targetTabId) action.target_tab_id = String(targetTabId);
+  else if (targetSectionId) action.target_section_id = String(targetSectionId);
+  else if (targetFieldId) {
+    action.target_field_code = fieldIdToCode?.get(String(targetFieldId)) ?? String(targetFieldId);
+  }
+  if (actionValue != null) action.value = String(actionValue);
+
+  return {
+    version: '1.0',
+    // The plugin attaches a rule to the field that TRIGGERS it, not the one it acts on.
+    trigger_field_code: conditions[0]?.field_code ?? '',
+    trigger_event: 'on_change',
+    condition_group: {
+      logical_operator:
+        Number(record[FORM_BUSINESS_RULE_ATTRS.CONDITIONS_LOGIC]) === CONDITIONS_LOGIC_OR
+          ? 'OR'
+          : 'AND',
+      conditions: conditions.length > 0
+        ? conditions
+        : [{ field_code: '', operator: 'equals' as ConditionOperator, value: '' }],
+    },
+    actions: [action],
+  };
+}
+
 export class BusinessRuleService {
   constructor(private readonly webApi: IWebApiAdapter) {}
 
@@ -125,7 +220,7 @@ export class BusinessRuleService {
     );
   }
 
-  async listRulesForForm(formId: string): Promise<DesignerBusinessRule[]> {
+  async listRulesForForm(formId: string, fieldIdToCode?: FieldIdToCode): Promise<DesignerBusinessRule[]> {
     assertGuid(formId, 'formId');
     const select = [
       FORM_BUSINESS_RULE_ATTRS.ID,
@@ -134,6 +229,12 @@ export class BusinessRuleService {
       FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION,
       FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE,
       FORM_BUSINESS_RULE_ATTRS.SORT_ORDER,
+      FORM_BUSINESS_RULE_ATTRS.ACTION,
+      FORM_BUSINESS_RULE_ATTRS.ACTION_VALUE,
+      FORM_BUSINESS_RULE_ATTRS.CONDITIONS_LOGIC,
+      FORM_BUSINESS_RULE_ATTRS.TARGET_FIELD_ID_VALUE,
+      FORM_BUSINESS_RULE_ATTRS.TARGET_TAB_ID_VALUE,
+      FORM_BUSINESS_RULE_ATTRS.TARGET_SECTION_ID_VALUE,
     ].join(',');
 
     const filter = `${FORM_BUSINESS_RULE_ATTRS.FORM_ID_VALUE} eq ${formId}`;
@@ -148,7 +249,7 @@ export class BusinessRuleService {
       'listRulesForForm'
     );
 
-    return result.entities.map(record => this.mapRecordToModel(record));
+    return result.entities.map(record => this.mapRecordToModel(record, fieldIdToCode));
   }
 
   async syncRules(
@@ -172,12 +273,17 @@ export class BusinessRuleService {
     }
   }
 
-  private mapRecordToModel(record: Record<string, unknown>): DesignerBusinessRule {
+  private mapRecordToModel(record: Record<string, unknown>, fieldIdToCode?: FieldIdToCode): DesignerBusinessRule {
     const rawDefinition = record[FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION];
     let definition: BusinessRuleDefinition;
     try {
-      const parsed = rawDefinition != null ? JSON.parse(String(rawDefinition)) : null;
-      definition = this.normaliseDefinition(parsed);
+      const parsed: unknown = rawDefinition != null ? JSON.parse(String(rawDefinition)) : null;
+      // A legacy rule stores a flat conditions array and keeps its action in the structured
+      // columns. Normalising that returns a BLANK rule, which the designer then saves over
+      // the real one — so it is rebuilt from those columns instead.
+      definition = isDesignerDefinition(parsed)
+        ? this.normaliseDefinition(parsed)
+        : importLegacyRule(record, parsed, fieldIdToCode);
     } catch {
       definition = this.normaliseDefinition(null);
     }

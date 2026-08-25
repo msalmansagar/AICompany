@@ -201,10 +201,9 @@ export function FormListScreen(): React.ReactElement {
       // loadForm below, not here: loadForm resets the concurrency store to clear state from a
       // previously opened form, which would wipe an etag stored at this point and leave every
       // save failing with MissingEtagError.
-      const [{ model: form, etag }, tabs, businessRules] = await Promise.all([
+      const [{ model: form, etag }, tabs] = await Promise.all([
         formService.getFormWithEtag(formId),
         tabService.listTabsForForm(formId),
-        businessRuleService.listRulesForForm(formId),
       ]);
 
       const sectionsArrays = await Promise.all(tabs.map(tab => sectionService.listSectionsForTab(tab.id)));
@@ -232,6 +231,12 @@ export function FormListScreen(): React.ReactElement {
           (field as typeof field & { _validationRules: DesignerValidationRule[] })._validationRules = validationRules;
         })
       );
+
+      // Business rules load AFTER the fields, not alongside them: a legacy rule names its
+      // fields by record id, and rebuilding it into the designer format needs the id → code
+      // map to show real field names instead of raw GUIDs.
+      const fieldIdToCode = new Map(fields.filter(f => f.code).map(f => [f.id, f.code]));
+      const businessRules = await businessRuleService.listRulesForForm(formId, fieldIdToCode);
 
       const allValidationRules = fields.flatMap(
         f => (f as typeof f & { _validationRules?: DesignerValidationRule[] })._validationRules ?? []
