@@ -2590,6 +2590,64 @@ function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
  * an empty mapping would name no table and the engine would fall back to the report's main entity,
  * which is the root's rows a second time.
  */
+/**
+ * Everything about this report's data sources that the engine will silently NOT do (MDS-FR-009).
+ *
+ * Each case below used to save cleanly and then not happen: the designer accepted the configuration,
+ * the engine ignored it, and nothing anywhere said so. Refusing the save is the only point at which
+ * the author is still looking at the thing that is wrong.
+ *
+ * Returns plain sentences, because they are shown to whoever has to fix them.
+ */
+function datasetProblems(report) {
+  const sources = (report && report.dataSources) || [];
+  if (!sources.length) return [];
+
+  const problems = [];
+  const primaries = sources.filter(source => source.primary);
+  if (!primaries.length) problems.push("No data source is marked Primary — the report has no main result set.");
+  if (primaries.length > 1) problems.push("More than one data source is marked Primary — only one can be the main result set.");
+
+  /* The engine reads the parent key off the root row by the alias the report returns it under, which
+     is the same expression reportToDefinition uses to name a column. */
+  const returned = ((report && report.columns) || [])
+    .map(column => column.sourceAlias || column.attribute || column.name)
+    .filter(Boolean);
+
+  sources.forEach((source, index) => {
+    if (source.primary) return;
+    const name = source.name || `Source ${index + 1}`;
+    problems.push(...sourceProblems(source, name, returned));
+  });
+
+  return problems;
+}
+
+function sourceProblems(source, name, returned) {
+  if (!isStandalone(source)) {
+    // Only the primary source's query is executed (SdkReportEngine reads ReportSourcePlan.Primary).
+    return String(source.query || "").trim()
+      ? [`"${name}" carries a query, but only the primary source's query is executed — make it Standalone, or move the query to the primary source.`]
+      : [];
+  }
+
+  const problems = [];
+  const entity = String(source.entity || "").trim();
+  const columns = String(source.columns || "").trim();
+  const childKey = String(source.joinFromKey || "").trim();
+  const parentKey = String(source.joinToKey || "").trim();
+
+  if (!entity) problems.push(`"${name}" is a standalone dataset but names no table — the engine would fall back to the report's main entity and show the main rows a second time.`);
+  if (!columns) problems.push(`"${name}" has no columns, so it would render as an empty table.`);
+  if (childKey && !parentKey) problems.push(`"${name}" has a child key but no parent key, so the engine cannot tell which record to scope it to.`);
+  if (parentKey && !childKey) problems.push(`"${name}" has a parent key but no child key, so the engine cannot tell which of its own columns points back.`);
+  if (parentKey && returned.length && returned.indexOf(parentKey) < 0) {
+    problems.push(`"${name}" is scoped by "${parentKey}", which the report does not return — add it as a column, or clear the keys to run the dataset unscoped.`);
+  }
+
+  return problems;
+}
+
 /** A stored block's table, for the tab's Entity box. Empty for the root, whose entity is the report's. */
 const blockEntityOf = ds =>
   ((ds.entityMappings || [])[0] || {}).entityLogicalName || "";
@@ -3561,6 +3619,15 @@ async function publishRibbonToCrm(report) {
  * nothing reads, and turns a destructive failure into a no-op.
  */
 async function saveReportToServer(report) {
+  /* Refuse rather than store a configuration the engine will ignore (MDS-FR-009). Saving it and
+     letting the report come back wrong at run time is what this designer used to do with the join
+     keys, and nothing anywhere said so. The Data Sources tab lists the same problems in full. */
+  const problems = datasetProblems(report);
+  if (problems.length) {
+    toast(problems.length === 1 ? problems[0] : `${problems[0]} (and ${problems.length - 1} more — see Data sources)`, "err");
+    return;
+  }
+
   const def = reportToDefinition(report);
   const isUpdate = !!report.savedId;
   beginBusy(isUpdate ? "Saving report…" : "Creating report…");
@@ -4516,6 +4583,14 @@ function tabDataSources(body, r) {
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:""}); renderTab(); }, "Add data source"));
   body.appendChild(card); bindInputs(card, r.dataSources);
+  /* The save refuses these, so they have to be readable somewhere the author can act on them. Shown
+     under the grid they belong to rather than only as a toast, which is gone before it is fixed. */
+  const problems = datasetProblems(r);
+  if (problems.length) {
+    card.appendChild(el(`<div class="info-banner" style="border-left-color:var(--error)">${ic("info")}
+      <div><b>This report cannot be saved yet.</b><ul style="margin:6px 0 0 16px">
+      ${problems.map(problem => `<li>${esc(problem)}</li>`).join("")}</ul></div></div>`));
+  }
   // A payload only means something to the read method it was written for. Carried across a change
   // it becomes a view name the engine reads as FetchXML, or the reverse — stored, wrong, and silent.
   card.querySelectorAll('select[data-k="type"]').forEach(select => select.addEventListener("change", () => {

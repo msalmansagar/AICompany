@@ -15,12 +15,12 @@ const html = readFileSync(DESIGNER, 'utf8');
 const NEEDED = [
   'COMPOSITIONS', 'compositionByLabel', 'compositionByCode', 'isStandalone', 'compositionCoded',
   'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockMappingsOf', 'dataSourcesOf',
-  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL'
+  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems'
 ];
 
 const api = new Function('newGuid', 'coded', `
   ${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-  return { dataSourcesOf, blockEntityOf, blockColumnsOf, isStandalone, compositionCoded };
+  return { dataSourcesOf, blockEntityOf, blockColumnsOf, isStandalone, compositionCoded, datasetProblems };
 `)(() => '00000000-0000-0000-0000-000000000000', (code, label) => code == null ? null : { code, label });
 
 let passed = 0, failed = 0;
@@ -120,6 +120,67 @@ console.log('composition is stored as a code, never as null');
   // back into a join.
   check('an unknown label falls back to Joined', api.compositionCoded('nonsense').code === 100000000);
   check('and so does an absent one', api.compositionCoded(undefined).code === 100000000);
+}
+
+// MDS-FR-009. The designer's job here is to refuse what the engine will silently not do. Every case
+// below is something that used to save cleanly and then quietly not happen at run time.
+console.log('\nthe designer refuses what the engine will not execute');
+
+const problemsFor = over => api.datasetProblems({
+  columns: [{ attribute: 'qdb_termsheetid' }, { attribute: 'qdb_name' }],
+  dataSources: [
+    { name: 'Termsheet', type: 'FetchXML', primary: true },
+    Object.assign({
+      name: 'Requested Facilities', type: 'FetchXML', primary: false, composition: 'Standalone',
+      entity: 'qdb_requestedfacility', columns: 'qdb_amount',
+      joinFromKey: 'qdb_termsheetid', joinToKey: 'qdb_termsheetid'
+    }, over)
+  ]
+});
+
+const complains = (over, about) => problemsFor(over).some(problem => problem.includes(about));
+
+{
+  check('a correctly configured block is accepted', problemsFor({}).length === 0, problemsFor({}).join(' | '));
+  check('a block naming no table is refused', complains({ entity: '' }, 'names no table'), problemsFor({ entity: '' }).join(' | '));
+  check('a block with no columns is refused', complains({ columns: '' }, 'no columns'));
+  check('a child key with no parent key is refused', complains({ joinToKey: '' }, 'parent key'));
+  check('a parent key with no child key is refused', complains({ joinFromKey: '' }, 'child key'));
+  // The engine fails this block at run time; catching it at save is the difference between a report
+  // that cannot be saved wrong and one that fails when someone runs it.
+  check('a parent key the report does not return is refused',
+    complains({ joinToKey: 'qdb_missing' }, 'does not return'), problemsFor({ joinToKey: 'qdb_missing' }).join(' | '));
+  check('and the reason names the column', complains({ joinToKey: 'qdb_missing' }, 'qdb_missing'));
+  check('the problem names the dataset', complains({ entity: '' }, 'Requested Facilities'));
+}
+
+{
+  // Only the primary source's query is executed — a payload on any other source is discarded in
+  // silence, which is exactly the class of defect this requirement exists to end.
+  const carriesQuery = api.datasetProblems({
+    columns: [],
+    dataSources: [
+      { name: 'Termsheet', type: 'FetchXML', primary: true },
+      { name: 'Second', type: 'CRM View', primary: false, composition: 'Joined', query: 'Active Accounts' }
+    ]
+  });
+  check('a joined source carrying a query is refused',
+    carriesQuery.some(p => p.includes('only the primary')), carriesQuery.join(' | '));
+}
+
+{
+  const none = api.datasetProblems({ columns: [], dataSources: [{ name: 'A', primary: false }] });
+  check('a report with no primary source is refused', none.some(p => p.includes('Primary')), none.join(' | '));
+  const two = api.datasetProblems({ columns: [], dataSources: [{ name: 'A', primary: true }, { name: 'B', primary: true }] });
+  check('two primary sources are refused', two.some(p => p.includes('Primary')), two.join(' | '));
+}
+
+{
+  // A report that predates all of this must still save.
+  check('an ordinary single-source report is accepted',
+    api.datasetProblems({ columns: [], dataSources: [{ name: 'Primary', type: 'FetchXML', primary: true }] }).length === 0);
+  check('and so is a report with no sources at all',
+    api.datasetProblems({ columns: [], dataSources: [] }).length === 0);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
