@@ -285,7 +285,10 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 MainEntityLogicalName = FirstMappedEntity(source) ?? definition.MainEntityLogicalName,
                 DataSources = new[] { source with { Composition = DatasetComposition.Joined } },
                 Filters = new List<ReportFilter>(),
-                Relationships = new List<ReportRelationship>()
+                Relationships = new List<ReportRelationship>(),
+                // The block's own cap where it has one (MDS-FR-008); the report's otherwise. A child
+                // list usually wants a different bound from the report it hangs off.
+                RowLimit = source.RowLimit ?? definition.RowLimit
             };
 
         private static string FirstMappedEntity(ReportDataSource source)

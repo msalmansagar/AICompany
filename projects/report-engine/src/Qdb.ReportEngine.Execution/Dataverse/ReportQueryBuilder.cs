@@ -344,7 +344,7 @@ public static class ReportQueryBuilder
     /// </summary>
     private static IEnumerable<ReportEntityMapping> RootMappings(ReportDefinition definition) =>
         definition.DataSources
-            .Where(d => !DatasetComposition.IsStandalone(d))
+            .Where(d => d.IsEnabled && !DatasetComposition.IsStandalone(d))
             .SelectMany(d => d.EntityMappings);
 }
 

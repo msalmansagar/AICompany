@@ -73,7 +73,11 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             var standalone = new List<ReportDataSource>();
             foreach (var source in definition.DataSources)
             {
-                if (source != primary && DatasetComposition.IsStandalone(source)) standalone.Add(source);
+                // A disabled dataset is kept but not executed (MDS-FR-007).
+                if (source != primary && source.IsEnabled && DatasetComposition.IsStandalone(source))
+                {
+                    standalone.Add(source);
+                }
             }
 
             standalone.Sort((left, right) => left.ExecutionOrder.CompareTo(right.ExecutionOrder));

@@ -69,6 +69,9 @@ public static class ReportDefinitionAssembler
             Composition = RowReader.Coded(row, "qdb_compositionmode")?.Label ?? DatasetComposition.Joined,
             JoinFromKey = RowReader.String(row, "qdb_joinfromkey"),
             JoinToKey = RowReader.String(row, "qdb_jointokey"),
+            // Absent means enabled — see RowReader.BoolOrDefault.
+            IsEnabled = RowReader.BoolOrDefault(row, "qdb_isenabled", true),
+            RowLimit = RowReader.Int(row, "qdb_rowlimit"),
             EntityMappings = mappingsByDataSource.TryGetValue(id, out var mappings) ? mappings : []
         };
     }

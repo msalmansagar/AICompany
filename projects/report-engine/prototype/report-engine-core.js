@@ -395,6 +395,21 @@ function applyReportPipeline(result, def){
 
   const datasets = result.datasets.slice();
   datasets[0] = Object.assign({}, datasets[0], run(datasets[0]));
+
+  /* Masking runs over EVERY dataset, not only the root (MDS-FR-024). It is a confidentiality
+     control rather than a presentation choice, and one that applies to the main table while leaving
+     the same column readable in a block below it would be worse than none at all — the author would
+     have every reason to believe the value was covered.
+
+     The other transformations stay on the root: they are authored against its columns, and grouping
+     or number formatting a block by them would act on columns it does not have. */
+  const masking = (def.transformations || []).filter(step => step.transformType === "Masking");
+  if (masking.length) {
+    for (let index = 1; index < datasets.length; index++) {
+      datasets[index] = Object.assign({}, datasets[index], applyTransformations(datasets[index], masking));
+    }
+  }
+
   return Object.assign({}, result, { datasets });
 }
 

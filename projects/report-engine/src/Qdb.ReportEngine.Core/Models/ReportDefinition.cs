@@ -162,6 +162,20 @@ public sealed record ReportDataSource
     /// </summary>
     public string? JoinToKey { get; init; }
 
+    /// <summary>
+    /// A disabled dataset is kept but not executed (MDS-FR-007), so an author can isolate a slow or
+    /// broken source without losing how it was configured.
+    ///
+    /// Absent means enabled: every source stored before the column existed must keep running.
+    /// </summary>
+    public bool IsEnabled { get; init; } = true;
+
+    /// <summary>
+    /// This dataset's own row cap (MDS-FR-008), or null to use the report's. A child block usually
+    /// wants a different bound from the report it hangs off.
+    /// </summary>
+    public int? RowLimit { get; init; }
+
     public IReadOnlyList<ReportEntityMapping> EntityMappings { get; init; } = [];
 }
 

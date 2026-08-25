@@ -112,5 +112,44 @@ console.log('\na report with no formulas is left alone');
   check('with no invented columns', aliases(out.datasets[0]).join(',') === 'revenue');
 }
 
+// MDS-FR-024. Masking is a confidentiality control, not a presentation choice. Applying it to the
+// main table while leaving the same column readable in a block below it would be worse than not
+// masking at all — the author would have every reason to believe the value was covered.
+console.log('\nmasking reaches every dataset, not only the root');
+
+const MASK_ACCOUNT = [{
+  transformType: 'Masking', stepOrder: 1,
+  configJson: JSON.stringify({ columns: ['account'], keepLast: 3, mask: '*' })
+}];
+
+const withAccountColumn = () => ({
+  reportId: 'r1', reportName: 'Portfolio review',
+  datasets: [
+    { id: 'r1', name: 'Root', role: 'root', status: 'ok',
+      columns: [{ alias: 'account', label: 'Account', isVisible: true }],
+      rows: [{ cells: { account: cell('ACC-1001') } }], rowCount: 1 },
+    { id: 'd2', name: 'Block', role: 'standalone', status: 'ok',
+      columns: [{ alias: 'account', label: 'Account', isVisible: true }],
+      rows: [{ cells: { account: cell('ACC-9999') } }], rowCount: 1 }
+  ]
+});
+
+{
+  const out = api.applyReportPipeline(withAccountColumn(), { formulas: [], transformations: MASK_ACCOUNT });
+  const [root, block] = out.datasets;
+  const textOf = table => table.rows[0].cells.account.text;
+  check('the root is masked', textOf(root) === '*****001', textOf(root));
+  check('and so is the block', textOf(block) === '*****999', textOf(block));
+}
+
+{
+  // The other transformations stay on the root: they are authored against its columns, and running
+  // them over a block would act on columns it does not have.
+  const grouping = [{ transformType: 'NumberFormat', stepOrder: 1, configJson: JSON.stringify({ columns: ['account'], decimals: 2 }) }];
+  const out = api.applyReportPipeline(withAccountColumn(), { formulas: [], transformations: grouping });
+  check('a non-masking transformation leaves the block alone',
+    out.datasets[1].rows[0].cells.account.text === 'ACC-9999', out.datasets[1].rows[0].cells.account.text);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

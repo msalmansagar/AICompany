@@ -2080,7 +2080,7 @@ function newDefinition(seed) {
     status: seed ? seed.status : "Draft", mainEntity: "",
     executionMode: "Auto", rowLimit: ENGINE_MAX_ROWS, timeout: 120, governed: seed ? seed.governed : false,
     version: seed ? seed.version : 1,
-    dataSources: [ { name:"Primary", type:"FetchXML", connector:"", query:"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"" } ],
+    dataSources: [ { name:"Primary", type:"FetchXML", connector:"", query:"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"", enabled:true, rowLimit:"" } ],
     columns: [],
     filters: [],
     parameters: [],
@@ -2569,6 +2569,9 @@ function dataSourcesOf(report, alias, rootEntity, columns, joinMappings) {
       composition: isPrimary ? "Joined" : (source.composition || "Joined"),
       joinFromKey: isPrimary ? null : (source.joinFromKey || null),
       joinToKey: isPrimary ? null : (source.joinToKey || null),
+      // The main result set cannot be switched off — a report with no root has nothing to show.
+      isEnabled: isPrimary ? true : source.enabled !== false,
+      rowLimit: isPrimary ? null : (parseInt(source.rowLimit, 10) || null),
       // The report's own columns and joins hang off the source the engine executes as the root. A
       // standalone block carries its OWN entity and columns instead — without them the engine has no
       // table to query and falls back to the report's main entity, returning the root's rows again
@@ -3113,6 +3116,8 @@ async function writeReportChildren(reportId, def, written = []) {
       qdb_compositionmode: codeOf(compositionCoded(source.composition)),
       qdb_joinfromkey: source.joinFromKey,
       qdb_jointokey: source.joinToKey,
+      qdb_isenabled: source.isEnabled,
+      qdb_rowlimit: source.rowLimit,
       // The connector a source reaches through. This was never written, so choosing one in the
       // designer looked like configuration and was discarded on save.
       ...connectorBinding(source.externalConnectorId),
@@ -3853,7 +3858,10 @@ function definitionToReport(def) {
       entity: blockEntityOf(ds),
       columns: blockColumnsOf(ds),
       joinFromKey: ds.joinFromKey || "",
-      joinToKey: ds.joinToKey || ""
+      joinToKey: ds.joinToKey || "",
+      // Absent means enabled, matching what the engine assumes.
+      enabled: ds.isEnabled !== false,
+      rowLimit: ds.rowLimit == null ? "" : String(ds.rowLimit)
     };
   });
   if (def.dataSources && def.dataSources.length === 0) report.dataSources = newDefinition(null).dataSources;
@@ -3919,7 +3927,7 @@ async function loadReportDefinition(id) {
     + "qdb_rowlimit,qdb_timeoutms,qdb_category,qdb_module,qdb_status,qdb_ispublished,qdb_currentversionnumber");
 
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
-    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload,qdb_executionorder,qdb_compositionmode,qdb_joinfromkey,qdb_jointokey,_qdb_externalconnectorid_value&$orderby=qdb_executionorder"),
+    dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload,qdb_executionorder,qdb_compositionmode,qdb_joinfromkey,qdb_jointokey,qdb_isenabled,qdb_rowlimit,_qdb_externalconnectorid_value&$orderby=qdb_executionorder"),
     dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
     dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity,qdb_defaultsource,qdb_paramtype&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
@@ -3967,6 +3975,8 @@ async function loadReportDefinition(id) {
       composition: source.qdb_compositionmode == null ? null : { code: source.qdb_compositionmode },
       joinFromKey: source.qdb_joinfromkey,
       joinToKey: source.qdb_jointokey,
+      isEnabled: source.qdb_isenabled !== false,
+      rowLimit: source.qdb_rowlimit,
       entityMappings
     });
   }
@@ -4575,7 +4585,7 @@ function appendJoinsSection(body, r) {
 function tabDataSources(body, r) {
   body.appendChild(el(`<div class="info-banner">${ic("info")}<div>The engine combines one or more sources. <b>V1</b> uses CRM-native sources (CRM View, FetchXML, QueryExpression, Web API) + static datasets. External sources (SQL, REST, Core Banking, MIS) arrive in V2/V3 via connectors. The <span class="kbd">IQueryStrategySelector</span> auto-routes each source past FetchXML limits.</div></div>`));
   const card = el(`<div class="section-card"><h3>Data sources</h3><div class="hint">Stored in <span class="kbd">qdb_reportdatasource</span>.</div></div>`);
-  const cols = [{t:"Name"},{t:"Source type"},{t:"Composition"},{t:"Entity"},{t:"Columns"},{t:"Connector"},{t:"Query"},{t:"Primary"},{t:"Parent key"},{t:"Child key"}];
+  const cols = [{t:"Name"},{t:"Source type"},{t:"Composition"},{t:"Entity"},{t:"Columns"},{t:"Connector"},{t:"Query"},{t:"Primary"},{t:"Parent key"},{t:"Child key"},{t:"Row limit"},{t:"On"}];
   /* Entity, Columns and the two keys only mean something for a standalone block, so a joined source
      shows a dash rather than an input that would be stored and never read — the "stored, not applied"
      shape this designer is trying to stop producing. */
@@ -4596,8 +4606,12 @@ function tabDataSources(body, r) {
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="primary" ${s.primary?"checked":""}></td>
     ${blockCell(s, i, "joinToKey", "qdb_termsheetid")}
     ${blockCell(s, i, "joinFromKey", "qdb_termsheetid")}
+    ${blockCell(s, i, "rowLimit", "report's")}
+    <td style="text-align:center">${s.primary
+      ? `<span style="color:var(--text-secondary)" title="The main result set cannot be switched off">—</span>`
+      : `<input type="checkbox" data-i="${i}" data-k="enabled" ${s.enabled === false ? "" : "checked"}>`}</td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
-  card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:""}); renderTab(); }, "Add data source"));
+  card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:"",enabled:true,rowLimit:""}); renderTab(); }, "Add data source"));
   body.appendChild(card); bindInputs(card, r.dataSources);
   /* The save refuses these, so they have to be readable somewhere the author can act on them. Shown
      under the grid they belong to rather than only as a toast, which is gone before it is fixed. */
@@ -5148,7 +5162,7 @@ const RAIL_PANELS = {
   dataSources: {
     title: "Data sources", hint: "Where the report reads from.",
     list: r => r.dataSources, label: s => s.name || "Source",
-    add: () => ({ name: "New source", type: "FetchXML", connector: "", query: "", primary: false, composition: "Joined", entity: "", columns: "", joinFromKey: "", joinToKey: "" }),
+    add: () => ({ name: "New source", type: "FetchXML", connector: "", query: "", primary: false, composition: "Joined", entity: "", columns: "", joinFromKey: "", joinToKey: "", enabled: true, rowLimit: "" }),
     fields: [
       { k: "name", label: "Name" },
       { k: "type", label: "Read via", options: () => SOURCE_TYPES },
@@ -7969,7 +7983,7 @@ function wizCreate() {
   const cat = draftColumnCatalogue(d);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
-    query:d.dataSourceQuery||"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"" }];
+    query:d.dataSourceQuery||"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"", enabled:true, rowLimit:"" }];
   def.columns = d.columns.map(a => {
     const m = cat.find(x => x.a === a);
     const source = columnSourceOf(m || { a }, d.mainEntity);

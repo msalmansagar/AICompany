@@ -171,6 +171,58 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         [Fact]
+        public void Standalone_SkipsADisabledDataset()
+        {
+            // MDS-FR-007: kept, but not executed — so an author can isolate a slow or broken source
+            // without losing how it was configured.
+            var definition = Report(
+                Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true),
+                Source("Overdue", DatasetComposition.Standalone, "task") with { IsEnabled = false });
+
+            Assert.Empty(ReportSourcePlan.Standalone(definition));
+        }
+
+        [Fact]
+        public void Standalone_RunsADatasetStoredBeforeTheFlagExisted()
+        {
+            // The column is absent on every row saved before this feature. Reading that as "disabled"
+            // would switch off every dataset in the organisation on the day it shipped.
+            var definition = Report(
+                Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true),
+                Source("Overdue", DatasetComposition.Standalone, "task"));
+
+            Assert.Single(ReportSourcePlan.Standalone(definition));
+        }
+
+        [Fact]
+        public void Execute_AppliesTheBlocksOwnRowLimit()
+        {
+            // MDS-FR-008: a child list usually wants a different bound from the report it hangs off.
+            var store = new FetchStore();
+            var definition = Report(
+                Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true),
+                Source("Overdue", DatasetComposition.Standalone, "task") with { RowLimit = 25 });
+
+            new SdkReportEngine(store).Execute(definition with { RowLimit = 500 }, new ReportExecutionRequest());
+
+            Assert.Contains(store.Queried, fetch => fetch.Contains("name=\"task\"") && fetch.Contains("top=\"25\""));
+            Assert.Contains(store.Queried, fetch => fetch.Contains("name=\"account\"") && fetch.Contains("top=\"500\""));
+        }
+
+        [Fact]
+        public void Execute_FallsBackToTheReportsRowLimitWhenTheBlockHasNone()
+        {
+            var store = new FetchStore();
+            var definition = Report(
+                Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true),
+                Source("Overdue", DatasetComposition.Standalone, "task"));
+
+            new SdkReportEngine(store).Execute(definition with { RowLimit = 500 }, new ReportExecutionRequest());
+
+            Assert.Contains(store.Queried, fetch => fetch.Contains("name=\"task\"") && fetch.Contains("top=\"500\""));
+        }
+
+        [Fact]
         public void Execute_LeavesStandaloneDatasetsEmptyForAnOrdinaryReport()
         {
             // The compatibility guarantee at the engine level: a report with one source must produce
