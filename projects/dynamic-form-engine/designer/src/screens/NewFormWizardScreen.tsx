@@ -19,9 +19,9 @@ import { SectionService } from '@/services/SectionService';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { THEME_ATTRS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import type {
-  DesignerFormModel,
   DesignerTabModel,
   DesignerSectionModel,
 } from '@/state/models/DesignerFormModel';
@@ -514,30 +514,31 @@ export function NewFormWizardScreen(): React.ReactElement {
       // Step 3: Submission mappings are configured per-field in the Submission Mapping screen.
       // No auto-created blank mapping here — the old stub produced invalid CRM records.
 
-      // Step 4: Build the form model and load into designer with real IDs
-      const newForm: DesignerFormModel = {
-        id: newFormId,
-        name: wizardState.name.trim(),
-        code: wizardState.code.trim(),
-        description: wizardState.description.trim(),
-        entityLogicalName: wizardState.entityLogicalName.trim(),
-        status: 'draft',
-        currentVersion: '1',
-        themeId: wizardState.themeId,
-        allowSaveDraft: true,
-        draftExpiryDays: null,
-        showSummaryStep: false,
-        powerAutomateFlowId: null,
-        confirmationMessage: null,
-        confirmationRecordRefAttribute: null,
-        accessGroupId: null,
-        createdBy: crmService.getUserContext().userFullName,
-        createdOn: new Date(),
-        modifiedBy: crmService.getUserContext().userFullName,
-        modifiedOn: new Date(),
-      };
+      // Step 4: Read the record back rather than assembling the model from wizard input.
+      //
+      // The etag is the point. Every save PATCHes the form header conditionally and throws
+      // MissingEtagError without one, so a form created here could not be saved at all until
+      // the maker left the designer and re-opened it from the list. Worse, the save is not
+      // atomic — the header PATCH runs last, so tabs, sections and fields were already
+      // written by the time it failed, and the banner still read "Save failed".
+      //
+      // Reading back also means the model matches what Dataverse actually stored (defaults,
+      // timestamps, the real created-by) instead of what the wizard guessed.
+      const { model: newForm, etag } = await formService.getFormWithEtag(newFormId);
+
+      // entityLogicalName is not a Dataverse column — it lives in the store only, so the
+      // wizard's value has to be carried across the read-back.
+      newForm.entityLogicalName = wizardState.entityLogicalName.trim();
+      newForm.themeId = wizardState.themeId;
 
       loadForm({ form: newForm, tabs: createdTabs, sections: createdSections, fields: [], validationRules: [], businessRules: [], designPayload: DEFAULT_DESIGN_PAYLOAD });
+
+      // After loadForm, which resets the concurrency store — the same ordering the form list
+      // relies on. Keyed on form.id so it matches the lookup in DesignerScreen.
+      if (etag) {
+        useConcurrencyStore.getState().setRecordEtag(newForm.id, etag);
+      }
+
       navigateTo('designer');
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Failed to create form. Please try again.');
