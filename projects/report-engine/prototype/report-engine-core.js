@@ -1300,7 +1300,7 @@ async function exportPng(result, baseName){
     if (drawn.length > 1) top = drawPngSubtitle(ctx, table.name, width, rtl, top);
     top = table.status === "failed"
       ? drawPngFailure(ctx, table, width, rtl, top)
-      : drawPngTable(ctx, table, width, rtl, top);
+      : drawPngTable(ctx, table, rtl, top);
   }
 
   const blob = await new Promise(resolve => ctx.canvas.toBlob(resolve, "image/png"));
@@ -1335,9 +1335,9 @@ function drawPngFailure(ctx, table, width, rtl, top){
   return top + PNG_ROW_HEIGHT + PNG_BLOCK_GAP;
 }
 
-function drawPngTable(ctx, table, width, rtl, top){
-  drawPngHead(ctx, table.head, table.widths, width, rtl, top);
-  const end = drawPngBody(ctx, table.body, table.widths, width, rtl, top + PNG_HEADER_HEIGHT);
+function drawPngTable(ctx, table, rtl, top){
+  drawPngHead(ctx, table.head, table.widths, rtl, top);
+  const end = drawPngBody(ctx, table.body, table.widths, rtl, top + PNG_HEADER_HEIGHT);
   return end + PNG_BLOCK_GAP;
 }
 
@@ -1390,21 +1390,26 @@ function drawPngTitle(ctx, width, rtl){
     rtl ? width - PNG_PADDING : PNG_PADDING, PNG_PADDING + 14);
 }
 
-function drawPngHead(ctx, head, widths, width, rtl, top){
+/* The bar and the stripes are as wide as THIS table's columns, not as the image. The canvas is sized
+   for the widest dataset, so filling to its edge painted a band of colour past the last cell of every
+   narrower one — which reads as a broken export rather than as a narrow table. */
+const tableWidth = widths => widths.reduce((a, b) => a + b, 0);
+
+function drawPngHead(ctx, head, widths, rtl, top){
   ctx.fillStyle = "#0078d4";
-  ctx.fillRect(PNG_PADDING, top, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
+  ctx.fillRect(PNG_PADDING, top, tableWidth(widths), PNG_HEADER_HEIGHT);
   ctx.fillStyle = "#ffffff";
   ctx.font = PNG_HEAD_FONT;
   head.forEach((label, i) => drawCellText(ctx, label, widths, i, top + 22, rtl));
 }
 
 /** Draws the rows from `top` and returns the y it finished at, so the next block knows where to go. */
-function drawPngBody(ctx, body, widths, width, rtl, top){
+function drawPngBody(ctx, body, widths, rtl, top){
   ctx.font = PNG_BODY_FONT;
   let y = top;
   body.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#f7f7f7" : "#ffffff";
-    ctx.fillRect(PNG_PADDING, y, width - PNG_PADDING * 2, PNG_ROW_HEIGHT);
+    ctx.fillRect(PNG_PADDING, y, tableWidth(widths), PNG_ROW_HEIGHT);
     ctx.fillStyle = "#201f1e";
     row.forEach((cell, i) => drawCellText(ctx, cell, widths, i, y + 18, rtl));
     y += PNG_ROW_HEIGHT;

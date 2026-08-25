@@ -42,13 +42,21 @@ globalThis.document = {
   createElement: tag => tag === 'canvas' ? makeCanvas() : { style:{}, set href(v){}, set download(v){ this._n = v; }, click(){}, remove(){} },
   body: { appendChild(el){ saved.push(el); }, }
 };
+/* Every drawing operation, so the PNG's LAYOUT can be checked without a real canvas. The old stub
+   swallowed each call and returned fixed magic bytes, so "the PNG is valid" was true of any PNG at
+   all — including one whose second table was drawn off the bottom of the image. */
+let painted = [];
+
 function makeCanvas(){
   const canvas = { width:0, height:0,
     toBlob: cb => cb(new globalThis.Blob([new Uint8Array([0x89,0x50,0x4e,0x47])], { type:'image/png' })) };
   // A real 2D context carries a back-reference to its canvas, and the PNG exporter uses it
   // (ctx.canvas.toBlob). A stub without it fails on code that is correct in a browser.
   canvas.getContext = () => ({
-    canvas, scale(){}, fillRect(){}, fillText(){},
+    canvas,
+    scale(){},
+    fillRect: (x, y, w, h) => painted.push({ op:'rect', x, y, w, h, canvas }),
+    fillText: (text, x, y) => painted.push({ op:'text', text, x, y, canvas }),
     measureText: t => ({ width: String(t).length * 7 }),
     set fillStyle(v){}, set font(v){}, set textAlign(v){}, set direction(v){}
   });
@@ -204,6 +212,52 @@ downloads.length = 0; await api.exportCsv(multi, 'termsheet');
   const text = bytesOf(downloads[0].blob).toString('utf8');
   check('it holds the root', text.includes('QNB'));
   check('and not the blocks', !text.includes('Term Loan'), text.slice(0, 120));
+}
+
+console.log('\nmulti-dataset — PNG layout, not just a valid file');
+{
+  painted = [];
+  await api.exportPng(multi, 'termsheet');
+  // The canvas the exporter drew on is the one it took a 2D context from; the measuring canvas
+  // never draws, so anything recorded belongs to the image.
+  const target = painted[0].canvas;
+  const scale = 2;                                     // PNG_SCALE — the canvas is sized at 2x
+  const height = target.height / scale;
+  const width = target.width / scale;
+
+  const lowest = painted.reduce((max, op) => Math.max(max, op.op === 'rect' ? op.y + op.h : op.y), 0);
+  const widest = painted.reduce((max, op) => Math.max(max, op.op === 'rect' ? op.x + op.w : op.x), 0);
+  check('nothing is drawn below the image', lowest <= height, `lowest ${lowest} vs height ${height}`);
+  check('nothing is drawn past the right edge', widest <= width, `widest ${widest} vs width ${width}`);
+  check('the image is not mostly empty', lowest > height * 0.6, `content ends at ${lowest} of ${height}`);
+
+  const texts = painted.filter(op => op.op === 'text').map(op => String(op.text));
+  check('every dataset title is drawn',
+    ['Termsheet', 'Requested Facilities', 'Termsheet Conditions'].every(name => texts.includes(name)),
+    texts.join(' | '));
+  check('every dataset\'s rows are drawn',
+    ['QNB', 'Term Loan', 'Overdraft', 'DSR >= 1.25x'].every(value => texts.includes(value)),
+    texts.join(' | '));
+
+  // Each table must occupy its own vertical band; overlapping bands mean one was drawn on top of
+  // another, which is what a stacked layout gets wrong when the cursor is not carried forward.
+  /* The bar behind a table's header must be as wide as that table's columns, not as the image. The
+     canvas is sized for the WIDEST dataset, so filling to its edge painted a band of colour past the
+     last cell of every narrower table — a valid PNG that looks broken. */
+  const bars = painted.filter(op => op.op === 'rect' && op.h === 34);   // PNG_HEADER_HEIGHT
+  check('a header bar is drawn per dataset', bars.length === 3, String(bars.length));
+  check('no header bar runs to the image edge',
+    bars.every(bar => bar.x + bar.w <= width - 6), bars.map(b => `${b.x}+${b.w} of ${width}`).join(' | '));
+  check('the bars are not all the same width — each matches its own table',
+    new Set(bars.map(bar => bar.w)).size > 1, bars.map(b => b.w).join(','));
+
+  const yOf = label => (painted.find(op => op.op === 'text' && op.text === label) || {}).y;
+  check('the blocks are stacked in order',
+    yOf('Termsheet') < yOf('Requested Facilities') && yOf('Requested Facilities') < yOf('Termsheet Conditions'),
+    `${yOf('Termsheet')} / ${yOf('Requested Facilities')} / ${yOf('Termsheet Conditions')}`);
+  check('rows sit under their own title',
+    yOf('Term Loan') > yOf('Requested Facilities') && yOf('Term Loan') < yOf('Termsheet Conditions'),
+    `${yOf('Requested Facilities')} < ${yOf('Term Loan')} < ${yOf('Termsheet Conditions')}`);
 }
 
 console.log('\nmenu');
