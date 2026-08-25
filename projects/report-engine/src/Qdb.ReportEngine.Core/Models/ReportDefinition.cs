@@ -136,7 +136,30 @@ public sealed record ReportDataSource
     /// </summary>
     public string? QueryPayload { get; init; }
 
+    /// <summary>
+    /// Whether this source merges into the root result set or renders as its own block (MDS-FR-002).
+    /// One of <see cref="DatasetComposition"/>.
+    ///
+    /// Absent means <see cref="DatasetComposition.Joined"/>, which is what the engine has always done
+    /// — every source's mappings were flattened into one query. Existing reports therefore behave
+    /// identically without being migrated.
+    /// </summary>
+    public string Composition { get; init; } = DatasetComposition.Joined;
+
     public IReadOnlyList<ReportEntityMapping> EntityMappings { get; init; } = [];
+}
+
+/// <summary>How a data source composes into its report's output (MDS-FR-002, ADR-RPT-012 §3).</summary>
+public static class DatasetComposition
+{
+    /// <summary>Merged into the root result set on a key. The default, and the historical behaviour.</summary>
+    public const string Joined = "joined";
+
+    /// <summary>Rendered as its own block, with its own columns and rows.</summary>
+    public const string Standalone = "standalone";
+
+    public static bool IsStandalone(ReportDataSource? source) =>
+        string.Equals(source?.Composition, Standalone, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>An entity mapped inside a data source (qdb_reportentitymapping) and its columns.</summary>

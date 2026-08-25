@@ -61,6 +61,25 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             }
         }
 
+        /// <summary>
+        /// The sources that render as their own block, in execution order (MDS-FR-004, MDS-FR-006).
+        ///
+        /// The primary source is never one of them: it is the root, and a report whose root rendered
+        /// as a detached block would have no main result at all.
+        /// </summary>
+        public static IReadOnlyList<ReportDataSource> Standalone(ReportDefinition definition)
+        {
+            var primary = Primary(definition);
+            var standalone = new List<ReportDataSource>();
+            foreach (var source in definition.DataSources)
+            {
+                if (source != primary && DatasetComposition.IsStandalone(source)) standalone.Add(source);
+            }
+
+            standalone.Sort((left, right) => left.ExecutionOrder.CompareTo(right.ExecutionOrder));
+            return standalone;
+        }
+
         public static bool IsStaticDataset(ReportDataSource source) =>
             string.Equals(source?.SourceType?.Label, StaticDataset, StringComparison.OrdinalIgnoreCase);
 

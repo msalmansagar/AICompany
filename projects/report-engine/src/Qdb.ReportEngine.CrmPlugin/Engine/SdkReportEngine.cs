@@ -91,7 +91,12 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             var source = ReportSourcePlan.Primary(definition);
             if (ReportSourcePlan.IsStaticDataset(source))
             {
-                return StaticResult(definition, source);
+                // A static root still carries its report's other blocks; returning early here would
+                // drop every one of them silently.
+                return StaticResult(definition, source) with
+                {
+                    StandaloneDatasets = ExecuteStandaloneDatasets(definition, request)
+                };
             }
 
             var query = ReportQueryBuilder.Build(definition, request);
@@ -112,9 +117,112 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 Rows = ReportRowShaper.Shape(query.Columns, rows),
                 RowCount = rows.Count,
                 // An aggregate fetch returns one row per group, so the row limit says nothing about it.
-                Truncated = !query.IsAggregate && rows.Count >= query.RowLimit
+                Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
+                StandaloneDatasets = ExecuteStandaloneDatasets(definition, request)
             };
         }
+
+        /// <summary>
+        /// Runs each standalone dataset after the root, in execution order (MDS-FR-004, MDS-FR-006).
+        ///
+        /// Sequential rather than concurrent, per ADR-RPT-012 §4: in-CRM execution is already
+        /// per-user, which is what the retired fan-out controls existed to achieve, and adding
+        /// parallelism inside one execution would reintroduce that problem inside a two-minute
+        /// ceiling.
+        /// </summary>
+        private IReadOnlyList<ReportDataset> ExecuteStandaloneDatasets(
+            ReportDefinition definition, ReportExecutionRequest request)
+        {
+            var datasets = new List<ReportDataset>();
+            foreach (var source in ReportSourcePlan.Standalone(definition))
+            {
+                datasets.Add(ExecuteStandaloneDataset(definition, source, request));
+            }
+
+            return datasets;
+        }
+
+        /// <summary>
+        /// Runs one standalone dataset, reporting a failure as a named block rather than letting it
+        /// end the report (MDS-FR-016, MDS-FR-028).
+        ///
+        /// The catch is deliberately broad and is not swallowing: the reason is carried into the
+        /// result and rendered. One misconfigured block must not cost the author every other dataset
+        /// on the report, and an empty table in its place would be indistinguishable from a query
+        /// that legitimately matched nothing.
+        /// </summary>
+        private ReportDataset ExecuteStandaloneDataset(
+            ReportDefinition definition, ReportDataSource source, ReportExecutionRequest request)
+        {
+            var started = DateTime.UtcNow;
+            try
+            {
+                var result = Execute(ScopedToSource(definition, source), request);
+                return new ReportDataset
+                {
+                    Id = source.Id.ToString(),
+                    Name = DatasetName(source),
+                    Role = DatasetRole.Standalone,
+                    Columns = result.Columns,
+                    Rows = result.Rows,
+                    RowCount = result.RowCount,
+                    Truncated = result.Truncated,
+                    ElapsedMs = Elapsed(started)
+                };
+            }
+            catch (Exception error)
+            {
+                return new ReportDataset
+                {
+                    Id = source.Id.ToString(),
+                    Name = DatasetName(source),
+                    Role = DatasetRole.Standalone,
+                    ElapsedMs = Elapsed(started),
+                    Status = DatasetStatus.Failed,
+                    Error = error.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// The report as this one source sees it: the source becomes the only source, and its own
+        /// entity becomes the root.
+        ///
+        /// The composition is flipped to joined so the query builder includes the source's mappings —
+        /// it excludes standalone ones precisely so they do not leak into the parent's query.
+        ///
+        /// The report's filters are dropped rather than carried across: they name attributes of the
+        /// root entity, and a standalone block queries a different one, so applying them would fail
+        /// the query outright. Relationships go with them — drilldown belongs to the root
+        /// (MDS-FR-025).
+        /// </summary>
+        private static ReportDefinition ScopedToSource(ReportDefinition definition, ReportDataSource source) =>
+            definition with
+            {
+                MainEntityLogicalName = FirstMappedEntity(source) ?? definition.MainEntityLogicalName,
+                DataSources = new[] { source with { Composition = DatasetComposition.Joined } },
+                Filters = new List<ReportFilter>(),
+                Relationships = new List<ReportRelationship>()
+            };
+
+        private static string FirstMappedEntity(ReportDataSource source)
+        {
+            foreach (var mapping in source.EntityMappings)
+            {
+                if (!string.IsNullOrEmpty(mapping.EntityLogicalName)) return mapping.EntityLogicalName;
+            }
+
+            return null;
+        }
+
+        /// <summary>A block is headed by its source's name, falling back to its alias then its id.</summary>
+        private static string DatasetName(ReportDataSource source) =>
+            !string.IsNullOrEmpty(source.Name) ? source.Name
+            : !string.IsNullOrEmpty(source.SourceAlias) ? source.SourceAlias
+            : source.Id.ToString();
+
+        private static int Elapsed(DateTime started) =>
+            (int)(DateTime.UtcNow - started).TotalMilliseconds;
 
         /// <summary>
         /// Puts the report's own query terms onto the query that supplies the rows.

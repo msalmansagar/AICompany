@@ -36,7 +36,11 @@ public static class ReportDefinitionFetch
             attributes:
             [
                 "qdb_reportdatasourceid", "qdb_name", "qdb_sourcetype", "qdb_executionorder",
-                "qdb_isprimary", "qdb_sourcealias", "qdb_querypayload", "qdb_reportdefinitionid"
+                "qdb_isprimary", "qdb_sourcealias", "qdb_querypayload", "qdb_reportdefinitionid",
+                // 🔴 DEPLOYMENT ORDER: FetchXML fails outright on an attribute the org does not have,
+                // so qdb_compositionmode must exist BEFORE this build is deployed or every report run
+                // breaks. Provision it with scripts/provision-multi-dataset-schema.mjs first.
+                "qdb_compositionmode"
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 

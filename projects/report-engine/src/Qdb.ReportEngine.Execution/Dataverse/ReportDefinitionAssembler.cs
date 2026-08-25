@@ -64,6 +64,9 @@ public static class ReportDefinitionAssembler
             IsPrimary = RowReader.Bool(row, "qdb_isprimary"),
             SourceAlias = RowReader.String(row, "qdb_sourcealias"),
             QueryPayload = RowReader.String(row, "qdb_querypayload"),
+            // Read as a coded value like every other choice column. An absent column leaves the
+            // historical joined behaviour, so a report saved before this feature is unchanged.
+            Composition = RowReader.Coded(row, "qdb_compositionmode")?.Label ?? DatasetComposition.Joined,
             EntityMappings = mappingsByDataSource.TryGetValue(id, out var mappings) ? mappings : []
         };
     }

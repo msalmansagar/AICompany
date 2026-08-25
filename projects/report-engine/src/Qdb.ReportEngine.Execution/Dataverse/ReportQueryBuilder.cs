@@ -232,8 +232,7 @@ public static class ReportQueryBuilder
     private static IReadOnlyList<ReportColumn> ColumnsFor(
         ReportDefinition definition, string rootEntity, IReadOnlyList<ReportEntityMapping> joined)
     {
-        var forRoot = definition.DataSources
-            .SelectMany(d => d.EntityMappings)
+        var forRoot = RootMappings(definition)
             .Where(m => string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase))
             .SelectMany(m => m.Columns)
             .ToList();
@@ -242,7 +241,7 @@ public static class ReportQueryBuilder
         // sweep up joined columns, which belong inside their own link-entity.
         var columns = forRoot.Count > 0 || joined.Count > 0
             ? forRoot
-            : definition.DataSources.SelectMany(d => d.EntityMappings).SelectMany(m => m.Columns).ToList();
+            : RootMappings(definition).SelectMany(m => m.Columns).ToList();
 
         return VisibleColumns(columns);
     }
@@ -256,8 +255,7 @@ public static class ReportQueryBuilder
     /// return the wrong rows, which is worse than omitting the columns.
     /// </summary>
     private static IReadOnlyList<ReportEntityMapping> JoinedMappings(ReportDefinition definition, string rootEntity) =>
-        definition.DataSources
-            .SelectMany(d => d.EntityMappings)
+        RootMappings(definition)
             .Where(m => !string.IsNullOrEmpty(m.EntityLogicalName)
                 && !string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrEmpty(ReadJoinKey(m.JoinExpressionJson, "from"))
@@ -328,9 +326,26 @@ public static class ReportQueryBuilder
         !string.IsNullOrEmpty(column.OutputAlias) ? column.OutputAlias : column.ColumnLogicalName!;
 
     private static string? FirstMappingEntity(ReportDefinition definition) =>
-        definition.DataSources.SelectMany(d => d.EntityMappings)
+        RootMappings(definition)
             .Select(m => m.EntityLogicalName)
             .FirstOrDefault(e => !string.IsNullOrEmpty(e));
+
+    /// <summary>
+    /// The mappings that belong in the root query: everything except a standalone source's
+    /// (MDS-FR-004, ADR-RPT-012 §3).
+    ///
+    /// A standalone dataset runs its own query and renders as its own block. Leaving its mappings in
+    /// here as well would link its entity into the root query too, so the same rows would appear in
+    /// the root table and in the block — which reads as a join gone wrong rather than as a
+    /// configuration mistake.
+    ///
+    /// A source with no composition is joined, which is what the engine has always done, so every
+    /// report saved before MDS-FR-002 builds the identical query.
+    /// </summary>
+    private static IEnumerable<ReportEntityMapping> RootMappings(ReportDefinition definition) =>
+        definition.DataSources
+            .Where(d => !DatasetComposition.IsStandalone(d))
+            .SelectMany(d => d.EntityMappings);
 }
 
 /// <summary>The built query: FetchXML, the root entity, the output columns, the row limit, and whether it aggregates.</summary>
