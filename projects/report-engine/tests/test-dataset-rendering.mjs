@@ -45,11 +45,20 @@ const { api } = loadEngine({
   smoke: built => {
     const one = { alias: 'name', label: 'Name' };
     built.renderGrid({ reportName: 'smoke', rowCount: 1, columns: [one], rows: [cells('x')] });
+    // A single-record root (header path) …
     built.renderGrid({
       reportName: 'smoke',
       datasets: [
         { id: 'a', name: 'A', role: 'root', columns: [one], rows: [cells('x')], rowCount: 1, status: 'ok' },
         { id: 'b', name: 'B', role: 'standalone', columns: [one], rows: [], rowCount: 0, status: 'failed', error: 'why' }
+      ]
+    });
+    // … and a multi-record one, which takes the table-plus-notice path instead.
+    built.renderGrid({
+      reportName: 'smoke',
+      datasets: [
+        { id: 'a', name: 'A', role: 'root', columns: [one], rows: [cells('x'), cells('y')], rowCount: 2, status: 'ok' },
+        { id: 'b', name: 'B', role: 'standalone', columns: [one], rows: [cells('z')], rowCount: 1, status: 'ok' }
       ]
     });
   }
@@ -106,13 +115,47 @@ console.log('a single-dataset report renders exactly as it did');
 console.log('\na multi-dataset report renders every dataset');
 {
   const html = gridHtml(multiShape(dataset()));
-  check('the root block is rendered', html.includes('>Acme</td>'));
+  check('the root record is rendered', html.includes('Acme'));
   check('the standalone block is rendered', html.includes('>F-1182</td>'));
   check('each block is named', html.includes('Overdue facilities'), html.slice(0, 200));
-  check('the root keeps its own columns', html.includes('>Name</th>'));
+  check('the root keeps its own columns', html.includes('Name'));
   check('the block keeps its own columns', html.includes('>Reference</th>'));
-  check('two tables are drawn', (html.match(/<table class="res">/g) || []).length === 2,
+}
+
+// MDS-FR-021: a term sheet is one parent record with its child tables underneath. Rendering that
+// parent as a one-row table is what makes the output read as three stacked grids instead of a
+// document, so a single-record root becomes a header of label/value pairs.
+console.log('\na single-record root renders as a header, not a one-row table');
+{
+  const html = gridHtml(multiShape(dataset()));
+  check('the root is a header', html.includes('dataset-header'), html.slice(0, 200));
+  check('its field label is shown', html.includes('Name'));
+  check('its value is shown', html.includes('Acme'));
+  check('only the block draws a table', (html.match(/<table class="res">/g) || []).length === 1,
     String((html.match(/<table class="res">/g) || []).length));
+  check('the block still draws one', html.includes('>F-1182</td>'));
+}
+
+console.log('\na multi-record root stays a table, and says what the blocks are scoped to');
+{
+  // The engine scopes each block to the root's FIRST row. Rendering a header here would hide the
+  // other rows; saying nothing would hide the assumption. So: table, plus a notice.
+  const many = multiShape(dataset());
+  many.datasets[0] = { ...many.datasets[0], rowCount: 2, rows: [cells('Acme'), cells('Globex')] };
+  const html = gridHtml(many);
+  check('the root is still a table', (html.match(/<table class="res">/g) || []).length === 2,
+    String((html.match(/<table class="res">/g) || []).length));
+  check('both root rows are shown', html.includes('Acme') && html.includes('Globex'));
+  check('and the scope is stated', /first/i.test(html), html.slice(0, 300));
+  check('it is not called a header', !html.includes('dataset-header'));
+}
+
+console.log('\nheader values are escaped');
+{
+  const one = multiShape(dataset());
+  one.datasets[0] = { ...one.datasets[0], rows: [cells('<img src=x onerror=alert(1)>')] };
+  const html = gridHtml(one);
+  check('the value is escaped', !html.includes('<img src=x'), html.slice(0, 200));
 }
 
 console.log('\na failed dataset is named, not drawn as an empty table');
@@ -122,7 +165,7 @@ console.log('\na failed dataset is named, not drawn as an empty table');
   check('the block is still named', html.includes('Overdue facilities'));
   check('it does not claim there were no rows',
     !/Overdue facilities[\s\S]*No rows\./.test(html));
-  check('and the healthy root still rendered', html.includes('>Acme</td>'));
+  check('and the healthy root still rendered', html.includes('Acme'));
 }
 
 console.log('\nan empty dataset is distinguishable from a failed one');

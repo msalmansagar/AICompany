@@ -873,7 +873,7 @@ function renderGrid(result){
      report's relationships, and offering the button there would follow a key its rows do not carry. */
   const datasets = datasetsOf(result);
   $("#resultHost").innerHTML = datasets.length > 1
-    ? datasets.map(d => datasetBlock(d, d.role === "root" ? drillCol : null, gridFontOf)).join("")
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf)
     : datasetBody(datasets[0], drillCol, gridFontOf);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
@@ -910,6 +910,46 @@ function datasetRow(row, shape, fontOf){
   const key = shape.hasKey ? (row.cells[shape.drillCol.parentKey]||{}).text : null;
   const drill = shape.hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(shape.drillCol))} ↗</button></td>` : "";
   return `<tr>${tds}${drill}</tr>`;
+}
+
+/* A report with blocks: the parent record, then each block beneath it (MDS-FR-021).
+
+   This is the term-sheet shape — one Termsheet, then its Requested Facilities and its Termsheet
+   Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
+   pairs rather than a one-row table, which is the difference between a document and three stacked
+   grids. */
+function multiDatasetHtml(datasets, drillCol, fontOf){
+  const [root, ...blocks] = datasets;
+  const head = isSingleRecord(root)
+    ? datasetHeader(root)
+    : datasetBlock(root, drillCol, fontOf) + multiRecordNotice(root);
+  return head + blocks.map(block => datasetBlock(block, null, fontOf)).join("");
+}
+
+const isSingleRecord = dataset =>
+  dataset && dataset.status !== "failed" && (dataset.rows || []).length === 1;
+
+/* The engine scopes every block to the root's FIRST row, so a root returning several records is a
+   report shape that is only half supported. Saying so is better than a page that looks complete:
+   the blocks below belong to one of the rows above, and nothing else would tell the reader which. */
+function multiRecordNotice(root){
+  return `<div class="info-banner" style="margin:8px 0">${esc(root.rowCount)} records returned —
+    the datasets below show only the first one's related rows.</div>`;
+}
+
+/* The parent record as fields rather than a row. Only visible columns, in their configured order,
+   so the header shows what the author chose to put on the report. */
+function datasetHeader(dataset){
+  const cells = (dataset.rows[0] || {}).cells || {};
+  const fields = (dataset.columns || [])
+    .filter(c => c.isVisible !== false)
+    .map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.label || c.alias)}</div>
+      <div style="font-weight:600">${esc((cells[c.alias] || {}).text ?? "")}</div></div>`)
+    .join("");
+  return `<section class="dataset-block dataset-header">
+    <div class="meta-row"><b>${esc(dataset.name || "Record")}</b><span>${dataset.elapsedMs||0} ms</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 20px;margin:10px 0 16px">${fields}</div>
+  </section>`;
 }
 
 /* A named block, for reports that declare more than one dataset (MDS-FR-021).
