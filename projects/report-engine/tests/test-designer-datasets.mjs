@@ -15,12 +15,12 @@ const html = readFileSync(DESIGNER, 'utf8');
 const NEEDED = [
   'COMPOSITIONS', 'compositionByLabel', 'compositionByCode', 'isStandalone', 'compositionCoded',
   'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockMappingsOf', 'dataSourcesOf',
-  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems'
+  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems', 'isStandaloneDefinitionSource'
 ];
 
 const api = new Function('newGuid', 'coded', `
   ${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-  return { dataSourcesOf, blockEntityOf, blockColumnsOf, isStandalone, compositionCoded, datasetProblems };
+  return { dataSourcesOf, blockEntityOf, blockColumnsOf, isStandalone, compositionCoded, datasetProblems, isStandaloneDefinitionSource };
 `)(() => '00000000-0000-0000-0000-000000000000', (code, label) => code == null ? null : { code, label });
 
 let passed = 0, failed = 0;
@@ -181,6 +181,50 @@ const complains = (over, about) => problemsFor(over).some(problem => problem.inc
     api.datasetProblems({ columns: [], dataSources: [{ name: 'Primary', type: 'FetchXML', primary: true }] }).length === 0);
   check('and so is a report with no sources at all',
     api.datasetProblems({ columns: [], dataSources: [] }).length === 0);
+}
+
+// Reported from the org: opening the master-detail report in the designer showed ONE grid of six
+// columns — the account's three and the contact's three merged — with no header and no separate
+// contacts table. The loader swept every data source's columns into the report's own list, so a
+// block's columns arrived as though the root returned them.
+console.log('\na block\'s columns stay with the block when the report is opened');
+
+const storedDefinition = () => ({
+  mainEntityLogicalName: 'account',
+  dataSources: [
+    {
+      isPrimary: true, name: 'Account', sourceAlias: 't',
+      entityMappings: [{
+        entityLogicalName: 'account',
+        columns: [
+          { columnLogicalName: 'name', displayName: 'Account', outputAlias: 'name', sortOrder: 1, isVisible: true },
+          { columnLogicalName: 'accountid', displayName: 'Account id', outputAlias: 'accountid', sortOrder: 2, isVisible: true }
+        ]
+      }]
+    },
+    {
+      isPrimary: false, name: 'Contacts at this account', sourceAlias: 'b1',
+      composition: { code: 100000001 },
+      joinFromKey: 'parentcustomerid', joinToKey: 'accountid',
+      entityMappings: [{
+        entityLogicalName: 'contact',
+        columns: [
+          { columnLogicalName: 'fullname', displayName: 'Full name', outputAlias: 'fullname', sortOrder: 1, isVisible: true },
+          { columnLogicalName: 'jobtitle', displayName: 'Job title', outputAlias: 'jobtitle', sortOrder: 2, isVisible: true }
+        ]
+      }]
+    }
+  ]
+});
+
+{
+  check('a stored block is recognised as one',
+    api.isStandaloneDefinitionSource(storedDefinition().dataSources[1]) === true);
+  check('and the primary source never is',
+    api.isStandaloneDefinitionSource(storedDefinition().dataSources[0]) === false);
+  // The primary source of a report saved before this feature carries no composition at all.
+  check('nor does a source with no composition',
+    api.isStandaloneDefinitionSource({ isPrimary: false, entityMappings: [] }) === false);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -2648,6 +2648,16 @@ function sourceProblems(source, name, returned) {
   return problems;
 }
 
+/**
+ * Whether a source AS STORED is a standalone block.
+ *
+ * Distinct from isStandalone, which reads the tab's label: a loaded definition carries the coded
+ * choice, and the primary source is never a block whatever the column says.
+ */
+const isStandaloneDefinitionSource = ds =>
+  !!ds && !ds.isPrimary
+  && (compositionByCode(ds.composition && ds.composition.code) || {}).label === "Standalone";
+
 /** A stored block's table, for the tab's Entity box. Empty for the root, whose entity is the report's. */
 const blockEntityOf = ds =>
   ((ds.entityMappings || [])[0] || {}).entityLogicalName || "";
@@ -3735,8 +3745,14 @@ function definitionToReport(def) {
   report.status = def.status || "Draft";
   report.version = def.version || 1;
 
+  /* A STANDALONE block's columns are its own, and are edited in its Columns box on the Data Sources
+     tab. Sweeping them in here put them in the report's column list as though the root returned
+     them — a term sheet reopened showing its account columns and its contact columns in one grid of
+     six, and any edit made to them there changed nothing, because the block is written from its own
+     box. Blocks are skipped; blockColumnsOf round-trips them. */
   const columns = [];
-  (def.dataSources || []).forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
+  (def.dataSources || []).filter(ds => !isStandaloneDefinitionSource(ds))
+    .forEach(ds => (ds.entityMappings || []).forEach(m => (m.columns || []).forEach(c => {
     // An alias that is not simply the attribute name came from a joined table, and losing it on
     // reload would turn a working column into one that looks up a key the row does not carry.
     const sourceAlias = c.outputAlias && c.outputAlias !== c.columnLogicalName ? c.outputAlias : "";
