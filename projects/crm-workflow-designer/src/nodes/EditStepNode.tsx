@@ -6,6 +6,8 @@ import { useWorkflowStore, selectCanvasIsReadOnly } from '@/store/workflowStore'
 import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
 import {
   CANVAS_ASSIGN_LABELS,
+  CorrectionPill,
+  correctionPillStyle,
   StepCardChips,
   StepCardHeader,
   StepOutcomeList,
@@ -29,6 +31,10 @@ export interface EditStepData extends Record<string, unknown> {
   controlFlowSummary: string | null;
   /** The same semantics spelled out, for the badge tooltip. */
   controlFlowDescription: string | null;
+  /** True when the step is a pure correction loop, drawn as a compact pill. */
+  isCorrection?: boolean;
+  /** Where the correction resubmits to, for the pill's caption. */
+  returnTargetName?: string | null;
 }
 
 export function EditStepNode({ data }: NodeProps) {
@@ -37,6 +43,23 @@ export function EditStepNode({ data }: NodeProps) {
   const addStepAfter = useWorkflowStore((s) => s.addStepAfter);
   const isReadOnly = useWorkflowStore(selectCanvasIsReadOnly);
   const [isHovered, setIsHovered] = useState(false);
+
+  // A pure correction loop collapses to a pill until selected — the full card
+  // (with its editing affordances) comes back the moment it is picked.
+  if (stepData.isCorrection && !isSelected) {
+    return (
+      <div style={correctionPillStyle(false)}>
+        <Handle type="target" position={Position.Left} id="in" style={editPillHandleStyle} isConnectable />
+        <CorrectionPill
+          sequenceNo={stepData.sequenceNo}
+          name={stepData.name}
+          returnTargetName={stepData.returnTargetName}
+          hasError={stepData.hasError ?? false}
+        />
+        <Handle type="source" position={Position.Right} id="out" style={editPillHandleStyle} isConnectable />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -93,6 +116,14 @@ export function EditStepNode({ data }: NodeProps) {
     </div>
   );
 }
+
+// Anchors for the pill's edges — present but quiet.
+const editPillHandleStyle: React.CSSProperties = {
+  width: 6,
+  height: 6,
+  border: 'none',
+  background: 'var(--accent-branch)',
+};
 
 const slaBadgeStyle: React.CSSProperties = {
   display: 'inline-block',

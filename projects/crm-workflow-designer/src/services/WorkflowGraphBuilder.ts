@@ -2,6 +2,13 @@ import dagre from '@dagrejs/dagre';
 import { routeLabelPair } from '../styles/surfacePairs';
 import { BRANCH_EDGE_LABEL } from '@/styles/surfacePairs';
 import { hasRealCondition } from '@/services/routeFilter';
+import {
+  classifyCorrectionSteps,
+  placeCorrectionSteps,
+  nudgeClearOfObstacles,
+  CORRECTION_PILL_H,
+  CORRECTION_PILL_W,
+} from '@/services/correctionSteps';
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
@@ -37,6 +44,10 @@ export interface ViewStepData extends Record<string, unknown> {
   outcomeRows: StepOutcomeRow[];
   nodeHeight: number;
   layoutDir: LayoutDir;
+  /** True when the step is a pure correction loop, drawn as a compact pill. */
+  isCorrection?: boolean;
+  /** Where the correction resubmits to, for the pill's caption. */
+  returnTargetName?: string | null;
 }
 
 export function computeStepHeight(outcomeCount: number): number {
@@ -106,6 +117,28 @@ export function buildGraph(
       ? [entrySteps.reduce((min, s) => (s.sequenceNo < min.sequenceNo ? s : min))]
       : [...steps].sort((a, b) => a.sequenceNo - b.sequenceNo).slice(0, 1);
 
+  // Pure correction loops leave the spine: unranked, they pile up at the top
+  // of the diagram (Dagre puts every edgeless node at rank 0), so the process
+  // opened on its corrections instead of its entry step. They are attached
+  // beside their resubmit target after layout instead.
+  const correctionInfo = classifyCorrectionSteps(
+    steps.map((s) => ({ id: s.id, sequenceNo: s.sequenceNo })),
+    outcomes.map((o) => ({
+      stepId: o.stepId,
+      nextStepId: o.nextStepId,
+      sequenceNumber: o.sequenceNumber,
+      isConditional: o.applyFilter,
+    })),
+    firstSteps[0]?.id ?? null
+  );
+  // A correction whose target is itself a correction has nowhere to attach —
+  // keep it on the spine rather than let it land at the origin.
+  const correctionIds = new Set(
+    [...correctionInfo.correctionIds].filter(
+      (id) => !correctionInfo.correctionIds.has(correctionInfo.returnTargetOf.get(id) ?? '')
+    )
+  );
+
   const stepNodes: Node[] = steps.map((step) => {
     const stepOutcomes = outcomesByStep.get(step.id) ?? [];
     const outcomeRows: StepOutcomeRow[] = stepOutcomes.map((o) => ({
@@ -118,6 +151,8 @@ export function buildGraph(
       isTerminal: !o.nextStepId,
     }));
 
+    const isCorrection = correctionIds.has(step.id);
+    const returnTargetId = correctionInfo.returnTargetOf.get(step.id);
     return {
       id: `step_${step.id}`,
       type: 'viewStep',
@@ -125,8 +160,10 @@ export function buildGraph(
       data: {
         step,
         outcomeRows,
-        nodeHeight: computeStepHeight(stepOutcomes.length),
+        nodeHeight: isCorrection ? CORRECTION_PILL_H : computeStepHeight(stepOutcomes.length),
         layoutDir: dir,
+        isCorrection,
+        returnTargetName: returnTargetId ? (stepById.get(returnTargetId)?.name ?? null) : null,
       } as ViewStepData,
       draggable: true,
       selectable: true,
@@ -173,7 +210,10 @@ export function buildGraph(
     });
   }
 
-  const nodes: Node[] = [startNode, ...stepNodes, ...gatewayNodes, endNode];
+  const spineStepNodes = stepNodes.filter((n) => !(n.data as ViewStepData).isCorrection);
+  const correctionNodes = stepNodes.filter((n) => (n.data as ViewStepData).isCorrection);
+
+  const nodes: Node[] = [startNode, ...spineStepNodes, ...gatewayNodes, endNode];
 
   const startEdges: Edge[] = firstSteps.map((s) => ({
     id: `e_start_${s.id}`,
@@ -329,7 +369,48 @@ export function buildGraph(
     .map((step) => buildViewBranchEdge(step));
 
   const layoutEdges = [...startEdges, ...forwardEdges, ...endEdges, ...branchEdges];
-  let positionedNodes = applyDagreLayout(nodes, layoutEdges, dir);
+
+  // A spine step whose only links ran through a collapsed pill — or nowhere,
+  // like the Loan spec's genuinely orphaned steps — has no rank edges left,
+  // and Dagre floats every such node above the entry step. Anchor each one
+  // under its nearest lower-sequence connected spine step with an invisible
+  // rank-only edge: the diagram then reads in business order even where the
+  // configuration is incomplete. These edges are never rendered.
+  const dagreNodeIds = new Set(nodes.map((n) => n.id));
+  const touchedByEdges = new Set<string>();
+  const hasIncoming = new Set<string>();
+  for (const e of layoutEdges) {
+    if (dagreNodeIds.has(e.source) && dagreNodeIds.has(e.target)) {
+      touchedByEdges.add(e.source);
+      touchedByEdges.add(e.target);
+      hasIncoming.add(e.target);
+    }
+  }
+  const spineBySequence = spineStepNodes
+    .map((n) => (n.data as ViewStepData).step)
+    .sort((a, b) => a.sequenceNo - b.sequenceNo);
+  const entryId = firstSteps[0]?.id ?? null;
+  const anchorEdges: Edge[] = [];
+  for (const s of spineBySequence) {
+    const nodeId = `step_${s.id}`;
+    // The start edge is the entry's incoming; everything else without one gets
+    // an anchor — otherwise its outgoing chain can rank it ABOVE the entry.
+    if (s.id === entryId || hasIncoming.has(nodeId)) continue;
+    const prev = [...spineBySequence]
+      .reverse()
+      .find(
+        (p) => p.sequenceNo < s.sequenceNo && touchedByEdges.has(`step_${p.id}`)
+      );
+    anchorEdges.push({
+      id: `anchor_${s.id}`,
+      source: prev ? `step_${prev.id}` : START_NODE_ID,
+      target: nodeId,
+    } as Edge);
+    touchedByEdges.add(nodeId);
+    hasIncoming.add(nodeId);
+  }
+
+  let positionedNodes = applyDagreLayout(nodes, [...layoutEdges, ...anchorEdges], dir);
 
   // Move route-destination step nodes to the RIGHT of their gateway so routes
   // branch horizontally instead of stacking in the center column. This must
@@ -340,6 +421,8 @@ export function buildGraph(
     positionedNodes = branchRouteDestinations(positionedNodes, routes, outcomes, STEP_W);
   }
 
+  positionedNodes = resolveCardCollisions(positionedNodes, dir);
+
   const withStubs = addLocalEndStubs(
     positionedNodes,
     layoutEdges,
@@ -347,7 +430,136 @@ export function buildGraph(
     lastTerminalStepId,
     dir
   );
-  return withStubs;
+
+  return attachCorrectionLoops(withStubs, correctionNodes, correctionInfo.returnTargetOf, outcomes, dir);
+}
+
+/**
+ * The positioning passes each solve their own problem — Dagre ranks, the
+ * gateway pass branches destinations sideways, the anchors pull orphans into
+ * business order — and none of them sees the others' output. Where two cards
+ * end up clipping, the later step slides along the flow axis until clear.
+ */
+function resolveCardCollisions(nodes: Node[], dir: LayoutDir): Node[] {
+  const MARGIN = 16;
+  const cards = nodes
+    .filter((n) => n.type === 'viewStep')
+    .sort(
+      (a, b) =>
+        (a.data as ViewStepData).step.sequenceNo - (b.data as ViewStepData).step.sequenceNo
+    );
+  const moved = new Map<string, { x: number; y: number }>();
+  const rectOf = (n: Node) => {
+    const pos = moved.get(n.id) ?? n.position;
+    return { x: pos.x, y: pos.y, w: STEP_W, h: (n.data as ViewStepData).nodeHeight ?? 78 };
+  };
+
+  for (let iteration = 0; iteration < 6; iteration += 1) {
+    let collided = false;
+    for (let i = 0; i < cards.length; i += 1) {
+      for (let j = i + 1; j < cards.length; j += 1) {
+        const a = rectOf(cards[i]);
+        const b = rectOf(cards[j]);
+        const overlapsX = a.x < b.x + b.w + MARGIN && a.x + a.w + MARGIN > b.x;
+        const overlapsY = a.y < b.y + b.h + MARGIN && a.y + a.h + MARGIN > b.y;
+        if (!overlapsX || !overlapsY) continue;
+        collided = true;
+        const pos = moved.get(cards[j].id) ?? cards[j].position;
+        moved.set(
+          cards[j].id,
+          dir === 'TB'
+            ? { x: pos.x, y: a.y + a.h + MARGIN }
+            : { x: a.x + a.w + MARGIN, y: pos.y }
+        );
+      }
+    }
+    if (!collided) break;
+  }
+
+  if (moved.size === 0) return nodes;
+  return nodes.map((n) => {
+    const pos = moved.get(n.id);
+    return pos ? { ...n, position: pos } : n;
+  });
+}
+
+/**
+ * Puts the collapsed correction pills beside the step each one resubmits to,
+ * and draws their return as a short hop instead of a canvas-length sweep.
+ * Runs after every other positioning pass so the pills track wherever the
+ * gateway/stub passes finally left their targets.
+ */
+function attachCorrectionLoops(
+  graph: { nodes: Node[]; edges: Edge[] },
+  correctionNodes: Node[],
+  returnTargetOf: Map<string, string>,
+  outcomes: CrmOutcome[],
+  dir: LayoutDir
+): { nodes: Node[]; edges: Edge[] } {
+  if (correctionNodes.length === 0) return graph;
+
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const info = {
+    correctionIds: new Set(correctionNodes.map((n) => (n.data as ViewStepData).step.id)),
+    returnTargetOf,
+  };
+  const positions = placeCorrectionSteps(
+    info,
+    (stepId) => {
+      const target = nodeById.get(`step_${stepId}`);
+      if (!target) return null;
+      return {
+        x: target.position.x,
+        y: target.position.y,
+        height: (target.data as ViewStepData).nodeHeight ?? 78,
+      };
+    },
+    dir
+  );
+
+  // Everything already on the canvas is an obstacle, and each placed pill
+  // becomes one too, so pills clear the cards AND each other.
+  const obstacles = graph.nodes
+    .filter((n) => n.type === 'viewStep' || n.type === 'routeGateway')
+    .map((n) => ({
+      x: n.position.x,
+      y: n.position.y,
+      w: n.type === 'routeGateway' ? GATEWAY_SIZE : STEP_W,
+      h:
+        n.type === 'routeGateway'
+          ? GATEWAY_SIZE
+          : ((n.data as ViewStepData).nodeHeight ?? 78),
+    }));
+
+  const placedNodes = correctionNodes.map((node) => {
+    const stepId = (node.data as ViewStepData).step.id;
+    const raw = positions.get(stepId);
+    if (!raw) return node;
+    const pos = nudgeClearOfObstacles(raw, obstacles, dir);
+    obstacles.push({ x: pos.x, y: pos.y, w: CORRECTION_PILL_W, h: CORRECTION_PILL_H });
+    return { ...node, position: pos };
+  });
+
+  // The pill's return edge: pill side → target's back-in. Short by
+  // construction, and its e_back_ id keeps it under the returns toggle.
+  const returnEdges: Edge[] = [];
+  for (const o of outcomes) {
+    if (!info.correctionIds.has(o.stepId) || !o.nextStepId) continue;
+    if (!nodeById.has(`step_${o.nextStepId}`)) continue;
+    returnEdges.push({
+      id: `e_back_${o.id}`,
+      source: `step_${o.stepId}`,
+      target: `step_${o.nextStepId}`,
+      sourceHandle: 'side-out',
+      targetHandle: 'back-in',
+      type: 'default',
+      style: { stroke: 'var(--accent-branch)', strokeWidth: 1.5, strokeDasharray: '5 4' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
+      selectable: false,
+    });
+  }
+
+  return { nodes: [...graph.nodes, ...placedNodes], edges: [...graph.edges, ...returnEdges] };
 }
 
 /**
@@ -457,12 +669,43 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
   const stepNodes = positioned.filter((n) => n.type === 'viewStep');
   if (stepNodes.length === 0) return positioned;
 
+  // Straighten the spine WITHOUT flattening branches: a rank holding one card
+  // snaps onto the centre line, but a rank holding several keeps its Dagre
+  // spread and shifts as a group. Forcing every card to one column stacked
+  // rank-siblings exactly on top of each other in the Loan process.
+  //
+  // Ranks are recognised by their CENTRE, not their top edge: Dagre centres
+  // each node within its rank, so two same-rank cards of different heights
+  // have different y — grouping on y split them apart and stacked them.
+  const rankKey = (n: Node) =>
+    Math.round(
+      dir === 'TB'
+        ? n.position.y + ((n.data as ViewStepData).nodeHeight ?? 0) / 2
+        : n.position.x + STEP_W / 2
+    );
+  const ranks = new Map<number, Node[]>();
+  for (const n of stepNodes) {
+    const key = rankKey(n);
+    ranks.set(key, [...(ranks.get(key) ?? []), n]);
+  }
+
   if (dir === 'TB') {
     const centerX =
       stepNodes.reduce((sum, n) => sum + n.position.x + STEP_W / 2, 0) / stepNodes.length;
+    const shiftOf = new Map<string, number>();
+    for (const group of ranks.values()) {
+      if (group.length === 1) {
+        shiftOf.set(group[0].id, centerX - STEP_W / 2 - group[0].position.x);
+      } else {
+        const centroid =
+          group.reduce((sum, n) => sum + n.position.x + STEP_W / 2, 0) / group.length;
+        for (const n of group) shiftOf.set(n.id, centerX - centroid);
+      }
+    }
     return positioned.map((node) => {
-      if (node.type === 'viewStep')
-        return { ...node, position: { ...node.position, x: centerX - STEP_W / 2 } };
+      const shift = shiftOf.get(node.id);
+      if (shift !== undefined)
+        return { ...node, position: { ...node.position, x: node.position.x + shift } };
       if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, x: centerX - MARKER_SIZE / 2 } };
       // Gateway nodes keep Dagre's x (they branch off the center column naturally)
@@ -474,11 +717,24 @@ export function applyDagreLayout(nodes: Node[], edges: Edge[], dir: LayoutDir = 
         (sum, n) => sum + n.position.y + (n.data as ViewStepData).nodeHeight / 2,
         0
       ) / stepNodes.length;
-    return positioned.map((node) => {
-      if (node.type === 'viewStep') {
-        const h = (node.data as ViewStepData).nodeHeight;
-        return { ...node, position: { ...node.position, y: centerY - h / 2 } };
+    const shiftOf = new Map<string, number>();
+    for (const group of ranks.values()) {
+      if (group.length === 1) {
+        const h = (group[0].data as ViewStepData).nodeHeight;
+        shiftOf.set(group[0].id, centerY - h / 2 - group[0].position.y);
+      } else {
+        const centroid =
+          group.reduce(
+            (sum, n) => sum + n.position.y + (n.data as ViewStepData).nodeHeight / 2,
+            0
+          ) / group.length;
+        for (const n of group) shiftOf.set(n.id, centerY - centroid);
       }
+    }
+    return positioned.map((node) => {
+      const shift = shiftOf.get(node.id);
+      if (shift !== undefined)
+        return { ...node, position: { ...node.position, y: node.position.y + shift } };
       if (node.type === 'viewStart' || node.type === 'viewEnd')
         return { ...node, position: { ...node.position, y: centerY - MARKER_SIZE / 2 } };
       return node;

@@ -4,6 +4,8 @@ import { getAssignToLabel } from '../types/ViewTypes';
 import { branchSummaryText } from '../services/branchFields';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import {
+  CorrectionPill,
+  correctionPillStyle,
   StepCardChips,
   StepCardHeader,
   StepOutcomeList,
@@ -13,7 +15,8 @@ import {
 import { stepAccent } from '@/styles/stepAccents';
 
 export function ViewStepNode({ data, selected }: NodeProps) {
-  const { step, outcomeRows, layoutDir } = data as unknown as ViewStepData;
+  const { step, outcomeRows, layoutDir, isCorrection, returnTargetName } =
+    data as unknown as ViewStepData;
   const isLR = layoutDir === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
   const assigneeName =
@@ -32,8 +35,27 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   // straight across instead of looping out of the bottom and doubling back.
   const sideOutPos = isLR ? Position.Bottom : Position.Right;
 
+  // A pure correction loop collapses to a pill until selected; the handles
+  // stay so its edges keep their anchors in both faces.
+  if (isCorrection && !selected) {
+    return (
+      <div style={correctionPillStyle(false)}>
+        <Handle type="target" position={mainInPos} id="in" style={pillHandleStyle} />
+        <Handle type="source" position={backOutPos} id="back-out" style={pillHandleStyle} />
+        <Handle type="target" position={backInPos} id="back-in" style={pillHandleStyle} />
+        <Handle type="source" position={sideOutPos} id="side-out" style={pillHandleStyle} />
+        <CorrectionPill
+          sequenceNo={step.sequenceNo}
+          name={step.name}
+          returnTargetName={returnTargetName}
+        />
+        <Handle type="source" position={mainOutPos} id="out" style={pillHandleStyle} />
+      </div>
+    );
+  }
+
   return (
-    <div style={stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) })}>
+    <div style={{ ...stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) }), ...(isCorrection ? { zIndex: 10 } : null) }}>
       <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
       <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
       <Handle type="target" position={backInPos} id="back-in" style={backHandleStyle(isLR, 'in')} />
@@ -63,6 +85,15 @@ export function ViewStepNode({ data, selected }: NodeProps) {
     </div>
   );
 }
+
+// The pill's handles are anchors, not affordances — invisible but present so
+// React Flow keeps every edge attached across the collapse.
+const pillHandleStyle: React.CSSProperties = {
+  width: 6,
+  height: 6,
+  border: 'none',
+  background: 'transparent',
+};
 
 // Back handles on the same edge (left in TB, top/bottom in LR) need vertical offsets
 // in TB mode so they don't overlap at the center.
