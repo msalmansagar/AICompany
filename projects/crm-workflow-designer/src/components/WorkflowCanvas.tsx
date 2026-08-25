@@ -32,6 +32,10 @@ import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
+import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
+import { GoToStepPanel } from './common/GoToStepPanel';
+import type { GoToStepItem } from './common/GoToStepPanel';
+import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
 import { applyReturnPathFilter, nextReturnPathMode } from '../services/viewFilters';
 import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLayout';
@@ -84,7 +88,11 @@ function useMeasuredNodeIds(): string | null {
 
 export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onOpenSummary }: WorkflowCanvasProps) {
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [showMiniMap, setShowMiniMap] = useState(false);
+  // No explicit choice yet -> the minimap turns itself on for large graphs,
+  // where "where am I" is a real question. A toggle click wins from then on.
+  const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
+  const showMiniMap =
+    miniMapPreference ?? (view.data?.steps.length ?? 0) > LARGE_GRAPH_THRESHOLD;
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
   // The view canvases arrange themselves, but a reader who nudges a card
@@ -100,6 +108,18 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const [pendingFit, setPendingFit] = useState(0);
 
   const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
+
+  const goToItems = useMemo<GoToStepItem[]>(
+    () =>
+      view.nodes
+        .filter((node) => node.type === 'viewStep')
+        .map((node) => {
+          const data = node.data as ViewStepData;
+          return { nodeId: node.id, label: data.step.name, sequenceNo: data.step.sequenceNo };
+        })
+        .sort((a, b) => a.sequenceNo - b.sequenceNo),
+    [view.nodes]
+  );
 
   // Rebuild graph whenever the loaded data, view mode, or layout direction changes.
   useEffect(() => {
@@ -154,9 +174,10 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   useEffect(() => {
     if (pendingFit === 0 || measuredNodeIds === null) return;
     if (measuredNodeIds !== requestedNodeIds) return;
-    fitView({ padding: 0.2, maxZoom: 1.2, duration: 300 });
+    // Large graphs open on their first stage at reading zoom, not fit-all.
+    fitView({ ...computeSmartFit(getNodes(), view.layoutDir), duration: 300 });
     setPendingFit(0);
-  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView]);
+  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView, getNodes, view.layoutDir]);
 
   // Apply resolved human-readable labels to route edges once metadata is fetched.
   // Also re-runs on view mode / data change so labels survive graph rebuilds.
@@ -331,7 +352,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
         onRefresh={() => void view.refresh()}
         onFitView={handleFitView}
         onAutoLayout={handleAutoLayout}
-        onToggleMiniMap={() => setShowMiniMap((v) => !v)}
+        onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
         onToggleEdgeLabels={() => setShowEdgeLabels((v) => !v)}
         onSaveLayout={() => void handleSaveLayout()}
         onCycleReturnPaths={handleCycleReturnPaths}
@@ -359,8 +380,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
             nodesConnectable={false}
             elementsSelectable={true}
             deleteKeyCode={null}
-            fitView
-            fitViewOptions={{ padding: 0.2, maxZoom: 1.2 }}
             proOptions={{ hideAttribution: true }}
             minZoom={0.08}
             maxZoom={2.5}
@@ -371,6 +390,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             <Controls showInteractive={false} />
             <CanvasLegend />
+            <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
             {showMiniMap && (
               <MiniMap
                 nodeColor={minimapNodeColor}

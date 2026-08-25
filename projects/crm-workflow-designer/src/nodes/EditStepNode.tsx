@@ -61,12 +61,19 @@ export function EditStepNode({ data }: NodeProps) {
     );
   }
 
+  // A canvas where 28 of 35 cards scream error says nothing (CWFD-009 P4):
+  // an issue is a quiet corner badge until the step is selected, and only
+  // then does the card wear the full error treatment.
+  const hasError = stepData.hasError ?? false;
   return (
     <div
-      style={stepCardStyle({ isSelected, hasError: stepData.hasError ?? false, accentColor: stepAccent(stepData.stepId) })}
+      style={stepCardStyle({ isSelected, hasError: hasError && isSelected, accentColor: stepAccent(stepData.stepId) })}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {hasError && !isSelected && (
+        <span style={errorCornerBadge} title="This step has a validation issue">!</span>
+      )}
       <Handle type="target" position={Position.Left} id="in" style={stepHandleStyle('var(--text-disabled)')} isConnectable />
 
       <StepCardHeader
@@ -116,6 +123,25 @@ export function EditStepNode({ data }: NodeProps) {
     </div>
   );
 }
+
+// The quiet face of a validation issue: visible when looked for, silent in
+// the aggregate. The full red card is reserved for the selected step.
+const errorCornerBadge: React.CSSProperties = {
+  position: 'absolute',
+  top: -7,
+  right: -7,
+  width: 16,
+  height: 16,
+  borderRadius: '50%',
+  background: 'var(--error)',
+  color: 'var(--text-on-primary)',
+  fontSize: 11,
+  fontWeight: 700,
+  lineHeight: '16px',
+  textAlign: 'center',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+  zIndex: 5,
+};
 
 // Anchors for the pill's edges — present but quiet.
 const editPillHandleStyle: React.CSSProperties = {
