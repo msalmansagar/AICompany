@@ -1051,7 +1051,6 @@ async function exportReport(fmt){
     try {
       await format.run(result, exportBaseName());
       toast(`${format.label} downloaded`, "success");
-      warnAboutOmittedDatasets(result);
     } catch (error) {
       toast(error.message, "error");
     }
@@ -1063,25 +1062,36 @@ const exportBaseName = () => {
   return String(def.reportCode || def.name || "report").replace(/[^\w.-]+/g, "_").slice(0, 80);
 };
 
-/** Header labels plus each row's display text — what the user sees is what they export.
- *
- *  Every export format is single-table today, so a multi-dataset report exports its ROOT and the
- *  caller announces what was left out (MDS-FR-023). Exporting one table out of three without saying
- *  so is the failure this feature exists to remove; a sheet per dataset is still to build.
- */
-function exportRows(result){
-  const table = rootDatasetOf(result) || result;
-  const cols = table.columns || [];
+/** Header labels plus each row's display text — what the user sees is what they export. */
+function tableOf(dataset){
+  const cols = (dataset && dataset.columns) || [];
   return {
     head: cols.map(c => c.label || c.alias),
-    body: (table.rows || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""))
+    body: ((dataset && dataset.rows) || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""))
   };
 }
 
-/** Tells the user which datasets an export could not carry, rather than shipping a short file. */
+/** The root dataset's table. CSV is one table by definition, so it is the only caller left. */
+const exportRows = result => tableOf(rootDatasetOf(result) || result);
+
+/**
+ * Every dataset as an exportable table (MDS-FR-022).
+ *
+ * A term sheet is one parent with its child tables; an export carrying only the first hands the
+ * customer an incomplete document. A FAILED dataset is carried too, as its name and its reason —
+ * dropping it would make the export quietly disagree with the screen.
+ */
+function exportTables(result){
+  return datasetsOf(result).map(dataset => Object.assign(
+    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error },
+    tableOf(dataset)
+  ));
+}
+
+/** Tells the user which datasets a single-table export could not carry (MDS-FR-023). */
 function warnAboutOmittedDatasets(result){
   const omitted = omittedDatasetNames(result);
-  if (omitted.length) toast(`Exported the main table only — not yet included: ${omitted.join(", ")}`, "error");
+  if (omitted.length) toast(`CSV holds one table — not included: ${omitted.join(", ")}`, "error");
 }
 
 function saveBlob(blob, filename){
@@ -1100,19 +1110,17 @@ function exportCsv(result, baseName){
     .concat(body.map(row => row.map(quote).join(","))).join("\r\n");
 
   saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), baseName + ".csv");
+  // CSV is the only format that cannot carry the other datasets, so it is the only one that warns.
+  warnAboutOmittedDatasets(result);
 }
 
 async function exportExcel(result, baseName){
   await loadLibrary("xlsx");
-  const { head, body } = exportRows(result);
-  const sheet = XLSX.utils.aoa_to_sheet([head].concat(body));
-
-  // Width by longest value, capped — an unbounded column is worse than a truncated one.
-  sheet["!cols"] = head.map((label, i) =>
-    ({ wch: Math.min(60, Math.max(10, ...body.map(r => String(r[i] ?? "").length), String(label).length + 2)) }));
-
   const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, sheet, "Report");
+  const used = [];
+  for (const table of exportTables(result)) {
+    XLSX.utils.book_append_sheet(book, sheetFor(table), sheetName(table.name, used));
+  }
 
   // Excel reads column A first from whichever edge the sheet starts at, so an Arabic report whose
   // sheet is left-to-right comes out with its columns in the reverse of the order it is read in.
@@ -1124,11 +1132,40 @@ async function exportExcel(result, baseName){
     baseName + ".xlsx");
 }
 
+/** One dataset's sheet. A failed dataset becomes its reason rather than an empty grid. */
+function sheetFor(table){
+  if (table.status === "failed") {
+    return XLSX.utils.aoa_to_sheet([[table.name], ["This dataset could not be loaded", table.error || ""]]);
+  }
+
+  const sheet = XLSX.utils.aoa_to_sheet([table.head].concat(table.body));
+  // Width by longest value, capped — an unbounded column is worse than a truncated one.
+  sheet["!cols"] = table.head.map((label, i) =>
+    ({ wch: Math.min(60, Math.max(10, ...table.body.map(r => String(r[i] ?? "").length), String(label).length + 2)) }));
+  return sheet;
+}
+
+/**
+ * A sheet name Excel will accept: at most 31 characters, none of []:*?/\, never blank, and unique
+ * within the book. Excel refuses the whole file rather than renaming, so a dataset an author called
+ * "Facilities (2026/27)" would otherwise fail the export at the last step.
+ */
+function sheetName(name, used){
+  const cleaned = String(name || "Dataset").replace(/[\[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Dataset";
+  let candidate = cleaned;
+  for (let suffix = 2; used.indexOf(candidate) >= 0; suffix++) {
+    candidate = `${cleaned.slice(0, 31 - String(suffix).length - 1)} ${suffix}`;
+  }
+
+  used.push(candidate);
+  return candidate;
+}
+
 async function exportPdf(result, baseName){
   await loadLibrary("jspdf");
   await loadLibrary("table");
   const rtl = isReportRtl();
-  const { head, body } = orderedForDirection(exportRows(result), rtl);
+  const tables = exportTables(result);
 
   // Landscape: report tables are wider than they are tall, and portrait squeezes columns to nothing.
   const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
@@ -1141,20 +1178,51 @@ async function exportPdf(result, baseName){
   // PDF through its own ToUnicode map; do not compare glyph ids between two PDFs, they are
   // per-document and any such comparison is meaningless.
   drawPdfHeading(doc, result, font, rtl);
-  drawPdfTable(doc, head, body, font, rtl);
+
+  /* Each dataset is drawn beneath the last, titled, so a term sheet exports as the document it is on
+     screen rather than as its first table alone. autoTable reports where it finished, which is where
+     the next one starts; a single-dataset report is unchanged because it simply has one. */
+  let top = 70;
+  for (const table of tables) {
+    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top);
+    top = table.status === "failed"
+      ? drawPdfFailure(doc, table, font, rtl, top)
+      : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top);
+  }
 
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
-function drawPdfTable(doc, head, body, font, rtl){
+function drawPdfSubtitle(doc, name, font, rtl, top){
+  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+  doc.setFont(font);
+  doc.setFontSize(11);
+  doc.text(String(name), x, top, { align: rtl ? "right" : "left" });
+  return top + 8;
+}
+
+/** A failed dataset states its reason. An empty table would read as "nothing matched". */
+function drawPdfFailure(doc, table, font, rtl, top){
+  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+  doc.setFont(font);
+  doc.setFontSize(9);
+  doc.text(`This dataset could not be loaded — ${table.error || "no reason was given"}`,
+    x, top + 12, { align: rtl ? "right" : "left" });
+  return top + 34;
+}
+
+function drawPdfTable(doc, { head, body }, font, rtl, top){
   doc.autoTable({
-    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
+    head: [head], body, startY: top, margin: { left: 40, right: 40 },
     styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
     // Amiri is registered in one weight, so asking for bold would send jsPDF looking for a face
     // that is not there. The fill colour carries the header instead.
     headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
     alternateRowStyles: { fillColor: [247, 247, 247] }
   });
+
+  // Where this table ended is where the next one begins.
+  return (doc.lastAutoTable ? doc.lastAutoTable.finalY : top) + 22;
 }
 
 
@@ -1212,19 +1280,65 @@ const PNG_BODY_FONT = "12px Segoe UI, sans-serif";
  * the right, which is what the rtl flag threads through.
  */
 async function exportPng(result, baseName){
-  const { head, body } = exportRows(result);
   const rtl = isReportRtl();
-  const widths = measuredColumnWidths(head, body);
-  const width = widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2;
-  const height = PNG_TABLE_TOP + PNG_HEADER_HEIGHT + body.length * PNG_ROW_HEIGHT + PNG_PADDING;
+  /* Every dataset is measured before anything is drawn: the canvas has to be sized for the widest
+     table and the total height up front, and a canvas cannot be resized without clearing it. */
+  const drawn = exportTables(result).map(table => Object.assign({}, table, {
+    widths: measuredColumnWidths(table.head, table.body)
+  }));
+  const width = drawn.reduce((widest, table) =>
+    Math.max(widest, table.widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2), PNG_MIN_COLUMN);
+  const height = PNG_TABLE_TOP
+    + drawn.reduce((total, table) => total + pngTableHeight(table, drawn.length), 0)
+    + PNG_PADDING;
 
   const ctx = pngContext(width, height, rtl);
   drawPngTitle(ctx, width, rtl);
-  drawPngHead(ctx, head, widths, width, rtl);
-  drawPngBody(ctx, body, widths, width, rtl);
+
+  let top = PNG_TABLE_TOP;
+  for (const table of drawn) {
+    if (drawn.length > 1) top = drawPngSubtitle(ctx, table.name, width, rtl, top);
+    top = table.status === "failed"
+      ? drawPngFailure(ctx, table, width, rtl, top)
+      : drawPngTable(ctx, table, width, rtl, top);
+  }
 
   const blob = await new Promise(resolve => ctx.canvas.toBlob(resolve, "image/png"));
   saveBlob(blob, baseName + ".png");
+}
+
+const PNG_SUBTITLE_HEIGHT = 22;
+const PNG_BLOCK_GAP = 18;
+
+function pngTableHeight(table, count){
+  const subtitle = count > 1 ? PNG_SUBTITLE_HEIGHT : 0;
+  const body = table.status === "failed"
+    ? PNG_ROW_HEIGHT
+    : PNG_HEADER_HEIGHT + table.body.length * PNG_ROW_HEIGHT;
+  return subtitle + body + (count > 1 ? PNG_BLOCK_GAP : 0);
+}
+
+function drawPngSubtitle(ctx, name, width, rtl, top){
+  ctx.fillStyle = "#201f1e";
+  ctx.font = PNG_HEAD_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(String(name), rtl ? width - PNG_PADDING : PNG_PADDING, top + 14);
+  return top + PNG_SUBTITLE_HEIGHT;
+}
+
+function drawPngFailure(ctx, table, width, rtl, top){
+  ctx.fillStyle = "#a4262c";
+  ctx.font = PNG_BODY_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(`This dataset could not be loaded — ${table.error || "no reason was given"}`,
+    rtl ? width - PNG_PADDING : PNG_PADDING, top + 14);
+  return top + PNG_ROW_HEIGHT + PNG_BLOCK_GAP;
+}
+
+function drawPngTable(ctx, table, width, rtl, top){
+  drawPngHead(ctx, table.head, table.widths, width, rtl, top);
+  const end = drawPngBody(ctx, table.body, table.widths, width, rtl, top + PNG_HEADER_HEIGHT);
+  return end + PNG_BLOCK_GAP;
 }
 
 /** Widths from real glyph widths. The old estimate of 7px per character is wrong for any
@@ -1276,17 +1390,18 @@ function drawPngTitle(ctx, width, rtl){
     rtl ? width - PNG_PADDING : PNG_PADDING, PNG_PADDING + 14);
 }
 
-function drawPngHead(ctx, head, widths, width, rtl){
+function drawPngHead(ctx, head, widths, width, rtl, top){
   ctx.fillStyle = "#0078d4";
-  ctx.fillRect(PNG_PADDING, PNG_TABLE_TOP, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
+  ctx.fillRect(PNG_PADDING, top, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
   ctx.fillStyle = "#ffffff";
   ctx.font = PNG_HEAD_FONT;
-  head.forEach((label, i) => drawCellText(ctx, label, widths, i, PNG_TABLE_TOP + 22, rtl));
+  head.forEach((label, i) => drawCellText(ctx, label, widths, i, top + 22, rtl));
 }
 
-function drawPngBody(ctx, body, widths, width, rtl){
+/** Draws the rows from `top` and returns the y it finished at, so the next block knows where to go. */
+function drawPngBody(ctx, body, widths, width, rtl, top){
   ctx.font = PNG_BODY_FONT;
-  let y = PNG_TABLE_TOP + PNG_HEADER_HEIGHT;
+  let y = top;
   body.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#f7f7f7" : "#ffffff";
     ctx.fillRect(PNG_PADDING, y, width - PNG_PADDING * 2, PNG_ROW_HEIGHT);
@@ -1294,6 +1409,8 @@ function drawPngBody(ctx, body, widths, width, rtl){
     row.forEach((cell, i) => drawCellText(ctx, cell, widths, i, y + 18, rtl));
     y += PNG_ROW_HEIGHT;
   });
+
+  return y;
 }
 
 /** Trims with an ellipsis so a long value cannot bleed into the next column. */

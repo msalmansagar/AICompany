@@ -3,6 +3,7 @@ const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', impor
 // Runs the viewer's exporters against a real executed result, with the vendored libraries loaded
 // from disk, and checks each produces a genuinely valid file rather than merely not throwing.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { inflateSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -87,6 +88,21 @@ const result = {
   ].map(([a,b,c]) => ({ cells: { name:{value:a,text:a}, accountnumber:{value:b,text:b}, amount:{value:c,text:c} } }))
 };
 
+/** The text drawn in a PDF, inflating each content stream. Enough to prove what reached the page. */
+function pdfText(bytes) {
+  const latin = bytes.toString('latin1');
+  let text = '';
+  const marker = /stream\r?\n/g;
+  let found;
+  while ((found = marker.exec(latin)) !== null) {
+    const start = found.index + found[0].length;
+    const chunk = bytes.slice(start, latin.indexOf('endstream', start));
+    try { text += inflateSync(chunk).toString('latin1'); }
+    catch { text += chunk.toString('latin1'); }
+  }
+  return text;
+}
+
 const bytesOf = blob => {
   const out = [];
   for (const part of blob.parts) {
@@ -127,6 +143,68 @@ downloads.length = 0; await api.exportPng(result, 'report');
 file = downloads[0]; bytes = bytesOf(file.blob);
 check('named .png', file.filename === 'report.png');
 check('is a real PNG (magic bytes)', bytes.slice(0,4).toString('hex') === '89504e47');
+
+// ADD-002: a term sheet is one parent with its child tables. An export carrying only the first
+// table hands the customer an incomplete document, so every format that CAN hold more than one table
+// now does. CSV cannot — it is one table by definition — so it stays the root and says so elsewhere.
+const multi = {
+  reportName: 'Termsheet', reportId: 'r1',
+  datasets: [
+    { id: 'r1', name: 'Termsheet', role: 'root', status: 'ok', rowCount: 1, elapsedMs: 5,
+      columns: [{ alias: 'name', label: 'Customer' }],
+      rows: [{ cells: { name: { value: 'QNB', text: 'QNB' } } }] },
+    { id: 'd2', name: 'Requested Facilities', role: 'standalone', status: 'ok', rowCount: 2, elapsedMs: 8,
+      columns: [{ alias: 'ftype', label: 'Facility' }, { alias: 'amt', label: 'Amount' }],
+      rows: [
+        { cells: { ftype: { value: 'Term Loan', text: 'Term Loan' }, amt: { value: 1, text: '12,000,000' } } },
+        { cells: { ftype: { value: 'Overdraft', text: 'Overdraft' }, amt: { value: 2, text: '2,500,000' } } }
+      ] },
+    { id: 'd3', name: 'Termsheet Conditions', role: 'standalone', status: 'ok', rowCount: 1, elapsedMs: 3,
+      columns: [{ alias: 'cond', label: 'Condition' }],
+      rows: [{ cells: { cond: { value: 'DSR', text: 'DSR >= 1.25x' } } }] }
+  ]
+};
+
+console.log('\nmulti-dataset — Excel gets a sheet per dataset');
+downloads.length = 0; await api.exportExcel(multi, 'termsheet');
+bytes = bytesOf(downloads[0].blob);
+{
+  const book = XLSX.read(bytes, { type: 'buffer' });
+  check('one sheet per dataset', book.SheetNames.length === 3, book.SheetNames.join('|'));
+  check('named after the datasets',
+    book.SheetNames.join('|') === 'Termsheet|Requested Facilities|Termsheet Conditions', book.SheetNames.join('|'));
+  const facilities = XLSX.utils.sheet_to_json(book.Sheets['Requested Facilities'], { header: 1 });
+  check('the block carries its own header', String(facilities[0]) === 'Facility,Amount', String(facilities[0]));
+  check('and its own rows', facilities.length === 3, String(facilities.length));
+  check('the root sheet holds the root record',
+    XLSX.utils.sheet_to_json(book.Sheets['Termsheet'], { header: 1 })[1][0] === 'QNB');
+}
+
+console.log('\nmulti-dataset — PDF and PNG carry every dataset');
+downloads.length = 0; await api.exportPdf(multi, 'termsheet');
+bytes = bytesOf(downloads[0].blob);
+check('the PDF is valid', bytes.slice(0, 4).toString() === '%PDF');
+writeFileSync(join(tmpdir(), 'export-check-multi.pdf'), bytes);
+{
+  /* "It is a valid PDF" is the assertion that once let a broken Arabic build pass. Decode the
+     content streams and look for the actual datasets: a PDF carrying only the first table is still
+     a perfectly valid PDF. */
+  const text = pdfText(bytes);
+  for (const wanted of ['Requested Facilities', 'Termsheet Conditions', 'Term Loan', 'Overdraft', 'DSR']) {
+    check(`the PDF carries "${wanted}"`, text.includes(wanted));
+  }
+}
+downloads.length = 0; await api.exportPng(multi, 'termsheet');
+bytes = bytesOf(downloads[0].blob);
+check('the PNG is valid', bytes.slice(0, 4).toString('hex') === '89504e47');
+
+console.log('\nmulti-dataset — CSV stays one table, by definition');
+downloads.length = 0; await api.exportCsv(multi, 'termsheet');
+{
+  const text = bytesOf(downloads[0].blob).toString('utf8');
+  check('it holds the root', text.includes('QNB'));
+  check('and not the blocks', !text.includes('Term Loan'), text.slice(0, 120));
+}
 
 console.log('\nmenu');
 check('offers exactly the formats implemented', Object.keys(api.EXPORT_FORMATS).join(',') === 'csv,excel,pdf,image');
