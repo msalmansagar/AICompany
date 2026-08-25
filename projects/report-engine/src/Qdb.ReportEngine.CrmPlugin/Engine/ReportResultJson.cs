@@ -22,14 +22,85 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             AppendProperty(json, "reportId", result.ReportId.ToString());
             json.Append(',');
             AppendProperty(json, "reportName", result.ReportName);
+
+            if (result.StandaloneDatasets.Count == 0)
+            {
+                AppendSingleDatasetBody(json, result);
+            }
+            else
+            {
+                AppendDatasets(json, result);
+            }
+
+            json.Append('}');
+            return json.ToString();
+        }
+
+        /// <summary>
+        /// The shape every deployed report has always had (ADR-RPT-012 §2). A report that declares one
+        /// dataset must serialise byte-for-byte as before, so the four exports, every layout, drilldown
+        /// and the dashboard can migrate to the collection one at a time instead of on one flag day.
+        /// </summary>
+        private static void AppendSingleDatasetBody(StringBuilder json, ReportResult result)
+        {
             json.Append(",\"columns\":");
             AppendColumns(json, result.Columns);
             json.Append(",\"rows\":");
             AppendRows(json, result.Rows);
             json.Append(",\"rowCount\":").Append(result.RowCount.ToString(CultureInfo.InvariantCulture));
             json.Append(",\"truncated\":").Append(result.Truncated ? "true" : "false");
+        }
+
+        /// <summary>Root first, then each standalone block, matching execution order (MDS-FR-006).</summary>
+        private static void AppendDatasets(StringBuilder json, ReportResult result)
+        {
+            json.Append(",\"datasets\":[");
+            AppendDataset(json, RootDataset(result));
+            foreach (var dataset in result.StandaloneDatasets)
+            {
+                json.Append(',');
+                AppendDataset(json, dataset);
+            }
+
+            json.Append(']');
+        }
+
+        /// <summary>
+        /// The root as a dataset in its own right, so one serialiser covers every block. Its id is the
+        /// report's own: the root is the report's primary source and has no separate identity to cite.
+        /// </summary>
+        private static ReportDataset RootDataset(ReportResult result) => new ReportDataset
+        {
+            Id = result.ReportId.ToString(),
+            Name = result.ReportName,
+            Role = DatasetRole.Root,
+            Columns = result.Columns,
+            Rows = result.Rows,
+            RowCount = result.RowCount,
+            Truncated = result.Truncated,
+            ElapsedMs = (int)result.Duration.TotalMilliseconds
+        };
+
+        private static void AppendDataset(StringBuilder json, ReportDataset dataset)
+        {
+            json.Append('{');
+            AppendProperty(json, "id", dataset.Id);
+            json.Append(',');
+            AppendProperty(json, "name", dataset.Name);
+            json.Append(',');
+            AppendProperty(json, "role", dataset.Role);
+            json.Append(",\"columns\":");
+            AppendColumns(json, dataset.Columns);
+            json.Append(",\"rows\":");
+            AppendRows(json, dataset.Rows);
+            json.Append(",\"rowCount\":").Append(dataset.RowCount.ToString(CultureInfo.InvariantCulture));
+            json.Append(",\"truncated\":").Append(dataset.Truncated ? "true" : "false");
+            json.Append(",\"elapsedMs\":").Append(dataset.ElapsedMs.ToString(CultureInfo.InvariantCulture));
+            json.Append(',');
+            AppendProperty(json, "status", dataset.Status);
+            json.Append(',');
+            AppendProperty(json, "error", dataset.Error);
             json.Append('}');
-            return json.ToString();
         }
 
         private static void AppendColumns(StringBuilder json, IReadOnlyList<ReportResultColumn> columns)

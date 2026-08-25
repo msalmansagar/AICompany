@@ -347,6 +347,37 @@ function renderCatalog(){
 }
 
 /* ---------------- run a report ---------------- */
+
+/* The plugin emits one of two result shapes (ADR-RPT-012 §2): a report with a single dataset
+   serialises exactly as it always has, and only a report declaring a second one carries `datasets`.
+   Every consumer reads the result through here, so no renderer or exporter has to know which arrived
+   — which is what lets them migrate to multi-dataset one at a time instead of all on one day.
+
+   A result with neither shape yields one empty root rather than throwing: the caller is mid-render,
+   and taking the page down is worse than drawing a report with no rows. It must not invent rows. */
+function datasetsOf(result){
+  if (!result) return [];
+  if (Array.isArray(result.datasets)) return result.datasets;
+  return [{
+    id: result.reportId,
+    name: result.reportName,
+    role: "root",
+    columns: result.columns,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    truncated: result.truncated,
+    elapsedMs: result.elapsedMs,
+    status: "ok",
+    error: null
+  }];
+}
+
+/* Reports render through the root dataset unless they are explicitly multi-dataset, so the many
+   single-dataset callers keep reading one result rather than indexing into a collection. */
+const rootDatasetOf = result => datasetsOf(result)[0] || null;
+
+const isMultiDataset = result => datasetsOf(result).length > 1;
+
 async function openReport(id){
   state.view="run";
   const c=$("#content");

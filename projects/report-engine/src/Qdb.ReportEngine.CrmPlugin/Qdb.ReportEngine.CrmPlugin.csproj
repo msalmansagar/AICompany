@@ -72,6 +72,7 @@
     <Compile Include="..\Qdb.ReportEngine.Core\Common\DomainError.cs" LinkBase="Shared\Common" />
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDefinition.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDataset.cs" LinkBase="Shared\Models" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportQueryBuilder.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlFilters.cs" LinkBase="Shared\Engine" />
     <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlAggregates.cs" LinkBase="Shared\Engine" />

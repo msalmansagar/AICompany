@@ -55,6 +55,16 @@ public sealed record ReportResult
     public bool Truncated { get; init; }
 
     public TimeSpan Duration { get; init; }
+
+    /// <summary>
+    /// Additional result sets rendered as their own blocks (ADD-002 MDS-FR-004). Empty for every
+    /// report that declares one dataset, which is what keeps their wire format unchanged
+    /// (ADR-RPT-012 §2).
+    ///
+    /// The properties above remain the ROOT dataset throughout, so existing callers keep reading the
+    /// result they always read rather than acquiring a new meaning silently.
+    /// </summary>
+    public IReadOnlyList<ReportDataset> StandaloneDatasets { get; init; } = [];
 }
 
 /// <summary>A result column: its output alias, display label, source attribute, and type.</summary>
