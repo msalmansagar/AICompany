@@ -189,7 +189,10 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
         const label = routeId ? resolvedLabels.get(routeId) : undefined;
         // A full condition can run to banner width at low zoom — clamp it; the
         // route inspector panel still shows the whole thing on click.
-        return label ? { ...edge, label: truncateLabel(label) } : edge;
+        if (!label) return edge;
+        // Keep the default-flow slash the builder stamped on fallback routes.
+        const isFallback = (edge.data as { isFallback?: boolean } | undefined)?.isFallback === true;
+        return { ...edge, label: isFallback ? `∕ ${truncateLabel(label)}` : truncateLabel(label) };
       })
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps

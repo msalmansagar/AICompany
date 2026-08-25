@@ -264,6 +264,8 @@ export function buildGraph(
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
         const cond = conditionLabel(route.filter);
+        // The BPMN default-flow slash: the route the engine takes when nothing
+        // else matched wears "∕" so evaluation order is readable at a glance.
         const edgeLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
 
         forwardEdges.push({
@@ -274,7 +276,8 @@ export function buildGraph(
           targetHandle: 'in',
           type: 'default',
           animated: !isFallback,
-          label: edgeLabel,
+          data: { isFallback },
+          label: isFallback ? `∕ ${edgeLabel}` : edgeLabel,
           // Text and fill were the SAME colour — a solid orange bar with
           // invisible writing. The registered route-label pairs sit the text
           // on the neutral raised ground the contrast guard checks.
@@ -376,39 +379,13 @@ export function buildGraph(
   // under its nearest lower-sequence connected spine step with an invisible
   // rank-only edge: the diagram then reads in business order even where the
   // configuration is incomplete. These edges are never rendered.
-  const dagreNodeIds = new Set(nodes.map((n) => n.id));
-  const touchedByEdges = new Set<string>();
-  const hasIncoming = new Set<string>();
-  for (const e of layoutEdges) {
-    if (dagreNodeIds.has(e.source) && dagreNodeIds.has(e.target)) {
-      touchedByEdges.add(e.source);
-      touchedByEdges.add(e.target);
-      hasIncoming.add(e.target);
-    }
-  }
-  const spineBySequence = spineStepNodes
-    .map((n) => (n.data as ViewStepData).step)
-    .sort((a, b) => a.sequenceNo - b.sequenceNo);
-  const entryId = firstSteps[0]?.id ?? null;
-  const anchorEdges: Edge[] = [];
-  for (const s of spineBySequence) {
-    const nodeId = `step_${s.id}`;
-    // The start edge is the entry's incoming; everything else without one gets
-    // an anchor — otherwise its outgoing chain can rank it ABOVE the entry.
-    if (s.id === entryId || hasIncoming.has(nodeId)) continue;
-    const prev = [...spineBySequence]
-      .reverse()
-      .find(
-        (p) => p.sequenceNo < s.sequenceNo && touchedByEdges.has(`step_${p.id}`)
-      );
-    anchorEdges.push({
-      id: `anchor_${s.id}`,
-      source: prev ? `step_${prev.id}` : START_NODE_ID,
-      target: nodeId,
-    } as Edge);
-    touchedByEdges.add(nodeId);
-    hasIncoming.add(nodeId);
-  }
+  const anchorEdges = buildAnchorEdges(
+    spineStepNodes.map((n) => (n.data as ViewStepData).step),
+    layoutEdges,
+    new Set(nodes.map((n) => n.id)),
+    firstSteps[0]?.id ?? null,
+    START_NODE_ID
+  );
 
   let positionedNodes = applyDagreLayout(nodes, [...layoutEdges, ...anchorEdges], dir);
 
@@ -432,6 +409,53 @@ export function buildGraph(
   );
 
   return attachCorrectionLoops(withStubs, correctionNodes, correctionInfo.returnTargetOf, outcomes, dir);
+}
+
+/**
+ * Rank-only anchors for steps nothing routes into (CWFD-009 P1).
+ *
+ * A spine step with no incoming layout edge — the Loan spec's orphans, or a
+ * step whose only links ran through a collapsed pill — floats to rank 0 and
+ * the diagram opens above its own entry step. Each such step is anchored
+ * under its nearest lower-sequence connected step with an invisible edge, so
+ * the canvas reads in business order even where the configuration is
+ * incomplete. These edges feed Dagre only and are never rendered.
+ */
+export function buildAnchorEdges(
+  spineSteps: Array<{ id: string; sequenceNo: number }>,
+  layoutEdges: Edge[],
+  dagreNodeIds: Set<string>,
+  entryId: string | null,
+  startNodeId: string
+): Edge[] {
+  const touchedByEdges = new Set<string>();
+  const hasIncoming = new Set<string>();
+  for (const e of layoutEdges) {
+    if (dagreNodeIds.has(e.source) && dagreNodeIds.has(e.target)) {
+      touchedByEdges.add(e.source);
+      touchedByEdges.add(e.target);
+      hasIncoming.add(e.target);
+    }
+  }
+  const bySequence = [...spineSteps].sort((a, b) => a.sequenceNo - b.sequenceNo);
+  const anchorEdges: Edge[] = [];
+  for (const s of bySequence) {
+    const nodeId = `step_${s.id}`;
+    // The start edge is the entry's incoming; everything else without one gets
+    // an anchor — otherwise its outgoing chain can rank it ABOVE the entry.
+    if (s.id === entryId || hasIncoming.has(nodeId)) continue;
+    const prev = [...bySequence]
+      .reverse()
+      .find((p) => p.sequenceNo < s.sequenceNo && touchedByEdges.has(`step_${p.id}`));
+    anchorEdges.push({
+      id: `anchor_${s.id}`,
+      source: prev ? `step_${prev.id}` : startNodeId,
+      target: nodeId,
+    } as Edge);
+    touchedByEdges.add(nodeId);
+    hasIncoming.add(nodeId);
+  }
+  return anchorEdges;
 }
 
 /**
