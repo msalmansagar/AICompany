@@ -10,7 +10,7 @@
 | **Version** | 1.0 |
 | **Date** | 2026-08-25 |
 | **Author** | BA (MSS Technologies) |
-| **Status** | DRAFT — Pending CEO Approval. **No build may start from this document.** |
+| **Status** | ✅ **APPROVED by CEO 2026-08-25 — both Phase A and Phase B.** Phase A is authorised for architecture and build. **Phase B is approved in scope but its BUILD remains held behind the four pre-conditions in §8**, which the CEO retained on approval. |
 | **Trigger** | User requirement: a single report must be able to define **several CRM datasets and several external data sources**, with the author choosing per dataset whether it joins the root or stands alone. |
 
 ---
@@ -232,8 +232,24 @@ source the platform secures, so when external rows arrive the only new problem i
 
 | Decision | |
 |---|---|
-| Phase A — Multi-dataset, CRM only | ☐ Approve ☐ Approve with conditions ☐ Reject |
-| Phase B — External datasets (reopens the V2/V3 gate) | ☐ Approve ☐ Approve with conditions ☐ Reject |
-| CEO | ______________________ Date __________ |
+| Phase A — Multi-dataset, CRM only | ☑ **Approved** — authorised for architecture and build |
+| Phase B — External datasets (reopens the V2/V3 gate) | ☑ **Approved with conditions** — scope approved, **build held** behind §8 pre-conditions |
+| CEO | Approved 2026-08-25 |
 
-**Nothing in this document is authorised for build until the boxes above are marked.**
+### What this approval decides
+
+The CEO has **deliberately reopened the V2/V3 external-source gate** recorded in `c8-inert-options.md`.
+External REST datasets are now in scope for RPT-ENG-001 rather than deferred to a later version.
+The other three external types (Middleware, Core Banking, MIS) remain out of scope per §4.
+
+### Conditions retained on Phase B build
+
+Phase B is approved in **scope**, not yet released for build. All four must be met first:
+
+1. **C-6 re-characterised** against a multi-dataset workload (§6.2) — the existing 102× headroom does
+   not cover N queries plus uncontrolled external latency inside the 2-minute ceiling
+2. **Auditor sign-off** on MDS-R-01 (external rows carry no CRM security) and MDS-R-03 (PDPPL)
+3. **ADR** for the external execution path, on-premise included
+4. **MDS-OQ-01 … MDS-OQ-03** answered
+
+Phase A carries none of these conditions and proceeds now.
