@@ -34,6 +34,7 @@ import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
 import { GoToStepPanel } from './common/GoToStepPanel';
+import { buildStageBands } from '../services/stageBands';
 import type { GoToStepItem } from './common/GoToStepPanel';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
@@ -132,11 +133,14 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
       view.data.routes,
     );
     const saved = storedViewLayouts[`${view.viewMode}:${view.layoutDir}`];
-    view.setNodes(() =>
-      saved
-        ? rebuilt.map((node) => (saved[node.id] ? { ...node, position: saved[node.id] } : node))
-        : rebuilt
-    );
+    const positioned = saved
+      ? rebuilt.map((node) => (saved[node.id] ? { ...node, position: saved[node.id] } : node))
+      : rebuilt;
+    // Stage bands are derived from final positions, so a saved layout gets
+    // bands where its cards actually are.
+    const stageBands =
+      view.viewMode === 'business' ? buildStageBands(positioned, view.layoutDir) : [];
+    view.setNodes(() => [...stageBands, ...positioned]);
     view.setEdges(() => rebuiltEdges);
     setPendingFit((token) => token + 1);
     setIsLayoutDirty(false);

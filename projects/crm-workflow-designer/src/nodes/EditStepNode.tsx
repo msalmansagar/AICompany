@@ -15,6 +15,11 @@ import {
   stepHandleStyle,
 } from './stepCard';
 import { stepAccent } from '@/styles/stepAccents';
+import {
+  useDetailLevel,
+  useQuantisedZoom,
+  screenStableFontSize,
+} from '@/components/common/useDetailLevel';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -42,6 +47,8 @@ export function EditStepNode({ data }: NodeProps) {
   const isSelected = stepData.isSelected ?? false;
   const addStepAfter = useWorkflowStore((s) => s.addStepAfter);
   const isReadOnly = useWorkflowStore(selectCanvasIsReadOnly);
+  const detailLevel = useDetailLevel();
+  const zoom = useQuantisedZoom();
   const [isHovered, setIsHovered] = useState(false);
 
   // A pure correction loop collapses to a pill until selected — the full card
@@ -65,6 +72,23 @@ export function EditStepNode({ data }: NodeProps) {
   // an issue is a quiet corner badge until the step is selected, and only
   // then does the card wear the full error treatment.
   const hasError = stepData.hasError ?? false;
+
+  // Semantic zoom (P6): below reading zoom the card says less, larger.
+  if (detailLevel !== 'full' && !isSelected) {
+    const nameSize = screenStableFontSize(zoom, 12, detailLevel === 'dot' ? 40 : 26);
+    return (
+      <div
+        style={editCompactStyle(stepAccent(stepData.stepId), detailLevel === 'dot')}
+        title={`${stepData.sequenceNo}. ${stepData.name}`}
+      >
+        {hasError && <span style={errorCornerBadge} title="This step has a validation issue">!</span>}
+        <Handle type="target" position={Position.Left} id="in" style={stepHandleStyle('var(--text-disabled)')} isConnectable />
+        <span style={{ ...editCompactName, fontSize: nameSize }}>{stepData.name || 'Unnamed Step'}</span>
+        <Handle type="source" position={Position.Right} id="out" style={stepHandleStyle('var(--text-secondary)')} isConnectable />
+      </div>
+    );
+  }
+
   return (
     <div
       style={stepCardStyle({ isSelected, hasError: hasError && isSelected, accentColor: stepAccent(stepData.stepId) })}
@@ -123,6 +147,38 @@ export function EditStepNode({ data }: NodeProps) {
     </div>
   );
 }
+
+// The zoomed-out face of a step: name only, at a screen-stable size, on the
+// step's identity colour. Same footprint as the full card.
+function editCompactStyle(accentColor: string, isDot: boolean): React.CSSProperties {
+  return {
+    width: 280,
+    minHeight: isDot ? 84 : 64,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '10px 14px',
+    background: 'var(--surface)',
+    border: '1.5px solid var(--border)',
+    borderLeft: `6px solid ${accentColor}`,
+    borderRadius: 10,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
+    position: 'relative',
+  };
+}
+
+const editCompactName: React.CSSProperties = {
+  fontWeight: 700,
+  color: 'var(--text)',
+  textAlign: 'center',
+  lineHeight: 1.15,
+  overflow: 'hidden',
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+};
 
 // The quiet face of a validation issue: visible when looked for, silent in
 // the aggregate. The full red card is reserved for the selected step.

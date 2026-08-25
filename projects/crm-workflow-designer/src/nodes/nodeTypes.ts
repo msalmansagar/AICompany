@@ -17,6 +17,7 @@ import { SopSwimlaneNode } from './SopSwimlaneNode';
 import { TechNewStepNode } from './TechNewStepNode';
 import { TechNewOutcomeNode } from './TechNewOutcomeNode';
 import { RouteGatewayNode } from './RouteGatewayNode';
+import { StageBandNode } from './StageBandNode';
 
 export const nodeTypes: NodeTypes = {
   // View mode — shared start/end
@@ -25,6 +26,7 @@ export const nodeTypes: NodeTypes = {
 
   // Business view
   viewStep: ViewStepNode,
+  stageBand: StageBandNode,
   viewOutcome: ViewOutcomeNode,
   viewDecision: ViewDecisionNode,
 

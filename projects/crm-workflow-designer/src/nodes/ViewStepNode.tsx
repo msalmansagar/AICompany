@@ -13,10 +13,17 @@ import {
   stepHandleStyle,
 } from './stepCard';
 import { stepAccent } from '@/styles/stepAccents';
+import {
+  useDetailLevel,
+  useQuantisedZoom,
+  screenStableFontSize,
+} from '@/components/common/useDetailLevel';
 
 export function ViewStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows, layoutDir, isCorrection, returnTargetName } =
     data as unknown as ViewStepData;
+  const detailLevel = useDetailLevel();
+  const zoom = useQuantisedZoom();
   const isLR = layoutDir === 'LR';
   const assignLabel = getAssignToLabel(step.assignToCode);
   const assigneeName =
@@ -54,6 +61,29 @@ export function ViewStepNode({ data, selected }: NodeProps) {
     );
   }
 
+  // Semantic zoom: below reading zoom the card says less, LARGER, instead of
+  // shrinking eleven-point text into confetti. Selection always restores the
+  // full card.
+  if (detailLevel !== 'full' && !selected) {
+    const nameSize = screenStableFontSize(zoom, 12, detailLevel === 'dot' ? 40 : 26);
+    return (
+      <div
+        style={compactCardStyle(stepAccent(step.id), detailLevel === 'dot')}
+        title={`${step.sequenceNo}. ${step.name}`}
+      >
+        <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
+        <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
+        <Handle type="target" position={backInPos} id="back-in" style={backHandleStyle(isLR, 'in')} />
+        <Handle type="source" position={sideOutPos} id="side-out" style={stepHandleStyle('var(--warning)')} />
+        <span style={{ ...compactNameStyle, fontSize: nameSize }}>
+          {isCorrection ? '↩ ' : ''}
+          {step.name || 'Unnamed Step'}
+        </span>
+        <Handle type="source" position={mainOutPos} id="out" style={stepHandleStyle('var(--text-secondary)')} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ ...stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) }), ...(isCorrection ? { zIndex: 10 } : null) }}>
       <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
@@ -85,6 +115,39 @@ export function ViewStepNode({ data, selected }: NodeProps) {
     </div>
   );
 }
+
+// The zoomed-out face of a step: its name at a screen-stable size on the
+// step's identity colour. Same footprint as the full card, so edges and the
+// layout keep their geometry.
+function compactCardStyle(accentColor: string, isDot: boolean): React.CSSProperties {
+  return {
+    width: 280,
+    minHeight: isDot ? 84 : 64,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '10px 14px',
+    background: 'var(--surface)',
+    border: '1.5px solid var(--border)',
+    borderLeft: `6px solid ${accentColor}`,
+    borderRadius: 10,
+    boxShadow: '0 2px 8px rgba(0,0,0,0.07)',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
+    position: 'relative',
+  };
+}
+
+const compactNameStyle: React.CSSProperties = {
+  fontWeight: 700,
+  color: 'var(--text)',
+  textAlign: 'center',
+  lineHeight: 1.15,
+  overflow: 'hidden',
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+};
 
 // The pill's handles are anchors, not affordances — invisible but present so
 // React Flow keeps every edge attached across the collapse.
