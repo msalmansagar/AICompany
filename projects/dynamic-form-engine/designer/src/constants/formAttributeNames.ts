@@ -312,7 +312,27 @@ export const FORM_BUSINESS_RULE_ATTRS = {
   RULE_DEFINITION: 'qdb_conditions_json',
   IS_ACTIVE: 'qdb_is_active',
   SORT_ORDER: 'qdb_priority',
+  // Structured mirror of the rule's single action. The runtime reads the JSON, but these
+  // are what a CRM view, a report or an admin opening the record sees — and they are real
+  // lookups, so a deleted tab cannot leave a rule pointing at nothing.
+  ACTION: 'qdb_action',
+  TARGET_FIELD_ID: 'qdb_target_field_id',
+  TARGET_TAB_ID: 'qdb_target_tab_id',
+  TARGET_SECTION_ID: 'qdb_target_section_id',
 } as const;
+
+/** qdb_action option values. Mirrors PicklistMapper.ToBusinessRuleAction in the plugin. */
+export const BUSINESS_RULE_ACTION_VALUE: Record<string, number> = {
+  show_field: 100000001,
+  hide_field: 100000002,
+  show_section: 100000003,
+  hide_section: 100000004,
+  show_tab: 100000005,
+  hide_tab: 100000006,
+  set_required: 100000007,
+  clear_required: 100000008,
+  set_value: 100000011,
+};
 
 export const FORM_OPTION_VALUE_ATTRS = {
   ID: 'qdb_form_option_valueid',

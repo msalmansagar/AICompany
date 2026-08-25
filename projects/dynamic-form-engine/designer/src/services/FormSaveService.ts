@@ -399,9 +399,17 @@ export class FormSaveService {
       }
     }
 
-      // Step 6: Sync business rules for the form
+      // Step 6: Sync business rules for the form.
+      // Rule actions name a field by CODE, but the structured mirror column is a lookup, so
+      // the service needs the code → record id map to fill it. Built after the field saves
+      // above so newly created fields carry their real ids, not tmp_ ones.
       if (form.id && !form.id.startsWith('tmp_')) {
-        await this.businessRuleService.syncRules(form.id, Object.values(businessRules));
+        const fieldCodeToId = new Map<string, string>();
+        for (const field of Object.values(fields)) {
+          const realId = resolvedIds[field.id] ?? field.id;
+          if (field.code && !realId.startsWith('tmp_')) fieldCodeToId.set(field.code, realId);
+        }
+        await this.businessRuleService.syncRules(form.id, Object.values(businessRules), fieldCodeToId);
       }
 
       // Step 7: Update form definition header with conditional PATCH (If-Match: formEtag).

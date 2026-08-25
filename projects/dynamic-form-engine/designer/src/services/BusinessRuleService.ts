@@ -1,7 +1,7 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
-import { FORM_BUSINESS_RULE_ATTRS } from '@/constants/attributeNames';
+import { FORM_BUSINESS_RULE_ATTRS, BUSINESS_RULE_ACTION_VALUE } from '@/constants/attributeNames';
 import type { DesignerBusinessRule } from '@/state/models/DesignerRuleModel';
 import type { BusinessRuleDefinition } from '@/types/businessRule';
 import { withRetry } from './crmRetry';
@@ -13,6 +13,8 @@ export interface CreateBusinessRuleDto {
   isActive: boolean;
   sortOrder: number;
   definition: BusinessRuleDefinition;
+  /** Resolves a field action target code to its record id; omit when unavailable. */
+  fieldCodeToId?: FieldCodeToId;
 }
 
 export interface UpdateBusinessRuleDto {
@@ -20,6 +22,62 @@ export interface UpdateBusinessRuleDto {
   isActive?: boolean;
   sortOrder?: number;
   definition?: BusinessRuleDefinition;
+  fieldCodeToId?: FieldCodeToId;
+}
+
+/** Maps a field code to its Dataverse record id, so a field action can fill its lookup. */
+export type FieldCodeToId = ReadonlyMap<string, string>;
+
+/**
+ * The structured columns that mirror a designer rule's action.
+ *
+ * The runtime reads the JSON and ignores these entirely — the reader takes the designer
+ * path whenever the JSON carries trigger_field_code and an actions array. They exist so the
+ * record is not misleading to everything ELSE that looks at it (CRM views, reports, an
+ * admin opening the row) and so a tab target is a real lookup rather than a GUID buried in
+ * a string, which goes stale silently when the tab is deleted.
+ *
+ * IMPORTANT — these columns hold ONE action; the designer format holds many. A rule with
+ * more than one action cannot be represented here, so every column is cleared rather than
+ * mirroring just the first: a partial mirror would state something the rule does not do,
+ * which is worse than stating nothing. The JSON remains the source of truth either way.
+ */
+function buildActionMirror(
+  definition: BusinessRuleDefinition,
+  fieldCodeToId?: FieldCodeToId,
+): Record<string, unknown> {
+  const cleared: Record<string, unknown> = {
+    [FORM_BUSINESS_RULE_ATTRS.ACTION]: null,
+    [`${FORM_BUSINESS_RULE_ATTRS.TARGET_FIELD_ID}@odata.bind`]: null,
+    [`${FORM_BUSINESS_RULE_ATTRS.TARGET_TAB_ID}@odata.bind`]: null,
+    [`${FORM_BUSINESS_RULE_ATTRS.TARGET_SECTION_ID}@odata.bind`]: null,
+  };
+
+  const actions = definition.actions ?? [];
+  if (actions.length !== 1) return cleared;
+
+  const action = actions[0]!;
+  const actionValue = BUSINESS_RULE_ACTION_VALUE[action.action_type];
+  if (actionValue === undefined) return cleared;
+
+  const mirror: Record<string, unknown> = { ...cleared, [FORM_BUSINESS_RULE_ATTRS.ACTION]: actionValue };
+
+  if (action.target_tab_id) {
+    mirror[`${FORM_BUSINESS_RULE_ATTRS.TARGET_TAB_ID}@odata.bind`] = `/qdb_form_tabs(${action.target_tab_id})`;
+    return mirror;
+  }
+  if (action.target_section_id) {
+    mirror[`${FORM_BUSINESS_RULE_ATTRS.TARGET_SECTION_ID}@odata.bind`] = `/qdb_form_sections(${action.target_section_id})`;
+    return mirror;
+  }
+
+  // Field actions name a CODE; the column is a lookup, so it needs the record id. Without
+  // the map the action still mirrors — an action with no target beats a wrong one.
+  const fieldId = action.target_field_code ? fieldCodeToId?.get(action.target_field_code) : undefined;
+  if (fieldId) {
+    mirror[`${FORM_BUSINESS_RULE_ATTRS.TARGET_FIELD_ID}@odata.bind`] = `/qdb_form_fields(${fieldId})`;
+  }
+  return mirror;
 }
 
 export class BusinessRuleService {
@@ -35,6 +93,7 @@ export class BusinessRuleService {
           [FORM_BUSINESS_RULE_ATTRS.IS_ACTIVE]: dto.isActive,
           [FORM_BUSINESS_RULE_ATTRS.SORT_ORDER]: toDataversePriority(dto.sortOrder),
           [FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION]: JSON.stringify(dto.definition),
+          ...buildActionMirror(dto.definition, dto.fieldCodeToId),
         }),
       'createBusinessRule'
     );
@@ -48,6 +107,9 @@ export class BusinessRuleService {
     if (dto.sortOrder !== undefined) data[FORM_BUSINESS_RULE_ATTRS.SORT_ORDER] = toDataversePriority(dto.sortOrder);
     if (dto.definition !== undefined) {
       data[FORM_BUSINESS_RULE_ATTRS.RULE_DEFINITION] = JSON.stringify(dto.definition);
+      // The mirror is derived from the definition, so it is rewritten whenever the
+      // definition is — otherwise the columns would describe the rule's previous action.
+      Object.assign(data, buildActionMirror(dto.definition, dto.fieldCodeToId));
     }
 
     await withRetry(
@@ -89,7 +151,11 @@ export class BusinessRuleService {
     return result.entities.map(record => this.mapRecordToModel(record));
   }
 
-  async syncRules(formId: string, currentRules: DesignerBusinessRule[]): Promise<void> {
+  async syncRules(
+    formId: string,
+    currentRules: DesignerBusinessRule[],
+    fieldCodeToId?: FieldCodeToId,
+  ): Promise<void> {
     const existing = await this.listRulesForForm(formId);
     const currentRealIds = new Set(currentRules.filter(r => !r.id.startsWith('tmp_')).map(r => r.id));
 
@@ -99,9 +165,9 @@ export class BusinessRuleService {
 
     for (const rule of currentRules) {
       if (rule.id.startsWith('tmp_')) {
-        await this.createRule({ formId, name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition });
+        await this.createRule({ formId, name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition, fieldCodeToId });
       } else {
-        await this.updateRule(rule.id, { name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition });
+        await this.updateRule(rule.id, { name: rule.name, isActive: rule.isActive, sortOrder: rule.sortOrder, definition: rule.definition, fieldCodeToId });
       }
     }
   }

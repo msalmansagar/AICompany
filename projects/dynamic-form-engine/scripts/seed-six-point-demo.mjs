@@ -30,6 +30,9 @@ const GRID_MODE_ENTRY = 100000001;
 /** Schema name of the lookup that drives the tab rule; the rule's trigger must match it. */
 const LOOKUP_FIELD_CODE = 'qdb_partner_bank';
 
+/** qdb_action option value for hideTab — see BUSINESS_RULE_ACTION_VALUE in the designer. */
+const HIDE_TAB_ACTION_VALUE = 100000006;
+
 /** An account that exists in this org, so the rule can actually be triggered by clicking. */
 const RULE_MATCH_VALUE = 'Qatar National Bank';
 
@@ -283,12 +286,18 @@ async function run() {
     },
     actions: [{ action_type: 'hide_tab', target_tab_id: documentsTab.qdb_form_tabid }],
   };
+  // The structured columns mirror the single action, exactly as the designer now writes it.
+  // Without them the record defaults to qdb_action = 100000001 (showField) with no target —
+  // saying the opposite of what the rule does to every CRM view, report and admin that reads
+  // it. The runtime is unaffected either way: it reads the JSON.
   await post(token, 'qdb_form_business_rules', {
     'qdb_form_definition_id@odata.bind': `/qdb_form_definitions(${formId})`,
     qdb_name: `Hide Company Documents when the partner is ${RULE_MATCH_VALUE}`,
     qdb_conditions_json: JSON.stringify(ruleDefinition),
     qdb_priority: 1,
     qdb_is_active: true,
+    qdb_action: HIDE_TAB_ACTION_VALUE,
+    'qdb_target_tab_id@odata.bind': `/qdb_form_tabs(${documentsTab.qdb_form_tabid})`,
   });
   console.log(`✓ point 4 — rule: Banking Partner = "${RULE_MATCH_VALUE}" hides the Company Documents tab`);
 
