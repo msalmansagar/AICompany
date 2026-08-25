@@ -211,6 +211,99 @@ export function stepHandleStyle(color: string): React.CSSProperties {
   return { background: color, width: 10, height: 10, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
+/**
+ * The collapsed face of a pure correction loop (CWFD-009 P2).
+ *
+ * A "Return to X by Y" step exists to send work backwards; drawn as a full
+ * card it doubles the diagram. The pill keeps the step selectable and its
+ * edges anchored while costing one line of canvas. Selecting it expands the
+ * node back to the full card.
+ */
+export function CorrectionPill({
+  sequenceNo,
+  name,
+  returnTargetName,
+  hasError = false,
+}: {
+  sequenceNo: number;
+  name: string;
+  returnTargetName?: string | null;
+  hasError?: boolean;
+}) {
+  const title = returnTargetName
+    ? `${name} — correction step, resubmits to "${returnTargetName}". Click to expand.`
+    : `${name} — correction step. Click to expand.`;
+  return (
+    <div style={pillInner} title={title}>
+      <span style={pillLoopIcon} aria-hidden>↩</span>
+      <span style={pillSeq}>{sequenceNo}</span>
+      <span style={pillName}>{name || 'Unnamed Step'}</span>
+      {hasError && <span style={pillErrorDot} title="This step has a validation issue" />}
+    </div>
+  );
+}
+
+export function correctionPillStyle(isSelected: boolean): React.CSSProperties {
+  return {
+    background: 'var(--accent-branch-bg)',
+    border: isSelected ? '2px solid var(--primary)' : '1.5px dashed var(--accent-branch)',
+    borderRadius: 22,
+    padding: '6px 12px',
+    width: 210,
+    height: 44,
+    display: 'flex',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
+    boxShadow: isSelected ? '0 0 0 3px rgba(37,99,235,0.15)' : '0 1px 4px rgba(0,0,0,0.06)',
+    position: 'relative',
+  };
+}
+
+const pillInner: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  width: '100%',
+  overflow: 'hidden',
+};
+
+const pillLoopIcon: React.CSSProperties = {
+  color: 'var(--accent-branch)',
+  fontSize: 14,
+  fontWeight: 700,
+  flexShrink: 0,
+};
+
+const pillSeq: React.CSSProperties = {
+  background: 'var(--accent-branch)',
+  color: 'var(--text-on-primary)',
+  borderRadius: 4,
+  fontSize: 9,
+  fontWeight: 700,
+  padding: '0 5px',
+  lineHeight: '14px',
+  flexShrink: 0,
+};
+
+const pillName: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: 'var(--text)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  flex: 1,
+};
+
+const pillErrorDot: React.CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  background: 'var(--error)',
+  flexShrink: 0,
+};
+
 /** The assignment chip: a glyph, sized so it reads as a badge not a button. */
 function iconChip(bg: string, color: string): React.CSSProperties {
   return {

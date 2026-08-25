@@ -49,10 +49,15 @@ function isReturnOnlyNode(node: Node): boolean {
   return (node.data as ReturnFlaggedNodeData | undefined)?.isReturn === true;
 }
 
-/** Lanes and terminals are scenery — never removed by reachability. */
+/** Lanes, terminals and stage bands are scenery — never removed by reachability. */
 function isStructural(node: Node): boolean {
   const type = (node.type ?? '').toLowerCase();
-  return type.includes('start') || type.includes('end') || type.includes('swimlane');
+  return (
+    type.includes('start') ||
+    type.includes('end') ||
+    type.includes('swimlane') ||
+    type.includes('stageband')
+  );
 }
 
 function stripReturnRows(node: Node): Node {

@@ -15,10 +15,12 @@ import {
   branchChildrenOf,
   emptyOutcomeConcurrency,
 } from '@/services/branchFields';
-import type { WorkflowOutcome, WorkflowStep } from '@/types/WorkflowTypes';
+import type { WorkflowOutcome, WorkflowRoute, WorkflowStep } from '@/types/WorkflowTypes';
 import type { EditStepData } from '@/nodes/EditStepNode';
 import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
+import { computeStepHeight } from '@/services/WorkflowGraphBuilder';
 import { computeEditLayout } from '@/services/EditGraphLayout';
+import { classifyCorrectionSteps } from '@/services/correctionSteps';
 import { collectErrorNodeIds } from '@/services/ValidationService';
 import { useSyncedNodes } from '@/hooks/useSyncedNodes';
 
@@ -42,6 +44,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     steps,
     stepOrder,
     outcomes,
+    routes,
     routeOrder,
     nodePositions,
     selectedId,
@@ -57,6 +60,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     steps: s.steps,
     stepOrder: s.stepOrder,
     outcomes: s.outcomes,
+    routes: s.routes,
     routeOrder: s.routeOrder,
     nodePositions: s.nodePositions,
     selectedId: s.selectedId,
@@ -70,8 +74,38 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     setNodePositions: s.setNodePositions,
   }));
 
+  // The one step whose endings still run to the global END; every other
+  // terminal decision ends at a local stub beside its own card (CWFD-009 P7).
+  // BPMN draws an end event per branch for the same reason — the alternative
+  // was fourteen bezier curves converging on a single dot.
+  const mainTerminalStepId = useMemo(() => {
+    let best: { id: string; sequenceNo: number } | null = null;
+    for (const outcome of Object.values(outcomes)) {
+      if (outcome.nextStepId) continue;
+      const step = steps[outcome.stepId];
+      if (!step) continue;
+      if (!best || step.sequenceNo > best.sequenceNo) {
+        best = { id: outcome.stepId, sequenceNo: step.sequenceNo };
+      }
+    }
+    return best?.id ?? null;
+  }, [outcomes, steps]);
+
   const blueprint = useMemo<Node[]>(() => {
     const errorStepIds = collectErrorNodeIds(validationResults);
+
+    // Pure correction loops draw as pills (CWFD-009 P2) — same classifier the
+    // layout uses, so what collapses is exactly what sits beside its target.
+    const correctionInfo = classifyCorrectionSteps(
+      stepOrder.map((id) => ({ id, sequenceNo: steps[id]?.sequenceNo ?? 0 })),
+      Object.values(outcomes).map((o) => ({
+        stepId: o.stepId,
+        nextStepId: o.nextStepId,
+        sequenceNumber: o.sequenceNumber,
+        isConditional: o.applyFilter,
+      })),
+      stepOrder[0] ?? null
+    );
 
     const stepCount = stepOrder.length;
 
@@ -139,6 +173,11 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         controlFlowSummary:
           branchSummaryText(step) ?? fanOutSummaryText(branchChildrenOf(step.crmId, steps).length),
         controlFlowDescription: describeConcurrency(step, branchChildrenOf(step.crmId, steps).length),
+        isCorrection: correctionInfo.correctionIds.has(stepId),
+        returnTargetName: (() => {
+          const targetId = correctionInfo.returnTargetOf.get(stepId);
+          return targetId ? (steps[targetId]?.name ?? null) : null;
+        })(),
       };
 
       return {
@@ -151,8 +190,32 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       };
     }).filter(Boolean);
 
-    return [startNode, ...stepNodes, endNode];
-  }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes]);
+    // Local end stubs ride their step as child nodes, so they follow when the
+    // card is dragged.
+    const stubNodes: Node[] = [];
+    for (const stepId of stepOrder) {
+      if (stepId === mainTerminalStepId) continue;
+      const stepOutcomes = outcomesByStep.get(stepId) ?? [];
+      const terminals = stepOutcomes
+        .filter((outcome) => !outcome.nextStepId)
+        .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+      if (terminals.length === 0) continue;
+      const cardHeight = computeStepHeight(stepOutcomes.length);
+      terminals.forEach((outcome, index) => {
+        stubNodes.push({
+          id: `end_stub_${outcome.crmId}`,
+          type: 'viewEnd',
+          parentId: `step_${stepId}`,
+          position: { x: 14 + index * 36, y: cardHeight + 28 },
+          data: { layoutDir: 'LR', compact: true },
+          draggable: false,
+          selectable: false,
+        });
+      });
+    }
+
+    return [startNode, ...stepNodes, ...stubNodes, endNode];
+  }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes, mainTerminalStepId]);
 
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];
@@ -169,7 +232,11 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
         targetStep && sourceStep && targetStep.sequenceNo < sourceStep.sequenceNo
       );
       const sourceNodeId = `step_${outcome.stepId}`;
-      const targetNodeId = outcome.nextStepId ? `step_${outcome.nextStepId}` : END_NODE_ID;
+      const targetNodeId = outcome.nextStepId
+        ? `step_${outcome.nextStepId}`
+        : outcome.stepId === mainTerminalStepId
+          ? END_NODE_ID
+          : `end_stub_${outcome.crmId}`;
       const routeCount = outcome.applyFilter
         ? (routeOrder[outcome.crmId] ?? []).length
         : 0;
@@ -185,7 +252,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     }
 
     return result;
-  }, [outcomes, steps, stepOrder, routeOrder]);
+  }, [outcomes, steps, stepOrder, routeOrder, mainTerminalStepId]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -255,18 +322,21 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
 
   const reLayout = useCallback(() => {
     const outcomeList = Object.values(outcomes);
-    const positions = computeEditLayout(stepOrder, outcomeList);
+    const positions = computeEditLayout(stepOrder, outcomeList, routeLinksOf(routes, outcomes));
     setNodePositions(positions);
     // A fresh layout with last session's bends applied reads as broken —
     // auto-layout is the reset gesture for edge decorations too.
     useWorkflowStore.getState().clearEdgeDecorations();
-  }, [stepOrder, outcomes, setNodePositions]);
+  }, [stepOrder, outcomes, routes, setNodePositions]);
 
   const nodePositionsRef = useRef(nodePositions);
   nodePositionsRef.current = nodePositions;
 
   const outcomesRef = useRef(outcomes);
   outcomesRef.current = outcomes;
+
+  const routesRef = useRef(routes);
+  routesRef.current = routes;
 
   const autoLayoutDone = useRef(false);
   useEffect(() => {
@@ -275,7 +345,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     const hasAnyPosition = stepOrder.some((id) => !!nodePositionsRef.current[`step_${id}`]);
     if (!hasAnyPosition) {
       const outcomeList = Object.values(outcomesRef.current);
-      const positions = computeEditLayout(stepOrder, outcomeList);
+      const positions = computeEditLayout(stepOrder, outcomeList, routeLinksOf(routesRef.current, outcomesRef.current));
       setNodePositions(positions);
     }
     // This first layout is the canvas arranging itself, not an edit — undoing
@@ -321,6 +391,22 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   };
 }
 
+/**
+ * The step-to-step links carried by conditional routes, for the layout.
+ * A gateway destination's only incoming link is a route — without these the
+ * layout has no idea where those steps belong.
+ */
+function routeLinksOf(
+  routes: Record<string, WorkflowRoute>,
+  outcomes: Record<string, WorkflowOutcome>
+): Array<{ stepId: string; nextStepId: string | null }> {
+  return Object.values(routes)
+    .map((route) => ({
+      stepId: outcomes[route.outcomeId]?.stepId ?? '',
+      nextStepId: route.nextStepId,
+    }))
+    .filter((link) => link.stepId !== '');
+}
 function resolveAssigneeName(step: WorkflowStep): string | null {
   if (step.assignTo === 'user') return step.assignedUserName;
   if (step.assignTo === 'team') return step.teamName;
@@ -438,7 +524,13 @@ function buildOutcomeEdge(
     };
   }
 
-  const stroke = isConditional ? 'var(--primary)' : 'var(--text-secondary)';
+  // An ending reads as an ending: red and dashed, like the view's stubs.
+  const isEnding = targetNodeId === END_NODE_ID || targetNodeId.startsWith('end_stub_');
+  const stroke = isEnding
+    ? 'var(--error)'
+    : isConditional
+      ? 'var(--primary)'
+      : 'var(--text-secondary)';
   const strokeWidth = isConditional ? 1.5 : 1;
   const labelPair = routeLabelPair(isConditional ? 'conditional' : 'plain');
 
@@ -450,7 +542,11 @@ function buildOutcomeEdge(
     targetHandle: 'in',
     type: 'outcome',
     animated: false,
-    style: { stroke, strokeWidth },
+    style: {
+      stroke,
+      strokeWidth,
+      ...(isEnding ? { strokeDasharray: '4 4', opacity: 0.75 } : null),
+    },
     data: { isBackEdge: false, isConditional, label: outcome.name, labelColor: labelPair.foreground },
     markerEnd: { type: 'arrowclosed' as const, color: stroke },
   };

@@ -3,6 +3,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { StepOutcomeRow } from './WorkflowGraphBuilder';
+import { roleOfStepName } from './stageRoles';
 
 export const SWIM_STEP_W = 240;
 export const SWIM_STEP_H = 80;
@@ -42,11 +43,27 @@ export function laneNameOf(step: CrmStep): string {
   if (label === 'Team') return step.teamName?.trim() || 'Unassigned team';
   if (label === 'Round Robin') return step.roundRobinTeamName?.trim() || 'Round robin (no team)';
   if (label === 'Read From Parent') return 'From parent record';
-  return step.assignedUserName?.trim() || 'Unassigned';
+  const user = step.assignedUserName?.trim();
+  if (user) return user;
+  // The Loan process ships 28 Specific User steps with nobody chosen — one
+  // flat "Unassigned" lane held 80% of the diagram (CWFD-009 P9). The role
+  // in the step's own name is the only grouping signal left; use it, and
+  // keep "unassigned" in the label so the gap stays visible.
+  const role = roleOfStepName(step.name);
+  return role ? `${role} — unassigned` : 'Unassigned';
+}
+
+/** True for the fallback lanes that exist only because nobody was chosen. */
+export function isUnassignedLane(lane: string): boolean {
+  return lane === 'Unassigned' || lane.endsWith('— unassigned');
 }
 
 /** Lane tint by assignment mode, so the bands still read as kinds of work. */
-function laneColorsOf(step: CrmStep | undefined) {
+function laneColorsOf(step: CrmStep | undefined, lane: string) {
+  // An unassigned lane wears the warning tint — it is a to-do, not a person.
+  if (isUnassignedLane(lane)) {
+    return { bg: 'var(--warning-bg)', border: 'var(--warning)', text: 'var(--warning)' };
+  }
   if (!step) return DEFAULT_LANE_COLOR;
   return LANE_COLORS[getAssignToLabel(step.assignToCode)] ?? DEFAULT_LANE_COLOR;
 }
@@ -84,11 +101,30 @@ export function buildSwimlaneGraph(
   }
   const laneIndex = new Map(laneOrder.map((l, i) => [l, i]));
 
-  const totalWidth = LANE_LABEL_W + sorted.length * X_GAP + 80;
+  // A column is a moment in time. Steps that run at the same time as their
+  // parent share the parent's column (in their own lane), so the parallel
+  // sections stop widening the diagram for work that is not sequential.
+  const columnOf = new Map<string, number>();
+  let columnCount = 0;
+  for (const step of sorted) {
+    const parentColumn = step.parentStepId ? columnOf.get(step.parentStepId) : undefined;
+    const parent = step.parentStepId ? stepById.get(step.parentStepId) : undefined;
+    if (parentColumn !== undefined && parent && laneNameOf(parent) !== laneNameOf(step)) {
+      columnOf.set(step.id, parentColumn);
+    } else {
+      columnOf.set(step.id, columnCount);
+      columnCount += 1;
+    }
+  }
+
+  const totalWidth = LANE_LABEL_W + columnCount * X_GAP + 80;
 
   // Swimlane background nodes (rendered behind steps).
   const laneNodes: Node[] = laneOrder.map((lane, i) => {
-    const colors = laneColorsOf(sorted.find((step) => laneNameOf(step) === lane));
+    const colors = laneColorsOf(
+      sorted.find((step) => laneNameOf(step) === lane),
+      lane
+    );
     return {
       id: `lane_${i}`,
       type: 'swimlane',
@@ -106,10 +142,11 @@ export function buildSwimlaneGraph(
     };
   });
 
-  // Step nodes positioned in their lane at their sequence x.
-  const stepNodes: Node[] = sorted.map((step, seqIndex) => {
+  // Step nodes positioned in their lane at their time-slot column.
+  const stepNodes: Node[] = sorted.map((step) => {
     const lane = laneNameOf(step);
     const li = laneIndex.get(lane) ?? 0;
+    const seqIndex = columnOf.get(step.id) ?? 0;
     const stepOutcomes = outcomesByStep.get(step.id) ?? [];
     const outcomeRows: StepOutcomeRow[] = stepOutcomes.map((o) => ({
       id: o.id,

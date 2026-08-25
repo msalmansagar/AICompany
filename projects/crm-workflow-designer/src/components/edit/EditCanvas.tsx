@@ -7,6 +7,7 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
+  useReactFlow,
 } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
@@ -35,6 +36,11 @@ import { DemoHUD } from './DemoHUD';
 import { applyReturnPathFilter, nextReturnPathMode } from '@/services/viewFilters';
 import type { ReturnPathMode } from '@/services/viewFilters';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
+import { SmartInitialView, LARGE_GRAPH_THRESHOLD } from '../common/SmartInitialView';
+import { GoToStepPanel } from '../common/GoToStepPanel';
+import { centerOnNode } from '../common/canvasNavigation';
+import type { GoToStepItem } from '../common/GoToStepPanel';
+import type { EditStepData } from '@/nodes/EditStepNode';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from '../common/minimapTheme';
 import { CanvasLegend } from '../common/CanvasLegend';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
@@ -128,8 +134,33 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   const canDemo = !isDirty && !isSimulating && !isAutoSimulating;
   const canSimStepBack = simHistory.length > 0;
   const validationErrorCount = validationResults.filter((v) => v.severity === 'error').length;
+
+  const reactFlow = useReactFlow();
+  // The validation panel lives outside the canvas — focusing an issue both
+  // selects the node and brings the camera to it.
+  const focusIssueNode = useCallback(
+    (canvasNodeId: string) => {
+      selectNode(canvasNodeId);
+      centerOnNode(reactFlow, canvasNodeId);
+    },
+    [selectNode, reactFlow]
+  );
+
+  const goToItems = useMemo<GoToStepItem[]>(
+    () =>
+      editMode.nodes
+        .filter((node) => node.type === 'editStep')
+        .map((node) => {
+          const data = node.data as EditStepData;
+          return { nodeId: node.id, label: data.name, sequenceNo: data.sequenceNo };
+        })
+        .sort((a, b) => a.sequenceNo - b.sequenceNo),
+    [editMode.nodes]
+  );
   const [showValidationPanel, setShowValidationPanel] = useState(false);
-  const [showMiniMap, setShowMiniMap] = useState(false);
+  // No explicit choice yet -> the minimap turns itself on for large graphs.
+  const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
+  const showMiniMap = miniMapPreference ?? stepOrder.length > LARGE_GRAPH_THRESHOLD;
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
 
@@ -242,7 +273,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         returnPathMode={returnPathMode}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
-        onToggleMiniMap={() => setShowMiniMap((isOn) => !isOn)}
+        onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
         onToggleEdgeLabels={() => setShowEdgeLabels((isOn) => !isOn)}
         onCycleReturnPaths={() => setReturnPathMode(nextReturnPathMode)}
         onSave={() => void save()}
@@ -323,15 +354,14 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
               nodesDraggable
               elementsSelectable
               deleteKeyCode={null}
-              fitView
-              fitViewOptions={{ padding: 0.25, maxZoom: 1 }}
               proOptions={{ hideAttribution: true }}
               minZoom={0.08}
               maxZoom={2.5}
             >
               <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
               <Controls showInteractive={false} />
-              <FitOnceMeasured options={FIT_OPTIONS} />
+              <SmartInitialView dir="LR" />
+              <GoToStepPanel items={goToItems} onPick={selectNode} />
               <CanvasLegend />
               {showMiniMap && (
                 <MiniMap
@@ -366,7 +396,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
           <div className="editor-sidebar" style={sidebarStyle}>
             {showValidationPanel && (
               <ValidationPanel
-                onNodeFocus={selectNode}
+                onNodeFocus={focusIssueNode}
                 onClose={() => setShowValidationPanel(false)}
               />
             )}
