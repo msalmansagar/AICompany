@@ -146,6 +146,22 @@ public sealed record ReportDataSource
     /// </summary>
     public string Composition { get; init; } = DatasetComposition.Joined;
 
+    /// <summary>
+    /// The attribute on THIS dataset that points at the parent — e.g. a Requested Facility's
+    /// <c>qdb_termsheetid</c> (MDS-FR-003).
+    ///
+    /// Empty means the block is independent and runs unscoped. That is legitimate: not every
+    /// standalone dataset belongs to the root.
+    /// </summary>
+    public string? JoinFromKey { get; init; }
+
+    /// <summary>
+    /// The attribute on the ROOT whose value the parent is identified by — e.g. the Termsheet's own
+    /// <c>qdb_termsheetid</c>. The root must actually return this column, or the block cannot be
+    /// scoped and says so rather than showing every row in the table.
+    /// </summary>
+    public string? JoinToKey { get; init; }
+
     public IReadOnlyList<ReportEntityMapping> EntityMappings { get; init; } = [];
 }
 

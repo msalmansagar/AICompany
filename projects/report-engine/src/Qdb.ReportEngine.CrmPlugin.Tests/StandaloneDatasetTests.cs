@@ -183,6 +183,98 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         /// <summary>
+        /// The master-detail shape the requirement is actually about: one Termsheet, with its
+        /// Requested Facilities and its Termsheet Conditions as separate blocks, each filtered to
+        /// that termsheet.
+        /// </summary>
+        private static ReportDefinition Termsheet(string joinFromKey = "qdb_termsheetid", string joinToKey = "qdb_termsheetid")
+        {
+            var facilities = Source("Requested Facilities", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1);
+            return Report(
+                // The root must PROJECT the key the block scopes by — a column the report does not
+                // return cannot identify the parent, which is what the failure tests below cover.
+                RootProjecting("qdb_termsheet", "qdb_termsheetid"),
+                facilities with { JoinFromKey = joinFromKey, JoinToKey = joinToKey });
+        }
+
+        private static ReportDataSource RootProjecting(string entity, string keyColumn) => new ReportDataSource
+        {
+            Id = Guid.NewGuid(),
+            Name = "Termsheet",
+            IsPrimary = true,
+            Composition = DatasetComposition.Joined,
+            EntityMappings =
+            [
+                new ReportEntityMapping
+                {
+                    Id = Guid.NewGuid(),
+                    EntityLogicalName = entity,
+                    Columns =
+                    [
+                        new ReportColumn { Id = Guid.NewGuid(), ColumnLogicalName = "name", SortOrder = 1, IsVisible = true },
+                        new ReportColumn { Id = Guid.NewGuid(), ColumnLogicalName = keyColumn, SortOrder = 2, IsVisible = true }
+                    ]
+                }
+            ]
+        };
+
+        [Fact]
+        public void Execute_FiltersAChildBlockToTheParentRow()
+        {
+            // Without this the block returns every facility in the system, which looks like data and
+            // is the wrong data.
+            var store = new FetchStore(rowValues: new Dictionary<string, object> { ["qdb_termsheetid"] = "TS-184" });
+
+            new SdkReportEngine(store).Execute(Termsheet(), new ReportExecutionRequest());
+
+            var childQuery = store.Queried[1];
+            Assert.Contains("qdb_requestedfacility", childQuery);
+            Assert.Contains("TS-184", childQuery);
+        }
+
+        [Fact]
+        public void Execute_RunsABlockWithNoJoinKeyUnscoped()
+        {
+            // An independent block is a legitimate configuration, not an omission.
+            var store = new FetchStore();
+            var definition = Report(
+                Source("Termsheet", DatasetComposition.Joined, "qdb_termsheet", isPrimary: true),
+                Source("Reference data", DatasetComposition.Standalone, "qdb_lookup"));
+
+            var result = new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            Assert.Equal(DatasetStatus.Ok, Assert.Single(result.StandaloneDatasets).Status);
+        }
+
+        [Fact]
+        public void Execute_SaysSoWhenTheRootDoesNotCarryTheParentKey()
+        {
+            // Silently returning the whole child table is the failure being designed out, so the block
+            // fails with a reason the author can act on.
+            var store = new FetchStore(rowValues: new Dictionary<string, object> { ["something_else"] = "x" });
+
+            var result = new SdkReportEngine(store).Execute(
+                Termsheet(joinToKey: "qdb_missing"), new ReportExecutionRequest());
+
+            var dataset = Assert.Single(result.StandaloneDatasets);
+            Assert.Equal(DatasetStatus.Failed, dataset.Status);
+            Assert.Contains("qdb_missing", dataset.Error);
+        }
+
+        [Fact]
+        public void Execute_SaysSoWhenAScopedBlockNamesNoParentColumn()
+        {
+            var store = new FetchStore(rowValues: new Dictionary<string, object> { ["qdb_termsheetid"] = "TS-184" });
+
+            var result = new SdkReportEngine(store).Execute(
+                Termsheet(joinToKey: null), new ReportExecutionRequest());
+
+            var dataset = Assert.Single(result.StandaloneDatasets);
+            Assert.Equal(DatasetStatus.Failed, dataset.Status);
+            Assert.Contains("identifies the parent", dataset.Error);
+        }
+
+        /// <summary>
         /// Answers any FetchXML with a single row, recording what it was asked. It refuses the
         /// entity named in <c>failOn</c>, so a block can be made to fail the way a real misconfigured
         /// query does — by the platform rejecting it, not by the test throwing on its own.
@@ -190,8 +282,13 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         private sealed class FetchStore : IOrganizationService
         {
             private readonly string _failOn;
+            private readonly IDictionary<string, object> _rowValues;
 
-            public FetchStore(string failOn = null) => _failOn = failOn;
+            public FetchStore(string failOn = null, IDictionary<string, object> rowValues = null)
+            {
+                _failOn = failOn;
+                _rowValues = rowValues;
+            }
 
             public List<string> Queried { get; } = new List<string>();
 
@@ -207,6 +304,11 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
 
                 var row = new Entity("row");
                 row["name"] = "Acme";
+                if (_rowValues != null)
+                {
+                    foreach (var pair in _rowValues) row[pair.Key] = pair.Value;
+                }
+
                 return new EntityCollection(new List<Entity> { row });
             }
 

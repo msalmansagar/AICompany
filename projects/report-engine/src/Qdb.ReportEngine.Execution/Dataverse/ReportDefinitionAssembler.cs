@@ -67,6 +67,8 @@ public static class ReportDefinitionAssembler
             // Read as a coded value like every other choice column. An absent column leaves the
             // historical joined behaviour, so a report saved before this feature is unchanged.
             Composition = RowReader.Coded(row, "qdb_compositionmode")?.Label ?? DatasetComposition.Joined,
+            JoinFromKey = RowReader.String(row, "qdb_joinfromkey"),
+            JoinToKey = RowReader.String(row, "qdb_jointokey"),
             EntityMappings = mappingsByDataSource.TryGetValue(id, out var mappings) ? mappings : []
         };
     }

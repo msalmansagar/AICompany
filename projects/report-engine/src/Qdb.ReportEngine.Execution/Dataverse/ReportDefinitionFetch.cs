@@ -40,7 +40,7 @@ public static class ReportDefinitionFetch
                 // 🔴 DEPLOYMENT ORDER: FetchXML fails outright on an attribute the org does not have,
                 // so qdb_compositionmode must exist BEFORE this build is deployed or every report run
                 // breaks. Provision it with scripts/provision-multi-dataset-schema.mjs first.
-                "qdb_compositionmode"
+                "qdb_compositionmode", "qdb_joinfromkey", "qdb_jointokey"
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 
