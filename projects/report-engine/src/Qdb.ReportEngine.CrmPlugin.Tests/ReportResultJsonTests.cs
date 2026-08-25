@@ -186,6 +186,24 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         [Fact]
+        public void Write_TimesTheRootFromTheResultsOwnDuration()
+        {
+            // The root reported 0 ms in the organisation beside standalone blocks reporting real
+            // figures, because nothing set Duration. That reads as an instant query rather than as a
+            // number nobody filled in.
+            var result = Result("Acme") with
+            {
+                Duration = TimeSpan.FromMilliseconds(250),
+                StandaloneDatasets = new[] { Standalone("Overdue") }
+            };
+
+            var json = ReportResultJson.Write(result);
+
+            Assert.Contains("\"elapsedMs\":250", json);
+            Assert.Contains("\"elapsedMs\":42", json);
+        }
+
+        [Fact]
         public void Write_NamesAFailedDatasetRatherThanEmittingItEmpty()
         {
             // MDS-FR-016 / MDS-FR-028. An empty table reads as "nothing matched"; a failure must not

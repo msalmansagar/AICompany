@@ -88,6 +88,11 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
 
         public ReportResult Execute(ReportDefinition definition, ReportExecutionRequest request)
         {
+            /* The root's own query time (MDS-FR-027). Without it the root block reported 0 ms beside
+               standalone blocks reporting real figures, which reads as an instant query rather than
+               as a number nobody set. The browser's elapsedMs is the round trip, which is a different
+               measurement and belongs to the request, not to the dataset. */
+            var started = DateTime.UtcNow;
             var source = ReportSourcePlan.Primary(definition);
             if (ReportSourcePlan.IsStaticDataset(source))
             {
@@ -95,6 +100,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 // drop every one of them silently.
                 return StaticResult(definition, source) with
                 {
+                    Duration = DateTime.UtcNow - started,
                     StandaloneDatasets = ExecuteStandaloneDatasets(definition, request)
                 };
             }
@@ -118,6 +124,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 RowCount = rows.Count,
                 // An aggregate fetch returns one row per group, so the row limit says nothing about it.
                 Truncated = !query.IsAggregate && rows.Count >= query.RowLimit,
+                Duration = DateTime.UtcNow - started,
                 StandaloneDatasets = ExecuteStandaloneDatasets(definition, request)
             };
         }
