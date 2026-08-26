@@ -17,6 +17,8 @@ import { ArrowLeftRegular } from '@fluentui/react-icons';
 import { CrmContext } from '@/app/App';
 import { VersionService, type FormVersion } from '@/services/VersionService';
 import { AuditLogService } from '@/services/AuditLogService';
+import { FormDefinitionService } from '@/services/FormDefinitionService';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { useDesignerStore } from '@/state/designerStore';
 import { DEFAULT_DESIGN_PAYLOAD } from '@/state/designerStore';
 
@@ -250,6 +252,15 @@ export function VersionHistoryScreen(): React.ReactElement {
         businessRules,
         designPayload: restoredDesignPayload,
       });
+
+      // loadForm resets the concurrency store, so the etag captured when the form was opened
+      // is gone by this point. Without replacing it the designer holds none, and the next
+      // save fails with MissingEtagError rather than writing anything — a restored version
+      // could be looked at but never saved. Stored AFTER loadForm for that same reason.
+      const { etag: restoredEtag } = await new FormDefinitionService(webApi).getFormWithEtag(form.id);
+      if (restoredEtag) {
+        useConcurrencyStore.getState().setRecordEtag(form.id, restoredEtag);
+      }
 
       await auditService.logAction(form.id, 'RESTORE_VERSION', {
         versionNumber: restoreTarget.versionNumber,
