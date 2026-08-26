@@ -18,6 +18,7 @@ import { TechNewStepNode } from './TechNewStepNode';
 import { TechNewOutcomeNode } from './TechNewOutcomeNode';
 import { RouteGatewayNode } from './RouteGatewayNode';
 import { StageBandNode } from './StageBandNode';
+import { HierarchyStepNode } from './HierarchyStepNode';
 
 export const nodeTypes: NodeTypes = {
   // View mode — shared start/end
@@ -29,6 +30,9 @@ export const nodeTypes: NodeTypes = {
   stageBand: StageBandNode,
   viewOutcome: ViewOutcomeNode,
   viewDecision: ViewDecisionNode,
+
+  // Hierarchy view
+  hierStep: HierarchyStepNode,
 
   // Executive view
   execStep: ExecStepNode,

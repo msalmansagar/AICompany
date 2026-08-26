@@ -35,6 +35,10 @@ import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
 import { GoToStepPanel } from './common/GoToStepPanel';
 import { buildStageBands } from '../services/stageBands';
+import { buildHierarchyGraph } from '../services/HierarchyGraphBuilder';
+import type { HierarchyStepData } from '../services/HierarchyGraphBuilder';
+import { HierarchyStepList } from './common/HierarchyStepList';
+import { RoundZoomControls } from './common/RoundZoomControls';
 import type { GoToStepItem } from './common/GoToStepPanel';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
@@ -67,6 +71,9 @@ const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
   business:       buildGraph as BuildFn,
   'technical-new': buildTechNewGraph as BuildFn,
   swimlane:       buildSwimlaneGraph as BuildFn,
+  // The hierarchy builder also takes the collapsed set; the rebuild effect
+  // calls it directly with that extra argument.
+  hierarchy:      buildHierarchyGraph as BuildFn,
 };
 
 /**
@@ -94,6 +101,16 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
   const showMiniMap =
     miniMapPreference ?? (view.data?.steps.length ?? 0) > LARGE_GRAPH_THRESHOLD;
+  // Hierarchy view: which cards have folded their subtree away.
+  const [collapsedSteps, setCollapsedSteps] = useState<ReadonlySet<string>>(new Set());
+  const toggleCollapsed = useCallback((stepId: string) => {
+    setCollapsedSteps((previous) => {
+      const next = new Set(previous);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  }, []);
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
   // The view canvases arrange themselves, but a reader who nudges a card
@@ -125,14 +142,27 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   // Rebuild graph whenever the loaded data, view mode, or layout direction changes.
   useEffect(() => {
     if (!view.data) return;
-    const builder = GRAPH_BUILDERS[view.viewMode];
-    const { nodes: rebuilt, edges: rebuiltEdges } = builder(
-      view.data.steps,
-      view.data.outcomes,
-      view.layoutDir,
-      view.data.routes,
-    );
-    const saved = storedViewLayouts[`${view.viewMode}:${view.layoutDir}`];
+    // The hierarchy chart lays itself out around what is collapsed, so it
+    // rebuilds on every fold and ignores saved drag positions.
+    const { nodes: rebuilt, edges: rebuiltEdges } =
+      view.viewMode === 'hierarchy'
+        ? buildHierarchyGraph(
+            view.data.steps,
+            view.data.outcomes,
+            view.layoutDir,
+            view.data.routes,
+            collapsedSteps
+          )
+        : GRAPH_BUILDERS[view.viewMode](
+            view.data.steps,
+            view.data.outcomes,
+            view.layoutDir,
+            view.data.routes,
+          );
+    const saved =
+      view.viewMode === 'hierarchy'
+        ? undefined
+        : storedViewLayouts[`${view.viewMode}:${view.layoutDir}`];
     const positioned = saved
       ? rebuilt.map((node) => (saved[node.id] ? { ...node, position: saved[node.id] } : node))
       : rebuilt;
@@ -145,9 +175,12 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     setPendingFit((token) => token + 1);
     setIsLayoutDirty(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.data, view.viewMode, view.layoutDir, storedViewLayouts]);
+  }, [view.data, view.viewMode, view.layoutDir, storedViewLayouts, collapsedSteps]);
 
   const processId = view.data?.process.id ?? null;
+  useEffect(() => {
+    setCollapsedSteps(new Set());
+  }, [processId]);
   useEffect(() => {
     if (!processId) {
       setStoredViewLayouts({});
@@ -283,10 +316,25 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   }, []);
 
   // What the canvas actually draws, after the declutter filters.
-  const visible = useMemo(
-    () => applyReturnPathFilter(view.nodes, view.edges, returnPathMode),
-    [view.nodes, view.edges, returnPathMode]
-  );
+  const visible = useMemo(() => {
+    const filtered = applyReturnPathFilter(view.nodes, view.edges, returnPathMode);
+    if (view.viewMode !== 'hierarchy') return filtered;
+    return {
+      ...filtered,
+      nodes: filtered.nodes.map((node) =>
+        node.type === 'hierStep'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                isCollapsed: collapsedSteps.has((node.data as HierarchyStepData).step.id),
+                onToggleCollapse: toggleCollapsed,
+              },
+            }
+          : node
+      ),
+    };
+  }, [view.nodes, view.edges, returnPathMode, view.viewMode, collapsedSteps, toggleCollapsed]);
 
   // Captures the React Flow viewport element scaled to fit all nodes.
   const captureImage = useCallback(async (): Promise<string> => {
@@ -373,6 +421,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
       />
 
       <div style={bodyStyle}>
+        {view.viewMode === 'hierarchy' && view.data && (
+          <HierarchyStepList
+            steps={view.data.steps}
+            selectedId={view.selectedId}
+            onSelect={(nodeId) => view.selectElement(nodeId)}
+          />
+        )}
         <div style={canvasWrap} className={showEdgeLabels ? undefined : 'edge-labels-hidden'}>
           <ReactFlow
             nodes={visible.nodes}
@@ -395,9 +450,12 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
             selectionOnDrag={false}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
-            <Controls showInteractive={false} />
-            <CanvasLegend />
-            <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
+            {view.viewMode !== 'hierarchy' && <Controls showInteractive={false} />}
+            {view.viewMode !== 'hierarchy' && <CanvasLegend />}
+            {view.viewMode !== 'hierarchy' && (
+              <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
+            )}
+            {view.viewMode === 'hierarchy' && <RoundZoomControls />}
             {showMiniMap && (
               <MiniMap
                 nodeColor={minimapNodeColor}
