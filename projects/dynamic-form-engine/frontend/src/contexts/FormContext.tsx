@@ -109,6 +109,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const [submitAcknowledged, setSubmitAcknowledged] = useState(false);
   // DFE-SUBMITCONFIRM-002: per-tab acknowledgements, keyed by tab id.
   const [tabAcknowledgements, setTabAcknowledgements] = useState<Record<string, boolean>>({});
+  // The moments a rule's trigger event can read. Each is state rather than a ref so that
+  // capturing one re-runs the evaluation below — a rule that reads a snapshot only takes
+  // effect when that snapshot moves.
+  const [valuesAtLoad, setValuesAtLoad] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtLastBlur, setValuesAtLastBlur] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtSave, setValuesAtSave] = useState<FormFieldValues | null>(null);
 
   const setTabAcknowledged = useCallback((tabId: string, acknowledged: boolean) => {
     setTabAcknowledgements((current) => ({ ...current, [tabId]: acknowledged }));
@@ -162,10 +168,13 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
             const existingData = (dataResponse as unknown as { data: FormFieldValues }).data;
 
             if (!cancelled) {
-              setFieldValues({ ...initialValues, ...existingData });
+              const loadedValues = { ...initialValues, ...existingData };
+              setFieldValues(loadedValues);
+              setValuesAtLoad(loadedValues);
             }
           } else {
             setFieldValues(initialValues);
+            setValuesAtLoad(initialValues);
           }
         }
       } catch (loadError) {
@@ -205,7 +214,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       const allButtons = collectAllButtons(formDefinition);
 
       void Promise.all([
-        ruleEngine.evaluate(allRules, fieldValues),
+        ruleEngine.evaluate(allRules, fieldValues, {
+          atLoad: valuesAtLoad,
+          atLastBlur: valuesAtLastBlur,
+          atSave: valuesAtSave,
+        }),
         ruleEngine.evaluateButtons(allButtons, fieldValues),
       ]).then(([fieldResult, buttonResult]) => {
         // DFE-CBTN-001: fold per-button conditional state into the rule state so
@@ -244,7 +257,18 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
         clearTimeout(ruleDebounceTimer.current);
       }
     };
-  }, [fieldValues, formDefinition]);
+  }, [fieldValues, formDefinition, valuesAtLoad, valuesAtLastBlur, valuesAtSave]);
+
+  // on_blur rules read the values as at the last time focus left a control. Listening for
+  // focusout at the document keeps that out of every individual control: blur does not
+  // bubble, focusout does, and any control losing focus is exactly the moment being named.
+  useEffect(() => {
+    function captureBlurSnapshot(): void {
+      setValuesAtLastBlur(fieldValues);
+    }
+    document.addEventListener('focusout', captureBlurSnapshot);
+    return () => document.removeEventListener('focusout', captureBlurSnapshot);
+  }, [fieldValues]);
 
   // â”€â”€ Field value update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const updateFieldValue = useCallback((fieldId: string, value: unknown) => {
@@ -294,7 +318,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // â”€â”€ Reset form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const resetForm = useCallback(() => {
     if (!formDefinition) return;
-    setFieldValues(buildInitialValues(formDefinition));
+    const resetValues = buildInitialValues(formDefinition);
+    setFieldValues(resetValues);
+    setValuesAtLoad(resetValues);
+    setValuesAtLastBlur(undefined);
+    setValuesAtSave(null);
     setValidationErrors({});
     setIsDirty(false);
     setActiveTabIndex(0);
@@ -303,6 +331,10 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // â”€â”€ Submit form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const submitForm = useCallback(async (submitButtonId?: string) => {
     if (!formDefinition) return;
+
+    // on_save rules judge what the user actually submitted, so the snapshot is taken before
+    // validation can turn them back.
+    setValuesAtSave(fieldValues);
 
     // Compute visible fields before validation
     const visibleFieldIds = computeVisibleFieldIds(formDefinition, ruleState);

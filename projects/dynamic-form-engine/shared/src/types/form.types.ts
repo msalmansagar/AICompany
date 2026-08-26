@@ -108,6 +108,9 @@ export type ConditionOperator =
   | 'greaterThanOrEqual'
   | 'lessThanOrEqual'
   | 'contains'
+  // The designer has always offered Not Contains. It reached the runtime's operator table
+  // without ever reaching this union, so the backend could not compile the mapping for it.
+  | 'notContains'
   | 'inList'
   | 'notInList';
 
@@ -353,10 +356,27 @@ export interface RuleCondition {
 
 // ── Business rule ─────────────────────────────────────────────
 
+/**
+ * When a rule's conditions are read.
+ *
+ * Every event reads the SAME conditions; they differ only in which moment's field values
+ * those conditions are read against. That is what makes the choice observable: an on_blur
+ * rule does not react to each keystroke, and an on_save rule holds until the user submits.
+ */
+export type RuleTriggerEvent = 'on_change' | 'on_load' | 'on_blur' | 'on_save';
+
+export const RULE_TRIGGER_EVENTS: readonly RuleTriggerEvent[] =
+  ['on_change', 'on_load', 'on_blur', 'on_save'];
+
+/** Rules published before trigger events existed carry no value and behave as they always did. */
+export const DEFAULT_RULE_TRIGGER_EVENT: RuleTriggerEvent = 'on_change';
+
 export interface BusinessRule {
   id: string;
   name: string;
   description?: string;
+  /** Absent on rules published before this existed — treat as on_change. */
+  triggerEvent?: RuleTriggerEvent;
   conditions: RuleCondition[];
   conditionsLogic: LogicalOperator; // how the conditions array is combined
   action: BusinessRuleAction;

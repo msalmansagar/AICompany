@@ -246,6 +246,12 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("id")] public Guid Id { get; set; }
         [JsonProperty("name")] public string Name { get; set; }
         [JsonProperty("description")] public string Description { get; set; }
+        /// <summary>
+        /// When the rule's conditions are read: on_change, on_load, on_blur or on_save.
+        /// Null on legacy rules, which the runtime reads as on_change.
+        /// </summary>
+        [JsonProperty("triggerEvent", NullValueHandling = NullValueHandling.Ignore)]
+        public string TriggerEvent { get; set; }
         [JsonProperty("conditions")] public List<RuleCondition> Conditions { get; set; }
         [JsonProperty("conditionsLogic")] public string ConditionsLogic { get; set; }
         [JsonProperty("action")] public string Action { get; set; }

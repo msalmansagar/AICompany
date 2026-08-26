@@ -473,6 +473,21 @@ namespace Qdb.FormEngine.Core.Generation
             return null;
         }
 
+        /// <summary>The trigger events the runtime understands. Anything else publishes as null.</summary>
+        private static readonly HashSet<string> SupportedTriggerEvents =
+            new HashSet<string>(StringComparer.Ordinal) { "on_change", "on_load", "on_blur", "on_save" };
+
+        /// <summary>
+        /// Reads a designer rule's trigger event, or null when it is absent or unrecognised.
+        /// Publishing an event the runtime cannot honour would give the maker a setting that
+        /// silently does nothing, so an unknown value falls back to the default instead.
+        /// </summary>
+        private static string ReadTriggerEvent(JObject def)
+        {
+            var value = (string)def["trigger_event"];
+            return value != null && SupportedTriggerEvents.Contains(value) ? value : null;
+        }
+
         private void AppendDesignerRules(Entity rule, JObject def, Guid fieldId, List<BusinessRule> result)
         {
             // Attach to the TRIGGER field, matching the backend — the rule has to re-evaluate
@@ -536,6 +551,7 @@ namespace Qdb.FormEngine.Core.Generation
                     Id = rule.Id,
                     Name = rule.GetAttributeValue<string>("qdb_name"),
                     Description = rule.GetAttributeValue<string>("qdb_description"),
+                    TriggerEvent = ReadTriggerEvent(def),
                     Conditions = conditions,
                     ConditionsLogic = logic,
                     Action = mappedAction,

@@ -77,10 +77,43 @@ namespace Qdb.FormEngine.Tests
             Assert.Empty(rules);
         }
 
+        /// <summary>
+        /// The runtime reads each trigger event against its own snapshot of the form, so the
+        /// event has to survive publishing. It used to be dropped here entirely.
+        /// </summary>
+        [Theory]
+        [InlineData("on_change")]
+        [InlineData("on_load")]
+        [InlineData("on_blur")]
+        [InlineData("on_save")]
+        public void Generate_PublishesTheTriggerEvent(string triggerEvent)
+        {
+            var rule = SingleRule(BuildRuleJson("hide_tab", "\"target_tab_id\":\"" + TabId + "\"", triggerEvent));
+
+            Assert.Equal(triggerEvent, rule.TriggerEvent);
+        }
+
+        /// <summary>
+        /// An event the runtime cannot honour would be a setting that saves, publishes and then
+        /// silently does nothing. It publishes as null, which the runtime reads as on_change.
+        /// </summary>
+        [Fact]
+        public void Generate_PublishesNoTriggerEvent_WhenTheEventIsNotSupported()
+        {
+            var rule = SingleRule(BuildRuleJson("hide_tab", "\"target_tab_id\":\"" + TabId + "\"", "on_telepathy"));
+
+            Assert.Null(rule.TriggerEvent);
+        }
+
         private static string BuildRuleJson(string actionType, string targetJson)
         {
+            return BuildRuleJson(actionType, targetJson, "on_change");
+        }
+
+        private static string BuildRuleJson(string actionType, string targetJson, string triggerEvent)
+        {
             return "{\"version\":\"1.0\",\"trigger_field_code\":\"" + TriggerCode + "\","
-                + "\"trigger_event\":\"on_change\","
+                + "\"trigger_event\":\"" + triggerEvent + "\","
                 + "\"condition_group\":{\"logical_operator\":\"AND\",\"conditions\":"
                 + "[{\"field_code\":\"" + TriggerCode + "\",\"operator\":\"equals\",\"value\":\"individual\"}]},"
                 + "\"actions\":[{\"action_type\":\"" + actionType + "\"," + targetJson + "}]}";

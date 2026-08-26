@@ -19,6 +19,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
+import { BranchRegular } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -51,6 +52,7 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
   const styles = useStyles();
   const tab = useDesignerStore(state => state.tabs[tabId]);
   const updateTab = useDesignerStore(state => state.updateTab);
+  const requestRuleForTab = useDesignerStore(state => state.requestRuleForTab);
   const sectionIds = useDesignerStore(state => state.sectionOrder[tabId] ?? []);
   const sections = useDesignerStore(state => state.sections);
   const updateSection = useDesignerStore(state => state.updateSection);
@@ -201,6 +203,20 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
           })}
         </>
       )}
+
+      <Divider />
+      <Field
+        label="Business rules"
+        hint="Show or hide this tab based on what the user has entered"
+      >
+        <Button
+          appearance="secondary"
+          icon={<BranchRegular />}
+          onClick={() => requestRuleForTab(tabId)}
+        >
+          Create business rule
+        </Button>
+      </Field>
 
       <Divider />
       <Accordion collapsible multiple>

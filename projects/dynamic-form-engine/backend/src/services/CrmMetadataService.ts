@@ -29,8 +29,9 @@ import type {
   GridValidationFormat,
   FileUploadConfig,
   FieldPlacement,
+  RuleTriggerEvent,
 } from '@qdb/shared';
-import { isRenderableImageUrl } from '@qdb/shared';
+import { isRenderableImageUrl, RULE_TRIGGER_EVENTS } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
@@ -919,6 +920,7 @@ export class CrmMetadataService extends CrmBaseService {
         id: rule.qdb_form_business_ruleid,
         name: rule.qdb_name,
         description: rule.qdb_description,
+        triggerEvent: readTriggerEvent(def.trigger_event),
         conditions,
         conditionsLogic,
         action: mappedAction,
@@ -1579,11 +1581,24 @@ interface RawBusinessRule {
   qdb_is_active?: boolean;
 }
 
+/**
+ * A designer rule's trigger event, or undefined when absent or unrecognised.
+ *
+ * Publishing an event the runtime cannot honour would hand the maker a setting that silently
+ * does nothing, so anything outside the supported set falls back to the default instead.
+ */
+function readTriggerEvent(value: string | undefined): RuleTriggerEvent | undefined {
+  return RULE_TRIGGER_EVENTS.includes(value as RuleTriggerEvent)
+    ? (value as RuleTriggerEvent)
+    : undefined;
+}
+
 // The designer serialises rules as this shape into qdb_conditions_json (schema codes,
 // nested actions) — distinct from the flat legacy conditions array + structured columns.
 interface RawDesignerRuleDefinition {
   version?: string;
   trigger_field_code: string;
+  trigger_event?: string;
   condition_group?: {
     logical_operator?: 'AND' | 'OR';
     conditions?: Array<{ field_code: string; operator: string; value?: string | null }>;

@@ -1,3 +1,4 @@
+import type { RuleTriggerEvent } from '@qdb/shared';
 // Business Rule JSON Schema v1.0
 // Stored in qdb_form_business_rule.qdb_rule_definition as serialized JSON.
 // This contract must be kept in sync with the Dynamic Form Engine portal renderer.
@@ -71,8 +72,11 @@ export interface BusinessRuleDefinition {
   version: '1.0';
   /** Field whose change event triggers rule evaluation */
   trigger_field_code: string;
-  /** Extensible event type — currently only on_change is supported */
-  trigger_event: 'on_change';
+  /**
+   * When the rule's conditions are read. Every event reads the same conditions; they differ
+   * in which moment's field values those conditions are read against.
+   */
+  trigger_event: RuleTriggerEvent;
   condition_group: RuleConditionGroup;
   actions: RuleAction[];
 }

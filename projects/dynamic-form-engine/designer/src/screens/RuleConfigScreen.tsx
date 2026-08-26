@@ -34,6 +34,8 @@ import type {
   RuleCondition,
 } from '@/types/businessRule';
 import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES } from '@/types/businessRule';
+import { buildDefaultDefinition, TRIGGER_EVENT_OPTIONS, type RuleCreationTarget } from '@/screens/ruleDefaults';
+import type { RuleTriggerEvent } from '@qdb/shared';
 
 const useStyles = makeStyles({
   root: {
@@ -184,19 +186,6 @@ function generateRuleId(): string {
   return `tmp_rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function buildDefaultDefinition(fieldCodes: string[]): BusinessRuleDefinition {
-  return {
-    version: '1.0',
-    trigger_field_code: fieldCodes[0] ?? '',
-    trigger_event: 'on_change',
-    condition_group: {
-      logical_operator: 'AND',
-      conditions: [{ field_code: fieldCodes[0] ?? '', operator: 'equals', value: '' }],
-    },
-    actions: [{ action_type: 'show_field', target_field_code: fieldCodes[0] ?? '' }],
-  };
-}
-
 /** A tab or section a rule can target, as the picker needs it. */
 export interface RuleTarget {
   id: string;
@@ -294,6 +283,15 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
 
+  // The chosen event's own description — what distinguishes the options is when they fire,
+  // and the label alone does not say it.
+  const triggerEventHint = TRIGGER_EVENT_OPTIONS
+    .find(option => option.value === definition.trigger_event)?.hint ?? '';
+
+  const updateTriggerEvent = useCallback((triggerEvent: RuleTriggerEvent) => {
+    setDefinition(prev => ({ ...prev, trigger_event: triggerEvent }));
+  }, []);
+
   const updateTriggerField = useCallback((code: string) => {
     setDefinition(prev => ({ ...prev, trigger_field_code: code }));
   }, []);
@@ -378,8 +376,19 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
             ))}
           </Select>
         </Field>
-        <Field label="Trigger Event" style={{ marginTop: '8px' }}>
-          <Input value="On Change" readOnly />
+        <Field
+          label="Trigger Event"
+          style={{ marginTop: '8px' }}
+          hint={triggerEventHint}
+        >
+          <Select
+            value={definition.trigger_event}
+            onChange={(_, d) => updateTriggerEvent(d.value as RuleTriggerEvent)}
+          >
+            {TRIGGER_EVENT_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
         </Field>
       </div>
 
@@ -517,6 +526,8 @@ export function RuleConfigScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
 
   const navigateTo = useDesignerStore(s => s.navigateTo);
+  const pendingRuleCreationTarget = useDesignerStore(s => s.pendingRuleCreationTarget);
+  const clearPendingRuleCreationTarget = useDesignerStore(s => s.clearPendingRuleCreationTarget);
   const storeBusinessRules = useDesignerStore(s => s.businessRules);
   const fields = useDesignerStore(s => s.fields);
   const storeTabs = useDesignerStore(s => s.tabs);
@@ -593,12 +604,12 @@ export function RuleConfigScreen(): React.ReactElement {
     navigateTo('designer');
   }, [navigateTo]);
 
-  const handleAddRule = useCallback(() => {
+  const addRuleForTarget = useCallback((target: RuleCreationTarget | null) => {
     const newRule: DesignerBusinessRule = {
       id: generateRuleId(),
       formId: form?.id ?? '',
-      name: 'New Rule',
-      definition: buildDefaultDefinition(fieldCodes),
+      name: target ? 'Hide tab when…' : 'New Rule',
+      definition: buildDefaultDefinition(fieldCodes, target),
       isActive: true,
       sortOrder: localRules.length,
     };
@@ -606,6 +617,16 @@ export function RuleConfigScreen(): React.ReactElement {
     setSelectedRuleId(newRule.id);
     setIsAddingNew(true);
   }, [form, fieldCodes, localRules.length]);
+
+  const handleAddRule = useCallback(() => addRuleForTarget(null), [addRuleForTarget]);
+
+  // Arriving from an element's properties rail: open straight into a rule aimed at it, so the
+  // maker does not have to re-pick in the editor what they had already selected on the canvas.
+  useEffect(() => {
+    if (!pendingRuleCreationTarget) return;
+    addRuleForTarget(pendingRuleCreationTarget);
+    clearPendingRuleCreationTarget();
+  }, [pendingRuleCreationTarget, addRuleForTarget, clearPendingRuleCreationTarget]);
 
   const handleSaveRule = useCallback((updated: DesignerBusinessRule) => {
     setLocalRules(prev => prev.map(r => (r.id === updated.id ? updated : r)));

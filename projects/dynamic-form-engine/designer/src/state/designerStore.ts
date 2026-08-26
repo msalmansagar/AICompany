@@ -13,6 +13,7 @@ import type {
 } from '@qdb/shared';
 import { useConcurrencyStore } from './concurrencyStore';
 import { usePresenceStore } from './presenceStore';
+import type { RuleCreationTarget } from '@/screens/ruleDefaults';
 
 // Enable immer patch tracking once at module init so produceWithPatches() is
 // available for E4 audit-capture at the save boundary (DFE-ENH-001 ENT-005).
@@ -135,6 +136,12 @@ export interface DesignerState {
   // UI state
   selectedId: string | null;
   selectedType: CanvasItemType | null;
+  /**
+   * The element a maker asked for a business rule from, handed to the rule editor and
+   * consumed once. A rule can target a tab as well as a field, and the editor cannot infer
+   * which element the maker meant.
+   */
+  pendingRuleCreationTarget: RuleCreationTarget | null;
   activeCanvasTabId: string | null;
   isDirty: boolean;
   isSaving: boolean;
@@ -152,6 +159,8 @@ export interface DesignerState {
 
   // Actions
   navigateTo: (screen: DesignerScreen) => void;
+  requestRuleForTab: (tabId: string) => void;
+  clearPendingRuleCreationTarget: () => void;
   loadForm: (params: LoadFormParams) => void;
   resetDesigner: () => void;
   selectItem: (id: string, type: CanvasItemType) => void;
@@ -331,6 +340,7 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   redoStack: [],
   selectedId: null,
   selectedType: null,
+  pendingRuleCreationTarget: null,
   activeCanvasTabId: null,
   isDirty: false,
   isSaving: false,
@@ -340,6 +350,11 @@ export const useDesignerStore = create<DesignerState>((set, _get) => ({
   previewMode: null,
 
   navigateTo: (screen) => set({ currentScreen: screen }),
+
+  requestRuleForTab: (tabId) =>
+    set({ pendingRuleCreationTarget: { type: 'tab', id: tabId }, currentScreen: 'rule-config' }),
+
+  clearPendingRuleCreationTarget: () => set({ pendingRuleCreationTarget: null }),
 
   loadForm: ({ form, tabs, sections, fields, validationRules, businessRules, designPayload }) => {
     // Reset concurrency and presence state whenever a new form is loaded so
