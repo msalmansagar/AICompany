@@ -144,3 +144,56 @@ describe('hierarchy edge cases from the Loan process', () => {
     expect(dataOf(nodes, 'a')!.isTerminating).toBe(false);
   });
 });
+
+describe('returns in the outer gutter (CWFD-011)', () => {
+  const steps = [step('a', 1), step('b', 2), step('c', 3)];
+  const outcomes = [
+    outcome('o1', 'a', 'b'),
+    outcome('o2', 'b', 'c'),
+    outcome('r1', 'b', 'a', { name: 'Return to A', sequenceNumber: 2 }),
+    outcome('r2', 'c', 'a', { name: 'Reject to A', sequenceNumber: 1 }),
+    outcome('o3', 'c', null, { sequenceNumber: 2 }),
+  ];
+
+  it('should_emit_hidden_return_edges_with_their_own_lanes', () => {
+    const { edges } = buildHierarchyGraph(steps, outcomes);
+    const returns = edges.filter((e) => e.type === 'hierReturn');
+    expect(returns).toHaveLength(2);
+    expect(returns.every((e) => e.hidden)).toBe(true);
+    const gutters = returns.map((e) => (e.data as { gutter: number }).gutter);
+    expect(new Set(gutters).size).toBe(2);
+  });
+
+  it('should_route_lanes_outside_the_tree', () => {
+    const { nodes, edges } = buildHierarchyGraph(steps, outcomes);
+    const minX = Math.min(...nodes.map((n) => n.position.x));
+    for (const e of edges.filter((x) => x.type === 'hierReturn')) {
+      expect((e.data as { gutter: number }).gutter).toBeLessThan(minX);
+    }
+  });
+
+  it('should_count_returns_per_card_for_the_badge', () => {
+    const { nodes } = buildHierarchyGraph(steps, outcomes);
+    expect(dataOf(nodes, 'b')!.returnCount).toBe(1);
+    expect(dataOf(nodes, 'c')!.returnCount).toBe(1);
+    expect(dataOf(nodes, 'a')!.returnCount).toBe(0);
+  });
+
+  it('should_drop_returns_whose_endpoint_is_inside_a_collapsed_subtree', () => {
+    const { edges } = buildHierarchyGraph(steps, outcomes, 'TB', [], new Set(['b']));
+    // c is hidden under collapsed b — its return to a must not dangle.
+    expect(edges.some((e) => e.id === 'h_ret_r2')).toBe(false);
+    expect(edges.some((e) => e.id === 'h_ret_r1')).toBe(true);
+  });
+
+  it('should_ignore_self_loops', () => {
+    const selfSteps = [step('a', 1), step('b', 2)];
+    const selfOutcomes = [
+      outcome('o1', 'a', 'b'),
+      outcome('s1', 'b', 'b', { sequenceNumber: 1 }),
+      outcome('o2', 'b', null, { sequenceNumber: 2 }),
+    ];
+    const { edges } = buildHierarchyGraph(selfSteps, selfOutcomes);
+    expect(edges.some((e) => e.type === 'hierReturn')).toBe(false);
+  });
+});

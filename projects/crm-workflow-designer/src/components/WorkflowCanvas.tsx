@@ -39,6 +39,10 @@ import { buildHierarchyGraph } from '../services/HierarchyGraphBuilder';
 import type { HierarchyStepData } from '../services/HierarchyGraphBuilder';
 import { HierarchyStepList } from './common/HierarchyStepList';
 import { RoundZoomControls } from './common/RoundZoomControls';
+import { HierarchyModePanel } from './common/HierarchyModePanel';
+import type { HierarchyViewMode } from './common/HierarchyModePanel';
+import type { HierarchyReturnEdgeData } from '../services/HierarchyGraphBuilder';
+import { edgeTypes } from '../edges/edgeTypes';
 import type { GoToStepItem } from './common/GoToStepPanel';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
@@ -103,6 +107,18 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     miniMapPreference ?? (view.data?.steps.length ?? 0) > LARGE_GRAPH_THRESHOLD;
   // Hierarchy view: which cards have folded their subtree away.
   const [collapsedSteps, setCollapsedSteps] = useState<ReadonlySet<string>>(new Set());
+  // Hierarchy view: how returns are shown (CWFD-011).
+  const [hierarchyMode, setHierarchyMode] = useState<HierarchyViewMode>('forward');
+  const [peekedReturnStep, setPeekedReturnStep] = useState<string | null>(null);
+  const [pinnedReturnSteps, setPinnedReturnSteps] = useState<ReadonlySet<string>>(new Set());
+  const toggleReturnPin = useCallback((stepId: string) => {
+    setPinnedReturnSteps((previous) => {
+      const next = new Set(previous);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  }, []);
   const toggleCollapsed = useCallback((stepId: string) => {
     setCollapsedSteps((previous) => {
       const next = new Set(previous);
@@ -180,6 +196,9 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const processId = view.data?.process.id ?? null;
   useEffect(() => {
     setCollapsedSteps(new Set());
+    setPinnedReturnSteps(new Set());
+    setPeekedReturnStep(null);
+    setHierarchyMode('forward');
   }, [processId]);
   useEffect(() => {
     if (!processId) {
@@ -319,22 +338,100 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const visible = useMemo(() => {
     const filtered = applyReturnPathFilter(view.nodes, view.edges, returnPathMode);
     if (view.viewMode !== 'hierarchy') return filtered;
-    return {
-      ...filtered,
-      nodes: filtered.nodes.map((node) =>
-        node.type === 'hierStep'
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                isCollapsed: collapsedSteps.has((node.data as HierarchyStepData).step.id),
-                onToggleCollapse: toggleCollapsed,
-              },
-            }
-          : node
-      ),
+
+    const selectedStepId = view.selectedId?.startsWith('step_')
+      ? view.selectedId.slice('step_'.length)
+      : null;
+
+    // Selected path: the reporting line — every ancestor from the entry down
+    // to the selection, plus where the selection's returns land.
+    const parentOf = new Map<string, string>();
+    for (const node of filtered.nodes) {
+      if (node.type !== 'hierStep') continue;
+      const data = node.data as HierarchyStepData;
+      for (const child of data.childStepIds) parentOf.set(child, data.step.id);
+    }
+    const pathIds = new Set<string>();
+    if (hierarchyMode === 'selected' && selectedStepId) {
+      let cursor: string | undefined = selectedStepId;
+      while (cursor && !pathIds.has(cursor)) {
+        pathIds.add(cursor);
+        cursor = parentOf.get(cursor);
+      }
+    }
+
+    const isReturnVisible = (data: HierarchyReturnEdgeData): boolean => {
+      if (hierarchyMode === 'returns') return true;
+      if (hierarchyMode === 'selected') {
+        return selectedStepId !== null &&
+          (data.sourceStepId === selectedStepId || data.targetStepId === selectedStepId);
+      }
+      return (
+        data.sourceStepId === peekedReturnStep || pinnedReturnSteps.has(data.sourceStepId)
+      );
     };
-  }, [view.nodes, view.edges, returnPathMode, view.viewMode, collapsedSteps, toggleCollapsed]);
+
+    const dimPath = hierarchyMode === 'selected' && selectedStepId !== null;
+    const returnEndpoints = new Set<string>();
+    if (dimPath) {
+      for (const edge of filtered.edges) {
+        if (edge.type !== 'hierReturn') continue;
+        const data = edge.data as HierarchyReturnEdgeData;
+        if (data.sourceStepId === selectedStepId) returnEndpoints.add(data.targetStepId);
+        if (data.targetStepId === selectedStepId) returnEndpoints.add(data.sourceStepId);
+      }
+    }
+
+    return {
+      nodes: filtered.nodes.map((node) => {
+        if (node.type !== 'hierStep') return node;
+        const data = node.data as HierarchyStepData;
+        const onPath =
+          !dimPath || pathIds.has(data.step.id) || returnEndpoints.has(data.step.id);
+        return {
+          ...node,
+          style: { ...node.style, opacity: onPath ? 1 : 0.25 },
+          data: {
+            ...data,
+            isCollapsed: collapsedSteps.has(data.step.id),
+            onToggleCollapse: toggleCollapsed,
+            isReturnPinned: pinnedReturnSteps.has(data.step.id),
+            onReturnHover: setPeekedReturnStep,
+            onReturnToggle: toggleReturnPin,
+          },
+        };
+      }),
+      edges: filtered.edges.map((edge) => {
+        if (edge.type === 'hierReturn') {
+          return { ...edge, hidden: !isReturnVisible(edge.data as HierarchyReturnEdgeData) };
+        }
+        if (dimPath && edge.type === 'smoothstep') {
+          const sourceId = edge.source.slice('step_'.length);
+          const targetId = edge.target.slice('step_'.length);
+          const onPath = pathIds.has(sourceId) && pathIds.has(targetId);
+          return {
+            ...edge,
+            style: onPath
+              ? { ...edge.style, stroke: 'var(--primary)', strokeWidth: 2.2, opacity: 1 }
+              : { ...edge.style, opacity: 0.2 },
+          };
+        }
+        return edge;
+      }),
+    };
+  }, [
+    view.nodes,
+    view.edges,
+    returnPathMode,
+    view.viewMode,
+    view.selectedId,
+    collapsedSteps,
+    toggleCollapsed,
+    hierarchyMode,
+    peekedReturnStep,
+    pinnedReturnSteps,
+    toggleReturnPin,
+  ]);
 
   // Captures the React Flow viewport element scaled to fit all nodes.
   const captureImage = useCallback(async (): Promise<string> => {
@@ -433,6 +530,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
             nodes={visible.nodes}
             edges={visible.edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onNodesChange={handleNodesChange}
             onNodeClick={handleNodeClick}
             onNodeDoubleClick={handleNodeDoubleClick}
@@ -456,6 +554,9 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
               <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
             )}
             {view.viewMode === 'hierarchy' && <RoundZoomControls />}
+            {view.viewMode === 'hierarchy' && (
+              <HierarchyModePanel mode={hierarchyMode} onChange={setHierarchyMode} />
+            )}
             {showMiniMap && (
               <MiniMap
                 nodeColor={minimapNodeColor}

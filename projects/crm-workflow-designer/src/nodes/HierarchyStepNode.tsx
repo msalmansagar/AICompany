@@ -28,6 +28,20 @@ export function HierarchyStepNode({ data, selected }: NodeProps) {
         style={quietHandle}
       />
 
+      {/* Anchors for the outer-lane returns, on the gutter side. */}
+      <Handle
+        type="source"
+        position={isLR ? Position.Top : Position.Left}
+        id="return-out"
+        style={returnHandle}
+      />
+      <Handle
+        type="target"
+        position={isLR ? Position.Top : Position.Left}
+        id="return-in"
+        style={{ ...returnHandle, ...(isLR ? { left: '35%' } : { top: '35%' }) }}
+      />
+
       <div style={topRow}>
         <span style={avatarStyle(accent)}>{initialsOf(d.assigneeName ?? d.step.name)}</span>
         <div style={nameColumn}>
@@ -45,6 +59,27 @@ export function HierarchyStepNode({ data, selected }: NodeProps) {
         </span>
         {d.isDecisionPoint && <span style={decisionChip}>Decision point</span>}
         {d.isTerminating && <span style={endsChip}>Ends process</span>}
+        {d.returnCount > 0 && (
+          <button
+            type="button"
+            style={returnBadge(d.isReturnPinned ?? false)}
+            title={
+              (d.isReturnPinned
+                ? 'Click to hide the return path'
+                : 'Hover to peek, click to keep the return path visible') +
+              ` — ${d.returnCount} return decision${d.returnCount === 1 ? '' : 's'}`
+            }
+            aria-pressed={d.isReturnPinned ?? false}
+            onMouseEnter={() => d.onReturnHover?.(d.step.id)}
+            onMouseLeave={() => d.onReturnHover?.(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              d.onReturnToggle?.(d.step.id);
+            }}
+          >
+            ↩ {d.returnCount}
+          </button>
+        )}
       </div>
 
       {hasChildren && (
@@ -227,3 +262,26 @@ const quietHandle: React.CSSProperties = {
   border: 'none',
   background: 'var(--border-strong)',
 };
+
+// Return anchors sit on the gutter side, invisible until an edge uses them.
+const returnHandle: React.CSSProperties = {
+  width: 6,
+  height: 6,
+  border: 'none',
+  background: 'transparent',
+};
+
+/** The ↩ badge: the fact lives on the card; the line appears on request. */
+function returnBadge(isPinned: boolean): React.CSSProperties {
+  return {
+    fontSize: 10.5,
+    fontWeight: 700,
+    color: isPinned ? 'var(--text-on-primary)' : 'var(--accent-branch)',
+    background: isPinned ? 'var(--accent-branch)' : 'var(--accent-branch-bg)',
+    border: '1px solid var(--accent-branch)',
+    borderRadius: 4,
+    padding: '2px 8px',
+    whiteSpace: 'nowrap',
+    cursor: 'pointer',
+  };
+}
