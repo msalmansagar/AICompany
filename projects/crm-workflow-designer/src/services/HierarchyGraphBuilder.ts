@@ -33,10 +33,27 @@ export interface HierarchyStepData extends Record<string, unknown> {
   descendantCount: number;
   depth: number;
   layoutDir: LayoutDir;
+  /** How many of this card's decisions return to an earlier visible step. */
+  returnCount: number;
   /** Injected by the canvas: whether this card's subtree is collapsed. */
   isCollapsed?: boolean;
   /** Injected by the canvas: flips the collapse state. */
   onToggleCollapse?: (stepId: string) => void;
+  /** Injected by the canvas: true while this card's returns are pinned open. */
+  isReturnPinned?: boolean;
+  /** Injected by the canvas: hover began/ended on the ↩ badge (null = ended). */
+  onReturnHover?: (stepId: string | null) => void;
+  /** Injected by the canvas: the ↩ badge was clicked — pin or unpin. */
+  onReturnToggle?: (stepId: string) => void;
+}
+
+export interface HierarchyReturnEdgeData extends Record<string, unknown> {
+  label: string;
+  /** The outer lane this return travels: an x in TB, a y in LR. */
+  gutter: number;
+  layoutDir: LayoutDir;
+  sourceStepId: string;
+  targetStepId: string;
 }
 
 interface TreeShape {
@@ -232,6 +249,38 @@ export function buildHierarchyGraph(
     for (const d of descendantsOf(id, tree.childrenOf)) hidden.add(d);
   }
 
+  // Direct return decisions between two VISIBLE cards. The tree hides them by
+  // default; each one gets its own lane in the outer gutter so that showing
+  // all of them never braids into one cable, and never crosses the tree.
+  const isRendered = (id: string) => positions.has(id) && !hidden.has(id);
+  const sequenceOf = new Map(steps.map((s) => [s.id, s.sequenceNo]));
+  const returnLinks = outcomes
+    .filter((o) => {
+      if (!o.nextStepId || o.applyFilter) return false;
+      if (o.nextStepId === o.stepId) return false;
+      if (!isRendered(o.stepId) || !isRendered(o.nextStepId)) return false;
+      const from = sequenceOf.get(o.stepId);
+      const to = sequenceOf.get(o.nextStepId);
+      return from !== undefined && to !== undefined && to <= from;
+    })
+    .sort((a, b) => {
+      const posOf = (id: string) => positions.get(id) ?? { x: 0, y: 0 };
+      const main = (id: string) => (dir === 'TB' ? posOf(id).y : posOf(id).x);
+      return main(a.nextStepId as string) - main(b.nextStepId as string) ||
+        main(a.stepId) - main(b.stepId);
+    });
+
+  const returnCountOf = new Map<string, number>();
+  for (const link of returnLinks) {
+    returnCountOf.set(link.stepId, (returnCountOf.get(link.stepId) ?? 0) + 1);
+  }
+
+  const renderedPositions = [...positions.entries()].filter(([id]) => !hidden.has(id));
+  const gutterBase =
+    renderedPositions.length > 0
+      ? Math.min(...renderedPositions.map(([, p]) => (dir === 'TB' ? p.x : p.y))) - 70
+      : -70;
+
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   for (const [id, position] of positions) {
@@ -252,6 +301,7 @@ export function buildHierarchyGraph(
         descendantCount: descendantsOf(id, tree.childrenOf).length,
         depth: depthOf.get(id) ?? 0,
         layoutDir: dir,
+        returnCount: returnCountOf.get(id) ?? 0,
       } as HierarchyStepData,
       draggable: true,
       selectable: true,
@@ -276,6 +326,28 @@ export function buildHierarchyGraph(
       }
     }
   }
+
+  returnLinks.forEach((link, laneIndex) => {
+    edges.push({
+      id: `h_ret_${link.id}`,
+      source: `step_${link.stepId}`,
+      target: `step_${link.nextStepId}`,
+      sourceHandle: 'return-out',
+      targetHandle: 'return-in',
+      type: 'hierReturn',
+      data: {
+        label: link.name,
+        gutter: gutterBase - laneIndex * 18,
+        layoutDir: dir,
+        sourceStepId: link.stepId,
+        targetStepId: link.nextStepId as string,
+      } as HierarchyReturnEdgeData,
+      selectable: false,
+      // Hidden until a mode, a hover, or a pin asks for it — the canvas flips
+      // this flag; the builder only declares the geometry.
+      hidden: true,
+    } as Edge);
+  });
 
   return { nodes, edges };
 }
