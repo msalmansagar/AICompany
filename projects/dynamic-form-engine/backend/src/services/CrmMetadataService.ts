@@ -1603,6 +1603,9 @@ const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
   equals: 'equals',
   not_equals: 'notEquals',
   contains: 'contains',
+  // The designer offers Not Contains; it was absent here, so the condition was dropped at
+  // publish and the rule quietly did something other than what the maker configured.
+  not_contains: 'notContains',
   is_empty: 'isEmpty',
   is_not_empty: 'isNotEmpty',
   greater_than: 'greaterThan',

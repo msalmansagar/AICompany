@@ -404,6 +404,9 @@ namespace Qdb.FormEngine.Core.Generation
         private static readonly Dictionary<string, string> DesignerOperatorMap = new Dictionary<string, string>
         {
             { "equals", "equals" }, { "not_equals", "notEquals" }, { "contains", "contains" },
+            // The designer offers Not Contains; without this the condition was dropped at
+            // publish and the rule quietly did something other than what was configured.
+            { "not_contains", "notContains" },
             { "is_empty", "isEmpty" }, { "is_not_empty", "isNotEmpty" },
             { "greater_than", "greaterThan" }, { "less_than", "lessThan" }
         };

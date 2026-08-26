@@ -35,7 +35,7 @@ function isLookupValue(value: unknown): value is { id: string; displayName: stri
 }
 
 /** Operators whose paired lookup conditions must both hold — see convertCondition. */
-const NEGATIVE_OPERATORS: ReadonlySet<string> = new Set(['notEquals', 'notInList']);
+const NEGATIVE_OPERATORS: ReadonlySet<string> = new Set(['notEquals', 'notInList', 'notContains']);
 
 const OPERATOR_MAP: Record<string, string> = {
   equals: 'equal',
@@ -44,10 +44,38 @@ const OPERATOR_MAP: Record<string, string> = {
   greaterThanOrEqual: 'greaterThanOrEqualTo',
   lessThan: 'lessThan',
   lessThanOrEqual: 'lessThanOrEqualTo',
-  contains: 'contains',
+  // Deliberately NOT json-rules-engine's built-in 'contains'/'doesNotContain'. Those are
+  // registered with Array.isArray as their fact validator, so a STRING fact can never
+  // satisfy them — a "contains" rule on any text or lookup field silently never fired.
+  // See registerTextOperators.
+  contains: 'textContains',
+  notContains: 'textNotContains',
   inList: 'in',
   notInList: 'notIn',
 };
+
+/**
+ * Substring operators that work on the values this product actually holds.
+ *
+ * json-rules-engine ships `contains` for ARRAYS only. Form values are overwhelmingly strings
+ * — a text box, or a lookup's display name — so every `contains` rule evaluated to false
+ * without complaint. These replace it under distinct names so the array behaviour is still
+ * available to anything that wants it.
+ *
+ * Matching is case-SENSITIVE, consistent with `equals` and every other operator here.
+ */
+function registerTextOperators(engine: Engine): void {
+  engine.addOperator('textContains', (factValue: unknown, compareValue: unknown) =>
+    containsValue(factValue, compareValue));
+  engine.addOperator('textNotContains', (factValue: unknown, compareValue: unknown) =>
+    !containsValue(factValue, compareValue));
+}
+
+function containsValue(factValue: unknown, compareValue: unknown): boolean {
+  if (factValue === null || factValue === undefined) return false;
+  if (Array.isArray(factValue)) return factValue.includes(compareValue);
+  return String(factValue).includes(String(compareValue));
+}
 
 interface RuleEvent {
   type: string;
@@ -111,6 +139,7 @@ export class RuleEngine {
     }
 
     const engine = new Engine();
+    registerTextOperators(engine);
 
     activeRules.forEach((rule) => {
       const conditions = this.buildConditions(rule);
@@ -147,6 +176,7 @@ export class RuleEngine {
     const buttonEnabledState: Record<string, boolean> = {};
 
     const engine = new Engine();
+    registerTextOperators(engine);
     let ruleCount = 0;
 
     for (const button of buttons) {
