@@ -26,15 +26,12 @@ function buildAdapter() {
   return new CrmWebApiAdapter({
     createRecord: vi.fn(), updateRecord: vi.fn(), deleteRecord: vi.fn(),
     retrieveRecord: vi.fn(), retrieveMultipleRecords: vi.fn(),
-  } as unknown as typeof Xrm.WebApi);
+  } as unknown as typeof Xrm.WebApi, CLIENT_URL);
 }
 
 beforeEach(() => {
   mockFetch.mockReset();
   vi.stubGlobal('fetch', mockFetch);
-  vi.stubGlobal('Xrm', {
-    Utility: { getGlobalContext: () => ({ getClientUrl: () => CLIENT_URL }) },
-  });
 });
 
 afterEach(() => {

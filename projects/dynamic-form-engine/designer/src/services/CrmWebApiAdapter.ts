@@ -12,7 +12,11 @@ import { ConcurrencyConflictError } from './concurrency/ConcurrencyConflictError
 // Thin adapter wrapping Xrm.WebApi so it satisfies IWebApiAdapter.
 // Converts Xrm.Async.PromiseLike to standard Promise and normalises return shapes.
 export class CrmWebApiAdapter implements IWebApiAdapter {
-  constructor(private readonly xrmWebApi: typeof Xrm.WebApi) {}
+  constructor(
+    private readonly xrmWebApi: typeof Xrm.WebApi,
+    /** Org base URL. Passed in because the global Xrm is undefined inside the web resource. */
+    private readonly clientUrl: string,
+  ) {}
 
   async createRecord(entityLogicalName: string, data: WebApiRecord): Promise<WebApiCreateResult> {
     const result = await this.xrmWebApi.createRecord(entityLogicalName, data);
@@ -77,12 +81,11 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
     // had modifiedon still equal to createdon.
     //
     // If-Match is what makes it conditional: Dataverse answers 412 when the record moved on.
-    const clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
     const entitySetName = resolveEntitySetName(entityLogicalName);
 
     let response: Response;
     try {
-      response = await fetch(`${clientUrl}/api/data/v9.2/${entitySetName}(${stripBraces(id)})`, {
+      response = await fetch(`${this.clientUrl}/api/data/v9.2/${entitySetName}(${stripBraces(id)})`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

@@ -16,7 +16,7 @@ const TENANT_ID = 'd79e793c-f6de-4204-8508-7980a63df957';
 const CLIENT_ID = '08e80e93-0bab-45ef-8372-2e554fa9af9b';
 const DATAVERSE_URL = 'https://org5869857f.crm4.dynamics.com';
 const API_BASE = `${DATAVERSE_URL}/api/data/v9.2`;
-const FORM_CODE = 'six-point-demo';
+const FORM_CODE = process.env.DEMO_FORM_CODE ?? 'six-point-demo';
 
 const CACHE_POLL_ATTEMPTS = 30;
 const CACHE_POLL_INTERVAL_MS = 4000;
