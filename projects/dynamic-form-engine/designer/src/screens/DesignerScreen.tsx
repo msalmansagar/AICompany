@@ -65,13 +65,6 @@ const useStyles = makeStyles({
     backgroundColor: tokens.colorNeutralBackground3,
     padding: '24px',
   },
-  properties: {
-    width: '320px',
-    flexShrink: 0,
-    borderLeft: `1px solid ${tokens.colorNeutralStroke1}`,
-    overflow: 'auto',
-    backgroundColor: tokens.colorNeutralBackground1,
-  },
 });
 
 function generateTempId(prefix: string): string {
@@ -172,7 +165,16 @@ export function DesignerScreen(): React.ReactElement {
     markSaved,
     markResolved,
     navigateTo,
+    clearSelection,
   } = useDesignerStore();
+  useEffect(() => {
+    function clearSelectionOnEscape(event: KeyboardEvent): void {
+      if (event.key === 'Escape') clearSelection();
+    }
+    document.addEventListener('keydown', clearSelectionOnEscape);
+    return () => document.removeEventListener('keydown', clearSelectionOnEscape);
+  }, [clearSelection]);
+
   const { conflictState } = useConcurrencyStore();
   const setConflictState = useConcurrencyStore(s => s.setConflictState);
   const setRecordEtag = useConcurrencyStore(s => s.setRecordEtag);
@@ -566,7 +568,10 @@ export function DesignerScreen(): React.ReactElement {
           <div className={styles.toolbox}>
             <ComponentToolbox />
           </div>
-          <div className={styles.canvas}>
+          <div
+            className={styles.canvas}
+            onClick={(event) => { if (event.target === event.currentTarget) clearSelection(); }}
+          >
             {hasNoTabs ? (
               <EmptyCanvasPrompt />
             ) : (
@@ -581,9 +586,7 @@ export function DesignerScreen(): React.ReactElement {
               />
             )}
           </div>
-          <div className={styles.properties}>
-            <PropertiesPanel />
-          </div>
+          <PropertiesPanel />
         </div>
       </div>
       <DragOverlay>
