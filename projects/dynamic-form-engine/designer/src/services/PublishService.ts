@@ -10,6 +10,22 @@ import { withRetry } from './crmRetry';
 
 export const PUBLISH_ACTION_NAME = 'qdb_PublishForm';
 
+/**
+ * The exact input set qdb_PublishForm declares.
+ *
+ * Dataverse rejects the whole request with HTTP 400 when it carries a parameter the Custom
+ * API does not declare, so nothing may be added here that has not also been declared on the
+ * API. The form definition id and the trigger reason are deliberately absent: the plugin
+ * resolves the form from FormCode, and both values are already recorded on the job row.
+ */
+function buildPublishActionParameters(
+  formCode: string,
+  targetVersion: string,
+  publishJobId: string,
+): Record<string, string> {
+  return { FormCode: formCode, TargetVersion: targetVersion, PublishJobId: publishJobId };
+}
+
 // Terminal statuses indicate the job has reached a final state — done or failed.
 const TERMINAL_STATUSES: ReadonlySet<PublishJobStatusValue> = new Set([
   PUBLISH_JOB_STATUS.COMPLETED,
@@ -67,13 +83,10 @@ export class PublishService {
 
     await withRetry(
       () =>
-        this.webApi.executeAction(PUBLISH_ACTION_NAME, {
-          FormDefinitionId: formDefinitionId,
-          FormCode: formCode,
-          TargetVersion: targetVersion,
-          PublishJobId: jobId,
-          TriggerReason: PUBLISH_JOB_TRIGGER_REASON.PUBLISH,
-        }),
+        this.webApi.executeAction(
+          PUBLISH_ACTION_NAME,
+          buildPublishActionParameters(formCode, targetVersion, jobId),
+        ),
       'executePublishAction'
     );
 
@@ -104,13 +117,10 @@ export class PublishService {
 
     await withRetry(
       () =>
-        this.webApi.executeAction(PUBLISH_ACTION_NAME, {
-          FormDefinitionId: formDefinitionId,
-          FormCode: formCode,
-          TargetVersion: targetVersion,
-          PublishJobId: jobId,
-          TriggerReason: PUBLISH_JOB_TRIGGER_REASON.STYLE_CHANGE,
-        }),
+        this.webApi.executeAction(
+          PUBLISH_ACTION_NAME,
+          buildPublishActionParameters(formCode, targetVersion, jobId),
+        ),
       'executeStyleChangeCacheAction',
     );
 

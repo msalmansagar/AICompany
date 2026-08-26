@@ -76,11 +76,54 @@ describe('PublishService', () => {
     const [actionName, parameters] = vi.mocked(webApi.executeAction).mock.calls[0];
 
     expect(actionName).toBe(PUBLISH_ACTION_NAME);
-    expect(parameters['FormDefinitionId']).toBe(TEST_FORM_DEFINITION_ID);
     expect(parameters['FormCode']).toBe(TEST_FORM_CODE);
     expect(parameters['TargetVersion']).toBe(TEST_TARGET_VERSION);
     expect(parameters['PublishJobId']).toBe(TEST_JOB_ID);
-    expect(parameters['TriggerReason']).toBe(PUBLISH_JOB_TRIGGER_REASON.PUBLISH);
+  });
+
+  // The Custom API declares exactly FormCode, TargetVersion and PublishJobId. Dataverse
+  // rejects the whole request with HTTP 400 when it carries a parameter the API does not
+  // declare, so the payload is asserted as a WHOLE — checking named keys individually is
+  // what let two undeclared extras (FormDefinitionId, TriggerReason) sit here unnoticed
+  // while every publish from the designer failed. Both values are already recorded on the
+  // qdb_publish_job row, so the action does not need them.
+  it('publish_sendsOnlyTheParametersTheCustomApiDeclares', async () => {
+    await service.publish({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: TEST_TARGET_VERSION,
+    });
+
+    const [, parameters] = vi.mocked(webApi.executeAction).mock.calls[0];
+
+    expect(Object.keys(parameters).sort()).toEqual(['FormCode', 'PublishJobId', 'TargetVersion']);
+  });
+
+  it('triggerStyleChangeCache_sendsOnlyTheParametersTheCustomApiDeclares', async () => {
+    await service.triggerStyleChangeCache({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: TEST_TARGET_VERSION,
+    });
+
+    const [, parameters] = vi.mocked(webApi.executeAction).mock.calls[0];
+
+    expect(Object.keys(parameters).sort()).toEqual(['FormCode', 'PublishJobId', 'TargetVersion']);
+  });
+
+  // The trigger reason distinguishes a publish from a style-change regeneration. It is not
+  // an action parameter, so the job row is the only place it survives.
+  it('triggerStyleChangeCache_recordsTheStyleChangeReason_onTheJobRow', async () => {
+    await service.triggerStyleChangeCache({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: TEST_TARGET_VERSION,
+    });
+
+    const [, attributes] = vi.mocked(webApi.createRecord).mock.calls[0];
+
+    expect(attributes[PUBLISH_JOB_ATTRS.TRIGGER_REASON])
+      .toBe(PUBLISH_JOB_TRIGGER_REASON.STYLE_CHANGE);
   });
 
   it('publish_returnsJobId_fromCreateRecord', async () => {
