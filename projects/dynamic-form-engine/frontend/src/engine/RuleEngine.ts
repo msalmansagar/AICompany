@@ -8,8 +8,11 @@ import type {
   OptionValue,
   ScopedButton,
   ButtonConditionSet,
+  RuleTriggerEvent,
 } from '@qdb/shared';
+import { DEFAULT_RULE_TRIGGER_EVENT } from '@qdb/shared';
 import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
+import { logger } from '../utils/logger';
 
 /**
  * Suffix for the second fact carrying a lookup's display name.
@@ -53,6 +56,61 @@ const OPERATOR_MAP: Record<string, string> = {
   inList: 'in',
   notInList: 'notIn',
 };
+
+/**
+ * The moments a rule's conditions can be read against.
+ *
+ * Every trigger event reads the same conditions; they differ only in which snapshot of the
+ * form supplies the values. Omitting a moment falls back to the live values, so a caller
+ * that does not track snapshots keeps the original on-every-change behaviour.
+ */
+export interface RuleEvaluationMoments {
+  /** The values the form loaded with. */
+  atLoad?: FormFieldValues;
+  /** The values as at the last time a field lost focus. */
+  atLastBlur?: FormFieldValues;
+  /** The values submitted. Explicitly null until the user has attempted a save. */
+  atSave?: FormFieldValues | null;
+}
+
+function groupByTriggerEvent(rules: BusinessRule[]): Map<RuleTriggerEvent, BusinessRule[]> {
+  const grouped = new Map<RuleTriggerEvent, BusinessRule[]>();
+
+  for (const rule of rules) {
+    const triggerEvent = rule.triggerEvent ?? DEFAULT_RULE_TRIGGER_EVENT;
+    const existing = grouped.get(triggerEvent);
+    if (existing) existing.push(rule);
+    else grouped.set(triggerEvent, [rule]);
+  }
+
+  return grouped;
+}
+
+/**
+ * The values one trigger event reads, or null when it has nothing to read yet — an on_save
+ * rule before the user has submitted anything has no submitted values to judge.
+ */
+function resolveMomentValues(
+  triggerEvent: RuleTriggerEvent,
+  liveValues: FormFieldValues,
+  moments: RuleEvaluationMoments,
+): FormFieldValues | null {
+  switch (triggerEvent) {
+    case 'on_load':
+      return moments.atLoad ?? liveValues;
+    case 'on_blur':
+      return moments.atLastBlur ?? liveValues;
+    case 'on_save':
+      return moments.atSave === undefined ? liveValues : moments.atSave;
+    default:
+      return liveValues;
+  }
+}
+
+/** The message to log for a rule the engine refused, whatever was thrown. */
+function describeFailure(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Substring operators that work on the values this product actually holds.
@@ -131,6 +189,7 @@ export class RuleEngine {
   async evaluate(
     rules: BusinessRule[],
     fieldValues: FormFieldValues,
+    moments: RuleEvaluationMoments = {},
   ): Promise<RuleEvaluationResult> {
     const activeRules = rules.filter((rule) => rule.isActive);
 
@@ -138,24 +197,28 @@ export class RuleEngine {
       return buildEmptyResult();
     }
 
+    // One engine run per trigger event: each group reads its own snapshot of the form, and a
+    // single fact map cannot hold two different values for the same field.
+    const events: RuleEvent[] = [];
+    for (const [triggerEvent, group] of groupByTriggerEvent(activeRules)) {
+      const values = resolveMomentValues(triggerEvent, fieldValues, moments);
+      if (values === null) continue;
+      events.push(...await this.runRuleGroup(group, values));
+    }
+
+    return this.mapEventsToResult(events, fieldValues);
+  }
+
+  private async runRuleGroup(
+    rules: BusinessRule[],
+    values: FormFieldValues,
+  ): Promise<RuleEvent[]> {
     const engine = new Engine();
     registerTextOperators(engine);
+    rules.forEach((rule) => this.registerRule(engine, rule));
 
-    activeRules.forEach((rule) => {
-      const conditions = this.buildConditions(rule);
-      const event = this.buildEvent(rule);
-
-      engine.addRule({
-        conditions,
-        event,
-        priority: rule.priority,
-      });
-    });
-
-    const facts = this.buildFacts(fieldValues);
-    const { events } = await engine.run(facts);
-
-    return this.mapEventsToResult(events as RuleEvent[], fieldValues);
+    const { events } = await engine.run(this.buildFacts(values));
+    return events as RuleEvent[];
   }
 
   /**
@@ -182,18 +245,12 @@ export class RuleEngine {
     for (const button of buttons) {
       if (this.hasConditions(button.visibleWhen)) {
         buttonVisibility[button.id] = false;
-        engine.addRule({
-          conditions: this.buildConditionSet(button.visibleWhen!),
-          event: { type: `vis:${button.id}`, params: { buttonId: button.id, axis: 'visible' } },
-        });
+        this.registerButtonRule(engine, button, 'visible');
         ruleCount += 1;
       }
       if (this.hasConditions(button.enabledWhen)) {
         buttonEnabledState[button.id] = false;
-        engine.addRule({
-          conditions: this.buildConditionSet(button.enabledWhen!),
-          event: { type: `en:${button.id}`, params: { buttonId: button.id, axis: 'enabled' } },
-        });
+        this.registerButtonRule(engine, button, 'enabled');
         ruleCount += 1;
       }
     }
@@ -217,6 +274,56 @@ export class RuleEngine {
 
   private hasConditions(set?: ButtonConditionSet): boolean {
     return !!set && Array.isArray(set.conditions) && set.conditions.length > 0;
+  }
+
+  /**
+   * Adds one rule to the engine, or skips it.
+   *
+   * Every rule on a form is registered against a single engine before any of them runs, so a
+   * rule that could not be built used to throw out of the registration loop and take the whole
+   * form's conditional behaviour with it. A rule the engine cannot express is that rule's own
+   * defect: it is dropped, and the rest of the form keeps working.
+   */
+  private registerRule(engine: Engine, rule: BusinessRule): void {
+    try {
+      engine.addRule({
+        conditions: this.buildConditions(rule),
+        event: this.buildEvent(rule),
+        priority: rule.priority,
+      });
+    } catch (error) {
+      logger.error('rule_skipped', {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        action: rule.action,
+        reason: describeFailure(error),
+      });
+    }
+  }
+
+  /**
+   * Adds one axis of a scoped button's conditions, or skips it. The caller has already
+   * defaulted the axis to false, so a button gated by conditions that cannot be built stays
+   * hidden or disabled rather than falling open.
+   */
+  private registerButtonRule(
+    engine: Engine,
+    button: ScopedButton,
+    axis: 'visible' | 'enabled',
+  ): void {
+    const conditionSet = axis === 'visible' ? button.visibleWhen : button.enabledWhen;
+    try {
+      engine.addRule({
+        conditions: this.buildConditionSet(conditionSet!),
+        event: { type: `${axis}:${button.id}`, params: { buttonId: button.id, axis } },
+      });
+    } catch (error) {
+      logger.error('button_rule_skipped', {
+        buttonId: button.id,
+        axis,
+        reason: describeFailure(error),
+      });
+    }
   }
 
   private buildConditionSet(
