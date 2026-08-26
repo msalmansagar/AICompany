@@ -92,8 +92,7 @@ export class FormDefinitionService {
           [FORM_DEFINITION_ATTRS.STATUS]: STATUS_TO_PICKLIST['draft'],
           [FORM_DEFINITION_ATTRS.CURRENT_VERSION]: 1,
           [FORM_DEFINITION_ATTRS.ALLOW_SAVE_DRAFT]: true,
-          // qdb_entity_logical_name is not deployed on qdb_form_definition —
-          // entityLogicalName lives in the store only and is used for submission mapping.
+          [FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME]: dto.entityLogicalName ?? null,
         }),
       'createForm'
     );
@@ -140,7 +139,9 @@ export class FormDefinitionService {
       data[FORM_DEFINITION_ATTRS.CONFIRMATION_RECORD_REF_ATTRIBUTE] = dto.confirmationRecordRefAttribute;
     }
     if (dto.accessGroupId !== undefined) data[FORM_DEFINITION_ATTRS.ACCESS_GROUP_ID] = dto.accessGroupId;
-    // entityLogicalName intentionally not written — qdb_entity_logical_name not deployed on qdb_form_definition
+    if (dto.entityLogicalName !== undefined) {
+      data[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] = dto.entityLogicalName;
+    }
     if (Object.keys(data).length === 0) return;
 
     if (!etag) {
@@ -162,7 +163,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.NAME,
       FORM_DEFINITION_ATTRS.CODE,
       FORM_DEFINITION_ATTRS.DESCRIPTION,
-      // ENTITY_LOGICAL_NAME excluded — not deployed on qdb_form_definition entity
+      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
       FORM_DEFINITION_ATTRS.ICON_NAME,
       FORM_DEFINITION_ATTRS.IMAGE_URL,
       FORM_DEFINITION_ATTRS.HEADER_TEXT,
@@ -201,6 +202,7 @@ export class FormDefinitionService {
       FORM_DEFINITION_ATTRS.NAME,
       FORM_DEFINITION_ATTRS.CODE,
       FORM_DEFINITION_ATTRS.DESCRIPTION,
+      FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME,
       FORM_DEFINITION_ATTRS.ICON_NAME,
       FORM_DEFINITION_ATTRS.IMAGE_URL,
       FORM_DEFINITION_ATTRS.HEADER_TEXT,
@@ -296,7 +298,7 @@ export class FormDefinitionService {
       name: String(record[FORM_DEFINITION_ATTRS.NAME] ?? ''),
       code: String(record[FORM_DEFINITION_ATTRS.CODE] ?? ''),
       description: String(record[FORM_DEFINITION_ATTRS.DESCRIPTION] ?? ''),
-      entityLogicalName: '', // not stored in CRM — populated by wizard and held in store only
+      entityLogicalName: (record[FORM_DEFINITION_ATTRS.ENTITY_LOGICAL_NAME] as string | null) ?? '',
       iconName: record[FORM_DEFINITION_ATTRS.ICON_NAME]
         ? String(record[FORM_DEFINITION_ATTRS.ICON_NAME])
         : null,
