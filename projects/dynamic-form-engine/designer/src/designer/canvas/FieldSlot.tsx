@@ -12,6 +12,7 @@ import {
 } from '@fluentui/react-components';
 import { Delete24Regular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { GridPreview } from './GridPreview';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 
 const useStyles = makeStyles({
@@ -58,6 +59,13 @@ const useStyles = makeStyles({
 
 interface FieldSlotProps {
   field: DesignerFieldModel;
+}
+
+/** Field types whose configured columns are worth drawing on the canvas. */
+const GRID_FIELD_TYPES: ReadonlySet<string> = new Set(['repeating_grid', 'interactive-grid']);
+
+function isGridField(fieldType: string): boolean {
+  return GRID_FIELD_TYPES.has(fieldType);
 }
 
 export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
@@ -130,6 +138,7 @@ export function FieldSlot({ field }: FieldSlotProps): React.ReactElement {
             {field.fieldType}
           </Badge>
         </div>
+        {isGridField(field.fieldType) && <GridPreview columns={field.gridColumns ?? []} />}
       </div>
       <div className={styles.fieldActions}>
         <Tooltip content="Delete Field" relationship="label">
