@@ -23,7 +23,13 @@ const formCodeSchema = z
   .string()
   .min(1, 'Form code is required')
   .max(100)
-  .regex(/^[a-z0-9_]+$/, 'Form code must contain only lowercase letters, numbers, and underscores');
+  // Hyphens are the established convention for form codes — every form in the org uses one,
+  // and the plugin, the runtime and the publish API have always accepted them. Excluding the
+  // hyphen here disabled Confirm Publish for every existing form.
+  .regex(
+    /^[a-z0-9_-]+$/,
+    'Form code must contain only lowercase letters, numbers, hyphens, and underscores',
+  );
 
 function validateFormBasics(state: DesignerState, issues: ValidationIssue[]): void {
   const nameResult = formNameSchema.safeParse(state.form?.name ?? '');

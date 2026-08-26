@@ -225,8 +225,27 @@ describe('validateForPublish', () => {
 
   // -------------------------------------------------------------------------
 
+  // Every form in the org is coded with hyphens — equipment-request, six-point-demo — and the
+  // plugin and runtime have always accepted them. This gate rejected the hyphen, so Confirm
+  // Publish was disabled for every one of them and the designer could not publish at all.
+  it('validateForPublish_acceptsAHyphenatedFormCode', () => {
+    const state = makeValidState({ form: makeForm({ code: 'equipment-request' }) });
+
+    const result = validateForPublish(state);
+
+    expect(result.issues.find(i => i.code === 'PV-002')).toBeUndefined();
+  });
+
+  it('validateForPublish_stillRejectsUppercaseInAFormCode', () => {
+    const state = makeValidState({ form: makeForm({ code: 'Equipment-Request' }) });
+
+    const result = validateForPublish(state);
+
+    expect(result.issues.find(i => i.code === 'PV-002')).toBeDefined();
+  });
+
   it('validateForPublish_returnsError_whenFormCodeIsInvalid', () => {
-    // Arrange — code contains uppercase letters, which fails /^[a-z0-9_]+$/
+    // Arrange — code contains punctuation the schema does not allow
     const state = makeValidState({
       form: makeForm({ code: 'Invalid-Code!' }),
     });
