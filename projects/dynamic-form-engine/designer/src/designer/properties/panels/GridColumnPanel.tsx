@@ -93,9 +93,23 @@ const useStyles = makeStyles({
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(112px, 1fr))',
     gap: '8px',
-    alignItems: 'end',
+    // Aligned to the top, not the bottom. These items are not the same height — some carry a
+    // hint under the control, and a Switch is taller than an Input or a Select — so aligning
+    // bottoms pushed the shorter items' controls upward and left neighbouring labels and
+    // controls on different lines. Two switches side by side sat 82px apart. Every label is
+    // one line of the same height, so starting them together lands the controls together
+    // too, and a hint simply extends its own item downward without moving anything else.
+    alignItems: 'start',
   },
-  fieldRowItem: { minWidth: 0 },
+  fieldRowItem: {
+    minWidth: 0,
+    // Fluent's Input and Select carry their own intrinsic min-width — around 150px — and do
+    // not shrink to their grid cell. In a 320px rail the cells are 119px, so every control
+    // rendered wider than the space it was given and the right-hand column spilled past the
+    // edge of the column card. minWidth:0 on the Field alone does not reach them.
+    '& > *': { maxWidth: '100%' },
+    '& input, & select': { minWidth: 0, width: '100%' },
+  },
 });
 
 function generateTempColId(): string {
