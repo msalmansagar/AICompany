@@ -20,6 +20,7 @@ import { AuditLogService } from '@/services/AuditLogService';
 import { PublishService } from '@/services/PublishService';
 import { PUBLISH_JOB_STATUS } from '@/constants/attributeNames';
 import { useDesignerStore } from '@/state/designerStore';
+import { useConcurrencyStore } from '@/state/concurrencyStore';
 import { validateForPublish, type ValidationIssue } from '@/validation/publishValidation';
 import { ScopedButtonDesignService, type ScopedButtonRecord } from '@/services/ScopedButtonDesignService';
 
@@ -226,7 +227,21 @@ export function PublishValidationScreen(): React.ReactElement {
       const currentVersion = form.currentVersion;
       const newVersion = versionService.incrementMajorVersion(currentVersion);
 
-      await formService.updateForm(form.id, { status: 'published', currentVersion: newVersion });
+      // Publishing writes status and version onto the form, and every write to a form goes
+      // through a conditional PATCH — updateForm refuses an unconditional one. This call
+      // passed no etag, so Confirm Publish failed with MissingEtagError the moment it became
+      // reachable, without ever creating a publish job.
+      //
+      // The etag captured when the form was opened is used rather than one fetched here, so
+      // publishing still fails with a conflict if someone changed the form underneath the
+      // editor. Fetching a fresh one immediately before writing would defeat If-Match.
+      const etag = useConcurrencyStore.getState().recordEtags[form.id];
+      await formService.updateForm(form.id, { status: 'published', currentVersion: newVersion }, etag);
+
+      // Dataverse invalidates the etag on every write; refresh it so a later save from the
+      // designer does not fail with a spurious 412.
+      const { etag: publishedEtag } = await formService.getFormWithEtag(form.id);
+      if (publishedEtag) useConcurrencyStore.getState().setRecordEtag(form.id, publishedEtag);
 
       const snapshot = useDesignerStore.getState();
       await versionService.createVersion(
