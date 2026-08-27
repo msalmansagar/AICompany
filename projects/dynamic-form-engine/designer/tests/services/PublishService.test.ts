@@ -56,11 +56,12 @@ describe('PublishService', () => {
     const [entityName, data] = vi.mocked(webApi.createRecord).mock.calls[0];
 
     expect(entityName).toBe(ENTITY_NAMES.PUBLISH_JOB);
-    expect(data[`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID}@odata.bind`]).toBe(
+    expect(data[`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID_NAV}@odata.bind`]).toBe(
       `/qdb_form_definitions(${TEST_FORM_DEFINITION_ID})`
     );
     expect(data[PUBLISH_JOB_ATTRS.FORM_CODE]).toBe(TEST_FORM_CODE);
-    expect(data[PUBLISH_JOB_ATTRS.TARGET_VERSION]).toBe(TEST_TARGET_VERSION);
+    // Stored as the whole number the Integer column holds, not the "2.0" string.
+    expect(data[PUBLISH_JOB_ATTRS.TARGET_VERSION]).toBe(2);
     expect(data[PUBLISH_JOB_ATTRS.STATUS]).toBe(PUBLISH_JOB_STATUS.QUEUED);
     expect(data[PUBLISH_JOB_ATTRS.TRIGGER_REASON]).toBe(PUBLISH_JOB_TRIGGER_REASON.PUBLISH);
   });
@@ -77,7 +78,7 @@ describe('PublishService', () => {
 
     expect(actionName).toBe(PUBLISH_ACTION_NAME);
     expect(parameters['FormCode']).toBe(TEST_FORM_CODE);
-    expect(parameters['TargetVersion']).toBe(TEST_TARGET_VERSION);
+    expect(parameters['TargetVersion']).toBe(2);
     expect(parameters['PublishJobId']).toBe(TEST_JOB_ID);
   });
 
@@ -87,6 +88,47 @@ describe('PublishService', () => {
   // what let two undeclared extras (FormDefinitionId, TriggerReason) sit here unnoticed
   // while every publish from the designer failed. Both values are already recorded on the
   // qdb_publish_job row, so the action does not need them.
+  // qdb_target_version is an Integer column. Versions travel the designer as "2.0" strings,
+  // and Dataverse rejects the whole create when handed one — it coerces "2", not a decimal.
+  it('publish_sendsTheMajorVersionAsAWholeNumber_onTheJobRow', async () => {
+    await service.publish({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: '2.0',
+    });
+
+    const [, attributes] = vi.mocked(webApi.createRecord).mock.calls[0];
+
+    expect(attributes[PUBLISH_JOB_ATTRS.TARGET_VERSION]).toBe(2);
+  });
+
+  it('publish_sendsTheMajorVersionAsAWholeNumber_onTheAction', async () => {
+    await service.publish({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: '3.0',
+    });
+
+    const [, parameters] = vi.mocked(webApi.executeAction).mock.calls[0];
+
+    expect(parameters['TargetVersion']).toBe(3);
+  });
+
+  // The lookup bind needs the relationship's navigation property, not the attribute's
+  // logical name — Dataverse rejects the whole create when given the latter.
+  it('publish_bindsTheFormThroughTheNavigationProperty', async () => {
+    await service.publish({
+      formDefinitionId: TEST_FORM_DEFINITION_ID,
+      formCode: TEST_FORM_CODE,
+      targetVersion: TEST_TARGET_VERSION,
+    });
+
+    const [, attributes] = vi.mocked(webApi.createRecord).mock.calls[0];
+
+    expect(attributes['qdb_Form_Definition_Id@odata.bind'])
+      .toBe(`/qdb_form_definitions(${TEST_FORM_DEFINITION_ID})`);
+  });
+
   it('publish_sendsOnlyTheParametersTheCustomApiDeclares', async () => {
     await service.publish({
       formDefinitionId: TEST_FORM_DEFINITION_ID,

@@ -18,11 +18,26 @@ export const PUBLISH_ACTION_NAME = 'qdb_PublishForm';
  * API. The form definition id and the trigger reason are deliberately absent: the plugin
  * resolves the form from FormCode, and both values are already recorded on the job row.
  */
+/**
+ * The major version as the whole number qdb_target_version holds.
+ *
+ * Versions are carried around the designer as "2.0" strings, but the column is an Integer
+ * and Dataverse rejects the entire create when handed "2.0" — it will coerce "2", not a
+ * decimal. This is the boundary where the string vocabulary meets the column's type.
+ */
+function toTargetVersionNumber(version: string): number {
+  const major = parseInt(version, 10);
+  if (Number.isNaN(major)) {
+    throw new Error(`Cannot publish: '${version}' is not a version number.`);
+  }
+  return major;
+}
+
 function buildPublishActionParameters(
   formCode: string,
-  targetVersion: string,
+  targetVersion: number,
   publishJobId: string,
-): Record<string, string> {
+): Record<string, string | number> {
   return { FormCode: formCode, TargetVersion: targetVersion, PublishJobId: publishJobId };
 }
 
@@ -70,9 +85,9 @@ export class PublishService {
     const jobResult = await withRetry(
       () =>
         this.webApi.createRecord(ENTITY_NAMES.PUBLISH_JOB, {
-          [`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID}@odata.bind`]: `/qdb_form_definitions(${formDefinitionId})`,
+          [`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID_NAV}@odata.bind`]: `/qdb_form_definitions(${formDefinitionId})`,
           [PUBLISH_JOB_ATTRS.FORM_CODE]: formCode,
-          [PUBLISH_JOB_ATTRS.TARGET_VERSION]: targetVersion,
+          [PUBLISH_JOB_ATTRS.TARGET_VERSION]: toTargetVersionNumber(targetVersion),
           [PUBLISH_JOB_ATTRS.STATUS]: PUBLISH_JOB_STATUS.QUEUED,
           [PUBLISH_JOB_ATTRS.TRIGGER_REASON]: PUBLISH_JOB_TRIGGER_REASON.PUBLISH,
         }),
@@ -85,7 +100,7 @@ export class PublishService {
       () =>
         this.webApi.executeAction(
           PUBLISH_ACTION_NAME,
-          buildPublishActionParameters(formCode, targetVersion, jobId),
+          buildPublishActionParameters(formCode, toTargetVersionNumber(targetVersion), jobId),
         ),
       'executePublishAction'
     );
@@ -104,9 +119,9 @@ export class PublishService {
     const jobResult = await withRetry(
       () =>
         this.webApi.createRecord(ENTITY_NAMES.PUBLISH_JOB, {
-          [`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID}@odata.bind`]: `/qdb_form_definitions(${formDefinitionId})`,
+          [`${PUBLISH_JOB_ATTRS.FORM_DEFINITION_ID_NAV}@odata.bind`]: `/qdb_form_definitions(${formDefinitionId})`,
           [PUBLISH_JOB_ATTRS.FORM_CODE]: formCode,
-          [PUBLISH_JOB_ATTRS.TARGET_VERSION]: targetVersion,
+          [PUBLISH_JOB_ATTRS.TARGET_VERSION]: toTargetVersionNumber(targetVersion),
           [PUBLISH_JOB_ATTRS.STATUS]: PUBLISH_JOB_STATUS.QUEUED,
           [PUBLISH_JOB_ATTRS.TRIGGER_REASON]: PUBLISH_JOB_TRIGGER_REASON.STYLE_CHANGE,
         }),
@@ -119,7 +134,7 @@ export class PublishService {
       () =>
         this.webApi.executeAction(
           PUBLISH_ACTION_NAME,
-          buildPublishActionParameters(formCode, targetVersion, jobId),
+          buildPublishActionParameters(formCode, toTargetVersionNumber(targetVersion), jobId),
         ),
       'executeStyleChangeCacheAction',
     );
