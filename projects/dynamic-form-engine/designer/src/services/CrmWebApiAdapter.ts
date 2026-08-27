@@ -47,20 +47,42 @@ export class CrmWebApiAdapter implements IWebApiAdapter {
     };
   }
 
+  /**
+   * Calls an unbound action with a plain POST, NOT Xrm.WebApi.online.execute.
+   *
+   * execute() was given an empty parameterTypes map on the assumption that Xrm would infer
+   * each parameter's type at runtime. It does not: anything absent from parameterTypes is
+   * dropped from the serialised request, so the action arrived with every parameter null
+   * and Dataverse rejected it — "A null value was found for the property named 'FormCode',
+   * which has the expected type 'Edm.String[Nullable=False]'". Publishing from the designer
+   * therefore created a job row and then failed to start it, leaving the job queued forever.
+   *
+   * Declaring the types here would mean teaching this generic adapter every action's
+   * signature. A POST carries the parameters exactly as given, which is what the scripts
+   * that publish successfully already do, and matches updateRecordConditional below.
+   */
   async executeAction(actionName: string, parameters: ActionParameters): Promise<ActionResult> {
-    const request = {
-      ...parameters,
-      getMetadata: () => ({
-        boundParameter: null,
-        operationType: 0,           // 0 = Action
-        operationName: actionName,
-        parameterTypes: {}          // Xrm infers types at runtime
-      }),
-    };
-    const xrmResult = await (this.xrmWebApi as typeof Xrm.WebApi & {
-      online: { execute(request: unknown): Promise<unknown> }
-    }).online.execute(request);
-    return (xrmResult ?? {}) as ActionResult;
+    const response = await fetch(`${this.clientUrl}/api/data/v9.2/${actionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'OData-MaxVersion': '4.0',
+        'OData-Version': '4.0',
+      },
+      body: JSON.stringify(parameters),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(
+        `Action '${actionName}' failed with ${response.status}: ${detail.slice(0, 300)}`,
+      );
+    }
+
+    // A 204 carries no body; actions that return values answer with JSON.
+    if (response.status === 204) return {} as ActionResult;
+    return (await response.json()) as ActionResult;
   }
 
   async updateRecordConditional(
