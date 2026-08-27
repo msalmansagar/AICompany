@@ -97,11 +97,26 @@ export default defineConfig({
           'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
           'vendor-state': ['zustand', 'immer'],
         },
-        // Stable filenames (no content hashes) so customizations.xml
-        // stays accurate across rebuilds without manual updates.
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name].[ext]',
+        /**
+         * Content hashes in asset filenames.
+         *
+         * Dynamics serves web resources from a cache keyed on the file's path, and that
+         * cache proved impossible to invalidate: with the record holding the new bytes and
+         * componentstate published, the org kept serving an older copy that matched no
+         * record at all. Neither PublishAllXml, a PublishXml naming the web resources
+         * directly, nor Publish all customizations from the maker portal moved it, and it
+         * survived overnight — so this is not propagation lag. A hashed name sidesteps the
+         * question entirely: changed content means a path the cache has never seen.
+         *
+         * This does not desynchronise the solution manifest. packageSolution.js walks the
+         * real build output and generates customizations.xml and the RootComponents from
+         * it, deriving each WebResourceId deterministically from the file's logical name,
+         * so a rebuilt bundle re-imports cleanly. Superseded assets are left behind in the
+         * org as orphans and want an occasional sweep.
+         */
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
     // Warn at 500KB per chunk; CI fails total bundle check via checkBundleSize.js
