@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Case & Customer 360</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Case Detail, Customer & Loan 360, Delinquency Intake
+   ===================================================================== */
+"use strict";
+
+const STAGES = ["Identify", "Contact", "Promise", "Follow-up", "Escalate", "Closed"];
+
+/** Allowed statuscode transitions. The CRM plugin enforces the same table server-side. */
+const TRANSITIONS = {
+  "New": ["In Follow-up", "Disputed", "Contact Suppressed"],
+  "In Follow-up": ["PTP Captured", "Disputed", "Restructure Proposed", "Legal Hand-off", "Closed — Paid"],
+  "PTP Captured": ["In Follow-up", "Closed — Paid", "Restructure Proposed"],
+  "Disputed": ["In Follow-up", "Closed — Paid"],
+  "Restructure Proposed": ["In Follow-up", "Legal Hand-off", "Closed — Restructured"],
+  "Legal Hand-off": ["In Follow-up", "Closed — Legal"],
+  "Contact Suppressed": ["Closed — Claim Settled"],
+  "Closed — Paid": []
+};
+
+/* ---------------- Case detail ---------------- */
+
+function currentCase(arg) { return findCase(arg) || CASES[1]; }
+
+function stageTrack(stage) {
+  const at = STAGES.indexOf(stage);
+  return `<div class="stage-track">${STAGES.map((s, i) =>
+    `<span class="stage ${i < at ? "done" : i === at ? "current" : ""}">${i < at ? ic("check") : ""}${esc(s)}</span>`).join("")}</div>`;
+}
+
+function statusChanger(record) {
+  const next = TRANSITIONS[record.status] || [];
+  const wrap = el(`<div class="chips">
+    <span class="hint-inline" style="font-weight:700;text-transform:uppercase;letter-spacing:.4px">Move to</span>
+    ${next.length ? next.map(s => `<button class="chip" data-to="${esc(s)}">${esc(s)}</button>`).join("")
+      : `<span class="pill muted plain">Terminal status — no transitions</span>`}
+  </div>`);
+  $$("[data-to]", wrap).forEach(btn => btn.onclick = () => confirmTransition(record, btn.dataset.to));
+  return wrap;
+}
+
+function confirmTransition(record, to) {
+  DC.dialog({
+    title: `Change status — ${record.id}`,
+    body: `<div class="read-grid" style="margin-bottom:14px">
+        <div class="read-pair"><span class="rk">From</span><span class="rv">${statusPill(record.status)}</span></div>
+        <div class="read-pair"><span class="rk">To</span><span class="rv">${statusPill(to)}</span></div>
+        <div class="read-pair"><span class="rk">Written to</span><span class="rv">${orgBadge(record.org)} ${esc(ORGS[record.org].name)}</span></div>
+      </div>
+      <div class="field"><label class="lbl">Reason / note<span class="req">*</span></label>
+        <textarea class="fluent-input" placeholder="Mandatory. Stored on the case and copied to the audit log."></textarea></div>
+      <div class="info-banner" style="margin:16px 0 0">${ic("shield")}<div>
+        The transition is validated by a plugin in <b>${esc(ORGS[record.org].name)}</b>, not by this screen.
+        An invalid move is rejected server-side even if the button is reachable.
+      </div></div>`,
+    actions: [
+      { label: "Cancel" },
+      { label: "Confirm", kind: "primary", onClick: () => toast(`${record.id} → ${to}. Audit entry written.`, "ok") }
+    ]
+  });
+}
+
+function caseHeader(record) {
+  const customer = findCustomer(record.customerId);
+  const facility = findFacility(record.facilityId);
+  const head = el(`<div class="record-head">
+    <div class="record-title">
+      <button class="btn sm" id="cBack">${ic("back")}Cases</button>
+      <h1>${esc(record.id)}</h1>${orgBadge(record.org)}${statusPill(record.status)}
+      <span class="pill ${record.priority === "Critical" ? "bad" : record.priority === "High" ? "warn" : "muted"}">${esc(record.priority)}</span>
+      ${slaChip(record.slaHours)}
+    </div>
+    <div class="record-facts">
+      <div class="read-pair"><span class="rk">Customer</span><span class="rv"><a href="02-case-360.html#customer/${esc(customer.id)}">${esc(customer.name)}</a></span></div>
+      <div class="read-pair"><span class="rk">Facility</span><span class="rv">${esc(facility.id)} · ${esc(facility.product)}</span></div>
+      <div class="read-pair"><span class="rk">Overdue</span><span class="rv">${money(record.overdue)}</span></div>
+      <div class="read-pair"><span class="rk">DPD / bucket</span><span class="rv">${record.dpd} ${bucketPill(record.bucket)}</span></div>
+      <div class="read-pair"><span class="rk">Owner</span><span class="rv">${esc(record.owner)}</span></div>
+      <div class="read-pair"><span class="rk">Queue</span><span class="rv">${esc((QUEUES.find(q => q.id === record.queue) || {}).name || "—")}</span></div>
+    </div>
+    <div class="status-strip">${stageTrack(record.stage)}</div>
+  </div>`);
+  $("#cBack", head).onclick = () => DC.go("cases");
+  head.appendChild(el(`<div style="padding:0 0 14px"></div>`)).appendChild(statusChanger(record));
+  return head;
+}
+
+function caseSummaryTab(page, record) {
+  const customer = findCustomer(record.customerId);
+  const facility = findFacility(record.facilityId);
+  if (customer.stopContact) {
+    page.appendChild(el(`<div class="info-banner bad">${ic("lock")}<div>
+      <b>Contact suppressed.</b> This customer is flagged deceased. All outbound channels are blocked
+      at the CRM Context Router — not merely hidden on this screen. Claim handling only.</div></div>`));
+  }
+  const strategy = customer.stopContact
+    ? STRATEGY_RULES.find(r => r.requiresFlag === "stopContact")
+    : STRATEGY_RULES.filter(r => !r.requiresFlag).find(r => r.bucket === record.bucket) || STRATEGY_RULES[0];
+  page.appendChild(DC.card("Recommended strategy", `Derived from bucket ${esc(record.bucket)}, segment ${esc(customer.segment)} and risk grade ${customer.risk}.`,
+    `<div class="info-banner ok" style="margin:0">${ic("strategy")}<div><b>${esc(strategy.id)}</b> — ${esc(strategy.action)}
+      <div class="hint-inline" style="margin-top:4px">Channel ${esc(strategy.channel)} · routes to ${esc(strategy.queue)}</div></div></div>`));
+  page.appendChild(DC.card("Facility", "Read live from " + ORGS[record.org].name + ".", DC.readGrid([
+    ["Facility", esc(facility.id)], ["Product", esc(facility.product)],
+    ["Outstanding", money(facility.outstanding)], ["Instalment", money(facility.instalment)],
+    ["Overdue", money(facility.overdue)], ["Profit rate", facility.rate + "%"],
+    ["Tenor", facility.tenor + " months"], ["Collateral", esc(facility.collateral)],
+    ["Guarantor", esc(facility.guarantor)], ["Insurance", esc(facility.insurance)]
+  ])));
+  page.appendChild(DC.card("Case", "", DC.readGrid([
+    ["Opened", esc(record.opened)], ["Last action", esc(record.lastAction)],
+    ["Next action", esc(record.nextAction)], ["Stage", esc(record.stage)],
+    ["Priority", esc(record.priority)], ["System of record", esc(ORGS[record.org].name)]
+  ])));
+}
+
+function caseActionsTab(page, record) {
+  const rows = actionsFor(record.id);
+  page.appendChild(DC.card("Log an action", "Every action requires an outcome and a note before it can be saved.",
+    `<div class="field-grid">
+      <div class="field"><label class="lbl">Action type<span class="req">*</span></label>
+        <select class="fluent-select"><option>Call</option><option>SMS</option><option>Email</option><option>Letter</option><option>Field Visit</option><option>Meeting</option></select></div>
+      <div class="field"><label class="lbl">Outcome<span class="req">*</span></label>
+        <select class="fluent-select"><option>Reached — promise given</option><option>Reached — refused</option><option>Not reached</option><option>Wrong number</option><option>Dispute raised</option></select></div>
+      <div class="field"><label class="lbl">Next follow-up date</label><input class="fluent-input" type="date" value="2026-08-04" /></div>
+      <div class="field col-2"><label class="lbl">Note<span class="req">*</span></label>
+        <textarea class="fluent-input" placeholder="What was agreed, and with whom"></textarea></div>
+    </div>
+    <div class="action-row"><button class="btn primary">${ic("save")}Save action</button>
+      <button class="btn">${ic("promise")}Save and capture PTP</button></div>`));
+  page.appendChild(DC.card(`Action history (${rows.length})`, "Append-only. Actions cannot be edited or deleted once saved.",
+    rows.length ? DC.timeline(rows.map(a => ({
+      title: `${a.type} — ${a.outcome}`, when: a.when, icon: "case",
+      tone: /reached|delivered|signed/i.test(a.outcome) ? "ok" : "warn",
+      meta: `${esc(a.channel)} · by ${esc(a.by)}`, note: a.note
+    }))) : `<div class="empty-state"><span class="es-title">No actions yet</span><span>Log the first contact above.</span></div>`));
+}
+
+function casePtpTab(page, record) {
+  const rows = ptpsFor(record.id);
+  page.appendChild(DC.card(`Promises to pay (${rows.length})`, "A broken promise blocks a further PTP until a manager overrides it.",
+    rows.length ? "" : `<div class="empty-state"><span class="es-title">No promises recorded</span></div>`));
+  if (rows.length) {
+    $(".section-card:last-child", page).appendChild(DC.grid({
+      auto: true, rows,
+      columns: [
+        { label: "PTP", key: "id" },
+        { label: "Amount", cls: "num", render: r => money(r.amount) },
+        { label: "Promised", key: "promised" },
+        { label: "Type", key: "type" },
+        { label: "Status", render: r => statusPill(r.status) },
+        { label: "Captured by", key: "capturedBy" },
+        { label: "Reminder", key: "reminder" }
+      ]
+    }));
+  }
+  page.appendChild(el(`<div class="action-row"><button class="btn primary" id="newPtp">${ic("promise")}Capture new PTP</button></div>`));
+  $("#newPtp", page).onclick = () => DC.go("ptp");
+}
+
+function caseCommsTab(page, record) {
+  const rows = commsFor(record.id);
+  page.appendChild(DC.card(`Communication log (${rows.length})`, "Sent through the gateway only after the router's suppression check passes.", ""));
+  $(".section-card:last-child", page).appendChild(DC.grid({
+    auto: true, rows, empty: "Nothing sent on this case",
+    columns: [
+      { label: "Ref", key: "id" },
+      { label: "Channel", render: r => `<span class="pill muted plain">${esc(r.channel)}</span>` },
+      { label: "Template", key: "template" },
+      { label: "To", key: "to" },
+      { label: "Language", key: "lang" },
+      { label: "When", key: "when" },
+      { label: "Status", render: r => statusPill(r.status) }
+    ]
+  }));
+}
+
+function caseDocsTab(page, record) {
+  const docs = [
+    { name: "Arrears statement — July 2026", kind: "PDF", by: "System", when: "2026-07-24", size: "84 KB" },
+    { name: "Signed acknowledgement", kind: "PDF", by: record.owner, when: "2026-07-22", size: "1.2 MB" },
+    { name: "Call recording — 28 Jul", kind: "MP3", by: "Telephony", when: "2026-07-28", size: "3.4 MB" }
+  ];
+  page.appendChild(DC.card("Documents", "Stored against the case in " + ORGS[record.org].name + ".", ""));
+  $(".section-card:last-child", page).appendChild(DC.grid({
+    auto: true, rows: docs,
+    columns: [
+      { label: "Document", render: r => `<span class="link-cell">${esc(r.name)}</span>` },
+      { label: "Type", key: "kind" }, { label: "Added by", key: "by" },
+      { label: "Date", key: "when" }, { label: "Size", cls: "num", key: "size" }
+    ]
+  }));
+}
+
+function caseWorkoutTab(page, record) {
+  const workouts = RESTRUCTURES.filter(w => w.caseId === record.id);
+  const legal = LEGAL_CASES.filter(l => l.caseId === record.id);
+  page.appendChild(DC.card("Restructuring", "Workout proposals raised against this case.",
+    workouts.length ? "" : `<div class="empty-state"><span class="es-title">No proposal</span><span>Eligibility is checked against the strategy rules.</span></div>`));
+  if (workouts.length) {
+    $(".section-card:last-child", page).appendChild(DC.grid({
+      auto: true, rows: workouts,
+      columns: [
+        { label: "Ref", key: "id" }, { label: "Status", render: r => statusPill(r.status) },
+        { label: "Tenor", render: r => `${r.curTenor} → ${r.newTenor} m` },
+        { label: "Instalment", render: r => `${money(r.curInstal)} → ${money(r.newInstal)}` },
+        { label: "Grace", render: r => r.grace + " m" },
+        { label: "Waiver", cls: "num", render: r => money(r.waiver) },
+        { label: "Approver", key: "approver" }
+      ],
+      onRow: () => DC.go("restructure")
+    }));
+  }
+  page.appendChild(DC.card("Legal hand-off", "Linked to the existing CRM Legal module — no legal screens are rebuilt here.",
+    legal.length ? "" : `<div class="empty-state"><span class="es-title">Not referred</span></div>`));
+  if (legal.length) {
+    $(".section-card:last-child", page).appendChild(DC.grid({
+      auto: true, rows: legal,
+      columns: [
+        { label: "Legal ref", key: "id" }, { label: "Status", render: r => statusPill(r.status) },
+        { label: "Handed on", key: "handedOn" }, { label: "Lawyer", key: "lawyer" },
+        { label: "Court", key: "court" }, { label: "Next hearing", key: "nextHearing" },
+        { label: "", render: r => `<a href="https://${esc(r.crmLink)}" target="_blank" rel="noopener">Open in CRM</a>` }
+      ]
+    }));
+  }
+}
+
+function caseAuditTab(page, record) {
+  const rows = AUDIT.filter(a => a.ref === record.id);
+  page.appendChild(el(`<div class="info-banner">${ic("shield")}<div>
+    Audit rows are written by a plugin inside ${esc(ORGS[record.org].name)}. This workspace can read them and never write them,
+    so an action taken outside the workspace is captured identically.</div></div>`));
+  page.appendChild(DC.grid({
+    rows, empty: "No audit entries for this case",
+    columns: [
+      { label: "When", key: "when" }, { label: "Who", key: "who" }, { label: "Role", key: "role" },
+      { label: "Action", key: "action" }, { label: "Field", key: "field" },
+      { label: "From", key: "from" }, { label: "To", key: "to" }, { label: "Path", key: "source" }
+    ]
+  }));
+}
+
+function renderCase(content, arg) {
+  const record = currentCase(arg);
+  content.appendChild(DC.cmdbar([
+    { label: "Log action", icon: "add", kind: "primary", onClick: () => toast("Action form opened on the Actions tab", "info") },
+    { label: "Capture PTP", icon: "promise", onClick: () => DC.go("ptp") },
+    { label: "Send message", icon: "send", onClick: () => DC.go("comms") },
+    "sep",
+    { label: "Propose restructure", icon: "restructure", onClick: () => DC.go("restructure") },
+    { label: "Refer to legal", icon: "legal", onClick: () => DC.go("legal") },
+    { label: "Escalate", icon: "escalate", onClick: () => toast("Escalated to Senior Manager with SLA reset", "warn") },
+    "spacer",
+    { label: "Customer 360", icon: "users", onClick: () => DC.go("customer", record.customerId) }
+  ]));
+  content.appendChild(caseHeader(record));
+  const host = el(`<div style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`);
+  content.appendChild(host);
+  DC.pivot(host, [
+    { id: "sum", label: "Summary", render: p => caseSummaryTab(p, record) },
+    { id: "act", label: "Actions", badge: actionsFor(record.id).length, render: p => caseActionsTab(p, record) },
+    { id: "ptp", label: "PTP", badge: ptpsFor(record.id).length, render: p => casePtpTab(p, record) },
+    { id: "com", label: "Communications", badge: commsFor(record.id).length, render: p => caseCommsTab(p, record) },
+    { id: "doc", label: "Documents", badge: 3, render: p => caseDocsTab(p, record) },
+    { id: "wo", label: "Workout & Legal", render: p => caseWorkoutTab(p, record) },
+    { id: "aud", label: "Audit", badge: AUDIT.filter(a => a.ref === record.id).length, render: p => caseAuditTab(p, record) }
+  ]);
+}
+
+/* ---------------- Customer & Loan 360 ---------------- */
+
+function customerPicker(current) {
+  const bar = el(`<div class="section-card" style="padding:12px 16px"><div class="chips">
+    <span class="hint-inline" style="font-weight:700;text-transform:uppercase;letter-spacing:.4px">Customer</span>
+    ${CUSTOMERS.map(c => `<button class="chip ${c.id === current.id ? "sel" : ""}" data-c="${c.id}">${esc(c.name)}${c.orgs.length > 1 ? " ★" : ""}</button>`).join("")}
+    <span class="hint-inline">★ present in both CRMs</span>
+  </div></div>`);
+  $$("[data-c]", bar).forEach(b => b.onclick = () => DC.go("customer", b.dataset.c));
+  return bar;
+}
+
+function exposureSummary(customer) {
+  const facilities = facilitiesFor(customer.id);
+  const byOrg = customer.orgs.map(o => ({
+    label: ORGS[o].name,
+    value: facilities.filter(f => f.org === o).reduce((s, f) => s + f.outstanding, 0),
+    color: o === "HL" ? "var(--org-hl)" : "var(--org-bfd)"
+  }));
+  return DC.donut(byOrg.map(x => ({ ...x, display: moneyM(x.value) })));
+}
+
+function renderCustomer(page, arg) {
+  const customer = findCustomer(arg) || CUSTOMERS[1];
+  const facilities = facilitiesFor(customer.id);
+  const cases = casesFor(customer.id);
+  page.appendChild(customerPicker(customer));
+
+  if (customer.orgs.length > 1) {
+    page.appendChild(el(`<div class="info-banner warn">${ic("route")}<div>
+      <b>Cross-organisation customer.</b> This profile is assembled by the router from
+      ${customer.orgs.map(o => esc(ORGS[o].name)).join(" and ")}, correlated on QID
+      <b>${esc(customer.qid)}</b>. No single CRM query can produce this view.</div></div>`));
+  }
+  if (customer.stopContact) {
+    page.appendChild(el(`<div class="info-banner bad">${ic("lock")}<div>
+      <b>Stop contact.</b> Deceased, verified ${esc(customer.kyc)}. Outbound channels blocked at the router.</div></div>`));
+  }
+
+  page.appendChild(DC.kpiRow([
+    { label: "Total exposure", value: money(facilities.reduce((s, f) => s + f.outstanding, 0)) },
+    { label: "Total overdue", value: money(facilities.reduce((s, f) => s + f.overdue, 0)), tone: "bad" },
+    { label: "Facilities", value: facilities.length },
+    { label: "Open cases", value: cases.filter(c => !/closed/i.test(c.status)).length, tone: "warn" },
+    { label: "Worst DPD", value: Math.max(...facilities.map(f => f.dpd)), tone: "bad" },
+    { label: "Risk grade", value: customer.risk + " / 10", tone: customer.risk >= 7 ? "bad" : "good" }
+  ]));
+
+  const cols = el(`<div class="card-grid wide"></div>`);
+  cols.appendChild(DC.card("Customer", "", DC.readGrid([
+    ["Name", esc(customer.name)], ["Arabic name", esc(customer.nameAr)],
+    ["QID", esc(customer.qid)], ["Segment", esc(customer.segment)],
+    ["Mobile", esc(customer.phone)], ["Email", esc(customer.email)],
+    ["Employer", esc(customer.employer)], ["Monthly income", customer.income ? money(customer.income) : "—"],
+    ["Customer since", esc(customer.since)], ["KYC", esc(customer.kyc)]
+  ])));
+  cols.appendChild(DC.card("Exposure by system of record", "Each slice is a separate Dynamics organisation.", exposureSummary(customer)));
+  page.appendChild(cols);
+
+  const facCard = DC.card("Facilities, collateral and cover", "Collateral, guarantor and insurance travel with the facility, not the customer.", "");
+  facCard.appendChild(DC.grid({
+    auto: true, rows: facilities,
+    columns: [
+      { label: "Facility", key: "id" }, { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Product", key: "product" },
+      { label: "Outstanding", cls: "num", render: r => money(r.outstanding) },
+      { label: "Overdue", cls: "num", render: r => money(r.overdue) },
+      { label: "DPD", cls: "num", key: "dpd" },
+      { label: "Collateral", key: "collateral" }, { label: "Guarantor", key: "guarantor" },
+      { label: "Insurance", key: "insurance" }
+    ]
+  }));
+  page.appendChild(facCard);
+
+  const caseCard = DC.card("Collection cases", "Every case for this customer, from both organisations.", "");
+  caseCard.appendChild(DC.grid({
+    auto: true, rows: cases,
+    columns: [
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Opened", key: "opened" },
+      { label: "Overdue", cls: "num", render: r => money(r.overdue) },
+      { label: "Bucket", render: r => bucketPill(r.bucket) },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Owner", key: "owner" }
+    ],
+    onRow: r => DC.go("case", r.id)
+  }));
+  page.appendChild(caseCard);
+}
+
+/* ---------------- Delinquency intake ---------------- */
+
+function renderIntake(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("info")}<div>
+    <b>No direct React ingestion.</b> Core Banking writes arrears into each CRM, where native logic creates the case.
+    This screen monitors that pipeline — it cannot create a case.</div></div>`));
+  const today = INTAKE_RUNS.filter(r => r.when.startsWith("2026-07-30"));
+  page.appendChild(DC.kpiRow([
+    { label: "Records read today", value: today.reduce((s, r) => s + r.read, 0).toLocaleString() },
+    { label: "New cases", value: today.reduce((s, r) => s + r.newCases, 0), tone: "warn" },
+    { label: "Cases updated", value: today.reduce((s, r) => s + r.updated, 0) },
+    { label: "Skipped", value: today.reduce((s, r) => s + r.skipped, 0) },
+    { label: "Failed", value: today.reduce((s, r) => s + r.failed, 0), tone: today.some(r => r.failed) ? "bad" : "good" }
+  ]));
+  const runs = DC.card("Ingestion runs", "One run per organisation per night, plus on-demand runs.", "");
+  runs.appendChild(DC.grid({
+    auto: true, rows: INTAKE_RUNS,
+    columns: [
+      { label: "Run", key: "id" }, { label: "When", key: "when" },
+      { label: "Source", key: "source" }, { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Read", cls: "num", render: r => r.read.toLocaleString() },
+      { label: "New cases", cls: "num", key: "newCases" },
+      { label: "Updated", cls: "num", key: "updated" },
+      { label: "Skipped", cls: "num", key: "skipped" },
+      { label: "Failed", cls: "num", key: "failed" },
+      { label: "Status", render: r => statusPill(r.status) }
+    ]
+  }));
+  page.appendChild(runs);
+
+  const ident = DC.card("Identity resolution exceptions", "The cost of two systems of record, surfaced rather than hidden.", "");
+  ident.appendChild(DC.grid({
+    auto: true, rows: IDENTITY_EXCEPTIONS,
+    columns: [
+      { label: "QID", key: "qid" }, { label: "Housing Loan CRM", key: "hl" },
+      { label: "BFD CRM", key: "bfd" }, { label: "Issue", key: "issue" },
+      { label: "Resolution", render: r => statusPill(r.action) }
+    ]
+  }));
+  page.appendChild(ident);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  case: { raw: true, render: renderCase },
+  customer: {
+    title: "Customer & Loan 360",
+    sub: "A federated profile assembled across both CRMs. Facilities, collateral, guarantors, legal and insurance in one place.",
+    cmds: () => [
+      { label: "Log action", icon: "add", kind: "primary" },
+      { label: "Send message", icon: "send", onClick: () => DC.go("comms") },
+      "sep",
+      { label: "Credit bureau check", icon: "shield", onClick: () => toast("QCB enquiry queued", "info") },
+      { label: "Export profile", icon: "excel" }
+    ],
+    render: renderCustomer
+  },
+  intake: {
+    title: "Delinquency & Case Creation",
+    sub: "Monitors the ingestion that creates cases inside each CRM before this workspace ever displays them.",
+    cmds: () => [
+      { label: "Run now", icon: "refresh", kind: "primary", onClick: () => toast("On-demand ingestion requested for both organisations", "info") },
+      { label: "View errors", icon: "warn", onClick: () => toast("2 failed records in RUN-2026-0730B — missing facility reference", "err") },
+      "sep",
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderIntake
+  }
+};
+
+DC.boot({ file: "02-case-360.html", defaultView: "case", views: VIEWS });
+</script>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Workout & Exit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Disputes, Restructuring / Workout, Legal hand-off, Deceased & Claims
+   ===================================================================== */
+"use strict";
+
+/* ---------------- Disputes ---------------- */
+
+function disputeDialog(dispute) {
+  DC.dialog({
+    title: `Dispute ${dispute.id} — ${dispute.type}`,
+    wide: true,
+    body: `<div class="read-grid" style="margin-bottom:16px">
+        <div class="read-pair"><span class="rk">Case</span><span class="rv">${esc(dispute.caseId)} ${orgBadge(dispute.org)}</span></div>
+        <div class="read-pair"><span class="rk">Customer</span><span class="rv">${esc(customerName(dispute.customerId))}</span></div>
+        <div class="read-pair"><span class="rk">Raised</span><span class="rv">${esc(dispute.raised)}</span></div>
+        <div class="read-pair"><span class="rk">SLA</span><span class="rv">${esc(dispute.sla)}</span></div>
+        <div class="read-pair"><span class="rk">Disputed amount</span><span class="rv">${money(dispute.amount)}</span></div>
+        <div class="read-pair"><span class="rk">Status</span><span class="rv">${statusPill(dispute.status)}</span></div>
+      </div>
+      <div class="tl-note" style="margin:0 0 16px">${esc(dispute.detail)}</div>
+      ${dispute.collectionPaused
+        ? `<div class="info-banner warn">${ic("lock")}<div><b>Collection paused.</b> While a dispute is open, reminders,
+            escalation and legal referral are suspended on this case. The pause is enforced in the CRM, not this screen.</div></div>`
+        : `<div class="info-banner">${ic("info")}<div>Collection continues — this dispute does not suspend the case.</div></div>`}
+      <div class="field-grid">
+        <div class="field"><label class="lbl">Outcome</label>
+          <select class="fluent-select"><option>Uphold — adjust the account</option><option>Reject — arrears confirmed</option><option>Partial adjustment</option></select></div>
+        <div class="field"><label class="lbl">Adjustment amount</label><input class="fluent-input" type="number" value="0" /></div>
+        <div class="field col-2"><label class="lbl">Resolution note<span class="req">*</span></label>
+          <textarea class="fluent-input" placeholder="Evidence reviewed and the conclusion reached"></textarea></div>
+      </div>`,
+    actions: [
+      { label: "Close" },
+      { label: "Request evidence", onClick: () => toast("Evidence request sent to Core Banking", "info") },
+      { label: "Resolve dispute", kind: "primary", onClick: () => toast(`${dispute.id} resolved and collection resumed`, "ok") }
+    ]
+  });
+}
+
+function renderDisputes(page) {
+  const open = DISPUTES.filter(d => /new|review/i.test(d.status));
+  page.appendChild(DC.kpiRow([
+    { label: "Open disputes", value: open.length, tone: "warn" },
+    { label: "Collection paused", value: DISPUTES.filter(d => d.collectionPaused).length, tone: "bad" },
+    { label: "Disputed amount", value: money(open.reduce((s, d) => s + d.amount, 0)) },
+    { label: "Resolved this month", value: DISPUTES.filter(d => d.status === "Resolved").length, tone: "good" },
+    { label: "Breaching SLA", value: 1, tone: "bad" }
+  ]));
+  page.appendChild(el(`<div class="info-banner">${ic("dispute")}<div>
+    A dispute is a first-class record, not a note on the case. Opening one suspends collection activity in the
+    owning CRM until it is resolved or rejected.</div></div>`));
+  const card = DC.card("Disputes and complaints", "Arrears, deductions and account-status disputes across both organisations.", "");
+  card.appendChild(DC.grid({
+    rows: DISPUTES,
+    columns: [
+      { label: "Dispute", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", key: "caseId" },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Type", key: "type" },
+      { label: "Amount", cls: "num", render: r => money(r.amount) },
+      { label: "Raised", key: "raised" },
+      { label: "SLA", key: "sla" },
+      { label: "Collection", render: r => r.collectionPaused ? `<span class="pill bad">Paused</span>` : `<span class="pill ok">Running</span>` },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Owner", key: "owner" }
+    ],
+    onRow: r => disputeDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- Restructuring / Workout ---------------- */
+
+function monthlySaving(workout) { return workout.curInstal - workout.newInstal; }
+
+function workoutSimulator(workout) {
+  const rows = [
+    { label: "Tenor (months)", before: workout.curTenor, after: workout.newTenor },
+    { label: "Monthly instalment", before: money(workout.curInstal), after: money(workout.newInstal) },
+    { label: "Grace period", before: "0 months", after: workout.grace + " months" },
+    { label: "Waiver", before: money(0), after: money(workout.waiver) },
+    { label: "Total repayable", before: money(workout.curInstal * workout.curTenor), after: money(workout.newInstal * workout.newTenor) }
+  ];
+  return `<table class="subgrid"><thead><tr><th>Term</th><th>Current</th><th>Proposed</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.label)}</td><td>${esc(r.before)}</td><td style="font-weight:700;color:var(--primary)">${esc(r.after)}</td></tr>`).join("")}
+  </tbody></table>
+  <div class="info-banner ok" style="margin:14px 0 0">${ic("money")}<div>
+    Monthly relief of <b>${money(monthlySaving(workout))}</b>, at the cost of ${workout.newTenor - workout.curTenor}
+    additional months and a ${money(workout.waiver)} waiver.</div></div>`;
+}
+
+function workoutDialog(workout) {
+  DC.dialog({
+    title: `Workout proposal ${workout.id}`,
+    wide: true,
+    body: `<div class="read-grid" style="margin-bottom:16px">
+        <div class="read-pair"><span class="rk">Case</span><span class="rv">${esc(workout.caseId)} ${orgBadge(workout.org)}</span></div>
+        <div class="read-pair"><span class="rk">Customer</span><span class="rv">${esc(customerName(workout.customerId))}</span></div>
+        <div class="read-pair"><span class="rk">Raised by</span><span class="rv">${esc(workout.by)} on ${esc(workout.raised)}</span></div>
+        <div class="read-pair"><span class="rk">Approver</span><span class="rv">${esc(workout.approver)}</span></div>
+        <div class="read-pair"><span class="rk">Status</span><span class="rv">${statusPill(workout.status)}</span></div>
+      </div>
+      <h4 style="margin-bottom:10px">Proposed terms</h4>${workoutSimulator(workout)}
+      <h4 style="margin:18px 0 8px">Justification</h4>
+      <div class="tl-note" style="margin:0">${esc(workout.reason)}</div>
+      <h4 style="margin:18px 0 8px">Document evidence</h4>
+      <div class="chips">${workout.docs.map(d => `<span class="chip">${ic("check")}${esc(d)}</span>`).join("")}</div>`,
+    actions: [
+      { label: "Close" },
+      { label: "Return for revision", onClick: () => toast("Returned to the Restructuring Officer", "warn") },
+      { label: "Submit for approval", kind: "primary", onClick: () => toast("Routed to Senior Manager for approval", "ok") }
+    ]
+  });
+}
+
+function renderRestructure(page) {
+  page.appendChild(DC.kpiRow([
+    { label: "Proposals", value: RESTRUCTURES.length },
+    { label: "Awaiting approval", value: RESTRUCTURES.filter(w => w.status === "Pending Approval").length, tone: "warn" },
+    { label: "Approved", value: RESTRUCTURES.filter(w => w.status === "Approved").length, tone: "good" },
+    { label: "Rejected", value: RESTRUCTURES.filter(w => w.status === "Rejected").length, tone: "bad" },
+    { label: "Waiver exposure", value: money(RESTRUCTURES.reduce((s, w) => s + w.waiver, 0)) }
+  ]));
+  page.appendChild(el(`<div class="info-banner">${ic("restructure")}<div>
+    A workout changes the contract, so it always passes through maker-checker. The proposal is drafted here and
+    approved in the owning CRM, where the approval history lives.</div></div>`));
+  const card = DC.card("Workout proposals", "Tenor, instalment, grace period, waiver and monitoring.", "");
+  card.appendChild(DC.grid({
+    rows: RESTRUCTURES,
+    columns: [
+      { label: "Ref", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", key: "caseId" },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Tenor", render: r => `${r.curTenor} → ${r.newTenor}` },
+      { label: "Instalment", render: r => `${money(r.curInstal)} → ${money(r.newInstal)}` },
+      { label: "Relief / month", cls: "num", render: r => money(monthlySaving(r)) },
+      { label: "Grace", cls: "num", render: r => r.grace + " m" },
+      { label: "Waiver", cls: "num", render: r => money(r.waiver) },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Approver", key: "approver" }
+    ],
+    onRow: r => workoutDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- Legal hand-off ---------------- */
+
+function handoffPacket(legal) {
+  const record = findCase(legal.caseId);
+  const facility = findFacility(record.facilityId);
+  const items = [
+    { name: "Case file and action history", ready: true },
+    { name: "Final demand served and acknowledged", ready: legal.status !== "Pending Acceptance" },
+    { name: "Facility agreement and schedule", ready: true },
+    { name: "Collateral and guarantee documents", ready: true },
+    { name: "Statement of account", ready: true },
+    { name: "Restructure attempts and outcomes", ready: RESTRUCTURES.some(w => w.caseId === legal.caseId) }
+  ];
+  return `<div class="read-grid" style="margin-bottom:16px">
+      <div class="read-pair"><span class="rk">Case</span><span class="rv">${esc(legal.caseId)} ${orgBadge(legal.org)}</span></div>
+      <div class="read-pair"><span class="rk">Customer</span><span class="rv">${esc(customerName(legal.customerId))}</span></div>
+      <div class="read-pair"><span class="rk">Facility</span><span class="rv">${esc(facility.id)} · ${esc(facility.product)}</span></div>
+      <div class="read-pair"><span class="rk">Exposure</span><span class="rv">${money(legal.exposure)}</span></div>
+      <div class="read-pair"><span class="rk">Handed on</span><span class="rv">${esc(legal.handedOn)}</span></div>
+      <div class="read-pair"><span class="rk">Status</span><span class="rv">${statusPill(legal.status)}</span></div>
+    </div>
+    <h4 style="margin-bottom:10px">Hand-off packet</h4>
+    <table class="subgrid"><tbody>${items.map(i => `<tr>
+      <td style="width:28px">${i.ready ? `<span style="color:var(--success)">${ic("check")}</span>` : `<span style="color:var(--warning)">${ic("warn")}</span>`}</td>
+      <td>${esc(i.name)}</td>
+      <td style="text-align:right">${i.ready ? `<span class="pill ok">Ready</span>` : `<span class="pill warn">Missing</span>`}</td></tr>`).join("")}</tbody></table>
+    <div class="info-banner" style="margin:16px 0 0">${ic("legal")}<div>
+      Legal screens are <b>not rebuilt</b> here. Accepting the hand-off creates the record in the existing CRM Legal
+      module and this workspace mirrors its status only.</div></div>`;
+}
+
+function legalDialog(legal) {
+  DC.dialog({
+    title: `Legal hand-off ${legal.id}`,
+    wide: true,
+    body: handoffPacket(legal),
+    actions: [
+      { label: "Close" },
+      { label: "Open in CRM Legal", onClick: () => toast("Opening the CRM Legal module in a new tab", "info") },
+      { label: legal.status === "Pending Acceptance" ? "Accept hand-off" : "Refresh status", kind: "primary", onClick: () => toast("Legal module updated", "ok") }
+    ]
+  });
+}
+
+function renderLegal(page) {
+  page.appendChild(DC.kpiRow([
+    { label: "Referred", value: LEGAL_CASES.length },
+    { label: "Awaiting acceptance", value: LEGAL_CASES.filter(l => l.status === "Pending Acceptance").length, tone: "warn" },
+    { label: "Accepted", value: LEGAL_CASES.filter(l => l.status === "Accepted").length, tone: "good" },
+    { label: "Returned", value: LEGAL_CASES.filter(l => l.status === "Rejected").length, tone: "bad" },
+    { label: "Exposure in legal", value: money(LEGAL_CASES.reduce((s, l) => s + l.exposure, 0)) }
+  ]));
+  page.appendChild(el(`<div class="info-banner">${ic("info")}<div>
+    <b>Reuse over rebuild.</b> This screen creates the hand-off, tracks acceptance and deep-links to the existing
+    CRM Legal module. Court dates, filings and legal documents stay where they already live.</div></div>`));
+  const card = DC.card("Legal referrals", "Hand-off, acceptance and status mirror.", "");
+  card.appendChild(DC.grid({
+    rows: LEGAL_CASES,
+    columns: [
+      { label: "Legal ref", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", key: "caseId" },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Exposure", cls: "num", render: r => money(r.exposure) },
+      { label: "Handed on", key: "handedOn" },
+      { label: "Accepted", key: "acceptedOn" },
+      { label: "Lawyer", key: "lawyer" },
+      { label: "Court", key: "court" },
+      { label: "Next hearing", key: "nextHearing" },
+      { label: "Status", render: r => statusPill(r.status) }
+    ],
+    onRow: r => legalDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- Deceased & insurance claims ---------------- */
+
+function claimChecklist(claim) {
+  const done = claim.docs.filter(d => d.got).length;
+  return `<div class="hint-inline" style="margin-bottom:8px">${done} of ${claim.docs.length} documents received</div>
+    <table class="subgrid"><tbody>${claim.docs.map(d => `<tr>
+      <td style="width:28px">${d.got ? `<span style="color:var(--success)">${ic("check")}</span>` : `<span style="color:var(--warning)">${ic("warn")}</span>`}</td>
+      <td>${esc(d.name)}</td>
+      <td style="text-align:right">${d.got ? `<span class="pill ok">Received</span>` : `<span class="pill warn">Outstanding</span>`}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function claimDialog(claim) {
+  DC.dialog({
+    title: `Claim ${claim.id} — ${claim.kind}`,
+    wide: true,
+    body: `${claim.stopContact
+        ? `<div class="info-banner bad">${ic("lock")}<div><b>Stop contact active.</b> Every outbound channel for
+            ${esc(customerName(claim.customerId))} is refused by the CRM Context Router. Correspondence goes to the
+            estate representative only, through the legal channel.</div></div>`
+        : `<div class="info-banner">${ic("info")}<div>Contact rules are unchanged for this claim.</div></div>`}
+      <div class="read-grid" style="margin-bottom:16px">
+        <div class="read-pair"><span class="rk">Case</span><span class="rv">${esc(claim.caseId)} ${orgBadge(claim.org)}</span></div>
+        <div class="read-pair"><span class="rk">Customer</span><span class="rv">${esc(customerName(claim.customerId))}</span></div>
+        <div class="read-pair"><span class="rk">Insurer</span><span class="rv">${esc(claim.insurer)}</span></div>
+        <div class="read-pair"><span class="rk">Notified</span><span class="rv">${esc(claim.notified)}</span></div>
+        <div class="read-pair"><span class="rk">Verified</span><span class="rv">${esc(claim.verified)}</span></div>
+        <div class="read-pair"><span class="rk">Claim value</span><span class="rv">${money(claim.amount)}</span></div>
+        <div class="read-pair"><span class="rk">Status</span><span class="rv">${statusPill(claim.status)}</span></div>
+      </div>
+      <h4 style="margin-bottom:8px">Required documents</h4>${claimChecklist(claim)}`,
+    actions: [
+      { label: "Close" },
+      { label: "Chase insurer", onClick: () => toast("Follow-up logged against the claim", "info") },
+      { label: "Submit claim", kind: "primary", onClick: () => toast("Claim submitted to " + claim.insurer, "ok") }
+    ]
+  });
+}
+
+function renderClaims(page) {
+  const suppressed = CUSTOMERS.filter(c => c.stopContact);
+  page.appendChild(DC.kpiRow([
+    { label: "Open claims", value: CLAIMS.filter(c => !/paid|rejected/i.test(c.status)).length, tone: "warn" },
+    { label: "Contacts suppressed", value: suppressed.length, tone: "bad" },
+    { label: "Claim value lodged", value: money(CLAIMS.reduce((s, c) => s + c.amount, 0)) },
+    { label: "Settled", value: CLAIMS.filter(c => c.status === "Paid").length, tone: "good" },
+    { label: "Documents outstanding", value: CLAIMS.reduce((s, c) => s + c.docs.filter(d => !d.got).length, 0), tone: "warn" }
+  ]));
+  page.appendChild(el(`<div class="info-banner bad">${ic("lock")}<div>
+    <b>Stop-contact is enforced at the router, not in the interface.</b> Hiding a button is not a control —
+    a suppressed customer stays un-contactable even if a request is crafted by hand.</div></div>`));
+  const card = DC.card("Claims", "Deceased and insurance claim lifecycle with the documents each stage requires.", "");
+  card.appendChild(DC.grid({
+    rows: CLAIMS,
+    columns: [
+      { label: "Claim", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", key: "caseId" },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Kind", key: "kind" },
+      { label: "Insurer", key: "insurer" },
+      { label: "Notified", key: "notified" },
+      { label: "Value", cls: "num", render: r => money(r.amount) },
+      { label: "Documents", render: r => `${r.docs.filter(d => d.got).length}/${r.docs.length}` },
+      { label: "Contact", render: r => r.stopContact ? `<span class="pill bad">Suppressed</span>` : `<span class="pill ok">Normal</span>` },
+      { label: "Status", render: r => statusPill(r.status) }
+    ],
+    onRow: r => claimDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  disputes: {
+    title: "Disputes & Complaint Management",
+    sub: "Customer disputes on arrears, deductions and account status — with collection suspended while they are open.",
+    cmds: () => [
+      { label: "New dispute", icon: "add", kind: "primary", onClick: () => toast("Dispute raised and collection paused", "warn") },
+      { label: "Resolve", icon: "approve" },
+      "sep",
+      { label: "Request evidence", icon: "doc" },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderDisputes
+  },
+  restructure: {
+    title: "Restructuring / Workout",
+    sub: "Proposal, tenor, instalment, grace period, waiver and monitoring — always under maker-checker.",
+    cmds: () => [
+      { label: "New proposal", icon: "add", kind: "primary", onClick: () => workoutDialog(RESTRUCTURES[1]) },
+      { label: "Submit for approval", icon: "approve", onClick: () => DC.go("approvals") },
+      "sep",
+      { label: "Eligibility check", icon: "strategy", onClick: () => toast("Eligibility evaluated against the published ruleset", "info") },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderRestructure
+  },
+  legal: {
+    title: "Legal Case Creation",
+    sub: "Hand-off to the existing CRM Legal module. Tracking and linking only — no legal screens are rebuilt.",
+    cmds: () => [
+      { label: "Refer to legal", icon: "legal", kind: "primary", onClick: () => legalDialog(LEGAL_CASES[1]) },
+      { label: "Open CRM Legal", icon: "forward", onClick: () => toast("Deep-linking into the owning CRM", "info") },
+      "sep",
+      { label: "Recall referral", icon: "back", kind: "danger", onClick: () => toast("Recall requires manager approval", "warn") },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderLegal
+  },
+  claims: {
+    title: "Deceased & Insurance Claims",
+    sub: "Stop-contact rules, required documents and the claim lifecycle through to settlement.",
+    cmds: () => [
+      { label: "New claim", icon: "add", kind: "primary", onClick: () => claimDialog(CLAIMS[0]) },
+      { label: "Set stop contact", icon: "lock", kind: "danger", onClick: () => toast("Suppression flag written to the owning CRM and the router cache", "warn") },
+      "sep",
+      { label: "Chase insurer", icon: "send" },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderClaims
+  }
+};
+
+DC.boot({ file: "05-workout.html", defaultView: "disputes", views: VIEWS });
+</script>
+</body>
+</html>

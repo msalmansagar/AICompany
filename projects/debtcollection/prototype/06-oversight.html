@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Oversight</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Dashboards, Portfolio MIS, Approvals inbox, Audit trail
+   ===================================================================== */
+"use strict";
+
+/** Names where a number came from. Personal counts are live; portfolio numbers are warehouse. */
+const sourceChip = (kind) => kind === "live"
+  ? `<span class="pill info plain" title="Read live through the CRM Context Router">Live · both CRMs</span>`
+  : `<span class="pill muted plain" title="Cross-org aggregates cannot be served by either CRM">DWH · nightly</span>`;
+
+/* ---------------- Operational dashboards ---------------- */
+
+function casesByStatus() {
+  const groups = {};
+  CASES.forEach(c => { groups[c.status] = (groups[c.status] || 0) + 1; });
+  const palette = ["var(--primary)", "var(--dpd-1)", "var(--dpd-2)", "var(--dpd-3)", "var(--dpd-4)", "var(--text-secondary)", "var(--success)"];
+  return DC.donut(Object.entries(groups).map(([label, value], i) => ({ label, value, color: palette[i % palette.length] })));
+}
+
+function casesByOwner() {
+  const groups = {};
+  openCases().forEach(c => { groups[c.owner] = (groups[c.owner] || 0) + c.overdue; });
+  return DC.barChart(Object.entries(groups).map(([label, value]) => ({ label, value })), { format: money });
+}
+
+function slaHealth() {
+  const open = openCases();
+  return DC.columnChart([
+    { label: "Breached", value: open.filter(c => c.slaHours < 0).length, color: "var(--error)" },
+    { label: "< 8h", value: open.filter(c => c.slaHours >= 0 && c.slaHours <= 8).length, color: "var(--warning)" },
+    { label: "8–24h", value: open.filter(c => c.slaHours > 8 && c.slaHours <= 24).length, color: "var(--dpd-1)" },
+    { label: "> 24h", value: open.filter(c => c.slaHours > 24).length, color: "var(--success)" }
+  ]);
+}
+
+function renderDashboards(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("info")}<div>
+    Everything on this page is a <b>live</b> read through the router — it is scoped to today's operational work,
+    which both CRMs can answer. Portfolio analytics live under <b>Portfolio MIS</b> and come from the warehouse.</div></div>`));
+  const open = openCases();
+  page.appendChild(DC.kpiRow([
+    { label: "Open cases", value: open.length },
+    { label: "Overdue balance", value: money(open.reduce((s, c) => s + c.overdue, 0)), tone: "warn" },
+    { label: "SLA breached", value: open.filter(c => c.slaHours < 0).length, tone: "bad" },
+    { label: "Open PTPs", value: PTPS.filter(p => p.status === "Open").length },
+    { label: "In legal", value: LEGAL_CASES.filter(l => l.status === "Accepted").length },
+    { label: "Contacts suppressed", value: CUSTOMERS.filter(c => c.stopContact).length, tone: "bad" }
+  ]));
+  const cols = el(`<div class="card-grid"></div>`);
+  cols.appendChild(DC.card("Cases by status", sourceChip("live") + " ", casesByStatus()));
+  cols.appendChild(DC.card("SLA health", sourceChip("live") + " Open cases by remaining time.", slaHealth()));
+  page.appendChild(cols);
+  page.appendChild(DC.card("Overdue balance by owner", sourceChip("live") + " ", casesByOwner()));
+
+  const queueCard = DC.card("Queue load", sourceChip("live") + " Counts are queue definitions mirrored in both organisations.", "");
+  queueCard.appendChild(DC.grid({
+    auto: true, rows: QUEUES,
+    columns: [
+      { label: "Queue", key: "name" }, { label: "Owner", key: "owner" },
+      { label: "SLA", key: "sla" }, { label: "Open", cls: "num", key: "open" },
+      { label: "Live in demo data", cls: "num", render: r => openCases().filter(c => c.queue === r.id).length },
+      { label: "Purpose", key: "desc" }
+    ]
+  }));
+  page.appendChild(queueCard);
+}
+
+/* ---------------- Portfolio MIS ---------------- */
+
+function bucketBalanceChart() {
+  return DC.barChart(MIS.bucketBalance.map(b => ({
+    label: b.bucket, value: b.hl + b.bfd, color: `var(--dpd-${b.cls.replace("b", "")})`
+  })), { format: moneyM });
+}
+
+function orgSplitChart() {
+  const hl = MIS.bucketBalance.reduce((s, b) => s + b.hl, 0);
+  const bfd = MIS.bucketBalance.reduce((s, b) => s + b.bfd, 0);
+  return DC.donut([
+    { label: "Housing Loan CRM", value: hl, color: "var(--org-hl)", display: moneyM(hl) },
+    { label: "BFD CRM", value: bfd, color: "var(--org-bfd)", display: moneyM(bfd) }
+  ]);
+}
+
+function collectedTrend() {
+  return DC.columnChart(MIS.monthlyCollected.map(m => ({
+    label: m.m, value: Number((m.hl + m.bfd).toFixed(1)), color: "var(--primary)"
+  })), { format: v => v + "M" });
+}
+
+function renderMis(page) {
+  page.appendChild(el(`<div class="info-banner warn">${ic("trend")}<div>
+    <b>Warehouse-sourced.</b> Portfolio roll rates, bucket movement and collector league tables span both
+    organisations. No FetchXML can join across two Dynamics tenants, so these figures come from the nightly
+    DWH extract and are as at <b>2026-07-30 03:05</b>.</div></div>`));
+  const total = MIS.bucketBalance.reduce((s, b) => s + b.hl + b.bfd, 0);
+  page.appendChild(DC.kpiRow([
+    { label: "Delinquent balance", value: moneyM(total), tone: "warn" },
+    { label: "Delinquent accounts", value: MIS.bucketBalance.reduce((s, b) => s + b.accounts, 0).toLocaleString() },
+    { label: "NPL (180+)", value: moneyM(MIS.bucketBalance[4].hl + MIS.bucketBalance[4].bfd), tone: "bad" },
+    { label: "Collected — July", value: moneyM((MIS.monthlyCollected[5].hl + MIS.monthlyCollected[5].bfd) * 1000000), tone: "good", delta: "−2.2M vs June", dir: "up" },
+    { label: "Worst roll rate", value: pct(41.2), tone: "bad", delta: "61–90 → 91–180", dir: "down" }
+  ]));
+
+  const cols = el(`<div class="card-grid"></div>`);
+  cols.appendChild(DC.card("Delinquent balance by bucket", sourceChip("dwh") + " Both organisations combined.", bucketBalanceChart()));
+  cols.appendChild(DC.card("Split by system of record", sourceChip("dwh") + " BFD carries the heavier late-bucket exposure.", orgSplitChart()));
+  page.appendChild(cols);
+
+  const bucketCard = DC.card("Bucket detail", sourceChip("dwh") + " ", "");
+  bucketCard.appendChild(DC.grid({
+    auto: true, rows: MIS.bucketBalance,
+    footer: `<tfoot><tr><td>Total</td><td class="num">${moneyM(MIS.bucketBalance.reduce((s, b) => s + b.hl, 0))}</td>
+      <td class="num">${moneyM(MIS.bucketBalance.reduce((s, b) => s + b.bfd, 0))}</td>
+      <td class="num">${moneyM(total)}</td><td class="num">${MIS.bucketBalance.reduce((s, b) => s + b.accounts, 0)}</td></tr></tfoot>`,
+    columns: [
+      { label: "Bucket", render: r => `<span class="pill ${r.cls}">${esc(r.bucket)}</span>` },
+      { label: "Housing Loan", cls: "num", render: r => moneyM(r.hl) },
+      { label: "BFD", cls: "num", render: r => moneyM(r.bfd) },
+      { label: "Combined", cls: "num", render: r => moneyM(r.hl + r.bfd) },
+      { label: "Accounts", cls: "num", key: "accounts" }
+    ]
+  }));
+  page.appendChild(bucketCard);
+
+  const rollCard = DC.card("Roll rates", sourceChip("dwh") + " Movement between buckets month on month. Lower is better.", "");
+  rollCard.appendChild(DC.grid({
+    auto: true, rows: MIS.rollRate,
+    columns: [
+      { label: "Transition", key: "from" },
+      { label: "This month", cls: "num", render: r => pct(r.rate) },
+      { label: "Prior month", cls: "num", render: r => pct(r.prior) },
+      { label: "Movement", render: r => r.rate > r.prior
+        ? `<span class="pill bad">▲ ${(r.rate - r.prior).toFixed(1)} pts</span>`
+        : `<span class="pill ok">▼ ${(r.prior - r.rate).toFixed(1)} pts</span>` }
+    ]
+  }));
+  page.appendChild(rollCard);
+
+  const perfCard = DC.card("Collector performance", sourceChip("dwh") + " Contact rate, promise conversion and cash collected.", "");
+  perfCard.appendChild(DC.grid({
+    auto: true, rows: MIS.collectorPerformance,
+    columns: [
+      { label: "Collector", key: "name" }, { label: "Role", key: "role" },
+      { label: "Cases", cls: "num", key: "cases" },
+      { label: "Contact rate", cls: "num", render: r => pct((r.contacted / r.cases) * 100) },
+      { label: "PTPs taken", cls: "num", key: "ptpTaken" },
+      { label: "PTP kept rate", cls: "num", render: r => pct((r.ptpKept / r.ptpTaken) * 100) },
+      { label: "Collected", cls: "num", render: r => money(r.collected) }
+    ]
+  }));
+  page.appendChild(perfCard);
+  page.appendChild(DC.card("Collections trend", sourceChip("dwh") + " Combined monthly cash collected, QAR millions.", collectedTrend()));
+}
+
+/* ---------------- Approvals ---------------- */
+
+function approvalDialog(approval) {
+  DC.dialog({
+    title: `${approval.type} approval — ${approval.ref}`,
+    body: `<div class="read-grid" style="margin-bottom:16px">
+        <div class="read-pair"><span class="rk">Reference</span><span class="rv">${esc(approval.ref)} ${orgBadge(approval.org)}</span></div>
+        <div class="read-pair"><span class="rk">Requested by</span><span class="rv">${esc(approval.requestedBy)}</span></div>
+        <div class="read-pair"><span class="rk">Requested on</span><span class="rv">${esc(approval.requestedOn)}</span></div>
+        <div class="read-pair"><span class="rk">Value at risk</span><span class="rv">${money(approval.amount)}</span></div>
+      </div>
+      <div class="tl-note" style="margin:0 0 16px">${esc(approval.summary)}</div>
+      <div class="field"><label class="lbl">Decision note<span class="req">*</span></label>
+        <textarea class="fluent-input" placeholder="Reason for the decision — stored in the approval history"></textarea></div>
+      <div class="info-banner warn" style="margin:16px 0 0">${ic("shield")}<div>
+        Maker and checker must differ. ${esc(approval.requestedBy)} raised this request and cannot approve it.</div></div>`,
+    actions: [
+      { label: "Cancel" },
+      { label: "Reject", kind: "danger", onClick: () => toast(`${approval.ref} rejected`, "err") },
+      { label: "Approve", kind: "primary", onClick: () => toast(`${approval.ref} approved and written to ${ORGS[approval.org].name}`, "ok") }
+    ]
+  });
+}
+
+function renderApprovals(page) {
+  const pending = APPROVALS.filter(a => a.status === "Pending");
+  page.appendChild(DC.kpiRow([
+    { label: "Awaiting me", value: pending.length, tone: "warn" },
+    { label: "Value at risk", value: money(pending.reduce((s, a) => s + a.amount, 0)) },
+    { label: "Approved (30d)", value: APPROVALS.filter(a => a.status === "Approved").length, tone: "good" },
+    { label: "Rejected (30d)", value: APPROVALS.filter(a => a.status === "Rejected").length, tone: "bad" },
+    { label: "Oldest pending", value: "3 days", tone: "warn" }
+  ]));
+  if (DC.state.role !== "manager") {
+    page.appendChild(el(`<div class="info-banner">${ic("lock")}<div>
+      You are working as <b>${esc(ROLES[DC.state.role].name)}</b>. You can see the queue but the decision buttons
+      belong to the Senior Manager role. Switch role in the header to approve.</div></div>`));
+  }
+  const card = DC.card("Approval queue", "Restructures, waivers, legal referrals and strategy exceptions.", "");
+  card.appendChild(DC.grid({
+    rows: APPROVALS,
+    columns: [
+      { label: "Ref", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "Type", key: "type" },
+      { label: "Subject", key: "ref" },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Requested by", key: "requestedBy" },
+      { label: "On", key: "requestedOn" },
+      { label: "Value", cls: "num", render: r => money(r.amount) },
+      { label: "Summary", key: "summary" },
+      { label: "Status", render: r => statusPill(r.status) }
+    ],
+    onRow: r => approvalDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- Audit trail ---------------- */
+
+const auditFilter = { org: "All", entity: "All", who: "All" };
+
+function filteredAudit() {
+  return AUDIT.filter(a =>
+    (auditFilter.org === "All" || a.org === auditFilter.org) &&
+    (auditFilter.entity === "All" || a.entity === auditFilter.entity) &&
+    (auditFilter.who === "All" || a.who === auditFilter.who));
+}
+
+function auditFilterBar(onChange) {
+  const entities = [...new Set(AUDIT.map(a => a.entity))];
+  const actors = [...new Set(AUDIT.map(a => a.who))];
+  const bar = el(`<div class="section-card" style="padding:12px 16px"><div class="chips">
+    <span class="hint-inline" style="font-weight:700;text-transform:uppercase;letter-spacing:.4px">Filter</span>
+    <select class="fluent-select" id="aOrg" style="width:auto"><option>All</option><option>HL</option><option>BFD</option></select>
+    <select class="fluent-select" id="aEntity" style="width:auto"><option>All</option>${entities.map(e => `<option>${esc(e)}</option>`).join("")}</select>
+    <select class="fluent-select" id="aWho" style="width:auto"><option>All</option>${actors.map(w => `<option>${esc(w)}</option>`).join("")}</select>
+  </div></div>`);
+  const sync = () => {
+    auditFilter.org = $("#aOrg", bar).value;
+    auditFilter.entity = $("#aEntity", bar).value;
+    auditFilter.who = $("#aWho", bar).value;
+    onChange();
+  };
+  ["#aOrg", "#aEntity", "#aWho"].forEach(s => $(s, bar).onchange = sync);
+  return bar;
+}
+
+function auditTable() {
+  return DC.grid({
+    rows: filteredAudit(),
+    empty: "No audit entries match the filter",
+    columns: [
+      { label: "When", key: "when" },
+      { label: "Who", key: "who" },
+      { label: "Role", key: "role" },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Entity", key: "entity" },
+      { label: "Reference", render: r => `<span class="link-cell">${esc(r.ref)}</span>` },
+      { label: "Action", key: "action" },
+      { label: "Field", key: "field" },
+      { label: "From", key: "from" },
+      { label: "To", key: "to" },
+      { label: "Write path", key: "source" }
+    ]
+  });
+}
+
+function renderAudit(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("shield")}<div>
+    <b>Append-only, written server-side.</b> Every row is created by a plugin inside the owning organisation.
+    This workspace can read the log and can never write, amend or suppress it — so an action taken outside
+    the workspace is captured identically.</div></div>`));
+  const host = el(`<div style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`);
+  const refresh = () => { host.replaceChild(auditTable(), host.lastElementChild); labelizeGrid(host); };
+  host.appendChild(auditFilterBar(refresh));
+  host.appendChild(auditTable());
+  page.appendChild(host);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  dashboards: {
+    title: "Operational Dashboards",
+    sub: "Live counts scoped to today's work, read through the router from both organisations.",
+    cmds: () => [
+      { label: "Refresh", icon: "refresh", kind: "primary", onClick: () => { DC.renderView(); toast("Re-read from both CRMs", "info"); } },
+      { label: "Portfolio MIS", icon: "trend", onClick: () => DC.go("mis") },
+      "sep",
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderDashboards
+  },
+  mis: {
+    title: "Portfolio MIS",
+    sub: "Cross-organisation portfolio analytics from the nightly warehouse extract.",
+    cmds: () => [
+      { label: "Refresh extract", icon: "refresh", onClick: () => toast("Warehouse refresh runs nightly at 03:00", "info") },
+      { label: "Operational view", icon: "chart", onClick: () => DC.go("dashboards") },
+      "sep",
+      { label: "Export to Excel", icon: "excel" },
+      { label: "Open in Power BI", icon: "forward", onClick: () => toast("Power BI workspace opens in a new tab", "info") }
+    ],
+    render: renderMis
+  },
+  approvals: {
+    title: "Approvals",
+    sub: "Maker-checker inbox. Approval history lives in the CRM that owns the record.",
+    cmds: () => [
+      { label: "Approve", icon: "approve", kind: "primary", disabled: DC.state.role !== "manager", onClick: () => approvalDialog(APPROVALS[0]) },
+      { label: "Reject", icon: "reject", kind: "danger", disabled: DC.state.role !== "manager" },
+      "sep",
+      { label: "Reassign approver", icon: "assign", disabled: DC.state.role !== "manager" },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderApprovals
+  },
+  audit: {
+    title: "Audit Trail",
+    sub: "Every action, status change, communication and override across both organisations.",
+    cmds: () => [
+      { label: "Export", icon: "excel", kind: "primary", onClick: () => toast("Audit export requires a reason and is itself audited", "warn") },
+      { label: "Refresh", icon: "refresh", onClick: () => DC.renderView() },
+      "sep",
+      { label: "Retention policy", icon: "lock", onClick: () => toast("Audit rows are retained 10 years and cannot be deleted", "info") }
+    ],
+    render: renderAudit
+  }
+};
+
+DC.boot({ file: "06-oversight.html", defaultView: "dashboards", views: VIEWS });
+</script>
+</body>
+</html>

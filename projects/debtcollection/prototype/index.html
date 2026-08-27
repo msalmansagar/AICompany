@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection Platform — Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+<style>
+  body { overflow: auto; height: auto; }
+  .lander { max-width: 1180px; margin: 0 auto; padding: 40px 24px 64px; }
+  .lander header { margin-bottom: 28px; }
+  .lander h1 { font-size: 30px; letter-spacing: -.4px; }
+  .lander .lede { color: var(--text-secondary); font-size: 15px; margin-top: 8px; max-width: 76ch; line-height: 1.6; }
+  .lander h2 { font-size: 17px; margin: 34px 0 14px; }
+  .file-card {
+    display: block; text-decoration: none; color: var(--text); background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 18px 20px;
+    box-shadow: var(--shadow-8); transition: transform .12s, box-shadow .12s, border-color .12s;
+  }
+  .file-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-16); border-color: var(--primary); }
+  .file-card .fc-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .file-card .fc-num {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; flex-shrink: 0;
+  }
+  .file-card .fc-name { font-weight: 700; font-size: 15px; }
+  .file-card .fc-desc { color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+  .file-card .fc-screens { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .file-card .fc-screens span {
+    font-size: 11.5px; background: var(--surface-alt); border: 1px solid var(--border);
+    border-radius: 11px; padding: 2px 9px; color: var(--text-secondary);
+  }
+</style>
+</head>
+<body>
+<div class="lander">
+  <header>
+    <h1>Debt Collection Platform</h1>
+    <div class="lede">
+      A UX prototype for <b>DCP-001</b> — one operational workspace over two Dynamics 365 CE organisations.
+      Housing Loan CRM and BFD CRM each stay the system of record; a CRM Context Router decides where every
+      request goes. 22 screens across seven files, sharing one design system. Self-contained: no build step,
+      no network calls.
+    </div>
+  </header>
+
+  <div class="info-banner">
+    <div><b>Read the badges.</b> Every record shows <span class="org-badge HL">HL</span> or
+    <span class="org-badge BFD">BFD</span> — the organisation that owns it. Use the <b>role picker</b> in the
+    header to switch between Collection Officer, RM, Senior Manager, Legal and Restructuring Officer; the sitemap
+    and the command bars change with it. The <b>theme picker</b> offers Light, Dark, Glass and Vibrant.</div>
+  </div>
+
+  <h2>Start here</h2>
+  <div class="card-grid">
+    <a class="file-card" href="01-workspace.html#myday">
+      <div class="fc-top"><span class="fc-num">01</span><span class="fc-name">Workspace</span></div>
+      <div class="fc-desc">The daily surface. Personal priorities, queue oversight and the federated case list.</div>
+      <div class="fc-screens"><span>My Day</span><span>Work Queues</span><span>Collection Cases</span></div>
+    </a>
+    <a class="file-card" href="02-case-360.html#case">
+      <div class="fc-top"><span class="fc-num">02</span><span class="fc-name">Case & Customer 360</span></div>
+      <div class="fc-desc">The record pages. Case detail with status transitions, and the cross-org customer profile.</div>
+      <div class="fc-screens"><span>Case Detail</span><span>Customer & Loan 360</span><span>Delinquency Intake</span></div>
+    </a>
+    <a class="file-card" href="03-strategy.html#buckets">
+      <div class="fc-top"><span class="fc-num">03</span><span class="fc-name">Segmentation & Strategy</span></div>
+      <div class="fc-desc">The configurable core. Bucket matrix, rule editor with simulation, and generated action plans.</div>
+      <div class="fc-screens"><span>Segmentation Matrix</span><span>Strategy Rules</span><span>Action Plan</span></div>
+    </a>
+    <a class="file-card" href="04-engagement.html#ptp">
+      <div class="fc-top"><span class="fc-num">04</span><span class="fc-name">Engagement</span></div>
+      <div class="fc-desc">Contact and commitment. Promises to pay, the communication console, and approved templates.</div>
+      <div class="fc-screens"><span>Promise to Pay</span><span>PTP Capture</span><span>Communication</span><span>Templates</span></div>
+    </a>
+    <a class="file-card" href="05-workout.html#disputes">
+      <div class="fc-top"><span class="fc-num">05</span><span class="fc-name">Workout & Exit</span></div>
+      <div class="fc-desc">Where a case leaves ordinary collection: disputed, restructured, referred or claimed.</div>
+      <div class="fc-screens"><span>Disputes</span><span>Restructuring</span><span>Legal Hand-off</span><span>Deceased & Claims</span></div>
+    </a>
+    <a class="file-card" href="06-oversight.html#dashboards">
+      <div class="fc-top"><span class="fc-num">06</span><span class="fc-name">Oversight</span></div>
+      <div class="fc-desc">Management surface. Live operational dashboards, warehouse portfolio MIS, approvals and audit.</div>
+      <div class="fc-screens"><span>Dashboards</span><span>Portfolio MIS</span><span>Approvals</span><span>Audit Trail</span></div>
+    </a>
+    <a class="file-card" href="07-admin.html#admin">
+      <div class="fc-top"><span class="fc-num">07</span><span class="fc-name">Administration</span></div>
+      <div class="fc-desc">Configuration, not code. Thresholds, queues, RBAC, the router map and integration health.</div>
+      <div class="fc-screens"><span>Rules & Thresholds</span><span>Queues</span><span>RBAC</span><span>Router</span><span>Integrations</span></div>
+    </a>
+  </div>
+
+  <h2>What the prototype deliberately demonstrates</h2>
+  <div class="card-grid">
+    <div class="section-card"><h3>Cross-org Customer 360</h3>
+      <div class="hint">Open <b>Fatima Al-Sulaiti</b> in Customer 360. She holds a home finance facility in Housing Loan
+      CRM and a working-capital facility in BFD CRM. No single CRM query produces that view — the router fans out on
+      QID and merges.</div></div>
+    <div class="section-card"><h3>Server-side control, not UI theatre</h3>
+      <div class="hint">Status transitions are validated by a CRM plugin, audit rows are written by a plugin, and
+      stop-contact is enforced in the router. Try sending a message to <b>Khalid Al-Hajri</b> in the Communication
+      console — the send is refused, and the refusal is logged.</div></div>
+    <div class="section-card"><h3>Live versus warehouse</h3>
+      <div class="hint">Operational Dashboards are labelled <i>Live · both CRMs</i>; Portfolio MIS is labelled
+      <i>DWH · nightly</i>. Roll rates and league tables span both organisations and cannot come from either CRM.</div></div>
+    <div class="section-card"><h3>Drift is surfaced, not hidden</h3>
+      <div class="hint">Administration → RBAC reports that <b>qdb_WorkoutOfficer</b> exists in Housing Loan CRM but not
+      in BFD CRM. Two systems of record mean two role definitions, and the difference is a finding.</div></div>
+  </div>
+
+  <h2>Status</h2>
+  <div class="info-banner warn">
+    <div>This is a <b>pre-BRD UX prototype</b> built to validate requirements. It is not the production front end,
+    and it holds demonstration data only. Project brief: <code>projects/debtcollection/brief.md</code>.</div>
+  </div>
+</div>
+
+<script>
+  const stored = localStorage.getItem("dc-theme");
+  if (stored) document.documentElement.setAttribute("data-theme", stored);
+</script>
+</body>
+</html>

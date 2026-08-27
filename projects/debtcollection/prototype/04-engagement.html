@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Engagement</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Promise to Pay, Communication console, Template library
+   ===================================================================== */
+"use strict";
+
+/* ---------------- Promise to Pay ---------------- */
+
+function ptpKeptRate() {
+  const settled = PTPS.filter(p => p.status !== "Open");
+  if (!settled.length) return 0;
+  return (settled.filter(p => p.kept).length / settled.length) * 100;
+}
+
+function capturePtpDialog(preselectCaseId) {
+  const cases = openCases();
+  DC.dialog({
+    title: "Capture promise to pay",
+    wide: true,
+    body: `<div class="field-grid">
+        <div class="field col-2"><label class="lbl">Case<span class="req">*</span></label>
+          <select class="fluent-select" id="pCase">${cases.map(c =>
+            `<option value="${c.id}" ${c.id === preselectCaseId ? "selected" : ""}>${esc(c.id)} — ${esc(customerName(c.customerId))} (${c.org})</option>`).join("")}</select></div>
+        <div class="field"><label class="lbl">Promise type<span class="req">*</span></label>
+          <select class="fluent-select" id="pType"><option>Full</option><option selected>Partial</option></select></div>
+        <div class="field"><label class="lbl">Amount promised<span class="req">*</span></label>
+          <input class="fluent-input" type="number" id="pAmount" value="17200" /></div>
+        <div class="field"><label class="lbl">Promised date<span class="req">*</span></label>
+          <input class="fluent-input" type="date" id="pDate" value="2026-08-04" /></div>
+        <div class="field"><label class="lbl">Reminder date</label>
+          <input class="fluent-input" type="date" id="pRemind" value="2026-08-02" /></div>
+        <div class="field col-2"><label class="lbl">Note<span class="req">*</span></label>
+          <textarea class="fluent-input" placeholder="Who promised, how the payment will be made"></textarea></div>
+      </div>
+      <div style="margin-top:14px" class="chips">
+        <label class="toggle"><input type="checkbox" checked><span class="track"></span><span class="tlabel">Send confirmation SMS (PTP-CONF)</span></label>
+        <label class="toggle"><input type="checkbox" checked><span class="track"></span><span class="tlabel">Schedule reminder (PTP-REM)</span></label>
+      </div>
+      <div id="ptpGuard" style="margin-top:16px"></div>`,
+    actions: [
+      { label: "Cancel" },
+      { label: "Save promise", kind: "primary", onClick: () => toast("PTP recorded and confirmation queued", "ok") }
+    ]
+  });
+  const guard = () => {
+    const caseId = $("#pCase").value;
+    const broken = PTPS.some(p => p.caseId === caseId && p.status === "Broken");
+    $("#ptpGuard").innerHTML = broken
+      ? `<div class="info-banner bad" style="margin:0">${ic("warn")}<div><b>Broken promise on record.</b>
+           Policy blocks a further PTP on this case. Saving raises a manager override request instead.</div></div>`
+      : `<div class="info-banner ok" style="margin:0">${ic("check")}<div>No broken promise on this case — the PTP can be saved directly.</div></div>`;
+  };
+  $("#pCase").onchange = guard;
+  guard();
+}
+
+function renderPtp(page) {
+  const open = PTPS.filter(p => p.status === "Open");
+  page.appendChild(DC.kpiRow([
+    { label: "Open promises", value: open.length },
+    { label: "Amount promised", value: money(open.reduce((s, p) => s + p.amount, 0)), tone: "warn" },
+    { label: "Kept", value: PTPS.filter(p => p.status === "Kept").length, tone: "good" },
+    { label: "Broken", value: PTPS.filter(p => p.status === "Broken").length, tone: "bad" },
+    { label: "Kept rate", value: pct(ptpKeptRate()), tone: ptpKeptRate() >= 60 ? "good" : "warn" }
+  ]));
+  page.appendChild(el(`<div class="info-banner">${ic("promise")}<div>
+    A promise is settled automatically when the Payments stream reports a matching credit. Manual settlement
+    requires a reason and is audited.</div></div>`));
+
+  const card = DC.card("All promises", "Across both organisations. Click a row to open the owning case.", "");
+  card.appendChild(DC.grid({
+    rows: PTPS,
+    columns: [
+      { label: "PTP", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", key: "caseId" },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Amount", cls: "num", render: r => money(r.amount) },
+      { label: "Type", render: r => `<span class="pill muted plain">${esc(r.type)}</span>` },
+      { label: "Promised", key: "promised" },
+      { label: "Reminder", key: "reminder" },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Captured by", key: "capturedBy" }
+    ],
+    onRow: r => DC.go("case", r.caseId)
+  }));
+  page.appendChild(card);
+
+  const cols = el(`<div class="card-grid"></div>`);
+  cols.appendChild(DC.card("Outcome mix", "Settled promises only.", DC.donut([
+    { label: "Kept", value: PTPS.filter(p => p.kept === true).length, color: "var(--success)" },
+    { label: "Broken", value: PTPS.filter(p => p.kept === false).length, color: "var(--error)" }
+  ])));
+  cols.appendChild(DC.card("Promised amount by status", "", DC.barChart([
+    { label: "Open", value: PTPS.filter(p => p.status === "Open").reduce((s, p) => s + p.amount, 0), color: "var(--primary)" },
+    { label: "Kept", value: PTPS.filter(p => p.status === "Kept").reduce((s, p) => s + p.amount, 0), color: "var(--success)" },
+    { label: "Broken", value: PTPS.filter(p => p.status === "Broken").reduce((s, p) => s + p.amount, 0), color: "var(--error)" }
+  ], { format: money })));
+  page.appendChild(cols);
+}
+
+/* ---------------- Communication console ---------------- */
+
+let composeState = { caseId: "HL-CC-20441", channel: "SMS", templateId: "REM-01", lang: "EN" };
+
+function templatesFor(channel) { return TEMPLATES.filter(t => t.channel === channel); }
+
+function renderPreview() {
+  const template = TEMPLATES.find(t => t.id === composeState.templateId);
+  const record = findCase(composeState.caseId);
+  const customer = findCustomer(record.customerId);
+  const facility = findFacility(record.facilityId);
+  if (!template) return `<div class="empty-state">Select a template</div>`;
+  const filled = template.body
+    .replace("{{customer}}", customer.name)
+    .replace("{{amount}}", money(record.overdue))
+    .replace("{{facility}}", facility.id)
+    .replace("{{date}}", record.nextAction)
+    .replace("{{dpd}}", String(record.dpd));
+  const blocked = customer.stopContact;
+  return `${blocked
+    ? `<div class="info-banner bad">${ic("lock")}<div><b>Send blocked.</b> ${esc(customer.name)} is flagged stop-contact.
+        The router refuses this request before it reaches the gateway.</div></div>`
+    : `<div class="info-banner ok">${ic("check")}<div>Suppression check passed. Recipient
+        ${esc(composeState.channel === "Email" ? customer.email : customer.phone)}.</div></div>`}
+    <div class="section-card" style="margin:0"><h3>${esc(template.name)}</h3>
+      <div class="hint">${esc(template.id)} · ${esc(template.channel)} · ${esc(template.lang)} · ${template.approved ? "Approved" : "Draft — cannot be sent"}</div>
+      <div class="tl-note" style="margin:0;font-size:13.5px">${esc(filled)}</div></div>`;
+}
+
+function renderComms(page) {
+  const cases = openCases();
+  const composer = DC.card("Compose", "Templates are the only send path. Free text is not permitted on regulated channels.",
+    `<div class="field-grid">
+      <div class="field col-2"><label class="lbl">Case<span class="req">*</span></label>
+        <select class="fluent-select" id="cCase">${cases.map(c =>
+          `<option value="${c.id}" ${c.id === composeState.caseId ? "selected" : ""}>${esc(c.id)} — ${esc(customerName(c.customerId))} (${c.org})</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl">Channel<span class="req">*</span></label>
+        <select class="fluent-select" id="cChannel">${["SMS", "Email", "Letter"].map(ch => `<option ${ch === composeState.channel ? "selected" : ""}>${esc(ch)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl">Template<span class="req">*</span></label>
+        <select class="fluent-select" id="cTemplate"></select></div>
+      <div class="field"><label class="lbl">Language</label>
+        <select class="fluent-select" id="cLang"><option>EN</option><option>AR</option></select></div>
+    </div>
+    <div id="cPreview" style="margin-top:16px"></div>
+    <div class="action-row"><button class="btn primary" id="cSend">${ic("send")}Send now</button>
+      <button class="btn" id="cSchedule">${ic("calendar")}Schedule</button></div>`);
+  page.appendChild(composer);
+
+  const syncTemplates = () => {
+    const list = templatesFor(composeState.channel);
+    $("#cTemplate").innerHTML = list.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join("");
+    composeState.templateId = list.length ? list[0].id : "";
+    $("#cPreview").innerHTML = renderPreview();
+  };
+  $("#cCase").onchange = (e) => { composeState.caseId = e.target.value; $("#cPreview").innerHTML = renderPreview(); };
+  $("#cChannel").onchange = (e) => { composeState.channel = e.target.value; syncTemplates(); };
+  $("#cTemplate").onchange = (e) => { composeState.templateId = e.target.value; $("#cPreview").innerHTML = renderPreview(); };
+  $("#cLang").onchange = (e) => { composeState.lang = e.target.value; };
+  $("#cSend").onclick = () => {
+    const customer = findCustomer(findCase(composeState.caseId).customerId);
+    if (customer.stopContact) { toast("Refused by the router — customer is stop-contact", "err"); return; }
+    toast("Queued to the gateway and logged against the case", "ok");
+  };
+  $("#cSchedule").onclick = () => toast("Scheduled — will re-run the suppression check at send time", "info");
+  syncTemplates();
+
+  const log = DC.card("Communication log", "Every send, delivery and refusal across both organisations.", "");
+  log.appendChild(DC.grid({
+    rows: COMMS,
+    columns: [
+      { label: "Ref", key: "id" },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.caseId)}</span>` },
+      { label: "Channel", render: r => `<span class="pill muted plain">${esc(r.channel)}</span>` },
+      { label: "Template", key: "template" },
+      { label: "Recipient", key: "to" },
+      { label: "Lang", key: "lang" },
+      { label: "When", key: "when" },
+      { label: "Result", render: r => statusPill(r.status) },
+      { label: "By", key: "by" }
+    ],
+    onRow: r => DC.go("case", r.caseId)
+  }));
+  page.appendChild(log);
+}
+
+/* ---------------- Template library ---------------- */
+
+function templateDialog(template) {
+  DC.dialog({
+    title: template.name,
+    wide: true,
+    body: `<div class="read-grid" style="margin-bottom:14px">
+        <div class="read-pair"><span class="rk">Reference</span><span class="rv">${esc(template.id)}</span></div>
+        <div class="read-pair"><span class="rk">Channel</span><span class="rv">${esc(template.channel)}</span></div>
+        <div class="read-pair"><span class="rk">Languages</span><span class="rv">${esc(template.lang)}</span></div>
+        <div class="read-pair"><span class="rk">Applies to bucket</span><span class="rv">${esc(template.bucket)}</span></div>
+        <div class="read-pair"><span class="rk">Owner</span><span class="rv">${esc(template.owner)}</span></div>
+        <div class="read-pair"><span class="rk">State</span><span class="rv">${template.approved ? `<span class="pill ok">Approved</span>` : `<span class="pill warn">Draft</span>`}</span></div>
+      </div>
+      <div class="field"><label class="lbl">Body</label><textarea class="fluent-input" style="min-height:120px">${esc(template.body)}</textarea></div>
+      <div class="hint-inline" style="margin-top:8px">Merge fields: {{customer}} {{amount}} {{facility}} {{date}} {{dpd}}</div>`,
+    actions: [
+      { label: "Close" },
+      { label: "Save draft", onClick: () => toast("Draft saved — approval required before use", "info") },
+      { label: "Submit for approval", kind: "primary", onClick: () => toast("Sent to Collections Policy for approval", "ok") }
+    ]
+  });
+}
+
+function renderTemplates(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("letter")}<div>
+    Only approved templates can be sent. A draft is visible in the composer but the send button refuses it,
+    and the refusal is logged.</div></div>`));
+  const card = DC.card("Templates", "Shared by both organisations so the customer experience is identical.", "");
+  card.appendChild(DC.grid({
+    rows: TEMPLATES,
+    columns: [
+      { label: "Ref", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "Name", key: "name" },
+      { label: "Channel", render: r => `<span class="pill muted plain">${esc(r.channel)}</span>` },
+      { label: "Languages", key: "lang" },
+      { label: "Bucket", key: "bucket" },
+      { label: "Owner", key: "owner" },
+      { label: "State", render: r => r.approved ? `<span class="pill ok">Approved</span>` : `<span class="pill warn">Draft</span>` }
+    ],
+    onRow: r => templateDialog(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  ptp: {
+    title: "Promise to Pay",
+    sub: "Date, amount, full or partial, kept or broken, and the reminder that goes with it.",
+    cmds: () => [
+      { label: "Capture PTP", icon: "promise", kind: "primary", onClick: () => capturePtpDialog(null) },
+      { label: "Mark kept", icon: "check", onClick: () => toast("Manual settlement requires a reason — audited", "warn") },
+      { label: "Mark broken", icon: "reject", kind: "danger", onClick: () => toast("Broken promise recorded, case escalated", "err") },
+      "sep",
+      { label: "Send reminders", icon: "bell", onClick: () => toast("Reminders queued for all promises due within 2 days", "ok") },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderPtp
+  },
+  comms: {
+    title: "Communication Management",
+    sub: "SMS, email, phone and letter with full logging and approved templates only.",
+    cmds: () => [
+      { label: "New message", icon: "send", kind: "primary" },
+      { label: "Bulk send", icon: "users", onClick: () => toast("Bulk send runs the suppression check per recipient", "info") },
+      "sep",
+      { label: "Templates", icon: "letter", onClick: () => DC.go("templates") },
+      { label: "Export log", icon: "excel" }
+    ],
+    render: renderComms
+  },
+  templates: {
+    title: "Template Library",
+    sub: "Approved message templates, versioned and shared across both organisations.",
+    cmds: () => [
+      { label: "New template", icon: "add", kind: "primary", onClick: () => templateDialog({ id: "NEW", name: "New template", channel: "SMS", lang: "EN / AR", bucket: "Any", owner: "Collections Policy", approved: false, body: "" }) },
+      { label: "Approve", icon: "approve", disabled: DC.state.role !== "manager" },
+      "sep",
+      { label: "Version history", icon: "history" },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderTemplates
+  }
+};
+
+DC.boot({ file: "04-engagement.html", defaultView: "ptp", views: VIEWS });
+</script>
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Administration</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Administration — thresholds, queues, RBAC, router map, integrations
+   ===================================================================== */
+"use strict";
+
+const THRESHOLDS = [
+  { id: "TH-01", name: "High-exposure escalation", value: "QAR 2,000,000", scope: "Both", desc: "Above this, a case routes to the high-risk queue regardless of bucket" },
+  { id: "TH-02", name: "Broken PTP block", value: "1 broken promise", scope: "Both", desc: "Blocks a further PTP until a Senior Manager overrides" },
+  { id: "TH-03", name: "Officer waiver limit", value: "QAR 5,000", scope: "Both", desc: "Above this, the waiver needs manager approval" },
+  { id: "TH-04", name: "Maximum restructure tenor", value: "336 months", scope: "Housing Loan", desc: "Policy ceiling; proposals beyond it are auto-rejected" },
+  { id: "TH-05", name: "Maximum restructure tenor", value: "84 months", scope: "BFD", desc: "SME facilities carry a shorter ceiling" },
+  { id: "TH-06", name: "Pre-legal notice trigger", value: "91 DPD", scope: "Both", desc: "Entry point for bucket B4 strategy" },
+  { id: "TH-07", name: "Legal referral trigger", value: "181 DPD", scope: "Both", desc: "Entry point for bucket B5 strategy" },
+  { id: "TH-08", name: "Dispute collection pause", value: "Enabled", scope: "Both", desc: "Opening a dispute suspends reminders and escalation" },
+  { id: "TH-09", name: "Contact window", value: "08:00 – 20:00 AST", scope: "Both", desc: "Outbound calls and SMS are refused outside this window" }
+];
+
+const PERMISSIONS = [
+  { area: "Cases", officer: "Read / Write own", rm: "Read all", manager: "Read / Write all", legal: "Read referred", workout: "Read assigned" },
+  { area: "Customer 360", officer: "Read", rm: "Read", manager: "Read", legal: "Read", workout: "Read" },
+  { area: "Actions", officer: "Create", rm: "Create", manager: "Create", legal: "Create", workout: "Create" },
+  { area: "PTP", officer: "Create / Settle", rm: "Create", manager: "Create / Override", legal: "—", workout: "Create" },
+  { area: "Communication", officer: "Send approved", rm: "Send approved", manager: "Send / Bulk", legal: "Send legal", workout: "Send approved" },
+  { area: "Restructuring", officer: "—", rm: "Propose", manager: "Approve", legal: "—", workout: "Propose" },
+  { area: "Legal hand-off", officer: "Request", rm: "Request", manager: "Approve", legal: "Accept / Reject", workout: "Request" },
+  { area: "Claims", officer: "Read", rm: "Read", manager: "Read / Write", legal: "Read / Write", workout: "Read" },
+  { area: "Strategy rules", officer: "—", rm: "Read", manager: "Read / Write / Publish", legal: "—", workout: "Read" },
+  { area: "Approvals", officer: "Raise", rm: "Raise", manager: "Decide", legal: "Decide legal", workout: "Raise" },
+  { area: "Audit trail", officer: "Read own", rm: "Read own", manager: "Read all", legal: "Read all", workout: "Read own" },
+  { area: "Administration", officer: "—", rm: "—", manager: "Full", legal: "—", workout: "—" }
+];
+
+const ROLE_DRIFT = [
+  { role: "Collection Officer", hl: "qdb_CollectionOfficer", bfd: "qdb_CollectionOfficer", state: "Aligned" },
+  { role: "Relationship Manager", hl: "qdb_RelationshipManager", bfd: "qdb_RelationshipManager", state: "Aligned" },
+  { role: "Senior Manager", hl: "qdb_CollectionsManager", bfd: "qdb_CollectionsManager", state: "Aligned" },
+  { role: "Legal Officer", hl: "qdb_LegalOfficer", bfd: "qdb_LegalOfficer", state: "Aligned" },
+  { role: "Restructuring Officer", hl: "qdb_WorkoutOfficer", bfd: "—", state: "Drift — missing in BFD" }
+];
+
+/* ---------------- tabs ---------------- */
+
+function thresholdsTab(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("settings")}<div>
+    No threshold is hard-coded. Every value here is configuration, versioned, and published to both organisations
+    together so the two cannot diverge silently.</div></div>`));
+  const card = DC.card("Business rules and thresholds", "Changing a value takes effect on the next strategy evaluation.", "");
+  card.appendChild(DC.grid({
+    auto: true, rows: THRESHOLDS,
+    columns: [
+      { label: "Ref", key: "id" },
+      { label: "Threshold", key: "name" },
+      { label: "Value", render: r => `<b>${esc(r.value)}</b>` },
+      { label: "Applies to", render: r => r.scope === "Both" ? `<span class="pill muted plain">Both</span>` : orgBadge(r.scope === "BFD" ? "BFD" : "HL") },
+      { label: "Effect", key: "desc" },
+      { label: "", render: () => `<button class="btn sm">Edit</button>` }
+    ],
+    onRow: r => DC.dialog({
+      title: "Edit threshold — " + r.id,
+      body: `<div class="field-grid">
+          <div class="field col-2"><label class="lbl">Name</label><input class="fluent-input" value="${esc(r.name)}" /></div>
+          <div class="field"><label class="lbl">Value<span class="req">*</span></label><input class="fluent-input" value="${esc(r.value)}" /></div>
+          <div class="field"><label class="lbl">Applies to</label><select class="fluent-select"><option>Both</option><option>Housing Loan</option><option>BFD</option></select></div>
+          <div class="field col-2"><label class="lbl">Change reason<span class="req">*</span></label>
+            <textarea class="fluent-input" placeholder="Why the threshold is changing — recorded in the audit log"></textarea></div>
+        </div>`,
+      actions: [{ label: "Cancel" }, { label: "Save and publish", kind: "primary", onClick: () => toast("Threshold published to both organisations", "ok") }]
+    })
+  }));
+  page.appendChild(card);
+}
+
+function queuesTab(page) {
+  const card = DC.card("Queue configuration", "Queues are defined once and mirrored into both organisations.", "");
+  card.appendChild(DC.grid({
+    auto: true, rows: QUEUES,
+    columns: [
+      { label: "Ref", key: "id" }, { label: "Queue", key: "name" },
+      { label: "Default owner", key: "owner" }, { label: "SLA", key: "sla" },
+      { label: "Open", cls: "num", key: "open" },
+      { label: "Scope", render: () => `<span class="pill muted plain">Both</span>` },
+      { label: "Purpose", key: "desc" }
+    ]
+  }));
+  page.appendChild(card);
+  page.appendChild(DC.card("Assignment policy", "How a case reaches an owner once the strategy has chosen its queue.",
+    `<div class="field-grid">
+      <div class="field"><label class="lbl">Method</label><select class="fluent-select"><option>Round robin by workload</option><option>Round robin by count</option><option>Manual only</option></select></div>
+      <div class="field"><label class="lbl">Maximum open cases per officer</label><input class="fluent-input" type="number" value="80" /></div>
+      <div class="field"><label class="lbl">Reassign on SLA breach</label><select class="fluent-select"><option>Escalate to queue owner</option><option>Leave with the current owner</option></select></div>
+      <div class="field"><label class="lbl">Out-of-office handling</label><select class="fluent-select"><option>Reassign to the queue</option><option>Hold</option></select></div>
+    </div>
+    <div class="action-row"><button class="btn primary">${ic("save")}Save policy</button></div>`));
+}
+
+function rbacTab(page) {
+  page.appendChild(el(`<div class="info-banner warn">${ic("shield")}<div>
+    <b>Two organisations means two role definitions.</b> The matrix below is the single source; deployment compares it
+    against both Dynamics organisations and reports any drift rather than silently reconciling.</div></div>`));
+  const matrix = DC.card("Role and permission matrix", "One row per functional area, one column per role.", "");
+  matrix.appendChild(DC.grid({
+    auto: true, rows: PERMISSIONS,
+    columns: [
+      { label: "Area", render: r => `<b>${esc(r.area)}</b>` },
+      { label: "Collection Officer", key: "officer" },
+      { label: "Relationship Manager", key: "rm" },
+      { label: "Senior Manager", key: "manager" },
+      { label: "Legal Officer", key: "legal" },
+      { label: "Restructuring Officer", key: "workout" }
+    ]
+  }));
+  page.appendChild(matrix);
+
+  const drift = DC.card("Security-role drift check", "Compares the deployed D365 security roles in each organisation.", "");
+  drift.appendChild(DC.grid({
+    auto: true, rows: ROLE_DRIFT,
+    columns: [
+      { label: "Workspace role", key: "role" },
+      { label: "Housing Loan CRM", key: "hl" },
+      { label: "BFD CRM", key: "bfd" },
+      { label: "State", render: r => r.state === "Aligned" ? `<span class="pill ok">Aligned</span>` : `<span class="pill bad">${esc(r.state)}</span>` }
+    ]
+  }));
+  page.appendChild(drift);
+  page.appendChild(el(`<div class="info-banner bad">${ic("warn")}<div>
+    <b>1 drift finding.</b> <b>qdb_WorkoutOfficer</b> exists in Housing Loan CRM but not in BFD CRM, so a Restructuring
+    Officer silently loses access to BFD workouts. This must be resolved before go-live.</div></div>`));
+}
+
+function routerTab(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("route")}<div>
+    The router is the only component that knows there are two CRMs. Rules are evaluated top-down and the first
+    match wins. Rule 7 runs before every outbound communication regardless of the others.</div></div>`));
+  const cols = el(`<div class="card-grid"></div>`);
+  Object.values(ORGS).forEach(org => {
+    cols.appendChild(DC.card(org.name, orgBadge(org.code), DC.readGrid([
+      ["Organisation URL", esc(org.url)],
+      ["Products routed", org.products.map(esc).join(", ")],
+      ["Connection", `<span class="pill ${org.code === "BFD" ? "warn" : "ok"}">${org.code === "BFD" ? "Degraded" : "Healthy"}</span>`],
+      ["Auth", "Service principal, per-user impersonation"]
+    ])));
+  });
+  page.appendChild(cols);
+
+  const rules = DC.card("Routing rules", "Deterministic first, product-based next, fan-out last.", "");
+  rules.appendChild(DC.grid({
+    auto: true, rows: ROUTER_RULES,
+    columns: [
+      { label: "Seq", cls: "num", key: "seq" },
+      { label: "When", key: "when" },
+      { label: "Target", render: r => r.target === "HL" || r.target === "BFD" ? orgBadge(r.target) : `<span class="pill info plain">${esc(r.target)}</span>` },
+      { label: "Kind", key: "kind" },
+      { label: "Why", key: "note" }
+    ]
+  }));
+  page.appendChild(rules);
+
+  const ident = DC.card("Identity map", "Correlates a customer across both organisations on QID. Unresolved rows are worked, not ignored.", "");
+  ident.appendChild(DC.grid({
+    auto: true, rows: IDENTITY_EXCEPTIONS,
+    columns: [
+      { label: "QID", key: "qid" }, { label: "Housing Loan CRM", key: "hl" },
+      { label: "BFD CRM", key: "bfd" }, { label: "Issue", key: "issue" },
+      { label: "Resolution", render: r => statusPill(r.action) }
+    ]
+  }));
+  page.appendChild(ident);
+}
+
+function integrationsTab(page) {
+  const degraded = INTEGRATIONS.filter(i => i.status !== "Healthy");
+  if (degraded.length) {
+    page.appendChild(el(`<div class="info-banner warn">${ic("warn")}<div>
+      <b>${degraded.length} integration degraded.</b> ${degraded.map(d => esc(d.name)).join(", ")} —
+      reads still succeed but latency is above the 1,000 ms threshold.</div></div>`));
+  }
+  const card = DC.card("Integration health", "Core Banking, dual CRM, Payments, SMS/Email, QCB and DWH/BI.", "");
+  card.appendChild(DC.grid({
+    auto: true, rows: INTEGRATIONS,
+    columns: [
+      { label: "Ref", key: "id" }, { label: "System", key: "name" },
+      { label: "Direction", key: "kind" }, { label: "Mode", key: "mode" },
+      { label: "Last exchange", key: "last" }, { label: "Latency", cls: "num", key: "latency" },
+      { label: "Volume", key: "records" },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Role", key: "note" }
+    ]
+  }));
+  page.appendChild(card);
+  page.appendChild(DC.card("Outbound suppression guard", "Runs before every channel adapter, for every message, without exception.",
+    `<div class="read-grid">
+      <div class="read-pair"><span class="rk">Suppressed customers</span><span class="rv">${CUSTOMERS.filter(c => c.stopContact).length}</span></div>
+      <div class="read-pair"><span class="rk">Messages blocked (30d)</span><span class="rv">14</span></div>
+      <div class="read-pair"><span class="rk">Contact window</span><span class="rv">08:00 – 20:00 AST</span></div>
+      <div class="read-pair"><span class="rk">Enforced at</span><span class="rv">CRM Context Router</span></div>
+    </div>
+    <div class="info-banner bad" style="margin:16px 0 0">${ic("lock")}<div>
+      A blocked message is still logged with the reason. Silence in the log would be indistinguishable from a
+      gateway failure.</div></div>`));
+}
+
+/* ---------------- view ---------------- */
+
+function renderAdmin(content) {
+  content.appendChild(DC.cmdbar([
+    { label: "Publish configuration", icon: "route", kind: "primary", onClick: () => toast("Configuration published to both organisations", "ok") },
+    { label: "Compare organisations", icon: "shield", onClick: () => toast("1 drift finding — qdb_WorkoutOfficer missing in BFD", "err") },
+    "sep",
+    { label: "Version history", icon: "history" },
+    { label: "Export", icon: "excel" },
+    "spacer",
+    { label: DC.state.role === "manager" ? "Senior Manager" : "Read only", icon: "lock", disabled: true }
+  ]));
+  content.appendChild(el(`<div class="record-head" style="padding-bottom:14px">
+    <div class="record-title"><h1>Administration & Configuration</h1></div>
+    <div class="page-sub" style="margin-top:6px">Business rules, thresholds, queues, roles, routing and integrations —
+    all versioned, all published to both organisations together.</div></div>`));
+  const host = el(`<div style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`);
+  content.appendChild(host);
+  DC.pivot(host, [
+    { id: "th", label: "Rules & Thresholds", badge: THRESHOLDS.length, render: thresholdsTab },
+    { id: "qu", label: "Queues", badge: QUEUES.length, render: queuesTab },
+    { id: "rb", label: "RBAC", badge: 1, render: rbacTab },
+    { id: "rt", label: "CRM Context Router", badge: ROUTER_RULES.length, render: routerTab },
+    { id: "in", label: "Integrations", badge: INTEGRATIONS.length, render: integrationsTab }
+  ]);
+}
+
+const VIEWS = { admin: { raw: true, render: renderAdmin } };
+
+DC.boot({ file: "07-admin.html", defaultView: "admin", views: VIEWS });
+</script>
+</body>
+</html>

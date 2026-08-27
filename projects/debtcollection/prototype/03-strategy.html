@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Segmentation & Strategy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Segmentation matrix, strategy rule editor, action plan
+   ===================================================================== */
+"use strict";
+
+const SEGMENTS = ["Retail", "SME"];
+const bucketColour = (cls) => `var(--dpd-${cls.replace("b", "")})`;
+
+/* ---------------- Segmentation matrix ---------------- */
+
+/**
+ * Resolves the winning rule for a bucket and segment.
+ * Flag-gated rules (suppression) are excluded unless the caller says the flag is set —
+ * otherwise a priority-1 rule with bucket "Any" would win every ordinary lookup.
+ */
+function matchRule(bucketId, segment, flags = {}) {
+  return STRATEGY_RULES
+    .filter(r => r.active)
+    .filter(r => !r.requiresFlag || flags[r.requiresFlag])
+    .filter(r => (r.bucket === bucketId || r.bucket === "Any") && (r.segment === segment || r.segment === "Any"))
+    .sort((a, b) => a.priority - b.priority)[0];
+}
+
+function matrixTable() {
+  const rows = BUCKETS.filter(b => b.id !== "B0");
+  const head = `<tr><th>DPD bucket</th>${SEGMENTS.map(s => `<th>${esc(s)}</th>`).join("")}<th>Live cases</th></tr>`;
+  const body = rows.map(b => {
+    const cells = SEGMENTS.map(s => {
+      const rule = matchRule(b.id, s);
+      if (!rule) return `<td><span class="pill muted plain">No rule</span></td>`;
+      return `<td><div style="font-weight:600">${esc(rule.action)}</div>
+        <div class="hint-inline" style="margin-top:3px">${esc(rule.id)} · ${esc(rule.channel)} · ${esc(rule.queue)}</div></td>`;
+    }).join("");
+    const live = CASES.filter(c => c.bucket === b.id).length;
+    return `<tr><td><span class="pill ${b.cls}">${esc(b.label)}</span></td>${cells}<td class="num">${live}</td></tr>`;
+  }).join("");
+  return el(`<div class="grid-wrap auto"><table class="grid"><thead>${head}</thead><tbody>${body}</tbody></table></div>`);
+}
+
+function bucketDistribution() {
+  const rows = BUCKETS.filter(b => b.id !== "B0").map(b => ({
+    label: b.label,
+    value: CASES.filter(c => c.bucket === b.id).reduce((s, c) => s + c.overdue, 0),
+    color: bucketColour(b.cls)
+  }));
+  return DC.barChart(rows, { format: money });
+}
+
+function simulateDialog() {
+  DC.dialog({
+    title: "Simulate strategy assignment",
+    wide: true,
+    body: `<div class="field-grid">
+        <div class="field"><label class="lbl">DPD</label><input class="fluent-input" type="number" value="68" id="simDpd" /></div>
+        <div class="field"><label class="lbl">Segment</label><select class="fluent-select" id="simSeg">${SEGMENTS.map(s => `<option>${esc(s)}</option>`).join("")}</select></div>
+        <div class="field"><label class="lbl">Risk grade</label><input class="fluent-input" type="number" value="7" min="1" max="10" id="simRisk" /></div>
+        <div class="field"><label class="lbl">Exposure (QAR)</label><input class="fluent-input" type="number" value="2400000" id="simExp" /></div>
+        <div class="field col-2"><label class="lbl">Customer flags</label>
+          <label class="toggle" style="height:32px"><input type="checkbox" id="simStop"><span class="track"></span>
+            <span class="tlabel">Stop contact (deceased / verified)</span></label></div>
+      </div>
+      <div id="simOut" style="margin-top:16px"></div>`,
+    actions: [{ label: "Close" }, { label: "Evaluate", kind: "primary", onClick: () => toast("Evaluated against the published ruleset", "ok") }]
+  });
+  const evaluate = () => {
+    const dpd = Number($("#simDpd").value);
+    const stopContact = $("#simStop").checked;
+    const bucket = BUCKETS.find(b => dpd >= b.from && dpd <= b.to) || BUCKETS[0];
+    const rule = matchRule(bucket.id, $("#simSeg").value, { stopContact });
+    $("#simOut").innerHTML = `<div class="info-banner ${stopContact ? "bad" : "ok"}" style="margin:0">${ic(stopContact ? "lock" : "strategy")}<div>
+      Bucket <b>${esc(bucket.label)}</b> → rule <b>${rule ? esc(rule.id) : "none"}</b><br>
+      ${rule ? esc(rule.action) : "No rule matches — the case stays in the default queue."}
+      ${rule ? `<div class="hint-inline" style="margin-top:4px">Channel ${esc(rule.channel)} · queue ${esc(rule.queue)}</div>` : ""}
+      ${stopContact ? `<div class="hint-inline" style="margin-top:4px">Priority 1 — suppression outranks every collection strategy.</div>` : ""}
+    </div></div>`;
+  };
+  ["#simDpd", "#simSeg", "#simRisk", "#simExp", "#simStop"].forEach(s => { $(s).oninput = evaluate; $(s).onchange = evaluate; });
+  evaluate();
+}
+
+/** Bucket and segment pairs the ruleset does not cover. A gap here is a case with no strategy. */
+function uncoveredCombinations() {
+  return BUCKETS.filter(b => b.id !== "B0")
+    .flatMap(b => SEGMENTS.map(s => ({ bucket: b, segment: s })))
+    .filter(x => !matchRule(x.bucket.id, x.segment));
+}
+
+function renderBuckets(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("strategy")}<div>
+    The matrix is the contract between policy and system: a case's bucket and segment decide its action, channel and queue.
+    Rules are authored once and published to <b>both</b> organisations.</div></div>`));
+  const gaps = uncoveredCombinations();
+  page.appendChild(DC.kpiRow([
+    { label: "Active rules", value: STRATEGY_RULES.filter(r => r.active).length },
+    { label: "Buckets in use", value: new Set(CASES.map(c => c.bucket)).size },
+    { label: "Cases governed", value: CASES.length },
+    { label: "Uncovered combinations", value: gaps.length, tone: gaps.length ? "bad" : "good" },
+    { label: "Last published", value: "2026-07-18" }
+  ]));
+  if (gaps.length) {
+    page.appendChild(el(`<div class="info-banner bad">${ic("warn")}<div>
+      <b>${gaps.length} combination(s) have no rule</b> — ${gaps.map(g => `${esc(g.bucket.label)} · ${esc(g.segment)}`).join(", ")}.
+      A case landing here gets no strategy, no channel and no queue. Close the gap before publishing.</div></div>`));
+  }
+  const matrix = DC.card("Bucket × segment matrix", "Each cell shows the winning rule for that combination, resolved by priority.", "");
+  matrix.appendChild(matrixTable());
+  page.appendChild(matrix);
+  page.appendChild(DC.card("Overdue balance by bucket", "Live case data across both CRMs.", bucketDistribution()));
+}
+
+/* ---------------- Strategy rules ---------------- */
+
+function ruleEditor(rule) {
+  const isNew = !rule;
+  const model = rule || { id: "SR-NEW", bucket: "B2", segment: "Any", riskFrom: 1, riskTo: 10, exposure: "Any", action: "", channel: "SMS → Call", queue: "Q-EARLY", priority: 100, active: true };
+  DC.dialog({
+    title: (isNew ? "New" : "Edit") + " strategy rule — " + model.id,
+    wide: true,
+    body: `<h4 style="margin-bottom:10px">When all of these are true</h4>
+      <table class="subgrid"><thead><tr><th>Attribute</th><th>Operator</th><th>Value</th></tr></thead><tbody>
+        <tr><td>DPD bucket</td><td>equals</td><td><select class="fluent-select"><option>Any</option>${BUCKETS.map(b => `<option value="${b.id}" ${b.id === model.bucket ? "selected" : ""}>${esc(b.label)}</option>`).join("")}</select></td></tr>
+        <tr><td>Segment</td><td>equals</td><td><select class="fluent-select"><option ${model.segment === "Any" ? "selected" : ""}>Any</option>${SEGMENTS.map(s => `<option ${s === model.segment ? "selected" : ""}>${esc(s)}</option>`).join("")}</select></td></tr>
+        <tr><td>Risk grade</td><td>between</td><td><div style="display:flex;gap:6px"><input class="fluent-input" type="number" value="${model.riskFrom}" /><input class="fluent-input" type="number" value="${model.riskTo}" /></div></td></tr>
+        <tr><td>Exposure</td><td>matches</td><td><input class="fluent-input" value="${esc(model.exposure)}" /></td></tr>
+      </tbody></table>
+      <h4 style="margin:18px 0 10px">Then do this</h4>
+      <div class="field-grid">
+        <div class="field col-2"><label class="lbl">Action<span class="req">*</span></label><input class="fluent-input" value="${esc(model.action)}" placeholder="e.g. Reminder REM-02, mandatory call, PTP target" /></div>
+        <div class="field"><label class="lbl">Channel sequence</label><input class="fluent-input" value="${esc(model.channel)}" /></div>
+        <div class="field"><label class="lbl">Route to queue</label><select class="fluent-select">${QUEUES.map(q => `<option value="${q.id}" ${q.id === model.queue ? "selected" : ""}>${esc(q.name)}</option>`).join("")}</select></div>
+        <div class="field"><label class="lbl">Priority</label><input class="fluent-input" type="number" value="${model.priority}" /></div>
+        <div class="field"><label class="lbl">State</label><label class="toggle" style="height:32px"><input type="checkbox" ${model.active ? "checked" : ""}><span class="track"></span><span class="tlabel">Active</span></label></div>
+      </div>
+      <div class="info-banner warn" style="margin:16px 0 0">${ic("warn")}<div>
+        Publishing writes this rule into <b>both</b> Dynamics organisations. A rule that exists in only one org is a drift finding.
+      </div></div>`,
+    actions: [
+      { label: "Cancel" },
+      { label: "Save draft", onClick: () => toast("Draft saved — not yet published", "info") },
+      { label: "Save and publish", kind: "primary", onClick: () => toast("Rule published to Housing Loan CRM and BFD CRM", "ok") }
+    ]
+  });
+}
+
+function renderRules(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("info")}<div>
+    Rules are evaluated top-down by priority; the first match wins. A rule with a value in <b>Gated on</b> only enters
+    the evaluation when that customer flag is set — which is why <b>SR-08</b> can sit at priority 1 and outrank every
+    collection strategy without winning an ordinary bucket lookup.</div></div>`));
+  const card = DC.card("Strategy rules", "Authored here, published to both organisations.", "");
+  card.appendChild(DC.grid({
+    rows: [...STRATEGY_RULES].sort((a, b) => a.priority - b.priority),
+    columns: [
+      { label: "Priority", cls: "num", key: "priority" },
+      { label: "Rule", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "Bucket", render: r => r.bucket === "Any" ? `<span class="pill muted plain">Any</span>` : bucketPill(r.bucket) },
+      { label: "Segment", key: "segment" },
+      { label: "Gated on", render: r => r.requiresFlag ? `<span class="pill bad">${esc(r.requiresFlag)}</span>` : `<span class="pill muted plain">—</span>` },
+      { label: "Risk", render: r => `${r.riskFrom}–${r.riskTo}` },
+      { label: "Exposure", key: "exposure" },
+      { label: "Action", key: "action" },
+      { label: "Channel", key: "channel" },
+      { label: "Queue", key: "queue" },
+      { label: "State", render: r => r.active ? `<span class="pill ok">Active</span>` : `<span class="pill muted">Inactive</span>` }
+    ],
+    onRow: r => ruleEditor(r)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- Action plan ---------------- */
+
+function nextBestAction(record) {
+  const customer = findCustomer(record.customerId);
+  if (customer.stopContact) return { action: "No contact — progress the insurance claim", channel: "None", why: "Customer deceased, suppression rule SR-08", tone: "bad" };
+  const broken = PTPS.some(p => p.caseId === record.id && p.status === "Broken");
+  if (broken) return { action: "Escalate — broken promise, no further PTP without override", channel: "Call", why: "PTP policy: one broken promise blocks re-promise", tone: "bad" };
+  const open = PTPS.some(p => p.caseId === record.id && p.status === "Open");
+  if (open) return { action: "Send PTP reminder two days before the promised date", channel: "SMS", why: "Template PTP-REM, scheduled automatically", tone: "ok" };
+  const rule = matchRule(record.bucket, customer.segment.split(" ")[0]);
+  return { action: rule ? rule.action : "Monitor", channel: rule ? rule.channel : "—", why: rule ? `Strategy rule ${rule.id}` : "No matching rule", tone: "" };
+}
+
+function renderActionPlan(page) {
+  const rows = openCases().map(c => ({ ...c, plan: nextBestAction(c) }));
+  page.appendChild(el(`<div class="info-banner">${ic("check")}<div>
+    The plan is generated, not typed. An officer may override any recommendation — the override reason is mandatory
+    and lands in the audit trail as a <b>strategy exception</b>.</div></div>`));
+  page.appendChild(DC.kpiRow([
+    { label: "Cases with a plan", value: rows.length },
+    { label: "Contact suppressed", value: rows.filter(r => r.plan.tone === "bad" && /No contact/.test(r.plan.action)).length },
+    { label: "Escalation advised", value: rows.filter(r => /Escalate/.test(r.plan.action)).length, tone: "warn" },
+    { label: "Reminders queued", value: rows.filter(r => /reminder/i.test(r.plan.action)).length, tone: "good" }
+  ]));
+  const card = DC.card("Next best action", "One row per open case, ordered by remaining SLA.", "");
+  card.appendChild(DC.grid({
+    rows: rows.sort((a, b) => a.slaHours - b.slaHours),
+    columns: [
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.id)}</span> ${orgBadge(r.org)}` },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Bucket", render: r => bucketPill(r.bucket) },
+      { label: "Recommended action", render: r => `<div style="font-weight:600">${esc(r.plan.action)}</div><div class="hint-inline">${esc(r.plan.why)}</div>` },
+      { label: "Channel", render: r => `<span class="pill muted plain">${esc(r.plan.channel)}</span>` },
+      { label: "SLA", render: r => slaChip(r.slaHours) },
+      { label: "", render: () => `<button class="btn sm">Accept</button>` }
+    ],
+    onRow: r => DC.go("case", r.id)
+  }));
+  page.appendChild(card);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  buckets: {
+    title: "Segmentation & Strategy Engine",
+    sub: "DPD-bucket-driven action logic using risk, exposure and behaviour. One ruleset, both organisations.",
+    cmds: () => [
+      { label: "Simulate", icon: "strategy", kind: "primary", onClick: simulateDialog },
+      { label: "Edit rules", icon: "settings", onClick: () => DC.go("rules") },
+      "sep",
+      { label: "Publish to both CRMs", icon: "route", onClick: () => toast("Ruleset v14 published to Housing Loan CRM and BFD CRM", "ok") },
+      { label: "Export", icon: "excel" }
+    ],
+    render: renderBuckets
+  },
+  rules: {
+    title: "Strategy Rules",
+    sub: "First match by priority wins. Suppression outranks collection at priority 1.",
+    cmds: () => [
+      { label: "New rule", icon: "add", kind: "primary", onClick: () => ruleEditor(null) },
+      { label: "Simulate", icon: "strategy", onClick: simulateDialog },
+      "sep",
+      { label: "Publish", icon: "route", onClick: () => toast("Ruleset published to both organisations", "ok") },
+      { label: "Version history", icon: "history" }
+    ],
+    render: renderRules
+  },
+  actionplan: {
+    title: "Action Plan",
+    sub: "The strategy engine's recommendation for every open case, with an auditable override path.",
+    cmds: () => [
+      { label: "Accept all", icon: "check", kind: "primary", onClick: () => toast("All recommendations accepted and scheduled", "ok") },
+      { label: "Override", icon: "edit", onClick: () => toast("Override requires a reason — routed for manager approval", "warn") },
+      "sep",
+      { label: "Export", icon: "excel" },
+      { label: "Refresh", icon: "refresh", onClick: () => DC.renderView() }
+    ],
+    render: renderActionPlan
+  }
+};
+
+DC.boot({ file: "03-strategy.html", defaultView: "buckets", views: VIEWS });
+</script>
+</body>
+</html>

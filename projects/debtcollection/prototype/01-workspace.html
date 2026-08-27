@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Debt Collection — Workspace</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+/* =====================================================================
+   Workspace — My Day, Work Queues and Collection Cases
+   ===================================================================== */
+"use strict";
+
+const caseFilter = { org: "All", bucket: "All", status: "All", owner: "All", text: "" };
+let selectedCaseIds = [];
+
+/* ---------------- My Day ---------------- */
+
+/** Cases this role owns, falling back to everything when the role owns none. */
+function myScope() {
+  const mine = openCases().filter(c => c.owner === ROLES[DC.state.role].user);
+  return mine.length ? mine : openCases();
+}
+
+function myDayKpis() {
+  const scope = myScope();
+  const overdueSla = scope.filter(c => c.slaHours < 0).length;
+  const scopeIds = scope.map(c => c.id);
+  const promised = PTPS.filter(p => p.status === "Open" && scopeIds.includes(p.caseId)).reduce((s, p) => s + p.amount, 0);
+  return DC.kpiRow([
+    { label: "My open cases", value: scope.length, delta: "3 opened this week", dir: "flat" },
+    { label: "Overdue balance", value: money(scope.reduce((s, c) => s + c.overdue, 0)), tone: "warn" },
+    { label: "Due today", value: scope.filter(c => c.nextAction === "2026-07-30").length, tone: "warn" },
+    { label: "SLA breached", value: overdueSla, tone: overdueSla ? "bad" : "good", delta: overdueSla ? "Escalate now" : "All within SLA", dir: overdueSla ? "up" : "down" },
+    { label: "Promised this week", value: money(promised), tone: "good" }
+  ]);
+}
+
+function followUpTable() {
+  const rows = myScope().filter(c => c.nextAction !== "—")
+    .sort((a, b) => a.slaHours - b.slaHours).slice(0, 6);
+  return DC.grid({
+    auto: true,
+    rows,
+    columns: [
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.id)}</span> ${orgBadge(r.org)}` },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Bucket", render: r => bucketPill(r.bucket) },
+      { label: "Overdue", cls: "num", render: r => money(r.overdue) },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "SLA", render: r => slaChip(r.slaHours) },
+      { label: "Next action", key: "nextAction" }
+    ],
+    onRow: r => DC.go("case", r.id)
+  });
+}
+
+function ptpDueTable() {
+  const scopeIds = myScope().map(c => c.id);
+  const rows = PTPS.filter(p => p.status === "Open" && scopeIds.includes(p.caseId));
+  return DC.grid({
+    auto: true,
+    rows,
+    empty: "No open promises",
+    columns: [
+      { label: "PTP", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Amount", cls: "num", render: r => money(r.amount) },
+      { label: "Promised", key: "promised" },
+      { label: "Type", render: r => `<span class="pill muted plain">${esc(r.type)}</span>` },
+      { label: "Reminder", key: "reminder" }
+    ],
+    onRow: () => DC.go("ptp")
+  });
+}
+
+function recentActivity() {
+  return DC.timeline(ACTIONS.slice(0, 5).map(a => ({
+    title: `${a.type} — ${a.outcome}`,
+    when: a.when,
+    icon: a.type === "Call" ? "phone" : a.type === "SMS" ? "sms" : a.type === "Email" ? "mail" : a.type === "Letter" ? "letter" : "info",
+    tone: /reached|delivered|signed/i.test(a.outcome) ? "ok" : /not available|no reply|suppressed/i.test(a.outcome) ? "warn" : "",
+    meta: `${esc(a.caseId)} · ${esc(customerName((findCase(a.caseId) || {}).customerId))} · by ${esc(a.by)}`,
+    note: a.note
+  })));
+}
+
+function renderMyDay(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("info")}<div>
+    You are working as <b>${esc(ROLES[DC.state.role].name)}</b>. Cases from both
+    <b>Housing Loan CRM</b> and <b>BFD CRM</b> appear together — the badge on each row names the system of record.
+  </div></div>`));
+  page.appendChild(myDayKpis());
+  page.appendChild(DC.card("Today's follow-ups", "Ordered by remaining SLA. Opening a case routes the read to the owning CRM.", ""));
+  $(".section-card:last-child", page).appendChild(followUpTable());
+  const cols = el(`<div class="card-grid wide"></div>`);
+  const ptpCard = DC.card("Promises falling due", "Reminders are queued automatically two days before the promised date.", "");
+  ptpCard.appendChild(ptpDueTable());
+  cols.appendChild(ptpCard);
+  cols.appendChild(DC.card("Recent activity", "Every entry below is also written to the append-only audit log.", recentActivity()));
+  page.appendChild(cols);
+}
+
+/* ---------------- Work Queues ---------------- */
+
+function queueCards() {
+  return `<div class="info-cards">${QUEUES.map(q => `<button class="info-card" data-q="${q.id}">
+    <span class="ic-badge" style="background:${queueColour(q.id)}">${ic(queueIcon(q.id))}</span>
+    <span class="ic-body">
+      <span class="ic-label">${esc(q.name)}</span>
+      <span class="ic-total">${q.open}</span>
+      <span class="ic-sub">SLA ${esc(q.sla)} · ${esc(q.owner)}</span>
+    </span></button>`).join("")}</div>`;
+}
+
+function queueColour(id) {
+  const map = { "Q-EARLY": "var(--dpd-1)", "Q-HIGH": "var(--dpd-3)", "Q-DECEASED": "var(--text-secondary)", "Q-LEGAL": "var(--dpd-4)", "Q-WORKOUT": "var(--primary)", "Q-DISPUTE": "var(--dpd-2)" };
+  return map[id] || "var(--primary)";
+}
+
+function queueIcon(id) {
+  const map = { "Q-EARLY": "bell", "Q-HIGH": "escalate", "Q-DECEASED": "shield", "Q-LEGAL": "legal", "Q-WORKOUT": "restructure", "Q-DISPUTE": "dispute" };
+  return map[id] || "queue";
+}
+
+function queueMembersTable(queueId) {
+  const rows = openCases().filter(c => !queueId || c.queue === queueId);
+  return DC.grid({
+    rows,
+    empty: "This queue is empty",
+    columns: [
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "DPD", cls: "num", key: "dpd" },
+      { label: "Overdue", cls: "num", render: r => money(r.overdue) },
+      { label: "Priority", render: r => `<span class="pill ${r.priority === "Critical" ? "bad" : r.priority === "High" ? "warn" : "muted"}">${esc(r.priority)}</span>` },
+      { label: "Owner", key: "owner" },
+      { label: "SLA", render: r => slaChip(r.slaHours) }
+    ],
+    onRow: r => DC.go("case", r.id)
+  });
+}
+
+function openReassignDialog() {
+  DC.dialog({
+    title: "Reassign selected cases",
+    body: `<div class="field-grid">
+      <div class="field"><label class="lbl">Assign to</label>
+        <select class="fluent-select">${Object.values(ROLES).map(r => `<option>${esc(r.user)}</option>`).join("")}</select></div>
+      <div class="field"><label class="lbl">Move to queue</label>
+        <select class="fluent-select"><option>Keep current queue</option>${QUEUES.map(q => `<option>${esc(q.name)}</option>`).join("")}</select></div>
+      <div class="field col-2"><label class="lbl">Reason<span class="req">*</span></label>
+        <textarea class="fluent-input" placeholder="Reassignment reason is written to the audit log"></textarea></div>
+    </div>
+    <div class="info-banner warn" style="margin:16px 0 0">${ic("warn")}<div>
+      Reassignment writes <b>ownerid</b> in each owning CRM separately. Cases spanning both orgs produce two audit entries.
+    </div></div>`,
+    actions: [
+      { label: "Cancel" },
+      { label: "Reassign", kind: "primary", onClick: () => toast("Reassignment queued for both CRMs", "ok") }
+    ]
+  });
+}
+
+function renderQueues(page) {
+  page.appendChild(el(`<div class="info-banner">${ic("route")}<div>
+    Queues are defined once here and mirrored into both organisations. A case never leaves the CRM that owns it —
+    only its <b>queue</b> and <b>owner</b> change.
+  </div></div>`));
+  const cards = el(`<div style="margin-bottom:18px">${queueCards()}</div>`);
+  page.appendChild(cards);
+  const listCard = DC.card("Queue contents", "All open cases across both organisations. Select a queue tile above to filter.", "");
+  const table = queueMembersTable(null);
+  listCard.appendChild(table);
+  page.appendChild(listCard);
+  $$("[data-q]", cards).forEach(btn => btn.onclick = () => {
+    const queue = QUEUES.find(q => q.id === btn.dataset.q);
+    listCard.replaceChild(queueMembersTable(queue.id), listCard.lastElementChild);
+    $("h3", listCard).textContent = queue.name;
+    $(".hint", listCard).textContent = queue.desc + " · SLA " + queue.sla;
+    labelizeGrid(listCard);
+  });
+}
+
+/* ---------------- Collection Cases ---------------- */
+
+function filteredCases() {
+  return CASES.filter(c => {
+    if (caseFilter.org !== "All" && c.org !== caseFilter.org) return false;
+    if (caseFilter.bucket !== "All" && c.bucket !== caseFilter.bucket) return false;
+    if (caseFilter.status !== "All" && c.status !== caseFilter.status) return false;
+    if (caseFilter.owner !== "All" && c.owner !== caseFilter.owner) return false;
+    if (!caseFilter.text) return true;
+    const hay = (c.id + customerName(c.customerId)).toLowerCase();
+    return hay.includes(caseFilter.text.toLowerCase());
+  });
+}
+
+function caseFilterBar(onChange) {
+  const owners = [...new Set(CASES.map(c => c.owner))];
+  const statuses = [...new Set(CASES.map(c => c.status))];
+  const bar = el(`<div class="section-card" style="padding:12px 16px">
+    <div class="chips">
+      <span class="hint-inline" style="font-weight:700;text-transform:uppercase;letter-spacing:.4px">Filter</span>
+      <select class="fluent-select" id="fOrg" style="width:auto"><option>All</option><option>HL</option><option>BFD</option></select>
+      <select class="fluent-select" id="fBucket" style="width:auto"><option>All</option>${BUCKETS.map(b => `<option value="${b.id}">${esc(b.label)}</option>`).join("")}</select>
+      <select class="fluent-select" id="fStatus" style="width:auto"><option>All</option>${statuses.map(s => `<option>${esc(s)}</option>`).join("")}</select>
+      <select class="fluent-select" id="fOwner" style="width:auto"><option>All</option>${owners.map(o => `<option>${esc(o)}</option>`).join("")}</select>
+      <input class="fluent-input" id="fText" placeholder="Case id or customer" style="width:220px" />
+      <button class="btn sm" id="fClear">Clear</button>
+    </div></div>`);
+  const sync = () => {
+    caseFilter.org = $("#fOrg", bar).value;
+    caseFilter.bucket = $("#fBucket", bar).value;
+    caseFilter.status = $("#fStatus", bar).value;
+    caseFilter.owner = $("#fOwner", bar).value;
+    caseFilter.text = $("#fText", bar).value;
+    onChange();
+  };
+  ["#fOrg", "#fBucket", "#fStatus", "#fOwner"].forEach(sel => $(sel, bar).onchange = sync);
+  $("#fText", bar).oninput = sync;
+  $("#fClear", bar).onclick = () => {
+    Object.assign(caseFilter, { org: "All", bucket: "All", status: "All", owner: "All", text: "" });
+    $$("select,input", bar).forEach(f => { f.value = f.tagName === "SELECT" ? "All" : ""; });
+    onChange();
+  };
+  return bar;
+}
+
+function caseTable() {
+  const rows = filteredCases();
+  const total = rows.reduce((s, r) => s + r.overdue, 0);
+  const grid = DC.grid({
+    rows,
+    empty: "No cases match the current filter",
+    footer: `<tfoot><tr><td colspan="4">${rows.length} case(s)</td><td class="num">${money(total)}</td><td colspan="4"></td></tr></tfoot>`,
+    columns: [
+      { label: "", cls: "row-check", render: r => `<input type="checkbox" data-sel="${esc(r.id)}" ${selectedCaseIds.includes(r.id) ? "checked" : ""} />` },
+      { label: "Case", render: r => `<span class="link-cell">${esc(r.id)}</span>` },
+      { label: "CRM", render: r => orgBadge(r.org) },
+      { label: "Customer", render: r => esc(customerName(r.customerId)) },
+      { label: "Overdue", cls: "num", render: r => money(r.overdue) },
+      { label: "DPD", cls: "num", key: "dpd" },
+      { label: "Bucket", render: r => bucketPill(r.bucket) },
+      { label: "Status", render: r => statusPill(r.status) },
+      { label: "Owner", key: "owner" },
+      { label: "SLA", render: r => slaChip(r.slaHours) }
+    ],
+    onRow: r => DC.go("case", r.id)
+  });
+  $$("[data-sel]", grid).forEach(box => box.onclick = (e) => {
+    e.stopPropagation();
+    const id = box.dataset.sel;
+    selectedCaseIds = box.checked ? [...selectedCaseIds, id] : selectedCaseIds.filter(x => x !== id);
+    DC.renderView();
+  });
+  return grid;
+}
+
+function renderCases(page) {
+  const host = el(`<div style="display:flex;flex-direction:column;flex:1;min-height:0"></div>`);
+  const refresh = () => { host.replaceChild(caseTable(), host.lastElementChild); labelizeGrid(host); };
+  host.appendChild(caseFilterBar(refresh));
+  host.appendChild(caseTable());
+  page.appendChild(host);
+}
+
+/* ---------------- view registry ---------------- */
+
+const VIEWS = {
+  myday: {
+    title: "My Day",
+    sub: "Everything assigned to you across both systems of record, ordered by urgency.",
+    cmds: () => [
+      { label: "Log action", icon: "add", kind: "primary", onClick: () => DC.go("actionplan") },
+      { label: "Capture PTP", icon: "promise", onClick: () => DC.go("ptp") },
+      { label: "Send message", icon: "send", onClick: () => DC.go("comms") },
+      "sep",
+      { label: "Refresh", icon: "refresh", onClick: () => { DC.renderView(); toast("Re-read from both CRMs", "info"); } }
+    ],
+    render: renderMyDay
+  },
+  queues: {
+    title: "Work Queues & Allocation",
+    sub: "Queues are strategy outputs. A case lands in one automatically, and a manager can override with a reason.",
+    cmds: () => [
+      { label: "Reassign", icon: "assign", kind: "primary", onClick: openReassignDialog },
+      { label: "New queue", icon: "add", disabled: DC.state.role !== "manager" },
+      "sep",
+      { label: "Export", icon: "excel" },
+      { label: "Refresh", icon: "refresh", onClick: () => DC.renderView() }
+    ],
+    render: renderQueues
+  },
+  cases: {
+    title: "Collection Cases",
+    sub: "The federated case list. Rows are merged from Housing Loan CRM and BFD CRM by the router.",
+    cmds: () => [
+      { label: "Open", icon: "doc", kind: "primary", disabled: selectedCaseIds.length !== 1, onClick: () => DC.go("case", selectedCaseIds[0]) },
+      { label: "Reassign", icon: "assign", disabled: !selectedCaseIds.length, onClick: openReassignDialog },
+      { label: "Escalate", icon: "escalate", disabled: !selectedCaseIds.length, onClick: () => toast(`${selectedCaseIds.length} case(s) escalated to Senior Manager`, "warn") },
+      "sep",
+      { label: "Send message", icon: "send", disabled: !selectedCaseIds.length, onClick: () => DC.go("comms") },
+      { label: "Export to Excel", icon: "excel" },
+      "spacer",
+      { label: `${selectedCaseIds.length} selected`, icon: "check", disabled: true }
+    ],
+    render: renderCases
+  }
+};
+
+DC.boot({ file: "01-workspace.html", defaultView: "myday", views: VIEWS });
+</script>
+</body>
+</html>
