@@ -266,6 +266,31 @@ function updateCrossReferences(state: DesignerState, resolvedIds: Record<string,
 function applyResolvedIds(state: DesignerState, resolvedIds: Record<string, string>): void {
   renameRecordKeys(state, resolvedIds);
   updateCrossReferences(state, resolvedIds);
+  applyResolvedGridColumnIds(state, resolvedIds);
+}
+
+/**
+ * Swaps a saved grid column's temporary id for the real one.
+ *
+ * Grid columns are nested inside their field rather than held in a record map of their own,
+ * so the rename above does not reach them. Left carrying a tmp_ id, the next save does not
+ * recognise the row it wrote a moment ago and deletes it before creating another.
+ */
+function applyResolvedGridColumnIds(
+  state: DesignerState,
+  resolvedIds: Record<string, string>,
+): void {
+  for (const [fieldId, field] of Object.entries(state.fields)) {
+    if (!field.gridColumns?.length) continue;
+    if (!field.gridColumns.some(column => resolvedIds[column.id])) continue;
+
+    state.fields[fieldId] = {
+      ...field,
+      gridColumns: field.gridColumns.map(column => (
+        resolvedIds[column.id] ? { ...column, id: resolvedIds[column.id] } : column
+      )),
+    };
+  }
 }
 
 function captureSnapshot(state: DesignerState): DesignerStateSnapshot {

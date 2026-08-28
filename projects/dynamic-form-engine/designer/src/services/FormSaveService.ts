@@ -257,7 +257,7 @@ export class FormSaveService {
 
         // Step 3d: Sync grid columns for new grid fields
         if (GRID_FIELD_TYPES.has(field.fieldType) && field.gridColumns.length > 0) {
-          await this.gridColumnService.syncColumns(realId, field.gridColumns);
+          Object.assign(resolvedIds, await this.gridColumnService.syncColumns(realId, field.gridColumns));
         }
 
         // Step 3e: Create validation rules for new fields
@@ -372,7 +372,7 @@ export class FormSaveService {
 
         // Step 4d: Sync grid columns for dirty grid fields
         if (GRID_FIELD_TYPES.has(field.fieldType)) {
-          await this.gridColumnService.syncColumns(id, field.gridColumns);
+          Object.assign(resolvedIds, await this.gridColumnService.syncColumns(id, field.gridColumns));
         }
 
         // Step 4e: Sync validation rules for dirty fields

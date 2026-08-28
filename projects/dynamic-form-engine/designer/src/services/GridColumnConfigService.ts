@@ -1,4 +1,5 @@
 import type { IWebApiAdapter } from './IWebApiAdapter';
+import { withSequentialDisplayOrder } from '@/services/gridColumnOrder';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { GRID_COLUMN_CONFIG_ATTRS } from '@/constants/attributeNames';
@@ -189,7 +190,22 @@ export class GridColumnConfigService {
   }
 
   // Full-replace sync: delete removed, create new, update existing (same pattern as OptionValueService).
-  async syncColumns(fieldId: string, columns: DesignerGridColumnConfig[]): Promise<void> {
+  /**
+   * Writes this field's columns and reports the id of every column it created, keyed by the
+   * temporary id it was carrying.
+   *
+   * The caller must fold that into the store. A column whose real id is never written back
+   * keeps its tmp_ id, and the next save does not recognise the row it just wrote: the
+   * delete below removes it and it is created again, so the column churns on every save and
+   * a maker sees it vanish.
+   */
+  async syncColumns(
+    fieldId: string,
+    unorderedColumns: DesignerGridColumnConfig[],
+  ): Promise<Record<string, string>> {
+    // Renumbered here as well as in the panel: qdb_display_order rejects 0, and a column that
+    // reached the store before it was ordered would otherwise fail the entire save.
+    const columns = withSequentialDisplayOrder(unorderedColumns);
     const existing = await this.listColumnsForField(fieldId);
     const currentIds = new Set(
       columns.filter(c => !c.id.startsWith('tmp_')).map(c => c.id),
@@ -201,13 +217,15 @@ export class GridColumnConfigService {
         .map(c => this.deleteColumn(c.id)),
     );
 
+    const resolvedIds: Record<string, string> = {};
     for (const col of columns) {
       if (col.id.startsWith('tmp_')) {
-        await this.createColumn(fieldId, col);
+        resolvedIds[col.id] = await this.createColumn(fieldId, col);
       } else {
         await this.updateColumn(col.id, col);
       }
     }
+    return resolvedIds;
   }
 
   private mapRecord(record: Record<string, unknown>): DesignerGridColumnConfig {
