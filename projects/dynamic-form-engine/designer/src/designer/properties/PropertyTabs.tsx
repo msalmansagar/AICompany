@@ -20,10 +20,30 @@ const useStyles = makeStyles({
   // in the panel to find their way back to another group.
   tabStrip: {
     flexShrink: 0,
-    // Fluent's default tab padding does not fit four tabs in a 320px rail — the last one was
-    // clipped mid-word. Tightened rather than scrolled: a tab a maker cannot see is a group
-    // they will not know exists.
-    '& [role="tab"]': { paddingLeft: '8px', paddingRight: '8px' },
+    // The strip divides the width it has instead of asking for the width its labels want.
+    // Four tabs sized to their text needed 297px of a 272px rail and scrolled sideways, and
+    // trimming labels only postpones that until the next tab is added. Sharing the row means
+    // the strip fits whatever it holds; a label with nowhere left to go is truncated rather
+    // than pushing the group beside it out of reach.
+    '& [role="tablist"]': { width: '100%' },
+    '& [role="tab"]': {
+      flex: '1 1 0',
+      minWidth: 0,
+      paddingLeft: '4px',
+      paddingRight: '4px',
+      fontSize: tokens.fontSizeBase200,
+      justifyContent: 'center',
+    },
+    // Sized on the label itself, not the tab: Fluent sets the font on its own content span,
+    // so a rule on the tab is overridden and the label keeps a width the shared row cannot
+    // give it. The ellipsis is a backstop for a label longer than any used here.
+    '& [role="tab"] > span': {
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      fontSize: tokens.fontSizeBase200,
+    },
     position: 'sticky',
     top: 0,
     zIndex: 1,
