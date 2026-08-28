@@ -29,6 +29,10 @@ const useStyles = makeStyles({
     '& [role="tab"]': {
       flex: '1 1 0',
       minWidth: 0,
+      // Fluent keeps a second, bold copy of the label inside the tab to reserve the width
+      // selection will need. It is not visible but it is not clipped either, so it reads as
+      // content overflowing the tab and would paint outside it but for an ancestor.
+      overflow: 'hidden',
       paddingLeft: '4px',
       paddingRight: '4px',
       fontSize: tokens.fontSizeBase200,

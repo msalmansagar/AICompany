@@ -25,8 +25,20 @@ const useStyles = makeStyles({
   },
   content: {
     flex: 1,
-    overflow: 'auto',
+    overflowY: 'auto',
+    // Nothing in the rail is wider than the rail. Fluent's Input and Select carry an
+    // intrinsic min-width of roughly 150px and will not shrink below it, so any two of them
+    // sharing a row — Prefix and Suffix, a grid column's label and attribute — ask for more
+    // than 320px and scroll the panel sideways. Removing that floor lets them share the row
+    // instead, and holds for rows added later without each one having to remember.
+    overflowX: 'hidden',
     padding: '16px',
+    // Applied to every descendant rather than to the controls themselves: Fluent wraps its
+    // Input in a span that keeps min-width:auto, so clearing it on the input alone leaves the
+    // wrapper refusing to shrink. Targeting the wrapper by its Fluent class would tie the rail
+    // to internals that can be renamed; min-width:auto is the thing that has to go, wherever
+    // it sits. Nothing is made smaller by this — the floor that stops shrinking is removed.
+    '& *': { minWidth: 0 },
   },
 });
 
