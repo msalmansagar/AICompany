@@ -98,9 +98,17 @@ function setCorsHeaders(res, origin) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   // OData-Version / OData-MaxVersion are non-safelisted request headers used by
   // the metadata fetch, so they must be explicitly allowed for the preflight.
+  //
+  // If-Match carries the etag on every conditional update. Omitting it here did not fail
+  // the request — it stopped it being sent at all: the browser preflights a PATCH carrying
+  // If-Match, saw a response that did not permit the header, and blocked the real request,
+  // so fetch rejected with the bare "Failed to fetch". Every form-level save in local dev
+  // failed that way, while tab, section and field saves went through untouched because none
+  // of them is conditional. In CRM the same request is same-origin and never preflights,
+  // which is why this was only ever visible against the dev proxy.
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Accept, OData-Version, OData-MaxVersion, Prefer',
+    'Content-Type, Authorization, Accept, OData-Version, OData-MaxVersion, Prefer, If-Match',
   );
 }
 
