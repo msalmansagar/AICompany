@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { ProcessSummaryScreen } from '@/components/ProcessSummaryScreen';
 import { clearUndoHistorySoon } from '@/services/undoHistory';
 import { parseDesignerLayout } from '@/services/designerLayout';
@@ -27,6 +27,15 @@ import type { ProcessStatusFilter } from './components/ProcessListScreen';
 import type { ICrmAdapter } from './services/ICrmAdapter';
 import type { ISopAdapter } from './services/ISopAdapter';
 import type { WorkflowProcess, WorkflowStep, WorkflowOutcome, WorkflowRoute } from './types/WorkflowTypes';
+
+// Dev-only visual feedback tool (CWFD-012): click elements in the running
+// designer, add notes, and paste the structured selector markdown into an AI
+// coding agent. Gated on import.meta.env.DEV through a dynamic import, so the
+// production CRM web resource provably never carries it. License note:
+// PolyForm Shield 1.0.0 — internal tooling use only, see dependencies.md.
+const AgentationDevTool = import.meta.env.DEV
+  ? lazy(() => import('agentation').then((m) => ({ default: m.Agentation })))
+  : null;
 
 type AppMode = 'list' | 'view' | 'edit' | 'summary' | 'sop-list' | 'roles';
 
@@ -82,6 +91,11 @@ export function App() {
           <DesignerRoot service={service} adapter={adapter} isDevMode={isDevMode} host={host} />
         </SopAdapterContext.Provider>
       </CrmAdapterProvider>
+      {AgentationDevTool && (
+        <Suspense fallback={null}>
+          <AgentationDevTool />
+        </Suspense>
+      )}
     </ReactFlowProvider>
   );
 }
