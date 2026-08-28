@@ -12,6 +12,7 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, ArrowUpRegular, ArrowDownRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { withSequentialDisplayOrder, nextDisplayOrder } from '@/services/gridColumnOrder';
 import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
 
 const COLUMN_FIELD_TYPES = [
@@ -148,7 +149,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       columnLabel: '',
       targetAttribute: '',
       columnFieldType: 'text',
-      displayOrder: columns.length,
+      displayOrder: nextDisplayOrder(columns),
       isVisible: true,
       isEditable: false,
       isRequired: false,
@@ -176,9 +177,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
 
   const handleDelete = useCallback(
     (colId: string) => {
-      const updated = columns
-        .filter(c => c.id !== colId)
-        .map((c, i) => ({ ...c, displayOrder: i }));
+      const updated = withSequentialDisplayOrder(columns.filter(c => c.id !== colId));
       updateField(fieldId, { gridColumns: updated });
     },
     [fieldId, columns, updateField],
@@ -189,7 +188,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       if (index === 0) return;
       const updated = [...columns];
       [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-      updateField(fieldId, { gridColumns: updated.map((c, i) => ({ ...c, displayOrder: i })) });
+      updateField(fieldId, { gridColumns: withSequentialDisplayOrder(updated) });
     },
     [fieldId, columns, updateField],
   );
@@ -199,7 +198,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       if (index === columns.length - 1) return;
       const updated = [...columns];
       [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
-      updateField(fieldId, { gridColumns: updated.map((c, i) => ({ ...c, displayOrder: i })) });
+      updateField(fieldId, { gridColumns: withSequentialDisplayOrder(updated) });
     },
     [fieldId, columns, updateField],
   );
