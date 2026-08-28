@@ -1,4 +1,5 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { isGridFieldType } from '@/constants/fieldTypes';
 import {
   Button,
   Dialog,
@@ -24,6 +25,7 @@ import { OptionValueService } from '@/services/OptionValueService';
 import { LookupConfigService } from '@/services/LookupConfigService';
 import { ValidationRuleService } from '@/services/ValidationRuleService';
 import { BusinessRuleService } from '@/services/BusinessRuleService';
+import { GridColumnConfigService } from '@/services/GridColumnConfigService';
 import { FormDeleteService } from '@/services/FormDeleteService';
 import { FormCloneService } from '@/services/FormCloneService';
 import { AuditLogService } from '@/services/AuditLogService';
@@ -195,6 +197,7 @@ export function FormListScreen(): React.ReactElement {
       const lookupService = new LookupConfigService(webApi);
       const validationRuleService = new ValidationRuleService(webApi);
       const businessRuleService = new BusinessRuleService(webApi);
+      const gridColumnService = new GridColumnConfigService(webApi);
 
       // Use getFormWithEtag so the returned @odata.etag can be stored in concurrencyStore —
       // FormSaveService.save() requires it for the conditional PATCH. It is stored AFTER
@@ -212,21 +215,30 @@ export function FormListScreen(): React.ReactElement {
       const fieldsArrays = await Promise.all(sections.map(section => fieldService.listFieldsForSection(section.id)));
       const fields = fieldsArrays.flat();
 
-      // Load options, lookup configs, and validation rules in parallel per field
+      // Load options, lookup configs, grid columns and validation rules in parallel per field.
+      //
+      // Grid columns belong here with the rest. They were absent, so a grid field always
+      // loaded with none regardless of what CRM held: the maker saw an empty column list, and
+      // the next save deleted the real rows, because syncColumns removes any persisted column
+      // the store does not know about.
       await Promise.all(
         fields.map(async field => {
-          const [options, lookupConfig, validationRules] = await Promise.all([
+          const [options, lookupConfig, gridColumns, validationRules] = await Promise.all([
             OPTION_FIELD_TYPES.has(field.fieldType)
               ? optionService.listOptionsForField(field.id)
               : Promise.resolve([]),
             LOOKUP_FIELD_TYPES.has(field.fieldType)
               ? lookupService.getLookupConfigForField(field.id)
               : Promise.resolve(null),
+            isGridFieldType(field.fieldType)
+              ? gridColumnService.listColumnsForField(field.id)
+              : Promise.resolve([]),
             validationRuleService.listRulesForField(field.id),
           ]);
 
           field.options = options;
           field.lookupConfig = lookupConfig;
+          field.gridColumns = gridColumns;
           // validationRules stored separately via loadForm below
           (field as typeof field & { _validationRules: DesignerValidationRule[] })._validationRules = validationRules;
         })
