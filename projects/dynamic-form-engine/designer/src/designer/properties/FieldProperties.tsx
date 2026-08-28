@@ -20,6 +20,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { ValidationRulesPanel } from './panels/ValidationRulesPanel';
+import { PropertyTabs } from './PropertyTabs';
 import { TextFieldPanel } from './panels/TextFieldPanel';
 import { NumberFieldPanel } from './panels/NumberFieldPanel';
 import { DropdownFieldPanel } from './panels/DropdownFieldPanel';
@@ -224,8 +225,11 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
   const typePanel = resolveTypePanel(field);
   const isDisplayOnly = DISPLAY_ONLY_TYPES.has(field.fieldType);
 
-  return (
-    <div className={styles.root}>
+  // Grouped rather than run together in one column: reaching type configuration — the grid
+  // column editor above all — meant scrolling past identity, placement, display and
+  // behaviour, and it then had only the leftover height to work in.
+  const generalGroup = (
+    <>
       <SectionHeading label="Identity" />
       <div className={styles.fieldGroup}>
         <Field label="Label" required>
@@ -386,40 +390,44 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
         )}
       </div>
 
-      {typePanel !== null && (
-        <>
-          <Divider />
-          <SectionHeading label="Type Configuration" />
-          {typePanel}
-        </>
-      )}
+    </>
+  );
 
-      {!isDisplayOnly && (
-        <>
-          <Divider />
-          <SectionHeading label="Validation Rules" />
-          <ValidationRulesPanel fieldId={field.id} />
-        </>
-      )}
-
-      <Divider />
-      <FieldMappingSummary field={field} />
-
-      <Divider />
-      <Accordion collapsible>
-        <AccordionItem value="translations">
-          <AccordionHeader>Translations</AccordionHeader>
-          <AccordionPanel>
-            <TranslationsPanel
-              entityName="qdb_form_field"
-              recordId={fieldId}
-              entityLabel="Field"
-              formCode={formCode}
-            />
-          </AccordionPanel>
-        </AccordionItem>
-      </Accordion>
-    </div>
+  return (
+    <PropertyTabs
+      tabs={[
+        { id: 'general', label: 'General', content: generalGroup },
+        { id: 'config', label: 'Config', content: typePanel },
+        {
+          id: 'validation',
+          label: 'Validation',
+          content: isDisplayOnly ? null : <ValidationRulesPanel fieldId={field.id} />,
+        },
+        {
+          id: 'advanced',
+          label: 'Advanced',
+          content: (
+            <>
+              <FieldMappingSummary field={field} />
+              <Divider />
+              <Accordion collapsible>
+                <AccordionItem value="translations">
+                  <AccordionHeader>Translations</AccordionHeader>
+                  <AccordionPanel>
+                    <TranslationsPanel
+                      entityName="qdb_form_field"
+                      recordId={fieldId}
+                      entityLabel="Field"
+                      formCode={formCode}
+                    />
+                  </AccordionPanel>
+                </AccordionItem>
+              </Accordion>
+            </>
+          ),
+        },
+      ]}
+    />
   );
 }
 
