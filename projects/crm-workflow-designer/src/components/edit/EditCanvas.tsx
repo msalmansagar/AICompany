@@ -188,11 +188,65 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   // which now fires correctly because useSyncedNodes keeps nodes measured —
   // the old fixed 80ms delay raced measurement and mis-framed simulation.
 
+  // CWFD-016 B3: the keyboard layer every editor is expected to have.
+  // Shortcuts stay quiet inside form fields and during simulation, where the
+  // canvas is read-only anyway.
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT'
+      ) {
+        return;
+      }
+      if (isSimulating || isAutoSimulating) return;
+
+      const isModifier = e.ctrlKey || e.metaKey;
+      if (isModifier && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canUndo) undo();
+        return;
+      }
+      if (isModifier && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canRedo) redo();
+        return;
+      }
+      if (isModifier && e.key.toLowerCase() === 's') {
+        // The browser's own Save dialog is never what anyone wants here.
+        e.preventDefault();
+        if (isDirty && !isSaving) void save();
+        return;
+      }
+      if (e.key === 'Escape') {
+        selectNode(null);
+        return;
+      }
+
+      // Arrow nudge: 10px, or 50px with Shift — for squaring up a layout
+      // without fighting the mouse.
+      if (selectedId?.startsWith('step_') && e.key.startsWith('Arrow')) {
+        const distance = e.shiftKey ? 50 : 10;
+        const delta =
+          e.key === 'ArrowUp' ? { x: 0, y: -distance }
+          : e.key === 'ArrowDown' ? { x: 0, y: distance }
+          : e.key === 'ArrowLeft' ? { x: -distance, y: 0 }
+          : e.key === 'ArrowRight' ? { x: distance, y: 0 }
+          : null;
+        if (!delta) return;
+        e.preventDefault();
+        const node = editMode.nodes.find((n) => n.id === selectedId);
+        if (!node) return;
+        useWorkflowStore.getState().updateNodePosition(selectedId, {
+          x: node.position.x + delta.x,
+          y: node.position.y + delta.y,
+        });
+        return;
+      }
+
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       if (!selectedId) return;
 
       if (selectedId.startsWith('step_')) {
@@ -215,7 +269,22 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         });
       }
     },
-    [selectedId, deleteStep, deleteOutcome, selectNode]
+    [
+      selectedId,
+      deleteStep,
+      deleteOutcome,
+      selectNode,
+      isSimulating,
+      isAutoSimulating,
+      canUndo,
+      canRedo,
+      undo,
+      redo,
+      isDirty,
+      isSaving,
+      save,
+      editMode.nodes,
+    ]
   );
 
   // Leaving the editor is the sitemap's job now, and App guards that against
@@ -353,6 +422,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
               onEdgeClick={editMode.onEdgeClick}
               onPaneClick={editMode.onPaneClick}
               onConnect={editMode.onConnect}
+              onReconnect={editMode.onReconnect}
               nodesConnectable
               nodesDraggable
               elementsSelectable

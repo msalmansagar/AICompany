@@ -67,7 +67,6 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   }
 
   const title = outcome.applyFilter ? 'Decision Properties' : 'Transition Properties';
-  const targetStep = outcome.nextStepId ? steps[outcome.nextStepId] : null;
 
   const outcomeRoutes: WorkflowRoute[] = (routeOrder[outcome.crmId] ?? [])
     .map((id) => routes[id])
@@ -190,13 +189,34 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
         </div>
 
         {/* Where this decision leads. With conditional routing on, each route carries its
-            own target and this one is not consulted, so showing it would be misleading. */}
+            own target and this one is not consulted, so showing it would be misleading.
+            CWFD-016 B4: this used to be a read-only chip — re-pointing a transition
+            meant deleting the decision and drawing it again. */}
         {!outcome.applyFilter && (
           <div style={fieldGroupStyle}>
             <label className="lbl">Next Step</label>
-            <div style={targetChipStyle}>
-              {targetStep ? `${targetStep.sequenceNo}. ${targetStep.name}` : '— End of workflow —'}
-            </div>
+            <select
+              className="fluent-select"
+              value={outcome.nextStepId ?? '__end__'}
+              onChange={(e) =>
+                setOutcome({
+                  ...outcome,
+                  nextStepId: e.target.value === '__end__' ? null : e.target.value,
+                })
+              }
+              aria-label="Where this decision leads"
+            >
+              <option value="__end__">— End of workflow —</option>
+              {stepOrder
+                .filter((id) => id !== outcome.stepId)
+                .map((id) => steps[id])
+                .filter(Boolean)
+                .map((candidate) => (
+                  <option key={candidate.crmId} value={candidate.crmId}>
+                    {candidate.sequenceNo}. {candidate.name}
+                  </option>
+                ))}
+            </select>
           </div>
         )}
 
@@ -313,15 +333,6 @@ const fieldGroupStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
-};
-
-const targetChipStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 4,
-  color: 'var(--text-disabled)',
-  fontSize: 12,
 };
 
 const toggleStyle: React.CSSProperties = {
