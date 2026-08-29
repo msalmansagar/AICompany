@@ -67,6 +67,10 @@ export interface WorkflowDesignerState {
   setRoute: (route: WorkflowRoute) => void;
   addStep: (step: WorkflowStep) => void;
   addStepAfter: (fromStepId: string) => void;
+  /** Splices a new step into a transition: decision -> NEW -> old target. */
+  insertStepBetween: (outcomeId: string) => void;
+  /** Clones a step with its assignment, SLA, hooks, decisions and routes. */
+  duplicateStep: (stepId: string) => void;
   addOutcome: (outcome: WorkflowOutcome) => void;
   addRoute: (route: WorkflowRoute) => void;
   deleteStep: (id: string) => void;
@@ -121,7 +125,7 @@ export interface WorkflowDesignerState {
 const emptyState: Omit<
   WorkflowDesignerState,
   | 'setProcess' | 'setStep' | 'setOutcome' | 'setRoute'
-  | 'addStep' | 'addStepAfter' | 'addOutcome' | 'addRoute'
+  | 'addStep' | 'addStepAfter' | 'insertStepBetween' | 'duplicateStep' | 'addOutcome' | 'addRoute'
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
   | 'updateNodePosition' | 'setEdgeAnchor' | 'setLabelOffset' | 'clearEdgeDecorations' | 'applyDesignerLayout' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
@@ -447,6 +451,157 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           };
           state.outcomeOrder[newStepId] = [terminalOutcomeId];
           state.newIds.push(terminalOutcomeId);
+
+          state.selectedId = `step_${newStepId}`;
+          state.isDirty = true;
+        }),
+
+      insertStepBetween: (outcomeId) =>
+        set((state) => {
+          if (!state.process) return;
+          const outcome = state.outcomes[outcomeId];
+          if (!outcome || outcome.applyFilter) return;
+          const fromStep = state.steps[outcome.stepId];
+          if (!fromStep) return;
+          const oldTargetId = outcome.nextStepId;
+
+          const newStepId = `tmp_${crypto.randomUUID()}`;
+          const newStep: WorkflowStep = {
+            ...emptyEscalationFields(),
+            ...emptyBranchFields(),
+            ...emptyAssignmentFields(),
+            workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
+            crmId: newStepId,
+            name: 'New Step',
+            sequenceNo: 0, // renumbered below
+            schemaName: '',
+            taskSubject: '',
+            taskDescription: '',
+            allowBulkApproval: false,
+            recordEntityId: null,
+            recordEntityName: null,
+            regardingFieldId: null,
+            regardingFieldName: null,
+            parentEntityId: null,
+            parentEntityName: null,
+            processId: state.process.crmId,
+          };
+          state.steps[newStepId] = newStep;
+          state.newIds.push(newStepId);
+
+          // The new step lives right after its predecessor in the order, and
+          // every sequence number follows the order — same rule as reordering.
+          const fromIndex = state.stepOrder.indexOf(outcome.stepId);
+          state.stepOrder.splice(fromIndex + 1, 0, newStepId);
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+
+          // Splice the flow: the decision now leads to the new step, and the
+          // new step carries one decision to wherever the transition went —
+          // including "nowhere", which keeps a terminal transition terminal.
+          outcome.nextStepId = newStepId;
+          if (!state.dirtyIds.includes(outcomeId)) state.dirtyIds.push(outcomeId);
+
+          const maxSeq = Object.values(state.outcomes).reduce(
+            (max, o) => (o.sequenceNumber > max ? o.sequenceNumber : max), 0
+          );
+          const nextOutcomeId = `tmp_${crypto.randomUUID()}`;
+          state.outcomes[nextOutcomeId] = {
+            crmId: nextOutcomeId,
+            name: 'Next',
+            sequenceNumber: maxSeq + 1,
+            applyFilter: false,
+            ...emptyOutcomeConcurrency(),
+            workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS),
+            stepId: newStepId,
+            nextStepId: oldTargetId,
+          };
+          state.outcomeOrder[newStepId] = [nextOutcomeId];
+          state.newIds.push(nextOutcomeId);
+
+          // Drop the card midway between the two it now sits between.
+          const fromPos = state.nodePositions[`step_${outcome.stepId}`];
+          const targetPos = oldTargetId ? state.nodePositions[`step_${oldTargetId}`] : undefined;
+          if (fromPos && targetPos) {
+            state.nodePositions[`step_${newStepId}`] = {
+              x: (fromPos.x + targetPos.x) / 2,
+              y: (fromPos.y + targetPos.y) / 2,
+            };
+          } else if (fromPos) {
+            state.nodePositions[`step_${newStepId}`] = { x: fromPos.x + 360, y: fromPos.y };
+          }
+
+          state.selectedId = `step_${newStepId}`;
+          state.isDirty = true;
+        }),
+
+      duplicateStep: (stepId) =>
+        set((state) => {
+          const source = state.steps[stepId];
+          if (!source) return;
+
+          const newStepId = `tmp_${crypto.randomUUID()}`;
+          state.steps[newStepId] = {
+            ...source,
+            crmId: newStepId,
+            name: `Copy of ${source.name}`,
+            sequenceNo: 0, // renumbered below
+          };
+          state.newIds.push(newStepId);
+
+          const sourceIndex = state.stepOrder.indexOf(stepId);
+          state.stepOrder.splice(sourceIndex + 1, 0, newStepId);
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+
+          // The clone keeps the whole configuration — decisions and their
+          // routes included, targets and all. Real processes repeat patterns;
+          // rebuilding them by hand is how drift creeps in.
+          let maxSeq = Object.values(state.outcomes).reduce(
+            (max, o) => (o.sequenceNumber > max ? o.sequenceNumber : max), 0
+          );
+          state.outcomeOrder[newStepId] = [];
+          for (const outcomeId of state.outcomeOrder[stepId] ?? []) {
+            const outcome = state.outcomes[outcomeId];
+            if (!outcome) continue;
+            const newOutcomeId = `tmp_${crypto.randomUUID()}`;
+            maxSeq += 1;
+            state.outcomes[newOutcomeId] = {
+              ...outcome,
+              crmId: newOutcomeId,
+              sequenceNumber: maxSeq,
+              stepId: newStepId,
+            };
+            state.outcomeOrder[newStepId]!.push(newOutcomeId);
+            state.newIds.push(newOutcomeId);
+
+            for (const routeId of state.routeOrder[outcomeId] ?? []) {
+              const route = state.routes[routeId];
+              if (!route) continue;
+              const newRouteId = `tmp_${crypto.randomUUID()}`;
+              state.routes[newRouteId] = {
+                ...route,
+                crmId: newRouteId,
+                outcomeId: newOutcomeId,
+              };
+              if (!state.routeOrder[newOutcomeId]) state.routeOrder[newOutcomeId] = [];
+              state.routeOrder[newOutcomeId]!.push(newRouteId);
+              state.newIds.push(newRouteId);
+            }
+          }
+
+          const sourcePos = state.nodePositions[`step_${stepId}`];
+          if (sourcePos) {
+            state.nodePositions[`step_${newStepId}`] = { x: sourcePos.x + 48, y: sourcePos.y + 48 };
+          }
 
           state.selectedId = `step_${newStepId}`;
           state.isDirty = true;

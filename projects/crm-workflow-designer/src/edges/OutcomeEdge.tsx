@@ -68,6 +68,13 @@ export function OutcomeEdge({
   const grip = anchor ?? { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
   const showGrip = !isReadOnly && (selected || isStoreSelected || Boolean(anchor));
 
+  const insertStepBetween = useWorkflowStore((s) => s.insertStepBetween);
+  // CWFD-016 B5: splicing a step into a transition is the most-used gesture
+  // in BPM editors. The pill appears when the edge is selected; return edges
+  // sit this one out — splicing a loop reads as rewiring, not inserting.
+  const showInsert = !isReadOnly && !d.isBackEdge && isStoreSelected && id.startsWith('outcome_');
+  const insertPoint = anchor ?? { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
+
   const anchorDrag = useFlowPointerDrag((point) => setEdgeAnchor(id, point));
   const labelDrag = useFlowPointerDrag((point) =>
     setLabelOffset(id, { dx: point.x - labelBase.x, dy: point.y - labelBase.y })
@@ -107,6 +114,40 @@ export function OutcomeEdge({
           >
             {d.label}
           </div>
+        </EdgeLabelRenderer>
+      )}
+      {showInsert && (
+        <EdgeLabelRenderer>
+          <button
+            type="button"
+            className="nodrag nopan"
+            style={{
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${insertPoint.x}px,${insertPoint.y + 22}px)`,
+              pointerEvents: 'all',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'var(--primary)',
+              color: 'var(--text-on-primary)',
+              border: 'none',
+              borderRadius: 999,
+              padding: '3px 10px',
+              fontSize: 10.5,
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px color-mix(in srgb, var(--text) 30%, transparent)',
+              zIndex: 12,
+              whiteSpace: 'nowrap',
+            }}
+            title="Splice a new step into this transition"
+            onClick={(event) => {
+              event.stopPropagation();
+              insertStepBetween(id.slice('outcome_'.length));
+            }}
+          >
+            + Insert step
+          </button>
         </EdgeLabelRenderer>
       )}
       {showGrip && (

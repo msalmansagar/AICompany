@@ -31,6 +31,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     setStep,
     addOutcome,
     deleteStep,
+    duplicateStep,
     moveStepUp,
     moveStepDown,
     selectNode,
@@ -43,6 +44,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     setStep: s.setStep,
     addOutcome: s.addOutcome,
     deleteStep: s.deleteStep,
+    duplicateStep: s.duplicateStep,
     moveStepUp: s.moveStepUp,
     moveStepDown: s.moveStepDown,
     selectNode: s.selectNode,
@@ -439,6 +441,15 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         )}
 
         <div style={dividerStyle} />
+
+        <button
+          type="button"
+          className="btn sm block"
+          onClick={() => duplicateStep(step.crmId)}
+          title="Clone this step with its assignment, SLA, automation, decisions and routes"
+        >
+          Duplicate Step
+        </button>
 
         <button type="button" className="btn sm block danger" onClick={handleDeleteStep}>
           Delete Step
