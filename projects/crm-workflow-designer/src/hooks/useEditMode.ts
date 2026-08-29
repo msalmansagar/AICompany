@@ -28,6 +28,7 @@ interface UseEditModeResult {
   nodes: Node[];
   edges: Edge[];
   onConnect: (params: Connection) => void;
+  onReconnect: (oldEdge: Edge, connection: Connection) => void;
   onNodesChange: (changes: NodeChange[]) => void;
   onNodeClick: (event: MouseEvent, node: Node) => void;
   onEdgeClick: (event: MouseEvent, edge: Edge) => void;
@@ -52,6 +53,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     validationResults,
     addStep,
     addOutcome,
+    setOutcome,
     selectNode,
     clearSelection,
     updateNodePosition,
@@ -68,6 +70,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     validationResults: s.validationResults,
     addStep: s.addStep,
     addOutcome: s.addOutcome,
+    setOutcome: s.setOutcome,
     selectNode: s.selectNode,
     clearSelection: s.clearSelection,
     updateNodePosition: s.updateNodePosition,
@@ -284,6 +287,31 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     [outcomes, addOutcome]
   );
 
+  // CWFD-016 B4: dragging an edge end onto another card re-points the
+  // decision. Only the TARGET may move — a decision belongs to its step, so a
+  // source drag snaps back (the edges derive from the store; not writing the
+  // change IS the revert).
+  const onReconnect = useCallback(
+    (oldEdge: Edge, connection: Connection) => {
+      if (!oldEdge.id.startsWith('outcome_')) return;
+      const outcome = outcomes[oldEdge.id.slice('outcome_'.length)];
+      if (!outcome) return;
+      if (connection.source !== oldEdge.source) return;
+      const target = connection.target ?? '';
+      const nextStepId =
+        target === END_NODE_ID || target.startsWith('end_stub_')
+          ? null
+          : target.startsWith('step_')
+            ? target.slice('step_'.length)
+            : undefined;
+      if (nextStepId === undefined) return;
+      if (nextStepId === outcome.stepId) return; // a decision cannot loop onto its own step
+      if (nextStepId === outcome.nextStepId) return;
+      setOutcome({ ...outcome, nextStepId });
+    },
+    [outcomes, setOutcome]
+  );
+
   const persistNodePositions = useCallback(
     (changes: NodeChange[]) => {
       for (const change of changes) {
@@ -382,6 +410,7 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     nodes,
     edges,
     onConnect,
+    onReconnect,
     onNodesChange,
     onNodeClick,
     onEdgeClick,
