@@ -183,3 +183,29 @@ describe('duplicateStep', () => {
     expect(state().isDirty).toBe(true);
   });
 });
+
+describe('moveStepTo', () => {
+  beforeEach(loadThreeStepFlow);
+
+  it('should_move_a_step_to_an_arbitrary_position_and_renumber', () => {
+    state().moveStepTo('c', 0);
+    expect(state().stepOrder).toEqual(['c', 'a', 'b']);
+    expect(state().steps['c']!.sequenceNo).toBe(1);
+    expect(state().steps['a']!.sequenceNo).toBe(2);
+    expect(state().steps['b']!.sequenceNo).toBe(3);
+  });
+
+  it('should_clamp_a_position_beyond_the_ends', () => {
+    state().moveStepTo('a', 99);
+    expect(state().stepOrder).toEqual(['b', 'c', 'a']);
+    state().moveStepTo('a', -5);
+    expect(state().stepOrder).toEqual(['a', 'b', 'c']);
+  });
+
+  it('should_do_nothing_when_the_position_is_unchanged', () => {
+    const before = state().isDirty;
+    state().moveStepTo('b', 1);
+    expect(state().stepOrder).toEqual(['a', 'b', 'c']);
+    expect(state().isDirty).toBe(before);
+  });
+});

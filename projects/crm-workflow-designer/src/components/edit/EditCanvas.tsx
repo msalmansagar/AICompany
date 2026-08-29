@@ -12,6 +12,8 @@ import {
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
 import { BulkStepEditor } from './BulkStepEditor';
+import { ReorderStepsDialog } from './ReorderStepsDialog';
+import { PublishWarningsDialog } from './PublishWarningsDialog';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
 import { usePublish } from '@/hooks/usePublish';
 import { useEditMode } from '@/hooks/useEditMode';
@@ -116,7 +118,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   }));
 
   const { isSaving, save } = useWorkflowSave();
-  const { isPublishing, publish } = usePublish();
+  const { isPublishing, publish, pendingWarnings, dismissWarnings } = usePublish();
   const editMode = useEditMode(adapter);
   const demo = useDemoPlayback();
   const simMode = useSimulationMode();
@@ -160,6 +162,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   );
   const [showValidationPanel, setShowValidationPanel] = useState(false);
   const [showBulkEditor, setShowBulkEditor] = useState(false);
+  const [showReorder, setShowReorder] = useState(false);
   // No explicit choice yet -> the minimap turns itself on for large graphs.
   const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
   const showMiniMap = miniMapPreference ?? stepOrder.length > LARGE_GRAPH_THRESHOLD;
@@ -357,6 +360,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         onValidate={handleValidate}
         onEditProperties={() => setEditingProperties(true)}
         onBulkEdit={() => setShowBulkEditor(true)}
+        onReorderSteps={() => setShowReorder(true)}
         onSimulate={startSimulation}
         onAutoSimulate={startAutoSimulation}
         onExitSimulation={stopSimulation}
@@ -491,6 +495,19 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
 
       {showBulkEditor && (
         <BulkStepEditor adapter={adapter} onClose={() => setShowBulkEditor(false)} />
+      )}
+
+      {showReorder && <ReorderStepsDialog onClose={() => setShowReorder(false)} />}
+
+      {pendingWarnings && (
+        <PublishWarningsDialog
+          warnings={pendingWarnings}
+          onCancel={dismissWarnings}
+          onPublishAnyway={() => {
+            dismissWarnings();
+            void publish({ acknowledgeWarnings: true });
+          }}
+        />
       )}
     </div>
   );

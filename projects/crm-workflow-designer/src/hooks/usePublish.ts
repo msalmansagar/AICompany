@@ -3,14 +3,19 @@ import { serializeDesignerState } from '@/services/designerState';
 import { useCrmAdapter } from '@/app/CrmAdapterContext';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ValidationService } from '@/services/ValidationService';
+import type { Violation } from '@/services/ValidationService';
 import { VersioningService } from '@/services/VersioningService';
 import { AuditService } from '@/services/AuditService';
 import { assertGuid } from '@/services/assertGuid';
 
 interface UsePublishResult {
   isPublishing: boolean;
-  publish: () => Promise<void>;
+  /** Publishes; pass acknowledgeWarnings to proceed past a warning stop. */
+  publish: (options?: { acknowledgeWarnings?: boolean }) => Promise<void>;
   error: string | null;
+  /** Non-null when a publish stopped to have its warnings acknowledged. */
+  pendingWarnings: Violation[] | null;
+  dismissWarnings: () => void;
 }
 
 const validationService = new ValidationService();
@@ -34,7 +39,13 @@ export function usePublish(): UsePublishResult {
       setValidationResults: s.setValidationResults,
     }));
 
-  const publish = useCallback(async () => {
+  // CWFD-016 B7: warnings used to ride through publish in silence. Now they
+  // stop it once, are shown, and — if the publisher accepts them — the
+  // acceptance is recorded with the publish rather than merely allowed.
+  const [pendingWarnings, setPendingWarnings] = useState<Violation[] | null>(null);
+  const dismissWarnings = useCallback(() => setPendingWarnings(null), []);
+
+  const publish = useCallback(async (options?: { acknowledgeWarnings?: boolean }) => {
     if (!process) {
       setError('No process loaded.');
       return;
@@ -49,6 +60,13 @@ export function usePublish(): UsePublishResult {
       setError('Validation failed. Fix all errors before publishing.');
       return;
     }
+
+    const warnings = newViolations.filter((v) => v.severity === 'warning');
+    if (warnings.length > 0 && !options?.acknowledgeWarnings) {
+      setPendingWarnings(warnings);
+      return;
+    }
+    setPendingWarnings(null);
 
     setIsPublishing(true);
     setPublishing(true);
@@ -66,6 +84,18 @@ export function usePublish(): UsePublishResult {
       // Create snapshot
       const snapshot = versioningService.createSnapshot({ process, steps, outcomes, routes, nodePositions: {} });
 
+      // Spec §21: publishing over warnings is allowed "after acknowledgement".
+      // The acknowledgement travels with the published state so an auditor can
+      // see what was accepted, not merely that nothing blocked.
+      const acknowledgedWarnings =
+        warnings.length > 0
+          ? {
+              at: new Date().toISOString(),
+              count: warnings.length,
+              codes: [...new Set(warnings.map((w) => w.code))],
+            }
+          : null;
+
       // Update process in CRM
       // updateProcess only maps qdb_name, so these fields never reached CRM;
       // the designer state annotation is what actually persists a publish.
@@ -76,6 +106,7 @@ export function usePublish(): UsePublishResult {
           versionMajor: newVersion.versionMajor,
           versionMinor: newVersion.versionMinor,
           snapshot,
+          acknowledgedWarnings,
         })
       );
       await adapter.updateProcess(process.crmId, {
@@ -99,6 +130,8 @@ export function usePublish(): UsePublishResult {
       await auditService.log('PUBLISH', process.crmId, {
         version: `${newVersion.versionMajor}.${newVersion.versionMinor}`,
         isBreaking,
+        acknowledgedWarningCount: acknowledgedWarnings?.count ?? 0,
+        acknowledgedWarningCodes: acknowledgedWarnings?.codes ?? [],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Publish failed.');
@@ -108,5 +141,5 @@ export function usePublish(): UsePublishResult {
     }
   }, [adapter, process, steps, outcomes, routes, stepOrder, outcomeOrder, setProcess, setPublishing, setValidationResults]);
 
-  return { isPublishing, publish, error };
+  return { isPublishing, publish, error, pendingWarnings, dismissWarnings };
 }
