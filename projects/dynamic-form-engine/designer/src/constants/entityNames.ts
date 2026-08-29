@@ -24,7 +24,12 @@ export const ENTITY_NAMES = {
   FIELD_LABEL: 'qdb_fieldlabel',
   FORM_ACCESS_POLICY: 'qdb_form_access_policy',
   // Sprint 5 — grid column config
-  GRID_COLUMN_CONFIG: 'qdb_grid_column_configs',
+  // The LOGICAL name, like every other entry — not the entity set. Xrm.WebApi takes logical
+  // names, so the plural that used to sit here failed every grid-column call in CRM with
+  // "The entity 'qdb_grid_column_configs' cannot be found". The dev proxy masked it: its
+  // pluraliser treats a trailing 's' as already plural, so the wrong value round-tripped
+  // in local dev and the break was only visible in the deployed designer.
+  GRID_COLUMN_CONFIG: 'qdb_grid_column_config',
   // i18n
   TRANSLATION: 'qdb_translation',
   LANGUAGE_CONFIG: 'qdb_language_config',

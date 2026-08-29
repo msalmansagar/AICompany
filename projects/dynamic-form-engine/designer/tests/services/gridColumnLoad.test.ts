@@ -38,6 +38,20 @@ describe('GridColumnConfigService.listColumnsForField', () => {
     } as unknown as ConstructorParameters<typeof GridColumnConfigService>[0];
   }
 
+  // Xrm.WebApi takes LOGICAL names. The plural entity-set name that used to be passed failed
+  // every grid-column call in the deployed designer, while the dev proxy — whose pluraliser
+  // treats a trailing 's' as already plural — quietly accepted it, so local dev never saw it.
+  it('addressesTheEntityByItsLogicalName_notTheEntitySet', async () => {
+    const seen: string[] = [];
+    const webApi = {
+      retrieveMultipleRecords: async (entity: string) => { seen.push(entity); return { entities: [] }; },
+    } as unknown as ConstructorParameters<typeof GridColumnConfigService>[0];
+
+    await new GridColumnConfigService(webApi).listColumnsForField(FIELD_ID);
+
+    expect(seen).toEqual(['qdb_grid_column_config']);
+  });
+
   it('readsAPersistedColumnBackWithItsRealId', async () => {
     const service = new GridColumnConfigService(webApiReturning([{
       qdb_grid_column_configid: COLUMN_ID,
