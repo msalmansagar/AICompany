@@ -7,6 +7,7 @@ import {
   makeStyles,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { GridColumnPanel } from './GridColumnPanel';
 
@@ -33,11 +34,10 @@ export function RepeatingGridFieldPanel({ field }: Props): React.ReactElement {
         label="Target Entity"
         hint="Dataverse entity logical name for row submission"
       >
-        <Input
+        <EntityCombobox
           value={field.gridEntityName ?? ''}
-          placeholder="e.g. qdb_application_item"
-          onChange={(_, d) => updateField(field.id, { gridEntityName: d.value || null })}
-          style={{ fontFamily: 'monospace' }}
+          onChange={name => updateField(field.id, { gridEntityName: name || null })}
+          ariaLabel="Target Entity"
         />
       </Field>
 

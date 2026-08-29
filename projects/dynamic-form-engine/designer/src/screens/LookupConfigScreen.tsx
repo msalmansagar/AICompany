@@ -12,6 +12,8 @@ import {
 } from '@fluentui/react-components';
 import { ArrowLeftRegular, CheckmarkRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
+import { AttributeCombobox } from '@/components/AttributeCombobox';
 import { CrmContext } from '@/app/App';
 import { LookupConfigService } from '@/services/LookupConfigService';
 import type { DesignerLookupConfig, DesignerLookupDisplayColumn } from '@/state/models/DesignerFormModel';
@@ -232,11 +234,10 @@ export function LookupConfigScreen(): React.ReactElement {
                 required
                 hint="The logical name of the Dataverse table to query (e.g. contact, account)."
               >
-                <Input
+                <EntityCombobox
                   value={config.targetEntity}
-                  onChange={(_, data) => patch({ targetEntity: data.value.toLowerCase() })}
-                  placeholder="e.g. contact"
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => patch({ targetEntity: name.toLowerCase() })}
+                  ariaLabel="Target Entity"
                 />
               </Field>
 
@@ -245,11 +246,11 @@ export function LookupConfigScreen(): React.ReactElement {
                 required
                 hint="The column shown to the user in the dropdown (e.g. fullname)."
               >
-                <Input
+                <AttributeCombobox
+                  entityLogicalName={config.targetEntity}
                   value={config.displayField}
-                  onChange={(_, data) => patch({ displayField: data.value.toLowerCase() })}
-                  placeholder="e.g. fullname"
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => patch({ displayField: name.toLowerCase() })}
+                  ariaLabel="Display Field"
                 />
               </Field>
 
@@ -258,11 +259,11 @@ export function LookupConfigScreen(): React.ReactElement {
                 required
                 hint="The column stored as the submission value — usually the primary key (e.g. contactid)."
               >
-                <Input
+                <AttributeCombobox
+                  entityLogicalName={config.targetEntity}
                   value={config.valueField}
-                  onChange={(_, data) => patch({ valueField: data.value.toLowerCase() })}
-                  placeholder="e.g. contactid"
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => patch({ valueField: name.toLowerCase() })}
+                  ariaLabel="Value Field"
                 />
               </Field>
 

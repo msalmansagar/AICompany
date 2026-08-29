@@ -12,6 +12,8 @@ import {
 } from '@fluentui/react-components';
 import { AddRegular, DeleteRegular, ArrowUpRegular, ArrowDownRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
+import { AttributeCombobox } from '@/components/AttributeCombobox';
 import { withSequentialDisplayOrder, nextDisplayOrder } from '@/services/gridColumnOrder';
 import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
 
@@ -273,12 +275,11 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
               />
             </Field>
             <Field label="CRM Attribute" className={styles.fieldRowItem}>
-              <Input
-                size="small"
+              <AttributeCombobox
+                entityLogicalName={field?.gridEntityName ?? ''}
                 value={col.targetAttribute}
-                placeholder="e.g. qdb_full_name"
-                onChange={(_, d) => handleUpdate(col.id, { targetAttribute: d.value })}
-                style={{ fontFamily: 'monospace' }}
+                onChange={name => handleUpdate(col.id, { targetAttribute: name })}
+                ariaLabel="CRM Attribute"
               />
             </Field>
           </div>
@@ -344,31 +345,27 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
 
           {col.filterType === 'lookup' && (
             <div className={styles.fieldRow}>
-              <Field label="Lookup Entity" className={styles.fieldRowItem} hint="e.g. contact">
-                <Input
-                  size="small"
+              <Field label="Lookup Entity" className={styles.fieldRowItem}>
+                <EntityCombobox
                   value={col.lookupTargetEntity ?? ''}
-                  placeholder="contact"
-                  onChange={(_, d) => handleUpdate(col.id, { lookupTargetEntity: d.value || null })}
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => handleUpdate(col.id, { lookupTargetEntity: name || null })}
+                  ariaLabel="Lookup Entity"
                 />
               </Field>
-              <Field label="Display Attribute" className={styles.fieldRowItem} hint="e.g. fullname">
-                <Input
-                  size="small"
+              <Field label="Display Attribute" className={styles.fieldRowItem}>
+                <AttributeCombobox
+                  entityLogicalName={col.lookupTargetEntity ?? ''}
                   value={col.lookupDisplayAttribute ?? ''}
-                  placeholder="fullname"
-                  onChange={(_, d) => handleUpdate(col.id, { lookupDisplayAttribute: d.value || null })}
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => handleUpdate(col.id, { lookupDisplayAttribute: name || null })}
+                  ariaLabel="Display Attribute"
                 />
               </Field>
-              <Field label="Value / ID Attribute" className={styles.fieldRowItem} hint="stored ID — blank ⇒ primary key">
-                <Input
-                  size="small"
+              <Field label="Value / ID Attribute" className={styles.fieldRowItem} hint="Blank stores the primary key">
+                <AttributeCombobox
+                  entityLogicalName={col.lookupTargetEntity ?? ''}
                   value={col.lookupValueAttribute ?? ''}
-                  placeholder="accountid"
-                  onChange={(_, d) => handleUpdate(col.id, { lookupValueAttribute: d.value || null })}
-                  style={{ fontFamily: 'monospace' }}
+                  onChange={name => handleUpdate(col.id, { lookupValueAttribute: name || null })}
+                  ariaLabel="Value / ID Attribute"
                 />
               </Field>
             </div>

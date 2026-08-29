@@ -13,6 +13,7 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { GridColumnPanel } from './GridColumnPanel';
 
@@ -99,11 +100,10 @@ export function InteractiveGridFieldPanel({ field }: Props): React.ReactElement 
           hint="Dataverse entity logical name"
           required
         >
-          <Input
+          <EntityCombobox
             value={field.gridEntityName ?? ''}
-            placeholder="e.g. account"
-            onChange={(_, d) => updateField(field.id, { gridEntityName: d.value || null })}
-            style={{ fontFamily: 'monospace' }}
+            onChange={name => updateField(field.id, { gridEntityName: name || null })}
+            ariaLabel="Target Entity"
           />
         </Field>
       )}
