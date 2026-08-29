@@ -271,9 +271,13 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
           0
         ) + 1;
 
+      const outcomeId = `tmp_${crypto.randomUUID()}`;
+      const targetName = nextStepId ? steps[nextStepId]?.name : null;
       const newOutcome: WorkflowOutcome = {
-        crmId: `tmp_${crypto.randomUUID()}`,
-        name: 'Outcome',
+        crmId: outcomeId,
+        // A decision named after its destination beats a canvas full of
+        // "Outcome" rows the duplicate-name rule then complains about.
+        name: targetName ? `To ${targetName}` : 'Complete',
         sequenceNumber: nextSeqNo,
         applyFilter: false,
         ...emptyOutcomeConcurrency(),
@@ -283,8 +287,9 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       };
 
       addOutcome(newOutcome);
+      selectNode(`outcome_${outcomeId}`);
     },
-    [outcomes, addOutcome]
+    [outcomes, addOutcome, steps, selectNode]
   );
 
   // CWFD-016 B4: dragging an edge end onto another card re-points the

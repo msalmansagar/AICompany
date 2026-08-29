@@ -11,9 +11,9 @@ Process (35 steps, 28 unassigned, 35 empty task subjects).
 | B4 | Re-pointable transitions (picker + edge reconnect) | ✅ done | Batch 2 (PR #137). Next Step select + onReconnect; target-end only. |
 | B5 | Insert-between on an edge | ✅ done | Batch 3 (PR #138). Pill on selected forward edges; renumbers; terminal stays terminal. |
 | B6 | Duplicate step | ✅ done | Batch 3 (PR #138). Clones assignment/SLA/hooks/decisions/routes. |
-| B7 | Warning acknowledgement at publish | ⏳ in progress | |
-| B8 | Drag-reorder sheet | ⬜ not started | |
-| B9 | Panel polish + inline rename on connect | ⬜ not started | |
+| B7 | Warning acknowledgement at publish | ✅ done | Batch 4. Warnings stop publish once, grouped by rule; accepting records at/count/codes in the designer-state annotation and the audit log. Errors still block first. |
+| B8 | Drag-reorder sheet | ✅ done | Batch 4. Toolbar overflow → drag rows or type a position; new moveStepTo store action renumbers. |
+| B9 | Panel polish + inline rename on connect | ✅ done | Batch 4. Drag-connect names the decision "To <target>" (or "Complete") and selects it, so the panel opens on the name — no more canvases full of "Outcome" the duplicate-name rule flags. |
 
 ## Log
 
@@ -24,3 +24,9 @@ Process (35 steps, 28 unassigned, 35 empty task subjects).
   Main @ 2b446ce2, 438 tests green, built and **deployed to org5869857f**
   (hash a569a789, agentation provably absent from the deployed copy). LR
   hierarchy fix confirmed live in CRM. Batch 4 begins.
+- 2026-08-29 — **Batch 4 (B7+B8+B9) done — ALL NINE ITEMS COMPLETE.** 444 tests
+  green, tsc clean. Verified live: reorder sheet moved step 9 to position 2 with
+  full renumbering; publish on the Loan process still blocked by its 28 errors
+  (warnings never reached — correct precedence). The warning dialog itself is
+  covered by state round-trip tests; a warning-only process was not available
+  in the org to exercise it on screen.

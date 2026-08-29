@@ -109,6 +109,8 @@ export interface WorkflowDesignerState {
   setAutoSimSpeed: (speed: AutoSimSpeed) => void;
   resolveTemporaryId: (tmpId: string, realId: string, entityType: 'step' | 'outcome' | 'route') => void;
   resolveProcessId: (realId: string) => void;
+  /** Moves a step to a zero-based position, renumbering everything. */
+  moveStepTo: (stepId: string, targetIndex: number) => void;
   moveStepUp: (stepId: string) => void;
   moveStepDown: (stepId: string) => void;
   setNodePositions: (positions: Record<string, { x: number; y: number }>) => void;
@@ -125,7 +127,7 @@ export interface WorkflowDesignerState {
 const emptyState: Omit<
   WorkflowDesignerState,
   | 'setProcess' | 'setStep' | 'setOutcome' | 'setRoute'
-  | 'addStep' | 'addStepAfter' | 'insertStepBetween' | 'duplicateStep' | 'addOutcome' | 'addRoute'
+  | 'addStep' | 'addStepAfter' | 'insertStepBetween' | 'duplicateStep' | 'moveStepTo' | 'addOutcome' | 'addRoute'
   | 'deleteStep' | 'deleteOutcome' | 'deleteRoute'
   | 'updateNodePosition' | 'setEdgeAnchor' | 'setLabelOffset' | 'clearEdgeDecorations' | 'applyDesignerLayout' | 'selectNode' | 'clearSelection'
   | 'markClean' | 'markDirty' | 'resetStore' | 'setPublishing' | 'setPreviewMode'
@@ -951,6 +953,25 @@ export const useWorkflowStore = create<WorkflowDesignerState>()(
           const idx = state.stepOrder.indexOf(stepId);
           if (idx <= 0) return;
           [state.stepOrder[idx - 1], state.stepOrder[idx]] = [state.stepOrder[idx]!, state.stepOrder[idx - 1]!];
+          state.stepOrder.forEach((id, i) => {
+            if (state.steps[id]) {
+              state.steps[id]!.sequenceNo = i + 1;
+              if (!state.dirtyIds.includes(id)) state.dirtyIds.push(id);
+            }
+          });
+          state.isDirty = true;
+        }),
+
+      moveStepTo: (stepId, targetIndex) =>
+        set((state) => {
+          const from = state.stepOrder.indexOf(stepId);
+          if (from < 0) return;
+          const to = Math.max(0, Math.min(targetIndex, state.stepOrder.length - 1));
+          if (from === to) return;
+          state.stepOrder.splice(from, 1);
+          state.stepOrder.splice(to, 0, stepId);
+          // Sequence follows order, always — the same rule the one-notch
+          // moves and the insert-between splice obey.
           state.stepOrder.forEach((id, i) => {
             if (state.steps[id]) {
               state.steps[id]!.sequenceNo = i + 1;

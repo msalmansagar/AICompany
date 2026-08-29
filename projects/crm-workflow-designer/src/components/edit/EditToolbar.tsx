@@ -37,6 +37,7 @@ interface EditToolbarProps {
   onValidate: () => void;
   onEditProperties: () => void;
   onBulkEdit: () => void;
+  onReorderSteps: () => void;
   onSimulate: () => void;
   onAutoSimulate: () => void;
   onExitSimulation: () => void;
@@ -76,6 +77,7 @@ export function EditToolbar({
   onValidate,
   onEditProperties,
   onBulkEdit,
+  onReorderSteps,
   onSimulate,
   onAutoSimulate,
   onExitSimulation,
@@ -170,6 +172,7 @@ export function EditToolbar({
                 : []),
               { icon: 'settings' as const, label: 'Process properties', onClick: onEditProperties },
               { icon: 'summary' as const, label: 'Edit all steps', onClick: onBulkEdit },
+              { icon: 'layout' as const, label: 'Reorder steps', onClick: onReorderSteps },
               ...(canDemo && onDemo
                 ? [{ icon: 'demo' as const, label: 'Demo build', onClick: onDemo }]
                 : []),
