@@ -220,6 +220,33 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           />
         </div>
 
+        {/* CWFD-016 B1: the Loan process shipped 35 "missing task subject"
+            warnings the editor could point at but not fix — the wizard could
+            set these fields, the editor could not. */}
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Task Subject</label>
+          <input
+            type="text"
+            value={step.taskSubject}
+            onChange={(e) => setStep({ ...step, taskSubject: e.target.value })}
+            className="fluent-input"
+            placeholder={step.name || 'What the assignee sees on their task'}
+          />
+          <span className="hint-inline">The title of the task the engine creates for this step.</span>
+        </div>
+
+        <div style={fieldGroupStyle}>
+          <label className="lbl">Task Description</label>
+          <textarea
+            value={step.taskDescription}
+            onChange={(e) => setStep({ ...step, taskDescription: e.target.value })}
+            className="fluent-input"
+            rows={3}
+            placeholder="Instructions for whoever works the task"
+            style={taskDescriptionStyle}
+          />
+        </div>
+
         <div style={fieldGroupStyle}>
           <label className="lbl">Order</label>
           <div style={orderRowStyle}>
@@ -468,6 +495,12 @@ const bulkApprovalRowStyle: React.CSSProperties = {
 const bulkApprovalLabelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text)' };
 const bulkApprovalHintStyle: React.CSSProperties = {
   fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, paddingTop: 2,
+};
+
+const taskDescriptionStyle: React.CSSProperties = {
+  resize: 'vertical',
+  minHeight: 64,
+  fontFamily: 'inherit',
 };
 
 const panelHeaderStyle: React.CSSProperties = {
