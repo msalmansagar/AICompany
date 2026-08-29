@@ -50,6 +50,17 @@ export interface ICrmAdapter {
   getAttributes(entityLogicalName: string): Promise<AttributeOption[]>;
   getAttributesMeta(entityLogicalName: string): Promise<AttributeMeta[]>;
   getOptionSetLabels(entityLogicalName: string, attributeLogicalName: string): Promise<Map<number, string>>;
+  /**
+   * The display name of the record a lookup condition points at — the name
+   * behind "{6F1275D7-…}". Resolves the lookup's target entity from metadata,
+   * then reads that record's primary name. Null when anything along the way
+   * is missing; the caller falls back to showing the raw value.
+   */
+  getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null>;
   getUsers(search?: string): Promise<UserOption[]>;
   getTeams(): Promise<TeamOption[]>;
   getRoundRobinTeams(): Promise<TeamOption[]>;
