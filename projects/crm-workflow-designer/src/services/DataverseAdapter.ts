@@ -518,6 +518,45 @@ export class DataverseAdapter implements ISopAdapter {
     return new Map();
   }
 
+  async getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null> {
+    const base = `${this.env.getClientUrl()}/api/data/${this.env.getApiVersion()}`;
+    const getJson = async <T>(url: string): Promise<T> => {
+      const r = await fetch(url, { credentials: 'include', headers: buildODataHeaders() });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json() as Promise<T>;
+    };
+    try {
+      const attr = await getJson<{ Targets?: string[] }>(
+        `${base}/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')` +
+        '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets'
+      );
+      const id = recordId.replace(/[{}]/g, '').toLowerCase();
+      // A lookup can point at several entities (owner-style); the record only
+      // exists in one of them, so each target is tried until one answers.
+      for (const target of attr.Targets ?? []) {
+        try {
+          const def = await getJson<{ EntitySetName: string; PrimaryNameAttribute: string }>(
+            `${base}/EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryNameAttribute`
+          );
+          const row = await getJson<Record<string, unknown>>(
+            `${base}/${def.EntitySetName}(${id})?$select=${def.PrimaryNameAttribute}`
+          );
+          const name = row[def.PrimaryNameAttribute];
+          if (typeof name === 'string' && name.trim()) return name;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async getUsers(search?: string): Promise<UserOption[]> {
     try {
       const filter = buildUserLookupFilter(

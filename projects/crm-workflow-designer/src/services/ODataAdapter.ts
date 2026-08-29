@@ -490,6 +490,39 @@ export class ODataAdapter implements ISopAdapter {
     return new Map();
   }
 
+  async getLookupValueName(
+    entityLogicalName: string,
+    attributeLogicalName: string,
+    recordId: string
+  ): Promise<string | null> {
+    try {
+      const attr = await this.get<{ Targets?: string[] }>(
+        `EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')` +
+        '/Microsoft.Dynamics.CRM.LookupAttributeMetadata?$select=Targets'
+      );
+      const id = recordId.replace(/[{}]/g, '').toLowerCase();
+      // A lookup can point at several entities (owner-style); the record only
+      // exists in one of them, so each target is tried until one answers.
+      for (const target of attr.Targets ?? []) {
+        try {
+          const def = await this.get<{ EntitySetName: string; PrimaryNameAttribute: string }>(
+            `EntityDefinitions(LogicalName='${target}')?$select=EntitySetName,PrimaryNameAttribute`
+          );
+          const row = await this.get<Record<string, unknown>>(
+            `${def.EntitySetName}(${id})?$select=${def.PrimaryNameAttribute}`
+          );
+          const name = row[def.PrimaryNameAttribute];
+          if (typeof name === 'string' && name.trim()) return name;
+        } catch {
+          continue;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async getUsers(search?: string): Promise<UserOption[]> {
     const filter = `&$filter=${buildUserLookupFilter(search ? escapeODataLiteral(search) : undefined)}`;
     const data = await this.get<{ value: Record<string, unknown>[] }>(
