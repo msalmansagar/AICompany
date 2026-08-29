@@ -197,3 +197,50 @@ describe('returns in the outer gutter (CWFD-011)', () => {
     expect(edges.some((e) => e.type === 'hierReturn')).toBe(false);
   });
 });
+
+describe('left-to-right layout (CWFD-014)', () => {
+  const steps = [step('a', 1), step('b', 2), step('c', 3), step('d', 4)];
+  const outcomes = [
+    outcome('o1', 'a', 'b'),
+    outcome('o2', 'a', 'c'),
+    outcome('o3', 'b', 'd'),
+    outcome('o4', 'c', null),
+    outcome('o5', 'd', null),
+  ];
+
+  it('should_space_LR_levels_by_card_width_so_columns_never_overlap', () => {
+    const { nodes } = buildHierarchyGraph(steps, outcomes, 'LR');
+    const a = nodes.find((n) => n.id === 'step_a')!;
+    const b = nodes.find((n) => n.id === 'step_b')!;
+    expect(b.position.x - a.position.x).toBeGreaterThanOrEqual(HIER_CARD_W);
+  });
+
+  it('should_stack_LR_siblings_by_card_height_without_overlap', () => {
+    const { nodes } = buildHierarchyGraph(steps, outcomes, 'LR');
+    const b = nodes.find((n) => n.id === 'step_b')!;
+    const c = nodes.find((n) => n.id === 'step_c')!;
+    expect(b.position.x).toBe(c.position.x);
+    const gap = Math.abs(c.position.y - b.position.y);
+    expect(gap).toBeGreaterThanOrEqual(104);
+  });
+
+  it('should_centre_an_LR_parent_on_its_children_rows', () => {
+    const { nodes } = buildHierarchyGraph(steps, outcomes, 'LR');
+    const centreY = (id: string) => nodes.find((n) => n.id === id)!.position.y + 104 / 2;
+    expect(centreY('step_a')).toBeCloseTo((centreY('step_b') + centreY('step_c')) / 2, 5);
+  });
+
+  it('should_produce_no_overlapping_cards_in_LR', () => {
+    const { nodes } = buildHierarchyGraph(steps, outcomes, 'LR');
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i].position;
+        const b = nodes[j].position;
+        const overlaps =
+          a.x < b.x + HIER_CARD_W && a.x + HIER_CARD_W > b.x &&
+          a.y < b.y + 104 && a.y + 104 > b.y;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
+});

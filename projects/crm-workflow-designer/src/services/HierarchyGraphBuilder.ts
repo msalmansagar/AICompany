@@ -20,6 +20,11 @@ export const HIER_CARD_W = 280;
 export const HIER_CARD_H = 104;
 const H_GAP = 40;
 const V_GAP = 120;
+// LR swaps the axes, so the spacing swaps with them: siblings stack by card
+// HEIGHT, and each level advances by card WIDTH plus room for the collapse
+// pill that rides the card's right edge.
+const LR_ROW_GAP = 44;
+const LR_COL_GAP = 150;
 
 export interface HierarchyStepData extends Record<string, unknown> {
   step: CrmStep;
@@ -188,25 +193,33 @@ export function layoutHierarchy(
   const positions = new Map<string, { x: number; y: number }>();
   if (!tree.entryId) return positions;
 
-  const widthOf = (id: string): number => {
+  // Everything is axis-relative: the cross axis is where siblings spread
+  // (x in TB, y in LR) and the main axis is where depth advances. Using the
+  // TB numbers for both directions made LR columns 224px apart for 280px
+  // cards — every level overlapped the next.
+  const crossSlot = dir === 'TB' ? HIER_CARD_W + H_GAP : HIER_CARD_H + LR_ROW_GAP;
+  const crossSize = dir === 'TB' ? HIER_CARD_W : HIER_CARD_H;
+  const depthStep = dir === 'TB' ? HIER_CARD_H + V_GAP : HIER_CARD_W + LR_COL_GAP;
+
+  const extentOf = (id: string): number => {
     const children = collapsedIds.has(id) ? [] : (tree.childrenOf.get(id) ?? []);
-    if (children.length === 0) return HIER_CARD_W + H_GAP;
+    if (children.length === 0) return crossSlot;
     return Math.max(
-      HIER_CARD_W + H_GAP,
-      children.reduce((sum, child) => sum + widthOf(child), 0)
+      crossSlot,
+      children.reduce((sum, child) => sum + extentOf(child), 0)
     );
   };
 
   const place = (id: string, crossStart: number, depth: number) => {
-    const width = widthOf(id);
-    const crossCentre = crossStart + width / 2 - HIER_CARD_W / 2;
-    const main = depth * (HIER_CARD_H + V_GAP);
+    const extent = extentOf(id);
+    const crossCentre = crossStart + extent / 2 - crossSize / 2;
+    const main = depth * depthStep;
     positions.set(id, dir === 'TB' ? { x: crossCentre, y: main } : { x: main, y: crossCentre });
     let cursor = crossStart;
     const children = collapsedIds.has(id) ? [] : (tree.childrenOf.get(id) ?? []);
     for (const child of children) {
       place(child, cursor, depth + 1);
-      cursor += widthOf(child);
+      cursor += extentOf(child);
     }
   };
 
