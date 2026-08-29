@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 import { useWorkflowStore } from '@/store/workflowStore';
 import { ProcessPropertiesDialog } from './ProcessPropertiesDialog';
+import { BulkStepEditor } from './BulkStepEditor';
 import { useWorkflowSave } from '@/hooks/useWorkflowSave';
 import { usePublish } from '@/hooks/usePublish';
 import { useEditMode } from '@/hooks/useEditMode';
@@ -158,6 +159,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
     [editMode.nodes]
   );
   const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showBulkEditor, setShowBulkEditor] = useState(false);
   // No explicit choice yet -> the minimap turns itself on for large graphs.
   const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
   const showMiniMap = miniMapPreference ?? stepOrder.length > LARGE_GRAPH_THRESHOLD;
@@ -285,6 +287,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         canRedo={canRedo}
         onValidate={handleValidate}
         onEditProperties={() => setEditingProperties(true)}
+        onBulkEdit={() => setShowBulkEditor(true)}
         onSimulate={startSimulation}
         onAutoSimulate={startAutoSimulation}
         onExitSimulation={stopSimulation}
@@ -414,6 +417,10 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
           onSave={(updated) => { setProcess(updated); setEditingProperties(false); }}
           onDismiss={() => setEditingProperties(false)}
         />
+      )}
+
+      {showBulkEditor && (
+        <BulkStepEditor adapter={adapter} onClose={() => setShowBulkEditor(false)} />
       )}
     </div>
   );
