@@ -2,7 +2,7 @@
  * 'technical-new' keeps its id so stored view preferences and any deep link
  * still resolve; the old 'technical' canvas it replaced is gone.
  */
-export type ViewMode = 'executive' | 'business' | 'technical-new' | 'swimlane' | 'hierarchy';
+export type ViewMode = 'overview' | 'executive' | 'business' | 'technical-new' | 'swimlane' | 'hierarchy';
 
 export interface ViewModeMeta {
   id: ViewMode;
@@ -11,6 +11,11 @@ export interface ViewModeMeta {
 }
 
 export const VIEW_MODES: ViewModeMeta[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    description: 'The journey stage by stage — click a stage to open it in detail',
+  },
   {
     id: 'executive',
     label: 'Executive',

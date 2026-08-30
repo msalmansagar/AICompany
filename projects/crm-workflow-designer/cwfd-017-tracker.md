@@ -10,10 +10,20 @@ No schema changes anywhere in this programme; everything is presentation.
 | 2 | Return badges + jump references | ✅ done | ↩ badges + popover on Business/Swimlane cards; hover=peek, click=pin+pan-to-pair; spotlight fades the rest; "↩ from …" chip on the target; returns resolve THROUGH correction pills. |
 | 3 | Focus Mode + step details panel | ✅ done | Focus toggle on the edit toolbar (selection-driven fade, hidden return edges restored for the selection); Overview tab (default) on the step panel: counters + incoming/outgoing links + owner + SLA; hover leans on incident edges. Card counters skipped — edit cards already carry rows/badges. |
 | 4 | Layout + parallel polish | ✅ done | parallelGroups.ts scenery bands wrap branch children (position-derived, intrusion-guarded — no band beats a wrong band); Parallel chip hides band with the links; edit layout now RANKS branch links so children cluster beside their parent. |
-| 5 | View Mode defaults + Overview | — | Stage-level Overview derived from stageRoles/stageBands. |
+| 5 | Overview view | ✅ done | New first view-mode tab: stage chips (steps/↩/∥/⊘ counts) chained START→END, real inter-stage transitions (outcomes+routes+branch links) bundled per pair, skip-hops arc by the side, faint dotted sequence connectors where no direct transition exists. Click a stage → Business canvas centered on its first step. |
 | 6 | Minimap, legend, validation info tier, perf sweep | — | Plus swimlane collapse if it proves clean. |
 
 ## Log
+
+- 2026-08-30 — **PR 5 done.** 492 tests green, tsc clean. Overview live on the
+  Loan process: 13 stages derived from the real config (the role ping-pong is
+  the truth of the sequence), counts agree with the ↩ badges because both use
+  collectReturnRefs; correction steps count as returns of the stage that
+  DECIDED them, never as stage steps (the correction's own hop is skipped or
+  it double-counts into the resubmit target's stage). Drill-through verified:
+  click stage 11 Credit → Business canvas centered on Sr Manager Credit
+  Analysis Endorsement (seq 24) with its panel open. Branch links count as
+  stage transitions (the engine creates the child's task — that is flow).
 
 - 2026-08-30 — **PR 4 done.** 486 tests green, tsc clean. Business view live:
   the band wraps PM Assignment + Technical Analyst Review, labelled with the
