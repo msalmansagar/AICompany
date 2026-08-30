@@ -33,9 +33,12 @@ import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
+import { centerOnNode } from './common/canvasNavigation';
 import { GoToStepPanel } from './common/GoToStepPanel';
 import { buildStageBands } from '../services/stageBands';
 import { buildParallelGroupNodes } from '../services/parallelGroups';
+import { buildOverviewGraph } from '../services/stageOverview';
+import type { OverviewStageData } from '../services/stageOverview';
 import { STEP_W } from '../services/WorkflowGraphBuilder';
 import { CORRECTION_PILL_H, CORRECTION_PILL_W } from '../services/correctionSteps';
 import { buildHierarchyGraph } from '../services/HierarchyGraphBuilder';
@@ -77,6 +80,7 @@ type BuildFn = (
 ) => ReturnType<typeof buildGraph>;
 
 const GRAPH_BUILDERS: Record<ViewMode, BuildFn> = {
+  overview:       buildOverviewGraph as BuildFn,
   executive:      buildExecutiveGraph as BuildFn,
   business:       buildGraph as BuildFn,
   'technical-new': buildTechNewGraph as BuildFn,
@@ -150,7 +154,10 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const [isSavingLayout, setIsSavingLayout] = useState(false);
   const layoutKey = `${view.viewMode}:${view.layoutDir}`;
   const [isExporting, setIsExporting] = useState(false);
-  const { fitView, getNodes, fitBounds } = useReactFlow();
+  const reactFlow = useReactFlow();
+  const { fitView, getNodes, fitBounds } = reactFlow;
+  // Where a drill-down from the Overview should land once Detailed rebuilds.
+  const [pendingDrillNodeId, setPendingDrillNodeId] = useState<string | null>(null);
   const measuredNodeIds = useMeasuredNodeIds();
   const [pendingFit, setPendingFit] = useState(0);
 
@@ -324,10 +331,16 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   useEffect(() => {
     if (pendingFit === 0 || measuredNodeIds === null) return;
     if (measuredNodeIds !== requestedNodeIds) return;
-    // Large graphs open on their first stage at reading zoom, not fit-all.
-    fitView({ ...computeSmartFit(getNodes(), view.layoutDir), duration: 300 });
+    // A drill-down from the Overview lands on its stage's first step;
+    // everything else opens on the smart fit.
+    if (pendingDrillNodeId && centerOnNode(reactFlow, pendingDrillNodeId)) {
+      setPendingDrillNodeId(null);
+    } else {
+      // Large graphs open on their first stage at reading zoom, not fit-all.
+      fitView({ ...computeSmartFit(getNodes(), view.layoutDir), duration: 300 });
+    }
     setPendingFit(0);
-  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView, getNodes, view.layoutDir]);
+  }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView, getNodes, view.layoutDir, pendingDrillNodeId, reactFlow]);
 
   // Apply resolved human-readable labels to route edges once metadata is fetched.
   // Also re-runs on view mode / data change so labels survive graph rebuilds.
@@ -379,7 +392,16 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     if (storedViewLayouts[layoutKey]) setIsLayoutDirty(true);
   }, [view, storedViewLayouts, layoutKey]);
 
+  // Clicking a stage on the Overview drills into the Detailed canvas at
+  // that stage's first step — the progressive-disclosure gesture.
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === 'overviewStage') {
+      const stage = (node.data as OverviewStageData).stage;
+      view.setViewMode('business');
+      view.selectElement(`step_${stage.firstStepId}`);
+      setPendingDrillNodeId(`step_${stage.firstStepId}`);
+      return;
+    }
     view.selectElement(node.id);
   }, [view]);
 
@@ -430,6 +452,9 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   // governs its own returns (badges, pins, its mode panel), so the Flow
   // Display toggles apply everywhere else.
   const visible = useMemo(() => {
+    // The Overview draws stages, not flow classes — the Flow Display chips
+    // and the return spotlight have nothing to act on there.
+    if (view.viewMode === 'overview') return { nodes: view.nodes, edges: view.edges };
     if (view.viewMode !== 'hierarchy') {
       const filtered = applyFlowVisibility(view.nodes, view.edges, flowVisibility);
       const interactive = view.viewMode === 'business' || view.viewMode === 'swimlane';
@@ -685,11 +710,11 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             {view.viewMode !== 'hierarchy' && <Controls showInteractive={false} />}
-            {view.viewMode !== 'hierarchy' && <CanvasLegend />}
-            {view.viewMode !== 'hierarchy' && (
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && <CanvasLegend />}
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && (
               <FlowDisplayBar visibility={flowVisibility} onChange={setFlowVisibility} />
             )}
-            {view.viewMode !== 'hierarchy' && (
+            {view.viewMode !== 'hierarchy' && view.viewMode !== 'overview' && (
               <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
             )}
             {view.viewMode === 'hierarchy' && <RoundZoomControls />}

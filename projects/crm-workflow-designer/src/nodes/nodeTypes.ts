@@ -19,6 +19,7 @@ import { TechNewOutcomeNode } from './TechNewOutcomeNode';
 import { RouteGatewayNode } from './RouteGatewayNode';
 import { StageBandNode } from './StageBandNode';
 import { ParallelGroupNode } from './ParallelGroupNode';
+import { OverviewStageNode } from './OverviewStageNode';
 import { HierarchyStepNode } from './HierarchyStepNode';
 
 export const nodeTypes: NodeTypes = {
@@ -30,6 +31,7 @@ export const nodeTypes: NodeTypes = {
   viewStep: ViewStepNode,
   stageBand: StageBandNode,
   parallelGroup: ParallelGroupNode,
+  overviewStage: OverviewStageNode,
   viewOutcome: ViewOutcomeNode,
   viewDecision: ViewDecisionNode,
 
