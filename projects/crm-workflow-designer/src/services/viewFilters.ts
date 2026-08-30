@@ -1,4 +1,6 @@
 import type { Node, Edge } from '@xyflow/react';
+import { classifyEdge } from './flowClass';
+import type { FlowClass } from './flowClass';
 
 /**
  * Decluttering filters for the view canvases.
@@ -14,21 +16,6 @@ import type { Node, Edge } from '@xyflow/react';
  *                   no longer reach from Start.
  */
 export type ReturnPathMode = 'show' | 'hide-lines' | 'hide-all';
-
-/** The order the toolbar cycles through. */
-export const RETURN_PATH_MODES: readonly ReturnPathMode[] = ['show', 'hide-lines', 'hide-all'];
-
-/** What the toolbars print for each mode. */
-export const RETURN_MODE_LABELS: Record<ReturnPathMode, string> = {
-  show: 'Returns: on',
-  'hide-lines': 'Returns: lines off',
-  'hide-all': 'Returns: hidden',
-};
-
-/** The next mode in the toolbar cycle. */
-export function nextReturnPathMode(mode: ReturnPathMode): ReturnPathMode {
-  return RETURN_PATH_MODES[(RETURN_PATH_MODES.indexOf(mode) + 1) % RETURN_PATH_MODES.length];
-}
 
 interface ReturnFlaggedEdgeData {
   isBackEdge?: boolean;
@@ -113,5 +100,86 @@ export function applyReturnPathFilter(
     keptEdges = keptEdges.filter((edge) => keptIds.has(edge.source) && keptIds.has(edge.target));
   }
 
+  return { nodes: keptNodes, edges: keptEdges };
+}
+
+/**
+ * What the Flow Display toolbar controls (CWFD-017): each relationship class
+ * shows or hides independently, and returns keep their two hidden strengths —
+ * lines off (badges and card rows stay) or gone entirely.
+ *
+ * Presentation only. Toggles never touch the store or the saved process;
+ * hidden work is still there on save.
+ */
+export interface FlowVisibility {
+  primary: boolean;
+  decisions: boolean;
+  parallel: boolean;
+  endings: boolean;
+  returns: ReturnPathMode;
+}
+
+/**
+ * Returns are OFF by default: on a 60-step process the return arcs bury the
+ * happy path, and the card rows still say where work can go back to. The
+ * user's choice wins for the rest of the session.
+ */
+export const DEFAULT_FLOW_VISIBILITY: FlowVisibility = {
+  primary: true,
+  decisions: true,
+  parallel: true,
+  endings: true,
+  returns: 'hide-lines',
+};
+
+/** Everything on — what the canvases drew before the Flow Display toolbar. */
+export const SHOW_ALL_FLOW_VISIBILITY: FlowVisibility = {
+  primary: true,
+  decisions: true,
+  parallel: true,
+  endings: true,
+  returns: 'show',
+};
+
+function isEndMarkerNode(node: Node): boolean {
+  return node.type === 'viewEnd';
+}
+
+/**
+ * Applies the Flow Display toggles: the return-path filter first (its
+ * strengths are already tested), then class filtering for the other four.
+ *
+ * Hiding decisions removes the gateway diamonds too — a diamond with no
+ * lines is noise — and hiding endings removes the end markers; edges touching
+ * a removed node go with it, which is what keeps a terminal route from
+ * floating when only one of its two classes is hidden.
+ */
+export function applyFlowVisibility(
+  nodes: Node[],
+  edges: Edge[],
+  visibility: FlowVisibility
+): { nodes: Node[]; edges: Edge[] } {
+  const afterReturns = applyReturnPathFilter(nodes, edges, visibility.returns);
+
+  const hiddenClasses = new Set<FlowClass>();
+  if (!visibility.primary) hiddenClasses.add('primary');
+  if (!visibility.decisions) hiddenClasses.add('decision');
+  if (!visibility.parallel) hiddenClasses.add('parallel');
+  if (!visibility.endings) hiddenClasses.add('ending');
+  if (hiddenClasses.size === 0) return afterReturns;
+
+  let keptEdges = afterReturns.edges.filter((edge) => !hiddenClasses.has(classifyEdge(edge)));
+
+  const removedNodeIds = new Set<string>();
+  for (const node of afterReturns.nodes) {
+    if (!visibility.decisions && node.type === 'routeGateway') removedNodeIds.add(node.id);
+    if (!visibility.endings && isEndMarkerNode(node)) removedNodeIds.add(node.id);
+  }
+  if (removedNodeIds.size === 0) return { nodes: afterReturns.nodes, edges: keptEdges };
+
+  const keptNodes = afterReturns.nodes.filter((node) => !removedNodeIds.has(node.id));
+  keptEdges = keptEdges.filter(
+    (edge) => !removedNodeIds.has(edge.source) && !removedNodeIds.has(edge.target)
+  );
   return { nodes: keptNodes, edges: keptEdges };
 }
