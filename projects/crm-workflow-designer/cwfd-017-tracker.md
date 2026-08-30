@@ -13,6 +13,23 @@ No schema changes anywhere in this programme; everything is presentation.
 | 5 | Overview view | ✅ done | New first view-mode tab: stage chips (steps/↩/∥/⊘ counts) chained START→END, real inter-stage transitions (outcomes+routes+branch links) bundled per pair, skip-hops arc by the side, faint dotted sequence connectors where no direct transition exists. Click a stage → Business canvas centered on its first step. |
 | 6 | Minimap, legend, validation info tier, perf sweep | ✅ done | info severity (ORPHAN_JOIN_GUARD downgraded — never blocks, never acked); dangling-gateway cleanup in the filter; legend + minimap entries; perf measured: every chip toggle 23–36ms on 35 steps, node positions byte-identical. **Swimlane collapse SKIPPED** per the "only if clean" clause — collapsing a lane orphans every edge crossing it, and stage-level collapse already exists via Overview drill + Hierarchy fold. |
 
+## CWFD-018 — floating step action toolbar
+
+- 2026-08-30 — **Built + live-verified** (497 tests, tsc clean, 1.77 MB build).
+  React Flow's NodeToolbar (12.10.2) above every edit-canvas step face:
+  Edit / Assignment / Clone / Delete / ⋯ (details, SLA, automation, add-after,
+  move earlier/later — earlier correctly disabled on step 1). One toolbar at a
+  time via a dedicated 3-field interaction store (hover claims it, selection
+  keeps it, 250ms grace to travel onto the bar); the step panel is steered by
+  a buffered tab bus so Assignment lands right even when the panel mounts in
+  the same click. Delete reuses the existing confirm; clone = duplicateStep
+  (undone cleanly). Verified: hover→travel→click, selected persistence, More
+  menu + Escape, zoom (unscaled, anchored), position-follow via arrow nudge,
+  View Mode shows zero toolbars. BA/Developer modes do not exist yet (#93) —
+  the gate is edit-only + selectCanvasIsReadOnly. 🔴 CDP synthesized drags
+  degraded to clicks again in this tab (the known trap) — drag-follow was
+  proven via the keyboard nudge pipeline instead.
+
 ## Log
 
 - 2026-08-30 — **MERGED + DEPLOYED + CRM-VERIFIED.** All six PRs merged to

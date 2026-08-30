@@ -14,6 +14,7 @@ import { ASSIGN_TO_LABELS, ASSIGN_TO_TYPES, emptyAssignmentFields } from '@/serv
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
 import { StepOverviewTab } from './StepOverviewTab';
+import { onStepPanelTabRequest } from './stepPanelBus';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 
 interface StepPropertiesPanelProps {
@@ -68,6 +69,10 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   // comparing the same facet across steps is the common flow.
 
   const [activeTab, setActiveTab] = useState<PanelTab>('overview');
+
+  // The floating step toolbar steers the panel onto a tab (CWFD-018) —
+  // including a request made in the same click that mounted this panel.
+  useEffect(() => onStepPanelTabRequest(setActiveTab), []);
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
 

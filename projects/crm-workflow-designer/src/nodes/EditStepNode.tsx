@@ -20,6 +20,7 @@ import {
   useQuantisedZoom,
   screenStableFontSize,
 } from '@/components/common/useDetailLevel';
+import { StepActionToolbar, useStepToolbarHover } from '@/components/edit/StepActionToolbar';
 
 export interface EditStepData extends Record<string, unknown> {
   stepId: string;
@@ -50,12 +51,19 @@ export function EditStepNode({ data }: NodeProps) {
   const detailLevel = useDetailLevel();
   const zoom = useQuantisedZoom();
   const [isHovered, setIsHovered] = useState(false);
+  // The floating action toolbar (CWFD-018): hover claims it, selection keeps
+  // it. Rendered on every face so the actions survive semantic zoom.
+  const toolbarHover = useStepToolbarHover(stepData.stepId);
+  const actionToolbar = (
+    <StepActionToolbar stepId={stepData.stepId} isSelected={isSelected} />
+  );
 
   // A pure correction loop collapses to a pill until selected — the full card
   // (with its editing affordances) comes back the moment it is picked.
   if (stepData.isCorrection && !isSelected) {
     return (
-      <div style={correctionPillStyle(false)}>
+      <div style={correctionPillStyle(false)} {...toolbarHover}>
+        {actionToolbar}
         <Handle type="target" position={Position.Left} id="in" style={editPillHandleStyle} isConnectable />
         <CorrectionPill
           sequenceNo={stepData.sequenceNo}
@@ -80,7 +88,9 @@ export function EditStepNode({ data }: NodeProps) {
       <div
         style={editCompactStyle(stepAccent(stepData.stepId), detailLevel === 'dot')}
         title={`${stepData.sequenceNo}. ${stepData.name}`}
+        {...toolbarHover}
       >
+        {actionToolbar}
         {hasError && <span style={errorCornerBadge} title="This step has a validation issue">!</span>}
         <Handle type="target" position={Position.Left} id="in" style={stepHandleStyle('var(--text-disabled)')} isConnectable />
         <span style={{ ...editCompactName, fontSize: nameSize }}>{stepData.name || 'Unnamed Step'}</span>
@@ -92,9 +102,16 @@ export function EditStepNode({ data }: NodeProps) {
   return (
     <div
       style={stepCardStyle({ isSelected, hasError: hasError && isSelected, accentColor: stepAccent(stepData.stepId) })}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        toolbarHover.onMouseEnter();
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        toolbarHover.onMouseLeave();
+      }}
     >
+      {actionToolbar}
       {hasError && !isSelected && (
         <span style={errorCornerBadge} title="This step has a validation issue">!</span>
       )}
