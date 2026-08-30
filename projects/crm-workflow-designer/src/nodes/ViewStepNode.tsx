@@ -6,12 +6,18 @@ import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import {
   CorrectionPill,
   correctionPillStyle,
+  IncomingReturnChips,
+  partitionOutcomeRows,
+  ReturnCountBadge,
+  ReturnListPopover,
+  SPOTLIGHT_ENDPOINT_RING,
   StepCardChips,
   StepCardHeader,
   StepOutcomeList,
   stepCardStyle,
   stepHandleStyle,
 } from './stepCard';
+import type { ReturnBadgeInteraction } from './stepCard';
 import { stepAccent } from '@/styles/stepAccents';
 import {
   useDetailLevel,
@@ -22,6 +28,16 @@ import {
 export function ViewStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows, layoutDir, isCorrection, returnTargetName } =
     data as unknown as ViewStepData;
+  const badge = data as unknown as ReturnBadgeInteraction;
+  const stepReturnRefs = badge.stepReturnRefs ?? [];
+  const usesBadge = badge.returnDisplay === 'badge' && !isCorrection;
+  // In badge mode the ↩ rows AND the rows that only feed a correction pill
+  // fold into the counter — they are the same relationship, said twice.
+  const refOutcomeIds = new Set(stepReturnRefs.map((ref) => ref.outcomeId));
+  const visibleRows = usesBadge
+    ? partitionOutcomeRows(outcomeRows).forwardRows.filter((row) => !refOutcomeIds.has(row.id))
+    : outcomeRows;
+  const emptySet: ReadonlySet<string> = new Set<string>();
   const detailLevel = useDetailLevel();
   const zoom = useQuantisedZoom();
   const isLR = layoutDir === 'LR';
@@ -46,7 +62,12 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   // stay so its edges keep their anchors in both faces.
   if (isCorrection && !selected) {
     return (
-      <div style={correctionPillStyle(false)}>
+      <div
+        style={{
+          ...correctionPillStyle(false),
+          ...(badge.isSpotlightEndpoint ? { boxShadow: SPOTLIGHT_ENDPOINT_RING } : null),
+        }}
+      >
         <Handle type="target" position={mainInPos} id="in" style={pillHandleStyle} />
         <Handle type="source" position={backOutPos} id="back-out" style={pillHandleStyle} />
         <Handle type="target" position={backInPos} id="back-in" style={pillHandleStyle} />
@@ -64,7 +85,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   // Semantic zoom: below reading zoom the card says less, LARGER, instead of
   // shrinking eleven-point text into confetti. Selection always restores the
   // full card.
-  if (detailLevel !== 'full' && !selected) {
+  if (detailLevel !== 'full' && !selected && !badge.isSpotlightEndpoint) {
     const nameSize = screenStableFontSize(zoom, 12, detailLevel === 'dot' ? 40 : 26);
     return (
       <div
@@ -85,7 +106,13 @@ export function ViewStepNode({ data, selected }: NodeProps) {
   }
 
   return (
-    <div style={{ ...stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) }), ...(isCorrection ? { zIndex: 10 } : null) }}>
+    <div
+      style={{
+        ...stepCardStyle({ isSelected: selected ?? false, accentColor: stepAccent(step.id) }),
+        ...(isCorrection ? { zIndex: 10 } : null),
+        ...(badge.isSpotlightEndpoint ? { boxShadow: SPOTLIGHT_ENDPOINT_RING } : null),
+      }}
+    >
       <Handle type="target" position={mainInPos} id="in" style={stepHandleStyle('var(--text-disabled)')} />
       <Handle type="source" position={backOutPos} id="back-out" style={backHandleStyle(isLR, 'out')} />
       <Handle type="target" position={backInPos} id="back-in" style={backHandleStyle(isLR, 'in')} />
@@ -107,9 +134,28 @@ export function ViewStepNode({ data, selected }: NodeProps) {
         }
       />
 
-      <StepCardChips assignLabel={assignLabel} assigneeName={assigneeName} />
+      {badge.incomingReturns && <IncomingReturnChips incoming={badge.incomingReturns} />}
 
-      <StepOutcomeList rows={outcomeRows} />
+      <StepCardChips assignLabel={assignLabel} assigneeName={assigneeName}>
+        {usesBadge && (
+          <ReturnCountBadge
+            count={stepReturnRefs.length}
+            isOpen={badge.isReturnMenuOpen ?? false}
+            onClick={() => badge.onReturnBadgeClick?.(step.id)}
+          />
+        )}
+      </StepCardChips>
+
+      <StepOutcomeList rows={visibleRows} />
+
+      {usesBadge && badge.isReturnMenuOpen && (
+        <ReturnListPopover
+          refs={stepReturnRefs}
+          pinnedOutcomeIds={badge.pinnedReturnOutcomeIds ?? emptySet}
+          onHoverRow={(outcomeId) => badge.onReturnRowHover?.(outcomeId)}
+          onClickRow={(outcomeId) => badge.onReturnRowClick?.(outcomeId)}
+        />
+      )}
 
       <Handle type="source" position={mainOutPos} id="out" style={stepHandleStyle('var(--text-secondary)')} />
     </div>

@@ -51,6 +51,8 @@ import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLa
 import { notify } from './ui/Notify';
 import type { FlowVisibility } from '../services/viewFilters';
 import { FlowDisplayBar } from './common/FlowDisplayBar';
+import { applyReturnSpotlight, collectReturnRefs, groupRefsBySource } from '../services/returnSpotlight';
+import type { ReturnRef } from '../services/returnSpotlight';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -130,6 +132,13 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   }, []);
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [flowVisibility, setFlowVisibility] = useState<FlowVisibility>(DEFAULT_FLOW_VISIBILITY);
+  // The return badge and spotlight (CWFD-017 PR2): which card's ↩ list is
+  // open, which return is being peeked (hover), and which are pinned.
+  const [openReturnMenuStepId, setOpenReturnMenuStepId] = useState<string | null>(null);
+  const [peekedReturnOutcomeId, setPeekedReturnOutcomeId] = useState<string | null>(null);
+  const [pinnedReturnOutcomeIds, setPinnedReturnOutcomeIds] = useState<ReadonlySet<string>>(
+    new Set()
+  );
   // The view canvases arrange themselves, but a reader who nudges a card
   // into place should be able to keep that — per mode and direction, since
   // each draws a different graph.
@@ -138,11 +147,56 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   const [isSavingLayout, setIsSavingLayout] = useState(false);
   const layoutKey = `${view.viewMode}:${view.layoutDir}`;
   const [isExporting, setIsExporting] = useState(false);
-  const { fitView, getNodes } = useReactFlow();
+  const { fitView, getNodes, fitBounds } = useReactFlow();
   const measuredNodeIds = useMeasuredNodeIds();
   const [pendingFit, setPendingFit] = useState(0);
 
   const resolvedLabels = useResolvedRouteLabels(view.data?.routes ?? [], adapter);
+
+  // Every return relationship in the loaded process, for the badge popovers
+  // and the spotlight's synthesised edges.
+  const returnRefs = useMemo(
+    () =>
+      view.data
+        ? collectReturnRefs(view.data.steps, view.data.outcomes)
+        : new Map<string, ReturnRef>(),
+    [view.data]
+  );
+  const returnRefsBySource = useMemo(() => groupRefsBySource(returnRefs), [returnRefs]);
+
+  const handleReturnBadgeClick = useCallback((stepId: string) => {
+    setOpenReturnMenuStepId((previous) => (previous === stepId ? null : stepId));
+    setPeekedReturnOutcomeId(null);
+  }, []);
+
+  const handleReturnRowHover = useCallback((outcomeId: string | null) => {
+    setPeekedReturnOutcomeId(outcomeId);
+  }, []);
+
+  // Clicking a return pins it — and, jump-reference style, brings BOTH ends
+  // into view, so a return crossing half the canvas is followed as a link
+  // instead of traced along a connector.
+  const handleReturnRowClick = useCallback(
+    (outcomeId: string) => {
+      const isPinning = !pinnedReturnOutcomeIds.has(outcomeId);
+      setPinnedReturnOutcomeIds((previous) => {
+        const next = new Set(previous);
+        if (next.has(outcomeId)) next.delete(outcomeId);
+        else next.add(outcomeId);
+        return next;
+      });
+      if (!isPinning) return;
+      const ref = returnRefs.get(outcomeId);
+      if (!ref) return;
+      const pair = getNodes().filter(
+        (node) => node.id === `step_${ref.sourceStepId}` || node.id === `step_${ref.targetStepId}`
+      );
+      if (pair.length === 2) {
+        fitBounds(getNodesBounds(pair), { padding: 0.35, duration: 400 });
+      }
+    },
+    [pinnedReturnOutcomeIds, returnRefs, getNodes, fitBounds]
+  );
 
   const goToItems = useMemo<GoToStepItem[]>(
     () =>
@@ -200,7 +254,17 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     setPinnedReturnSteps(new Set());
     setPeekedReturnStep(null);
     setHierarchyMode('forward');
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
+    setPinnedReturnOutcomeIds(new Set());
   }, [processId]);
+  // A different canvas draws a different graph — carrying a pinned return
+  // across would spotlight nodes that may not exist there.
+  useEffect(() => {
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
+    setPinnedReturnOutcomeIds(new Set());
+  }, [view.viewMode]);
   useEffect(() => {
     if (!processId) {
       setStoredViewLayouts({});
@@ -301,6 +365,8 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
 
   const handlePaneClick = useCallback(() => {
     view.selectElement(null);
+    setOpenReturnMenuStepId(null);
+    setPeekedReturnOutcomeId(null);
   }, [view]);
 
   const handleNodesChange = useCallback((changes: NodeChange[]) => {
@@ -336,7 +402,41 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   // Display toggles apply everywhere else.
   const visible = useMemo(() => {
     if (view.viewMode !== 'hierarchy') {
-      return applyFlowVisibility(view.nodes, view.edges, flowVisibility);
+      const filtered = applyFlowVisibility(view.nodes, view.edges, flowVisibility);
+      const interactive = view.viewMode === 'business' || view.viewMode === 'swimlane';
+      if (!interactive) return filtered;
+
+      // With return lines hidden, cards compress their ↩ rows into a badge;
+      // with returns shown, the classic rows return.
+      const returnDisplay = flowVisibility.returns !== 'show' ? 'badge' : 'rows';
+      const nodes = filtered.nodes.map((node) =>
+        node.type === 'viewStep' || node.type === 'swimStep'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                returnDisplay,
+                stepReturnRefs: returnRefsBySource.get(node.id.slice('step_'.length)) ?? [],
+                isReturnMenuOpen: node.id === `step_${openReturnMenuStepId}`,
+                pinnedReturnOutcomeIds,
+                onReturnBadgeClick: handleReturnBadgeClick,
+                onReturnRowHover: handleReturnRowHover,
+                onReturnRowClick: handleReturnRowClick,
+              },
+            }
+          : node
+      );
+
+      const activeIds = new Set(pinnedReturnOutcomeIds);
+      if (peekedReturnOutcomeId) activeIds.add(peekedReturnOutcomeId);
+      const activeRefs = [...activeIds]
+        .map((id) => returnRefs.get(id))
+        .filter((ref): ref is ReturnRef => ref !== undefined);
+      const handles =
+        view.viewMode === 'swimlane'
+          ? { sourceHandle: 'bottom', targetHandle: 'bottom-t' }
+          : { sourceHandle: 'back-out', targetHandle: 'back-in' };
+      return applyReturnSpotlight(nodes, filtered.edges, activeRefs, handles);
     }
     const filtered = applyReturnPathFilter(view.nodes, view.edges, 'show');
 
@@ -425,6 +525,14 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     view.edges,
     flowVisibility,
     view.viewMode,
+    openReturnMenuStepId,
+    peekedReturnOutcomeId,
+    pinnedReturnOutcomeIds,
+    returnRefs,
+    returnRefsBySource,
+    handleReturnBadgeClick,
+    handleReturnRowHover,
+    handleReturnRowClick,
     view.selectedId,
     collapsedSteps,
     toggleCollapsed,

@@ -3,6 +3,13 @@ import { AssignIcon, assignTypeFromLabel } from './assignIcons';
 import type { NodeProps } from '@xyflow/react';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { SwimStepData } from '../services/SwimlaneGraphBuilder';
+import {
+  IncomingReturnChips,
+  ReturnCountBadge,
+  ReturnListPopover,
+  SPOTLIGHT_ENDPOINT_RING,
+} from './stepCard';
+import type { ReturnBadgeInteraction } from './stepCard';
 
 // ─── Swimlane background band ──────────────────────────────────────────────
 
@@ -66,6 +73,10 @@ const DEFAULT_ASSIGN = { bg: 'var(--surface-alt)', text: 'var(--text-secondary)'
 
 export function SwimStepNode({ data, selected }: NodeProps) {
   const { step, outcomeRows } = data as unknown as SwimStepData;
+  const badge = data as unknown as ReturnBadgeInteraction;
+  const stepReturnRefs = badge.stepReturnRefs ?? [];
+  const usesBadge = badge.returnDisplay === 'badge';
+  const emptySet: ReadonlySet<string> = new Set<string>();
   const assignLabel = getAssignToLabel(step.assignToCode);
   const colors = ASSIGN_COLOR[assignLabel] ?? DEFAULT_ASSIGN;
   const assigneeName =
@@ -78,7 +89,12 @@ export function SwimStepNode({ data, selected }: NodeProps) {
   const backCount = outcomeRows.filter((r) => r.isBackEdge).length;
 
   return (
-    <div style={swimContainer(selected ?? false, colors.border)}>
+    <div
+      style={{
+        ...swimContainer(selected ?? false, colors.border),
+        ...(badge.isSpotlightEndpoint ? { boxShadow: SPOTLIGHT_ENDPOINT_RING } : null),
+      }}
+    >
       <Handle type="target" position={Position.Left}   id="left"   style={handle(colors.text)} />
       <Handle type="source" position={Position.Right}  id="right"  style={handle(colors.text)} />
       <Handle type="source" position={Position.Bottom} id="bottom" style={handle('var(--accent-branch)')} />
@@ -104,10 +120,33 @@ export function SwimStepNode({ data, selected }: NodeProps) {
       </div>
 
       <div style={swimFooter}>
-        {forwardCount > 0 && <span style={badge('var(--success)')}>→ {forwardCount}</span>}
-        {terminalCount > 0 && <span style={badge('var(--error)')}>⊘ {terminalCount}</span>}
-        {backCount > 0     && <span style={badge('var(--accent-branch)')}>↩ {backCount}</span>}
+        {forwardCount > 0 && <span style={countBadge('var(--success)', 'var(--success-bg)')}>→ {forwardCount}</span>}
+        {terminalCount > 0 && <span style={countBadge('var(--error)', 'var(--error-bg)')}>⊘ {terminalCount}</span>}
+        {usesBadge ? (
+          <ReturnCountBadge
+            count={stepReturnRefs.length}
+            isOpen={badge.isReturnMenuOpen ?? false}
+            onClick={() => badge.onReturnBadgeClick?.(step.id)}
+          />
+        ) : (
+          backCount > 0 && <span style={countBadge('var(--accent-branch)', 'var(--accent-branch-bg)')}>↩ {backCount}</span>
+        )}
       </div>
+
+      {badge.incomingReturns && badge.incomingReturns.length > 0 && (
+        <div style={belowCard}>
+          <IncomingReturnChips incoming={badge.incomingReturns} />
+        </div>
+      )}
+
+      {usesBadge && badge.isReturnMenuOpen && (
+        <ReturnListPopover
+          refs={stepReturnRefs}
+          pinnedOutcomeIds={badge.pinnedReturnOutcomeIds ?? emptySet}
+          onHoverRow={(outcomeId) => badge.onReturnRowHover?.(outcomeId)}
+          onClickRow={(outcomeId) => badge.onReturnRowClick?.(outcomeId)}
+        />
+      )}
     </div>
   );
 }
@@ -122,6 +161,7 @@ function handle(color: string): React.CSSProperties {
 
 function swimContainer(selected: boolean, borderColor: string): React.CSSProperties {
   return {
+    position: 'relative',
     width: 240,
     height: 80,
     background: 'var(--surface)',
@@ -157,13 +197,21 @@ function chip(bg: string, color: string, border: string): React.CSSProperties {
   };
 }
 
-function badge(color: string): React.CSSProperties {
+function countBadge(color: string, background: string): React.CSSProperties {
   return {
     fontSize: 9, fontWeight: 700, color,
-    background: `${color}14`, border: `1px solid ${color}33`,
+    background, border: `1px solid ${color}`,
     borderRadius: 4, padding: '1px 5px',
   };
 }
+
+// The popover and the "↩ from …" chips hang below the fixed-height card.
+const belowCard: React.CSSProperties = {
+  position: 'absolute',
+  top: '100%',
+  left: 8,
+  right: 8,
+};
 
 const swimHeader: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 5 };
 const swimName: React.CSSProperties = {
