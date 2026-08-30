@@ -52,7 +52,7 @@ import { edgeTypes } from '../edges/edgeTypes';
 import type { GoToStepItem } from './common/GoToStepPanel';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
-import { applyFlowVisibility, applyReturnPathFilter, DEFAULT_FLOW_VISIBILITY } from '../services/viewFilters';
+import { applyFlowVisibility, DEFAULT_FLOW_VISIBILITY } from '../services/viewFilters';
 import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLayout';
 import { notify } from './ui/Notify';
 import type { FlowVisibility } from '../services/viewFilters';
@@ -492,7 +492,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
           : { sourceHandle: 'back-out', targetHandle: 'back-in' };
       return applyReturnSpotlight(nodes, filtered.edges, activeRefs, handles);
     }
-    const filtered = applyReturnPathFilter(view.nodes, view.edges, 'show');
+    const filtered = { nodes: view.nodes, edges: view.edges };
 
     const selectedStepId = view.selectedId?.startsWith('step_')
       ? view.selectedId.slice('step_'.length)

@@ -158,7 +158,9 @@ describe('ValidationService — concurrency defects and their severity', () => {
     const fixture = plainProcess();
     fixture.outcomes['o1'].checkParallelTasks = true;
     const violation = service.validate(fixture).find((v) => v.code === 'ORPHAN_JOIN_GUARD');
-    expect(violation?.severity).toBe('warning');
+    // Downgraded from warning (CWFD-017 PR6): the engine is indifferent to an
+    // orphan guard, so it is a hygiene note, not something to acknowledge.
+    expect(violation?.severity).toBe('info');
   });
 
   it('should_block_publish_for_a_branch_with_no_condition_set', () => {

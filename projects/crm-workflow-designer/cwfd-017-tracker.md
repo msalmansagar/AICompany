@@ -11,9 +11,23 @@ No schema changes anywhere in this programme; everything is presentation.
 | 3 | Focus Mode + step details panel | ✅ done | Focus toggle on the edit toolbar (selection-driven fade, hidden return edges restored for the selection); Overview tab (default) on the step panel: counters + incoming/outgoing links + owner + SLA; hover leans on incident edges. Card counters skipped — edit cards already carry rows/badges. |
 | 4 | Layout + parallel polish | ✅ done | parallelGroups.ts scenery bands wrap branch children (position-derived, intrusion-guarded — no band beats a wrong band); Parallel chip hides band with the links; edit layout now RANKS branch links so children cluster beside their parent. |
 | 5 | Overview view | ✅ done | New first view-mode tab: stage chips (steps/↩/∥/⊘ counts) chained START→END, real inter-stage transitions (outcomes+routes+branch links) bundled per pair, skip-hops arc by the side, faint dotted sequence connectors where no direct transition exists. Click a stage → Business canvas centered on its first step. |
-| 6 | Minimap, legend, validation info tier, perf sweep | — | Plus swimlane collapse if it proves clean. |
+| 6 | Minimap, legend, validation info tier, perf sweep | ✅ done | info severity (ORPHAN_JOIN_GUARD downgraded — never blocks, never acked); dangling-gateway cleanup in the filter; legend + minimap entries; perf measured: every chip toggle 23–36ms on 35 steps, node positions byte-identical. **Swimlane collapse SKIPPED** per the "only if clean" clause — collapsing a lane orphans every edge crossing it, and stage-level collapse already exists via Overview drill + Hierarchy fold. |
 
 ## Log
+
+- 2026-08-30 — **PR 6 done — PROGRAMME COMPLETE.** 493 tests green, tsc clean.
+  Validation gained the info tier (error blocks / warning acks / info notes —
+  ORPHAN_JOIN_GUARD downgraded: the engine is indifferent to an orphan guard);
+  the filter now removes a gateway left dangling when its every route hides
+  (entry line and all); the hierarchy branch's dead identity call is gone;
+  legend gained Ending + the ↩ badge; minimap gained stageBand (its bands were
+  falling through to the disabled grey). Perf verified live on 35 steps:
+  all four class toggles render in 23–36ms round-trip and node positions are
+  byte-identical across all eight toggles — visibility is pure presentation,
+  no re-layout, empirically. Swimlane collapse skipped deliberately (the
+  requirement's own escape hatch): collapsing a lane orphans every edge that
+  crosses it, and stage-level folding already exists (Overview drill,
+  Hierarchy collapse).
 
 - 2026-08-30 — **PR 5 done.** 492 tests green, tsc clean. Overview live on the
   Loan process: 13 stages derived from the real config (the role ping-pong is

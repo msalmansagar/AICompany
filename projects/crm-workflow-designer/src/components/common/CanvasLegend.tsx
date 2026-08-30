@@ -16,6 +16,7 @@ const ENTRIES: LegendEntry[] = [
   { color: 'var(--primary)', label: 'Conditional' },
   { color: 'var(--warning)', label: 'Back / return', dashed: true },
   { color: 'var(--accent-branch)', label: 'Runs alongside', dashed: true },
+  { color: 'var(--error)', label: 'Ending', dashed: true },
 ];
 
 export function CanvasLegend() {
@@ -34,6 +35,11 @@ export function CanvasLegend() {
           {entry.label}
         </span>
       ))}
+      <span style={dividerStyle} aria-hidden="true" />
+      <span style={itemStyle} title="How many return paths leave a step — click the badge to see them">
+        <span style={badgeSwatch}>↩ n</span>
+        Returns badge
+      </span>
       <span style={dividerStyle} aria-hidden="true" />
       {ASSIGN_ICON_ORDER.map((type) => (
         <span key={type} style={itemStyle}>
@@ -58,6 +64,16 @@ const panelStyle: React.CSSProperties = {
   borderRadius: 6,
   fontSize: 10,
   color: 'var(--text-secondary)',
+};
+
+const badgeSwatch: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  color: 'var(--accent-branch)',
+  border: '1px solid var(--accent-branch)',
+  borderRadius: 4,
+  padding: '0 4px',
+  lineHeight: '13px',
 };
 
 const dividerStyle: React.CSSProperties = {
