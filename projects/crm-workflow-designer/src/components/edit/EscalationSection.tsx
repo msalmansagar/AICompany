@@ -1,8 +1,9 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { EscalationFields, EscalationConfigOption } from '@/types/WorkflowTypes';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { escalationSummaryText } from '@/services/escalationFields';
 import { logError } from '@/services/logError';
+import { LookupField } from '@/components/common/LookupDialog';
 
 // CWFD-005 — escalation, expressed the way the platform engine expresses it.
 //
@@ -20,7 +21,6 @@ interface EscalationSectionProps {
 }
 
 export function EscalationSection({ value, onChange, adapter, disabled }: EscalationSectionProps) {
-  const sectionId = useId();
   const [expanded, setExpanded] = useState(false);
   const [configs, setConfigs] = useState<EscalationConfigOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -54,25 +54,25 @@ export function EscalationSection({ value, onChange, adapter, disabled }: Escala
       {expanded && (
         <div className="section-body">
           <div style={fieldStyle}>
-            <label className="lbl" htmlFor={`${sectionId}-config`}>Escalation policy</label>
-            <select
-              id={`${sectionId}-config`}
-              className="fluent-select"
+            <LookupField
+              label="Escalation policy"
+              placeholder="— Does not escalate —"
+              dialogTitle="Choose an escalation policy"
+              clearLabel="— Does not escalate —"
               disabled={disabled}
-              value={value.escalationConfigId ?? ''}
-              onChange={(event) => {
-                const id = event.target.value || null;
-                const chosen = configs.find((config) => config.id === id);
-                onChange({ escalationConfigId: id, escalationConfigName: chosen?.name ?? null });
-              }}
-            >
-              <option value="">— Does not escalate —</option>
-              {configs.map((config) => (
-                <option key={config.id} value={config.id}>
-                  {config.name}{config.summary ? ` · ${config.summary}` : ''}
-                </option>
-              ))}
-            </select>
+              options={configs.map((config) => ({
+                id: config.id,
+                name: config.name,
+                hint: config.summary ?? undefined,
+              }))}
+              value={value.escalationConfigId}
+              onChange={(id, name) =>
+                onChange({
+                  escalationConfigId: id || null,
+                  escalationConfigName: id ? name : null,
+                })
+              }
+            />
             <span className="hint-inline">
               The deadline, its unit and the escalation levels live on the policy, so every
               step using it escalates the same way.
