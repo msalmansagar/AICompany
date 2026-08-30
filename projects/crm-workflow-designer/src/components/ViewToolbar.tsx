@@ -2,6 +2,7 @@ import type { ViewMode } from '../types/ViewMode';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import { ToolbarButton, ToolbarOverflow } from './common/ToolbarButton';
+import { useMinWidth } from './common/useMinWidth';
 
 interface ViewToolbarProps {
   processName: string | null;
@@ -56,6 +57,10 @@ export function ViewToolbar({
   onEditProcess,
   onOpenSummary,
 }: ViewToolbarProps) {
+  // Wide screens carry the words beside the icons; narrow ones fall back to
+  // icon-only with export folded into the overflow, so the bar never scrolls
+  // sideways (agentation feedback, CWFD-018).
+  const isWide = useMinWidth(1280);
   return (
     <>
       {/* Navigation lives in the sitemap, so this bar carries only what acts on
@@ -70,22 +75,26 @@ export function ViewToolbar({
         )}
         <span className="cmd-sep" />
 
-        {/* Canvas controls shrink to their glyph — the label lives in the tooltip. */}
-        <ToolbarButton icon="refresh" label="Reload from CRM" iconOnly disabled={isLoading} onClick={onRefresh} />
-        <ToolbarButton icon="fit" label="Fit diagram to screen" iconOnly onClick={onFitView} />
-        <ToolbarButton icon="layout" label="Re-apply layout and reset positions" iconOnly onClick={onAutoLayout} />
+        {/* Canvas controls: words beside the glyphs where the width allows,
+            glyph-only where it does not — the long form always lives in the
+            tooltip either way. */}
+        <ToolbarButton icon="refresh" label="Reload" title="Reload from CRM" iconOnly={!isWide} disabled={isLoading} onClick={onRefresh} />
+        <ToolbarButton icon="fit" label="Fit" title="Fit diagram to screen" iconOnly={!isWide} onClick={onFitView} />
+        <ToolbarButton icon="layout" label="Arrange" title="Re-apply layout and reset positions" iconOnly={!isWide} onClick={onAutoLayout} />
         <span className="cmd-sep" />
         <ToolbarButton
           icon="minimap"
-          label={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
-          iconOnly
+          label="Minimap"
+          title={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+          iconOnly={!isWide}
           active={showMiniMap}
           onClick={onToggleMiniMap}
         />
         <ToolbarButton
           icon="labels"
-          label={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
-          iconOnly
+          label="Labels"
+          title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+          iconOnly={!isWide}
           active={!showEdgeLabels}
           onClick={onToggleEdgeLabels}
         />
@@ -99,13 +108,34 @@ export function ViewToolbar({
             onClick={onSaveLayout}
           />
         )}
-        <ToolbarOverflow
-          label="Export"
-          items={[
-            { icon: 'png', label: isExporting ? 'Exporting…' : 'Download as PNG', onClick: onDownloadPng, disabled: isExporting },
-            { icon: 'pdf', label: isExporting ? 'Exporting…' : 'Download as PDF', onClick: onDownloadPdf, disabled: isExporting },
-          ]}
-        />
+        {/* Export: two labelled buttons where they fit, one overflow where
+            they do not (this is what "appears based on screen size"). */}
+        {isWide ? (
+          <>
+            <ToolbarButton
+              icon="png"
+              label={isExporting ? 'Exporting…' : 'PNG'}
+              title="Download the diagram as a PNG image"
+              disabled={isExporting}
+              onClick={onDownloadPng}
+            />
+            <ToolbarButton
+              icon="pdf"
+              label={isExporting ? 'Exporting…' : 'PDF'}
+              title="Download the diagram as a PDF"
+              disabled={isExporting}
+              onClick={onDownloadPdf}
+            />
+          </>
+        ) : (
+          <ToolbarOverflow
+            label="Export"
+            items={[
+              { icon: 'png', label: isExporting ? 'Exporting…' : 'Download as PNG', onClick: onDownloadPng, disabled: isExporting },
+              { icon: 'pdf', label: isExporting ? 'Exporting…' : 'Download as PDF', onClick: onDownloadPdf, disabled: isExporting },
+            ]}
+          />
+        )}
         <span className="cmd-spacer" />
         {isLoading && <span className="pill info">Loading…</span>}
         {!isLoading && processName && (
