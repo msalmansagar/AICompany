@@ -4,6 +4,7 @@ import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir, StepOutcomeRow } from './WorkflowGraphBuilder';
 import { conditionLabel } from './WorkflowGraphBuilder';
+import { routeLabelPair } from '../styles/surfacePairs';
 
 // Card height, inherited from the technical canvas this view replaced.
 const TECH_BASE_H = 90;
@@ -311,8 +312,10 @@ function buildEdges(
           type: 'default',
           animated: !isFallback,
           label,
-          labelStyle: { fontSize: 9, fontWeight: 600, fill: isFallback ? 'var(--success)' : 'var(--warning)' },
-          labelBgStyle: { fill: isFallback ? 'var(--success)' : 'var(--warning)', fillOpacity: 1 },
+          // success-on-success / warning-on-warning was the invisible-label
+          // pairing again; the registered route pairs sit text on neutral.
+          labelStyle: { fontSize: 9, fontWeight: 600, fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').foreground },
+          labelBgStyle: { fill: routeLabelPair(isFallback ? 'fallback' : 'conditional').background, fillOpacity: 1 },
           style: { stroke, strokeWidth: 1.5, strokeDasharray: isFallback ? '4 4' : undefined },
           markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
           selectable: false,

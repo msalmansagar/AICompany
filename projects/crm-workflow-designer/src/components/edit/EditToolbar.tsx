@@ -1,5 +1,3 @@
-import type { ReturnPathMode } from '@/services/viewFilters';
-import { RETURN_MODE_LABELS } from '@/services/viewFilters';
 import { ToolbarButton, ToolbarOverflow } from '@/components/common/ToolbarButton';
 
 interface EditToolbarProps {
@@ -21,12 +19,10 @@ interface EditToolbarProps {
   validationErrorCount: number;
   showMiniMap: boolean;
   showEdgeLabels: boolean;
-  returnPathMode: ReturnPathMode;
   onAddStep: () => void;
   onReLayout: () => void;
   onToggleMiniMap: () => void;
   onToggleEdgeLabels: () => void;
-  onCycleReturnPaths: () => void;
   onSave: () => void;
   onPublish: () => void;
   onDiscard: () => void;
@@ -61,12 +57,10 @@ export function EditToolbar({
   validationErrorCount,
   showMiniMap,
   showEdgeLabels,
-  returnPathMode,
   onAddStep,
   onReLayout,
   onToggleMiniMap,
   onToggleEdgeLabels,
-  onCycleReturnPaths,
   onSave,
   onPublish,
   onDiscard,
@@ -125,14 +119,6 @@ export function EditToolbar({
             iconOnly
             active={!showEdgeLabels}
             onClick={onToggleEdgeLabels}
-          />
-          <ToolbarButton
-            icon="returns"
-            label={RETURN_MODE_LABELS[returnPathMode]}
-            title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
-            iconOnly={returnPathMode === 'show'}
-            active={returnPathMode !== 'show'}
-            onClick={onCycleReturnPaths}
           />
           <span className="cmd-sep" />
 

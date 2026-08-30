@@ -36,8 +36,9 @@ import { confirm } from '../ui/ConfirmDialog';
 import { notify } from '../ui/Notify';
 import { useDemoPlayback } from '@/hooks/useDemoPlayback';
 import { DemoHUD } from './DemoHUD';
-import { applyReturnPathFilter, nextReturnPathMode } from '@/services/viewFilters';
-import type { ReturnPathMode } from '@/services/viewFilters';
+import { applyFlowVisibility, DEFAULT_FLOW_VISIBILITY } from '@/services/viewFilters';
+import type { FlowVisibility } from '@/services/viewFilters';
+import { FlowDisplayBar } from '../common/FlowDisplayBar';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
 import { SmartInitialView, LARGE_GRAPH_THRESHOLD } from '../common/SmartInitialView';
 import { GoToStepPanel } from '../common/GoToStepPanel';
@@ -167,7 +168,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   const [miniMapPreference, setMiniMapPreference] = useState<boolean | null>(null);
   const showMiniMap = miniMapPreference ?? stepOrder.length > LARGE_GRAPH_THRESHOLD;
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
-  const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
+  const [flowVisibility, setFlowVisibility] = useState<FlowVisibility>(DEFAULT_FLOW_VISIBILITY);
 
   // Live, debounced validation — keeps node error badges and the toolbar count
   // current as the workflow is edited, without waiting for the Validate button.
@@ -315,8 +316,8 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   // The same declutter filters the view toolbar has. Filtering the rendered
   // arrays leaves the store untouched — hidden work is still there on save.
   const visibleEdit = useMemo(
-    () => applyReturnPathFilter(editMode.nodes, editMode.edges, returnPathMode),
-    [editMode.nodes, editMode.edges, returnPathMode]
+    () => applyFlowVisibility(editMode.nodes, editMode.edges, flowVisibility),
+    [editMode.nodes, editMode.edges, flowVisibility]
   );
 
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
@@ -344,12 +345,10 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         validationErrorCount={validationErrorCount}
         showMiniMap={showMiniMap}
         showEdgeLabels={showEdgeLabels}
-        returnPathMode={returnPathMode}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
         onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
         onToggleEdgeLabels={() => setShowEdgeLabels((isOn) => !isOn)}
-        onCycleReturnPaths={() => setReturnPathMode(nextReturnPathMode)}
         onSave={() => void save()}
         onPublish={() => void publish()}
         onDiscard={handleDiscard}
@@ -440,6 +439,7 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
               <SmartInitialView dir="LR" />
               <GoToStepPanel items={goToItems} onPick={selectNode} />
               <CanvasLegend />
+              <FlowDisplayBar visibility={flowVisibility} onChange={setFlowVisibility} />
               {showMiniMap && (
                 <MiniMap
                   nodeColor={minimapNodeColor}

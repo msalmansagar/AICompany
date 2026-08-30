@@ -46,10 +46,11 @@ import { edgeTypes } from '../edges/edgeTypes';
 import type { GoToStepItem } from './common/GoToStepPanel';
 import type { ViewStepData } from '../services/WorkflowGraphBuilder';
 import { CanvasLegend } from './common/CanvasLegend';
-import { applyReturnPathFilter, nextReturnPathMode } from '../services/viewFilters';
+import { applyFlowVisibility, applyReturnPathFilter, DEFAULT_FLOW_VISIBILITY } from '../services/viewFilters';
 import { parseDesignerLayout, mergeDesignerLayout } from '../services/designerLayout';
 import { notify } from './ui/Notify';
-import type { ReturnPathMode } from '../services/viewFilters';
+import type { FlowVisibility } from '../services/viewFilters';
+import { FlowDisplayBar } from './common/FlowDisplayBar';
 
 interface WorkflowCanvasProps {
   view: WorkflowView;
@@ -128,7 +129,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     });
   }, []);
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
-  const [returnPathMode, setReturnPathMode] = useState<ReturnPathMode>('show');
+  const [flowVisibility, setFlowVisibility] = useState<FlowVisibility>(DEFAULT_FLOW_VISIBILITY);
   // The view canvases arrange themselves, but a reader who nudges a card
   // into place should be able to keep that — per mode and direction, since
   // each draws a different graph.
@@ -330,14 +331,14 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     }
   }, [processId, adapter, view.nodes, storedViewLayouts, layoutKey]);
 
-  const handleCycleReturnPaths = useCallback(() => {
-    setReturnPathMode(nextReturnPathMode);
-  }, []);
-
-  // What the canvas actually draws, after the declutter filters.
+  // What the canvas actually draws, after the declutter filters. Hierarchy
+  // governs its own returns (badges, pins, its mode panel), so the Flow
+  // Display toggles apply everywhere else.
   const visible = useMemo(() => {
-    const filtered = applyReturnPathFilter(view.nodes, view.edges, returnPathMode);
-    if (view.viewMode !== 'hierarchy') return filtered;
+    if (view.viewMode !== 'hierarchy') {
+      return applyFlowVisibility(view.nodes, view.edges, flowVisibility);
+    }
+    const filtered = applyReturnPathFilter(view.nodes, view.edges, 'show');
 
     const selectedStepId = view.selectedId?.startsWith('step_')
       ? view.selectedId.slice('step_'.length)
@@ -422,7 +423,7 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
   }, [
     view.nodes,
     view.edges,
-    returnPathMode,
+    flowVisibility,
     view.viewMode,
     view.selectedId,
     collapsedSteps,
@@ -498,7 +499,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
         showEdgeLabels={showEdgeLabels}
         isLayoutDirty={isLayoutDirty}
         isSavingLayout={isSavingLayout}
-        returnPathMode={returnPathMode}
         viewMode={view.viewMode}
         layoutDir={view.layoutDir}
         onRefresh={() => void view.refresh()}
@@ -507,7 +507,6 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
         onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
         onToggleEdgeLabels={() => setShowEdgeLabels((v) => !v)}
         onSaveLayout={() => void handleSaveLayout()}
-        onCycleReturnPaths={handleCycleReturnPaths}
         onDownloadPng={() => void handleDownloadPng()}
         onDownloadPdf={() => void handleDownloadPdf()}
         onViewModeChange={view.setViewMode}
@@ -550,6 +549,9 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--canvas-grid)" />
             {view.viewMode !== 'hierarchy' && <Controls showInteractive={false} />}
             {view.viewMode !== 'hierarchy' && <CanvasLegend />}
+            {view.viewMode !== 'hierarchy' && (
+              <FlowDisplayBar visibility={flowVisibility} onChange={setFlowVisibility} />
+            )}
             {view.viewMode !== 'hierarchy' && (
               <GoToStepPanel items={goToItems} onPick={(nodeId) => view.selectElement(nodeId)} />
             )}

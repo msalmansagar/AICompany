@@ -1,6 +1,4 @@
 import type { ViewMode } from '../types/ViewMode';
-import type { ReturnPathMode } from '../services/viewFilters';
-import { RETURN_MODE_LABELS } from '../services/viewFilters';
 import { VIEW_MODES } from '../types/ViewMode';
 import type { LayoutDir } from '../services/WorkflowGraphBuilder';
 import { ToolbarButton, ToolbarOverflow } from './common/ToolbarButton';
@@ -16,7 +14,6 @@ interface ViewToolbarProps {
   /** True once a node has been dragged and the arrangement is unsaved. */
   isLayoutDirty: boolean;
   isSavingLayout: boolean;
-  returnPathMode: ReturnPathMode;
   viewMode: ViewMode;
   layoutDir: LayoutDir;
   onRefresh(): void;
@@ -25,7 +22,6 @@ interface ViewToolbarProps {
   onToggleMiniMap(): void;
   onToggleEdgeLabels(): void;
   onSaveLayout(): void;
-  onCycleReturnPaths(): void;
   onDownloadPng(): void;
   onDownloadPdf(): void;
   onViewModeChange(mode: ViewMode): void;
@@ -44,7 +40,6 @@ export function ViewToolbar({
   showEdgeLabels,
   isLayoutDirty,
   isSavingLayout,
-  returnPathMode,
   viewMode,
   layoutDir,
   onRefresh,
@@ -53,7 +48,6 @@ export function ViewToolbar({
   onToggleMiniMap,
   onToggleEdgeLabels,
   onSaveLayout,
-  onCycleReturnPaths,
   onDownloadPng,
   onDownloadPdf,
   onViewModeChange,
@@ -94,14 +88,6 @@ export function ViewToolbar({
           iconOnly
           active={!showEdgeLabels}
           onClick={onToggleEdgeLabels}
-        />
-        <ToolbarButton
-          icon="returns"
-          label={RETURN_MODE_LABELS[returnPathMode]}
-          title="Cycle return-path visibility: show everything → hide the return lines → hide the return nodes too"
-          iconOnly={returnPathMode === 'show'}
-          active={returnPathMode !== 'show'}
-          onClick={onCycleReturnPaths}
         />
         {isLayoutDirty && (
           <ToolbarButton
