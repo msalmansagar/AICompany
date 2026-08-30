@@ -1,4 +1,5 @@
 import { ToolbarButton, ToolbarOverflow } from '@/components/common/ToolbarButton';
+import { useMinWidth } from '@/components/common/useMinWidth';
 
 interface EditToolbarProps {
   processName: string;
@@ -83,6 +84,11 @@ export function EditToolbar({
   onSimReset,
 }: EditToolbarProps) {
   const displayName = isDirty ? `${processName} *` : processName;
+  // Same responsive rule as the view toolbar (agentation feedback,
+  // CWFD-018): words beside the glyphs where the width allows, glyph-only
+  // below 1280px so the bar never scrolls sideways again (#129). The
+  // occasional commands stay in the overflow at every width.
+  const isWide = useMinWidth(1280);
 
   return (
     <div className="cmdbar" role="toolbar" aria-label="Workflow editor">
@@ -102,33 +108,35 @@ export function EditToolbar({
       ) : (
         <>
           {/* Editing: the two commands a maker reaches for constantly. */}
-          <ToolbarButton icon="undo" label="Undo last change" iconOnly disabled={!canUndo} onClick={onUndo} />
-          <ToolbarButton icon="redo" label="Redo last undone change" iconOnly disabled={!canRedo} onClick={onRedo} />
+          <ToolbarButton icon="undo" label="Undo" title="Undo last change" iconOnly={!isWide} disabled={!canUndo} onClick={onUndo} />
+          <ToolbarButton icon="redo" label="Redo" title="Redo last undone change" iconOnly={!isWide} disabled={!canRedo} onClick={onRedo} />
           <span className="cmd-sep" />
           <ToolbarButton icon="addStep" label="Add step" title="Add a new step to this workflow" onClick={onAddStep} />
-          <ToolbarButton icon="layout" label="Auto-arrange all steps" iconOnly onClick={onReLayout} />
+          <ToolbarButton icon="layout" label="Arrange" title="Auto-arrange all steps" iconOnly={!isWide} onClick={onReLayout} />
 
-          {/* Canvas toggles: glyph only — three labelled toggles were what
-              pushed this bar into a sideways scroll. */}
+          {/* Canvas toggles: labelled where the width allows, glyph-only
+              where labels would push the bar into a sideways scroll. */}
           <ToolbarButton
             icon="minimap"
-            label={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
-            iconOnly
+            label="Minimap"
+            title={showMiniMap ? 'Hide the minimap' : 'Show the minimap'}
+            iconOnly={!isWide}
             active={showMiniMap}
             onClick={onToggleMiniMap}
           />
           <ToolbarButton
             icon="labels"
-            label={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
-            iconOnly
+            label="Labels"
+            title={showEdgeLabels ? 'Hide the labels on edges' : 'Show the labels on edges'}
+            iconOnly={!isWide}
             active={!showEdgeLabels}
             onClick={onToggleEdgeLabels}
           />
           <ToolbarButton
             icon="focus"
-            label={isFocusMode ? 'Exit Focus Mode' : 'Focus Mode'}
+            label={isFocusMode ? 'Exit Focus' : 'Focus'}
             title="Focus Mode: fade everything except the selected step and its relationships"
-            iconOnly={!isFocusMode}
+            iconOnly={!isWide && !isFocusMode}
             active={isFocusMode}
             onClick={onToggleFocusMode}
           />
