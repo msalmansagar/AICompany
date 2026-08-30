@@ -1,4 +1,5 @@
 import { MarkerType } from '@xyflow/react';
+import { BRANCH_EDGE_LABEL } from '../styles/surfacePairs';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
@@ -196,11 +197,13 @@ export function buildSwimlaneGraph(
     .map((o) => ({
       id: `e_back_${o.id}`,
       source: `step_${o.stepId}`, target: `step_${o.nextStepId!}`,
-      sourceHandle: 'bottom', targetHandle: 'bottom',
+      sourceHandle: 'bottom', targetHandle: 'bottom-t',
       type: 'default',
       label: `↩ ${truncate(o.name, 16)}`,
-      labelStyle: { fontSize: 10, fill: 'var(--accent-branch)', fontWeight: 600 },
-      labelBgStyle: { fill: 'var(--accent-branch)', fillOpacity: 0.95, rx: 4 },
+      // Text and fill were both the accent — an invisible label, the same
+      // pairing the contrast guard protects BRANCH_EDGE_LABEL against.
+      labelStyle: { fontSize: 10, fill: BRANCH_EDGE_LABEL.foreground, fontWeight: 600 },
+      labelBgStyle: { fill: BRANCH_EDGE_LABEL.background, fillOpacity: 1, rx: 4 },
       style: { stroke: 'var(--accent-branch)', strokeWidth: 1.5, strokeDasharray: '6 3' },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
       selectable: true,
