@@ -5,7 +5,7 @@ import { useWorkflowStore } from '@/store/workflowStore';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { AssignToType, TeamOption, UserOption, WorkflowOutcome } from '@/types/WorkflowTypes';
 import { SearchableDropdown } from '@/components/common/SearchableDropdown';
-import { confirm } from '@/components/ui/ConfirmDialog';
+import { LookupField } from '@/components/common/LookupDialog';
 import { EscalationSection } from './EscalationSection';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { BranchSection } from './BranchSection';
@@ -32,12 +32,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     outcomeOrder,
     setStep,
     addOutcome,
-    deleteStep,
-    duplicateStep,
     moveStepUp,
     moveStepDown,
     selectNode,
-    clearSelection,
   } = useWorkflowStore((s) => ({
     steps: s.steps,
     stepOrder: s.stepOrder,
@@ -45,12 +42,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     outcomeOrder: s.outcomeOrder,
     setStep: s.setStep,
     addOutcome: s.addOutcome,
-    deleteStep: s.deleteStep,
-    duplicateStep: s.duplicateStep,
     moveStepUp: s.moveStepUp,
     moveStepDown: s.moveStepDown,
     selectNode: s.selectNode,
-    clearSelection: s.clearSelection,
   }));
 
   const step = stepId ? steps[stepId] : null;
@@ -182,18 +176,6 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     setAddingDecision(false);
     setNewDecisionName('');
     setNewDecisionTarget('__end__');
-  };
-
-  const handleDeleteStep = () => {
-    void confirm({
-      title: 'Delete step',
-      message: 'Delete this step? All connected decisions will also be deleted.',
-      tone: 'danger',
-    }).then((confirmed) => {
-      if (!confirmed) return;
-      deleteStep(step.crmId);
-      clearSelection();
-    });
   };
 
   return (
@@ -357,6 +339,9 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               onClick={() => selectNode(`outcome_${o.crmId}`)}
               title="Click to edit"
             >
+              <span style={decisionAvatarStyle(stepAccent(o.crmId))} aria-hidden>
+                {initialsOf(o.name)}
+              </span>
               <div style={decisionInfoStyle}>
                 <span style={decisionNameStyle}>{o.name || '(unnamed)'}</span>
                 <span style={decisionTargetStyle}>
@@ -381,19 +366,19 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
               className="fluent-input"
               autoFocus
             />
-            <label className="lbl">Goes to</label>
-            <select
-              value={newDecisionTarget}
-              onChange={(e) => setNewDecisionTarget(e.target.value)}
-              className="fluent-select"
-            >
-              <option value="__end__">— End —</option>
-              {otherSteps.map((s) => (
-                <option key={s!.crmId} value={s!.crmId}>
-                  {s!.sequenceNo}. {s!.name}
-                </option>
-              ))}
-            </select>
+            <LookupField
+              label="Goes to"
+              placeholder="— End —"
+              dialogTitle="Where does this decision go?"
+              clearLabel="— End — (the process finishes here)"
+              options={otherSteps.map((s) => ({
+                id: s!.crmId,
+                name: s!.name,
+                hint: `Step ${s!.sequenceNo}`,
+              }))}
+              value={newDecisionTarget === '__end__' ? null : newDecisionTarget}
+              onChange={(id) => setNewDecisionTarget(id || '__end__')}
+            />
             <div style={addFormActionsStyle}>
               <button type="button" className="btn sm primary" style={{ flex: 1 }} onClick={handleAddDecision}>
                 Add
@@ -447,20 +432,6 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
           />
         )}
 
-        <div style={dividerStyle} />
-
-        <button
-          type="button"
-          className="btn sm block"
-          onClick={() => duplicateStep(step.crmId)}
-          title="Clone this step with its assignment, SLA, automation, decisions and routes"
-        >
-          Duplicate Step
-        </button>
-
-        <button type="button" className="btn sm block danger" onClick={handleDeleteStep}>
-          Delete Step
-        </button>
       </div>
 
       {showBranchFilterBuilder && (
@@ -493,15 +464,42 @@ const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
 
 const tabRowStyle: React.CSSProperties = {
   display: 'flex',
-  gap: 2,
-  padding: '0 8px',
+  gap: 0,
+  padding: '0 4px',
   borderBottom: '1px solid var(--border)',
   flexShrink: 0,
 };
 
+/** First letter of the first and last words — "Assign To EPD PM" → "AP". */
+function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '·';
+  const first = words[0][0] ?? '';
+  const last = words.length > 1 ? (words[words.length - 1][0] ?? '') : (words[0][1] ?? '');
+  return (first + last).toUpperCase();
+}
+
+function decisionAvatarStyle(accent: string): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: '50%',
+    flexShrink: 0,
+    fontSize: 9.5,
+    fontWeight: 700,
+    color: accent,
+    background: `color-mix(in srgb, ${accent} 16%, var(--surface))`,
+    border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`,
+  };
+}
+
 const tabBtnStyle: React.CSSProperties = {
-  fontSize: 11,
-  padding: '7px 8px',
+  fontSize: 10.5,
+  padding: '7px 5px',
+  whiteSpace: 'nowrap',
 };
 
 const ASSIGN_TO_OPTIONS: Array<{ value: AssignToType; label: string }> = ASSIGN_TO_TYPES.map(
