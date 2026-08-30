@@ -43,7 +43,8 @@ function isStructural(node: Node): boolean {
     type.includes('start') ||
     type.includes('end') ||
     type.includes('swimlane') ||
-    type.includes('stageband')
+    type.includes('stageband') ||
+    type.includes('parallelgroup')
   );
 }
 
@@ -174,6 +175,7 @@ export function applyFlowVisibility(
   for (const node of afterReturns.nodes) {
     if (!visibility.decisions && node.type === 'routeGateway') removedNodeIds.add(node.id);
     if (!visibility.endings && isEndMarkerNode(node)) removedNodeIds.add(node.id);
+    if (!visibility.parallel && node.type === 'parallelGroup') removedNodeIds.add(node.id);
   }
   if (removedNodeIds.size === 0) return { nodes: afterReturns.nodes, edges: keptEdges };
 

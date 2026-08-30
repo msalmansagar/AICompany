@@ -20,6 +20,8 @@ import type { EditStepData } from '@/nodes/EditStepNode';
 import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
 import { computeStepHeight } from '@/services/WorkflowGraphBuilder';
 import { computeEditLayout } from '@/services/EditGraphLayout';
+import { buildParallelGroupNodes } from '@/services/parallelGroups';
+import { CORRECTION_PILL_H, CORRECTION_PILL_W } from '@/services/correctionSteps';
 import { classifyCorrectionSteps } from '@/services/correctionSteps';
 import { collectErrorNodeIds } from '@/services/ValidationService';
 import { useSyncedNodes } from '@/hooks/useSyncedNodes';
@@ -217,7 +219,35 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       });
     }
 
-    return [startNode, ...stepNodes, ...stubNodes, endNode];
+    // Parallel group bands wrap the branch children, tracking every drag —
+    // the blueprint rebuilds on each position change anyway (CWFD-017 PR4).
+    const cardById = new Map(stepNodes.map((node) => [node.id, node]));
+    const parallelGroups = buildParallelGroupNodes(
+      stepOrder
+        .map((id) => steps[id])
+        .filter((step): step is WorkflowStep => Boolean(step))
+        .map((step) => ({
+          id: step.crmId,
+          parentStepId: step.parentStepId,
+          name: step.name,
+        })),
+      (id) => {
+        const node = cardById.get(`step_${id}`);
+        if (!node) return null;
+        const nodeData = node.data as EditStepData;
+        const isPill = nodeData.isCorrection === true;
+        return {
+          x: node.position.x,
+          y: node.position.y,
+          w: isPill ? CORRECTION_PILL_W : 280,
+          h: isPill
+            ? CORRECTION_PILL_H
+            : computeStepHeight((nodeData.outcomeRows ?? []).length),
+        };
+      }
+    );
+
+    return [startNode, ...parallelGroups, ...stepNodes, ...stubNodes, endNode];
   }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes, mainTerminalStepId]);
 
   const edges = useMemo<Edge[]>(() => {
@@ -355,18 +385,26 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
 
   const reLayout = useCallback(() => {
     const outcomeList = Object.values(outcomes);
-    const positions = computeEditLayout(stepOrder, outcomeList, routeLinksOf(routes, outcomes));
+    const positions = computeEditLayout(
+      stepOrder,
+      outcomeList,
+      routeLinksOf(routes, outcomes),
+      branchLinksOf(steps)
+    );
     setNodePositions(positions);
     // A fresh layout with last session's bends applied reads as broken —
     // auto-layout is the reset gesture for edge decorations too.
     useWorkflowStore.getState().clearEdgeDecorations();
-  }, [stepOrder, outcomes, routes, setNodePositions]);
+  }, [stepOrder, outcomes, routes, steps, setNodePositions]);
 
   const nodePositionsRef = useRef(nodePositions);
   nodePositionsRef.current = nodePositions;
 
   const outcomesRef = useRef(outcomes);
   outcomesRef.current = outcomes;
+
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
 
   const routesRef = useRef(routes);
   routesRef.current = routes;
@@ -378,7 +416,12 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
     const hasAnyPosition = stepOrder.some((id) => !!nodePositionsRef.current[`step_${id}`]);
     if (!hasAnyPosition) {
       const outcomeList = Object.values(outcomesRef.current);
-      const positions = computeEditLayout(stepOrder, outcomeList, routeLinksOf(routesRef.current, outcomesRef.current));
+      const positions = computeEditLayout(
+        stepOrder,
+        outcomeList,
+        routeLinksOf(routesRef.current, outcomesRef.current),
+        branchLinksOf(stepsRef.current)
+      );
       setNodePositions(positions);
     }
     // This first layout is the canvas arranging itself, not an edit — undoing
@@ -430,6 +473,13 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
  * A gateway destination's only incoming link is a route — without these the
  * layout has no idea where those steps belong.
  */
+/** The concurrency links, for the layout: parent step → each branch child. */
+function branchLinksOf(steps: Record<string, WorkflowStep>): Array<{ parentStepId: string; childStepId: string }> {
+  return Object.values(steps)
+    .filter((step) => step.parentStepId && steps[step.parentStepId])
+    .map((step) => ({ parentStepId: step.parentStepId as string, childStepId: step.crmId }));
+}
+
 function routeLinksOf(
   routes: Record<string, WorkflowRoute>,
   outcomes: Record<string, WorkflowOutcome>

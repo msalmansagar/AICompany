@@ -9,11 +9,25 @@ No schema changes anywhere in this programme; everything is presentation.
 | 1 | Edge classification + Flow Display toolbar | ✅ done | `flowClass.ts` (one vocabulary: primary / decision / parallel / return / ending), `applyFlowVisibility`, `FlowDisplayBar` chips on view + edit canvases, **returns hidden by default**. Replaced the 3-state returns cycle button in both toolbars; the deep clean survives as the "return steps" sub-chip. |
 | 2 | Return badges + jump references | ✅ done | ↩ badges + popover on Business/Swimlane cards; hover=peek, click=pin+pan-to-pair; spotlight fades the rest; "↩ from …" chip on the target; returns resolve THROUGH correction pills. |
 | 3 | Focus Mode + step details panel | ✅ done | Focus toggle on the edit toolbar (selection-driven fade, hidden return edges restored for the selection); Overview tab (default) on the step panel: counters + incoming/outgoing links + owner + SLA; hover leans on incident edges. Card counters skipped — edit cards already carry rows/badges. |
-| 4 | Layout + parallel polish | — | Visual grouping for branch stacks; label-overlap spacing. |
+| 4 | Layout + parallel polish | ✅ done | parallelGroups.ts scenery bands wrap branch children (position-derived, intrusion-guarded — no band beats a wrong band); Parallel chip hides band with the links; edit layout now RANKS branch links so children cluster beside their parent. |
 | 5 | View Mode defaults + Overview | — | Stage-level Overview derived from stageRoles/stageBands. |
 | 6 | Minimap, legend, validation info tier, perf sweep | — | Plus swimlane collapse if it proves clean. |
 
 ## Log
+
+- 2026-08-30 — **PR 4 done.** 486 tests green, tsc clean. Business view live:
+  the band wraps PM Assignment + Technical Analyst Review, labelled with the
+  parent, AT-SAME-TIME edges forking in from above — requirement 11's sketch.
+  Parallel chip removes band + links together. The band is scenery derived
+  from FINAL positions (like stage bands) with an intrusion guard: a stranger
+  card inside the box means NO band — a wrong band claims concurrency that
+  does not exist. Edit canvas: computeEditLayout now ranks branch links
+  (children were layout ORPHANS scattered by the anchor pass). On the Loan
+  process the edit band still does not draw even after auto-arrange — the two
+  children genuinely live ten ranks apart because their downstream chains
+  differ, and the guard correctly refuses a canvas-wide box. Bands appear in
+  edit when the branches actually sit together (unit-tested path, same
+  service as the view).
 
 - 2026-08-30 — **PR 3 done.** 482 tests green, tsc clean, verified live in edit
   mode on the Loan process: Overview tab reads real org data (incoming from
