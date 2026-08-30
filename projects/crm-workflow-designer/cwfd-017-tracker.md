@@ -8,12 +8,25 @@ No schema changes anywhere in this programme; everything is presentation.
 |----|-------|--------|-------|
 | 1 | Edge classification + Flow Display toolbar | ✅ done | `flowClass.ts` (one vocabulary: primary / decision / parallel / return / ending), `applyFlowVisibility`, `FlowDisplayBar` chips on view + edit canvases, **returns hidden by default**. Replaced the 3-state returns cycle button in both toolbars; the deep clean survives as the "return steps" sub-chip. |
 | 2 | Return badges + jump references | ✅ done | ↩ badges + popover on Business/Swimlane cards; hover=peek, click=pin+pan-to-pair; spotlight fades the rest; "↩ from …" chip on the target; returns resolve THROUGH correction pills. |
-| 3 | Focus Mode + step details panel | — | Selection-neighbourhood fade; Overview/Decisions/Returns tabs on the details panels; card counters ↩ ◆ ∥. |
+| 3 | Focus Mode + step details panel | ✅ done | Focus toggle on the edit toolbar (selection-driven fade, hidden return edges restored for the selection); Overview tab (default) on the step panel: counters + incoming/outgoing links + owner + SLA; hover leans on incident edges. Card counters skipped — edit cards already carry rows/badges. |
 | 4 | Layout + parallel polish | — | Visual grouping for branch stacks; label-overlap spacing. |
 | 5 | View Mode defaults + Overview | — | Stage-level Overview derived from stageRoles/stageBands. |
 | 6 | Minimap, legend, validation info tier, perf sweep | — | Plus swimlane collapse if it proves clean. |
 
 ## Log
+
+- 2026-08-30 — **PR 3 done.** 482 tests green, tsc clean, verified live in edit
+  mode on the Loan process: Overview tab reads real org data (incoming from
+  both Directors, owner, SLA), its step links walk the process, and Focus Mode
+  lit exactly the 4 related nodes the panel lists while fading the other 47 —
+  one derivation (stepRelationships) feeds both, so words and light agree.
+  Edit-card counters were skipped deliberately: edit cards already carry the
+  outcome rows, the CONCURRENT badge and the error dot, so counters would say
+  everything twice. 🔴 Trap: the Vite dev server served a STALE EditCanvas
+  transform after the branch switch + patch scripts — the new toolbar rendered
+  against the old canvas, so the Focus button had no handler and clicks did
+  nothing. fetch the served module and grep it before debugging the app;
+  restart Vite after git branch switches.
 
 - 2026-08-30 — **PR 2 done.** 471 tests green, tsc clean, verified live on the
   Loan process (badges ↩1/↩2/↩3 on 17 business cards + 29 swimlane cards;

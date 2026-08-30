@@ -19,6 +19,8 @@ interface EditToolbarProps {
   validationErrorCount: number;
   showMiniMap: boolean;
   showEdgeLabels: boolean;
+  isFocusMode: boolean;
+  onToggleFocusMode: () => void;
   onAddStep: () => void;
   onReLayout: () => void;
   onToggleMiniMap: () => void;
@@ -57,6 +59,8 @@ export function EditToolbar({
   validationErrorCount,
   showMiniMap,
   showEdgeLabels,
+  isFocusMode,
+  onToggleFocusMode,
   onAddStep,
   onReLayout,
   onToggleMiniMap,
@@ -119,6 +123,14 @@ export function EditToolbar({
             iconOnly
             active={!showEdgeLabels}
             onClick={onToggleEdgeLabels}
+          />
+          <ToolbarButton
+            icon="focus"
+            label={isFocusMode ? 'Exit Focus Mode' : 'Focus Mode'}
+            title="Focus Mode: fade everything except the selected step and its relationships"
+            iconOnly={!isFocusMode}
+            active={isFocusMode}
+            onClick={onToggleFocusMode}
           />
           <span className="cmd-sep" />
 

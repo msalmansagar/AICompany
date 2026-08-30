@@ -13,6 +13,7 @@ import { ParentAssignmentSection } from './ParentAssignmentSection';
 import { ASSIGN_TO_LABELS, ASSIGN_TO_TYPES, emptyAssignmentFields } from '@/services/taskAssignment';
 import { branchChildrenOf, emptyOutcomeConcurrency } from '@/services/branchFields';
 import { FetchXmlBuilderDialog } from '@/components/FetchXmlBuilder/FetchXmlBuilderDialog';
+import { StepOverviewTab } from './StepOverviewTab';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 
 interface StepPropertiesPanelProps {
@@ -66,7 +67,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
 
   // comparing the same facet across steps is the common flow.
 
-  const [activeTab, setActiveTab] = useState<PanelTab>('general');
+  const [activeTab, setActiveTab] = useState<PanelTab>('overview');
   const [newDecisionName, setNewDecisionName] = useState('');
   const [newDecisionTarget, setNewDecisionTarget] = useState<string>('__end__');
 
@@ -209,6 +210,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
         ))}
       </div>
       <div style={panelBodyStyle}>
+        {activeTab === 'overview' && <StepOverviewTab step={step} />}
         {activeTab === 'general' && (<>
 
         <div style={fieldGroupStyle}>
@@ -474,9 +476,10 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
   );
 }
 
-type PanelTab = 'general' | 'assignment' | 'sla' | 'automation';
+type PanelTab = 'overview' | 'general' | 'assignment' | 'sla' | 'automation';
 
 const PANEL_TABS: Array<{ id: PanelTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
   { id: 'general', label: 'General' },
   { id: 'assignment', label: 'Assignment' },
   { id: 'sla', label: 'SLA' },
