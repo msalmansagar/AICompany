@@ -50,7 +50,12 @@ export interface Violation {
   nodeType?: 'step' | 'outcome';
   /** All node IDs affected by this violation (e.g. all steps in a dead loop). */
   affectedNodeIds?: string[];
-  severity: 'error' | 'warning';
+  /**
+   * error blocks publish and rings the card; warning needs acknowledging at
+   * publish; info is a hygiene note — it never blocks, never needs an ack,
+   * and never colours a card.
+   */
+  severity: 'error' | 'warning' | 'info';
 }
 
 /**
@@ -82,7 +87,9 @@ const BRANCH_SEVERITY: Record<BranchFinding['code'], Violation['severity']> = {
   BRANCH_PARENT_MISSING: 'error',
   BRANCH_FILTER_MISSING: 'error',
   BRANCH_NO_JOIN_GUARD: 'warning',
-  ORPHAN_JOIN_GUARD: 'warning',
+  // A guard that finds no branches simply finds none — the engine is
+  // indifferent and nothing can go wrong at runtime. Pure hygiene.
+  ORPHAN_JOIN_GUARD: 'info',
 };
 
 export class ValidationService {

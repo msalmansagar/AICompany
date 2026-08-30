@@ -156,6 +156,26 @@ describe('applyFlowVisibility', () => {
     expect(result.nodes).toHaveLength(FLOW_NODES.length);
   });
 
+  it('should_remove_a_gateway_left_dangling_when_its_every_route_hides', () => {
+    // gw_2's only route ends the process; hiding endings removes the stub,
+    // which strips the route — the diamond must not dangle on its entry line.
+    const nodes = [...FLOW_NODES, node('gw_2', 'routeGateway'), node('end_stub_gw_2', 'viewEnd')];
+    const edges = [
+      ...FLOW_EDGES,
+      edge('e_entry_2', 'b', 'gw_2'),
+      edge('e_route_9', 'gw_2', 'end_stub_gw_2'),
+    ];
+    const result = applyFlowVisibility(nodes, edges, {
+      ...SHOW_ALL_FLOW_VISIBILITY,
+      endings: false,
+    });
+    const ids = result.nodes.map((n) => n.id);
+    expect(ids).not.toContain('gw_2');
+    expect(result.edges.map((e) => e.id)).not.toContain('e_entry_2');
+    // gw_1 still routes forward to b — it stays.
+    expect(ids).toContain('gw_1');
+  });
+
   it('should_hide_the_forward_flow_when_primary_hides', () => {
     const result = applyFlowVisibility(FLOW_NODES, FLOW_EDGES, {
       ...SHOW_ALL_FLOW_VISIBILITY,

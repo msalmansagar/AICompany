@@ -30,6 +30,7 @@ export function ValidationPanel({ onNodeFocus, onClose }: ValidationPanelProps) 
 
   const errors = validationResults.filter((v) => v.severity === 'error');
   const warnings = validationResults.filter((v) => v.severity === 'warning');
+  const infos = validationResults.filter((v) => v.severity === 'info');
 
   const isOpen = (group: ViolationGroup) =>
     openGroups[group.key] ?? group.items.length <= 3;
@@ -58,6 +59,9 @@ export function ValidationPanel({ onNodeFocus, onClose }: ValidationPanelProps) 
           {warnings.length > 0 && (
             <span style={warnBadge}>{warnings.length} warning{warnings.length > 1 ? 's' : ''}</span>
           )}
+          {infos.length > 0 && (
+            <span style={infoBadge}>{infos.length} info</span>
+          )}
         </div>
         {navigable.length > 0 && (
           <div style={stepperStyle}>
@@ -83,10 +87,10 @@ export function ValidationPanel({ onNodeFocus, onClose }: ValidationPanelProps) 
               aria-expanded={isOpen(group)}
             >
               <span style={iconStyle(group.severity === 'error')}>
-                {group.severity === 'error' ? '✕' : '⚠'}
+                {group.severity === 'error' ? '✕' : group.severity === 'warning' ? '⚠' : 'ⓘ'}
               </span>
               <span style={groupTitleStyle}>{humanizeCode(group.key)}</span>
-              <span style={group.severity === 'error' ? errorBadge : warnBadge}>
+              <span style={group.severity === 'error' ? errorBadge : group.severity === 'warning' ? warnBadge : infoBadge}>
                 {group.items.length}
               </span>
               <span style={chevronStyle}>{isOpen(group) ? '▾' : '▸'}</span>
@@ -125,11 +129,14 @@ function groupByCode(violations: Violation[]): ViolationGroup[] {
       items: [],
     };
     group.items.push(violation);
-    if (violation.severity === 'error') group.severity = 'error';
+    // A group wears its worst member's severity.
+    if (severityRank(violation.severity) > severityRank(group.severity)) {
+      group.severity = violation.severity;
+    }
     byCode.set(violation.code, group);
   }
   return [...byCode.values()].sort((a, b) => {
-    if (a.severity !== b.severity) return a.severity === 'error' ? -1 : 1;
+    if (a.severity !== b.severity) return severityRank(b.severity) - severityRank(a.severity);
     return b.items.length - a.items.length;
   });
 }
@@ -217,6 +224,21 @@ const errorBadge: React.CSSProperties = {
   borderRadius: 10,
   padding: '1px 6px',
   flexShrink: 0,
+};
+
+function severityRank(severity: Violation['severity']): number {
+  return severity === 'error' ? 2 : severity === 'warning' ? 1 : 0;
+}
+
+const infoBadge: React.CSSProperties = {
+  background: 'var(--primary-tint-2)',
+  color: 'var(--primary-pressed)',
+  border: '1px solid var(--primary-tint)',
+  borderRadius: 999,
+  fontSize: 10,
+  fontWeight: 700,
+  padding: '0 7px',
+  lineHeight: '16px',
 };
 
 const warnBadge: React.CSSProperties = {

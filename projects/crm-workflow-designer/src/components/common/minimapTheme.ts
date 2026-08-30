@@ -20,6 +20,7 @@ const NODE_COLORS: Readonly<Record<string, string>> = {
   swimlane: 'var(--lane-bg)',
   parallelGroup: 'var(--accent-branch-bg)',
   overviewStage: 'var(--primary)',
+  stageBand: 'var(--lane-bg)',
   swimStep: 'var(--primary)',
   editStep: 'var(--primary)',
   routeGateway: 'var(--accent-branch)',

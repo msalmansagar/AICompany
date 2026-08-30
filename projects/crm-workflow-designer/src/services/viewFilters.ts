@@ -179,9 +179,27 @@ export function applyFlowVisibility(
   }
   if (removedNodeIds.size === 0) return { nodes: afterReturns.nodes, edges: keptEdges };
 
-  const keptNodes = afterReturns.nodes.filter((node) => !removedNodeIds.has(node.id));
+  let keptNodes = afterReturns.nodes.filter((node) => !removedNodeIds.has(node.id));
   keptEdges = keptEdges.filter(
     (edge) => !removedNodeIds.has(edge.source) && !removedNodeIds.has(edge.target)
   );
+
+  // A gateway whose every route was filtered away dangles on its entry line —
+  // a diamond promising choices it no longer shows. It goes too, entry and all.
+  const gatewaysWithExits = new Set(
+    keptEdges.filter((edge) => edge.source.startsWith('gw_')).map((edge) => edge.source)
+  );
+  const danglingGateways = new Set(
+    keptNodes
+      .filter((node) => node.type === 'routeGateway' && !gatewaysWithExits.has(node.id))
+      .map((node) => node.id)
+  );
+  if (danglingGateways.size > 0) {
+    keptNodes = keptNodes.filter((node) => !danglingGateways.has(node.id));
+    keptEdges = keptEdges.filter(
+      (edge) => !danglingGateways.has(edge.source) && !danglingGateways.has(edge.target)
+    );
+  }
+
   return { nodes: keptNodes, edges: keptEdges };
 }
