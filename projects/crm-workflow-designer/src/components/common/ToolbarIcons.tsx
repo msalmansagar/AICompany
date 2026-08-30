@@ -32,6 +32,7 @@ export type ToolbarIconName =
   | 'simulate'
   | 'auto'
   | 'discard'
+  | 'focus'
   | 'more';
 
 const P = { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' } as const;
@@ -60,6 +61,7 @@ const PATHS: Record<ToolbarIconName, JSX.Element> = {
   simulate: <><path d="M4.4 3.4 12 8l-7.6 4.6z" {...P} /></>,
   auto: <><path d="M2.6 3.6 7 8l-4.4 4.4M8.4 3.6 12.8 8l-4.4 4.4" {...P} /></>,
   discard: <><path d="M3.4 4.6h9.2" {...P} /><path d="M5.6 4.6V3.2h4.8v1.4M4.6 4.6l.7 8.4h5.4l.7-8.4" {...P} /></>,
+  focus: <><circle cx="8" cy="8" r="3.4" {...P} /><circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none" /><path d="M8 1.6v2.2M8 12.2v2.2M1.6 8h2.2M12.2 8h2.2" {...P} /></>,
   more: <><circle cx="3.6" cy="8" r="1.2" fill="currentColor" stroke="none" /><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" /><circle cx="12.4" cy="8" r="1.2" fill="currentColor" stroke="none" /></>,
 };
 

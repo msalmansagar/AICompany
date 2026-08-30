@@ -37,6 +37,8 @@ import { notify } from '../ui/Notify';
 import { useDemoPlayback } from '@/hooks/useDemoPlayback';
 import { DemoHUD } from './DemoHUD';
 import { applyFlowVisibility, DEFAULT_FLOW_VISIBILITY } from '@/services/viewFilters';
+import { applyFocusFade, applyHoverEmphasis } from '@/services/focusMode';
+import { computeStepRelationships, collectFocusStepIds } from '@/services/stepRelationships';
 import type { FlowVisibility } from '@/services/viewFilters';
 import { FlowDisplayBar } from '../common/FlowDisplayBar';
 import { FitOnceMeasured } from '../common/FitOnceMeasured';
@@ -169,6 +171,9 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
   const showMiniMap = miniMapPreference ?? stepOrder.length > LARGE_GRAPH_THRESHOLD;
   const [showEdgeLabels, setShowEdgeLabels] = useState(true);
   const [flowVisibility, setFlowVisibility] = useState<FlowVisibility>(DEFAULT_FLOW_VISIBILITY);
+  // Focus Mode (CWFD-017 PR3): armed by the toolbar, driven by the selection.
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Live, debounced validation — keeps node error badges and the toolbar count
   // current as the workflow is edited, without waiting for the Validate button.
@@ -315,10 +320,38 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
 
   // The same declutter filters the view toolbar has. Filtering the rendered
   // arrays leaves the store untouched — hidden work is still there on save.
-  const visibleEdit = useMemo(
-    () => applyFlowVisibility(editMode.nodes, editMode.edges, flowVisibility),
-    [editMode.nodes, editMode.edges, flowVisibility]
-  );
+  // Focus Mode then fades everything but the selection's relationships (and
+  // restores its hidden return edges — a return IS one of them); plain hover
+  // just leans on the edges that touch the hovered card.
+  const visibleEdit = useMemo(() => {
+    const filtered = applyFlowVisibility(editMode.nodes, editMode.edges, flowVisibility);
+    const focusedStepId =
+      isFocusMode && selectedId?.startsWith('step_') ? selectedId.slice('step_'.length) : null;
+    if (focusedStepId && steps[focusedStepId]) {
+      const relationships = computeStepRelationships(focusedStepId, steps, outcomes, routes);
+      return applyFocusFade(
+        filtered.nodes,
+        filtered.edges,
+        editMode.edges,
+        `step_${focusedStepId}`,
+        collectFocusStepIds(focusedStepId, relationships)
+      );
+    }
+    if (hoveredNodeId?.startsWith('step_')) {
+      return { nodes: filtered.nodes, edges: applyHoverEmphasis(filtered.edges, hoveredNodeId) };
+    }
+    return filtered;
+  }, [
+    editMode.nodes,
+    editMode.edges,
+    flowVisibility,
+    isFocusMode,
+    selectedId,
+    hoveredNodeId,
+    steps,
+    outcomes,
+    routes,
+  ]);
 
   const propertiesPanel = resolvePropertiesPanel(selectedId, adapter);
 
@@ -345,6 +378,8 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         validationErrorCount={validationErrorCount}
         showMiniMap={showMiniMap}
         showEdgeLabels={showEdgeLabels}
+        isFocusMode={isFocusMode}
+        onToggleFocusMode={() => setIsFocusMode((isOn) => !isOn)}
         onAddStep={editMode.addStep}
         onReLayout={editMode.reLayout}
         onToggleMiniMap={() => setMiniMapPreference(!showMiniMap)}
@@ -424,6 +459,8 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
               onNodeClick={editMode.onNodeClick}
               onEdgeClick={editMode.onEdgeClick}
               onPaneClick={editMode.onPaneClick}
+              onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+              onNodeMouseLeave={() => setHoveredNodeId(null)}
               onConnect={editMode.onConnect}
               onReconnect={editMode.onReconnect}
               nodesConnectable
