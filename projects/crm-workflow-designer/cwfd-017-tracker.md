@@ -15,6 +15,18 @@ No schema changes anywhere in this programme; everything is presentation.
 
 ## Log
 
+- 2026-08-30 — **MERGED + DEPLOYED + CRM-VERIFIED.** All six PRs merged to
+  main bottom-up (#140→#145, each retargeted to main before merging — no
+  --delete-branch on the chain; branches deleted after). main @ 10091b8f.
+  Built (1.77 MB) and deployed to web resource
+  25bdac56-555e-f111-a825-7ced8d96ec97, published. Verified in the org on the
+  DataverseAdapter path: Overview tab renders 13 stages, Flow Display chips
+  with returns hidden by default, the parallel group band, badge popover →
+  spotlight pin (edge drawn, both endpoints ringed 23↔25, "↩ from" chip),
+  and the PR6 legend entries. The CRM "Sign in to continue" modal appeared
+  once — its X does NOT dismiss it this time; the Sign in button renewed via
+  silent SSO (no credential form), as in the 2026-08-24 session.
+
 - 2026-08-30 — **PR 6 done — PROGRAMME COMPLETE.** 493 tests green, tsc clean.
   Validation gained the info tier (error blocks / warning acks / info notes —
   ORPHAN_JOIN_GUARD downgraded: the engine is indifferent to an orphan guard);
