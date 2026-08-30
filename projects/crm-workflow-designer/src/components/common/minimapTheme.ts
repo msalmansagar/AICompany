@@ -18,6 +18,7 @@ const NODE_COLORS: Readonly<Record<string, string>> = {
   techNewStep: 'var(--primary)',
   techNewOutcome: 'var(--accent-route)',
   swimlane: 'var(--lane-bg)',
+  parallelGroup: 'var(--accent-branch-bg)',
   swimStep: 'var(--primary)',
   editStep: 'var(--primary)',
   routeGateway: 'var(--accent-branch)',

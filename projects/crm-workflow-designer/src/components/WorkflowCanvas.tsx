@@ -35,6 +35,9 @@ import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
 import { GoToStepPanel } from './common/GoToStepPanel';
 import { buildStageBands } from '../services/stageBands';
+import { buildParallelGroupNodes } from '../services/parallelGroups';
+import { STEP_W } from '../services/WorkflowGraphBuilder';
+import { CORRECTION_PILL_H, CORRECTION_PILL_W } from '../services/correctionSteps';
 import { buildHierarchyGraph } from '../services/HierarchyGraphBuilder';
 import type { HierarchyStepData } from '../services/HierarchyGraphBuilder';
 import { HierarchyStepList } from './common/HierarchyStepList';
@@ -241,7 +244,33 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     // bands where its cards actually are.
     const stageBands =
       view.viewMode === 'business' ? buildStageBands(positioned, view.layoutDir) : [];
-    view.setNodes(() => [...stageBands, ...positioned]);
+    // Parallel group bands too: they wrap the branch children wherever the
+    // layout finally put them (CWFD-017 PR4).
+    const cardById = new Map(positioned.map((node) => [node.id, node]));
+    const parallelGroups =
+      view.viewMode === 'business'
+        ? buildParallelGroupNodes(
+            view.data.steps.map((step) => ({
+              id: step.id,
+              parentStepId: step.parentStepId,
+              name: step.name,
+            })),
+            (stepId) => {
+              const node = cardById.get(`step_${stepId}`);
+              if (!node) return null;
+              const isPill = (node.data as { isCorrection?: boolean }).isCorrection === true;
+              return {
+                x: node.position.x,
+                y: node.position.y,
+                w: isPill ? CORRECTION_PILL_W : STEP_W,
+                h: isPill
+                  ? CORRECTION_PILL_H
+                  : ((node.data as { nodeHeight?: number }).nodeHeight ?? 90),
+              };
+            }
+          )
+        : [];
+    view.setNodes(() => [...stageBands, ...parallelGroups, ...positioned]);
     view.setEdges(() => rebuiltEdges);
     setPendingFit((token) => token + 1);
     setIsLayoutDirty(false);

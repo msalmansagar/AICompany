@@ -35,10 +35,17 @@ export interface RouteLink {
   nextStepId: string | null;
 }
 
+/** A step and the step that runs concurrently beneath it (CWFD-017 PR4). */
+export interface BranchLink {
+  parentStepId: string;
+  childStepId: string;
+}
+
 export function computeEditLayout(
   stepIds: string[],
   outcomes: OutcomeEdge[],
-  routeLinks: RouteLink[] = []
+  routeLinks: RouteLink[] = [],
+  branchLinks: BranchLink[] = []
 ): Record<string, { x: number; y: number }> {
   // stepOrder is sequence order, so array position stands in for sequenceNo.
   const orderOf = new Map(stepIds.map((id, index) => [id, index]));
@@ -109,6 +116,13 @@ export function computeEditLayout(
   for (const link of routeLinks) {
     if (!link.nextStepId || isBackEdge(link)) continue;
     addRankEdge(`step_${link.stepId}`, `step_${link.nextStepId}`);
+  }
+  // A branch child has no outcome pointing at it either — the engine creates
+  // its task from the parent's. Ranking the link keeps the children clustered
+  // beside their parent instead of scattered by the orphan-anchor pass, which
+  // is what lets the parallel group band wrap them (CWFD-017 PR4).
+  for (const link of branchLinks) {
+    addRankEdge(`step_${link.parentStepId}`, `step_${link.childStepId}`);
   }
 
   // Steps nothing routes into (the Loan spec has several) still need a rank:
