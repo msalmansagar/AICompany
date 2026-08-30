@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { AssignIcon, assignTypeFromLabel } from './assignIcons';
+import type { ReturnRef } from '../services/returnSpotlight';
 import type { StepOutcomeRow } from '../services/WorkflowGraphBuilder';
 import { NODE_NEUTRAL_CHIP, TERMINATING_BADGE_REGISTRATION } from '@/styles/surfacePairs';
 import type { AssignToType } from '@/types/WorkflowTypes';
@@ -426,3 +427,252 @@ const conditionBadge: React.CSSProperties = {
   padding: '1px 5px',
   flexShrink: 0,
 };
+
+// ─── Return badge + on-demand return list (CWFD-017 PR2) ───────────────────
+
+/** A return arriving at this card, for the "↩ from …" indicator. */
+export interface IncomingReturnChip {
+  outcomeId: string;
+  sourceStepName: string;
+}
+
+/**
+ * What the canvas injects into a card's data to run the return badge and
+ * spotlight. All optional: a canvas that injects nothing gets the classic
+ * card, and the edit canvas still renders full ↩ rows.
+ */
+export interface ReturnBadgeInteraction {
+  /** 'badge' compresses ↩ rows into a counter; 'rows' keeps them (default). */
+  returnDisplay?: 'badge' | 'rows';
+  /** This card's outgoing returns — direct and routed-through-a-correction. */
+  stepReturnRefs?: ReturnRef[];
+  isReturnMenuOpen?: boolean;
+  pinnedReturnOutcomeIds?: ReadonlySet<string>;
+  onReturnBadgeClick?: (stepId: string) => void;
+  /** null = hover ended. */
+  onReturnRowHover?: (outcomeId: string | null) => void;
+  onReturnRowClick?: (outcomeId: string) => void;
+  /** Injected by the spotlight: this card is an endpoint of an active return. */
+  isSpotlightEndpoint?: boolean;
+  incomingReturns?: IncomingReturnChip[];
+}
+
+/** The card's rows split into what stays visible and what the badge holds. */
+export function partitionOutcomeRows(rows: StepOutcomeRow[]): {
+  forwardRows: StepOutcomeRow[];
+  returnRows: StepOutcomeRow[];
+} {
+  return {
+    forwardRows: rows.filter((row) => !row.isBackEdge),
+    returnRows: rows.filter((row) => row.isBackEdge),
+  };
+}
+
+/** The ↩ counter chip. Sits in the chips row, so it costs no card height. */
+export function ReturnCountBadge({
+  count,
+  isOpen,
+  onClick,
+}: {
+  count: number;
+  isOpen: boolean;
+  onClick(): void;
+}) {
+  if (count === 0) return null;
+  return (
+    <button
+      type="button"
+      className="nodrag nopan"
+      aria-expanded={isOpen}
+      title={`${count} return ${count === 1 ? 'path' : 'paths'} — click to see where work can go back to`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      style={returnBadgeStyle(isOpen)}
+    >
+      ↩ {count}
+    </button>
+  );
+}
+
+/**
+ * The on-demand list behind the ↩ badge. Hovering an entry peeks that
+ * return; clicking pins it and brings both ends into view. This is the
+ * jump-reference: a long return is followed as a link, never drawn as
+ * standing wiring.
+ */
+export function ReturnListPopover({
+  refs,
+  pinnedOutcomeIds,
+  onHoverRow,
+  onClickRow,
+}: {
+  refs: ReturnRef[];
+  pinnedOutcomeIds: ReadonlySet<string>;
+  onHoverRow(outcomeId: string | null): void;
+  onClickRow(outcomeId: string): void;
+}) {
+  return (
+    <div className="nodrag nopan" style={popoverStyle} role="menu" aria-label="Return paths">
+      <div style={popoverTitle}>Returns</div>
+      {refs.map((ref) => {
+        const isPinned = pinnedOutcomeIds.has(ref.outcomeId);
+        return (
+          <button
+            key={ref.outcomeId}
+            type="button"
+            role="menuitem"
+            title={
+              isPinned
+                ? 'Pinned — click to release'
+                : `Work goes back to "${ref.targetStepName}" — hover to preview, click to pin and show both steps`
+            }
+            onMouseEnter={() => onHoverRow(ref.outcomeId)}
+            onMouseLeave={() => onHoverRow(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClickRow(ref.outcomeId);
+            }}
+            style={popoverRowStyle(isPinned)}
+          >
+            <span style={pillLoopIcon} aria-hidden>↩</span>
+            <span style={popoverRowName}>{truncate(ref.name, 26)}</span>
+            <span style={popoverRowTarget}>→ {truncate(ref.targetStepName, 20)}</span>
+            {isPinned && <span style={popoverPinDot} title="Pinned" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** "↩ from …" — the target end of an active return names its source. */
+export function IncomingReturnChips({ incoming }: { incoming: IncomingReturnChip[] }) {
+  if (incoming.length === 0) return null;
+  return (
+    <div style={incomingWrap}>
+      {incoming.map((entry) => (
+        <span key={entry.outcomeId} style={incomingChip} title={`A return arrives here from "${entry.sourceStepName}"`}>
+          ↩ from {truncate(entry.sourceStepName, 22)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** The accent ring a spotlight endpoint wears over its normal border. */
+export const SPOTLIGHT_ENDPOINT_RING =
+  '0 0 0 3px color-mix(in srgb, var(--accent-branch) 35%, transparent), 0 4px 12px rgba(0,0,0,0.12)';
+
+function returnBadgeStyle(isOpen: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    fontSize: 10,
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    color: 'var(--accent-branch)',
+    background: isOpen ? 'var(--accent-branch-bg)' : 'transparent',
+    border: '1px solid var(--accent-branch)',
+    borderRadius: 4,
+    padding: '0 6px',
+    lineHeight: '16px',
+    cursor: 'pointer',
+    flexShrink: 0,
+  };
+}
+
+const popoverStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 8,
+  minWidth: 230,
+  maxWidth: 300,
+  background: 'var(--surface)',
+  border: '1px solid var(--border-strong)',
+  borderRadius: 8,
+  boxShadow: '0 6px 18px color-mix(in srgb, var(--text) 22%, transparent)',
+  padding: 6,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  zIndex: 60,
+  cursor: 'default',
+};
+
+const popoverTitle: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+  color: 'var(--text-secondary)',
+  padding: '2px 6px 4px',
+};
+
+function popoverRowStyle(isPinned: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+    textAlign: 'left',
+    fontFamily: 'inherit',
+    fontSize: 11,
+    color: 'var(--text)',
+    background: isPinned ? 'var(--accent-branch-bg)' : 'transparent',
+    border: 'none',
+    borderRadius: 5,
+    padding: '4px 6px',
+    cursor: 'pointer',
+  };
+}
+
+const popoverRowName: React.CSSProperties = {
+  fontWeight: 600,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  flexShrink: 1,
+};
+
+const popoverRowTarget: React.CSSProperties = {
+  fontSize: 10,
+  color: 'var(--text-secondary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  flex: 1,
+  textAlign: 'right',
+};
+
+const popoverPinDot: React.CSSProperties = {
+  width: 7,
+  height: 7,
+  borderRadius: '50%',
+  background: 'var(--accent-branch)',
+  flexShrink: 0,
+};
+
+const incomingWrap: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  marginTop: 4,
+};
+
+const incomingChip: React.CSSProperties = {
+  fontSize: 9,
+  fontWeight: 700,
+  color: 'var(--accent-branch)',
+  background: 'var(--accent-branch-bg)',
+  border: '1px dashed var(--accent-branch)',
+  borderRadius: 4,
+  padding: '1px 6px',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  maxWidth: 240,
+};
+
