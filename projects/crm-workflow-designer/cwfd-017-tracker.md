@@ -13,6 +13,35 @@ No schema changes anywhere in this programme; everything is presentation.
 | 5 | Overview view | ✅ done | New first view-mode tab: stage chips (steps/↩/∥/⊘ counts) chained START→END, real inter-stage transitions (outcomes+routes+branch links) bundled per pair, skip-hops arc by the side, faint dotted sequence connectors where no direct transition exists. Click a stage → Business canvas centered on its first step. |
 | 6 | Minimap, legend, validation info tier, perf sweep | ✅ done | info severity (ORPHAN_JOIN_GUARD downgraded — never blocks, never acked); dangling-gateway cleanup in the filter; legend + minimap entries; perf measured: every chip toggle 23–36ms on 35 steps, node positions byte-identical. **Swimlane collapse SKIPPED** per the "only if clean" clause — collapsing a lane orphans every edge crossing it, and stage-level collapse already exists via Overview drill + Hierarchy fold. |
 
+## CWFD-019 — BPMN-grammar decisions (approved 2026-08-31)
+
+Analysis delivered; 5-PR plan approved. Model already IS task→decision→routes
+with stored isDefault and virtual gateways in view — the real gap was EDIT.
+
+| PR | Scope | Status |
+|----|-------|--------|
+| 1 | Gateway grammar + edit-canvas virtual gateways | ✅ done |
+| 2 | Route labels + default language | — |
+| 3 | Decision panel route cards + navigation | — |
+| 4 | Layout (gateway-aware ranking, no leftward sweeps) | — |
+| 5 | Hover/Focus/View polish + terminating badges | — |
+
+- 2026-08-31 — **PR 1 done.** 504 tests, tsc clean. RouteGatewayNode redesigned
+  (outlined BPMN diamond, name chip ABOVE, route count INSIDE — the old solid
+  diamond drew an orange glyph on orange fill, the FIFTH invisible-pair, and
+  had never shown its ⋈). buildEditGateways: presentation-only diamonds beside
+  the source card (64px), entry + labelled route edges (id `route_edge_<id>` so
+  clicking opens the existing RoutePropertiesPanel), terminal routes end at a
+  stub under the diamond, plain outcome edge suppressed when a gateway draws
+  the decision. Diamond click selects the OUTCOME → existing Decision
+  Properties panel. Live-verified: 3 gateways / 7 routes / 3 entries on the
+  Loan process in EDIT (BAs saw routing for the first time), real click →
+  ringed diamond + Decision Properties with route cards, clean-state proof
+  (open → click → not dirty). 🔴 Known for PR4: routes sweep LEFT when the
+  ranked destination sits left of the gateway offset. 🔴 Probe hygiene again:
+  two dirty flags during verification were BOTH probe artifacts — the clean
+  repro (open→click→check) is the arbiter, run it before suspecting the app.
+
 ## CWFD-018 — floating step action toolbar
 
 - 2026-08-30 — **Built + live-verified** (497 tests, tsc clean, 1.77 MB build).

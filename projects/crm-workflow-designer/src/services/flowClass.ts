@@ -42,6 +42,7 @@ const RETURN_ID_PREFIXES = ['e_back_', 'tn_e_return_'];
 const DECISION_ID_PREFIXES = [
   'e_entry_',
   'e_route_',
+  'route_edge_',
   'e_exec_entry_',
   'e_exec_route_',
   'tn_e_route_',
