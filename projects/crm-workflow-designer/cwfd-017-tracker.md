@@ -23,8 +23,20 @@ with stored isDefault and virtual gateways in view — the real gap was EDIT.
 | 1 | Gateway grammar + edit-canvas virtual gateways | ✅ done |
 | 2 | Route labels + default language | ✅ done |
 | 3 | Decision panel route cards + navigation | ✅ done |
-| 4 | Layout (gateway-aware ranking, no leftward sweeps) | — |
+| 4 | Layout (gateway-aware ranking, no leftward sweeps) | ✅ done |
 | 5 | Hover/Focus/View polish + terminating badges | — |
+
+- 2026-08-31 — **PR 4 done.** 511 tests, tsc clean. computeEditLayout now ranks
+  each decision's VIRTUAL diamond between source and destinations (dagre node
+  gw_<outcomeId>, never persisted) — a forward route destination can no longer
+  land left of the diamond that feeds it. Measured post-Arrange: 6/7 route
+  edges flow rightward; the seventh (dx −78) is a genuinely BACKWARD route
+  ("Return to …" via route) — truth, not layout failure, and short now.
+  alignDefaultContinuations swaps y slots among a gateway's EXCLUSIVE
+  destinations so the default continuation sits nearest the source's centre
+  line — a pure permutation of dagre's own slots, no new overlaps possible.
+  View-side BRANCH_GAP 140→72 (req 3): PR2's short labels made the old
+  overlap reason obsolete.
 
 - 2026-08-31 — **PR 3 done.** 511 tests, tsc clean. Route targets are DOORS:
   in the edit Decision panel and the view gateway details, the target step is

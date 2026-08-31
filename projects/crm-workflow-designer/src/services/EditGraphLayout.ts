@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import { STEP_W, computeStepHeight } from './WorkflowGraphBuilder';
+import { STEP_W, computeStepHeight, GATEWAY_SIZE } from './WorkflowGraphBuilder';
 import {
   classifyCorrectionSteps,
   placeCorrectionSteps,
@@ -33,6 +33,10 @@ export interface RouteLink {
   stepId: string;
   /** Where the route leads; null routes end the process. */
   nextStepId: string | null;
+  /** The decision the route belongs to — ranks the virtual gateway. */
+  outcomeId?: string;
+  /** True for the route the engine takes when nothing else matches. */
+  isDefault?: boolean;
 }
 
 /** A step and the step that runs concurrently beneath it (CWFD-017 PR4). */
@@ -111,11 +115,22 @@ export function computeEditLayout(
     if (isBackEdge(o)) continue;
     addRankEdge(`step_${o.stepId}`, o.nextStepId ? `step_${o.nextStepId}` : END_ID);
   }
-  // A gateway destination's only incoming link is a route, not an outcome —
-  // without these it ranks at the far left, above the entry step.
+  // The gateway is part of the local flow (CWFD-019 PR4): each decision's
+  // virtual diamond ranks between its source and its destinations, so a
+  // route destination can never end up LEFT of the diamond that feeds it —
+  // the leftward sweeps PR1 shipped with.
   for (const link of routeLinks) {
     if (!link.nextStepId || isBackEdge(link)) continue;
-    addRankEdge(`step_${link.stepId}`, `step_${link.nextStepId}`);
+    if (link.outcomeId) {
+      const gatewayId = `gw_${link.outcomeId}`;
+      if (!g.hasNode(gatewayId)) {
+        g.setNode(gatewayId, { width: GATEWAY_SIZE, height: GATEWAY_SIZE + 26 });
+      }
+      addRankEdge(`step_${link.stepId}`, gatewayId);
+      addRankEdge(gatewayId, `step_${link.nextStepId}`);
+    } else {
+      addRankEdge(`step_${link.stepId}`, `step_${link.nextStepId}`);
+    }
   }
   // A branch child has no outcome pointing at it either — the engine creates
   // its task from the parent's. Ranking the link keeps the children clustered
@@ -144,9 +159,18 @@ export function computeEditLayout(
 
   const positions: Record<string, { x: number; y: number }> = {};
   for (const nodeId of g.nodes()) {
+    // Gateways rank but never persist — the canvas derives their spot
+    // beside the source card, tracking drags.
+    if (nodeId.startsWith('gw_')) continue;
     const n = g.node(nodeId);
     positions[nodeId] = { x: n.x - n.width / 2, y: n.y - n.height / 2 };
   }
+
+  // Default-path alignment (req 17): among a gateway's EXCLUSIVE destinations
+  // (those nothing else ranks), the default route's target takes the slot
+  // closest to the source's centre line — a pure permutation of the y slots
+  // dagre already allotted, so nothing can start overlapping.
+  alignDefaultContinuations(routeLinks, positions, outcomeCountByStep, g);
 
   // Corrections attach above their resubmit target (the edit canvas flows LR,
   // so the vertical band above the spine is free space).
@@ -181,4 +205,58 @@ export function computeEditLayout(
   }
 
   return positions;
+}
+/**
+ * Swaps y positions among a gateway's exclusive destinations so the default
+ * continuation sits nearest its source's centre line. Only destinations whose
+ * SOLE rank constraint is this gateway may move — and only by exchanging the
+ * slots dagre already assigned, which cannot create overlaps.
+ */
+function alignDefaultContinuations(
+  routeLinks: RouteLink[],
+  positions: Record<string, { x: number; y: number }>,
+  outcomeCountByStep: Map<string, number>,
+  g: dagre.graphlib.Graph
+): void {
+  const byOutcome = new Map<string, RouteLink[]>();
+  for (const link of routeLinks) {
+    if (!link.outcomeId || !link.nextStepId) continue;
+    const list = byOutcome.get(link.outcomeId) ?? [];
+    list.push(link);
+    byOutcome.set(link.outcomeId, list);
+  }
+
+  for (const [outcomeId, links] of byOutcome) {
+    const defaultLink = links.find((link) => link.isDefault && link.nextStepId);
+    if (!defaultLink) continue;
+    const source = positions[`step_${defaultLink.stepId}`];
+    if (!source) continue;
+    const sourceCenterY =
+      source.y + computeStepHeight(outcomeCountByStep.get(defaultLink.stepId) ?? 0) / 2;
+
+    // Exclusive destinations: their only in-edge is this gateway.
+    const gatewayId = `gw_${outcomeId}`;
+    const exclusive = links
+      .map((link) => `step_${link.nextStepId}`)
+      .filter((nodeId, index, all) => all.indexOf(nodeId) === index)
+      .filter((nodeId) => {
+        const inEdges = g.inEdges(nodeId) ?? [];
+        return inEdges.length > 0 && inEdges.every((edge) => edge.v === gatewayId);
+      })
+      .filter((nodeId) => positions[nodeId]);
+    if (exclusive.length < 2) continue;
+
+    const defaultNodeId = `step_${defaultLink.nextStepId}`;
+    if (!exclusive.includes(defaultNodeId)) continue;
+
+    const slots = exclusive.map((nodeId) => positions[nodeId].y).sort((a, b) => a - b);
+    const bestSlot = slots.reduce((best, y) =>
+      Math.abs(y - sourceCenterY) < Math.abs(best - sourceCenterY) ? y : best
+    );
+    const occupant = exclusive.find((nodeId) => positions[nodeId].y === bestSlot);
+    if (!occupant || occupant === defaultNodeId) continue;
+    const defaultY = positions[defaultNodeId].y;
+    positions[defaultNodeId] = { ...positions[defaultNodeId], y: bestSlot };
+    positions[occupant] = { ...positions[occupant], y: defaultY };
+  }
 }
