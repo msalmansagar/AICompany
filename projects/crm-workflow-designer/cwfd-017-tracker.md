@@ -24,7 +24,17 @@ with stored isDefault and virtual gateways in view — the real gap was EDIT.
 | 2 | Route labels + default language | ✅ done |
 | 3 | Decision panel route cards + navigation | ✅ done |
 | 4 | Layout (gateway-aware ranking, no leftward sweeps) | ✅ done |
-| 5 | Hover/Focus/View polish + terminating badges | — |
+| 5 | Hover/Focus/View polish + terminating badges | ✅ done — **CWFD-019 COMPLETE** |
+
+- 2026-08-31 — **PR 5 done — CWFD-019 COMPLETE.** 511 tests, tsc clean.
+  Focus Mode understands a selected DECISION: the fade anchors on its gateway
+  (incident edges = entry + routes), lighting source → diamond → targets in
+  one move — verified live: Director BFD Joint Approval → Reject Proposal ◇ →
+  CEO Joint Approval lit, 48 nodes ghosted. The Terminating badge now means
+  the WHOLE step ends (every outcome terminal) — 0 badges remain on the Loan
+  process where ~7 cards used to shout it while their endings were already on
+  rows, stubs and routes (req 20). The diamond answers hover (stroke + glow).
+  Gateway hover edge-emphasis already worked via CWFD-017's hover layer.
 
 - 2026-08-31 — **PR 4 done.** 511 tests, tsc clean. computeEditLayout now ranks
   each decision's VIRTUAL diamond between source and destinations (dagre node

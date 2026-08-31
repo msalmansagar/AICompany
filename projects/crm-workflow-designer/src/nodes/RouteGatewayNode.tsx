@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import { routeLabelPair } from '@/styles/surfacePairs';
@@ -23,11 +24,15 @@ export interface RouteGatewayData extends Record<string, unknown> {
 export function RouteGatewayNode({ data }: NodeProps) {
   const d = data as RouteGatewayData;
   const labelPair = routeLabelPair('conditional');
+  const [isHovered, setIsHovered] = useState(false);
+  const emphasised = d.isSelected || isHovered;
 
   return (
     <div
       style={wrapperStyle}
       title={`${d.outcomeName} — ${d.routeCount} route${d.routeCount === 1 ? '' : 's'}. Click to open the decision.`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       <Handle type="target" position={Position.Top} id="in" style={handleStyle} />
       <Handle type="target" position={Position.Left} id="in-side" style={handleStyle} />
@@ -43,13 +48,13 @@ export function RouteGatewayNode({ data }: NodeProps) {
         {d.outcomeName || 'Decision'}
       </div>
 
-      <div style={diamondBoxStyle(d.isSelected)}>
+      <div style={diamondBoxStyle(emphasised)}>
         <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden>
           <polygon
             points="22,2.5 41.5,22 22,41.5 2.5,22"
             fill="var(--surface)"
             stroke={d.isSelected ? 'var(--primary)' : 'var(--warning)'}
-            strokeWidth={d.isSelected ? 2.5 : 2}
+            strokeWidth={emphasised ? 2.5 : 2}
             strokeLinejoin="round"
           />
           <text
@@ -71,13 +76,13 @@ export function RouteGatewayNode({ data }: NodeProps) {
   );
 }
 
-function diamondBoxStyle(isSelected: boolean): React.CSSProperties {
+function diamondBoxStyle(isEmphasised: boolean): React.CSSProperties {
   return {
     position: 'relative',
     width: 44,
     height: 44,
     cursor: 'pointer',
-    filter: isSelected
+    filter: isEmphasised
       ? 'drop-shadow(0 0 4px color-mix(in srgb, var(--primary) 55%, transparent))'
       : 'drop-shadow(0 1px 2px color-mix(in srgb, var(--text) 18%, transparent))',
   };
