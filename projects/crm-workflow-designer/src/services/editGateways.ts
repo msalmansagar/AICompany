@@ -1,8 +1,8 @@
 import { MarkerType } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import { routeLabelPair } from '../styles/surfacePairs';
-import { conditionLabel, GATEWAY_SIZE } from './WorkflowGraphBuilder';
-import { hasRealCondition } from './routeFilter';
+import { GATEWAY_SIZE } from './WorkflowGraphBuilder';
+import { routeCanvasLabel } from './routeDisplay';
 import type { WorkflowStep, WorkflowOutcome, WorkflowRoute } from '../types/WorkflowTypes';
 
 /**
@@ -49,20 +49,6 @@ export interface EditGatewayGraph {
   edges: Edge[];
   /** Outcomes now represented by a gateway — their plain edge must not draw. */
   outcomeIdsWithGateway: Set<string>;
-}
-
-const MAX_LABEL_CHARS = 34;
-
-function truncate(value: string): string {
-  return value.length > MAX_LABEL_CHARS ? value.slice(0, MAX_LABEL_CHARS - 1) + '…' : value;
-}
-
-/** The route edge label: name plus a short condition, or the default slash. */
-function routeEdgeLabel(route: WorkflowRoute): string {
-  if (route.isDefault) return truncate(`∕ ${route.name || 'Default'}`);
-  const condition = hasRealCondition(route.filter) ? conditionLabel(route.filter) : '';
-  if (route.name && condition && condition !== 'else') return truncate(`${route.name}: ${condition}`);
-  return truncate(route.name || condition || 'Route');
 }
 
 export function buildEditGateways(input: EditGatewayInput): EditGatewayGraph {
@@ -168,7 +154,7 @@ export function buildEditGateways(input: EditGatewayInput): EditGatewayGraph {
           targetHandle: 'in',
           type: 'default',
           animated: !isFallback,
-          label: routeEdgeLabel(route),
+          label: routeCanvasLabel(route),
           labelStyle: { fontSize: 10, fontWeight: 600, fill: pair.foreground },
           labelBgStyle: { fill: pair.background, fillOpacity: 1, rx: 4 },
           style: {

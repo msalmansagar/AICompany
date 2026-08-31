@@ -21,10 +21,26 @@ with stored isDefault and virtual gateways in view — the real gap was EDIT.
 | PR | Scope | Status |
 |----|-------|--------|
 | 1 | Gateway grammar + edit-canvas virtual gateways | ✅ done |
-| 2 | Route labels + default language | — |
+| 2 | Route labels + default language | ✅ done |
 | 3 | Decision panel route cards + navigation | — |
 | 4 | Layout (gateway-aware ranking, no leftward sweeps) | — |
 | 5 | Hover/Focus/View polish + terminating badges | — |
+
+- 2026-08-31 — **PR 2 done.** 511 tests, tsc clean. routeDisplay.ts is the one
+  voice for route language: NAME FIRST (a named route shows its name, never
+  its condition dump), the default says Default in business words (never
+  /else), only nameless conditional routes show a short condition — and the
+  async metadata-resolved condition now dresses ONLY nameless routes (a name
+  always wins). All four builders + editGateways consume it. The shouting
+  CONDITION badge on card rows became the quiet ◈ + "→ routes". Panel
+  language updated everywhere: "Default — used when no other route matches"
+  (Decision panel, Route panel banner, view GatewayDetails). Fixed in
+  passing: the resolved-label effect matched 'e_tech_route_' but the builder
+  emits 'tn_e_route_' — Technical view labels had NEVER resolved. Verified
+  live both modes: CEO Route / ICC · Default Route / Rejected · Default on
+  canvas, zero 'else', zero CONDITION badges, clean-state click path.
+  🔴 Stale-Vite bit AGAIN after the branch switch (nodes without edges —
+  looked like a filter bug, was the server). RESTART VITE FIRST, always.
 
 - 2026-08-31 — **PR 1 done.** 504 tests, tsc clean. RouteGatewayNode redesigned
   (outlined BPMN diamond, name chip ABOVE, route count INSIDE — the old solid

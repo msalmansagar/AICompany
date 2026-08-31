@@ -175,11 +175,13 @@ function OutcomeRow({ row }: { row: StepOutcomeRow }) {
   }
 
   if (row.isTerminal && row.applyFilter) {
+    // A conditional decision routes through its gateway — the ◈ says so; a
+    // shouting CONDITION badge on every such row said it far too loudly.
     return (
       <div style={outcomeRow} title={outcomeRowTitle(row)}>
         <span style={icon('var(--warning)')}>◈</span>
         <span style={outcomeLabel('var(--warning)')}>{truncate(row.name, 20)}</span>
-        <span style={conditionBadge}>CONDITION</span>
+        <span style={outcomeTarget('var(--warning)')}>→ routes</span>
       </div>
     );
   }
@@ -417,16 +419,6 @@ const outcomeRow: React.CSSProperties = { display: 'flex', alignItems: 'center',
 const forwardRight: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 };
 const filterBadge: React.CSSProperties = { fontSize: 9, color: 'var(--warning)', fontWeight: 700 };
 
-const conditionBadge: React.CSSProperties = {
-  fontSize: 9,
-  fontWeight: 700,
-  color: 'var(--warning)',
-  background: 'var(--warning-bg)',
-  border: '1px solid var(--warning)',
-  borderRadius: 3,
-  padding: '1px 5px',
-  flexShrink: 0,
-};
 
 // ─── Return badge + on-demand return list (CWFD-017 PR2) ───────────────────
 

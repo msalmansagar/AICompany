@@ -229,7 +229,7 @@ function RouteEntry({
         <span style={buildIndexBadgeStyle(isFallback)}>{index + 1}</span>
         <div style={routeTextBlock}>
           <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
-          {isFallback && <span style={buildShortLabelStyle(true)}>else (fallback path)</span>}
+          {isFallback && <span style={buildShortLabelStyle(true)}>Default — used when no other route matches</span>}
         </div>
       </div>
 
