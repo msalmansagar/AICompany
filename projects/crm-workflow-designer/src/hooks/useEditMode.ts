@@ -21,6 +21,7 @@ import type { StepOutcomeRow } from '@/services/WorkflowGraphBuilder';
 import { computeStepHeight } from '@/services/WorkflowGraphBuilder';
 import { computeEditLayout } from '@/services/EditGraphLayout';
 import { buildParallelGroupNodes } from '@/services/parallelGroups';
+import { buildEditGateways } from '@/services/editGateways';
 import { CORRECTION_PILL_H, CORRECTION_PILL_W } from '@/services/correctionSteps';
 import { classifyCorrectionSteps } from '@/services/correctionSteps';
 import { collectErrorNodeIds } from '@/services/ValidationService';
@@ -195,14 +196,36 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       };
     }).filter(Boolean);
 
+    // Virtual decision gateways (CWFD-019 PR1): presentation-only diamonds
+    // beside their source card, one per conditional decision with routes.
+    const gatewayGraph = buildEditGateways({
+      stepOrder,
+      steps,
+      outcomes,
+      routes,
+      routeOrder,
+      positionOf: (id) => {
+        const node = stepNodes.find((candidate) => candidate.id === `step_${id}`);
+        return node ? node.position : null;
+      },
+      heightOf: (id) =>
+        computeStepHeight((outcomesByStep.get(id) ?? []).length),
+      stepWidth: 280,
+      selectedId,
+    });
+
     // Local end stubs ride their step as child nodes, so they follow when the
-    // card is dragged.
+    // card is dragged. A decision that routes through a gateway ends at the
+    // gateway's own stub instead.
     const stubNodes: Node[] = [];
     for (const stepId of stepOrder) {
       if (stepId === mainTerminalStepId) continue;
       const stepOutcomes = outcomesByStep.get(stepId) ?? [];
       const terminals = stepOutcomes
-        .filter((outcome) => !outcome.nextStepId)
+        .filter(
+          (outcome) =>
+            !outcome.nextStepId && !gatewayGraph.outcomeIdsWithGateway.has(outcome.crmId)
+        )
         .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
       if (terminals.length === 0) continue;
       const cardHeight = computeStepHeight(stepOutcomes.length);
@@ -247,8 +270,8 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       }
     );
 
-    return [startNode, ...parallelGroups, ...stepNodes, ...stubNodes, endNode];
-  }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes, mainTerminalStepId]);
+    return [startNode, ...parallelGroups, ...stepNodes, ...gatewayGraph.nodes, ...stubNodes, endNode];
+  }, [steps, stepOrder, nodePositions, selectedId, validationResults, outcomes, routes, routeOrder, mainTerminalStepId]);
 
   const edges = useMemo<Edge[]>(() => {
     const result: Edge[] = [];
@@ -258,7 +281,16 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       result.push(buildStartEdge(entryStepId));
     }
 
+    // A decision drawn as a gateway carries its flow on the gateway's own
+    // entry and route edges — the plain outcome edge would say it twice.
+    const gatewayedOutcomeIds = new Set(
+      Object.values(outcomes)
+        .filter((o) => o.applyFilter && (routeOrder[o.crmId] ?? []).length > 0)
+        .map((o) => o.crmId)
+    );
+
     for (const outcome of Object.values(outcomes)) {
+      if (gatewayedOutcomeIds.has(outcome.crmId)) continue;
       const sourceStep = steps[outcome.stepId];
       const targetStep = outcome.nextStepId ? steps[outcome.nextStepId] : null;
       const isBackEdge = Boolean(
@@ -284,8 +316,23 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
       result.push(buildBranchEdge(step.parentStepId, step.crmId, step.applyBranchFilter));
     }
 
+    // The gateway edges themselves come from the same derivation the
+    // blueprint used, so diamond and lines can never disagree.
+    const gatewayGraph = buildEditGateways({
+      stepOrder,
+      steps,
+      outcomes,
+      routes,
+      routeOrder,
+      positionOf: () => ({ x: 0, y: 0 }),
+      heightOf: () => 0,
+      stepWidth: 280,
+      selectedId: null,
+    });
+    result.push(...gatewayGraph.edges);
+
     return result;
-  }, [outcomes, steps, stepOrder, routeOrder, mainTerminalStepId]);
+  }, [outcomes, steps, stepOrder, routes, routeOrder, mainTerminalStepId]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -367,6 +414,12 @@ export function useEditMode(_adapter: ICrmAdapter): UseEditModeResult {
   const onNodeClick = useCallback(
     (_event: MouseEvent, node: Node) => {
       if (node.id === START_NODE_ID || node.id === END_NODE_ID) return;
+      // A gateway is the drawing of a decision — selecting it selects the
+      // outcome, which opens the existing Decision Properties panel.
+      if (node.id.startsWith('gw_')) {
+        selectNode(`outcome_${node.id.slice('gw_'.length)}`);
+        return;
+      }
       selectNode(node.id);
     },
     [selectNode]
