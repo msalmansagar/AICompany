@@ -22,9 +22,23 @@ with stored isDefault and virtual gateways in view — the real gap was EDIT.
 |----|-------|--------|
 | 1 | Gateway grammar + edit-canvas virtual gateways | ✅ done |
 | 2 | Route labels + default language | ✅ done |
-| 3 | Decision panel route cards + navigation | — |
+| 3 | Decision panel route cards + navigation | ✅ done |
 | 4 | Layout (gateway-aware ranking, no leftward sweeps) | — |
 | 5 | Hover/Focus/View polish + terminating badges | — |
+
+- 2026-08-31 — **PR 3 done.** 511 tests, tsc clean. Route targets are DOORS:
+  in the edit Decision panel and the view gateway details, the target step is
+  an underlined link that selects it and pans the camera (centerOnNode).
+  The floating step toolbar gained [Decision] — shown only when the step owns
+  a conditional decision with routes; click = select the outcome = Decision
+  Properties. 🔴 REAL BUG FOUND UNDER IT: centerOnNode's animated pan raced
+  the selection re-render in the same tick and was INTERMITTENTLY cancelled —
+  the shipped validation-stepper pan had the same latent flake (reproduced:
+  stepper click, camera stuck). Fix: start the pan 60ms after the click so
+  the selection commit lands first; 4/4 distinct pans then succeeded (the
+  5th probe was already centred — a no-op, not a failure). Also hit a
+  transient HTTP 500 from the dev proxy on the steps query — Retry recovered;
+  not an app defect.
 
 - 2026-08-31 — **PR 2 done.** 511 tests, tsc clean. routeDisplay.ts is the one
   voice for route language: NAME FIRST (a named route shows its name, never

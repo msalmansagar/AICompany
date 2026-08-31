@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { WorkflowHooksSection } from './WorkflowHooksSection';
 import { RouteConfigDialog } from './RouteConfigDialog';
+import { useReactFlow } from '@xyflow/react';
+import { centerOnNode } from '@/components/common/canvasNavigation';
 import { useFetchXmlEntityContext } from '@/hooks/useFetchXmlEntityContext';
 import type { RouteDraft } from '@/services/routeDraftValidation';
 import { hasRealCondition } from '@/services/routeFilter';
@@ -43,6 +45,13 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
   }));
 
   const [addingRoute, setAddingRoute] = useState(false);
+  const reactFlow = useReactFlow();
+
+  // Req 12: a route's target is a door — click it and the canvas goes there.
+  const navigateToStep = (stepId: string) => {
+    selectNode(`step_${stepId}`);
+    centerOnNode(reactFlow, `step_${stepId}`);
+  };
   const fetchXmlContext = useFetchXmlEntityContext(adapter);
   /** Deleting a route removes a Dataverse record, so it goes through the same
    * confirmation the decision delete uses rather than a bespoke pattern. */
@@ -243,9 +252,21 @@ export function OutcomePropertiesPanel({ outcomeId, adapter }: OutcomeProperties
                     <div style={routeInfoStyle}>
                       <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
                       <span style={routeCondStyle}>{describeRouteCondition(route)}</span>
-                      <span style={routeNextStyle}>
-                        → {nextStep ? `${nextStep.sequenceNo}. ${nextStep.name}` : 'End'}
-                      </span>
+                      {nextStep ? (
+                        <button
+                          type="button"
+                          style={routeNavStyle}
+                          title={`Go to "${nextStep.name}" on the canvas`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigateToStep(nextStep.crmId);
+                          }}
+                        >
+                          → {nextStep.sequenceNo}. {nextStep.name}
+                        </button>
+                      ) : (
+                        <span style={routeNextStyle}>→ End</span>
+                      )}
                     </div>
                     <span style={routeArrowStyle}>›</span>
                   </button>
@@ -460,6 +481,23 @@ const routeNameStyle: React.CSSProperties = {
 const routeCondStyle: React.CSSProperties = {
   fontSize: 10,
   color: 'var(--text-secondary)',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+// The clickable form of the target line — same size, link affordance.
+const routeNavStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  fontFamily: 'inherit',
+  fontSize: 10.5,
+  color: 'var(--primary)',
+  textAlign: 'left',
+  textDecoration: 'underline',
+  textUnderlineOffset: 2,
+  cursor: 'pointer',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
