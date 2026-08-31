@@ -1,7 +1,8 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AssignmentFields, AutoNumberEntityOption, AutoNumberFieldOption } from '@/types/WorkflowTypes';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { logError } from '@/services/logError';
+import { LookupField } from '@/components/common/LookupDialog';
 
 // DP-3 — "Read From Parent" assignment (qdb_task_assign_to = 100000003).
 //
@@ -28,7 +29,6 @@ export function ParentAssignmentSection({
   adapter,
   disabled,
 }: ParentAssignmentSectionProps) {
-  const sectionId = useId();
   const [entities, setEntities] = useState<AutoNumberEntityOption[]>([]);
   const [ownFields, setOwnFields] = useState<AutoNumberFieldOption[]>([]);
   const [parentFields, setParentFields] = useState<AutoNumberFieldOption[]>([]);
@@ -66,74 +66,60 @@ export function ParentAssignmentSection({
   return (
     <div className="section-body">
       <div style={fieldStyle}>
-        <label className="lbl" htmlFor={`${sectionId}-lookup`}>
-          Lookup on the task&rsquo;s record
-        </label>
-        <select
-          id={`${sectionId}-lookup`}
-          className="fluent-select"
+        <LookupField
+          label="Lookup on the task’s record"
+          placeholder="— Choose a lookup —"
+          dialogTitle="Choose a lookup field"
+          clearLabel="— No lookup —"
           disabled={disabled}
-          value={value.parentAssignFieldId ?? ''}
-          onChange={(event) => {
-            const id = event.target.value || null;
+          options={ownFields.map((field) => ({ id: field.id, name: field.name }))}
+          value={value.parentAssignFieldId}
+          onChange={(id, name) =>
             onChange({
-              parentAssignFieldId: id,
-              parentAssignFieldName: ownFields.find((field) => field.id === id)?.name ?? null,
-            });
-          }}
-        >
-          <option value="">— Choose a lookup —</option>
-          {ownFields.map((field) => (
-            <option key={field.id} value={field.id}>{field.name}</option>
-          ))}
-        </select>
+              parentAssignFieldId: id || null,
+              parentAssignFieldName: id ? name : null,
+            })
+          }
+        />
         <span className="hint-inline">The field that points at the parent record.</span>
       </div>
 
       <div style={fieldStyle}>
-        <label className="lbl" htmlFor={`${sectionId}-entity`}>Parent table</label>
-        <select
-          id={`${sectionId}-entity`}
-          className="fluent-select"
+        <LookupField
+          label="Parent table"
+          placeholder="— Choose a table —"
+          dialogTitle="Choose the parent table"
+          clearLabel="— No parent table —"
           disabled={disabled}
-          value={value.parentAssignEntityId ?? ''}
-          onChange={(event) => {
-            const id = event.target.value || null;
+          options={entities.map((entity) => ({ id: entity.id, name: entity.name }))}
+          value={value.parentAssignEntityId}
+          onChange={(id, name) =>
             onChange({
-              parentAssignEntityId: id,
-              parentAssignEntityName: entities.find((entity) => entity.id === id)?.name ?? null,
+              parentAssignEntityId: id || null,
+              parentAssignEntityName: id ? name : null,
               parentAssignUserFieldId: null,
               parentAssignUserFieldName: null,
-            });
-          }}
-        >
-          <option value="">— Choose a table —</option>
-          {entities.map((entity) => (
-            <option key={entity.id} value={entity.id}>{entity.name}</option>
-          ))}
-        </select>
+            })
+          }
+        />
       </div>
 
       <div style={fieldStyle}>
-        <label className="lbl" htmlFor={`${sectionId}-owner`}>Owner field on the parent</label>
-        <select
-          id={`${sectionId}-owner`}
-          className="fluent-select"
+        <LookupField
+          label="Owner field on the parent"
+          placeholder="— Choose a field —"
+          dialogTitle="Choose the owner field"
+          clearLabel="— No owner field —"
           disabled={disabled || !value.parentAssignEntityId}
-          value={value.parentAssignUserFieldId ?? ''}
-          onChange={(event) => {
-            const id = event.target.value || null;
+          options={parentFields.map((field) => ({ id: field.id, name: field.name }))}
+          value={value.parentAssignUserFieldId}
+          onChange={(id, name) =>
             onChange({
-              parentAssignUserFieldId: id,
-              parentAssignUserFieldName: parentFields.find((field) => field.id === id)?.name ?? null,
-            });
-          }}
-        >
-          <option value="">— Choose a field —</option>
-          {parentFields.map((field) => (
-            <option key={field.id} value={field.id}>{field.name}</option>
-          ))}
-        </select>
+              parentAssignUserFieldId: id || null,
+              parentAssignUserFieldName: id ? name : null,
+            })
+          }
+        />
         <span className="hint-inline">
           {value.parentAssignEntityId
             ? 'The user on this field becomes the task owner.'

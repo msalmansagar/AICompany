@@ -4,7 +4,6 @@ import { logError } from '@/services/logError';
 import {
   HOOK_INVOCATION,
   HOOK_LABELS,
-  workflowHookSummary,
   type WorkflowHookKind,
   type WorkflowHooks,
   type CallableActionOption,
@@ -38,16 +37,14 @@ export function WorkflowHooksSection({
   scopeNote,
 }: WorkflowHooksSectionProps) {
   const sectionId = useId();
-  const [expanded, setExpanded] = useState(false);
   const [workflows, setWorkflows] = useState<CallableWorkflowOption[]>([]);
   const [actions, setActions] = useState<CallableActionOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
-  const summary = workflowHookSummary(value);
 
   const needsActions = kinds.some((kind) => HOOK_INVOCATION[kind] === 'action');
 
   useEffect(() => {
-    if (!expanded || workflows.length > 0 || loadFailed) return;
+    if (workflows.length > 0 || loadFailed) return;
     adapter
       .getCallableWorkflows()
       .then(setWorkflows)
@@ -55,10 +52,10 @@ export function WorkflowHooksSection({
         logError('WorkflowHooksSection:loadWorkflows', error);
         setLoadFailed(true);
       });
-  }, [expanded, workflows.length, loadFailed, adapter]);
+  }, [workflows.length, loadFailed, adapter]);
 
   useEffect(() => {
-    if (!expanded || !needsActions || actions.length > 0 || loadFailed) return;
+    if (!needsActions || actions.length > 0 || loadFailed) return;
     adapter
       .getCallableTaskActions()
       .then(setActions)
@@ -66,7 +63,7 @@ export function WorkflowHooksSection({
         logError('WorkflowHooksSection:loadActions', error);
         setLoadFailed(true);
       });
-  }, [expanded, needsActions, actions.length, loadFailed, adapter]);
+  }, [needsActions, actions.length, loadFailed, adapter]);
 
   const optionsFor = (kind: WorkflowHookKind): HookOption[] =>
     HOOK_INVOCATION[kind] === 'action'
@@ -87,14 +84,11 @@ export function WorkflowHooksSection({
 
   return (
     <div>
-      <button type="button" className="panel-section" style={{ width: '100%', border: 'none', background: 'transparent', cursor: 'pointer' }} onClick={() => setExpanded((open) => !open)}>
-        <span style={{ fontSize: 10 }}>{expanded ? '▾' : '▸'}</span>
-        <span>Workflows</span>
-        {!expanded && summary && <span className="pill info">{summary}</span>}
-      </button>
+      {/* Always open (agentation feedback): a hook that exists should be seen,
+          not discovered behind a fold. */}
+      <div className="panel-section">Workflows</div>
 
-      {expanded && (
-        <div className="section-body">
+      <div className="section-body">
           {scopeNote && <div className="notice">{scopeNote}</div>}
 
           {kinds.map((kind) => {
@@ -132,8 +126,7 @@ export function WorkflowHooksSection({
             );
           })}
           {loadFailed && <div className="notice">Could not load workflows.</div>}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
