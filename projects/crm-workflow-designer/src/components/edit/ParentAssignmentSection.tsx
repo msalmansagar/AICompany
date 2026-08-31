@@ -20,6 +20,8 @@ interface ParentAssignmentSectionProps {
   value: AssignmentFields;
   onChange: (patch: Partial<AssignmentFields>) => void;
   adapter: ICrmAdapter;
+  /** The process's task entity — scopes "lookup on the task's record" to its own fields. */
+  taskEntityId?: string | null;
   disabled?: boolean;
 }
 
@@ -27,6 +29,7 @@ export function ParentAssignmentSection({
   value,
   onChange,
   adapter,
+  taskEntityId,
   disabled,
 }: ParentAssignmentSectionProps) {
   const [entities, setEntities] = useState<AutoNumberEntityOption[]>([]);
@@ -46,10 +49,10 @@ export function ParentAssignmentSection({
 
   useEffect(() => {
     adapter
-      .getAutoNumberEntityFields()
+      .getAutoNumberEntityFields(taskEntityId ?? undefined)
       .then(setOwnFields)
       .catch((error) => logError('ParentAssignmentSection:loadOwnFields', error));
-  }, [adapter]);
+  }, [adapter, taskEntityId]);
 
   const parentEntityId = value.parentAssignEntityId;
   useEffect(() => {

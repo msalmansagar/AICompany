@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import { logError } from '@/services/logError';
+import { LookupField } from '@/components/common/LookupDialog';
 import {
   HOOK_INVOCATION,
   HOOK_LABELS,
@@ -36,7 +37,6 @@ export function WorkflowHooksSection({
   adapter,
   scopeNote,
 }: WorkflowHooksSectionProps) {
-  const sectionId = useId();
   const [workflows, setWorkflows] = useState<CallableWorkflowOption[]>([]);
   const [actions, setActions] = useState<CallableActionOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -95,20 +95,19 @@ export function WorkflowHooksSection({
             const options = optionsFor(kind);
             return (
               <div key={kind} className="field">
-                <label className="lbl" htmlFor={`${sectionId}-${kind}`}>{HOOK_LABELS[kind]}</label>
-                <select
-                  id={`${sectionId}-${kind}`}
-                  className="fluent-select"
-                  value={value[kind]?.workflowId ?? ''}
-                  onChange={(event) => setHook(kind, event.target.value || null)}
-                >
-                  <option value="">— Run nothing —</option>
-                  {options.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name} · {option.detail}
-                    </option>
-                  ))}
-                </select>
+                <LookupField
+                  label={HOOK_LABELS[kind]}
+                  placeholder="— Run nothing —"
+                  dialogTitle={HOOK_LABELS[kind]}
+                  clearLabel="— Run nothing —"
+                  options={options.map((option) => ({
+                    id: option.id,
+                    name: option.name,
+                    hint: option.detail,
+                  }))}
+                  value={value[kind]?.workflowId ?? null}
+                  onChange={(id) => setHook(kind, id || null)}
+                />
                 {HOOK_INVOCATION[kind] === 'action' && (
                   <span className="hint-inline">
                     The engine sends this one as a message, so it lists Actions on the task
