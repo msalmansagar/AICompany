@@ -33,8 +33,12 @@ function formattersFrom(source, functionName) {
   const fmtLine = /^\s*const fmt = .*$/m.exec(body);
   const dispLine = /^\s*const disp = .*$/m.exec(body);
   if (!fmtLine || !dispLine) throw new Error('fmt/disp not found in ' + functionName);
+  /* The designer's buildPreviewBody now aliases fmt to the shared previewCellText, so the named
+     formatter has to come with it — lifting the `const fmt` line alone is a ReferenceError. */
+  const shared = /^function previewCellText\s*\(/m.test(source) ? liftDeclaration(source, 'previewCellText') : '';
   return new Function('money', 'tr', `
     ${helper}
+    ${shared}
     const T = s => tr(s, "en");
     const num = c => ["Currency","Decimal","Whole number"].includes(c.type);
     ${fmtLine[0]}
@@ -100,6 +104,12 @@ for (const [name, text] of [['report-engine-core.js', core], ['report-designer.h
   check(`${name}: ${guarded}/${defined} guarded`, defined > 0 && defined === guarded);
   check(`${name} defines the blank test`, /const isBlankCell = value =>/.test(text));
 }
+
+/* The designer's inline formatter was extracted so the dataset blocks format identically to the
+   layouts. One shared formatter is the point — but only while it still guards blanks, so the count
+   above is no longer the whole story for that file. */
+console.log('\nthe shared formatter is guarded too');
+check('previewCellText tests for blank first', /^function previewCellText[\s\S]{0,200}?isBlankCell\(value\)\) return EMPTY_CELL/m.test(designer));
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

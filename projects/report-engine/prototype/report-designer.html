@@ -798,6 +798,16 @@
     display: flex; gap: 10px; align-items: flex-start; background: var(--primary-tint-2); border: 1px solid var(--border-strong);
     border-left: 3px solid var(--primary); border-radius: var(--radius); padding: 10px 14px; font-size: 12.5px; margin-bottom: 16px; color: var(--text);
   }
+
+  /* A report with standalone blocks previews as the runtime draws it: the parent record as a header,
+     then one named block per dataset. Mirrors .dataset-block / .dataset-header in
+     report-engine-core.css — the preview and the report must not look like two different products. */
+  .dataset-block { margin-bottom: 22px; }
+  .dataset-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .dataset-head b { color: var(--text); font-size: 13.5px; }
+  .dataset-header { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 14px 16px; }
+  .dataset-header > .dataset-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 4px; }
+  .dataset-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 20px; margin: 10px 0 16px; }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
@@ -4989,7 +4999,13 @@ function renderPaper(host, r) {
   const hd = ["Master-Detail Report","Invoice Layout"].includes(L.type) && (r.detailTables||[]).some(t=>t.columns.length);
   const hCols = cols.map((c,i) => ({ ...c, label:(r.columns[i]&&r.columns[i].label)||c.name, labelPos:(r.columns[i]&&r.columns[i].labelPos)||"left" }));
   const kpi = ((r._renderMode||r.renderMode||"report")!=="report") ? kpiTiles(cols, rows) : "";
-  const body = cols.length ? (kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill }))) : `<div class="page-sub">No visible columns — add columns to preview.</div>`;
+  // A report that declares standalone blocks previews as the runtime runs it. With none, this is the
+  // markup the preview has always produced (ADR-RPT-012 §2) — nothing single-dataset changes.
+  const blocks = previewBlocksOf(r);
+  const singleDatasetBody = () => kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill }));
+  const body = !cols.length ? `<div class="page-sub">No visible columns — add columns to preview.</div>`
+    : blocks.length ? previewDatasetsHtml(r, hCols, rows, blocks)
+    : singleDatasetBody();
   const mode = r._renderMode || r.renderMode || "report";
   const langBar = renderModeTabs(mode) + langTabsHtml(langs, lang);
   const nameOf = (attr) => { const c=(r.columns||[]).find(x=>x.attribute===attr); if(c) return c.name; const a=attributesOf(r.mainEntity).find(x=>x.a===attr); return a?a.n:attr; };
@@ -6860,7 +6876,11 @@ function keepSelectedLayoutInView() {
 const PREVIEW_ROW_LIMIT = 10;
 const previewData = { byKey: {}, pending: {}, errorByKey: {} };
 
-const previewKey = (entity, cols) => entity + "|" + cols.map(c => c.key).join(",");
+/* A block scoped to a parent reads the same table and the same columns as an unscoped one, so the
+   parent has to be part of the key — otherwise the first block to load would answer for every
+   other. An unscoped key keeps exactly the shape it had, so nothing that previewed before re-keys. */
+const previewKey = (entity, cols, scope) =>
+  entity + "|" + cols.map(c => c.key).join(",") + (scope ? "|" + scope : "");
 
 function previewRows(cols, entity) {
   const usable = (cols || []).filter(c => c && c.key);
@@ -6870,12 +6890,13 @@ function previewRows(cols, entity) {
   return previewData.byKey[key];
 }
 
-async function loadPreviewRows(key, entity, cols) {
+async function loadPreviewRows(key, entity, cols, fetchXml) {
   if (previewData.pending[key]) return;
   previewData.pending[key] = true;
   beginBusy(`Previewing ${entity}…`);
   try {
-    const rows = await dvList(entity, "?fetchXml=" + encodeURIComponent(previewFetchXml(entity, cols)));
+    const query = fetchXml || previewFetchXml(entity, cols);
+    const rows = await dvList(entity, "?fetchXml=" + encodeURIComponent(query));
     previewData.byKey[key] = rows.map(row => toPreviewRow(row, cols));
   } catch (error) {
     /* An entity the user cannot read, or a column that no longer exists: an empty preview is the
@@ -7063,10 +7084,26 @@ function previewCellValue(row, key) {
   return candidates.find(value => value !== undefined && value !== null);
 }
 
+/* Every preview surface reads the FORMATTED value, because that is what the report will show. A
+   child dataset is a different question: the engine scopes it by the parent's raw key, and filtering
+   a lookup on "Qatar National Bank" instead of its id matches nothing at all — a block that comes
+   back empty and looks like a query that legitimately found no rows. Both are kept, the raw under a
+   property name no logical name can produce. */
+const PREVIEW_RAW = "#raw";
+
 function toPreviewRow(row, cols) {
-  const shaped = {};
-  for (const col of cols) shaped[col.key] = previewCellValue(row, col.key);
+  const shaped = { [PREVIEW_RAW]: {} };
+  for (const col of cols) {
+    shaped[col.key] = previewCellValue(row, col.key);
+    shaped[PREVIEW_RAW][col.key] = previewRawValue(row, col.key);
+  }
   return shaped;
+}
+
+/** The unformatted value — a lookup's id rather than its label, which is what a filter matches on. */
+function previewRawValue(row, key) {
+  const candidates = [row[key], row[`_${key}_value`]];
+  return candidates.find(value => value !== undefined && value !== null);
 }
 
 /** Whether a preview is still waiting on its query, so the UI can say so rather than look empty. */
@@ -7087,6 +7124,167 @@ function previewPlaceholder(cols, entity) {
     : `No rows returned from <span class="kbd">${esc(entity)}</span>. The preview shows your own data, so an empty table here means the query returned nothing or you cannot read that table.`;
   return `<div class="section-card" style="max-width:940px"><div class="page-sub">${message}</div></div>`;
 }
+/* ---------- Dataset blocks in the preview ----------
+   The Preview tab renders the report's own columns over its main entity. That IS the whole report
+   while the report has one dataset, and it stopped being the whole report when standalone blocks
+   shipped: an author configured a term sheet with its facilities and its conditions, opened Preview,
+   and saw the term sheet on its own — no header region, no child tables, and nothing saying why.
+
+   These mirror multiDatasetHtml in the runtime as closely as a ten-row preview can: each block
+   queries its OWN table, scoped to the root's first record when the author gave it join keys, and a
+   block the engine would refuse says so instead of drawing an empty table. */
+
+/** The standalone blocks of a report, in author order — the datasets the engine would run. */
+function previewBlocksOf(report) {
+  const returned = ((report && report.columns) || [])
+    .map(column => column.sourceAlias || column.attribute || column.name)
+    .filter(Boolean);
+  return ((report && report.dataSources) || [])
+    .map((source, index) => ({ source, index }))
+    .filter(({ source }) => !source.primary && isStandalone(source) && source.enabled !== false)
+    .map(({ source, index }) => describePreviewBlock(source, index, returned));
+}
+
+function describePreviewBlock(source, index, returned) {
+  const name = source.name || `Source ${index + 1}`;
+  const entity = String(source.entity || "").trim();
+  const rowLimit = parseInt(source.rowLimit, 10) || 0;
+  return {
+    name,
+    entity,
+    cols: blockPreviewCols(entity, source.columns),
+    childKey: String(source.joinFromKey || "").trim(),
+    parentKey: String(source.joinToKey || "").trim(),
+    top: rowLimit > 0 ? Math.min(rowLimit, PREVIEW_ROW_LIMIT) : PREVIEW_ROW_LIMIT,
+    /* The same sentences the save refuses on. A block the engine will not run is worth saying here
+       too: the author is looking at the preview precisely to find out whether it works. */
+    problem: sourceProblems(source, name, returned)[0] || null
+  };
+}
+
+/** A block's columns, authored as logical names, resolved against its table for labels and types. */
+function blockPreviewCols(entity, columnList) {
+  const catalog = attributesOf(entity);
+  return String(columnList || "").split(",").map(name => name.trim()).filter(Boolean)
+    .map(key => {
+      const attribute = catalog.find(candidate => candidate.a === key);
+      return {
+        name: attribute ? attribute.n : key,
+        key,
+        type: attribute ? attribute.t : "Text",
+        right: !!attribute && ["Currency", "Decimal", "Whole number"].includes(attribute.t)
+      };
+    });
+}
+
+const isScopedBlock = block => !!(block.childKey && block.parentKey);
+
+/** The value the root's first row carries for a block's parent key, unformatted. */
+function parentScopeValue(block, rootRows) {
+  if (!isScopedBlock(block)) return null;
+  const first = rootRows[0];
+  if (!first) return null;
+  const raw = (first[PREVIEW_RAW] || {})[block.parentKey];
+  return raw === undefined ? null : raw;
+}
+
+const blockCacheKey = (block, parentValue) =>
+  previewKey(block.entity, block.cols, parentValue == null ? "" : String(parentValue));
+
+/* Synchronous like previewRows, and for the same reason: the render path cannot await. A miss starts
+   the query and returns nothing; the fetch re-renders when it lands. */
+function blockPreviewRows(block, parentValue) {
+  if (!block.entity || !block.cols.length) return [];
+  const key = blockCacheKey(block, parentValue);
+  if (!previewData.byKey[key]) {
+    loadPreviewRows(key, block.entity, block.cols, blockPreviewFetchXml(block, parentValue));
+    return [];
+  }
+  return previewData.byKey[key];
+}
+
+function blockPreviewFetchXml(block, parentValue) {
+  const attributes = [...new Set(block.cols.map(c => c.key))]
+    .map(name => `<attribute name="${esc(name)}"/>`).join("");
+  const filter = parentValue == null ? ""
+    : `<filter><condition attribute="${esc(block.childKey)}" operator="eq" value="${esc(String(parentValue))}"/></filter>`;
+  return `<fetch top="${block.top}"><entity name="${esc(block.entity)}">${attributes}${filter}</entity></fetch>`;
+}
+
+/**
+ * What a block can show right now: its rows, or the one thing to say instead of a table.
+ *
+ * An empty table is the wrong answer to every one of these — it is indistinguishable from a query
+ * that matched nothing, which is the silence this whole feature exists to remove.
+ */
+function resolvePreviewBlock(block, rootRows) {
+  if (block.problem) return { rows: [], notice: esc(block.problem) };
+  const parentValue = parentScopeValue(block, rootRows);
+  if (isScopedBlock(block) && parentValue == null) {
+    return { rows: [], notice: esc(`The main record returns no value for "${block.parentKey}", so there is nothing to scope this dataset to.`) };
+  }
+  const rows = blockPreviewRows(block, parentValue);
+  if (!rows.length && !previewData.byKey[blockCacheKey(block, parentValue)]) {
+    return { rows: [], notice: loadingNote(`Reading ${block.entity} from Dataverse…`) };
+  }
+  return { rows, notice: "" };
+}
+
+/**
+ * The runtime's shape in the designer's markup (MDS-FR-021): a single-record root becomes a header
+ * of label/value pairs, a multi-record root keeps its table and says out loud that the blocks below
+ * belong only to its first row.
+ *
+ * The designed layout is skipped, exactly as the runtime skips it — a layout binds one column set,
+ * and drawing an invoice around a root whose blocks it has never heard of would be a preview that
+ * disagrees with the report.
+ */
+function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
+  const head = rootRows.length === 1
+    ? previewDatasetHeader(report.name || "Record", rootCols, rootRows[0])
+    : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "") + previewMultiRecordNotice(rootRows.length);
+  const body = blocks.map(block => {
+    const { rows, notice } = resolvePreviewBlock(block, rootRows);
+    return previewDatasetBlock(block.name, block.cols, rows, notice);
+  }).join("");
+  return head + body;
+}
+
+function previewMultiRecordNotice(rowCount) {
+  return `<div class="info-banner" style="margin:8px 0">${rowCount} records returned —
+    the datasets below show only the first one's related rows.</div>`;
+}
+
+/** The parent record as fields rather than a one-row table: the difference between a document and a grid. */
+function previewDatasetHeader(name, cols, row) {
+  const fields = cols.map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.label || c.name)}</div>
+      <div style="font-weight:600">${esc(previewCellText(c, row[c.key]))}</div></div>`).join("");
+  return `<section class="dataset-block dataset-header">
+    <div class="dataset-head"><b>${esc(name)}</b></div>
+    <div class="dataset-fields">${fields}</div>
+  </section>`;
+}
+
+function previewDatasetBlock(name, cols, rows, notice) {
+  const body = notice
+    ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
+    : (rows.length ? previewDatasetTable(cols, rows) : `<div class="page-sub" style="padding:8px 0">No rows.</div>`);
+  const count = (!notice && rows.length) ? `<span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>` : "";
+  return `<section class="dataset-block">
+    <div class="dataset-head"><b>${esc(name)}</b>${count}</div>
+    ${body}</section>`;
+}
+
+/* Deliberately plainer than buildPreviewBody: no grand total, no grouping, no chart. A block is
+   whatever its own columns say it is, and the runtime draws it the same way. */
+function previewDatasetTable(cols, rows) {
+  const right = c => c.right || ["Currency", "Decimal", "Whole number"].includes(c.type);
+  const head = cols.map(c => `<th class="${right(c) ? "num" : ""}">${esc(c.name)}</th>`).join("");
+  const body = rows.map(row =>
+    `<tr>${cols.map(c => `<td class="${right(c) ? "num" : ""}">${esc(previewCellText(c, row[c.key]))}</td>`).join("")}</tr>`).join("");
+  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
 function draftPreviewCols(d) {
   const cat = attributesOf(d.mainEntity);
   return d.columns.map(a => { const m = cat.find(x=>x.a===a); return m ? { name:m.n, key:m.a, type:m.t, right:["Currency","Decimal","Whole number"].includes(m.t) } : null; }).filter(Boolean);
@@ -7733,6 +7931,22 @@ function filtersParamBar(filters, parameters, nameOf) {
   if (!fchips && !pchips) return "";
   return `<div class="rp-filterbar">${fchips?`<span class="fb-h">Filters</span>${fchips}`:""}${pchips?`<span class="fb-h">Parameters</span>${pchips}`:""}</div>`;
 }
+/**
+ * One column's value as the report will print it — currency with its symbol, a date as dd/MM/yyyy,
+ * a decimal grouped, and a blank as the em dash rather than a fabricated "QAR 0.00".
+ *
+ * Lifted out of buildPreviewBody so the dataset blocks format identically to the layouts. Two copies
+ * would drift, and a block whose amounts read differently from the root's is a preview that
+ * disagrees with itself.
+ */
+function previewCellText(col, value) {
+  if (isBlankCell(value)) return EMPTY_CELL;
+  if (col.type === "Currency") return money(+value || 0);
+  if (col.type === "Date/Time") return String(value).split("-").reverse().join("/");
+  if (col.type === "Decimal") return (+value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return value;
+}
+
 function buildPreviewBody(type, cols, rows, opts) {
   opts = opts || {};
   const lang = opts.lang || "en", T = s => tr(s, lang);
@@ -7744,7 +7958,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   const cat2 = cols.find(c => c.type === "Option set" && c !== catCol) || catCols[1] || null;
   const valCol = cols.find(c => ["Currency","Decimal","Whole number"].includes(c.type));
   const dateCol = cols.find(c => c.type === "Date/Time");
-  const fmt = (c,v) => isBlankCell(v) ? EMPTY_CELL : c.type==="Currency"?money(+v||0):(c.type==="Date/Time"?String(v).split("-").reverse().join("/"):(c.type==="Decimal"?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):v));
+  const fmt = previewCellText;
   const disp = (c,v) => (num(c)||c.type==="Date/Time") ? fmt(c,v) : T(fmt(c,v));
   const sum = list => valCol ? list.reduce((s,r)=>s+(+r[valCol.key]||0),0) : 0;
   const fmtTotal = n => (valCol && valCol.type==="Currency") ? money(n) : (+n).toLocaleString(undefined,{maximumFractionDigits:2});

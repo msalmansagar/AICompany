@@ -40,7 +40,7 @@ jobs:
         run: |
           total=$(node tests/run-all.mjs | tail -1 | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+')
           echo "assertions passed: ${total:-0}"
-          if [ "${total:-0}" -lt 380 ]; then
+          if [ "${total:-0}" -lt 540 ]; then
             echo "::error::only ${total:-0} assertions ran; the suites have decayed — see C-3"
             exit 1
           fi
