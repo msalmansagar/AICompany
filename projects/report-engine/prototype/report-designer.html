@@ -5037,14 +5037,23 @@ function renderPaper(host, r) {
   host.innerHTML = ""; host.appendChild(paper);
 }
 function runExport(format, r) {
+  /* CSV is one table by definition, so a report with blocks cannot be carried whole. The runtime
+     names what it left out rather than shipping a file that quietly disagrees with the screen
+     (MDS-FR-023); a preview export that does not would teach the author the wrong thing about
+     their own report. */
+  const omitted = previewBlocksOf(r).map(block => block.name).filter(Boolean);
   if (format === "CSV") {
     const cols = reportPreviewCols(r);
     const rows = previewRows(cols, r.mainEntity);
     const header = cols.map(c=>`"${c.name}"`).join(",");
     const lines = rows.map(row => cols.map(c=>{ let v = c.masked?"•••••":row[c.key]; return `"${v}"`; }).join(",")).join("\n");
-    const blob = new Blob([header+"\n"+lines], {type:"text/csv"});
+    const note = omitted.length ? `\n\n"Not included — CSV carries one table: ${omitted.join("; ")}"` : "";
+    const blob = new Blob([header+"\n"+lines+note], {type:"text/csv"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = (r.name.replace(/\s+/g,"_"))+"_2026-07-15.csv"; a.click();
-    toast("CSV generated and downloaded"); return;
+    toast(omitted.length
+      ? `CSV generated — one table only, without ${omitted.join(", ")}`
+      : "CSV generated and downloaded", omitted.length ? "info" : undefined);
+    return;
   }
   const engine = { "PDF":"QuestPDF","Excel":"ClosedXML","Word":"Open XML SDK","Image (PNG)":"ScottPlot" }[format] || "engine";
   toast(`${format} generated in the middle tier (${engine})`, "info");

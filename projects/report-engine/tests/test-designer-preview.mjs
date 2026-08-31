@@ -21,14 +21,14 @@ const NEEDED = [
   'parentScopeValue', 'blockCacheKey', 'blockPreviewRows', 'blockPreviewFetchXml',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
-  'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote'
+  'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport'
 ];
 
 const EXPORTED = [
   'previewBlocksOf', 'blockPreviewCols', 'parentScopeValue', 'blockCacheKey', 'blockPreviewRows',
   'blockPreviewFetchXml', 'resolvePreviewBlock', 'previewDatasetsHtml', 'previewKey',
   'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
-  'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote'
+  'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -43,10 +43,12 @@ const catalog = {
 
 const previewData = { byKey: {}, pending: {}, errorByKey: {} };
 const issued = [];
+const exported = [];
+const toasts = [];
 
 const api = new Function(
   'esc', 'money', 'loadingNote', 'isBlankCell', 'EMPTY_CELL', 'attributesOf', 'previewData', 'loadPreviewRows',
-  'ic', 'beginBusy', 'endBusy',
+  'ic', 'beginBusy', 'endBusy', 'Blob', 'document', 'URL', 'toast',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
    return { ${EXPORTED.join(', ')} };`
 )(
@@ -60,7 +62,12 @@ const api = new Function(
   (key, entity, cols, fetchXml) => { issued.push({ key, entity, fetchXml }); },
   name => `<icon:${name}>`,
   () => {},
-  () => {}
+  () => {},
+  // The CSV export writes a real file, so the download is intercepted rather than performed.
+  function Blob(parts) { exported.push(parts.join('')); },
+  { createElement: () => ({ click() {} }) },
+  { createObjectURL: () => 'blob:test' },
+  message => { toasts.push(message); }
 );
 
 let passed = 0, failed = 0;
@@ -251,6 +258,23 @@ console.log('the canvas says what the engine will do with the root, rather than 
 
   const many = api.canvasRootShapeNote(withBlock, [{}, {}, {}]);
   check('a multi-record root gets the first-row notice instead', /3 records returned/.test(many), many);
+}
+
+/* A CSV that silently arrives one table short is the same quiet disagreement between the file and
+   the screen that the runtime's exports were fixed for (MDS-FR-023). */
+console.log('the preview CSV names the datasets it cannot carry');
+{
+  const withBlock = report([facilities()]);
+  api.runExport('CSV', withBlock);
+  const csv = exported[exported.length - 1];
+  check('the omission is written into the file', /Not included/.test(csv), csv);
+  check('and the block is named', /Requested Facilities/.test(csv), csv);
+  check('the toast says so too', /without Requested Facilities/.test(toasts[toasts.length - 1]), toasts[toasts.length - 1]);
+
+  api.runExport('CSV', report([]));
+  const plain = exported[exported.length - 1];
+  check('a report with no blocks gets no note', !/Not included/.test(plain), plain);
+  check('and the plain confirmation', /downloaded/.test(toasts[toasts.length - 1]), toasts[toasts.length - 1]);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
