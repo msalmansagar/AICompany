@@ -536,11 +536,13 @@ function branchLinksOf(steps: Record<string, WorkflowStep>): Array<{ parentStepI
 function routeLinksOf(
   routes: Record<string, WorkflowRoute>,
   outcomes: Record<string, WorkflowOutcome>
-): Array<{ stepId: string; nextStepId: string | null }> {
+): Array<{ stepId: string; nextStepId: string | null; outcomeId: string; isDefault: boolean }> {
   return Object.values(routes)
     .map((route) => ({
       stepId: outcomes[route.outcomeId]?.stepId ?? '',
       nextStepId: route.nextStepId,
+      outcomeId: route.outcomeId,
+      isDefault: route.isDefault,
     }))
     .filter((link) => link.stepId !== '');
 }

@@ -777,9 +777,9 @@ function nodeDimensions(node: Node): { w: number; h: number } {
 }
 
 const STEP_NODE_TYPES = new Set(['viewStep', 'execStep', 'techStep']);
-// 80/40 crammed the conditional fan-out: destination cards nearly touched
-// the gateway and each other, and the route labels overlapped both.
-const BRANCH_GAP = 140;
+// 140 was needed while route labels carried full conditions; PR2's
+// name-only labels let the gateway hug its source again (req 3: 40-80px).
+const BRANCH_GAP = 72;
 const ROUTE_STACK_GAP = 72;
 
 /**
