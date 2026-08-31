@@ -120,7 +120,10 @@ export function EditStepNode({ data }: NodeProps) {
       <StepCardHeader
         sequenceNo={stepData.sequenceNo}
         name={stepData.name}
-        isTerminating={(stepData.outcomeRows ?? []).some((row) => row.isTerminal)}
+        isTerminating={
+          (stepData.outcomeRows ?? []).length > 0 &&
+          (stepData.outcomeRows ?? []).every((row) => row.isTerminal)
+        }
         controlFlow={
           stepData.controlFlowSummary
             ? {

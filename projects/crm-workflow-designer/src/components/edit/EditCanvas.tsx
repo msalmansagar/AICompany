@@ -337,6 +337,26 @@ export function EditCanvas({ adapter, onExitEdit, onOpenSummary }: EditCanvasPro
         collectFocusStepIds(focusedStepId, relationships)
       );
     }
+    // A selected DECISION focuses too (req 14): the fade anchors on its
+    // gateway, whose incident edges are the entry and the routes — lighting
+    // source, diamond, every route and every target in one move.
+    const focusedOutcomeId =
+      isFocusMode && selectedId?.startsWith('outcome_')
+        ? selectedId.slice('outcome_'.length)
+        : null;
+    const focusedOutcome = focusedOutcomeId ? outcomes[focusedOutcomeId] : null;
+    if (focusedOutcome) {
+      const targetStepIds = (useWorkflowStore.getState().routeOrder[focusedOutcome.crmId] ?? [])
+        .map((routeId) => routes[routeId]?.nextStepId)
+        .filter((stepId): stepId is string => Boolean(stepId));
+      return applyFocusFade(
+        filtered.nodes,
+        filtered.edges,
+        editMode.edges,
+        `gw_${focusedOutcome.crmId}`,
+        new Set([focusedOutcome.stepId, ...targetStepIds])
+      );
+    }
     if (hoveredNodeId?.startsWith('step_')) {
       return { nodes: filtered.nodes, edges: applyHoverEmphasis(filtered.edges, hoveredNodeId) };
     }

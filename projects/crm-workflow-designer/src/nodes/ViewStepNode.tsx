@@ -121,7 +121,7 @@ export function ViewStepNode({ data, selected }: NodeProps) {
       <StepCardHeader
         sequenceNo={step.sequenceNo}
         name={step.name}
-        isTerminating={outcomeRows.some((row) => row.isTerminal)}
+        isTerminating={outcomeRows.length > 0 && outcomeRows.every((row) => row.isTerminal)}
         controlFlow={
           controlFlowLabel
             ? {
