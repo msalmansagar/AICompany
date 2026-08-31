@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useReactFlow, useStore } from '@xyflow/react';
 import type { FitViewOptions, Node } from '@xyflow/react';
 
@@ -34,27 +34,53 @@ export function computeSmartFit(nodes: Node[], dir: 'TB' | 'LR'): FitViewOptions
 }
 
 /**
- * Applies the smart fit exactly once, as soon as every rendered node has been
- * measured — the same deterministic guard FitOnceMeasured uses, because a
- * fixed delay races measurement and fitView-on-init fires too early.
+ * Applies the smart fit while the viewport is still untouched, and stops the
+ * moment any fit (or the user) has moved it.
+ *
+ * "Fit exactly once when all nodes are measured" was the previous contract,
+ * and it lost twice on slow loads: the store can refill after the canvas
+ * mounts, replacing every node — which cancels an in-flight fit and wipes
+ * measurements — and the once-guard then refused to try again, leaving the
+ * editor at translate(0,0) scale(1) framing a single card. The identity
+ * transform IS the signal: no successful fit and no human ever leaves the
+ * viewport exactly there.
  */
 export function SmartInitialView({ dir }: { dir: 'TB' | 'LR' }) {
   const { fitView, getNodes } = useReactFlow();
-  const hasFitted = useRef(false);
 
-  const allNodesMeasured = useStore((state) => {
-    if (state.nodeLookup.size === 0) return false;
-    for (const [, node] of state.nodeLookup) {
-      if (!node.measured?.width) return false;
+  // 'done' — the viewport has moved; nothing left to do, ever.
+  // 'empty' — no measured step card yet (a slow load renders start/end first).
+  // 'ready' — every node measured: fit now.
+  // 'settling' — steps measured but some node still is not; a node React Flow
+  //   never mounts must not hold the fit hostage, so fit after a deadline.
+  const status = useStore((state) => {
+    const [x, y, zoom] = state.transform;
+    if (x !== 0 || y !== 0 || zoom !== 1) return 'done';
+    if (state.nodeLookup.size === 0) return 'empty';
+    let hasMeasuredStep = false;
+    let allMeasured = true;
+    for (const [id, node] of state.nodeLookup) {
+      if (node.measured?.width) {
+        if (id.startsWith('step_')) hasMeasuredStep = true;
+      } else {
+        allMeasured = false;
+      }
     }
-    return true;
+    if (!hasMeasuredStep) return 'empty';
+    return allMeasured ? 'ready' : 'settling';
   });
 
   useEffect(() => {
-    if (hasFitted.current || !allNodesMeasured) return;
-    hasFitted.current = true;
-    void fitView(computeSmartFit(getNodes(), dir));
-  }, [allNodesMeasured, fitView, getNodes, dir]);
+    if (status === 'done' || status === 'empty') return;
+    if (status === 'ready') {
+      void fitView(computeSmartFit(getNodes(), dir));
+      return;
+    }
+    const deadline = window.setTimeout(() => {
+      void fitView(computeSmartFit(getNodes(), dir));
+    }, 1500);
+    return () => window.clearTimeout(deadline);
+  }, [status, fitView, getNodes, dir]);
 
   return null;
 }

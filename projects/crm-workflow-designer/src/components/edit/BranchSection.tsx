@@ -1,6 +1,7 @@
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import type { WorkflowStep } from '@/types/WorkflowTypes';
 import { branchSummaryText } from '@/services/branchFields';
+import { LookupField } from '@/components/common/LookupDialog';
 
 // CWFD-005 — concurrency, expressed the way the platform engine expresses it.
 //
@@ -25,7 +26,6 @@ export function BranchSection({
   childCount,
   onEditCondition,
 }: BranchSectionProps) {
-  const sectionId = useId();
   const [expanded, setExpanded] = useState(false);
   const summary = branchSummaryText(value);
   const isBranch = Boolean(value.parentStepId);
@@ -51,26 +51,25 @@ export function BranchSection({
           )}
 
           <div style={fieldStyle}>
-            <label className="lbl" htmlFor={`${sectionId}-parent`}>Runs at the same time as</label>
-            <select
-              id={`${sectionId}-parent`}
-              className="fluent-select"
-              value={value.parentStepId ?? ''}
-              onChange={(event) =>
+            <LookupField
+              label="Runs at the same time as"
+              placeholder="— Runs on its own, in sequence —"
+              dialogTitle="Runs at the same time as"
+              clearLabel="— Runs on its own, in sequence —"
+              options={candidateParents.map((step) => ({
+                id: step.id,
+                name: step.name || 'Unnamed Step',
+                hint: `Step ${step.sequenceNo}`,
+              }))}
+              value={value.parentStepId}
+              onChange={(id) =>
                 onChange(
-                  event.target.value
-                    ? { parentStepId: event.target.value }
+                  id
+                    ? { parentStepId: id }
                     : { parentStepId: null, parentStepName: null, applyBranchFilter: false, branchFilter: '' }
                 )
               }
-            >
-              <option value="">— Runs on its own, in sequence —</option>
-              {candidateParents.map((step) => (
-                <option key={step.id} value={step.id}>
-                  {step.sequenceNo}. {step.name || 'Unnamed Step'}
-                </option>
-              ))}
-            </select>
+            />
             <span className="hint-inline">
               When that step&rsquo;s task is created, this step&rsquo;s task is created alongside it.
             </span>

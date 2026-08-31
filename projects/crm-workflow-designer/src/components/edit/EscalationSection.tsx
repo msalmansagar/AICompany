@@ -21,7 +21,9 @@ interface EscalationSectionProps {
 }
 
 export function EscalationSection({ value, onChange, adapter, disabled }: EscalationSectionProps) {
-  const [expanded, setExpanded] = useState(false);
+  // Open by default (agentation feedback): the deadline policy is part of the
+  // step's story, not an advanced extra to hunt for.
+  const [expanded, setExpanded] = useState(true);
   const [configs, setConfigs] = useState<EscalationConfigOption[]>([]);
   const [loadFailed, setLoadFailed] = useState(false);
   // An empty list and a list that has not arrived yet look identical, and saying

@@ -30,6 +30,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     stepOrder,
     outcomes,
     outcomeOrder,
+    process,
     setStep,
     addOutcome,
     moveStepUp,
@@ -40,6 +41,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
     stepOrder: s.stepOrder,
     outcomes: s.outcomes,
     outcomeOrder: s.outcomeOrder,
+    process: s.process,
     setStep: s.setStep,
     addOutcome: s.addOutcome,
     moveStepUp: s.moveStepUp,
@@ -291,6 +293,7 @@ export function StepPropertiesPanel({ stepId, adapter }: StepPropertiesPanelProp
             value={step}
             onChange={(patch) => setStep({ ...step, ...patch })}
             adapter={adapter}
+            taskEntityId={process?.recordEntity ?? null}
           />
         ) : isLoadingAssignees ? (
           <div style={spinnerRowStyle}>
