@@ -10,6 +10,7 @@ import {
   CORRECTION_PILL_W,
 } from '@/services/correctionSteps';
 import { MarkerType } from '@xyflow/react';
+import { routeCanvasLabel } from './routeDisplay';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 
@@ -263,10 +264,9 @@ export function buildGraph(
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : `end_stub_gw_${o.id}`;
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
-        const cond = conditionLabel(route.filter);
-        // The BPMN default-flow slash: the route the engine takes when nothing
-        // else matched wears "∕" so evaluation order is readable at a glance.
-        const edgeLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+        // Name first, "Default" for the fallback — the full condition lives
+        // in the Decision and Route panels (CWFD-019 PR2).
+        const edgeLabel = routeCanvasLabel(route);
 
         forwardEdges.push({
           id: `e_route_${route.id}`,
@@ -277,7 +277,7 @@ export function buildGraph(
           type: 'default',
           animated: !isFallback,
           data: { isFallback },
-          label: isFallback ? `∕ ${edgeLabel}` : edgeLabel,
+          label: edgeLabel,
           // Text and fill were the SAME colour — a solid orange bar with
           // invisible writing. The registered route-label pairs sit the text
           // on the neutral raised ground the contrast guard checks.

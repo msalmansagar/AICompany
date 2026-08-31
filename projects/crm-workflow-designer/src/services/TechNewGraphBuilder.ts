@@ -3,7 +3,7 @@ import { BRANCH_EDGE_LABEL } from '../styles/surfacePairs';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import type { LayoutDir, StepOutcomeRow } from './WorkflowGraphBuilder';
-import { conditionLabel } from './WorkflowGraphBuilder';
+import { routeCanvasLabel } from './routeDisplay';
 import { routeLabelPair } from '../styles/surfacePairs';
 
 // Card height, inherited from the technical canvas this view replaced.
@@ -299,9 +299,7 @@ function buildEdges(
         const targetId = route.nextStepId ? `tn_step_${route.nextStepId}` : TN_END_ID;
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
-        const cond = conditionLabel(route.filter);
-        const rawLabel = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
-        const label = rawLabel.length > 28 ? `${rawLabel.slice(0, 28)}…` : rawLabel;
+        const label = routeCanvasLabel(route);
 
         edges.push({
           id: `tn_e_route_${route.id}`,

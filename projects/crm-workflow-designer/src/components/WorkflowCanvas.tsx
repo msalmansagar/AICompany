@@ -34,6 +34,7 @@ import { useResolvedRouteLabels } from '../hooks/useResolvedRouteLabels';
 import { minimapNodeColor, MINIMAP_MASK_COLOR } from './common/minimapTheme';
 import { computeSmartFit, LARGE_GRAPH_THRESHOLD } from './common/SmartInitialView';
 import { centerOnNode } from './common/canvasNavigation';
+import { wantsResolvedConditionLabel } from '../services/routeDisplay';
 import { GoToStepPanel } from './common/GoToStepPanel';
 import { buildStageBands } from '../services/stageBands';
 import { buildParallelGroupNodes } from '../services/parallelGroups';
@@ -342,20 +343,23 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
     setPendingFit(0);
   }, [pendingFit, measuredNodeIds, requestedNodeIds, fitView, getNodes, view.layoutDir, pendingDrillNodeId, reactFlow]);
 
-  // Apply resolved human-readable labels to route edges once metadata is fetched.
-  // Also re-runs on view mode / data change so labels survive graph rebuilds.
+  // Resolved human-readable conditions dress only NAMELESS routes — a named
+  // route shows its name, and Default stays Default (CWFD-019 PR2). The full
+  // condition always lives in the Decision and Route panels.
   useEffect(() => {
-    if (resolvedLabels.size === 0) return;
+    if (resolvedLabels.size === 0 || !view.data) return;
+    const routeById = new Map(view.data.routes.map((route) => [route.id, route]));
     view.setEdges((prev) =>
       prev.map((edge) => {
         const routeId = extractRouteId(edge.id);
-        const label = routeId ? resolvedLabels.get(routeId) : undefined;
-        // A full condition can run to banner width at low zoom — clamp it; the
-        // route inspector panel still shows the whole thing on click.
-        if (!label) return edge;
-        // Keep the default-flow slash the builder stamped on fallback routes.
-        const isFallback = (edge.data as { isFallback?: boolean } | undefined)?.isFallback === true;
-        return { ...edge, label: isFallback ? `∕ ${truncateLabel(label)}` : truncateLabel(label) };
+        if (!routeId) return edge;
+        const route = routeById.get(routeId);
+        const label = resolvedLabels.get(routeId);
+        if (!route || !label) return edge;
+        if (!wantsResolvedConditionLabel({ name: route.name, filter: route.filter, isDefault: route.isDefault })) {
+          return edge;
+        }
+        return { ...edge, label: truncateLabel(label) };
       })
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -804,7 +808,7 @@ function truncateLabel(label: string): string {
 }
 
 function extractRouteId(edgeId: string): string | null {
-  for (const prefix of ['e_route_', 'e_exec_route_', 'e_tech_route_']) {
+  for (const prefix of ['e_route_', 'e_exec_route_', 'tn_e_route_']) {
     if (edgeId.startsWith(prefix)) return edgeId.slice(prefix.length);
   }
   return null;

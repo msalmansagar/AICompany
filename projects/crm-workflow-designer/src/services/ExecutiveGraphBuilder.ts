@@ -7,11 +7,11 @@ import type { LayoutDir } from './WorkflowGraphBuilder';
 import {
   MARKER_SIZE,
   GATEWAY_SIZE,
-  conditionLabel,
   branchRouteDestinations,
   buildAnchorEdges,
 } from './WorkflowGraphBuilder';
 import { classifyCorrectionSteps } from './correctionSteps';
+import { routeCanvasLabel } from './routeDisplay';
 
 export const EXEC_STEP_W = 300;
 export const EXEC_STEP_H = 78;
@@ -170,8 +170,7 @@ export function buildExecutiveGraph(
         const targetId = route.nextStepId ? `step_${route.nextStepId}` : END_NODE_ID;
         const isFallback = route.isDefault;
         const stroke = isFallback ? 'var(--success)' : 'var(--warning)';
-        const cond = conditionLabel(route.filter);
-        const label = route.name && cond !== 'else' ? `${route.name}: ${cond}` : cond;
+        const label = routeCanvasLabel(route);
 
         forwardEdges.push({
           id: `e_exec_route_${route.id}`,

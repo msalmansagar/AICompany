@@ -374,7 +374,7 @@ const countBadgeStyle: React.CSSProperties = {
 
 /** What the row says about a route: the fallback, a real condition, or neither. */
 function describeRouteCondition(route: WorkflowRoute): string {
-  if (route.isDefault) return 'else (fallback)';
+  if (route.isDefault) return 'Default — used when no other route matches';
   if (!hasRealCondition(route.filter)) return '⚠ No condition set';
   return '✎ Has condition — click to edit';
 }

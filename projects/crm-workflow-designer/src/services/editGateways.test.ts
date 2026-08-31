@@ -127,10 +127,10 @@ describe('buildEditGateways', () => {
     expect(ceo.label).toBe('CEO Route');
   });
 
-  it('should_mark_the_default_route_with_the_slash_and_calm_styling', () => {
+  it('should_call_the_default_route_Default_with_calm_styling', () => {
     const graph = buildEditGateways(INPUT);
     const fallback = graph.edges.find((e) => e.id === 'route_edge_fallback')!;
-    expect(fallback.label).toBe('∕ Default');
+    expect(fallback.label).toBe('Default');
     expect(fallback.animated).toBe(false);
     const ceo = graph.edges.find((e) => e.id === 'route_edge_ceo')!;
     expect(ceo.animated).toBe(true);

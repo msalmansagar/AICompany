@@ -98,9 +98,9 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
             <div style={fallbackBanner}>
               <span style={{ fontSize: 14 }}>⊘</span>
               <div>
-                <div style={fallbackTitle}>Fallback route</div>
+                <div style={fallbackTitle}>Default route</div>
                 <div style={fallbackHint}>
-                  No condition — fires when no earlier route matches.
+                  No condition — used when no other route matches.
                   Keep this as the highest sequence number.
                 </div>
               </div>
@@ -112,9 +112,9 @@ export function RoutePropertiesPanel({ routeId, adapter }: RoutePropertiesPanelP
                 type="button"
                 style={clearBtn}
                 onClick={() => setRoute({ ...route, filter: EMPTY_FILTER, isDefault: true })}
-                title="Remove condition — makes this route the fallback"
+                title="Remove condition — makes this route the default"
               >
-                ✕ Clear (make fallback)
+                ✕ Clear (make default)
               </button>
             </div>
           )}
