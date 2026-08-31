@@ -13,6 +13,45 @@ No schema changes anywhere in this programme; everything is presentation.
 | 5 | Overview view | ✅ done | New first view-mode tab: stage chips (steps/↩/∥/⊘ counts) chained START→END, real inter-stage transitions (outcomes+routes+branch links) bundled per pair, skip-hops arc by the side, faint dotted sequence connectors where no direct transition exists. Click a stage → Business canvas centered on its first step. |
 | 6 | Minimap, legend, validation info tier, perf sweep | ✅ done | info severity (ORPHAN_JOIN_GUARD downgraded — never blocks, never acked); dangling-gateway cleanup in the filter; legend + minimap entries; perf measured: every chip toggle 23–36ms on 35 steps, node positions byte-identical. **Swimlane collapse SKIPPED** per the "only if clean" clause — collapsing a lane orphans every edge crossing it, and stage-level collapse already exists via Overview drill + Hierarchy fold. |
 
+## CWFD-020 — step panel lookups + the initial-fit defect (2026-08-31)
+
+Two agentation feedback rounds on StepPropertiesPanel, plus one real canvas
+defect found underneath them. PR #154, merged to main.
+
+| # | Item | Status |
+|---|------|--------|
+| 1–3 | ParentAssignmentSection's three selects → LookupField popups | ✅ done |
+| 4 | EscalationSection opens by default | ✅ done |
+| 5 | WorkflowHooksSection always open, collapse removed | ✅ done |
+| 6 | BranchSection parent-step picker → LookupField | ✅ done |
+| 7–9 | WorkflowHooksSection's three hook selects → LookupField popups | ✅ done |
+| 10 | "Lookup on the task's record" scoped to the process's task entity | ✅ done |
+| 11 | Edit mode opened at full zoom framing one card | ✅ fixed |
+
+- 2026-08-31 — **Round 1 + 2 done, PR #154 merged.** 511 tests, tsc clean.
+  Every remaining native select in the step panel now opens the CWFD-018
+  LookupDialog: the lookup-field list alone held **788 rows** across every
+  entity, which is what made a native select untenable. Scoping it to
+  `process.recordEntity` cut it to **104** (QDB Task's own fields); the
+  owner-field list was already scoped server-side to the chosen parent table,
+  so only the first field was actually unfiltered.
+  🔴 **The real find: the edit canvas's initial fit had a broken contract.**
+  `SmartInitialView` fitted "exactly once, when every node is measured". On a
+  slow load the store REFILLS after the canvas mounts, replacing every node —
+  which cancels the in-flight fit and wipes React Flow's `measured` — and the
+  once-guard then refused to ever retry, leaving the editor at
+  `translate(0,0) scale(1)`: one card at full zoom, exactly what the user
+  reported. New contract: **fit until a fit sticks.** The untouched identity
+  transform IS the retry signal (no successful fit and no human leaves the
+  viewport exactly there); any successful fit or user gesture ends it, and a
+  node React Flow never mounts gets a 1.5s deadline instead of blocking
+  forever. Reproduced the slow path before and after; the process now frames
+  whole on open.
+  🔴 Trap re-paid: after editing a file, **Vite served the STALE transform
+  through a full page reload** — the fix looked dead until the dev server was
+  restarted. Verify with `curl localhost:5175/src/…` and grep for a marker
+  string before believing a browser measurement.
+
 ## CWFD-019 — BPMN-grammar decisions (approved 2026-08-31)
 
 Analysis delivered; 5-PR plan approved. Model already IS task→decision→routes
