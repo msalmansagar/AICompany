@@ -808,6 +808,13 @@
   .dataset-header { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 14px 16px; }
   .dataset-header > .dataset-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 4px; }
   .dataset-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 20px; margin: 10px 0 16px; }
+
+  /* The canvas's dataset blocks are shown, not edited — they are configured on their data source.
+     The dashed rule and the tag are what say so, since a block that looked like a droppable section
+     would invite edits that write nowhere. */
+  .cv-derived { border-top: 1px dashed var(--border-strong); margin-top: 14px; padding-top: 10px; }
+  .cv-derived-tag { display: flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .4px; color: var(--text-secondary); margin-bottom: 10px; }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
@@ -5661,11 +5668,49 @@ function renderCanvas(r) {
     ${H.show?`<div class="rp-head cv-el${sel.t==="header"?" sel":""}" data-sel="header"><div style="display:flex;gap:12px;align-items:center">${H.logo?logoBox(H.logoData):""}<div><div class="rp-title"${fontStyleAttr(H.font)}>${esc(H.title||"Report title")}</div><div style="font-size:11px;color:#605e5c">${esc(H.subtitle||"")}</div></div></div><div class="rp-meta">${H.showDate?"16/07/2026<br>":""}${H.showBy?"By "+esc(r.owner):""}</div></div>`:""}
     ${kpiHtml}
     ${D.tables.map((t,idx)=>sectionHtml(t,idx)).join("")}
+    ${canvasDatasetBlocks(r)}
     <div class="canvas-drop${D.tables.length?"":" big"}" id="md_newdrop">${ic("add")} ${D.tables.length?"Drop a field here to add a new section":"Drag a field here, or click a field in the datasource, to start your report"}</div>
     ${F.show?`<div class="rp-foot cv-el${sel.t==="footer"?" sel":""}" data-sel="footer"${fontStyleAttr(F.font)}><span>${esc(F.text||"")}</span><span>${F.pageNumber?"Page 1 of 1":""}</span></div>`:""}
   </div>`;
   bindCanvas(r);
 }
+/**
+ * The report's standalone datasets, drawn on the canvas as the engine will run them.
+ *
+ * designFromColumns builds ONE section out of the report's columns, so a report with blocks opened
+ * on the canvas as its root table alone — the author saw a term sheet and no facilities, with the
+ * canvas quietly disagreeing with the report it was designing.
+ *
+ * They are deliberately READ-ONLY. A block's table, columns and keys live on its data source, and a
+ * droppable copy here would be a second place to edit them that writes nowhere — the same
+ * stored-but-never-applied defect this feature exists to remove. The link says where to go instead.
+ */
+function canvasDatasetBlocks(report) {
+  const blocks = previewBlocksOf(report);
+  if (!blocks.length) return "";
+  const rootRows = previewRows(reportPreviewCols(report), report.mainEntity);
+  const body = blocks.map(block => {
+    const { rows, notice } = resolvePreviewBlock(block, rootRows);
+    return previewDatasetBlock(block.name, block.cols, rows, notice);
+  }).join("");
+  return `<div class="cv-derived">
+    <div class="cv-derived-tag">${ic("table")} Datasets — configured under Data sources, shown as the report will run</div>
+    ${canvasRootShapeNote(report, rootRows)}${body}</div>`;
+}
+
+/* The engine scopes every block to the root's first row, and draws a single-record root as a header
+   rather than a one-row table. Both are decisions the canvas cannot make for the author, so it says
+   what will happen instead of letting the canvas and the report differ in silence. */
+function canvasRootShapeNote(report, rootRows) {
+  if (rootRows.length > 1) return previewMultiRecordNotice(rootRows.length);
+  const master = (report.design.tables || []).find(table => table.role === "master");
+  if (rootRows.length === 1 && master && master.displayAs !== "header") {
+    return `<div class="info-banner" style="margin:8px 0">The main query returns one record, so it runs
+      as a header of fields. Set the section's <b>Show as</b> to Header to design it that way.</div>`;
+  }
+  return "";
+}
+
 function bindCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const refresh = renderManualDesigner._refresh;
   const pick = (obj) => { r._sel = obj; renderCanvas(r); renderProps(r); };

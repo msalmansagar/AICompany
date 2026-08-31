@@ -20,13 +20,15 @@ const NEEDED = [
   'previewBlocksOf', 'describePreviewBlock', 'blockPreviewCols', 'isScopedBlock',
   'parentScopeValue', 'blockCacheKey', 'blockPreviewRows', 'blockPreviewFetchXml',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
-  'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable'
+  'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
+  'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote'
 ];
 
 const EXPORTED = [
   'previewBlocksOf', 'blockPreviewCols', 'parentScopeValue', 'blockCacheKey', 'blockPreviewRows',
   'blockPreviewFetchXml', 'resolvePreviewBlock', 'previewDatasetsHtml', 'previewKey',
-  'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW'
+  'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
+  'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -44,6 +46,7 @@ const issued = [];
 
 const api = new Function(
   'esc', 'money', 'loadingNote', 'isBlankCell', 'EMPTY_CELL', 'attributesOf', 'previewData', 'loadPreviewRows',
+  'ic', 'beginBusy', 'endBusy',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
    return { ${EXPORTED.join(', ')} };`
 )(
@@ -54,7 +57,10 @@ const api = new Function(
   '—',
   entity => catalog[entity] || [],
   previewData,
-  (key, entity, cols, fetchXml) => { issued.push({ key, entity, fetchXml }); }
+  (key, entity, cols, fetchXml) => { issued.push({ key, entity, fetchXml }); },
+  name => `<icon:${name}>`,
+  () => {},
+  () => {}
 );
 
 let passed = 0, failed = 0;
@@ -73,7 +79,12 @@ const facilities = (over = {}) => ({
 
 const report = (sources, columns) => ({
   name: 'Term sheet',
-  columns: columns || [{ attribute: 'qdb_name' }, { attribute: 'qdb_termsheetid' }],
+  mainEntity: 'qdb_termsheet',
+  design: { tables: [{ id: 't1', role: 'master', displayAs: 'table', columns: [] }] },
+  columns: columns || [
+    { name: 'Name', attribute: 'qdb_name', type: 'Text', visible: true },
+    { name: 'Term sheet', attribute: 'qdb_termsheetid', type: 'Text', visible: true }
+  ],
   dataSources: [{ name: 'Termsheet', primary: true, composition: 'Joined' }, ...sources]
 });
 
@@ -203,6 +214,43 @@ console.log('a single-record root renders as a header, a multi-record root keeps
 console.log('a report with no blocks produces no dataset markup at all');
 {
   check('nothing standalone means no blocks', api.previewBlocksOf(report([])).length === 0);
+  check('and the canvas adds nothing', api.canvasDatasetBlocks(report([])) === '');
+}
+
+/* designFromColumns builds ONE section out of the report's columns, so the canvas drew a term sheet
+   and no facilities — the surface an author lands on when they open a saved report was the surface
+   that knew least about what the report does. */
+console.log('the canvas shows the blocks too, read-only');
+{
+  const withBlock = report([facilities()]);
+  const rootCols = api.reportPreviewCols(withBlock);
+  previewData.byKey[api.previewKey('qdb_termsheet', rootCols)] = [
+    { qdb_name: 'TS-0001', qdb_termsheetid: TERMSHEET_ID, [api.PREVIEW_RAW]: { qdb_termsheetid: TERMSHEET_ID } }
+  ];
+  const [block] = api.previewBlocksOf(withBlock);
+  previewData.byKey[api.blockCacheKey(block, TERMSHEET_ID)] = [{ qdb_facilitytype: 'Overdraft', qdb_amount: 750000 }];
+
+  const canvas = api.canvasDatasetBlocks(withBlock);
+  check('the block is drawn', canvas.includes('Requested Facilities'), canvas.slice(0, 200));
+  check('with its own scoped rows', canvas.includes('Overdraft'), canvas);
+  check('it is marked as configured elsewhere', /configured under Data sources/.test(canvas));
+  check('and offers no drop target', !canvas.includes('data-drop'), canvas.slice(0, 300));
+  check('nor any editable field', !canvas.includes('data-selfield') && !canvas.includes('data-selcol'));
+}
+
+console.log('the canvas says what the engine will do with the root, rather than differing in silence');
+{
+  const withBlock = report([facilities()]);
+  const oneRecord = [{ [api.PREVIEW_RAW]: {} }];
+  const asTable = api.canvasRootShapeNote(withBlock, oneRecord);
+  check('a single-record root is told it runs as a header', /runs\s+as a header/.test(asTable), asTable);
+
+  const asHeader = report([facilities()]);
+  asHeader.design.tables[0].displayAs = 'header';
+  check('and says nothing once the section is a header', api.canvasRootShapeNote(asHeader, oneRecord) === '');
+
+  const many = api.canvasRootShapeNote(withBlock, [{}, {}, {}]);
+  check('a multi-record root gets the first-row notice instead', /3 records returned/.test(many), many);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
