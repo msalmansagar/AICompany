@@ -94,6 +94,20 @@ export function StepActionToolbar({
   const scheduleRelease = useToolbarInteraction((s) => s.scheduleRelease);
   const stepIndex = useWorkflowStore((s) => s.stepOrder.indexOf(stepId));
   const stepCount = useWorkflowStore((s) => s.stepOrder.length);
+  // The step's first conditional decision with routes, if any — the
+  // [Decision] action jumps straight to its gateway's properties (req 23).
+  const decisionOutcomeId = useWorkflowStore((s) => {
+    for (const outcome of Object.values(s.outcomes)) {
+      if (
+        outcome.stepId === stepId &&
+        outcome.applyFilter &&
+        (s.routeOrder[outcome.crmId] ?? []).length > 0
+      ) {
+        return outcome.crmId;
+      }
+    }
+    return null;
+  });
 
   if (isReadOnly) return null;
 
@@ -133,6 +147,13 @@ export function StepActionToolbar({
       >
         <ActionButton icon="edit" label="Edit step" onClick={() => openPanelTab('general')} />
         <ActionButton icon="person" label="Assignment" onClick={() => openPanelTab('assignment')} />
+        {decisionOutcomeId && (
+          <ActionButton
+            icon="decision"
+            label="Decision"
+            onClick={() => store().selectNode(`outcome_${decisionOutcomeId}`)}
+          />
+        )}
         <ActionButton icon="clone" label="Clone step" onClick={() => store().duplicateStep(stepId)} />
         <ActionButton icon="discard" label="Delete step" tone="danger" onClick={handleDelete} />
         <ToolbarOverflow

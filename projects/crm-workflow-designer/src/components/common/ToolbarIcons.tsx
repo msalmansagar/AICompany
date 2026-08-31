@@ -35,6 +35,7 @@ export type ToolbarIconName =
   | 'focus'
   | 'person'
   | 'clone'
+  | 'decision'
   | 'more';
 
 const P = { stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round', fill: 'none' } as const;
@@ -66,6 +67,7 @@ const PATHS: Record<ToolbarIconName, JSX.Element> = {
   focus: <><circle cx="8" cy="8" r="3.4" {...P} /><circle cx="8" cy="8" r="0.9" fill="currentColor" stroke="none" /><path d="M8 1.6v2.2M8 12.2v2.2M1.6 8h2.2M12.2 8h2.2" {...P} /></>,
   person: <><circle cx="8" cy="5.4" r="2.6" {...P} /><path d="M3.2 13.4a4.8 4.8 0 0 1 9.6 0" {...P} /></>,
   clone: <><rect x="5.4" y="5.4" width="8" height="8" rx="1.4" {...P} /><path d="M10.6 5.4V4a1.4 1.4 0 0 0-1.4-1.4H4A1.4 1.4 0 0 0 2.6 4v5.2A1.4 1.4 0 0 0 4 10.6h1.4" {...P} /></>,
+  decision: <><path d="M8 2.2 13.8 8 8 13.8 2.2 8z" {...P} /></>,
   more: <><circle cx="3.6" cy="8" r="1.2" fill="currentColor" stroke="none" /><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" /><circle cx="12.4" cy="8" r="1.2" fill="currentColor" stroke="none" /></>,
 };
 

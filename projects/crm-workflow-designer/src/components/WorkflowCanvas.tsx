@@ -745,7 +745,15 @@ export function WorkflowCanvas({ view, adapter, onNewProcess, onEditProcess, onO
         {/* The panel appears only for a selection now; the process facts it
             used to hold permanently live on the summary screen. */}
         {view.selectedId && (
-          <ReadOnlyPropertyPanel data={view.data} selectedId={view.selectedId} adapter={adapter} />
+          <ReadOnlyPropertyPanel
+            data={view.data}
+            selectedId={view.selectedId}
+            adapter={adapter}
+            onNavigateToStep={(stepId) => {
+              view.selectElement(`step_${stepId}`);
+              centerOnNode(reactFlow, `step_${stepId}`);
+            }}
+          />
         )}
       </div>
 
