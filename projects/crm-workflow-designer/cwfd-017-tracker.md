@@ -26,6 +26,22 @@ with stored isDefault and virtual gateways in view — the real gap was EDIT.
 | 4 | Layout (gateway-aware ranking, no leftward sweeps) | ✅ done |
 | 5 | Hover/Focus/View polish + terminating badges | ✅ done — **CWFD-019 COMPLETE** |
 
+- 2026-08-31 — **MERGED + DEPLOYED + CRM-VERIFIED.** All five PRs (#149–#153)
+  merged bottom-up into main @ `858b5844`, branches deleted, 511 tests green
+  on the merged head, production build 1824.4 KB, web resource
+  `25bdac56-555e-f111-a825-7ced8d96ec97` updated + published on org5869857f.
+  Verified in the CRM shell against the Loan process edit canvas: 3 gateways,
+  50 edges settle correctly (`route_edge_:7, e_entry_:3, start_to:1`), route
+  labels are pure business language ("CEO Route", "ICC / Default Route",
+  "Rejected / Default"), the outlined diamond renders with its count and name
+  chip, Overview panel route rows navigate, terminating badges 0, Validate
+  stays at the clean-baseline 19 — nothing saved, org untouched.
+  🔴 Trap reconfirmed IN CRM: a canvas measured mid-load can sit at 25 edges
+  (start/entry/route edges dropped when React Flow saw them before their
+  nodes' handles mounted — they are NOT re-added by later re-renders; even a
+  Flow-chip toggle won't restore them). A fresh load lands all 50. Measure
+  after a clean load, never mid-transition.
+
 - 2026-08-31 — **PR 5 done — CWFD-019 COMPLETE.** 511 tests, tsc clean.
   Focus Mode understands a selected DECISION: the fade anchors on its gateway
   (incident edges = entry + routes), lighting source → diamond → targets in
