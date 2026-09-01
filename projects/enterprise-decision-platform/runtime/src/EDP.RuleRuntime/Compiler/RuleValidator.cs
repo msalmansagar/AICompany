@@ -23,10 +23,13 @@ namespace EDP.RuleRuntime.Compiler
         {
             var diagnostics = new List<RuleDiagnostic>();
             var symbols = new HashSet<string>(
-                doc.Inputs.Select(i => i.Name).Concat(doc.Variables.Select(v => v.Name)),
+                doc.Inputs.Select(i => i.Name)
+                    .Concat(doc.Variables.Select(v => v.Name))
+                    .Concat(doc.Retrievals.Select(r => r.Name)),   // a retrieval declares a collection symbol
                 StringComparer.OrdinalIgnoreCase);
 
             ValidateBindings(doc, diagnostics);
+            ValidateRetrievals(doc, diagnostics);
 
             if (doc.Logic.Type.Equals("decisionTable", StringComparison.OrdinalIgnoreCase))
             {
@@ -133,6 +136,53 @@ namespace EDP.RuleRuntime.Compiler
                 ValidateQuantifier(quantifier, symbols, diagnostics);
             foreach (var nested in group.Groups)
                 ValidateGroup(nested, symbols, diagnostics);
+        }
+
+        private static readonly HashSet<string> ArgMaxModes =
+            new HashSet<string>(new[] { "latest", "earliest", "highest", "lowest" }, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Author-time gates on population retrieval (F2). These are guard rails, not style: an
+        /// unfiltered or unbounded read is how a rule quietly scans a table during a payment run.
+        /// </summary>
+        private void ValidateRetrievals(PcrmDocument doc, List<RuleDiagnostic> diagnostics)
+        {
+            var declared = new HashSet<string>(
+                doc.Inputs.Select(i => i.Name).Concat(doc.Variables.Select(v => v.Name)),
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var retrieval in doc.Retrievals)
+            {
+                if (string.IsNullOrWhiteSpace(retrieval.Name))
+                    diagnostics.Add(new RuleDiagnostic("EDP050", "Retrieval has no name, so no rule can reference it.", RuleErrorSeverity.Error));
+                else if (declared.Contains(retrieval.Name))
+                    diagnostics.Add(new RuleDiagnostic("EDP050", $"Retrieval '{retrieval.Name}' collides with an existing input or variable.", RuleErrorSeverity.Error, retrieval.Name));
+
+                if (string.IsNullOrWhiteSpace(retrieval.Entity) || !_metadata.EntityExists(retrieval.Entity))
+                    diagnostics.Add(new RuleDiagnostic("EDP051", $"Retrieval entity '{retrieval.Entity}' not found in metadata.", RuleErrorSeverity.Error, retrieval.Name));
+
+                // FR-F11 — an unfiltered population read must never reach publish.
+                if (retrieval.Filter == null || IsEmpty(retrieval.Filter))
+                    diagnostics.Add(new RuleDiagnostic("EDP052", $"Retrieval '{retrieval.Name}' has no filter. An unfiltered population read is not permitted.", RuleErrorSeverity.Error, retrieval.Name));
+
+                // FR-F13 — a ceiling is mandatory, and exceeding it fails rather than truncating.
+                if (retrieval.MaxRows <= 0)
+                    diagnostics.Add(new RuleDiagnostic("EDP053", $"Retrieval '{retrieval.Name}' declares no row ceiling (maxRows).", RuleErrorSeverity.Error, retrieval.Name));
+
+                ValidateArgMax(retrieval, diagnostics);
+            }
+        }
+
+        private void ValidateArgMax(PcrmRetrieval retrieval, List<RuleDiagnostic> diagnostics)
+        {
+            var groupBy = retrieval.GroupBy;
+            if (groupBy == null) return;
+
+            if (string.IsNullOrWhiteSpace(groupBy.Key) || string.IsNullOrWhiteSpace(groupBy.By))
+                diagnostics.Add(new RuleDiagnostic("EDP054", $"Retrieval '{retrieval.Name}' groups records but does not say by which key and ordering field.", RuleErrorSeverity.Error, retrieval.Name));
+
+            if (!ArgMaxModes.Contains(groupBy.Select ?? string.Empty))
+                diagnostics.Add(new RuleDiagnostic("EDP055", $"Unknown group selection '{groupBy.Select}'. Expected latest, earliest, highest or lowest.", RuleErrorSeverity.Error, retrieval.Name));
         }
 
         private static readonly HashSet<string> QuantifierKinds =
