@@ -140,8 +140,13 @@ async function publish(path, body) {
 const changed = results.filter(r => r.changed);
 const changedShells = changed.filter(r => r.type === HTML);
 
-if (!changed.length) {
-  console.log('\n· nothing changed — no publish needed\n');
+if (!changed.length && process.argv.includes('--publish')) {
+  // Recovery path: a failed publish leaves the org updated-but-unpublished, and the next run sees
+  // "nothing changed" and skips — serving stale shells forever. --publish forces the full publish.
+  await publish('PublishAllXml', '{}');
+  console.log('\n✓ full publish forced (--publish) — content was already current\n');
+} else if (!changed.length) {
+  console.log('\n· nothing changed — no publish needed (if a previous publish FAILED, re-run with --publish)\n');
 } else if (changedShells.length) {
   await publish('PublishAllXml', '{}');
   console.log(`\n✓ full publish — ${changedShells.length} shell(s) changed, which a scoped publish leaves cached`);
