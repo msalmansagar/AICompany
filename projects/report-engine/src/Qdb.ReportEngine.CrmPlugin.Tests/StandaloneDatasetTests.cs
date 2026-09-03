@@ -393,6 +393,195 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         /// <summary>
+        /// D2 — @Parameter tokens in an authored query (the SSRS @LoanId pattern). The supplied
+        /// prompt value wins, then the parameter's default; an unknown or unfilled token fails the
+        /// dataset BY NAME, because FetchXML would otherwise match the literal "@LoanId" against
+        /// every row and return an empty result indistinguishable from a legitimate one.
+        /// </summary>
+        private static ReportDataSource TokenBlock(string value = "@LoanId") =>
+            Source("Facilities for the loan", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1)
+                with
+            {
+                SourceType = new CodedValue(null, "FetchXML"),
+                QueryPayload = "<fetch><entity name=\"qdb_requestedfacility\"><attribute name=\"name\"/>"
+                    + $"<filter><condition attribute=\"qdb_loanid\" operator=\"eq\" value=\"{value}\"/></filter></entity></fetch>"
+            };
+
+        private static ReportDefinition TokenReport(string defaultValue = null, ReportDataSource block = null) =>
+            Report(Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), block ?? TokenBlock())
+                with
+            {
+                Parameters =
+                [
+                    new ReportParameter { Id = Guid.NewGuid(), ParameterName = "LoanId", DefaultValue = defaultValue }
+                ]
+            };
+
+        private static ReportExecutionRequest Supplying(string name, string value) => new ReportExecutionRequest
+        {
+            ParameterValues = new Dictionary<string, string?> { [name] = value }
+        };
+
+        [Fact]
+        public void Execute_SubstitutesASuppliedParameterIntoABlocksOwnQuery()
+        {
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(TokenReport(), Supplying("LoanId", "LN-2041"));
+
+            Assert.Contains("LN-2041", store.Queried[1]);
+            Assert.DoesNotContain("@LoanId", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_FallsBackToTheParameterDefaultWhenNoneIsSupplied()
+        {
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(TokenReport(defaultValue: "LN-DEFAULT"), new ReportExecutionRequest());
+
+            Assert.Contains("LN-DEFAULT", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_FailsTheBlockByNameWhenTheTokenNamesNoParameter()
+        {
+            var store = new FetchStore();
+            var definition = Report(
+                Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), TokenBlock());
+
+            var result = new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            var block = Assert.Single(result.StandaloneDatasets);
+            Assert.Equal(DatasetStatus.Failed, block.Status);
+            Assert.Contains("LoanId", block.Error);
+            Assert.Single(store.Queried); // the root still ran; the block never queried on a bad token
+        }
+
+        [Fact]
+        public void Execute_FailsTheBlockByNameWhenTheParameterHasNoValue()
+        {
+            var store = new FetchStore();
+
+            var result = new SdkReportEngine(store).Execute(TokenReport(), new ReportExecutionRequest());
+
+            var block = Assert.Single(result.StandaloneDatasets);
+            Assert.Equal(DatasetStatus.Failed, block.Status);
+            Assert.Contains("LoanId", block.Error);
+        }
+
+        [Fact]
+        public void Execute_NeverTouchesALiteralThatMerelyContainsAnAt()
+        {
+            // An email address in a filter value is a literal, not a token.
+            var store = new FetchStore();
+            var definition = TokenReport(block: TokenBlock(value: "someone@qnb.com.qa"));
+
+            new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            Assert.Contains("someone@qnb.com.qa", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_SubstitutesIntoTheRootsAuthoredQueryToo()
+        {
+            var store = new FetchStore();
+            var root = Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true)
+                with
+            {
+                SourceType = new CodedValue(null, "FetchXML"),
+                QueryPayload = "<fetch><entity name=\"account\"><attribute name=\"name\"/>"
+                    + "<filter><condition attribute=\"accountid\" operator=\"eq\" value=\"@LoanId\"/></filter></entity></fetch>"
+            };
+            var definition = Report(root) with
+            {
+                Parameters = [new ReportParameter { Id = Guid.NewGuid(), ParameterName = "LoanId", DefaultValue = null }]
+            };
+
+            new SdkReportEngine(store).Execute(definition, Supplying("LoanId", "LN-7"));
+
+            Assert.Contains("LN-7", store.Queried[0]);
+            Assert.DoesNotContain("@LoanId", store.Queried[0]);
+        }
+
+        /// <summary>
+        /// D2 — a filter bound to a dataset belongs to THAT dataset's query. Unbound filters stay
+        /// the root's; a bound one names the block table's own attributes, which is exactly why the
+        /// engine used to have to drop every filter for a block.
+        /// </summary>
+        private static ReportFilter BoundFilter(Guid? dataSourceId, string alias = "qdb_facilitytype",
+            string value = "Term loan", bool prompt = false) => new ReportFilter
+        {
+            Id = Guid.NewGuid(),
+            FieldAlias = alias,
+            Operator = new CodedValue(null, "Equals"),
+            Value = value,
+            Sequence = 1,
+            IsRuntimePrompt = prompt,
+            DataSourceId = dataSourceId
+        };
+
+        [Fact]
+        public void Execute_KeepsADatasetBoundFilterOutOfTheRootQuery()
+        {
+            var block = Source("Facilities", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1);
+            var definition = Report(Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), block)
+                with
+            { Filters = [BoundFilter(block.Id)] };
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            Assert.DoesNotContain("qdb_facilitytype", store.Queried[0]);
+            Assert.Contains("qdb_facilitytype", store.Queried[1]);
+            Assert.Contains("Term loan", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_AppliesTheBoundFilterOnTopOfTheParentScope()
+        {
+            // Both must survive: the scope decides WHOSE children, the filter decides WHICH of them.
+            var definition = Termsheet();
+            var block = (ReportDataSource)definition.DataSources[1];
+            definition = definition with { Filters = [BoundFilter(block.Id)] };
+            var store = new FetchStore(rowValues: new Dictionary<string, object> { ["qdb_termsheetid"] = "TS-184" });
+
+            new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            Assert.Contains("TS-184", store.Queried[1]);
+            Assert.Contains("Term loan", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_ResolvesABlocksRuntimePromptFromTheSuppliedParameter()
+        {
+            var block = Source("Facilities", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1);
+            var definition = Report(Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), block)
+                with
+            {
+                Filters = [BoundFilter(block.Id, value: "FacilityType", prompt: true)],
+                Parameters = [new ReportParameter { Id = Guid.NewGuid(), ParameterName = "FacilityType" }]
+            };
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(definition, Supplying("FacilityType", "Overdraft"));
+
+            Assert.Contains("Overdraft", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_AppliesAFilterBoundToThePrimaryToTheRoot()
+        {
+            var primary = Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true);
+            var definition = Report(primary) with { Filters = [BoundFilter(primary.Id, alias: "statecode", value: "0")] };
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest());
+
+            Assert.Contains("statecode", store.Queried[0]);
+        }
+
+        /// <summary>
         /// Answers any FetchXML with a single row, recording what it was asked. It refuses the
         /// entity named in <c>failOn</c>, so a block can be made to fail the way a real misconfigured
         /// query does — by the platform rejecting it, not by the test throwing on its own.

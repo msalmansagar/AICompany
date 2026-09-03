@@ -263,6 +263,13 @@ public sealed record ReportFilter
     public string? GroupId { get; init; }
 
     public bool IsRuntimePrompt { get; init; }
+
+    /// <summary>
+    /// The dataset this filter belongs to, or null for the report's root query. A bound filter is
+    /// applied only when that dataset's own query is built — which is how a standalone block gets
+    /// filters that name ITS table's attributes instead of the root's.
+    /// </summary>
+    public Guid? DataSourceId { get; init; }
 }
 
 /// <summary>A runtime parameter (qdb_reportparameter).</summary>

@@ -78,8 +78,12 @@ public static class ReportDefinitionFetch
         Fetch("qdb_reportfilter",
             attributes:
             [
+                // 🔴 qdb_reportdatasourceid must be PROVISIONED AND PUBLISHED before this build is
+                // deployed — FetchXML fails outright on an attribute the org lacks, the same hard
+                // deploy order qdb_compositionmode established.
                 "qdb_reportfilterid", "qdb_fieldalias", "qdb_operator", "qdb_value",
-                "qdb_valuetype", "qdb_sequence", "qdb_groupoperator", "qdb_groupid", "qdb_isruntimeprompt"
+                "qdb_valuetype", "qdb_sequence", "qdb_groupoperator", "qdb_groupid", "qdb_isruntimeprompt",
+                "qdb_reportdatasourceid"
             ],
             filterAttribute: "qdb_reportdefinitionid", filterValue: reportId);
 

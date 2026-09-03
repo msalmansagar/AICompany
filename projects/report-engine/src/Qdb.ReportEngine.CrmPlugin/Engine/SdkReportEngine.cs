@@ -113,6 +113,14 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             // The report's own filters are carried across rather than discarded with the query that
             // held them — otherwise the Filters tab and every runtime prompt would change nothing.
             var supplied = ReportSourcePlan.OverrideFetchXml(source, name => ResolveViewFetchXml(name, query.RootEntity));
+            // @Parameter tokens in an authored query resolve exactly as a runtime-prompt filter
+            // would: supplied value first, then the parameter's default. Blocks pass through here
+            // too (a block re-enters Execute as its own primary), so one line serves every dataset.
+            if (supplied is not null)
+            {
+                supplied = ParameterSubstitution.ApplyTo(supplied, definition, request.ParameterValues);
+            }
+
             var fetchXml = supplied is null ? query.FetchXml : Combine(supplied, query);
             var rows = Retrieve(fetchXml);
 
@@ -284,7 +292,9 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             {
                 MainEntityLogicalName = FirstMappedEntity(source) ?? definition.MainEntityLogicalName,
                 DataSources = new[] { source with { Composition = DatasetComposition.Joined } },
-                Filters = new List<ReportFilter>(),
+                // The report's own filters name root-entity attributes and would fail this query;
+                // the block KEEPS the filters bound to it, which name its own table's (D2).
+                Filters = definition.Filters.Where(f => f.DataSourceId == source.Id).ToList(),
                 Relationships = new List<ReportRelationship>(),
                 // The block's own cap where it has one (MDS-FR-008); the report's otherwise. A child
                 // list usually wants a different bound from the report it hangs off.

@@ -116,7 +116,8 @@ public static class ReportDefinitionAssembler
         Sequence = RowReader.IntOrZero(row, "qdb_sequence"),
         GroupOperator = RowReader.Coded(row, "qdb_groupoperator"),
         GroupId = RowReader.String(row, "qdb_groupid"),
-        IsRuntimePrompt = RowReader.Bool(row, "qdb_isruntimeprompt")
+        IsRuntimePrompt = RowReader.Bool(row, "qdb_isruntimeprompt"),
+        DataSourceId = RowReader.Guid(row, "qdb_reportdatasourceid")
     };
 
     private static ReportParameter MapParameter(IReadOnlyDictionary<string, object?> row) => new()

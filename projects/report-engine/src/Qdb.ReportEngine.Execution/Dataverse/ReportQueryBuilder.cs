@@ -146,8 +146,17 @@ public static class ReportQueryBuilder
 
     private static void AddFilters(XElement entity, ReportDefinition definition, IReadOnlyDictionary<string, string?> parameters)
     {
-        var conditions = definition.Filters
+        /* A filter belongs to the query it names attributes of: unbound means the report's root,
+           bound means that dataset. This build sees only its OWN filters — an unbound one when the
+           root is being built, or one bound to the source this build is FOR (a block re-enters the
+           engine as its own primary, so "the primary's id" is the right owner test in both). The
+           group type follows the first filter that actually applies, not one another query owns. */
+        var ownerId = OwnDataSourceId(definition);
+        var own = definition.Filters
+            .Where(f => f.DataSourceId is null || f.DataSourceId == ownerId)
             .OrderBy(f => f.Sequence)
+            .ToList();
+        var conditions = own
             .Select(f => BuildCondition(f, definition, parameters))
             .Where(c => c is not null)
             .ToList();
@@ -156,10 +165,27 @@ public static class ReportQueryBuilder
             return;
         }
 
-        var groupType = string.Equals(definition.Filters[0].GroupOperator?.Label, "Or", StringComparison.OrdinalIgnoreCase) ? "or" : "and";
+        var groupType = string.Equals(own[0].GroupOperator?.Label, "Or", StringComparison.OrdinalIgnoreCase) ? "or" : "and";
         var filter = new XElement("filter", new XAttribute("type", groupType));
         filter.Add(conditions);
         entity.Add(filter);
+    }
+
+    /// <summary>The id of the source this query is being built for: the primary, or the first.</summary>
+    private static Guid? OwnDataSourceId(ReportDefinition definition)
+    {
+        ReportDataSource? first = null;
+        foreach (var source in definition.DataSources)
+        {
+            if (source.IsPrimary)
+            {
+                return source.Id;
+            }
+
+            first ??= source;
+        }
+
+        return first?.Id;
     }
 
     private static XElement? BuildCondition(ReportFilter filter, ReportDefinition definition, IReadOnlyDictionary<string, string?> parameters)
