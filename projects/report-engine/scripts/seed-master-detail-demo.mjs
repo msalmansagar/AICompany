@@ -197,7 +197,15 @@ async function seed(dv) {
   // under both contact blocks — the row the engine and every export now carry.
   await create(dv, 'qdb_reportlayouts', {
     qdb_name: 'Layout',
-    qdb_layoutjson: JSON.stringify({ datasetTotals: { b1: { fullname: 'Count' }, b2: { fullname: 'Count' } } }),
+    qdb_layoutjson: JSON.stringify({
+      datasetTotals: { b1: { fullname: 'Count' }, b2: { fullname: 'Count' } },
+      // D5: the authored bands — the token-filtered contact as an Applicant-Profile-style Fields
+      // band with its own title, and the static ratios titled as the document would say it.
+      datasetLayout: {
+        b2: { displayAs: 'fields', title: 'Primary Contact' },
+        b3: { title: 'Key Ratios' }
+      }
+    }),
     'Qdb_reportdefinitionid@odata.bind': `/qdb_reportdefinitions(${reportId})`
   });
   console.log('  created layout  authored totals: Count under both contact blocks (D3)');

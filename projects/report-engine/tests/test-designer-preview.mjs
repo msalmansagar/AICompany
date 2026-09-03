@@ -31,7 +31,8 @@ const NEEDED = [
   'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading',
   'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
   'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals',
-  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf'
+  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf',
+  'BAND_DISPLAY_CHOICES', 'datasetLayoutOf', 'applyLoadedBands', 'previewDatasetFieldsHtml', 'moveDatasetBand'
 ];
 
 const EXPORTED = [
@@ -45,7 +46,8 @@ const EXPORTED = [
   'previewTokenSubstitution', 'previewFiltersElement',
   'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
   'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals',
-  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf'
+  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf',
+  'BAND_DISPLAY_CHOICES', 'datasetLayoutOf', 'applyLoadedBands', 'previewDatasetFieldsHtml', 'moveDatasetBand'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -584,6 +586,45 @@ console.log('the matrix arrangement follows from the columns and one authored ch
   const preview = api.matrixPreviewConfigOf(authored);
   check('the preview arrangement keys by the preview columns', preview.columnGroups.join('|') === 'product'
     && preview.rowGroups.join('|') === 'branch' && preview.values.join('|') === 'amount', JSON.stringify(preview));
+}
+
+/* D5 — the authored band round-trips and previews as it will run. */
+console.log('a band round-trips through the layout JSON by alias');
+{
+  const authored = report([facilities({ band: { displayAs: 'fields', title: 'Facilities', showTitle: true, fieldColumns: 2 } })]);
+  const mapped = [{ sourceAlias: 't' }, { sourceAlias: 'b1' }];
+  const stored = api.datasetLayoutOf(authored, mapped);
+  check('only non-defaults are stored', JSON.stringify(stored.b1) === JSON.stringify({ displayAs: 'fields', title: 'Facilities', fieldColumns: 2 }), JSON.stringify(stored));
+  check('an untouched report stores NO datasetLayout at all', api.datasetLayoutOf(report([facilities()]), mapped) === undefined);
+
+  const reloaded = report([facilities({ alias: 'b1' })]);
+  api.applyLoadedBands(reloaded, { datasetLayout: stored });
+  check('the band lands back on its source', reloaded.dataSources[1].band.displayAs === 'fields', JSON.stringify(reloaded.dataSources[1].band));
+}
+
+console.log('the preview draws the band the runtime will draw');
+{
+  const withBand = report([facilities({ band: { displayAs: 'fields' } })]);
+  const [block] = api.previewBlocksOf(withBand);
+  check('the block carries its band', block.band.displayAs === 'fields');
+
+  const rootRow = { qdb_name: 'TS-1', [api.PREVIEW_RAW]: { qdb_termsheetid: TERMSHEET_ID } };
+  previewData.byKey[api.blockCacheKey(block, TERMSHEET_ID, '')] = [{ qdb_facilitytype: 'Term loan', qdb_amount: 'QAR 9.00' }];
+  const htmlOut = api.previewDatasetsHtml(withBand, [{ name: 'Name', key: 'qdb_name', type: 'Text' }], [rootRow], [block]);
+  check('a Fields band renders cards, not a table', /band-card/.test(htmlOut) && !/rp-table/.test(htmlOut.split('dataset-head')[1] || htmlOut), htmlOut.slice(-260));
+
+  const hidden = api.previewBlocksOf(report([facilities({ band: { showTitle: false } })]))[0];
+  check('a hidden title carries through the descriptor', hidden.band.showTitle === false);
+}
+
+console.log('moving a band moves the dataset, and the primary never moves');
+{
+  const arranged = report([facilities({ name: 'A' }), facilities({ name: 'B' })]);
+  api.moveDatasetBand(arranged, 2, -1);
+  check('B climbs over A', arranged.dataSources.map(s => s.name).join('|') === 'Termsheet|B|A');
+  api.moveDatasetBand(arranged, 1, -1);
+  check('the top block cannot climb past the primary', arranged.dataSources[0].name === 'Termsheet',
+    arranged.dataSources.map(s => s.name).join('|'));
 }
 
 console.log('the tree chip tells the truth about how a dataset runs');

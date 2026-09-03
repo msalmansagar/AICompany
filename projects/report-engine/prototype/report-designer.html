@@ -851,6 +851,16 @@
   .mx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; max-width: 640px; }
   .mx-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 0; min-width: 0; }
   .mx-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Dataset bands (D5): the Fields card, and the canvas toolbar that arranges the bands. */
+  .band-card { border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 10px 14px; margin: 6px 0; }
+  .cv-bandwrap { position: relative; }
+  .cv-bandwrap:hover { outline: 1px dashed var(--primary); outline-offset: 2px; border-radius: var(--radius); }
+  .cv-bandbtns { position: absolute; top: 0; right: 0; display: flex; gap: 4px; opacity: 0; z-index: 2; }
+  .cv-bandwrap:hover .cv-bandbtns { opacity: 1; }
+  .cv-bandbtns button { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 4px;
+    font-size: 10px; padding: 2px 6px; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; }
+  .cv-bandbtns button:hover { color: var(--text); border-color: var(--primary); }
   /* The authored totals row (D3): visibly a summary, never mistakable for another data row. */
   .totals-row td { font-weight: 700; border-top: 2px solid var(--ac, var(--primary)); background: var(--surface-alt); }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
@@ -2853,6 +2863,35 @@ function matrixPreviewConfigOf(report) {
   return { rowGroups: translate(stored.rowGroups), columnGroups: translate(stored.columnGroups), values: translate(stored.values) };
 }
 
+/* ---------- Authored dataset bands (D5) ----------
+   How each block PRESENTS: Fields (the Applicant-Profile band) or Table, its title hidden or
+   overridden, and the fields-grid width. Rides in layout.datasetLayout by source alias, exactly
+   like the totals — absent keys keep every existing report byte-identical. Order needs no storage
+   of its own: the array order IS qdb_executionorder, so presentation and execution cannot drift. */
+
+const BAND_DISPLAY_CHOICES = ["Table", "Fields"];
+
+function datasetLayoutOf(report, mappedSources) {
+  const all = {};
+  (report.dataSources || []).forEach((source, index) => {
+    const band = source.band || {};
+    const kept = {};
+    if (band.displayAs === "fields") kept.displayAs = "fields";
+    if (band.showTitle === false) kept.showTitle = false;
+    if (band.title && band.title.trim()) kept.title = band.title.trim();
+    if (band.fieldColumns) kept.fieldColumns = +band.fieldColumns || undefined;
+    if (Object.keys(kept).length && mappedSources[index]) all[mappedSources[index].sourceAlias] = kept;
+  });
+  return Object.keys(all).length ? all : undefined;
+}
+
+function applyLoadedBands(report, stored) {
+  const byAlias = stored.datasetLayout || {};
+  for (const source of report.dataSources || []) {
+    if (source.alias && byAlias[source.alias]) source.band = { ...byAlias[source.alias] };
+  }
+}
+
 /** Stored totals back onto what authored them: the root's columns, each dataset's source. */
 function applyLoadedTotals(report, stored) {
   const rootTotals = stored.totals || {};
@@ -3309,7 +3348,9 @@ function reportToDefinition(report) {
         totals: rootTotalsOf(report),
         datasetTotals: datasetTotalsOf(report, mappedSources),
         // The authored matrix (D4), fully composed so the runtime pivots without inferring.
-        matrix: matrixConfigOf(report)
+        matrix: matrixConfigOf(report),
+        // How each dataset band presents (D5), keyed by the alias its result block carries.
+        datasetLayout: datasetLayoutOf(report, mappedSources)
       }))
     } : null
   };
@@ -4126,6 +4167,9 @@ function definitionToReport(def) {
         stored.matrixColumnGroups = stored.matrix.columnGroups;
       }
       delete stored.matrix;
+      // Dataset bands (D5), lifted onto their sources and recomposed at the next save.
+      applyLoadedBands(report, stored);
+      delete stored.datasetLayout;
       report.layout = stored;
     } catch (e) { /* keep default layout */ }
   }
@@ -5867,7 +5911,40 @@ function bindDatasetTree(host, r, spec) {
    field list (one source of truth for what a dataset stores and when each field applies); the
    Fields tab picks a block's columns from its table's metadata instead of typed logical names. */
 
-const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"], ["dsfilters", "Filters"]];
+const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"], ["dsfilters", "Filters"], ["dsband", "Band"]];
+
+/* The band tab (D5): how this dataset PRESENTS on the document — Fields (the Applicant-Profile
+   band) or Table, its title, and the fields-grid width. Presentation only; the data is untouched,
+   and exports keep the table either way. */
+function datasetBandTab(body, r, source, redraw) {
+  if (source.primary) {
+    body.appendChild(el(`<div class="hint">The main dataset's presentation is designed on the canvas — its sections, header and fields live there.</div>`));
+    return;
+  }
+  source.band = source.band || {};
+  const band = source.band;
+  const card = el(`<div class="dp-grid">
+    <div class="mini-field"><label>Show as</label>
+      <select class="fluent-select" data-bandk="displayAs">
+        <option value="table"${band.displayAs === "fields" ? "" : " selected"}>Table</option>
+        <option value="fields"${band.displayAs === "fields" ? " selected" : ""}>Fields (label / value band)</option>
+      </select></div>
+    <div class="mini-field"><label>Fields per row <span class="rel-tag">Fields</span></label>
+      <select class="fluent-select" data-bandk="fieldColumns">${opts(["auto", "1", "2", "3", "4"], band.fieldColumns ? String(band.fieldColumns) : "auto")}</select></div>
+    <div class="mini-field"><label>Band title</label>
+      <input class="fluent-input" data-bandk="title" value="${esc(band.title || "")}" placeholder="${esc(source.name || "Dataset")}"></div>
+    <div class="mini-field"><label class="toggle" style="margin-top:20px"><input type="checkbox" data-bandk="showTitle" ${band.showTitle === false ? "" : "checked"}>
+      <span class="track"></span><span class="tlabel">Show the title above the band</span></label></div>
+  </div>
+  <div class="hint" style="margin-top:10px">Move the band up or down on the canvas — its position IS the run order, so what you arrange is what executes.</div>`);
+  body.appendChild(card);
+  card.querySelectorAll("[data-bandk]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    const key = input.dataset.bandk;
+    if (key === "showTitle") band.showTitle = input.checked ? true : false;
+    else if (key === "fieldColumns") band.fieldColumns = input.value === "auto" ? undefined : +input.value;
+    else band[key] = input.value;
+  }));
+}
 
 function openDatasetProperties(r, source, onClose) {
   // above-wizard: the wizard overlay sits at z-index 60, and this dialog also opens from its Data
@@ -5892,7 +5969,10 @@ function openDatasetProperties(r, source, onClose) {
     scrim.querySelectorAll("[data-dp]").forEach(button => button.onclick = () => { active = button.dataset.dp; draw(); });
     const body = scrim.querySelector("#dp_body");
     body.innerHTML = "";
-    const tab = active === "dsquery" ? datasetQueryTab : active === "dsfields" ? datasetFieldsTab : datasetFiltersDialogTab;
+    const tab = active === "dsquery" ? datasetQueryTab
+      : active === "dsfields" ? datasetFieldsTab
+      : active === "dsfilters" ? datasetFiltersDialogTab
+      : datasetBandTab;
     tab(body, r, source, draw);
   };
   draw();
@@ -6386,7 +6466,11 @@ function canvasDatasetBlocks(report) {
   }
   const body = blocks.map(block => {
     const resolved = resolvePreviewBlock(block, rootRows);
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals);
+    const controls = `<span class="cv-bandbtns">
+      <button data-bandmove="${block.sourceIndex}" data-dir="-1" title="Move up — order IS the run order">▲</button>
+      <button data-bandmove="${block.sourceIndex}" data-dir="1" title="Move down">▼</button>
+      <button data-bandprops="${block.sourceIndex}" title="Dataset properties">${ic("edit")}</button></span>`;
+    return `<div class="cv-bandwrap">${controls}${previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band)}</div>`;
   }).join("");
   return band(canvasRootShapeNote(report, rootRows) + body);
 }
@@ -6408,8 +6492,29 @@ function canvasRootShapeNote(report, rootRows) {
   return "";
 }
 
+/* Moving a band moves the DATASET: the array order IS qdb_executionorder, so the document order
+   and the run order stay one fact. The primary never moves — it is the root. */
+function moveDatasetBand(report, index, direction) {
+  const sources = report.dataSources || [];
+  let target = index + direction;
+  while (target >= 0 && target < sources.length && sources[target].primary) target += direction;
+  if (target < 0 || target >= sources.length) return;
+  const held = sources[index];
+  sources[index] = sources[target];
+  sources[target] = held;
+}
+
 function bindCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const refresh = renderManualDesigner._refresh;
+  host.querySelectorAll("[data-bandmove]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    moveDatasetBand(r, +button.dataset.bandmove, +button.dataset.dir);
+    refresh();
+  });
+  host.querySelectorAll("[data-bandprops]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    openDatasetProperties(r, r.dataSources[+button.dataset.bandprops]);
+  });
   const pick = (obj) => { r._sel = obj; renderCanvas(r); renderProps(r); };
   host.querySelectorAll("[data-rmode]").forEach(b => b.onclick = () => { r._renderMode = b.dataset.rmode; renderCanvas(r); });
   host.querySelectorAll("[data-sel]").forEach(n => n.onclick = () => pick({t:n.dataset.sel}));
@@ -7943,6 +8048,9 @@ function describePreviewBlock(source, index, returned, parameters) {
     parameters: parameters || [],
     // The dataset's authored totals (D3), keyed by logical name — the block table's column keys.
     totals: source.columnTotals || {},
+    // The band (D5): how this block presents on the document.
+    band: source.band || null,
+    sourceIndex: index,
     // Each dataset carries its own source type and query (MDS-FR-001) — the engine honours a
     // block's authored FetchXML, saved view or static rows, so the preview must too.
     kind: blockSourceKind(source.type),
@@ -8260,7 +8368,7 @@ function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
   const body = blocks.map(block => {
     const resolved = resolvePreviewBlock(block, rootRows);
     // A static block derives its columns from its rows, exactly as the engine does.
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals);
+    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band);
   }).join("");
   return head + body;
 }
@@ -8289,14 +8397,25 @@ function previewDatasetHeader(name, cols, row) {
   </section>`;
 }
 
-function previewDatasetBlock(name, cols, rows, notice, totals) {
+function previewDatasetBlock(name, cols, rows, notice, totals, band) {
   const body = notice
     ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
-    : (rows.length ? previewDatasetTable(cols, rows, totals) : `<div class="page-sub" style="padding:8px 0">No rows.</div>`);
+    : !rows.length ? `<div class="page-sub" style="padding:8px 0">No rows.</div>`
+    : (band && band.displayAs === "fields") ? previewDatasetFieldsHtml(cols, rows, band)
+    : previewDatasetTable(cols, rows, totals);
+  if (band && band.showTitle === false) return `<section class="dataset-block">${body}</section>`;
   const count = (!notice && rows.length) ? `<span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>` : "";
   return `<section class="dataset-block">
-    <div class="dataset-head"><b>${esc(name)}</b>${count}</div>
+    <div class="dataset-head"><b>${esc((band && band.title) || name)}</b>${count}</div>
     ${body}</section>`;
+}
+
+/** The Fields band in the preview: every row as a label/value card, as the runtime draws it (D5). */
+function previewDatasetFieldsHtml(cols, rows, band) {
+  const width = band && band.fieldColumns ? `repeat(${band.fieldColumns},minmax(0,1fr))` : "repeat(auto-fill,minmax(210px,1fr))";
+  return rows.map(row => `<div class="band-card" style="display:grid;grid-template-columns:${width};gap:6px 20px">${
+    cols.map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.name)}</div>
+      <div style="font-weight:600">${esc(previewCellText(c, row[c.key]))}</div></div>`).join("")}</div>`).join("");
 }
 
 /* Deliberately plainer than buildPreviewBody: no heuristic totals, no grouping, no chart. A block is

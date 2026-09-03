@@ -889,8 +889,9 @@ function renderGrid(result){
   const datasets = datasetsOf(result);
   // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
   const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
+  const bandFor = dataset => bandConfigFor(state.current.def, dataset);
   $("#resultHost").innerHTML = datasets.length > 1
-    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor)
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor)
     : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]));
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
@@ -1001,13 +1002,15 @@ function datasetRow(row, shape, fontOf){
    Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
    pairs rather than a one-row table, which is the difference between a document and three stacked
    grids. */
-function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor){
+function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
   const [root, ...blocks] = datasets;
   const cellsFor = dataset => totalsFor ? totalsFor(dataset) : null;
   const head = isSingleRecord(root)
     ? datasetHeader(root)
     : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
-  return head + blocks.map(block => datasetBlock(block, null, fontOf, cellsFor(block))).join("");
+  // Each block presents as its authored band (D5); the root's presentation is the canvas's.
+  return head + blocks.map(block =>
+    datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("");
 }
 
 const isSingleRecord = dataset =>
@@ -1041,12 +1044,42 @@ function datasetHeader(dataset){
    A FAILED dataset renders its reason instead of a table. Drawing it as an empty table would be
    indistinguishable from a query that legitimately matched nothing — the same silence this feature
    exists to remove, reintroduced at the last step. */
-function datasetBlock(dataset, drillCol, fontOf, totalsCells){
+/* ---------- Authored dataset bands (D5) ----------
+   How a block PRESENTS is the author's, stored in layout.datasetLayout keyed by the dataset's
+   alias: Show as Fields (the Applicant-Profile band — every row as a label/value card) or Table,
+   the title hidden or overridden, and the fields-grid width. Exports keep the table regardless:
+   the band is presentation, and a label/value card and its row carry identical data. */
+
+function bandConfigFor(def, dataset){
+  const byAlias = (def && def.layout && def.layout.datasetLayout) || {};
+  return (dataset && dataset.alias && byAlias[dataset.alias]) || null;
+}
+
+const bandTitleOf = (band, dataset) =>
+  band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
+
+/** Every row as a label/value card — one row is exactly the Applicant Profile band. */
+function datasetFieldsHtml(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  const width = band && band.fieldColumns ? `repeat(${band.fieldColumns},minmax(0,1fr))` : "repeat(auto-fill,minmax(210px,1fr))";
+  const card = row => `<div class="band-card" style="display:grid;grid-template-columns:${width};gap:6px 20px">${
+    columns.map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.label || c.alias)}</div>
+      <div style="font-weight:600">${esc(((row.cells || {})[c.alias] || {}).text ?? "")}</div></div>`).join("")}</div>`;
+  const rows = (dataset.rows || []).map(card).join("");
+  return rows || `<div class="empty" style="padding:16px">No rows.</div>`;
+}
+
+function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
   const body = dataset.status === "failed"
     ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
-    : datasetBody(dataset, drillCol, fontOf, totalsCells);
+    : (band && band.displayAs === "fields")
+      ? datasetFieldsHtml(dataset, band)
+      : datasetBody(dataset, drillCol, fontOf, totalsCells);
+  if (band && band.showTitle === false){
+    return `<section class="dataset-block">${body}</section>`;
+  }
   return `<section class="dataset-block">
-    <div class="meta-row"><b>${esc(dataset.name || "Dataset")}</b></div>
+    <div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>
     ${body}</section>`;
 }
 
