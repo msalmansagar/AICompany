@@ -30,7 +30,8 @@ const NEEDED = [
   'reportFilterXml', 'previewFilterCondition', 'previewFilterValue', 'previewWildcards',
   'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading',
   'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
-  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals'
+  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals',
+  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf'
 ];
 
 const EXPORTED = [
@@ -43,7 +44,8 @@ const EXPORTED = [
   'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols', 'wizardDatasetShim',
   'previewTokenSubstitution', 'previewFiltersElement',
   'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
-  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals'
+  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals',
+  'matrixAliasOf', 'isMeasureColumn', 'matrixConfigOf', 'matrixPreviewConfigOf'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -556,6 +558,32 @@ console.log('totals round-trip through the layout JSON by the aliases the result
   check('the root total lands back on its column', reloaded.columns[0].total === 'Count');
   check('the dataset total lands back on its source', reloaded.dataSources[1].columnTotals.qdb_amount === 'Sum',
     JSON.stringify(reloaded.dataSources[1].columnTotals));
+}
+
+/* D4 — the matrix config: composed from the columns at save, so the runtime infers nothing. */
+console.log('the matrix arrangement follows from the columns and one authored choice');
+{
+  const authored = report([]);
+  authored.columns = [
+    { name: 'Branch', attribute: 'branch', agg: 'None', visible: true },
+    { name: 'Product', attribute: 'product', agg: 'None', visible: true },
+    { name: 'Amount', attribute: 'amount', agg: 'Sum', visible: true }
+  ];
+  authored.layout = { matrixColumnGroups: ['product'] };
+
+  const stored = api.matrixConfigOf(authored);
+  check('the chosen group pivots across', stored.columnGroups.join('|') === 'product', JSON.stringify(stored));
+  check('the remaining groups stay as rows', stored.rowGroups.join('|') === 'branch');
+  check('the measures are the values', stored.values.join('|') === 'amount');
+
+  check('no choice, nothing stored — old reports save byte-identically',
+    api.matrixConfigOf(report([])) === undefined);
+  const noRows = { ...authored, layout: { matrixColumnGroups: ['branch', 'product'] } };
+  check('every group across leaves no rows — refused, not guessed', api.matrixConfigOf(noRows) === undefined);
+
+  const preview = api.matrixPreviewConfigOf(authored);
+  check('the preview arrangement keys by the preview columns', preview.columnGroups.join('|') === 'product'
+    && preview.rowGroups.join('|') === 'branch' && preview.values.join('|') === 'amount', JSON.stringify(preview));
 }
 
 console.log('the tree chip tells the truth about how a dataset runs');

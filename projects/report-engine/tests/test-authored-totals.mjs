@@ -16,7 +16,8 @@ const NEEDED = [
   'datasetsOf', 'rootDatasetOf',
   'TOTAL_LABELS', 'authoredTotalsFor', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'reduceTotal', 'numericCellValue', 'formatTotalNumber', 'totalsRowHtml',
-  'datasetBody', 'datasetRow', 'tableOf', 'exportDefinition'
+  'datasetBody', 'datasetRow', 'tableOf', 'exportDefinition',
+  'MATRIX_KEY_SEPARATOR', 'MATRIX_LABEL_SEPARATOR', 'matrixModel', 'matrixGrandRow', 'matrixGrandLabel', 'matrixCellText', 'matrixTableHtml', 'matrixTableFor'
 ];
 
 const api = new Function('esc',

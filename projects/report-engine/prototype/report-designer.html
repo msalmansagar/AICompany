@@ -847,6 +847,10 @@
   .dp-fieldpick > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dp-alias { max-width: 200px; }
   .dp-total { max-width: 110px; flex: none; }
+  /* The matrix arrange-fields pane (D4). */
+  .mx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; max-width: 640px; }
+  .mx-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 0; min-width: 0; }
+  .mx-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   /* The authored totals row (D3): visibly a summary, never mistakable for another data row. */
   .totals-row td { font-weight: 700; border-top: 2px solid var(--ac, var(--primary)); background: var(--surface-alt); }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
@@ -2818,6 +2822,37 @@ function datasetTotalsOf(report, mappedSources) {
   return Object.keys(all).length ? all : undefined;
 }
 
+/* ---------- The authored matrix config (D4) ----------
+   The author only chooses which GROUP columns pivot across the top (layout.matrixColumnGroups, by
+   result alias). Everything else follows from the columns themselves: group columns not chosen stay
+   as row groups, and the measure columns — the ones whose Aggregate already turns the query into a
+   grouped one — are the values. Composed fully at save so the runtime infers nothing. */
+
+const matrixAliasOf = column => column.sourceAlias || column.attribute || column.name;
+const isMeasureColumn = column => !!(column.agg && column.agg !== "None");
+
+function matrixConfigOf(report) {
+  const chosen = (report.layout && report.layout.matrixColumnGroups) || [];
+  if (!chosen.length) return undefined;
+  const visible = (report.columns || []).filter(column => column.visible !== false);
+  const groups = visible.filter(column => !isMeasureColumn(column));
+  const values = visible.filter(isMeasureColumn);
+  const columnGroups = groups.map(matrixAliasOf).filter(alias => chosen.includes(alias));
+  const rowGroups = groups.map(matrixAliasOf).filter(alias => !columnGroups.includes(alias));
+  if (!columnGroups.length || !rowGroups.length || !values.length) return undefined;
+  return { rowGroups, columnGroups, values: values.map(matrixAliasOf) };
+}
+
+/** The same arrangement keyed the way the PREVIEW keys its columns (attribute, not alias). */
+function matrixPreviewConfigOf(report) {
+  const stored = matrixConfigOf(report);
+  if (!stored) return null;
+  const previewKeyOf = column => column.attribute || column.name;
+  const byAlias = alias => (report.columns || []).find(column => matrixAliasOf(column) === alias);
+  const translate = aliases => aliases.map(alias => { const column = byAlias(alias); return column ? previewKeyOf(column) : alias; });
+  return { rowGroups: translate(stored.rowGroups), columnGroups: translate(stored.columnGroups), values: translate(stored.values) };
+}
+
 /** Stored totals back onto what authored them: the root's columns, each dataset's source. */
 function applyLoadedTotals(report, stored) {
   const rootTotals = stored.totals || {};
@@ -3272,7 +3307,9 @@ function reportToDefinition(report) {
         // dataset's keyed by the alias its result block will carry. Absent keys keep every report
         // saved before this feature byte-identical.
         totals: rootTotalsOf(report),
-        datasetTotals: datasetTotalsOf(report, mappedSources)
+        datasetTotals: datasetTotalsOf(report, mappedSources),
+        // The authored matrix (D4), fully composed so the runtime pivots without inferring.
+        matrix: matrixConfigOf(report)
       }))
     } : null
   };
@@ -4083,6 +4120,12 @@ function definitionToReport(def) {
       // Authored totals (D3), lifted back onto the columns and sources that own them.
       applyLoadedTotals(report, stored);
       delete stored.totals; delete stored.datasetTotals;
+      // The matrix arrangement (D4): only the author's choice of column groups is editable state;
+      // the full stored shape is recomposed from the columns at the next save.
+      if (stored.matrix && Array.isArray(stored.matrix.columnGroups)) {
+        stored.matrixColumnGroups = stored.matrix.columnGroups;
+      }
+      delete stored.matrix;
       report.layout = stored;
     } catch (e) { /* keep default layout */ }
   }
@@ -5070,6 +5113,45 @@ function tabFormulas(body, r) {
 }
 
 /* ---- Layout ---- */
+/* SSRS's arrange-fields pane, reduced to its one real decision (D4): which group columns pivot
+   across the top. Measures are shown, not chosen — a column's Aggregate already made it a value. */
+function appendMatrixArrangeCard(body, r) {
+  const L = r.layout;
+  if (L.type !== "Matrix (Cross Tab)" && L.type !== "Pivot Report") return;
+  const visible = (r.columns || []).filter(column => column.visible !== false);
+  const groups = visible.filter(column => !isMeasureColumn(column));
+  const values = visible.filter(isMeasureColumn);
+  L.matrixColumnGroups = L.matrixColumnGroups || [];
+
+  const axisRow = column => {
+    const alias = matrixAliasOf(column);
+    const across = L.matrixColumnGroups.includes(alias);
+    return `<div class="mx-row"><span class="mx-name">${esc(column.name)}</span>
+      <select class="fluent-select" data-mxaxis="${esc(alias)}" style="max-width:130px">
+        <option${across ? "" : " selected"}>Rows</option><option${across ? " selected" : ""}>Columns</option>
+      </select></div>`;
+  };
+  const valueRow = column =>
+    `<div class="mx-row"><span class="mx-name">${esc(column.name)}</span><span class="ds-chip">${esc(column.agg)}</span></div>`;
+
+  const card = el(`<div class="section-card"><h3>Arrange fields <span class="rel-tag">Matrix</span></h3>
+    <div class="hint">Group columns go down the side or across the top; the columns whose <b>Aggregate</b> is set
+      are the values in the cells. With no Rows group, no Columns group or no value, the matrix falls back to
+      the old guessing cross-tab rather than inventing an arrangement.</div>
+    <div class="mx-grid">
+      <div><label class="lbl">Groups</label>${groups.map(axisRow).join("")
+        || `<div class="hint">No group columns — clear Aggregate on the columns that should group.</div>`}</div>
+      <div><label class="lbl">Values (from Aggregate)</label>${values.map(valueRow).join("")
+        || `<div class="hint">No measures — set Aggregate on a numeric column.</div>`}</div>
+    </div></div>`);
+  body.appendChild(card);
+  card.querySelectorAll("[data-mxaxis]").forEach(select => select.addEventListener("change", () => {
+    const chosen = L.matrixColumnGroups.filter(alias => alias !== select.dataset.mxaxis);
+    if (select.value === "Columns") chosen.push(select.dataset.mxaxis);
+    L.matrixColumnGroups = chosen;
+  }));
+}
+
 function tabLayout(body, r) {
   const L = r.layout;
   const card = el(`<div class="section-card">
@@ -5095,9 +5177,14 @@ function tabLayout(body, r) {
     </div>
   </div>`);
   body.appendChild(card);
+  appendMatrixArrangeCard(body, r);
   card.querySelectorAll("[data-l]").forEach(inp => {
     const ev = comboSafeEvent(inp);
-    inp.addEventListener(ev, () => { L[inp.dataset.l] = inp.type==="checkbox"?inp.checked:inp.value; });
+    inp.addEventListener(ev, () => {
+      L[inp.dataset.l] = inp.type==="checkbox"?inp.checked:inp.value;
+      // The arrange-fields card exists only for the matrix layouts, so switching type redraws.
+      if (inp.dataset.l === "type") renderTab();
+    });
   });
 }
 function toggleHtml(key, label, val) {
@@ -5228,7 +5315,9 @@ function renderPaper(host, r) {
     host.innerHTML = `<div class="section-card" style="max-width:940px">${loadingNote(`Reading ${r.mainEntity} from Dataverse…`)}</div>`;
     return;
   }
-  const singleDatasetBody = () => kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill }));
+  const singleDatasetBody = () => kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill,
+    // The authored matrix and totals (D4/D3), so the preview pivots exactly what the run will.
+    matrix: matrixPreviewConfigOf(r), matrixTotals: rootPreviewTotals(r) }));
   const body = !cols.length ? `<div class="page-sub">No visible columns — add columns to preview.</div>`
     : blocks.length ? previewDatasetsHtml(r, hCols, rootRows, blocks)
     : singleDatasetBody();
@@ -8919,6 +9008,102 @@ function previewCellText(col, value) {
   return value;
 }
 
+/* ---------- The authored matrix (D4) — duplicated from report-engine-core.js ----------
+   Change one, change both; test-matrix.mjs fails if the copies drift by a byte. The designer
+   aliases the runtime names its totals module uses. */
+const TOTAL_LABELS = PREVIEW_TOTAL_LABELS;
+function reduceTotal(fn, values){
+  if (fn === "Avg") return values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (fn === "Min") return Math.min(...values);
+  if (fn === "Max") return Math.max(...values);
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+const MATRIX_KEY_SEPARATOR = "\u0001";
+const MATRIX_LABEL_SEPARATOR = " · ";
+
+function matrixModel(cols, rows, matrix, totals){
+  const byKey = key => cols.find(c => c.key === key);
+  const rowGroups = ((matrix && matrix.rowGroups) || []).map(byKey).filter(Boolean);
+  const columnGroups = ((matrix && matrix.columnGroups) || []).map(byKey).filter(Boolean);
+  const values = ((matrix && matrix.values) || []).map(byKey).filter(Boolean);
+  if (!rowGroups.length || !columnGroups.length || !values.length) return null;
+
+  const groupKey = (row, groups) => groups.map(g => String(row[g.key] ?? "")).join(MATRIX_LABEL_SEPARATOR);
+  const columnKeys = [...new Set(rows.map(row => groupKey(row, columnGroups)))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const rowKeys = [];
+  const firstRowByKey = new Map();
+  for (const row of rows){
+    const key = groupKey(row, rowGroups);
+    if (!firstRowByKey.has(key)){ firstRowByKey.set(key, row); rowKeys.push(key); }
+  }
+
+  /* Numeric values sharing a cell ACCUMULATE — pivoting rows that land together means adding them,
+     which is what every pivot means by it; anything non-numeric keeps the last value rather than
+     inventing a combination. An aggregated query never collides; a raw one folds honestly. */
+  const cells = new Map();
+  for (const row of rows){
+    for (const value of values){
+      const at = groupKey(row, rowGroups) + MATRIX_KEY_SEPARATOR + groupKey(row, columnGroups) + MATRIX_KEY_SEPARATOR + value.key;
+      const incoming = row[value.key];
+      const existing = cells.get(at);
+      cells.set(at, typeof existing === "number" && typeof incoming === "number" ? existing + incoming : (incoming ?? existing));
+    }
+  }
+
+  // A blank group value is a real group and needs a real header — an empty <th> reads as a bug.
+  const columnLabel = ck => ck === "" ? "(blank)" : ck;
+  const head = rowGroups.map(g => g.name)
+    .concat(columnKeys.flatMap(ck => values.map(v => values.length > 1 ? columnLabel(ck) + MATRIX_LABEL_SEPARATOR + v.name : columnLabel(ck))));
+  const body = rowKeys.map(rowKey => {
+    const sample = firstRowByKey.get(rowKey);
+    return rowGroups.map(g => String(sample[g.key] ?? ""))
+      .concat(columnKeys.flatMap(ck => values.map(v => {
+        const found = cells.get(rowKey + MATRIX_KEY_SEPARATOR + ck + MATRIX_KEY_SEPARATOR + v.key);
+        return found == null || found === "" ? null : found;
+      })));
+  });
+
+  return { head, body, rowGroupCount: rowGroups.length,
+    grandRow: matrixGrandRow(rowGroups, columnKeys, values, body, totals) };
+}
+
+/* The D3 rule again: a grand row appears only where a Total was AUTHORED for a value column, and it
+   aggregates the matrix cells with that function. An empty cell contributes nothing. */
+function matrixGrandRow(rowGroups, columnKeys, values, body, totals){
+  const authored = values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None");
+  if (!authored.length) return null;
+  const row = rowGroups.map((g, index) => index === 0 ? matrixGrandLabel(values, totals) : "");
+  columnKeys.forEach((columnKey, c) => values.forEach((value, vi) => {
+    const fn = (totals || {})[value.key];
+    const index = rowGroups.length + c * values.length + vi;
+    if (!fn || fn === "None") { row.push(null); return; }
+    if (fn === "Count") { row.push(body.filter(r => r[index] != null).length); return; }
+    const numbers = body.map(r => r[index]).filter(v => typeof v === "number");
+    row.push(numbers.length ? reduceTotal(fn, numbers) : null);
+  }));
+  return row;
+}
+
+function matrixGrandLabel(values, totals){
+  const used = [...new Set(values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+const matrixCellText = value => value == null ? EMPTY_CELL
+  : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value));
+
+function matrixTableHtml(model){
+  const isValueCol = index => index >= model.rowGroupCount;
+  const head = model.head.map((label, i) => `<th class="${isValueCol(i) ? "num" : ""}">${esc(label)}</th>`).join("");
+  const body = model.body.map(row => `<tr>${row.map((value, i) =>
+    `<td class="${isValueCol(i) ? "num" : ""}">${esc(matrixCellText(value))}</td>`).join("")}</tr>`).join("");
+  const grand = model.grandRow ? `<tr class="totals-row">${model.grandRow.map((value, i) =>
+    `<td class="${isValueCol(i) && value != null ? "num" : ""}">${value == null ? "" : esc(matrixCellText(value))}</td>`).join("")}</tr>` : "";
+  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${grand}</tbody></table>`;
+}
+
 function buildPreviewBody(type, cols, rows, opts) {
   opts = opts || {};
   const lang = opts.lang || "en", T = s => tr(s, lang);
@@ -8975,6 +9160,11 @@ function buildPreviewBody(type, cols, rows, opts) {
       return `<div style="border:1px solid #e1dfdd;border-radius:8px;margin-bottom:16px;padding:14px 16px"><div style="font-weight:700;color:${acd};border-bottom:2px solid ${ac};padding-bottom:6px;margin-bottom:10px">${esc(T(catCol.name))}: ${esc(T(g))} <span style="font-weight:400;color:#605e5c;font-size:12px">(master record)</span></div>${headerBlk}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Line items (detail)</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table>${totals(gr)}</div>`; }).join("");
   }
   if (type === "Matrix (Cross Tab)" || type === "Pivot Report") {
+    // The AUTHORED matrix wins (D4); the guessing below serves only reports that never authored one.
+    if (opts.matrix) {
+      const model = matrixModel(cols, rows, opts.matrix, opts.matrixTotals || null);
+      if (model) return matrixTableHtml(model);
+    }
     const colCats = cat2 ? [...new Set(rows.map(r=>r[cat2.key]))] : ["Personal","Corporate","SME"];
     const cell = (rg,ci) => { const gr = rows.filter(r=>r[catCol.key]===rg); const set = cat2 ? gr.filter(r=>r[cat2.key]===colCats[ci]) : gr.filter((r,j)=>j%colCats.length===ci); return valCol?sum(set):set.length; };
     return `<table class="rp-table"><thead><tr><th>${esc(T(catCol.name))} \\ ${cat2?esc(T(cat2.name)):"Product"}</th>${colCats.map(c=>`<th class="num">${esc(T(c))}</th>`).join("")}<th class="num">${T("Total")}</th></tr></thead><tbody>${groups.map(rg=>`<tr><td><b>${esc(T(rg))}</b></td>${colCats.map((c,ci)=>`<td class="num">${valCol?money(cell(rg,ci)):cell(rg,ci)}</td>`).join("")}<td class="num"><b>${valCol?money(sum(rows.filter(r=>r[catCol.key]===rg))):rows.filter(r=>r[catCol.key]===rg).length}</b></td></tr>`).join("")}</tbody></table>${type==="Pivot Report"?`<div style="font-size:11px;color:#605e5c;margin-top:8px">↕ Drag fields to pivot rows/columns · interactive at run time</div>`:""}`;

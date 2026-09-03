@@ -1148,6 +1148,9 @@ const exportBaseName = () => {
 
 /** Header labels plus each row's display text — what the user sees is what they export. */
 function tableOf(dataset){
+  // An authored matrix report exports the PIVOTED table — the file must be the screen (D4).
+  const pivot = matrixTableFor(dataset, exportDefinition());
+  if (pivot) return pivot;
   const cols = (dataset && dataset.columns) || [];
   const body = ((dataset && dataset.rows) || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""));
   // The authored totals row travels with the table (D3), so an export cannot disagree with the
@@ -1161,6 +1164,34 @@ function tableOf(dataset){
     tableOf without a global state. */
 function exportDefinition(){
   return (typeof state !== "undefined" && state.current && state.current.def) || null;
+}
+
+/**
+ * The pivoted table for an authored-matrix report's ROOT dataset, or null where the flat table is
+ * the truth: a standalone block, a report of another layout type, or no authored matrix at all.
+ */
+function matrixTableFor(dataset, def){
+  const layout = def && def.layout;
+  if (!layout || !layout.matrix || !dataset || dataset.role === "standalone") return null;
+  if (layout.type !== "Matrix (Cross Tab)" && layout.type !== "Pivot Report") return null;
+  const cols = (dataset.columns || []).filter(c => c.isVisible !== false)
+    .map(c => ({ key: c.alias, name: c.label || c.alias }));
+  const rows = (dataset.rows || []).map(row => {
+    const flat = {};
+    for (const c of cols){
+      const cell = (row.cells || {})[c.key] || {};
+      // The same rule the on-screen model uses: numbers stay raw so cells accumulate, everything
+      // else pivots by its display text — a lookup groups by its name, never its GUID.
+      flat[c.key] = typeof cell.value === "number" ? cell.value : (cell.text ?? cell.value);
+    }
+    return flat;
+  });
+  const model = matrixModel(cols, rows, layout.matrix, layout.totals || null);
+  if (!model) return null;
+  const text = value => value == null ? "" : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value));
+  const body = model.body.map(row => row.map(text));
+  if (model.grandRow) body.push(model.grandRow.map(text));
+  return { head: model.head, body };
 }
 
 /** The root dataset's table. CSV is one table by definition, so it is the only caller left. */
@@ -2309,6 +2340,103 @@ function renderLayout(result, layout){
 const EMPTY_CELL = "—";
 const isBlankCell = value => value === null || value === undefined || value === "";
 
+/* ---------- The authored matrix (D4) ----------
+   SSRS's arrange-fields contract, for ours: row groups down the side, column groups across the top,
+   one authored measure per cell. Stored in the layout JSON as layout.matrix = { rowGroups,
+   columnGroups, values } — aliases composed by the designer at save — so the renderer infers
+   NOTHING. The old cross-tab guessed its categories and, when it found no second one, invented
+   "Personal/Corporate/SME"; it remains only as the fallback for reports that never authored a
+   matrix.
+
+   Duplicated in report-designer.html by the same rule as the rest of these renderers: change one,
+   change both — and test-matrix.mjs fails if the two copies drift by a byte. */
+
+// A control character no cell value carries, so "a"+"bc" can never collide with "ab"+"c".
+const MATRIX_KEY_SEPARATOR = "\u0001";
+const MATRIX_LABEL_SEPARATOR = " · ";
+
+function matrixModel(cols, rows, matrix, totals){
+  const byKey = key => cols.find(c => c.key === key);
+  const rowGroups = ((matrix && matrix.rowGroups) || []).map(byKey).filter(Boolean);
+  const columnGroups = ((matrix && matrix.columnGroups) || []).map(byKey).filter(Boolean);
+  const values = ((matrix && matrix.values) || []).map(byKey).filter(Boolean);
+  if (!rowGroups.length || !columnGroups.length || !values.length) return null;
+
+  const groupKey = (row, groups) => groups.map(g => String(row[g.key] ?? "")).join(MATRIX_LABEL_SEPARATOR);
+  const columnKeys = [...new Set(rows.map(row => groupKey(row, columnGroups)))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const rowKeys = [];
+  const firstRowByKey = new Map();
+  for (const row of rows){
+    const key = groupKey(row, rowGroups);
+    if (!firstRowByKey.has(key)){ firstRowByKey.set(key, row); rowKeys.push(key); }
+  }
+
+  /* Numeric values sharing a cell ACCUMULATE — pivoting rows that land together means adding them,
+     which is what every pivot means by it; anything non-numeric keeps the last value rather than
+     inventing a combination. An aggregated query never collides; a raw one folds honestly. */
+  const cells = new Map();
+  for (const row of rows){
+    for (const value of values){
+      const at = groupKey(row, rowGroups) + MATRIX_KEY_SEPARATOR + groupKey(row, columnGroups) + MATRIX_KEY_SEPARATOR + value.key;
+      const incoming = row[value.key];
+      const existing = cells.get(at);
+      cells.set(at, typeof existing === "number" && typeof incoming === "number" ? existing + incoming : (incoming ?? existing));
+    }
+  }
+
+  // A blank group value is a real group and needs a real header — an empty <th> reads as a bug.
+  const columnLabel = ck => ck === "" ? "(blank)" : ck;
+  const head = rowGroups.map(g => g.name)
+    .concat(columnKeys.flatMap(ck => values.map(v => values.length > 1 ? columnLabel(ck) + MATRIX_LABEL_SEPARATOR + v.name : columnLabel(ck))));
+  const body = rowKeys.map(rowKey => {
+    const sample = firstRowByKey.get(rowKey);
+    return rowGroups.map(g => String(sample[g.key] ?? ""))
+      .concat(columnKeys.flatMap(ck => values.map(v => {
+        const found = cells.get(rowKey + MATRIX_KEY_SEPARATOR + ck + MATRIX_KEY_SEPARATOR + v.key);
+        return found == null || found === "" ? null : found;
+      })));
+  });
+
+  return { head, body, rowGroupCount: rowGroups.length,
+    grandRow: matrixGrandRow(rowGroups, columnKeys, values, body, totals) };
+}
+
+/* The D3 rule again: a grand row appears only where a Total was AUTHORED for a value column, and it
+   aggregates the matrix cells with that function. An empty cell contributes nothing. */
+function matrixGrandRow(rowGroups, columnKeys, values, body, totals){
+  const authored = values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None");
+  if (!authored.length) return null;
+  const row = rowGroups.map((g, index) => index === 0 ? matrixGrandLabel(values, totals) : "");
+  columnKeys.forEach((columnKey, c) => values.forEach((value, vi) => {
+    const fn = (totals || {})[value.key];
+    const index = rowGroups.length + c * values.length + vi;
+    if (!fn || fn === "None") { row.push(null); return; }
+    if (fn === "Count") { row.push(body.filter(r => r[index] != null).length); return; }
+    const numbers = body.map(r => r[index]).filter(v => typeof v === "number");
+    row.push(numbers.length ? reduceTotal(fn, numbers) : null);
+  }));
+  return row;
+}
+
+function matrixGrandLabel(values, totals){
+  const used = [...new Set(values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+const matrixCellText = value => value == null ? EMPTY_CELL
+  : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value));
+
+function matrixTableHtml(model){
+  const isValueCol = index => index >= model.rowGroupCount;
+  const head = model.head.map((label, i) => `<th class="${isValueCol(i) ? "num" : ""}">${esc(label)}</th>`).join("");
+  const body = model.body.map(row => `<tr>${row.map((value, i) =>
+    `<td class="${isValueCol(i) ? "num" : ""}">${esc(matrixCellText(value))}</td>`).join("")}</tr>`).join("");
+  const grand = model.grandRow ? `<tr class="totals-row">${model.grandRow.map((value, i) =>
+    `<td class="${isValueCol(i) && value != null ? "num" : ""}">${value == null ? "" : esc(matrixCellText(value))}</td>`).join("")}</tr>` : "";
+  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${grand}</tbody></table>`;
+}
+
 function buildPreviewBody(type, cols, rows, opts) {
   opts = opts || {};
   const lang = opts.lang || "en", T = s => tr(s, lang);
@@ -2370,6 +2498,13 @@ function buildPreviewBody(type, cols, rows, opts) {
       return `<div style="border:1px solid #e1dfdd;border-radius:8px;margin-bottom:16px;padding:14px 16px"><div style="font-weight:700;color:${acd};border-bottom:2px solid ${ac};padding-bottom:6px;margin-bottom:10px">${esc(T(catCol.name))}: ${esc(T(g))} <span style="font-weight:400;color:#605e5c;font-size:12px">(master record)</span></div>${headerBlk}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Line items (detail)</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table>${totals(gr)}</div>`; }).join("");
   }
   if (type === "Matrix (Cross Tab)" || type === "Pivot Report") {
+    // The AUTHORED matrix wins (D4): row groups, column groups and values the designer stored.
+    // The heuristic below survives only for reports that never authored one.
+    const authoredMatrix = opts.layout && opts.layout.matrix;
+    if (authoredMatrix) {
+      const model = matrixModel(cols, rows, authoredMatrix, (opts.layout && opts.layout.totals) || null);
+      if (model) return matrixTableHtml(model);
+    }
     const colCats = cat2 ? [...new Set(rows.map(r=>r[cat2.key]))] : ["Personal","Corporate","SME"];
     const cell = (rg,ci) => { const gr = rows.filter(r=>r[catCol.key]===rg); const set = cat2 ? gr.filter(r=>r[cat2.key]===colCats[ci]) : gr.filter((r,j)=>j%colCats.length===ci); return valCol?sum(set):set.length; };
     return `<table class="rp-table"><thead><tr><th>${esc(T(catCol.name))} \\ ${cat2?esc(T(cat2.name)):"Product"}</th>${colCats.map(c=>`<th class="num">${esc(T(c))}</th>`).join("")}<th class="num">${T("Total")}</th></tr></thead><tbody>${groups.map(rg=>`<tr><td><b>${esc(T(rg))}</b></td>${colCats.map((c,ci)=>`<td class="num">${valCol?money(cell(rg,ci)):cell(rg,ci)}</td>`).join("")}<td class="num"><b>${valCol?money(sum(rows.filter(r=>r[catCol.key]===rg))):rows.filter(r=>r[catCol.key]===rg).length}</b></td></tr>`).join("")}</tbody></table>${type==="Pivot Report"?`<div style="font-size:11px;color:#605e5c;margin-top:8px">↕ Drag fields to pivot rows/columns · interactive at run time</div>`:""}`;

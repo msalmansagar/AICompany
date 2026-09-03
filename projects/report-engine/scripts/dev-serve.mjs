@@ -75,11 +75,18 @@ async function handleApi(req, res) {
   res.end(text);
 }
 
-/** Only the headers Dataverse cares about cross; auth is the proxy's own and never the browser's. */
+/** Only the headers Dataverse cares about cross; auth is the proxy's own and never the browser's.
+    Canonical casing matters: the connection adds its own 'Content-Type', and a lowercase duplicate
+    from the browser made fetch send BOTH — OData refuses "application/json, application/json". */
+const PASSTHROUGH_HEADERS = {
+  'content-type': 'Content-Type', prefer: 'Prefer',
+  'if-match': 'If-Match', 'if-none-match': 'If-None-Match', accept: 'Accept'
+};
+
 function passthroughHeaders(req) {
   const kept = {};
-  for (const name of ['content-type', 'prefer', 'if-match', 'if-none-match', 'accept']) {
-    if (req.headers[name]) kept[name] = req.headers[name];
+  for (const [incoming, canonical] of Object.entries(PASSTHROUGH_HEADERS)) {
+    if (req.headers[incoming]) kept[canonical] = req.headers[incoming];
   }
   return kept;
 }
@@ -92,8 +99,26 @@ function readBody(req) {
   });
 }
 
+/* The shells reference their siblings by CRM web-resource NAME (qdb_reportengine_core.js), which
+   is what a deployed page resolves; locally those names map back to the files they deploy from —
+   the same table deploy-webresources.mjs uses. Without this the runtime viewer loads an empty
+   shell: its engine script 404s and nothing on the page ever runs. */
+const WEB_RESOURCE_ALIASES = {
+  '/qdb_reportengine_core.css': '/report-engine-core.css',
+  '/qdb_reportengine_core.js': '/report-engine-core.js',
+  '/qdb_reportengine_report.html': '/report-single.html',
+  '/qdb_reportengine_designer.html': '/report-designer.html',
+  '/qdb_reportengine_runtime.html': '/report-runtime.html',
+  '/qdb_reportengine_ribbon.js': '/report-ribbon.js',
+  '/qdb_reportengine_xlsx.js': '/vendor/xlsx.mini.min.js',
+  '/qdb_reportengine_jspdf.js': '/vendor/jspdf.umd.min.js',
+  '/qdb_reportengine_jspdf_autotable.js': '/vendor/jspdf.plugin.autotable.min.js',
+  '/qdb_reportengine_arabicfont.js': '/vendor/amiri-arabic-font.js'
+};
+
 function serveStatic(res, urlPath) {
-  const relative = urlPath === '/' ? '/report-designer.html' : urlPath;
+  const aliased = WEB_RESOURCE_ALIASES[urlPath] || urlPath;
+  const relative = aliased === '/' ? '/report-designer.html' : aliased;
   const file = normalize(join(PROTOTYPE_DIR, relative));
   if (!file.startsWith(normalize(PROTOTYPE_DIR)) || !existsSync(file) || statSync(file).isDirectory()) {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
