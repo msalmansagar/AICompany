@@ -14,7 +14,7 @@ const html = readFileSync(DESIGNER, 'utf8');
 
 const NEEDED = [
   'COMPOSITIONS', 'compositionByLabel', 'compositionByCode', 'isStandalone', 'compositionCoded',
-  'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockMappingsOf', 'dataSourcesOf',
+  'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockColumnLabelsOf', 'blockMappingsOf', 'dataSourcesOf',
   'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems',
   'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
   'standaloneSourceProblems', 'isCrmViewSource', 'isStaticSource', 'isStandaloneDefinitionSource'
@@ -22,7 +22,7 @@ const NEEDED = [
 
 const api = new Function('newGuid', 'coded', `
   ${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-  return { dataSourcesOf, blockEntityOf, blockColumnsOf, isStandalone, compositionCoded, datasetProblems, isStandaloneDefinitionSource };
+  return { dataSourcesOf, blockEntityOf, blockColumnsOf, blockColumnLabelsOf, isStandalone, compositionCoded, datasetProblems, isStandaloneDefinitionSource };
 `)(() => '00000000-0000-0000-0000-000000000000', (code, label) => code == null ? null : { code, label });
 
 let passed = 0, failed = 0;
@@ -70,6 +70,26 @@ console.log('the block carries its own table and columns');
     mapping.columns.map(c => c.columnLogicalName).join(','));
   check('numbered from one', mapping.columns[0].sortOrder === 1 && mapping.columns[2].sortOrder === 3);
   check('and all visible', mapping.columns.every(c => c.isVisible));
+}
+
+console.log('an authored display name survives the save and reads back');
+{
+  // qdb_reportcolumn.qdb_name is written from displayName; absent, the writer falls back to the
+  // alias — so only chosen names travel, and a logical name never masquerades as an authored one.
+  const block = mapped(termsheet({ columnLabels: { qdb_amount: 'Amount (QAR)' } }))[1];
+  const columns = block.entityMappings[0].columns;
+  check('the chosen label rides on its column',
+    columns.find(c => c.columnLogicalName === 'qdb_amount').displayName === 'Amount (QAR)');
+  check('an unlabelled column carries none',
+    columns.find(c => c.columnLogicalName === 'qdb_tenor').displayName === undefined);
+
+  const stored = { entityMappings: [{ entityLogicalName: 'qdb_requestedfacility', columns: [
+    { columnLogicalName: 'qdb_amount', displayName: 'Amount (QAR)', sortOrder: 1 },
+    { columnLogicalName: 'qdb_tenor', displayName: 'qdb_tenor', sortOrder: 2 }
+  ] }] };
+  const labels = api.blockColumnLabelsOf(stored);
+  check('the label reads back keyed by logical name', labels.qdb_amount === 'Amount (QAR)', JSON.stringify(labels));
+  check('a name equal to the logical is not an authored label', !('qdb_tenor' in labels), JSON.stringify(labels));
 }
 
 console.log('a block with no entity gets no mapping at all');

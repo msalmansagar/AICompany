@@ -15,7 +15,7 @@ const html = readFileSync(DESIGNER, 'utf8');
 
 const NEEDED = [
   'FORMATTED_SUFFIX', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
-  'isStandalone', 'isCrmViewSource', 'isStaticSource', 'isBlockConfigSource', 'RAIL_PANELS', 'sourceProblems',
+  'isStandalone', 'isCrmViewSource', 'isStaticSource', 'isBlockConfigSource', 'isExternalSourceType', 'RAIL_PANELS', 'sourceProblems',
   'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
   'standaloneSourceProblems',
   'previewKey', 'previewCellValue', 'previewRawValue', 'toPreviewRow', 'previewCellText',
@@ -25,6 +25,7 @@ const NEEDED = [
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
+  'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip',
   'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',
   'reportFilterXml', 'previewFilterCondition', 'previewFilterValue', 'previewWildcards',
   'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading'
@@ -36,7 +37,8 @@ const EXPORTED = [
   'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
   'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'blockQueryBase', 'sourceProblems',
-  'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS'
+  'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS',
+  'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -416,6 +418,41 @@ console.log('an empty filtered root says so, instead of scoping to a record that
   const resolved = api.resolvePreviewBlock(block, api.reportRootRows(filtered));
   check('the scoped block explains, mirroring ScopeToNothing', /no parent to scope to/.test(resolved.notice), resolved.notice);
   check('and the canvas banner names the filters', /filters return no records/.test(api.canvasRootShapeNote(filtered, [])), api.canvasRootShapeNote(filtered, []));
+}
+
+/* D1 — the Report Data tree and the Dataset properties dialog. The tree lists what each dataset
+   RETURNS, and "Fields from query" derives the column list from the authored FetchXML instead of
+   asking the author to retype what the query already says. */
+console.log('the tree knows what each dataset returns');
+{
+  const withBlock = report([facilities({ columnLabels: { qdb_amount: 'Amount (QAR)' } })]);
+  const primaryFields = api.datasetFieldsOf(withBlock.dataSources[0], withBlock);
+  check('the primary lists the report columns', primaryFields.map(f => f.logical).join('|') === 'qdb_name|qdb_termsheetid', JSON.stringify(primaryFields));
+
+  const blockFields = api.datasetFieldsOf(withBlock.dataSources[1], withBlock);
+  check('a block lists its own columns', blockFields.map(f => f.logical).join('|') === 'qdb_facilitytype|qdb_amount', JSON.stringify(blockFields));
+  check('an authored display name wins over the table label', blockFields[1].label === 'Amount (QAR)', JSON.stringify(blockFields[1]));
+  check('a metadata label fills where none was authored', blockFields[0].label === 'Facility type', JSON.stringify(blockFields[0]));
+
+  const staticFields = api.datasetFieldsOf({ type: 'Static Dataset', query: '[{"metric":"LTV","value":62}]' }, withBlock);
+  check('a static dataset derives fields from row keys', staticFields.map(f => f.logical).join('|') === 'metric|value', JSON.stringify(staticFields));
+}
+
+console.log('"Fields from query" reads what the FetchXML actually selects');
+{
+  const fetchXml = '<fetch><entity name="contact"><attribute name="fullname"/><attribute name="jobtitle"/>'
+    + '<link-entity name="account"><attribute name="fullname"/></link-entity></entity></fetch>';
+  check('attributes come back in order, deduplicated', api.fieldsFromFetchXml(fetchXml).join('|') === 'fullname|jobtitle', api.fieldsFromFetchXml(fetchXml).join('|'));
+  check('a non-XML payload yields nothing', api.fieldsFromFetchXml('My Active View').length === 0);
+}
+
+console.log('the tree chip tells the truth about how a dataset runs');
+{
+  check('primary', /Primary/.test(api.datasetKindChip({ primary: true })));
+  check('a standalone block', /Block/.test(api.datasetKindChip(facilities())));
+  check('static rows', /Static/.test(api.datasetKindChip({ composition: 'Standalone', type: 'Static Dataset' })));
+  const external = api.datasetKindChip({ composition: 'Standalone', type: 'External REST API — stored, not applied yet' });
+  check('an external dataset says PHASE B, never that it runs', /Phase B/.test(external), external);
 }
 
 /* A CSV that silently arrives one table short is the same quiet disagreement between the file and

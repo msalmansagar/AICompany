@@ -815,6 +815,37 @@
   .cv-derived { border-top: 1px dashed var(--border-strong); margin-top: 14px; padding-top: 10px; }
   .cv-derived-tag { display: flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase;
     letter-spacing: .4px; color: var(--text-secondary); margin-bottom: 10px; }
+
+  /* Report Data tree — data sources, datasets expandable to their fields, parameters. */
+  .ds-tree { font-size: 12.5px; }
+  .ds-folder { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text-secondary); margin: 12px 0 4px; }
+  .ds-folder:first-child { margin-top: 0; }
+  .ds-leaf { display: flex; align-items: center; gap: 6px; padding: 3px 4px; color: var(--text); min-width: 0; }
+  .ds-leaf svg { flex: none; opacity: .6; }
+  .ds-node { border-radius: var(--radius); }
+  .ds-row { display: flex; align-items: center; gap: 6px; padding: 4px; cursor: pointer; border-radius: var(--radius); min-width: 0; }
+  .ds-row:hover { background: var(--surface-alt); }
+  .ds-caret { flex: none; width: 12px; color: var(--text-secondary); }
+  .ds-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .ds-chip { flex: none; font-size: 10px; padding: 1px 6px; border-radius: 8px; background: var(--surface-alt);
+    border: 1px solid var(--border-strong); color: var(--text-secondary); }
+  .ds-chip.warn { background: var(--primary-tint-2); border-color: var(--primary); color: var(--primary); }
+  .ds-gear { flex: none; margin-left: auto; opacity: 0; }
+  .ds-row:hover .ds-gear { opacity: 1; }
+  .ds-fields { margin: 0 0 6px 22px; border-left: 1px solid var(--border-strong); padding-left: 8px; }
+  .ds-field { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; min-width: 0; }
+  .ds-field > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ds-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
+
+  /* Dataset properties dialog. */
+  .dp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+  .dp-grid .mini-field:has(textarea), .dp-grid .mini-field:has([data-combo="view"]) { grid-column: 1 / -1; }
+  .dp-fieldlist { max-height: 44vh; overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 4px 8px; }
+  .dp-fieldrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+  .dp-fieldpick { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
+  .dp-fieldpick > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dp-alias { max-width: 200px; }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
@@ -1799,6 +1830,8 @@ const isCrmViewSource = type => String(type || "").startsWith("CRM View");
 const isStaticSource = type => String(type || "").startsWith("Static Dataset");
 /** Whether a source shows the block-only fields: standalone, and not static (inline rows have no table). */
 const isBlockConfigSource = s => isStandalone(s) && !isStaticSource(s.type);
+/** The source types that reach outside Dataverse — authorable now, executed in Phase B (gated). */
+const isExternalSourceType = type => /SQL|External REST|Middleware|Core Banking|MIS API/.test(String(type || ""));
 
 /** What the payload box is actually for, which depends entirely on the read method. */
 function queryPlaceholder(type) {
@@ -2737,6 +2770,7 @@ function blockMappingsOf(source, index) {
   const entity = String(source.entity || "").trim();
   if (!entity) return [];
 
+  const labels = source.columnLabels || {};
   const columns = String(source.columns || "").split(",")
     .map(name => name.trim())
     .filter(Boolean)
@@ -2744,11 +2778,24 @@ function blockMappingsOf(source, index) {
       id: newGuid(),
       columnLogicalName: name,
       outputAlias: name,
+      // The authored display name rides in qdb_name; absent, the writer falls back to the alias.
+      displayName: labels[name] || undefined,
       sortOrder: order + 1,
       isVisible: true
     }));
 
   return [{ id: newGuid(), entityLogicalName: entity, entityAlias: `b${index + 1}`, depth: 0, columns }];
+}
+
+/** A stored block's authored display names, keyed by logical name — only where one was chosen. */
+function blockColumnLabelsOf(ds) {
+  const labels = {};
+  for (const column of (((ds.entityMappings || [])[0] || {}).columns || [])) {
+    if (column.displayName && column.displayName !== column.columnLogicalName) {
+      labels[column.columnLogicalName] = column.displayName;
+    }
+  }
+  return labels;
 }
 
 /* The External data sources card collected an operation and a key mapping and stored none of it —
@@ -3916,6 +3963,7 @@ function definitionToReport(def) {
       // A block's own table and columns, back in the comma-separated form the tab edits.
       entity: blockEntityOf(ds),
       columns: blockColumnsOf(ds),
+      columnLabels: blockColumnLabelsOf(ds),
       joinFromKey: ds.joinFromKey || "",
       joinToKey: ds.joinToKey || "",
       // Absent means enabled, matching what the engine assumes.
@@ -4644,7 +4692,7 @@ function appendJoinsSection(body, r) {
 function tabDataSources(body, r) {
   body.appendChild(el(`<div class="info-banner">${ic("info")}<div><b>A report can carry several datasets.</b> Add a source and set its Composition to <b>Standalone</b> to run it as its own block under the main result — with its own table and columns, and its own query: an authored <b>FetchXML</b> document, a <b>CRM View</b> of the block's table, or <b>Static Dataset</b> rows pasted as JSON. Join keys scope a block to the main record (master–detail). External sources (SQL, REST, Core Banking, MIS) arrive in V2/V3 via connectors.</div></div>`));
   const card = el(`<div class="section-card"><h3>Data sources</h3><div class="hint">Stored in <span class="kbd">qdb_reportdatasource</span>.</div></div>`);
-  const cols = [{t:"Name"},{t:"Source type"},{t:"Composition"},{t:"Entity"},{t:"Columns"},{t:"Connector"},{t:"Query"},{t:"Primary"},{t:"Parent key"},{t:"Child key"},{t:"Row limit"},{t:"On"}];
+  const cols = [{t:"Name"},{t:"Source type"},{t:"Composition"},{t:"Entity"},{t:"Columns"},{t:"Connector"},{t:"Query"},{t:"Primary"},{t:"Parent key"},{t:"Child key"},{t:"Row limit"},{t:"On"},{t:""}];
   /* Entity, Columns and the two keys only mean something for a standalone block, so a joined source
      shows a dash rather than an input that would be stored and never read — the "stored, not applied"
      shape this designer is trying to stop producing. A STATIC block is standalone but has no table
@@ -4671,6 +4719,7 @@ function tabDataSources(body, r) {
     <td style="text-align:center">${s.primary
       ? `<span style="color:var(--text-secondary)" title="The main result set cannot be switched off">—</span>`
       : `<input type="checkbox" data-i="${i}" data-k="enabled" ${s.enabled === false ? "" : "checked"}>`}</td>
+    <td><button class="icon-btn" data-dsdialog="${i}" title="Dataset properties">${ic("edit")}</button></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
   card.appendChild(listTable(cols, r.dataSources, rowHtml, () => { r.dataSources.push({name:"New source",type:"FetchXML",connector:"",query:"",primary:false,composition:"Joined",entity:"",columns:"",joinFromKey:"",joinToKey:"",enabled:true,rowLimit:""}); renderTab(); }, "Add data source"));
   body.appendChild(card); bindInputs(card, r.dataSources);
@@ -4695,6 +4744,8 @@ function tabDataSources(body, r) {
   // list follows the block's own table. "change" fires on blur, so typing is not interrupted.
   card.querySelectorAll('select[data-k="type"]').forEach(select => select.addEventListener("change", renderTab));
   card.querySelectorAll('input[data-k="entity"]').forEach(input => input.addEventListener("change", renderTab));
+  card.querySelectorAll("[data-dsdialog]").forEach(button => button.onclick = () =>
+    openDatasetProperties(r, r.dataSources[+button.dataset.dsdialog], renderTab));
 
   r.joins = r.joins || []; r.externalSources = r.externalSources || [];
   appendJoinsSection(body, r);
@@ -5259,13 +5310,14 @@ const RAIL_PANELS = {
     fields: [
       { k: "name", label: "Name" },
       { k: "type", label: "Read via", options: () => SOURCE_TYPES },
+      { k: "connectorId", label: "Connector", type: "connector", when: s => isExternalSourceType(s.type) },
       { k: "composition", label: "Composition", options: () => COMPOSITION_LABELS, when: s => !s.primary },
       { k: "entity", label: "Block table", type: "entity", when: isBlockConfigSource },
       { k: "columns", label: "Block columns (logical names)", when: isBlockConfigSource },
       { k: "joinToKey", label: "Parent key (a report column)", when: isBlockConfigSource },
       { k: "joinFromKey", label: "Child key (on the block table)", type: "attr", when: isBlockConfigSource },
       { k: "rowLimit", label: "Row limit", when: isBlockConfigSource },
-      { k: "query", label: "Query" },
+      { k: "query", label: "Query", type: "query" },
       { k: "primary", label: "Primary source", type: "check" },
       { k: "enabled", label: "Enabled", type: "check", when: s => !s.primary }
     ]
@@ -5438,6 +5490,9 @@ function renderRail(r) {
 }
 
 function railPanel(host, r, key, spec) {
+  // Datasets render as a Report Data tree, not cards: what the report reads, expandable to what
+  // each dataset returns. Editing moved to the Dataset properties dialog, where a query fits.
+  if (key === "dataSources") return datasetTreePanel(host, r, spec);
   if (!spec.list(r)) r[railListName(key)] = [];
   const list = spec.list(r);
   host.appendChild(el(`<div><h4 class="${host.children.length ? "mt" : ""}">${esc(spec.title)}</h4>
@@ -5485,10 +5540,25 @@ function railField(r, field, item) {
     ? attributePickerHtml(item.entity || r.mainEntity, value, `data-k="${field.k}"`, "Search fields…")
     : field.type === "entity"
       ? entityPickerHtml(value, `data-k="${field.k}"`)
-      : field.options
-        ? `<select class="fluent-select" data-k="${field.k}">${opts(field.options(r), value)}</select>`
-        : `<input class="fluent-input" data-k="${field.k}" value="${esc(value == null ? "" : value)}">`;
+      : field.type === "query"
+        ? queryFieldControl(r, field, item)
+        : field.type === "connector"
+          ? `<select class="fluent-select" data-k="${field.k}">${connectorOptions(value)}</select>`
+          : field.options
+            ? `<select class="fluent-select" data-k="${field.k}">${opts(field.options(r), value)}</select>`
+            : `<input class="fluent-input" data-k="${field.k}" value="${esc(value == null ? "" : value)}">`;
   return `<div class="mini-field"><label>${esc(field.label)}</label>${control}</div>`;
+}
+
+/** A CRM View picks from its table's saved views; every other type edits its payload in a real editor
+    — the one-line box the query used to live in could not hold a FetchXML document legibly. */
+function queryFieldControl(r, field, item) {
+  if (isCrmViewSource(item.type)) {
+    return viewPickerHtml(isStandalone(item) ? item.entity : r.mainEntity, item[field.k], `data-k="${field.k}"`);
+  }
+  return `<textarea class="fluent-input" data-k="${field.k}" rows="6" spellcheck="false"
+    style="resize:vertical;font-family:ui-monospace,Consolas,monospace;font-size:12px"
+    placeholder="${esc(queryPlaceholder(item.type))}">${esc(item[field.k] == null ? "" : item[field.k])}</textarea>`;
 }
 
 /* Edits write straight through to the report. The card is not redrawn on each keystroke, which
@@ -5498,6 +5568,273 @@ function bindRailCard(card, target, r) {
     target[input.dataset.k] = input.type === "checkbox" ? input.checked : input.value;
     if (renderManualDesigner._refresh) renderManualDesigner._refresh();
   }));
+}
+
+/* ---------- Report Data tree ----------
+   The shape an SSRS author already knows: Data sources, then Datasets — each expandable to the
+   fields it returns — then Parameters. The rail answers "what does this report read"; the Dataset
+   properties dialog is where a dataset is edited, because a FetchXML document does not fit a
+   250px card. */
+
+function datasetTreePanel(host, r, spec) {
+  r.dataSources = r.dataSources || [];
+  host.appendChild(el(`<div><h4>Report data</h4>
+    <div class="hint" style="margin-bottom:10px">What the report reads. ${ic("edit")} opens a dataset's properties.</div></div>`));
+  host.appendChild(el(datasetTreeHtml(r)));
+  bindDatasetTree(host, r, spec);
+}
+
+function datasetTreeHtml(r) {
+  return `<div class="ds-tree">
+    ${dataSourcesFolderHtml()}
+    ${datasetsFolderHtml(r)}
+    ${parametersFolderHtml(r)}
+  </div>`;
+}
+
+function dataSourcesFolderHtml() {
+  const connectors = connectorCatalog.get().map(connector =>
+    `<div class="ds-leaf">${ic("flow")}${esc(connector.name)}${connector.status === "Active" ? "" : " (inactive)"}</div>`).join("");
+  return `<div class="ds-folder">Data sources</div>
+    <div class="ds-leaf">${ic("table")}Dataverse — this organisation</div>${connectors}`;
+}
+
+function datasetsFolderHtml(r) {
+  const expanded = r._dsExpanded || {};
+  return `<div class="ds-folder">Datasets</div>
+    ${r.dataSources.map((source, index) => datasetNodeHtml(r, source, index, !!expanded[index])).join("")}
+    <button class="btn sm btn-add" style="width:100%;margin:6px 0 2px" data-dsadd>${ic("add")}Add dataset</button>`;
+}
+
+function parametersFolderHtml(r) {
+  const rows = (r.parameters || []).map(parameter => `<div class="ds-leaf">${ic("param")}${esc(parameter.name)}</div>`).join("");
+  return `<div class="ds-folder">Parameters</div>
+    ${rows || `<div class="ds-leaf" style="color:var(--text-secondary)">None yet — add under Params</div>`}`;
+}
+
+function datasetNodeHtml(r, source, index, isExpanded) {
+  const fields = datasetFieldsOf(source, r);
+  const fieldRows = fields.map(field =>
+    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span></div>`).join("")
+    || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
+  return `<div class="ds-node">
+    <div class="ds-row" data-dstoggle="${index}">
+      <span class="ds-caret">${isExpanded ? "▾" : "▸"}</span>
+      <span class="ds-name" title="${esc(source.name || "Dataset")}">${esc(source.name || "Dataset")}</span>
+      ${datasetKindChip(source)}
+      <button class="icon-btn ds-gear" data-dsprops="${index}" title="Dataset properties">${ic("edit")}</button>
+    </div>
+    ${isExpanded ? `<div class="ds-fields">${fieldRows}</div>` : ""}
+  </div>`;
+}
+
+/* The chip says how the engine will treat the dataset — and an external one says PHASE B, because
+   its execution is gated and pretending otherwise is the stored-but-never-applied defect again. */
+function datasetKindChip(source) {
+  if (source.primary) return `<span class="ds-chip">Primary</span>`;
+  if (isExternalSourceType(source.type)) return `<span class="ds-chip warn" title="External execution is gated to Phase B — stored, not run yet">Phase B</span>`;
+  if (isStaticSource(source.type)) return `<span class="ds-chip">Static</span>`;
+  return isStandalone(source) ? `<span class="ds-chip">Block</span>` : `<span class="ds-chip">Joined</span>`;
+}
+
+function bindDatasetTree(host, r, spec) {
+  const refresh = () => { if (renderManualDesigner._refresh) renderManualDesigner._refresh(); };
+  host.querySelectorAll("[data-dstoggle]").forEach(row => row.onclick = event => {
+    if (event.target.closest("[data-dsprops]")) return;
+    r._dsExpanded = r._dsExpanded || {};
+    r._dsExpanded[row.dataset.dstoggle] = !r._dsExpanded[row.dataset.dstoggle];
+    refresh();
+  });
+  host.querySelectorAll("[data-dsprops]").forEach(button => button.onclick = () =>
+    openDatasetProperties(r, r.dataSources[+button.dataset.dsprops]));
+  const add = host.querySelector("[data-dsadd]");
+  if (add) add.onclick = () => {
+    // Standalone by default: "add a dataset" to a report that already has its main one means a
+    // block; a second joined source is the rarer intent and one click away in the dialog.
+    const created = { ...spec.add(), name: "New dataset", composition: "Standalone" };
+    r.dataSources.push(created);
+    refresh();
+    openDatasetProperties(r, created);
+  };
+}
+
+/* ---------- Dataset properties dialog ----------
+   The SSRS shape: Query and Fields tabs over one dataset. The Query tab reuses the declarative
+   field list (one source of truth for what a dataset stores and when each field applies); the
+   Fields tab picks a block's columns from its table's metadata instead of typed logical names. */
+
+const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"]];
+
+function openDatasetProperties(r, source, onClose) {
+  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:780px;max-width:94vw">
+    <div class="dialog-head"><h3>Dataset properties — <span id="dp_name"></span></h3><button class="close-x">✕</button></div>
+    <div class="pivot" id="dp_tabs" role="tablist"></div>
+    <div class="dialog-body" style="max-height:62vh;overflow:auto"><div id="dp_body"></div></div>
+    <div class="dialog-foot" style="display:flex;gap:8px">
+      ${source.primary ? "" : `<button class="btn" data-dpremove style="color:var(--error)">${ic("trash")}Remove dataset</button>`}
+      <div style="flex:1"></div>
+      <button class="btn primary" data-close>Done</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  let active = "dsquery";
+  const draw = () => {
+    scrim.querySelector("#dp_name").textContent = source.name || "Dataset";
+    scrim.querySelector("#dp_tabs").innerHTML = DATASET_DIALOG_TABS.map(([key, label]) =>
+      `<button class="pivot-tab ${active === key ? "active" : ""}" data-dp="${key}">${esc(label)}</button>`).join("");
+    scrim.querySelectorAll("[data-dp]").forEach(button => button.onclick = () => { active = button.dataset.dp; draw(); });
+    const body = scrim.querySelector("#dp_body");
+    body.innerHTML = "";
+    (active === "dsquery" ? datasetQueryTab : datasetFieldsTab)(body, r, source, draw);
+  };
+  draw();
+
+  const close = () => {
+    scrim.remove();
+    if (onClose) onClose();
+    else if (renderManualDesigner._refresh) renderManualDesigner._refresh();
+  };
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  const remove = scrim.querySelector("[data-dpremove]");
+  if (remove) remove.onclick = () => {
+    // In-memory until Save, so removing here is as reversible as any other unsaved edit.
+    r.dataSources = r.dataSources.filter(candidate => candidate !== source);
+    close();
+  };
+}
+
+function datasetQueryTab(body, r, source, redraw) {
+  const card = el(`<div class="dp-grid"></div>`);
+  RAIL_PANELS.dataSources.fields
+    .filter(field => !field.when || field.when(source))
+    .forEach(field => card.appendChild(el(railField(r, field, source))));
+  body.appendChild(card);
+  const problems = el(`<div id="dp_problems">${datasetProblemsHtml(r, source)}</div>`);
+  body.appendChild(problems);
+  bindDatasetDialogCard(card, source, () => { problems.innerHTML = datasetProblemsHtml(r, source); });
+  // The type and composition decide which fields exist and how the query is edited.
+  card.querySelectorAll('select[data-k="type"], select[data-k="composition"]').forEach(select =>
+    select.addEventListener("change", redraw));
+}
+
+/* Writes through to the source without repainting the designer underneath: a query being typed must
+   not have the page redrawn under it. The problems footer keeps step, because it is the point. */
+function bindDatasetDialogCard(card, source, onEdited) {
+  card.querySelectorAll("[data-k]").forEach(input => {
+    const event = input.tagName === "TEXTAREA" ? "change" : comboSafeEvent(input);
+    input.addEventListener(event, () => {
+      source[input.dataset.k] = input.type === "checkbox" ? input.checked : input.value;
+      onEdited();
+    });
+  });
+}
+
+/** The same sentences the save refuses on, shown while the author is still in the dialog. */
+function datasetProblemsHtml(r, source) {
+  const returned = (r.columns || []).map(c => c.sourceAlias || c.attribute || c.name).filter(Boolean);
+  const name = source.name || "This dataset";
+  const problems = source.primary ? brokenFetchXmlProblem(source, name) : sourceProblems(source, name, returned);
+  if (!problems.length) {
+    return `<div class="hint" style="margin-top:10px">${ic("check")} The engine will run this dataset as configured.</div>`;
+  }
+  return `<div class="info-banner" style="border-left-color:var(--error);margin-top:10px">${ic("info")}
+    <div><ul style="margin:0 0 0 16px">${problems.map(problem => `<li>${esc(problem)}</li>`).join("")}</ul></div></div>`;
+}
+
+function datasetFieldsTab(body, r, source, redraw) {
+  if (source.primary) {
+    body.appendChild(el(`<div class="hint">The main dataset returns the report's own columns —
+      manage them under <b>Columns</b>, or drag fields onto the canvas.</div>`));
+    return;
+  }
+  if (isStaticSource(source.type)) {
+    const fields = staticFieldsOf(source);
+    body.appendChild(el(`<div><div class="hint" style="margin-bottom:8px">Static rows derive their fields from the JSON keys, exactly as the engine does.</div>
+      ${fields.map(field => `<div class="ds-field"><span>${esc(field.label)}</span></div>`).join("") || `<div class="hint">No rows yet — paste a JSON array under Query.</div>`}</div>`));
+    return;
+  }
+  body.appendChild(el(blockFieldsEditorHtml(source)));
+  bindBlockFieldsEditor(body, source, redraw);
+}
+
+function blockFieldsEditorHtml(source) {
+  const entity = String(source.entity || "").trim();
+  const chosen = String(source.columns || "").split(",").map(name => name.trim()).filter(Boolean);
+  const rows = blockFieldChoices(entity, chosen)
+    .map(choice => blockFieldRowHtml(choice, source.columnLabels || {})).join("");
+  const canRefresh = blockSourceKind(source.type) === "fetch" && String(source.query || "").trim().startsWith("<");
+  return `<div>
+    <div class="field" style="max-width:420px"><label class="lbl">Block table</label>${entityPickerHtml(entity, `data-dpk="entity"`)}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin:10px 0 6px">
+      <input class="fluent-input" id="dp_fieldsearch" placeholder="Search fields…" style="max-width:280px">
+      <button class="btn sm" id="dp_refreshfields" ${canRefresh ? "" : "disabled"}
+        title="Read the column list out of the authored FetchXML">${ic("refresh")}Fields from query</button>
+    </div>
+    <div class="dp-fieldlist">${rows || `<div class="hint">Pick a table to list its fields.</div>`}</div>
+  </div>`;
+}
+
+/** Chosen fields first, in their report order; then the rest of the table, ready to tick. */
+function blockFieldChoices(entity, chosen) {
+  const catalog = attributesOf(entity);
+  const known = new Map(catalog.map(attribute => [attribute.a, attribute]));
+  const picked = chosen.map(logical => ({ logical, display: (known.get(logical) || {}).n || logical, checked: true }));
+  const rest = catalog.filter(attribute => !chosen.includes(attribute.a))
+    .map(attribute => ({ logical: attribute.a, display: attribute.n, checked: false }));
+  return picked.concat(rest);
+}
+
+function blockFieldRowHtml(choice, labels) {
+  const alias = choice.checked
+    ? `<input class="fluent-input dp-alias" data-dplabel="${esc(choice.logical)}" placeholder="${esc(choice.display)}"
+        value="${esc(labels[choice.logical] || "")}" title="Display name on the report">`
+    : "";
+  return `<div class="dp-fieldrow">
+    <label class="dp-fieldpick"><input type="checkbox" data-dppick="${esc(choice.logical)}" ${choice.checked ? "checked" : ""}>
+      <span>${esc(choice.display)}</span><span class="ds-logical">${esc(choice.logical)}</span></label>${alias}</div>`;
+}
+
+function bindBlockFieldsEditor(body, source, redraw) {
+  const entityInput = body.querySelector('[data-dpk="entity"]');
+  if (entityInput) entityInput.addEventListener("change", () => { source.entity = entityInput.value; redraw(); });
+  body.querySelectorAll("[data-dppick]").forEach(box => box.onchange = () => toggleBlockColumn(source, box, redraw));
+  body.querySelectorAll("[data-dplabel]").forEach(input => input.addEventListener("change", () => {
+    source.columnLabels = source.columnLabels || {};
+    if (input.value.trim()) source.columnLabels[input.dataset.dplabel] = input.value.trim();
+    else delete source.columnLabels[input.dataset.dplabel];
+  }));
+  bindBlockFieldSearch(body);
+  const refresh = body.querySelector("#dp_refreshfields");
+  if (refresh && !refresh.disabled) refresh.onclick = () => refreshBlockFieldsFromQuery(source, redraw);
+}
+
+function toggleBlockColumn(source, box, redraw) {
+  const chosen = String(source.columns || "").split(",").map(name => name.trim()).filter(Boolean);
+  const logical = box.dataset.dppick;
+  source.columns = (box.checked ? chosen.concat(logical) : chosen.filter(name => name !== logical)).join(", ");
+  redraw();
+}
+
+function bindBlockFieldSearch(body) {
+  const search = body.querySelector("#dp_fieldsearch");
+  if (!search) return;
+  search.addEventListener("input", () => {
+    const needle = search.value.toLowerCase();
+    body.querySelectorAll(".dp-fieldrow").forEach(row => {
+      row.hidden = !row.textContent.toLowerCase().includes(needle);
+    });
+  });
+}
+
+/** SSRS's "Refresh Fields": the columns become what the authored query actually selects. */
+function refreshBlockFieldsFromQuery(source, redraw) {
+  const fields = fieldsFromFetchXml(source.query);
+  if (!fields.length) { toast("The query selects no attributes to read fields from.", "info"); return; }
+  source.columns = fields.join(", ");
+  redraw();
+  toast(`Fields read from the query — ${fields.length} column${fields.length === 1 ? "" : "s"}.`);
 }
 
 /** Renders the active panel, reusing the tab renderers the tabbed screen already uses. */
@@ -7290,7 +7627,7 @@ function describePreviewBlock(source, index, returned) {
     // block's authored FetchXML, saved view or static rows, so the preview must too.
     kind: blockSourceKind(source.type),
     query: String(source.query || "").trim(),
-    cols: blockPreviewCols(entity, source.columns),
+    cols: blockPreviewCols(entity, source.columns, source.columnLabels),
     childKey: String(source.joinFromKey || "").trim(),
     parentKey: String(source.joinToKey || "").trim(),
     top: rowLimit > 0 ? Math.min(rowLimit, PREVIEW_ROW_LIMIT) : PREVIEW_ROW_LIMIT,
@@ -7388,19 +7725,54 @@ function isReportRootLoading(report) {
   return !previewData.byKey[rootRowsCacheKey(report, cols, reportFilterXml(report))];
 }
 
-/** A block's columns, authored as logical names, resolved against its table for labels and types. */
-function blockPreviewCols(entity, columnList) {
+/** A block's columns, authored as logical names, resolved against its table for labels and types.
+    An authored display name wins over the table's — it is what the run will print. */
+function blockPreviewCols(entity, columnList, labels) {
   const catalog = attributesOf(entity);
+  const chosen = labels || {};
   return String(columnList || "").split(",").map(name => name.trim()).filter(Boolean)
     .map(key => {
       const attribute = catalog.find(candidate => candidate.a === key);
       return {
-        name: attribute ? attribute.n : key,
+        name: chosen[key] || (attribute ? attribute.n : key),
         key,
         type: attribute ? attribute.t : "Text",
         right: !!attribute && ["Currency", "Decimal", "Whole number"].includes(attribute.t)
       };
     });
+}
+
+/** The logical names a FetchXML document selects, in order — SSRS's "Refresh Fields", for ours. */
+function fieldsFromFetchXml(fetchXml) {
+  return [...String(fetchXml || "").matchAll(/<attribute\s+name="([^"]+)"/g)]
+    .map(match => match[1])
+    .filter((name, index, all) => all.indexOf(name) === index);
+}
+
+/**
+ * What a dataset returns, for the Report Data tree: the fields someone would drag or check.
+ * The primary's fields are the report's own columns; a static dataset's come from its row keys,
+ * exactly as the engine derives them; a block's are its chosen columns.
+ */
+function datasetFieldsOf(source, report) {
+  if (source.primary) {
+    return ((report && report.columns) || [])
+      .filter(column => column.visible !== false)
+      .map(column => ({ logical: column.attribute || column.name, label: column.name }));
+  }
+  if (isStaticSource(source.type)) return staticFieldsOf(source);
+  return blockPreviewCols(String(source.entity || "").trim(), source.columns, source.columnLabels)
+    .map(column => ({ logical: column.key, label: column.name }));
+}
+
+function staticFieldsOf(source) {
+  try {
+    const rows = JSON.parse(String(source.query || "").trim() || "null");
+    if (!Array.isArray(rows)) return [];
+    return [...new Set(rows.flatMap(row => Object.keys(row)))].map(key => ({ logical: key, label: key }));
+  } catch (ignored) {
+    return []; // the save validation names the broken JSON; the tree just has nothing to list yet
+  }
 }
 
 const isScopedBlock = block => !!(block.childKey && block.parentKey);
