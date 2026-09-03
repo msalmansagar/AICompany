@@ -1317,15 +1317,77 @@ function sheetName(name, used){
   return candidate;
 }
 
+/* ---------- The print page (D6) ----------
+   The page the author set up is the page the PDF is: size, orientation and margins from the
+   layout; the report header repeated on EVERY page, not only the first; the page number in the
+   footer; and the watermark on each page. Nothing here invents — every element follows an
+   authored toggle, and the defaults are exactly what the exporter always produced. */
+
+const PDF_MARGINS = { Narrow: 24, Normal: 40, Wide: 64 };
+const PDF_PAGE_FORMATS = { A4: "a4", Letter: "letter", A3: "a3", Legal: "legal" };
+const PDF_HEADER_RESERVE = 18;
+const PDF_TOTAL_PAGES_MARKER = "{totalPages}";
+
+function pdfPageSetup(def){
+  const layout = (def && def.layout) || {};
+  return {
+    format: PDF_PAGE_FORMATS[layout.pageSize] || "a4",
+    // Landscape by default: report tables are wider than tall, and portrait squeezes columns.
+    orientation: String(layout.orientation || "Landscape").toLowerCase() === "portrait" ? "portrait" : "landscape",
+    margin: PDF_MARGINS[layout.margins] || PDF_MARGINS.Normal,
+    showHeader: layout.showHeader !== false,
+    pageNumber: layout.pageNumber !== false,
+    genDate: layout.genDate !== false,
+    watermark: (layout.watermark || "").trim()
+  };
+}
+
+/** The chrome every page carries: header rule with the title and date, footer page number,
+    watermark. Drawn by autoTable's didDrawPage, so a table spilling onto page nine still carries
+    the document around it. */
+function drawPdfPageChrome(doc, page, title, font, rtl){
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+  doc.setFont(font);
+  if (page.showHeader){
+    doc.setFontSize(9); doc.setTextColor(60);
+    doc.text(String(title), rtl ? width - page.margin : page.margin, page.margin - 8, { align: rtl ? "right" : "left" });
+    if (page.genDate){
+      doc.setFontSize(8); doc.setTextColor(130);
+      doc.text(new Date().toISOString().slice(0, 10), rtl ? page.margin : width - page.margin, page.margin - 8, { align: rtl ? "left" : "right" });
+    }
+    doc.setDrawColor(200);
+    doc.line(page.margin, page.margin - 2, width - page.margin, page.margin - 2);
+  }
+  if (page.pageNumber){
+    doc.setFontSize(8); doc.setTextColor(130);
+    const pageNumber = doc.internal.getCurrentPageInfo
+      ? doc.internal.getCurrentPageInfo().pageNumber : doc.internal.getNumberOfPages();
+    const total = typeof doc.putTotalPages === "function" ? PDF_TOTAL_PAGES_MARKER : "?";
+    doc.text(`Page ${pageNumber} of ${total}`, width / 2, height - Math.max(14, page.margin / 2), { align: "center" });
+  }
+  if (page.watermark && doc.GState){
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({ opacity: 0.08 }));
+    doc.setFontSize(64); doc.setTextColor(30);
+    doc.text(page.watermark, width / 2, height / 2, { align: "center", angle: 30 });
+    doc.restoreGraphicsState();
+  }
+  doc.setTextColor(0);
+}
+
 async function exportPdf(result, baseName){
   await loadLibrary("jspdf");
   await loadLibrary("table");
   const rtl = isReportRtl();
   const tables = exportTables(result);
+  const page = pdfPageSetup(exportDefinition());
 
-  // Landscape: report tables are wider than they are tall, and portrait squeezes columns to nothing.
-  const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const doc = new window.jspdf.jsPDF({ orientation: page.orientation, unit: "pt", format: page.format });
   const font = rtl ? await useArabicFont(doc) : "helvetica";
+  const def = exportDefinition();
+  const title = (def && def.name) || (result && result.reportName) || baseName;
+  const chrome = () => drawPdfPageChrome(doc, page, title, font, rtl);
 
   // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
   // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an
@@ -1333,24 +1395,31 @@ async function exportPdf(result, baseName){
   // OFF, so the words joined correctly and then read backwards. Verified by decoding the produced
   // PDF through its own ToUnicode map; do not compare glyph ids between two PDFs, they are
   // per-document and any such comparison is meaningless.
-  drawPdfHeading(doc, result, font, rtl);
+  chrome(); // Page one, before any table — a report of only failed datasets still gets its page.
 
   /* Each dataset is drawn beneath the last, titled, so a term sheet exports as the document it is on
      screen rather than as its first table alone. autoTable reports where it finished, which is where
      the next one starts; a single-dataset report is unchanged because it simply has one. */
-  let top = 70;
+  let top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
   for (const table of tables) {
-    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top);
+    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top, page, chrome);
     top = table.status === "failed"
-      ? drawPdfFailure(doc, table, font, rtl, top)
-      : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top);
+      ? drawPdfFailure(doc, table, font, rtl, top, page)
+      : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top, page, chrome);
   }
 
+  if (page.pageNumber && typeof doc.putTotalPages === "function") doc.putTotalPages(PDF_TOTAL_PAGES_MARKER);
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
-function drawPdfSubtitle(doc, name, font, rtl, top){
-  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+function drawPdfSubtitle(doc, name, font, rtl, top, page, chrome){
+  // A subtitle at the very bottom of a page would strand its table's start; break first.
+  if (top > doc.internal.pageSize.getHeight() - page.margin - 60){
+    doc.addPage();
+    chrome();
+    top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
+  }
+  const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
   doc.setFont(font);
   doc.setFontSize(11);
   doc.text(String(name), x, top, { align: rtl ? "right" : "left" });
@@ -1358,8 +1427,8 @@ function drawPdfSubtitle(doc, name, font, rtl, top){
 }
 
 /** A failed dataset states its reason. An empty table would read as "nothing matched". */
-function drawPdfFailure(doc, table, font, rtl, top){
-  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
+function drawPdfFailure(doc, table, font, rtl, top, page){
+  const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
   doc.setFont(font);
   doc.setFontSize(9);
   doc.text(`This dataset could not be loaded — ${table.error || "no reason was given"}`,
@@ -1367,9 +1436,12 @@ function drawPdfFailure(doc, table, font, rtl, top){
   return top + 34;
 }
 
-function drawPdfTable(doc, { head, body }, font, rtl, top){
+function drawPdfTable(doc, { head, body }, font, rtl, top, page, chrome){
   doc.autoTable({
-    head: [head], body, startY: top, margin: { left: 40, right: 40 },
+    head: [head], body, startY: top,
+    // margin.top is where CONTINUATION pages resume — below the repeated header, not over it.
+    margin: { left: page.margin, right: page.margin, top: page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0), bottom: Math.max(24, page.margin / 2) + 6 },
+    didDrawPage: chrome,
     styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
     // Amiri is registered in one weight, so asking for bold would send jsPDF looking for a face
     // that is not there. The fill colour carries the header instead.
@@ -1404,16 +1476,6 @@ async function useArabicFont(doc){
 function orderedForDirection({ head, body }, rtl){
   if (!rtl) return { head, body };
   return { head: [...head].reverse(), body: body.map(row => [...row].reverse()) };
-}
-
-function drawPdfHeading(doc, result, font, rtl){
-  const align = rtl ? "right" : "left";
-  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
-  doc.setFont(font);
-  doc.setFontSize(14);
-  doc.text(String(state.current.def.name || "Report"), x, 40, { align });
-  doc.setFontSize(9);
-  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, x, 56, { align });
 }
 
 const PNG_PADDING = 12;

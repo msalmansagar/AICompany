@@ -5205,6 +5205,7 @@ function tabLayout(body, r) {
       <div class="field"><label class="lbl">Group by</label><select class="fluent-select" data-l="groupBy">${opts(["(none)", ...r.columns.map(c=>c.name)], L.groupBy||"(none)")}</select></div>
       <div class="field"><label class="lbl">Orientation</label><select class="fluent-select" data-l="orientation">${opts(["Portrait","Landscape"], L.orientation)}</select></div>
       <div class="field"><label class="lbl">Page size</label><select class="fluent-select" data-l="pageSize">${opts(["A4","Letter","A3","Legal"], L.pageSize)}</select></div>
+      <div class="field"><label class="lbl">Margins <span class="rel-tag">PDF</span></label><select class="fluent-select" data-l="margins">${opts(["Normal","Narrow","Wide"], L.margins||"Normal")}</select></div>
       <div class="field"><label class="lbl">Watermark text</label><input class="fluent-input" data-l="watermark" value="${esc(L.watermark)}" placeholder="e.g. CONFIDENTIAL"></div>
       <div class="field"><label class="lbl">Chart type <span class="rel-tag">Chart Report</span></label><select class="fluent-select" data-l="chartType">${opts(CHART_TYPES, L.chartType||"Column")}</select></div>
       <div class="field"><label class="lbl">Info card icon <span class="rel-tag">Info Cards</span></label><select class="fluent-select" data-l="cardIcon">${opts(CARD_ICONS, L.cardIcon||"chart")}</select></div>

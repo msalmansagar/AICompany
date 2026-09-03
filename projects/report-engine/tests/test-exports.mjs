@@ -71,11 +71,13 @@ const downloads = [];
 // Direction is injected rather than stubbed away, so the right-to-left paths are exercised too:
 // the sheet direction Excel needs, and the Arabic font a PDF needs. Both were shipped broken once.
 let rightToLeft = false;
+// Injected as a parameter, so tests change the open report by MUTATING this reference.
+const harnessState = { current: { def: { name: 'Active Accounts', reportCode: 'RPT-EXEC-001' } } };
 const api = new Function('esc', 'state', 'toast', 'captureBlob', 'isReportRtl', 'reportLanguage', `
   ${source}
   saveBlob = (blob, filename) => captureBlob(blob, filename);
   return { exportCsv, exportExcel, exportPdf, exportPng, exportRows, loadLibrary, EXPORT_FORMATS };
-`)(s => String(s ?? ''), { current: { def: { name: 'Active Accounts', reportCode: 'RPT-EXEC-001' } } },
+`)(s => String(s ?? ''), harnessState,
    () => {}, (blob, filename) => downloads.push({ blob, filename }),
    () => rightToLeft, () => rightToLeft ? 'ar' : 'en');
 
@@ -208,6 +210,32 @@ writeFileSync(join(tmpdir(), 'export-check-multi.pdf'), bytes);
 downloads.length = 0; await api.exportPng(multi, 'termsheet');
 bytes = bytesOf(downloads[0].blob);
 check('the PNG is valid', bytes.slice(0, 4).toString('hex') === '89504e47');
+
+// D6 — the print page. The page the author set up is the page the PDF is, and every page carries
+// the document's chrome: repeated header, page number, watermark. Decoded from the content
+// streams, because "it is a valid PDF" says nothing about what is on its pages.
+console.log('\nPDF — the authored print page');
+{
+  const defaultDef = harnessState.current.def;
+  harnessState.current.def = { name: 'Credit Proposal', layout: {
+    pageSize: 'Letter', orientation: 'Portrait', margins: 'Narrow', watermark: 'CONFIDENTIAL'
+  } };
+  downloads.length = 0; await api.exportPdf(multi, 'termsheet');
+  const pageBytes = bytesOf(downloads[0].blob);
+  const raw = pageBytes.toString('latin1');
+  const text = pdfText(pageBytes);
+  // Letter portrait is 612×792pt; the MediaBox is the proof the authored page shipped.
+  check('the page is Letter portrait, as authored', /MediaBox\s*\[\s*0\s+0\s+612\.?\d*\s+792\.?\d*/.test(raw), (raw.match(/MediaBox[^\]]*\]/) || [''])[0]);
+  check('the repeated header carries the report name', text.includes('Credit Proposal'));
+  check('the footer numbers its pages', /Page 1 of/.test(text), text.slice(0, 200));
+  check('the watermark is on the page', text.includes('CONFIDENTIAL'));
+  harnessState.current.def = defaultDef;
+
+  downloads.length = 0; await api.exportPdf(multi, 'termsheet');
+  const plain = pdfText(bytesOf(downloads[0].blob));
+  check('no definition still numbers pages (defaults on)', /Page 1 of/.test(plain));
+  check('and carries no watermark nobody authored', !plain.includes('CONFIDENTIAL'));
+}
 
 console.log('\nmulti-dataset — CSV stays one table, by definition');
 downloads.length = 0; await api.exportCsv(multi, 'termsheet');
