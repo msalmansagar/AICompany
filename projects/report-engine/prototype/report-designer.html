@@ -2787,6 +2787,45 @@ function blockMappingsOf(source, index) {
   return [{ id: newGuid(), entityLogicalName: entity, entityAlias: `b${index + 1}`, depth: 0, columns }];
 }
 
+/** One tab filter in the stored shape; dataSourceId null for the report's root query. */
+function storedFilterOf(f, sequence, dataSourceId) {
+  return {
+    id: newGuid(),
+    fieldAlias: f.attribute,
+    operator: coded(RPT_OPERATOR_CODES[f.operator] ?? null, f.operator),
+    value: boundParameterOf(f) || f.value || null,
+    sequence,
+    groupId: f.group != null ? String(f.group) : null,
+    isRuntimePrompt: !!boundParameterOf(f),
+    dataSourceId: dataSourceId || null
+  };
+}
+
+/**
+ * Every dataset's own filters, bound to the mapped source they belong to (D2).
+ *
+ * Correlated by index: dataSourcesOf maps report.dataSources in order before appending external
+ * sources, so the i-th tab source IS the i-th mapped one — the mapped id is what the writer binds.
+ */
+function datasetFiltersOf(report, mappedSources, sequenceOffset) {
+  const bound = [];
+  (report.dataSources || []).forEach((source, index) => {
+    const mapped = mappedSources[index];
+    if (!mapped) return;
+    for (const filter of source.filters || []) {
+      bound.push(storedFilterOf(filter, sequenceOffset + bound.length + 1, mapped.id));
+    }
+  });
+  return bound;
+}
+
+/** One stored filter back in the tab's shape — shared by the report's own and a dataset's. */
+const tabFilterOf = f => ({
+  attribute: f.fieldAlias, operator: operatorLabel(f.operator),
+  value: f.isRuntimePrompt ? "" : (f.value || ""), param: f.isRuntimePrompt ? (f.value || "") : "",
+  token: "(none)", group: f.groupId ? (Number(f.groupId) || 0) : 0, andor: "And"
+});
+
 /** A stored block's authored display names, keyed by logical name — only where one was chosen. */
 function blockColumnLabelsOf(ds) {
   const labels = {};
@@ -3095,6 +3134,7 @@ function reportToDefinition(report) {
       joinExpressionJson: JSON.stringify({ from: j.rightKey, to: j.leftKey }),
       columns: columnsForEntity(j.entity, false)
     }));
+  const mappedSources = dataSourcesOf(report, alias, rootEntity, columns, joinMappings);
   return {
     id: "00000000-0000-0000-0000-000000000000",
     name: report.name || "Untitled report",
@@ -3107,16 +3147,11 @@ function reportToDefinition(report) {
     module: report.module || null,
     status: report.status || "Draft",
     version: report.version || 1,
-    dataSources: dataSourcesOf(report, alias, rootEntity, columns, joinMappings),
-    filters: (report.filters || []).map((f, i) => ({
-      id: newGuid(),
-      fieldAlias: f.attribute,
-      operator: coded(RPT_OPERATOR_CODES[f.operator] ?? null, f.operator),
-      value: boundParameterOf(f) || f.value || null,
-      sequence: i + 1,
-      groupId: f.group != null ? String(f.group) : null,
-      isRuntimePrompt: !!boundParameterOf(f)
-    })),
+    dataSources: mappedSources,
+    // The report's own filters, then every dataset's bound to its mapped source (D2). One sequence
+    // across both: the engine partitions by ownership, not by position.
+    filters: (report.filters || []).map((f, i) => storedFilterOf(f, i + 1, null))
+      .concat(datasetFiltersOf(report, mappedSources, (report.filters || []).length)),
     parameters: (report.parameters || []).map((p, i) => ({
       id: newGuid(),
       parameterName: p.name,
@@ -3207,6 +3242,9 @@ async function writeReportChildren(reportId, def, written = []) {
     return id;
   };
   let executionOrder = 0;
+  // Definition ids are client-side; the org assigns its own. The map is what lets a filter bound to
+  // a dataset in the definition bind to the ROW the dataset just became (D2).
+  const createdSourceIds = new Map();
   for (const source of def.dataSources || []) {
     executionOrder++;
     const sourceId = await create("qdb_reportdatasource", defined({
@@ -3229,6 +3267,7 @@ async function writeReportChildren(reportId, def, written = []) {
       ...connectorBinding(source.externalConnectorId),
       "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})`
     }));
+    createdSourceIds.set(source.id, sourceId);
 
     for (const mapping of source.entityMappings || []) {
       const mappingId = await create("qdb_reportentitymapping", defined({
@@ -3260,6 +3299,8 @@ async function writeReportChildren(reportId, def, written = []) {
   const parent = { "Qdb_reportdefinitionid@odata.bind": `/qdb_reportdefinitions(${reportId})` };
 
   for (const filter of def.filters || []) {
+    // A dataset-bound filter binds to the row its dataset just became; unbound stays the root's.
+    const owner = filter.dataSourceId && createdSourceIds.get(filter.dataSourceId);
     await create("qdb_reportfilter", defined(Object.assign({
       qdb_name: filter.fieldAlias || "Filter",
       qdb_fieldalias: filter.fieldAlias,
@@ -3268,7 +3309,7 @@ async function writeReportChildren(reportId, def, written = []) {
       qdb_sequence: filter.sequence,
       qdb_groupid: filter.groupId,
       qdb_isruntimeprompt: !!filter.isRuntimePrompt
-    }, parent)));
+    }, owner ? { "Qdb_reportdatasourceid@odata.bind": `/qdb_reportdatasources(${owner})` } : {}, parent)));
   }
 
   for (const parameter of def.parameters || []) {
@@ -3920,9 +3961,10 @@ function definitionToReport(def) {
   }
   // A prompt keeps the parameter's name in the value; splitting them back out is what lets the
   // Bind parameter column show which one, instead of the word "param" over a literal.
-  report.filters = (def.filters || []).map(f => ({ attribute: f.fieldAlias, operator: operatorLabel(f.operator),
-    value: f.isRuntimePrompt ? "" : (f.value || ""), param: f.isRuntimePrompt ? (f.value || "") : "",
-    token: "(none)", group: f.groupId ? (Number(f.groupId) || 0) : 0, andor: "And" }));
+  // Root filters stay the report's; a filter bound to a dataset belongs to that dataset's tab shape
+  // (attached in the dataSources mapping above) and must not leak into the Filters panel or the
+  // preview's root query — a bound filter names the BLOCK table's attributes.
+  report.filters = (def.filters || []).filter(f => !f.dataSourceId).map(tabFilterOf);
   report.parameters = (def.parameters || []).map(p => ({ name: p.parameterName, prompt: p.label || p.parameterName, type: "Text",
     required: !!p.isRequired, def: p.defaultValue || "",
     // Round-trips the binding: without this a saved "Current record ID" reopened as "(none)" and the
@@ -3968,7 +4010,9 @@ function definitionToReport(def) {
       joinToKey: ds.joinToKey || "",
       // Absent means enabled, matching what the engine assumes.
       enabled: ds.isEnabled !== false,
-      rowLimit: ds.rowLimit == null ? "" : String(ds.rowLimit)
+      rowLimit: ds.rowLimit == null ? "" : String(ds.rowLimit),
+      // The filters bound to this dataset (D2) — they name ITS table's attributes.
+      filters: (def.filters || []).filter(f => f.dataSourceId === ds.id).map(tabFilterOf)
     };
   });
   if (def.dataSources && def.dataSources.length === 0) report.dataSources = newDefinition(null).dataSources;
@@ -4027,6 +4071,19 @@ function designFromColumns(report) {
   return design;
 }
 
+/* The dataset binding column arrives with the D2 provisioning; an org that does not carry it yet
+   must still open its reports, so the select falls back rather than failing the whole load. The
+   PLUGIN keeps the hard provision-before-deploy order — the designer alone stays deployable. */
+async function loadReportFilters(id) {
+  const columns = "qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt";
+  try {
+    return await dvList("qdb_reportfilter",
+      byReport(id) + `&$select=${columns},_qdb_reportdatasourceid_value&$orderby=qdb_sequence`);
+  } catch (error) {
+    return dvList("qdb_reportfilter", byReport(id) + `&$select=${columns}&$orderby=qdb_sequence`);
+  }
+}
+
 /** Reassembles the stored graph into the ReportDefinition shape definitionToReport expects. */
 async function loadReportDefinition(id) {
   const record = await dvRetrieve("qdb_reportdefinition", id,
@@ -4035,7 +4092,7 @@ async function loadReportDefinition(id) {
 
   const [sources, filters, parameters, formulas, layouts, transformations, security] = await Promise.all([
     dvList("qdb_reportdatasource", byReport(id) + "&$select=qdb_reportdatasourceid,qdb_name,qdb_isprimary,qdb_sourcealias,qdb_sourcetype,qdb_querypayload,qdb_executionorder,qdb_compositionmode,qdb_joinfromkey,qdb_jointokey,qdb_isenabled,qdb_rowlimit,_qdb_externalconnectorid_value&$orderby=qdb_executionorder"),
-    dvList("qdb_reportfilter", byReport(id) + "&$select=qdb_fieldalias,qdb_operator,qdb_value,qdb_sequence,qdb_groupid,qdb_isruntimeprompt&$orderby=qdb_sequence"),
+    loadReportFilters(id),
     dvList("qdb_reportparameter", byReport(id) + "&$select=qdb_parametername,qdb_label,qdb_isrequired,qdb_defaultvalue,qdb_displayorder,qdb_lookuptargetentity,qdb_defaultsource,qdb_paramtype&$orderby=qdb_displayorder"),
     dvList("qdb_reportformula", byReport(id) + "&$select=qdb_formulaalias,qdb_expression,qdb_evaluationorder&$orderby=qdb_evaluationorder"),
     dvList("qdb_reportlayout", byReport(id) + "&$select=qdb_themecolor,qdb_layoutjson"),
@@ -4104,7 +4161,8 @@ async function loadReportDefinition(id) {
     filters: filters.map(f => ({
       fieldAlias: f.qdb_fieldalias,
       operator: { code: f.qdb_operator, label: f["qdb_operator@OData.Community.Display.V1.FormattedValue"] },
-      value: f.qdb_value, sequence: f.qdb_sequence, groupId: f.qdb_groupid, isRuntimePrompt: !!f.qdb_isruntimeprompt
+      value: f.qdb_value, sequence: f.qdb_sequence, groupId: f.qdb_groupid, isRuntimePrompt: !!f.qdb_isruntimeprompt,
+      dataSourceId: f._qdb_reportdatasourceid_value || null
     })),
     parameters: parameters.map(p => ({
       parameterName: p.qdb_parametername, label: p.qdb_label, isRequired: !!p.qdb_isrequired,
@@ -5663,7 +5721,7 @@ function bindDatasetTree(host, r, spec) {
    field list (one source of truth for what a dataset stores and when each field applies); the
    Fields tab picks a block's columns from its table's metadata instead of typed logical names. */
 
-const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"]];
+const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"], ["dsfilters", "Filters"]];
 
 function openDatasetProperties(r, source, onClose) {
   // above-wizard: the wizard overlay sits at z-index 60, and this dialog also opens from its Data
@@ -5688,7 +5746,8 @@ function openDatasetProperties(r, source, onClose) {
     scrim.querySelectorAll("[data-dp]").forEach(button => button.onclick = () => { active = button.dataset.dp; draw(); });
     const body = scrim.querySelector("#dp_body");
     body.innerHTML = "";
-    (active === "dsquery" ? datasetQueryTab : datasetFieldsTab)(body, r, source, draw);
+    const tab = active === "dsquery" ? datasetQueryTab : active === "dsfields" ? datasetFieldsTab : datasetFiltersDialogTab;
+    tab(body, r, source, draw);
   };
   draw();
 
@@ -5778,6 +5837,59 @@ function blockFieldsEditorHtml(source) {
     </div>
     <div class="dp-fieldlist">${rows || `<div class="hint">Pick a table to list its fields.</div>`}</div>
   </div>`;
+}
+
+/* ---------- Dataset Filters tab (D2) ----------
+   Filters that belong to THIS dataset's query, naming its own table's attributes — stored on
+   qdb_reportfilter bound to the dataset, applied by the engine when the block's query is built.
+   A prompt-bound row reads its parameter at run time, exactly like a root filter. */
+
+function datasetFiltersDialogTab(body, r, source, redraw) {
+  if (source.primary) {
+    body.appendChild(el(`<div class="hint">The main dataset uses the report's own filters — manage them under <b>Filters</b>.</div>`));
+    return;
+  }
+  if (isStaticSource(source.type)) {
+    body.appendChild(el(`<div class="hint">Static rows are pasted, not queried — there is nothing for a filter to run against. Edit the rows instead.</div>`));
+    return;
+  }
+  source.filters = source.filters || [];
+  body.appendChild(el(datasetFilterRowsHtml(r, source)));
+  bindDatasetFilterRows(body, r, source, redraw);
+}
+
+function datasetFilterRowsHtml(r, source) {
+  const parameterNames = ["(none)"].concat((r.parameters || []).map(parameter => parameter.name));
+  const rows = source.filters.map((filter, index) => `<tr>
+    <td>${attributePickerHtml(source.entity, filter.attribute, `data-dpf="${index}" data-dpfk="attribute"`, "Search fields…")}</td>
+    <td><select class="fluent-select" data-dpf="${index}" data-dpfk="operator">${opts(OPERATORS, filter.operator || "Equals")}</select></td>
+    <td><input class="fluent-input" data-dpf="${index}" data-dpfk="value" value="${esc(filter.value || "")}"></td>
+    <td><select class="fluent-select" data-dpf="${index}" data-dpfk="param">${opts(parameterNames, filter.param || "(none)")}</select></td>
+    <td><button class="del" data-dpfdel="${index}">${ic("trash")}</button></td></tr>`).join("");
+  return `<div>
+    <div class="hint" style="margin-bottom:8px">Applied when <b>this dataset's</b> query runs — on top of its join-key scope and its own query.
+      Bind a row to a parameter to prompt for it at run time.</div>
+    <div style="overflow-x:auto"><table class="subgrid"><thead><tr><th>Field (on ${esc(source.entity || "the block table")})</th><th>Operator</th><th>Value</th><th>Prompt parameter</th><th></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="5" style="color:var(--text-secondary);padding:10px">No filters — this dataset returns what its query and scope allow.</td></tr>`}</tbody></table></div>
+    <button class="btn sm btn-add" id="dp_addfilter" style="margin-top:8px">${ic("add")}Add filter</button></div>`;
+}
+
+function bindDatasetFilterRows(body, r, source, redraw) {
+  body.querySelectorAll("[data-dpf]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
+    const filter = source.filters[+input.dataset.dpf];
+    if (!filter) return;
+    // "(none)" is the picker's word for unbound; stored as "" so nothing looks up a parameter by it.
+    filter[input.dataset.dpfk] = input.dataset.dpfk === "param" && input.value === "(none)" ? "" : input.value;
+  }));
+  body.querySelectorAll("[data-dpfdel]").forEach(button => button.onclick = () => {
+    source.filters.splice(+button.dataset.dpfdel, 1);
+    redraw();
+  });
+  const add = body.querySelector("#dp_addfilter");
+  if (add) add.onclick = () => {
+    source.filters.push({ attribute: "", operator: "Equals", value: "", param: "", token: "(none)", group: 0, andor: "And" });
+    redraw();
+  };
 }
 
 /** Chosen fields first, in their report order; then the rest of the table, ready to tick. */
@@ -7660,16 +7772,20 @@ function previewBlocksOf(report) {
   return ((report && report.dataSources) || [])
     .map((source, index) => ({ source, index }))
     .filter(({ source }) => !source.primary && isStandalone(source) && source.enabled !== false)
-    .map(({ source, index }) => describePreviewBlock(source, index, returned));
+    .map(({ source, index }) => describePreviewBlock(source, index, returned, (report && report.parameters) || []));
 }
 
-function describePreviewBlock(source, index, returned) {
+function describePreviewBlock(source, index, returned, parameters) {
   const name = source.name || `Source ${index + 1}`;
   const entity = String(source.entity || "").trim();
   const rowLimit = parseInt(source.rowLimit, 10) || 0;
   return {
     name,
     entity,
+    // The dataset's own filters and the report's parameters (D2): the preview applies both exactly
+    // as the engine will — filters on the block's query, tokens resolved to parameter defaults.
+    filters: source.filters || [],
+    parameters: parameters || [],
     // Each dataset carries its own source type and query (MDS-FR-001) — the engine honours a
     // block's authored FetchXML, saved view or static rows, so the preview must too.
     kind: blockSourceKind(source.type),
@@ -7708,10 +7824,15 @@ const PREVIEW_VALUELESS_OPERATORS = ["null", "not-null", "this-month", "this-yea
 const PREVIEW_MULTIVALUE_OPERATORS = ["between", "in", "not-in"];
 
 function reportFilterXml(report) {
-  const filters = (report && report.filters) || [];
-  const conditions = filters.map(f => previewFilterCondition(f, report.parameters)).filter(Boolean);
+  return previewFiltersElement((report && report.filters) || [], report && report.parameters);
+}
+
+/** One filter element from tab-shaped filters — the root's and a dataset's translate identically. */
+function previewFiltersElement(filters, parameters) {
+  const list = filters || [];
+  const conditions = list.map(f => previewFilterCondition(f, parameters)).filter(Boolean);
   if (!conditions.length) return "";
-  const type = String((filters[0] || {}).andor || "And").toLowerCase() === "or" ? "or" : "and";
+  const type = String((list[0] || {}).andor || "And").toLowerCase() === "or" ? "or" : "and";
   return `<filter type="${type}">${conditions.join("")}</filter>`;
 }
 
@@ -7842,7 +7963,9 @@ const queryFingerprint = text => {
 };
 
 const blockCacheKey = (block, parentValue, base) => previewKey(block.entity, block.cols,
-  (parentValue == null ? "" : String(parentValue)) + (base ? "#q" + queryFingerprint(base) : ""));
+  (parentValue == null ? "" : String(parentValue))
+  + (base ? "#q" + queryFingerprint(base) : "")
+  + ((block.filters || []).length ? "#f" + queryFingerprint(JSON.stringify(block.filters)) : ""));
 
 /**
  * The query a block's rows come from, mirroring ReportSourcePlan.OverrideFetchXml: an authored
@@ -7877,21 +8000,46 @@ function blockPreviewFetchXml(block, parentValue, base) {
   if (base) return scopedAuthoredFetchXml(base, block, parentValue);
   const attributes = [...new Set(block.cols.map(c => c.key))]
     .map(name => `<attribute name="${esc(name)}"/>`).join("");
-  return `<fetch top="${block.top}"><entity name="${esc(block.entity)}">${attributes}${scopeCondition(block, parentValue)}</entity></fetch>`;
+  return `<fetch top="${block.top}"><entity name="${esc(block.entity)}">${attributes}${blockOwnConditions(block, parentValue)}</entity></fetch>`;
 }
 
 const scopeCondition = (block, parentValue) => parentValue == null ? ""
   : `<filter><condition attribute="${esc(block.childKey)}" operator="eq" value="${esc(String(parentValue))}"/></filter>`;
 
+/** The block's parent scope plus its own structured filters (D2), as the engine composes them. */
+const blockOwnConditions = (block, parentValue) =>
+  scopeCondition(block, parentValue) + previewFiltersElement(block.filters, block.parameters);
+
 /* Preview-grade splice, not the engine's XML merge: the preview cap replaces the author's top on the
-   <fetch> tag, and the parent scope lands right after the root <entity> — both legal wherever else
-   the author put theirs. The engine does this properly server-side (FetchXmlFilters.ApplyTo); the
-   preview only needs the same ten rows the runtime's first page would show. */
+   <fetch> tag, and the scope and dataset filters land right after the root <entity> — both legal
+   wherever else the author put theirs. The engine does this properly server-side
+   (FetchXmlFilters.ApplyTo); the preview only needs the same ten rows the runtime's first page
+   would show. */
 function scopedAuthoredFetchXml(base, block, parentValue) {
   const uncapped = base.replace(/(<fetch\b[^>]*?)\s+top="[^"]*"/, "$1");
   return uncapped
     .replace(/<fetch\b/, `<fetch top="${block.top}"`)
-    .replace(/(<entity\b[^>]*>)/, `$1${scopeCondition(block, parentValue)}`);
+    .replace(/(<entity\b[^>]*>)/, `$1${blockOwnConditions(block, parentValue)}`);
+}
+
+/**
+ * @Parameter tokens resolved to the parameter's default, mirroring ParameterSubstitution in the
+ * engine — value-position only, so a literal @ inside a value is never touched. An unresolvable
+ * token is a NOTICE, not a query: FetchXML would match the literal "@LoanId" against every row and
+ * come back empty, indistinguishable from a legitimate empty result.
+ */
+function previewTokenSubstitution(fetchXml, parameters) {
+  let failure = null;
+  const resolve = name => {
+    const parameter = (parameters || []).find(candidate => candidate.name === name);
+    if (!parameter) { failure = `The query filters on "@${name}", but the report declares no parameter named "${name}".`; return null; }
+    if (!parameter.def) { failure = `The query filters on "@${name}" — give the parameter a default value to preview it (the run prompts for it).`; return null; }
+    return parameter.def;
+  };
+  const query = String(fetchXml)
+    .replace(/value="@(\w+)"/g, (whole, name) => { const value = resolve(name); return value == null ? whole : `value="${esc(value)}"`; })
+    .replace(/<value>@(\w+)<\/value>/g, (whole, name) => { const value = resolve(name); return value == null ? whole : `<value>${esc(value)}</value>`; });
+  return failure ? { error: failure } : { query };
 }
 
 /* Static rows never touch Dataverse: the engine derives their columns from the row keys
@@ -7924,8 +8072,13 @@ function resolvePreviewBlock(block, rootRows) {
       ? `The main record returns no value for "${block.parentKey}", so there is nothing to scope this dataset to.`
       : "The report returns no records, so this dataset has no parent to scope to — it runs empty.") };
   }
-  const base = blockQueryBase(block);
+  let base = blockQueryBase(block);
   if (base === null) return { rows: [], notice: loadingNote(`Reading saved views of ${block.entity}…`) };
+  if (base && base.indexOf("@") >= 0) {
+    const substituted = previewTokenSubstitution(base, block.parameters);
+    if (substituted.error) return { rows: [], notice: esc(substituted.error) };
+    base = substituted.query;
+  }
   const rows = blockPreviewRows(block, parentValue, base);
   if (!rows.length && !previewData.byKey[blockCacheKey(block, parentValue, base)]) {
     return { rows: [], notice: loadingNote(`Reading ${block.entity} from Dataverse…`) };
@@ -8903,8 +9056,8 @@ function wizCreate() {
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
     query:d.dataSourceQuery||"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"", enabled:true, rowLimit:"" }]
     // The datasets authored in the wizard's Data step, copied so later designer edits and the
-    // abandoned draft cannot share one object.
-    .concat((d.extraDatasets || []).map(source => ({ ...source })));
+    // abandoned draft cannot share one object — the filters array included.
+    .concat((d.extraDatasets || []).map(source => ({ ...source, filters: (source.filters || []).map(f => ({ ...f })) })));
   def.columns = d.columns.map(a => {
     const m = cat.find(x => x.a === a);
     const source = columnSourceOf(m || { a }, d.mainEntity);

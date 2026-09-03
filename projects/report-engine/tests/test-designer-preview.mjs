@@ -21,7 +21,7 @@ const NEEDED = [
   'previewKey', 'previewCellValue', 'previewRawValue', 'toPreviewRow', 'previewCellText',
   'previewBlocksOf', 'describePreviewBlock', 'blockSourceKind', 'blockPreviewCols', 'isScopedBlock',
   'parentScopeValue', 'queryFingerprint', 'blockCacheKey', 'blockQueryBase', 'blockPreviewRows',
-  'blockPreviewFetchXml', 'scopeCondition', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
+  'blockPreviewFetchXml', 'scopeCondition', 'blockOwnConditions', 'previewFiltersElement', 'previewTokenSubstitution', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
@@ -38,7 +38,8 @@ const EXPORTED = [
   'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'blockQueryBase', 'sourceProblems',
   'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS',
-  'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols', 'wizardDatasetShim'
+  'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols', 'wizardDatasetShim',
+  'previewTokenSubstitution', 'previewFiltersElement'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -457,6 +458,51 @@ console.log('the wizard hands the dialog its draft, in the report shape');
   check('the parent-key validation sees the wizard columns',
     api.sourceProblems(facilities(), 'F', shim.columns.map(c => c.attribute)).length === 0,
     JSON.stringify(api.sourceProblems(facilities(), 'F', shim.columns.map(c => c.attribute))));
+}
+
+/* D2 — a dataset's own filters and the report's parameters reach the block's query, previewed
+   exactly as the engine runs them. */
+console.log("a dataset's own filters land in its query, on top of the scope");
+{
+  const [block] = api.previewBlocksOf(report([facilities({
+    filters: [{ attribute: 'qdb_facilitytype', operator: 'Equals', value: 'Term loan', param: '', andor: 'And' }]
+  })]));
+  const fetchXml = api.blockPreviewFetchXml(block, TERMSHEET_ID, '');
+  check('the scope survives', fetchXml.includes(`value="${TERMSHEET_ID}"`), fetchXml);
+  check('the bound filter lands beside it', fetchXml.includes('value="Term loan"'), fetchXml);
+
+  const authored = '<fetch><entity name="qdb_requestedfacility"><attribute name="qdb_facilitytype"/></entity></fetch>';
+  const combined = api.blockPreviewFetchXml(block, TERMSHEET_ID, authored);
+  check('and lands in an authored query too', combined.includes('value="Term loan"') && combined.includes(`value="${TERMSHEET_ID}"`), combined);
+
+  check('editing the filters is a new cache key',
+    api.blockCacheKey(block, TERMSHEET_ID, '') !== api.blockCacheKey({ ...block, filters: [] }, TERMSHEET_ID, ''), 'keys collided');
+}
+
+console.log('a bound prompt filter reads its parameter default in the preview');
+{
+  const withPrompt = report([facilities({
+    filters: [{ attribute: 'qdb_facilitytype', operator: 'Equals', value: '', param: 'FacilityType', andor: 'And' }]
+  })]);
+  withPrompt.parameters = [{ name: 'FacilityType', def: 'Overdraft' }];
+  const [block] = api.previewBlocksOf(withPrompt);
+  check('the parameter default fills the condition',
+    api.blockPreviewFetchXml(block, null, '').includes('value="Overdraft"'), api.blockPreviewFetchXml(block, null, ''));
+}
+
+console.log('@tokens in an authored query resolve like the engine resolves them');
+{
+  const parameters = [{ name: 'LoanId', def: 'LN-77' }];
+  const resolved = api.previewTokenSubstitution('<fetch><entity name="c"><filter><condition attribute="x" operator="eq" value="@LoanId"/></filter></entity></fetch>', parameters);
+  check('a declared token takes the default', resolved.query.includes('value="LN-77"'), JSON.stringify(resolved));
+  check('a list value resolves too',
+    api.previewTokenSubstitution('<value>@LoanId</value>', parameters).query === '<value>LN-77</value>');
+  check('an undeclared token is a notice, never a literal query',
+    /declares no parameter/.test(api.previewTokenSubstitution('value="@Nope"', parameters).error || ''), JSON.stringify(api.previewTokenSubstitution('value="@Nope"', parameters)));
+  check('a defaultless token asks for a default',
+    /give the parameter a default/.test(api.previewTokenSubstitution('value="@Empty"', [{ name: 'Empty', def: '' }]).error || ''));
+  check('a literal @ inside a value is never touched',
+    api.previewTokenSubstitution('value="x@y.com"', parameters).query === 'value="x@y.com"');
 }
 
 console.log('the tree chip tells the truth about how a dataset runs');
