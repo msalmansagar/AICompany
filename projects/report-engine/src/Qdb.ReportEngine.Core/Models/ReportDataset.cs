@@ -39,6 +39,12 @@ public sealed record ReportDataset
     /// <summary>The author's name for this block, shown as its heading.</summary>
     public required string Name { get; init; }
 
+    /// <summary>
+    /// The dataset's source alias — the stable key layout-side authoring (totals, D3) addresses a
+    /// dataset by. Names are display text and get renamed; the alias survives a rename.
+    /// </summary>
+    public string? Alias { get; init; }
+
     /// <summary>One of <see cref="DatasetRole"/>.</summary>
     public required string Role { get; init; }
 

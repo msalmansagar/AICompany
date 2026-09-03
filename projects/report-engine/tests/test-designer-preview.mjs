@@ -28,7 +28,9 @@ const NEEDED = [
   'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip', 'wizardDatasetShim',
   'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',
   'reportFilterXml', 'previewFilterCondition', 'previewFilterValue', 'previewWildcards',
-  'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading'
+  'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading',
+  'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
+  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals'
 ];
 
 const EXPORTED = [
@@ -39,7 +41,9 @@ const EXPORTED = [
   'blockQueryBase', 'sourceProblems',
   'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS',
   'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols', 'wizardDatasetShim',
-  'previewTokenSubstitution', 'previewFiltersElement'
+  'previewTokenSubstitution', 'previewFiltersElement',
+  'PREVIEW_TOTALS', 'PREVIEW_TOTAL_LABELS', 'rootPreviewTotals', 'previewTotalsRow', 'previewTotalsLabel', 'previewTotalText',
+  'rootTotalsOf', 'datasetTotalsOf', 'applyLoadedTotals'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -503,6 +507,55 @@ console.log('@tokens in an authored query resolve like the engine resolves them'
     /give the parameter a default/.test(api.previewTokenSubstitution('value="@Empty"', [{ name: 'Empty', def: '' }]).error || ''));
   check('a literal @ inside a value is never touched',
     api.previewTokenSubstitution('value="x@y.com"', parameters).query === 'value="x@y.com"');
+}
+
+/* D3 — the authored totals row in the preview, and its round trip through the layout JSON. */
+console.log('an authored total reaches the preview table, and only when authored');
+{
+  const withTotals = report([facilities({ columnTotals: { qdb_amount: 'Sum' } })]);
+  const [block] = api.previewBlocksOf(withTotals);
+  check('the block carries its authored totals', block.totals.qdb_amount === 'Sum', JSON.stringify(block.totals));
+
+  const rootRow = { qdb_name: 'TS-0001', [api.PREVIEW_RAW]: { qdb_termsheetid: TERMSHEET_ID } };
+  previewData.byKey[api.blockCacheKey(block, TERMSHEET_ID, '')] = [
+    { qdb_facilitytype: 'Term loan', qdb_amount: 'QAR 1,000,000.00' },
+    { qdb_facilitytype: 'Overdraft', qdb_amount: 'QAR 250,000.00' }
+  ];
+  const htmlOut = api.previewDatasetsHtml(withTotals, [{ name: 'Name', key: 'qdb_name', type: 'Text' }], [rootRow], [block]);
+  check('the totals row renders under the block', /totals-row/.test(htmlOut), htmlOut.slice(-260));
+  check('with the sum of the formatted values', htmlOut.includes('1,250,000'), htmlOut.slice(-260));
+
+  const plain = api.previewDatasetsHtml(report([facilities()]), [{ name: 'Name', key: 'qdb_name', type: 'Text' }], [rootRow],
+    api.previewBlocksOf(report([facilities()])));
+  check('no authoring, no totals row anywhere', !/totals-row/.test(plain));
+}
+
+console.log('the preview totals functions match the runtime semantics');
+{
+  check('Count skips blanks', api.previewTotalText('Count', ['a', '', null, 'b']) === '2');
+  check('Sum parses currency text', api.previewTotalText('Sum', ['QAR 1,000.50', 'QAR 999.50']) === '2,000');
+  check('nothing numeric is an em dash', api.previewTotalText('Sum', ['a', 'b']) === '—');
+  check('an Avg row is labelled Average, never Total',
+    /Average/.test(api.previewTotalsRow([{ key: 'x' }, { key: 'y' }], [{ y: '2' }, { y: '4' }], { y: 'Avg' })));
+}
+
+console.log('totals round-trip through the layout JSON by the aliases the result will carry');
+{
+  const authored = report([facilities({ columnTotals: { qdb_amount: 'Sum' } })]);
+  authored.columns[0].total = 'Count';
+  const rootTotals = api.rootTotalsOf(authored);
+  check('the root keys by the result alias', rootTotals.qdb_name === 'Count', JSON.stringify(rootTotals));
+  check('an untouched report stores NO totals key at all', api.rootTotalsOf(report([])) === undefined);
+
+  const mapped = [{ sourceAlias: 't' }, { sourceAlias: 'b1' }];
+  const datasetTotals = api.datasetTotalsOf(authored, mapped);
+  check('a dataset keys by its mapped alias', datasetTotals.b1.qdb_amount === 'Sum', JSON.stringify(datasetTotals));
+
+  const reloaded = report([facilities({ alias: 'b1' })]);
+  api.applyLoadedTotals(reloaded, { totals: rootTotals, datasetTotals });
+  check('the root total lands back on its column', reloaded.columns[0].total === 'Count');
+  check('the dataset total lands back on its source', reloaded.dataSources[1].columnTotals.qdb_amount === 'Sum',
+    JSON.stringify(reloaded.dataSources[1].columnTotals));
 }
 
 console.log('the tree chip tells the truth about how a dataset runs');

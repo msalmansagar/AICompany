@@ -887,9 +887,11 @@ function renderGrid(result){
      Drilldown stays on the root block (MDS-FR-025): a standalone dataset is not related to the
      report's relationships, and offering the button there would follow a key its rows do not carry. */
   const datasets = datasetsOf(result);
+  // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
+  const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
   $("#resultHost").innerHTML = datasets.length > 1
-    ? multiDatasetHtml(datasets, drillCol, gridFontOf)
-    : datasetBody(datasets[0], drillCol, gridFontOf);
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor)
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]));
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
      are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
@@ -903,9 +905,75 @@ function renderGrid(result){
   // putting it only in renderResult would leave it invisible for exactly the common case.
   applyReportDirection($("#resultHost"));
 }
+/* ---------- Authored totals (D3) ----------
+   SSRS's totals row, for ours: the author picks a function PER COLUMN — Sum, Avg, Min, Max, Count —
+   and the row appears under that dataset's table. Nothing is ever guessed: the previews used to
+   invent a "Tax (10%)" on real data, which is exactly the class of lie an AUTHORED row replaces.
+
+   Stored in the layout JSON — layout.totals for the root, layout.datasetTotals[alias] for a block —
+   and computed over the rows the dataset RETURNED: the totals of what the report shows. A truncated
+   dataset's chip already says the table is not the whole story; its totals inherit that caveat. */
+
+const TOTAL_LABELS = { Sum: "Total", Avg: "Average", Min: "Min", Max: "Max", Count: "Count" };
+
+function authoredTotalsFor(def, dataset){
+  const layout = (def && def.layout) || {};
+  if (!dataset) return null;
+  if (dataset.role !== "standalone") return layout.totals || null;
+  return dataset.alias ? ((layout.datasetTotals || {})[dataset.alias] || null) : null;
+}
+
+/** The totals row's cells for one dataset, aligned to its columns — null when nothing is authored. */
+function totalsRowOf(totals, dataset){
+  const cols = (dataset && dataset.columns) || [];
+  if (!totals || !cols.some(c => totals[c.alias] && totals[c.alias] !== "None")) return null;
+  const cells = cols.map(c => totalCellOf(totals[c.alias], c, dataset.rows || []));
+  const labelAt = cells.findIndex(cell => cell === null);
+  if (labelAt >= 0) cells[labelAt] = { text: totalsRowLabel(totals, cols), isLabel: true };
+  return cells;
+}
+
+/** "Total" only when every authored function IS a sum — the row must not claim an average is one. */
+function totalsRowLabel(totals, cols){
+  const used = [...new Set(cols.map(c => totals[c.alias]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+function totalCellOf(fn, column, rows){
+  if (!fn || fn === "None") return null;
+  const cells = rows.map(row => (row.cells || {})[column.alias] || {});
+  if (fn === "Count"){
+    return { text: String(cells.filter(cell => cell.value != null || (cell.text != null && String(cell.text) !== "")).length) };
+  }
+  const values = cells.map(numericCellValue).filter(value => value != null);
+  // No numeric value at all is an em dash, never a fabricated zero — the blank-cell rule again.
+  return { text: values.length ? formatTotalNumber(reduceTotal(fn, values)) : "—" };
+}
+
+function reduceTotal(fn, values){
+  if (fn === "Avg") return values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (fn === "Min") return Math.min(...values);
+  if (fn === "Max") return Math.max(...values);
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+/** The typed value wins; formatted text is parsed only as a fallback, and a cell that is not a
+    number contributes nothing rather than a NaN. */
+function numericCellValue(cell){
+  if (typeof cell.value === "number") return cell.value;
+  const text = String(cell.text ?? "").replace(/[,\s ]/g, "").replace(/[^\d.-]/g, "");
+  return text !== "" && !isNaN(+text) ? +text : null;
+}
+
+const formatTotalNumber = value => (+value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+const totalsRowHtml = (totalsCells, hasKey) => !totalsCells ? "" :
+  `<tr class="totals-row">${totalsCells.map(cell =>
+    `<td class="${cell && !cell.isLabel ? "num" : ""}">${cell ? esc(cell.text) : ""}</td>`).join("")}${hasKey ? "<td></td>" : ""}</tr>`;
+
 /* One dataset's meta row and table. This is the markup a report has always produced, kept in one
    place now that more than one dataset can ask for it. */
-function datasetBody(dataset, drillCol, fontOf){
+function datasetBody(dataset, drillCol, fontOf, totalsCells){
   const cols = dataset.columns || [];
   const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
   const head = cols.map(c=>`<th${fontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
@@ -913,7 +981,7 @@ function datasetBody(dataset, drillCol, fontOf){
   const empty = `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`;
   return `
     <div class="meta-row"><span><b>${dataset.rowCount}</b> ${plural(dataset.rowCount, "row")}</span>${dataset.truncated?truncationChip(dataset):''}<span>${dataset.elapsedMs||0} ms</span></div>
-    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||empty}</tbody></table></div>`;
+    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||empty}${totalsRowHtml(totalsCells, hasKey)}</tbody></table></div>`;
 }
 
 function datasetRow(row, shape, fontOf){
@@ -933,12 +1001,13 @@ function datasetRow(row, shape, fontOf){
    Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
    pairs rather than a one-row table, which is the difference between a document and three stacked
    grids. */
-function multiDatasetHtml(datasets, drillCol, fontOf){
+function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor){
   const [root, ...blocks] = datasets;
+  const cellsFor = dataset => totalsFor ? totalsFor(dataset) : null;
   const head = isSingleRecord(root)
     ? datasetHeader(root)
-    : datasetBlock(root, drillCol, fontOf) + multiRecordNotice(root);
-  return head + blocks.map(block => datasetBlock(block, null, fontOf)).join("");
+    : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
+  return head + blocks.map(block => datasetBlock(block, null, fontOf, cellsFor(block))).join("");
 }
 
 const isSingleRecord = dataset =>
@@ -972,10 +1041,10 @@ function datasetHeader(dataset){
    A FAILED dataset renders its reason instead of a table. Drawing it as an empty table would be
    indistinguishable from a query that legitimately matched nothing — the same silence this feature
    exists to remove, reintroduced at the last step. */
-function datasetBlock(dataset, drillCol, fontOf){
+function datasetBlock(dataset, drillCol, fontOf, totalsCells){
   const body = dataset.status === "failed"
     ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
-    : datasetBody(dataset, drillCol, fontOf);
+    : datasetBody(dataset, drillCol, fontOf, totalsCells);
   return `<section class="dataset-block">
     <div class="meta-row"><b>${esc(dataset.name || "Dataset")}</b></div>
     ${body}</section>`;
@@ -1080,10 +1149,18 @@ const exportBaseName = () => {
 /** Header labels plus each row's display text — what the user sees is what they export. */
 function tableOf(dataset){
   const cols = (dataset && dataset.columns) || [];
-  return {
-    head: cols.map(c => c.label || c.alias),
-    body: ((dataset && dataset.rows) || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""))
-  };
+  const body = ((dataset && dataset.rows) || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""));
+  // The authored totals row travels with the table (D3), so an export cannot disagree with the
+  // screen about a number as load-bearing as a total.
+  const totalsCells = totalsRowOf(authoredTotalsFor(exportDefinition(), dataset), dataset);
+  if (totalsCells) body.push(totalsCells.map(cell => cell ? cell.text : ""));
+  return { head: cols.map(c => c.label || c.alias), body };
+}
+
+/** The open report's definition, where one is open — guarded so the Node test harness can drive
+    tableOf without a global state. */
+function exportDefinition(){
+  return (typeof state !== "undefined" && state.current && state.current.def) || null;
 }
 
 /** The root dataset's table. CSV is one table by definition, so it is the only caller left. */
@@ -2287,7 +2364,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   }
   if (type === "Master-Detail Report") {
     const hdrCols = cols.filter(c=>c!==valCol).slice(0,5);
-    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr><td style="padding:2px 14px;color:#605e5c">${T("Subtotal")}</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:2px 14px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub+tax)}</td></tr></table></div>`; };
+    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub)}</td></tr></table></div>`; };
     return groups.slice(0,2).map(g => { const gr = rows.filter(r=>r[catCol.key]===g); const h = gr[0]||{};
       const headerBlk = `<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:12.5px;margin-bottom:10px;max-width:420px">${hdrCols.map(c=>`<div style="color:#605e5c">${esc(T(c.name))}</div><div style="font-weight:600">${esc(disp(c,h[c.key]))}</div>`).join("")}</div>`;
       return `<div style="border:1px solid #e1dfdd;border-radius:8px;margin-bottom:16px;padding:14px 16px"><div style="font-weight:700;color:${acd};border-bottom:2px solid ${ac};padding-bottom:6px;margin-bottom:10px">${esc(T(catCol.name))}: ${esc(T(g))} <span style="font-weight:400;color:#605e5c;font-size:12px">(master record)</span></div>${headerBlk}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Line items (detail)</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table>${totals(gr)}</div>`; }).join("");
@@ -2331,13 +2408,13 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${rows.slice(0,6).map(r=>`<div style="border:1px dashed #a19f9d;border-radius:4px;padding:12px;min-height:82px"><div style="font-weight:700">${esc(T(r[catCol.key]))}</div><div style="font-size:12px;color:#323130;margin-top:4px">P.O. Box ${1000+String(r[catCol.key]).length*7}<br>Doha, Qatar<br>+974 4000 ${1000+(String(r[catCol.key]).length*137)%9000}</div></div>`).join("")}</div>`;
   }
   if (type === "Invoice Layout") {
-    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0); const tax = Math.round(subtotal*0.1);
+    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0);
     const hdr = [["Invoice No","INV-10025"],["Customer",T(rows[0][catCol.key])],["Date","15-Jul-2026"],["Status","Paid"],["Sales Rep","John Smith"]];
     return `<div style="display:flex;justify-content:space-between;margin-bottom:14px"><div style="font-size:20px;font-weight:800;color:${ac}">INVOICE</div><div style="text-align:right;font-size:12px;color:#605e5c">Doha, Qatar</div></div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:13px;margin-bottom:16px;max-width:340px">${hdr.map(x=>`<div style="color:#605e5c">${esc(x[0])}</div><div style="font-weight:600">${esc(x[1])}</div>`).join("")}</div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Invoice line items</div>
       <table class="rp-table"><thead><tr><th class="num">Item</th><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${items.map((r,i)=>{const amt=line(r);const qty=[2,1,3,2][i%4];const price=Math.round(amt/qty);return `<tr><td class="num">${i+1}</td><td>${esc(T(r[catCol.key]))}</td><td class="num">${qty}</td><td class="num">${money(price)}</td><td class="num">${money(amt)}</td></tr>`;}).join("")}</tbody></table>
-      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr><td style="padding:2px 16px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(subtotal)}</td></tr><tr><td style="padding:2px 16px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal+tax)}</td></tr></table></div>`;
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal)}</td></tr></table></div>`;
   }
   if (type === "Statement Layout") {
     let bal = 250000; const txns = rows.slice(0,6);

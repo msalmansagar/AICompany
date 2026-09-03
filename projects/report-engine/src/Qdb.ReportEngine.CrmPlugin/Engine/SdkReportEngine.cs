@@ -194,6 +194,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 return new ReportDataset
                 {
                     Id = source.Id.ToString(),
+                    Alias = source.SourceAlias,
                     Name = DatasetName(source),
                     Role = DatasetRole.Standalone,
                     Columns = result.Columns,
@@ -208,6 +209,7 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
                 return new ReportDataset
                 {
                     Id = source.Id.ToString(),
+                    Alias = source.SourceAlias,
                     Name = DatasetName(source),
                     Role = DatasetRole.Standalone,
                     ElapsedMs = Elapsed(started),

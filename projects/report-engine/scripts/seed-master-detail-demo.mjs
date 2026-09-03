@@ -193,6 +193,15 @@ async function seed(dv) {
   await writeColumns(dv, authoredMapping.qdb_reportentitymappingid, BLOCK_COLUMNS);
   console.log('  created block   contact via AUTHORED FetchXML, scoped + filtered to has-email');
 
+  // D3: authored totals ride in the layout JSON, keyed by each dataset's source alias. A Count
+  // under both contact blocks — the row the engine and every export now carry.
+  await create(dv, 'qdb_reportlayouts', {
+    qdb_name: 'Layout',
+    qdb_layoutjson: JSON.stringify({ datasetTotals: { b1: { fullname: 'Count' }, b2: { fullname: 'Count' } } }),
+    'Qdb_reportdefinitionid@odata.bind': `/qdb_reportdefinitions(${reportId})`
+  });
+  console.log('  created layout  authored totals: Count under both contact blocks (D3)');
+
   // Inline rows: no table, no mapping, no query against the org at all.
   await create(dv, 'qdb_reportdatasources', {
     qdb_name: 'Key ratios (static rows)',

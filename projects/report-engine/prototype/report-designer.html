@@ -846,6 +846,9 @@
   .dp-fieldpick { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; }
   .dp-fieldpick > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .dp-alias { max-width: 200px; }
+  .dp-total { max-width: 110px; flex: none; }
+  /* The authored totals row (D3): visibly a summary, never mistakable for another data row. */
+  .totals-row td { font-weight: 700; border-top: 2px solid var(--ac, var(--primary)); background: var(--surface-alt); }
   .kbd { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; background: var(--surface-alt); border: 1px solid var(--border-strong); border-radius: 3px; padding: 1px 5px; }
 
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-top: 10px; }
@@ -2787,6 +2790,47 @@ function blockMappingsOf(source, index) {
   return [{ id: newGuid(), entityLogicalName: entity, entityAlias: `b${index + 1}`, depth: 0, columns }];
 }
 
+/* ---------- Authored totals (D3) ---------- */
+const PREVIEW_TOTALS = ["None", "Sum", "Avg", "Min", "Max", "Count"];
+const PREVIEW_TOTAL_LABELS = { Sum: "Total", Avg: "Average", Min: "Min", Max: "Max", Count: "Count" };
+
+/** The root's authored totals, keyed the way the RESULT names its columns. Empty means the key is
+    dropped from the layout JSON, so an untouched report saves byte-identically. */
+function rootTotalsOf(report) {
+  const totals = {};
+  for (const column of report.columns || []) {
+    if (column.total && column.total !== "None") {
+      totals[column.sourceAlias || column.attribute || column.name] = column.total;
+    }
+  }
+  return Object.keys(totals).length ? totals : undefined;
+}
+
+/** Each dataset's authored totals, keyed by the alias its result block will carry. */
+function datasetTotalsOf(report, mappedSources) {
+  const all = {};
+  (report.dataSources || []).forEach((source, index) => {
+    const totals = source.columnTotals || {};
+    const chosen = Object.keys(totals).filter(key => totals[key] && totals[key] !== "None");
+    if (!chosen.length || !mappedSources[index]) return;
+    all[mappedSources[index].sourceAlias] = Object.fromEntries(chosen.map(key => [key, totals[key]]));
+  });
+  return Object.keys(all).length ? all : undefined;
+}
+
+/** Stored totals back onto what authored them: the root's columns, each dataset's source. */
+function applyLoadedTotals(report, stored) {
+  const rootTotals = stored.totals || {};
+  for (const column of report.columns || []) {
+    const alias = column.sourceAlias || column.attribute || column.name;
+    if (rootTotals[alias]) column.total = rootTotals[alias];
+  }
+  const byAlias = stored.datasetTotals || {};
+  for (const source of report.dataSources || []) {
+    if (source.alias && byAlias[source.alias]) source.columnTotals = { ...byAlias[source.alias] };
+  }
+}
+
 /** One tab filter in the stored shape; dataSourceId null for the report's root query. */
 function storedFilterOf(f, sequence, dataSourceId) {
   return {
@@ -3223,7 +3267,12 @@ function reportToDefinition(report) {
            It travels here rather than in a new column for the reason the canvas design does:
            the layout JSON is already read by the runtime, so this needs no schema change. */
         languages: report.languages || ["en"],
-        primaryLang: report.primaryLang || "en"
+        primaryLang: report.primaryLang || "en",
+        // Authored totals (D3): the root's keyed the way the result names its columns, each
+        // dataset's keyed by the alias its result block will carry. Absent keys keep every report
+        // saved before this feature byte-identical.
+        totals: rootTotalsOf(report),
+        datasetTotals: datasetTotalsOf(report, mappedSources)
       }))
     } : null
   };
@@ -4031,6 +4080,9 @@ function definitionToReport(def) {
       if (Array.isArray(stored.languages) && stored.languages.length) report.languages = stored.languages;
       if (stored.primaryLang) report.primaryLang = stored.primaryLang;
       delete stored.languages; delete stored.primaryLang;
+      // Authored totals (D3), lifted back onto the columns and sources that own them.
+      applyLoadedTotals(report, stored);
+      delete stored.totals; delete stored.datasetTotals;
       report.layout = stored;
     } catch (e) { /* keep default layout */ }
   }
@@ -4879,7 +4931,7 @@ function warnAboutColumnsTheViewOmits(body, r) {
 function tabColumns(body, r) {
   warnAboutColumnsTheViewOmits(body, r);
   const card = el(`<div class="section-card"><h3>Column selector</h3><div class="hint">Choose output columns from the main and related entities. Stored in <span class="kbd">qdb_reportcolumn</span>. Drag to reorder.</div></div>`);
-  const cols = [{t:"Display name"},{t:"Entity"},{t:"Attribute"},{t:"Type"},{t:"Format"},{t:"Width",num:true},{t:"Align"},{t:"Aggregate"},{t:"Mask"},{t:"Show"}];
+  const cols = [{t:"Display name"},{t:"Entity"},{t:"Attribute"},{t:"Type"},{t:"Format"},{t:"Width",num:true},{t:"Align"},{t:"Aggregate"},{t:"Total"},{t:"Mask"},{t:"Show"}];
   const rowHtml = (col,i) => `<tr>
     <td class="handle">${ic("drag")}</td>
     <td><input class="fluent-input" data-i="${i}" data-k="name" value="${esc(col.name)}"></td>
@@ -4890,6 +4942,7 @@ function tabColumns(body, r) {
     <td><input class="fluent-input" type="number" data-i="${i}" data-k="width" data-num value="${col.width}" style="width:70px"></td>
     <td><select class="fluent-select" data-i="${i}" data-k="align">${opts(ALIGN, col.align)}</select></td>
     <td><select class="fluent-select" data-i="${i}" data-k="agg">${opts(AGG, col.agg)}</select></td>
+    <td><select class="fluent-select" data-i="${i}" data-k="total" title="An authored row under the detail table — distinct from Aggregate, which groups the whole query">${opts(PREVIEW_TOTALS, col.total || "None")}</select></td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="masked" ${col.masked?"checked":""}></td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="visible" ${col.visible?"checked":""}></td>
     <td><button class="del" data-del="${i}">${ic("trash")}</button></td></tr>`;
@@ -5402,6 +5455,10 @@ const RAIL_PANELS = {
       { k: "type", label: "Type", options: () => COL_TYPES },
       { k: "align", label: "Align", options: () => ALIGN },
       { k: "agg", label: "Aggregate", options: () => AGG },
+      // Distinct from Aggregate on purpose: Aggregate turns the WHOLE query into a grouped one,
+      // while Total adds an authored row under the detail table (D3). Conflating them is how a
+      // totals request would silently collapse a report to one row per group.
+      { k: "total", label: "Total (row under the table)", options: () => PREVIEW_TOTALS },
       { k: "masked", label: "Masked", type: "check" },
       { k: "visible", label: "Visible", type: "check" }
     ]
@@ -5826,7 +5883,7 @@ function blockFieldsEditorHtml(source) {
   const entity = String(source.entity || "").trim();
   const chosen = String(source.columns || "").split(",").map(name => name.trim()).filter(Boolean);
   const rows = blockFieldChoices(entity, chosen)
-    .map(choice => blockFieldRowHtml(choice, source.columnLabels || {})).join("");
+    .map(choice => blockFieldRowHtml(choice, source.columnLabels || {}, source.columnTotals || {})).join("");
   const canRefresh = blockSourceKind(source.type) === "fetch" && String(source.query || "").trim().startsWith("<");
   return `<div>
     <div class="field" style="max-width:420px"><label class="lbl">Block table</label>${entityPickerHtml(entity, `data-dpk="entity"`)}</div>
@@ -5902,14 +5959,18 @@ function blockFieldChoices(entity, chosen) {
   return picked.concat(rest);
 }
 
-function blockFieldRowHtml(choice, labels) {
+function blockFieldRowHtml(choice, labels, totals) {
   const alias = choice.checked
     ? `<input class="fluent-input dp-alias" data-dplabel="${esc(choice.logical)}" placeholder="${esc(choice.display)}"
         value="${esc(labels[choice.logical] || "")}" title="Display name on the report">`
     : "";
+  const total = choice.checked
+    ? `<select class="fluent-select dp-total" data-dptotal="${esc(choice.logical)}"
+        title="An authored row under this dataset's table (D3)">${opts(PREVIEW_TOTALS, (totals || {})[choice.logical] || "None")}</select>`
+    : "";
   return `<div class="dp-fieldrow">
     <label class="dp-fieldpick"><input type="checkbox" data-dppick="${esc(choice.logical)}" ${choice.checked ? "checked" : ""}>
-      <span>${esc(choice.display)}</span><span class="ds-logical">${esc(choice.logical)}</span></label>${alias}</div>`;
+      <span>${esc(choice.display)}</span><span class="ds-logical">${esc(choice.logical)}</span></label>${alias}${total}</div>`;
 }
 
 function bindBlockFieldsEditor(body, source, redraw) {
@@ -5920,6 +5981,11 @@ function bindBlockFieldsEditor(body, source, redraw) {
     source.columnLabels = source.columnLabels || {};
     if (input.value.trim()) source.columnLabels[input.dataset.dplabel] = input.value.trim();
     else delete source.columnLabels[input.dataset.dplabel];
+  }));
+  body.querySelectorAll("[data-dptotal]").forEach(select => select.addEventListener("change", () => {
+    source.columnTotals = source.columnTotals || {};
+    if (select.value !== "None") source.columnTotals[select.dataset.dptotal] = select.value;
+    else delete source.columnTotals[select.dataset.dptotal];
   }));
   bindBlockFieldSearch(body);
   const refresh = body.querySelector("#dp_refreshfields");
@@ -6190,7 +6256,7 @@ function renderCanvas(r) {
     const rows = previewRows(filled.map(c=>({name:c.name,key:c.attr,type:c.type})), t.entity||r.mainEntity).slice(0,3);
     const th = t.columns.map((c,ci)=> c.placeholder ? `<th class="cv-slot" data-slot="${t.id}" data-ci="${ci}" data-selcol="${t.id}" style="min-width:74px">drop field</th>` : `<th class="cv-col${(sel.t==="col"&&sel.tid===t.id&&sel.ci===ci)?" sel":""}" data-selcol="${t.id}" data-ci="${ci}" style="text-align:${align(c).toLowerCase()};${fontCss(c.font)}">${esc(c.label||c.name)}</th>`).join("");
     const vc = filled.find(c=>["Currency","Decimal","Whole number"].includes(c.type));
-    const tot = t.showTotals && vc ? (() => { const sub=rows.reduce((s,rw)=>s+(+rw[vc.attr]||0),0), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12px"><tr><td style="padding:1px 12px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:1px 12px;color:#605e5c">Tax</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:3px 12px;border-top:1px solid var(--ac)">Total</td><td style="text-align:right;border-top:1px solid var(--ac)">${money(sub+tax)}</td></tr></table></div>`; })() : "";
+    const tot = t.showTotals && vc ? (() => { const sub=rows.reduce((s,rw)=>s+(+rw[vc.attr]||0),0); return `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12px"><tr style="font-weight:700"><td style="padding:3px 12px;border-top:1px solid var(--ac)">Total</td><td style="text-align:right;border-top:1px solid var(--ac)">${money(sub)}</td></tr></table></div>`; })() : "";
     const body = t.columns.length ? `<table class="rp-table"><thead><tr>${th}</tr></thead><tbody>${rows.map(rw=>`<tr>${t.columns.map(c=> c.placeholder ? `<td style="color:var(--text-disabled);text-align:center">—</td>` : `<td style="text-align:${align(c).toLowerCase()};${fontCss(c.font)}">${esc(applyFieldTransform(c.type,c.transform,rw[c.attr]))}</td>`).join("")}</tr>`).join("")}</tbody></table>${tot}` : `<div class="drop-empty">Drag fields here, or use “+ field” to add empty placeholders</div>`;
     return `<div class="cv-section" data-drop="${t.id}">${secTag(t,idx)}${body}</div>`;
   };
@@ -6231,7 +6297,7 @@ function canvasDatasetBlocks(report) {
   }
   const body = blocks.map(block => {
     const resolved = resolvePreviewBlock(block, rootRows);
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice);
+    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals);
   }).join("");
   return band(canvasRootShapeNote(report, rootRows) + body);
 }
@@ -6393,7 +6459,7 @@ function renderProps(r) {
       ${t.displayAs==="infocards"?`<div class="mini-field"><label>Card icon</label><select class="fluent-select" id="p_sicon">${opts2(CARD_ICONS.map(x=>[x,x]), t.cardIcon||"chart")}</select></div>`:""}
       ${t.displayAs==="subreport"?`<div class="mini-field"><label>Embedded report</label><select class="fluent-select" id="p_ssub">${opts(["(none)", ...reportCatalog.get().map(x=>x.name)], t.subReport||"(none)")}</select></div><div class="mini-field"><label>Link field (optional)</label><input class="fluent-input" id="p_ssublink" value="${esc(t.subLink||"")}" placeholder="e.g. qdb_customerid"></div>`:""}
       <div class="mini-field"><label>Column layout (header)</label><select class="fluent-select" id="p_scols">${opts2([["auto","Auto"],["1","1 column"],["2","2 columns"],["3","3 columns"],["4","4 columns"]], String(t.cols||"auto"))}</select></div>
-      <label class="toggle"><input type="checkbox" id="p_stot" ${t.showTotals?"checked":""}><span class="track"></span><span class="tlabel">Totals (Subtotal / Tax / Total)</span></label>
+      <label class="toggle"><input type="checkbox" id="p_stot" ${t.showTotals?"checked":""}><span class="track"></span><span class="tlabel">Total row (sum of the value column)</span></label>
       <button class="btn sm" id="p_sdel" style="margin-top:16px;color:var(--error)">${ic("trash")}Delete section</button>`;
     bindProps(r); return;
   }
@@ -7786,6 +7852,8 @@ function describePreviewBlock(source, index, returned, parameters) {
     // as the engine will — filters on the block's query, tokens resolved to parameter defaults.
     filters: source.filters || [],
     parameters: parameters || [],
+    // The dataset's authored totals (D3), keyed by logical name — the block table's column keys.
+    totals: source.columnTotals || {},
     // Each dataset carries its own source type and query (MDS-FR-001) — the engine honours a
     // block's authored FetchXML, saved view or static rows, so the preview must too.
     kind: blockSourceKind(source.type),
@@ -8098,13 +8166,23 @@ function resolvePreviewBlock(block, rootRows) {
 function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
   const head = rootRows.length === 1
     ? previewDatasetHeader(report.name || "Record", rootCols, rootRows[0])
-    : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "") + previewMultiRecordNotice(rootRows.length);
+    : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "", rootPreviewTotals(report))
+      + previewMultiRecordNotice(rootRows.length);
   const body = blocks.map(block => {
     const resolved = resolvePreviewBlock(block, rootRows);
     // A static block derives its columns from its rows, exactly as the engine does.
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice);
+    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals);
   }).join("");
   return head + body;
+}
+
+/** The root's authored totals, keyed the way the PREVIEW keys its columns. */
+function rootPreviewTotals(report) {
+  const totals = {};
+  for (const column of (report && report.columns) || []) {
+    if (column.total && column.total !== "None") totals[column.attribute || column.name] = column.total;
+  }
+  return totals;
 }
 
 function previewMultiRecordNotice(rowCount) {
@@ -8122,24 +8200,61 @@ function previewDatasetHeader(name, cols, row) {
   </section>`;
 }
 
-function previewDatasetBlock(name, cols, rows, notice) {
+function previewDatasetBlock(name, cols, rows, notice, totals) {
   const body = notice
     ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
-    : (rows.length ? previewDatasetTable(cols, rows) : `<div class="page-sub" style="padding:8px 0">No rows.</div>`);
+    : (rows.length ? previewDatasetTable(cols, rows, totals) : `<div class="page-sub" style="padding:8px 0">No rows.</div>`);
   const count = (!notice && rows.length) ? `<span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>` : "";
   return `<section class="dataset-block">
     <div class="dataset-head"><b>${esc(name)}</b>${count}</div>
     ${body}</section>`;
 }
 
-/* Deliberately plainer than buildPreviewBody: no grand total, no grouping, no chart. A block is
-   whatever its own columns say it is, and the runtime draws it the same way. */
-function previewDatasetTable(cols, rows) {
+/* Deliberately plainer than buildPreviewBody: no heuristic totals, no grouping, no chart. A block is
+   whatever its own columns say it is, and the runtime draws it the same way — including the AUTHORED
+   totals row (D3), which is the only totals row either surface will show. */
+function previewDatasetTable(cols, rows, totals) {
   const right = c => c.right || ["Currency", "Decimal", "Whole number"].includes(c.type);
   const head = cols.map(c => `<th class="${right(c) ? "num" : ""}">${esc(c.name)}</th>`).join("");
   const body = rows.map(row =>
     `<tr>${cols.map(c => `<td class="${right(c) ? "num" : ""}">${esc(previewCellText(c, row[c.key]))}</td>`).join("")}</tr>`).join("");
-  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${previewTotalsRow(cols, rows, totals)}</tbody></table>`;
+}
+
+/**
+ * The authored totals row for a preview table (D3), mirroring the runtime's totalsRowOf: Sum, Avg,
+ * Min and Max over the numeric values, Count over non-blank ones, an em dash where nothing numeric
+ * exists — never a fabricated zero, and never a row that was not asked for.
+ */
+function previewTotalsRow(cols, rows, totals) {
+  if (!totals || !cols.some(c => totals[c.key] && totals[c.key] !== "None")) return "";
+  const texts = cols.map(c => previewTotalText(totals[c.key], rows.map(row => row[c.key])));
+  const labelAt = texts.findIndex(text => text === null);
+  const label = previewTotalsLabel(cols, totals);
+  const cells = cols.map((c, i) => i === labelAt
+    ? `<td>${esc(label)}</td>`
+    : `<td class="${texts[i] == null ? "" : "num"}">${texts[i] == null ? "" : esc(texts[i])}</td>`);
+  return `<tr class="totals-row">${cells.join("")}</tr>`;
+}
+
+/** "Total" only when everything authored is a Sum — the row must not claim an average is one. */
+function previewTotalsLabel(cols, totals) {
+  const used = [...new Set(cols.map(c => totals[c.key]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (PREVIEW_TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+function previewTotalText(fn, values) {
+  if (!fn || fn === "None") return null;
+  if (fn === "Count") return String(values.filter(value => value != null && String(value) !== "").length);
+  const numbers = values
+    .map(value => { const text = String(value ?? "").replace(/[,\s ]/g, "").replace(/[^\d.-]/g, ""); return text !== "" && !isNaN(+text) ? +text : null; })
+    .filter(value => value != null);
+  if (!numbers.length) return "—";
+  const total = fn === "Avg" ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+    : fn === "Min" ? Math.min(...numbers)
+    : fn === "Max" ? Math.max(...numbers)
+    : numbers.reduce((sum, value) => sum + value, 0);
+  return (+total).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function draftPreviewCols(d) {
@@ -8206,8 +8321,8 @@ function buildHeaderDetailBody(hCols, hRow, details, lang) {
   const tables = (details||[]).filter(dt=>dt.columns.length).map(dt=>{
     const cols = dt.columns.map(c=>({name:c.name, key:c.attr, type:c.type, right:["Currency","Decimal","Whole number"].includes(c.type)}));
     const rows = previewRows(cols, dt.entity).slice(0,4);
-    const vc = cols.find(c=>c.right); const sub = vc?rows.reduce((s,r)=>s+(+r[vc.key]||0),0):0, tax = Math.round(sub*0.1);
-    const totals = dt.showTotals && vc ? `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12.5px"><tr><td style="padding:2px 14px;color:#605e5c">${T("Subtotal")}</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:2px 14px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid var(--ac)">${T("Total")}</td><td style="text-align:right;border-top:2px solid var(--ac)">${money(sub+tax)}</td></tr></table></div>` : "";
+    const vc = cols.find(c=>c.right); const sub = vc?rows.reduce((s,r)=>s+(+r[vc.key]||0),0):0;
+    const totals = dt.showTotals && vc ? `<div style="display:flex;justify-content:flex-end;margin-top:6px"><table style="font-size:12.5px"><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid var(--ac)">${T("Total")}</td><td style="text-align:right;border-top:2px solid var(--ac)">${money(sub)}</td></tr></table></div>` : "";
     return `<div style="margin-bottom:16px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">${esc(T(dt.label))} (detail)</div><table class="rp-table"><thead><tr>${cols.map(c=>`<th class="${c.right?"num":""}">${esc(T(c.name))}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c.right?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join("")}</tbody></table>${totals}</div>`;
   }).join("");
   return header + tables;
@@ -8854,7 +8969,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   }
   if (type === "Master-Detail Report") {
     const hdrCols = cols.filter(c=>c!==valCol).slice(0,5);
-    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr><td style="padding:2px 14px;color:#605e5c">${T("Subtotal")}</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:2px 14px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub+tax)}</td></tr></table></div>`; };
+    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub)}</td></tr></table></div>`; };
     return groups.slice(0,2).map(g => { const gr = rows.filter(r=>r[catCol.key]===g); const h = gr[0]||{};
       const headerBlk = `<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:12.5px;margin-bottom:10px;max-width:420px">${hdrCols.map(c=>`<div style="color:#605e5c">${esc(T(c.name))}</div><div style="font-weight:600">${esc(disp(c,h[c.key]))}</div>`).join("")}</div>`;
       return `<div style="border:1px solid #e1dfdd;border-radius:8px;margin-bottom:16px;padding:14px 16px"><div style="font-weight:700;color:${acd};border-bottom:2px solid ${ac};padding-bottom:6px;margin-bottom:10px">${esc(T(catCol.name))}: ${esc(T(g))} <span style="font-weight:400;color:#605e5c;font-size:12px">(master record)</span></div>${headerBlk}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Line items (detail)</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table>${totals(gr)}</div>`; }).join("");
@@ -8898,13 +9013,13 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${rows.slice(0,6).map(r=>`<div style="border:1px dashed #a19f9d;border-radius:4px;padding:12px;min-height:82px"><div style="font-weight:700">${esc(T(r[catCol.key]))}</div><div style="font-size:12px;color:#323130;margin-top:4px">P.O. Box ${1000+String(r[catCol.key]).length*7}<br>Doha, Qatar<br>+974 4000 ${1000+(String(r[catCol.key]).length*137)%9000}</div></div>`).join("")}</div>`;
   }
   if (type === "Invoice Layout") {
-    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0); const tax = Math.round(subtotal*0.1);
+    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0);
     const hdr = [["Invoice No","INV-10025"],["Customer",T(rows[0][catCol.key])],["Date","15-Jul-2026"],["Status","Paid"],["Sales Rep","John Smith"]];
     return `<div style="display:flex;justify-content:space-between;margin-bottom:14px"><div style="font-size:20px;font-weight:800;color:${ac}">INVOICE</div><div style="text-align:right;font-size:12px;color:#605e5c">Doha, Qatar</div></div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:13px;margin-bottom:16px;max-width:340px">${hdr.map(x=>`<div style="color:#605e5c">${esc(x[0])}</div><div style="font-weight:600">${esc(x[1])}</div>`).join("")}</div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Invoice line items</div>
       <table class="rp-table"><thead><tr><th class="num">Item</th><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${items.map((r,i)=>{const amt=line(r);const qty=[2,1,3,2][i%4];const price=Math.round(amt/qty);return `<tr><td class="num">${i+1}</td><td>${esc(T(r[catCol.key]))}</td><td class="num">${qty}</td><td class="num">${money(price)}</td><td class="num">${money(amt)}</td></tr>`;}).join("")}</tbody></table>
-      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr><td style="padding:2px 16px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(subtotal)}</td></tr><tr><td style="padding:2px 16px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal+tax)}</td></tr></table></div>`;
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal)}</td></tr></table></div>`;
   }
   if (type === "Statement Layout") {
     let bal = 250000; const txns = rows.slice(0,6);

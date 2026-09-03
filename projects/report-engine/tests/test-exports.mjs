@@ -16,7 +16,10 @@ const exportsSection = html.slice(html.indexOf('/* ---------------- exports ----
 /* The exporters read the result through the dataset normaliser, which lives outside this section.
    Lifted from the engine rather than stubbed here: a stub would answer for code the browser never
    runs, and the whole point of these suites is that they exercise the shipped path. */
-const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames']
+const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames',
+  // tableOf carries the authored totals row into every export (D3), so the totals module rides too.
+  'TOTAL_LABELS', 'authoredTotalsFor', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
+  'reduceTotal', 'numericCellValue', 'formatTotalNumber']
   .map(name => liftDeclaration(html, name)).join('\n');
 const source = `${normaliser}\n${exportsSection}`;
 

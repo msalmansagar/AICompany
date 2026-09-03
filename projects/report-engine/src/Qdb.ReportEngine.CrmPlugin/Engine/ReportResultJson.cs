@@ -88,6 +88,14 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             json.Append(',');
             AppendProperty(json, "name", dataset.Name);
             json.Append(',');
+            // The stable key totals authoring addresses a dataset by (D3); a rename changes the
+            // name, never the alias. Absent for the root, whose totals key on the layout directly.
+            if (!string.IsNullOrEmpty(dataset.Alias))
+            {
+                AppendProperty(json, "alias", dataset.Alias);
+                json.Append(',');
+            }
+
             AppendProperty(json, "role", dataset.Role);
             json.Append(",\"columns\":");
             AppendColumns(json, dataset.Columns);
