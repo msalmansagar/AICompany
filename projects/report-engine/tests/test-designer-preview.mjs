@@ -24,7 +24,10 @@ const NEEDED = [
   'blockPreviewFetchXml', 'scopeCondition', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
-  'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport'
+  'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
+  'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',
+  'reportFilterXml', 'previewFilterCondition', 'previewFilterValue', 'previewWildcards',
+  'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading'
 ];
 
 const EXPORTED = [
@@ -32,7 +35,8 @@ const EXPORTED = [
   'blockPreviewFetchXml', 'resolvePreviewBlock', 'previewDatasetsHtml', 'previewKey',
   'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
   'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
-  'blockQueryBase', 'sourceProblems'
+  'blockQueryBase', 'sourceProblems',
+  'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -330,6 +334,66 @@ console.log('a FetchXML payload that is not XML is refused, not silently ignored
 
   check('a joined non-primary with a query is still refused',
     /never executed/.test((api.sourceProblems({ name: 'J', composition: 'Joined', query: '<fetch/>' }, 'J', [])[0]) || ''), 'joined query slipped through');
+}
+
+/* The preview always sampled the main table UNFILTERED — tolerable until blocks scoped themselves
+   to the root's first row, at which point the preview confidently showed a DIFFERENT parent's
+   children than the run would return. The translation mirrors ReportQueryBuilder.BuildCondition. */
+console.log("the report's filters reach the root the blocks scope from");
+{
+  const filtered = report([facilities()]);
+  filtered.filters = [{ attribute: 'accountid', operator: 'Equals', value: TERMSHEET_ID, param: '', andor: 'And' }];
+
+  const xml = api.reportFilterXml(filtered);
+  check('an equals filter becomes its condition',
+    xml === `<filter type="and"><condition attribute="accountid" operator="eq" value="${TERMSHEET_ID}"/></filter>`, xml);
+
+  api.reportRootRows(filtered);
+  const rootQuery = issued[issued.length - 1];
+  check('the root preview query carries the filter', rootQuery.fetchXml.includes(`value="${TERMSHEET_ID}"`), rootQuery.fetchXml);
+  check('under a filter-fingerprinted cache key, so the unfiltered cache cannot answer',
+    rootQuery.key !== api.previewKey('qdb_termsheet', api.reportPreviewCols(filtered)), rootQuery.key);
+  check('and an empty answer while loading reads as loading', api.isReportRootLoading(filtered) === true);
+
+  const unfiltered = report([facilities()]);
+  check('no filters means the ordinary sampling query', api.reportFilterXml(unfiltered) === '');
+}
+
+console.log('the translation matches the engine case for case');
+{
+  const condition = (filter, parameters) => api.previewFilterCondition(filter, parameters);
+  check('contains gets both wildcards',
+    condition({ attribute: 'name', operator: 'Contains', value: 'bank' }).includes('value="%bank%"'),
+    condition({ attribute: 'name', operator: 'Contains', value: 'bank' }));
+  check('begins-with gets the trailing one',
+    condition({ attribute: 'name', operator: 'Begins with', value: 'Q' }).includes('value="Q%"'));
+  check('is-null carries no value at all',
+    condition({ attribute: 'name', operator: 'Is null' }) === '<condition attribute="name" operator="null"/>');
+  check('in splits its list into value elements',
+    condition({ attribute: 'statecode', operator: 'In', value: '0, 1' }) ===
+      '<condition attribute="statecode" operator="in"><value>0</value><value>1</value></condition>');
+  check('an unfilled prompt drops the condition, exactly as the engine does',
+    condition({ attribute: 'accountid', operator: 'Equals', value: '', param: 'Account' }, [{ name: 'Account', def: '' }]) === '');
+  check('a prompt with a default filters on the default',
+    condition({ attribute: 'accountid', operator: 'Equals', value: '', param: 'Account' }, [{ name: 'Account', def: 'abc' }]).includes('value="abc"'));
+
+  const orReport = { filters: [
+    { attribute: 'a', operator: 'Equals', value: '1', andor: 'Or' },
+    { attribute: 'b', operator: 'Equals', value: '2', andor: 'Or' }
+  ] };
+  check('the group type follows the first filter', api.reportFilterXml(orReport).startsWith('<filter type="or">'), api.reportFilterXml(orReport));
+}
+
+console.log('an empty filtered root says so, instead of scoping to a record that is not there');
+{
+  const filtered = report([facilities()]);
+  filtered.filters = [{ attribute: 'accountid', operator: 'Equals', value: 'no-such-id', param: '', andor: 'And' }];
+  previewData.byKey[api.rootRowsCacheKey(filtered, api.reportPreviewCols(filtered), api.reportFilterXml(filtered))] = [];
+
+  const [block] = api.previewBlocksOf(filtered);
+  const resolved = api.resolvePreviewBlock(block, api.reportRootRows(filtered));
+  check('the scoped block explains, mirroring ScopeToNothing', /no parent to scope to/.test(resolved.notice), resolved.notice);
+  check('and the canvas banner names the filters', /filters return no records/.test(api.canvasRootShapeNote(filtered, [])), api.canvasRootShapeNote(filtered, []));
 }
 
 /* A CSV that silently arrives one table short is the same quiet disagreement between the file and

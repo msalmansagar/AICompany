@@ -5055,9 +5055,18 @@ function renderPaper(host, r) {
   // A report that declares standalone blocks previews as the runtime runs it. With none, this is the
   // markup the preview has always produced (ADR-RPT-012 §2) — nothing single-dataset changes.
   const blocks = previewBlocksOf(r);
+  // With blocks, the root must be the FILTERED root — the run's root — because the blocks scope to
+  // its first row. The single-dataset preview keeps its unfiltered sampling rows as it always has.
+  const rootRows = blocks.length
+    ? reportRootRows(r).map(row => { cols.forEach(c => { if (c.masked) row[c.key] = "•••••"; }); return row; })
+    : rows;
+  if (blocks.length && !rootRows.length && isReportRootLoading(r)) {
+    host.innerHTML = `<div class="section-card" style="max-width:940px">${loadingNote(`Reading ${r.mainEntity} from Dataverse…`)}</div>`;
+    return;
+  }
   const singleDatasetBody = () => kpi + (hd ? buildHeaderDetailBody(hCols, rows[0]||{}, r.detailTables, lang) : buildPreviewBody(L.type, cols, rows, { groupBy: L.groupBy && L.groupBy!=="(none)" ? L.groupBy : null, lang, chartType:L.chartType, cardIcon:L.cardIcon, drill:r._chartDrill }));
   const body = !cols.length ? `<div class="page-sub">No visible columns — add columns to preview.</div>`
-    : blocks.length ? previewDatasetsHtml(r, hCols, rows, blocks)
+    : blocks.length ? previewDatasetsHtml(r, hCols, rootRows, blocks)
     : singleDatasetBody();
   const mode = r._renderMode || r.renderMode || "report";
   const langBar = renderModeTabs(mode) + langTabsHtml(langs, lang);
@@ -5743,20 +5752,30 @@ function renderCanvas(r) {
 function canvasDatasetBlocks(report) {
   const blocks = previewBlocksOf(report);
   if (!blocks.length) return "";
-  const rootRows = previewRows(reportPreviewCols(report), report.mainEntity);
+  // The FILTERED root: scoping the blocks to the unfiltered table's first row previewed a
+  // different parent than the run would use.
+  const rootRows = reportRootRows(report);
+  const band = content => `<div class="cv-derived">
+    <div class="cv-derived-tag">${ic("table")} Datasets — configured under Data sources, shown as the report will run</div>
+    ${content}</div>`;
+  if (!rootRows.length && isReportRootLoading(report)) {
+    return band(loadingNote(`Reading ${report.mainEntity} from Dataverse…`));
+  }
   const body = blocks.map(block => {
     const resolved = resolvePreviewBlock(block, rootRows);
     return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice);
   }).join("");
-  return `<div class="cv-derived">
-    <div class="cv-derived-tag">${ic("table")} Datasets — configured under Data sources, shown as the report will run</div>
-    ${canvasRootShapeNote(report, rootRows)}${body}</div>`;
+  return band(canvasRootShapeNote(report, rootRows) + body);
 }
 
 /* The engine scopes every block to the root's first row, and draws a single-record root as a header
    rather than a one-row table. Both are decisions the canvas cannot make for the author, so it says
    what will happen instead of letting the canvas and the report differ in silence. */
 function canvasRootShapeNote(report, rootRows) {
+  if (!rootRows.length) {
+    return `<div class="info-banner" style="margin:8px 0">The report's filters return no records —
+      the scoped datasets below run empty.</div>`;
+  }
   if (rootRows.length > 1) return previewMultiRecordNotice(rootRows.length);
   const master = (report.design.tables || []).find(table => table.role === "master");
   if (rootRows.length === 1 && master && master.displayAs !== "header") {
@@ -7269,6 +7288,91 @@ function describePreviewBlock(source, index, returned) {
 const blockSourceKind = type =>
   isCrmViewSource(type) ? "view" : isStaticSource(type) ? "static" : "fetch";
 
+/* ---------- The report's filters, applied to the root preview ----------
+   The preview always showed the main table UNFILTERED, which was a tolerable sampling shortcut —
+   until blocks scoped themselves to the root's first row. A report filtered to one termsheet then
+   previewed some OTHER record's children: the unfiltered first row is a different parent than the
+   run would use, and everything under it is confidently wrong.
+
+   These mirror ReportQueryBuilder.BuildCondition exactly — same operator map, same wildcards, same
+   "an unfilled prompt drops its condition", same single filter group typed by the first row — so
+   the preview's root is the run's root. */
+
+const PREVIEW_FETCH_OPERATORS = {
+  "Equals": "eq", "Not equals": "ne", "Greater than": "gt", "Less than": "lt",
+  "Contains": "like", "Begins with": "like", "Ends with": "like",
+  "Between": "between", "In": "in", "Not in": "not-in",
+  "Is null": "null", "Is not null": "not-null",
+  "Last X days": "last-x-days", "This month": "this-month", "This year": "this-year"
+};
+const PREVIEW_VALUELESS_OPERATORS = ["null", "not-null", "this-month", "this-year"];
+const PREVIEW_MULTIVALUE_OPERATORS = ["between", "in", "not-in"];
+
+function reportFilterXml(report) {
+  const filters = (report && report.filters) || [];
+  const conditions = filters.map(f => previewFilterCondition(f, report.parameters)).filter(Boolean);
+  if (!conditions.length) return "";
+  const type = String((filters[0] || {}).andor || "And").toLowerCase() === "or" ? "or" : "and";
+  return `<filter type="${type}">${conditions.join("")}</filter>`;
+}
+
+function previewFilterCondition(filter, parameters) {
+  if (!filter.attribute) return "";
+  const op = PREVIEW_FETCH_OPERATORS[filter.operator] || "eq";
+  if (PREVIEW_VALUELESS_OPERATORS.includes(op)) {
+    return `<condition attribute="${esc(filter.attribute)}" operator="${op}"/>`;
+  }
+  const value = previewFilterValue(filter, parameters);
+  if (!value) return ""; // an unfilled prompt drops the condition rather than filtering on nothing
+  if (PREVIEW_MULTIVALUE_OPERATORS.includes(op)) {
+    const parts = value.split(",").map(part => part.trim()).filter(Boolean);
+    if (!parts.length) return "";
+    return `<condition attribute="${esc(filter.attribute)}" operator="${op}">${parts.map(part => `<value>${esc(part)}</value>`).join("")}</condition>`;
+  }
+  return `<condition attribute="${esc(filter.attribute)}" operator="${op}" value="${esc(previewWildcards(filter.operator, value))}"/>`;
+}
+
+/** A bound filter reads its parameter's default, exactly as an unprompted run does. */
+function previewFilterValue(filter, parameters) {
+  if (!filter.param) return String(filter.value == null ? "" : filter.value);
+  const parameter = (parameters || []).find(p => p.name === filter.param);
+  return parameter && parameter.def ? String(parameter.def) : "";
+}
+
+function previewWildcards(operatorLabel, value) {
+  if (operatorLabel === "Contains") return `%${value}%`;
+  if (operatorLabel === "Begins with") return `${value}%`;
+  if (operatorLabel === "Ends with") return `%${value}`;
+  return value;
+}
+
+const rootRowsCacheKey = (report, cols, filterXml) =>
+  previewKey(report.mainEntity, cols, filterXml ? "#f" + queryFingerprint(filterXml) : "");
+
+/* The root rows AS THE RUN WOULD RETURN THEM. Cached under a filter-fingerprinted key, because
+   previewRows would answer from the unfiltered cache and hand the blocks the wrong parent. */
+function reportRootRows(report) {
+  const cols = reportPreviewCols(report);
+  if (!report.mainEntity || !cols.length) return [];
+  const filterXml = reportFilterXml(report);
+  if (!filterXml) return previewRows(cols, report.mainEntity);
+  const key = rootRowsCacheKey(report, cols, filterXml);
+  if (!previewData.byKey[key]) {
+    const attributes = [...new Set(cols.map(c => c.key))].map(name => `<attribute name="${esc(name)}"/>`).join("");
+    loadPreviewRows(key, report.mainEntity, cols,
+      `<fetch top="${PREVIEW_ROW_LIMIT}"><entity name="${esc(report.mainEntity)}">${attributes}${filterXml}</entity></fetch>`);
+    return [];
+  }
+  return previewData.byKey[key];
+}
+
+/** Whether the filtered root is still on its way — empty-and-loading must not read as "no parent". */
+function isReportRootLoading(report) {
+  const cols = reportPreviewCols(report);
+  if (!report.mainEntity || !cols.length) return false;
+  return !previewData.byKey[rootRowsCacheKey(report, cols, reportFilterXml(report))];
+}
+
 /** A block's columns, authored as logical names, resolved against its table for labels and types. */
 function blockPreviewCols(entity, columnList) {
   const catalog = attributesOf(entity);
@@ -7381,7 +7485,10 @@ function resolvePreviewBlock(block, rootRows) {
   if (block.kind === "static") return resolveStaticBlock(block);
   const parentValue = parentScopeValue(block, rootRows);
   if (isScopedBlock(block) && parentValue == null) {
-    return { rows: [], notice: esc(`The main record returns no value for "${block.parentKey}", so there is nothing to scope this dataset to.`) };
+    // Mirrors the engine: no parent row means no children (ScopeToNothing), never the whole table.
+    return { rows: [], notice: esc(rootRows.length
+      ? `The main record returns no value for "${block.parentKey}", so there is nothing to scope this dataset to.`
+      : "The report returns no records, so this dataset has no parent to scope to — it runs empty.") };
   }
   const base = blockQueryBase(block);
   if (base === null) return { rows: [], notice: loadingNote(`Reading saved views of ${block.entity}…`) };
