@@ -18,15 +18,23 @@ const STATUS_PUBLISHED = 100000001;
 const SOURCE_TYPE_FETCHXML = 100000001;
 const SOURCE_TYPE_STATIC = 100000010;
 
-/* A block that runs its OWN query (MDS-FR-001): same table as the first block, but the authored
-   filter keeps only contacts with an email — so the two blocks' differing row counts are the visible
-   proof that the authored query ran. The attributes must match the block's columns, or the cells
-   arrive blank (the same trap saved views have). */
+/* A block that runs its OWN query (MDS-FR-001), now filtered through a PARAMETER TOKEN (D2): the
+   engine resolves @Email to the supplied prompt value, or the parameter's default on an unprompted
+   run. The attributes must match the block's columns, or the cells arrive blank (the same trap
+   saved views have). */
 const AUTHORED_BLOCK_FETCHXML =
   '<fetch><entity name="contact">'
   + '<attribute name="fullname"/><attribute name="emailaddress1"/><attribute name="jobtitle"/>'
-  + '<filter><condition attribute="emailaddress1" operator="not-null"/></filter>'
+  + '<filter><condition attribute="emailaddress1" operator="eq" value="@Email"/></filter>'
   + '</entity></fetch>';
+
+const EMAIL_PARAMETER_DEFAULT = 'ahmed.alkuwari@qnb.com.qa';
+
+/* A structured filter BOUND to the first contacts block (D2): it names the CONTACT table's own
+   attribute and applies only when that block's query runs — the root and the sibling block are
+   untouched, which the differing row counts prove. */
+const OPERATOR_CONTAINS = 100000002;
+const BOUND_FILTER_VALUE = 'Al-';
 
 /* Inline rows never touch Dataverse; the engine derives the columns from the row keys. */
 const STATIC_BLOCK_ROWS = JSON.stringify([
@@ -144,6 +152,26 @@ async function seed(dv) {
   });
   await writeColumns(dv, blockMapping.qdb_reportentitymappingid, BLOCK_COLUMNS);
   console.log('  created block   contact + 3 columns, scoped parentcustomerid = accountid');
+
+  // D2: a filter bound to THIS block — fullname contains "Al-" — applied only when its query runs.
+  await create(dv, 'qdb_reportfilters', {
+    qdb_name: 'fullname (bound to Contacts at this account)',
+    qdb_fieldalias: 'fullname',
+    qdb_operator: OPERATOR_CONTAINS,
+    qdb_value: BOUND_FILTER_VALUE,
+    qdb_sequence: 2,
+    'Qdb_reportdatasourceid@odata.bind': `/qdb_reportdatasources(${block.qdb_reportdatasourceid})`,
+    'Qdb_reportdefinitionid@odata.bind': `/qdb_reportdefinitions(${reportId})`
+  });
+  console.log(`  created filter  fullname contains "${BOUND_FILTER_VALUE}", BOUND to that block (D2)`);
+
+  // D2: the parameter the authored block's @Email token resolves from on an unprompted run.
+  await create(dv, 'qdb_reportparameters', {
+    qdb_name: 'Email', qdb_parametername: 'Email', qdb_label: 'Contact email',
+    qdb_defaultvalue: EMAIL_PARAMETER_DEFAULT, qdb_displayorder: 1,
+    'Qdb_reportdefinitionid@odata.bind': `/qdb_reportdefinitions(${reportId})`
+  });
+  console.log('  created param   Email, default = the QNB contact the token resolves to');
 
   // The same table under a block that runs ITS OWN FetchXML (MDS-FR-001): the authored filter keeps
   // only contacts with an email, and the parent scope is merged on top of the authored query — the
