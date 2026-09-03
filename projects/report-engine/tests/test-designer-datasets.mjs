@@ -15,7 +15,9 @@ const html = readFileSync(DESIGNER, 'utf8');
 const NEEDED = [
   'COMPOSITIONS', 'compositionByLabel', 'compositionByCode', 'isStandalone', 'compositionCoded',
   'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockMappingsOf', 'dataSourcesOf',
-  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems', 'isStandaloneDefinitionSource'
+  'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems',
+  'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
+  'standaloneSourceProblems', 'isCrmViewSource', 'isStaticSource', 'isStandaloneDefinitionSource'
 ];
 
 const api = new Function('newGuid', 'coded', `
@@ -165,7 +167,7 @@ const complains = (over, about) => problemsFor(over).some(problem => problem.inc
     ]
   });
   check('a joined source carrying a query is refused',
-    carriesQuery.some(p => p.includes('only the primary')), carriesQuery.join(' | '));
+    carriesQuery.some(p => p.includes('never executed')), carriesQuery.join(' | '));
 }
 
 {

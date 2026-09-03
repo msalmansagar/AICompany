@@ -2635,8 +2635,9 @@ function datasetProblems(report) {
     .filter(Boolean);
 
   sources.forEach((source, index) => {
-    if (source.primary) return;
     const name = source.name || `Source ${index + 1}`;
+    // The primary's query IS executed, so only its shape can be wrong, not its presence.
+    if (source.primary) { problems.push(...brokenFetchXmlProblem(source, name)); return; }
     problems.push(...sourceProblems(source, name, returned));
   });
 
@@ -2644,14 +2645,53 @@ function datasetProblems(report) {
 }
 
 function sourceProblems(source, name, returned) {
-  if (!isStandalone(source)) {
-    // Only the primary source's query is executed (SdkReportEngine reads ReportSourcePlan.Primary).
-    return String(source.query || "").trim()
-      ? [`"${name}" carries a query, but only the primary source's query is executed — make it Standalone, or move the query to the primary source.`]
-      : [];
-  }
+  if (!isStandalone(source)) return joinedSourceProblems(source, name);
+  if (isStaticSource(source.type)) return staticSourceProblems(source, name);
+  return standaloneSourceProblems(source, name, returned);
+}
 
+/* A non-primary JOINED source's query is still never executed — its rows arrive through the root's
+   link-entities. A standalone block's query IS executed (the block re-enters the engine as its own
+   primary), which is why the same sentence no longer applies there. */
+function joinedSourceProblems(source, name) {
+  return String(source.query || "").trim() && !source.primary
+    ? [`"${name}" carries a query, but a joined source's query is never executed — make it Standalone to run it as its own dataset, or move the query to the primary source.`]
+    : brokenFetchXmlProblem(source, name);
+}
+
+/* OverrideFetchXml quietly falls back to the generated query when a FetchXML payload is not XML —
+   an author who typed a view name into a FetchXML source would get a report that runs, on the wrong
+   query, with nothing anywhere saying so. That is the silent-ignore class MDS-FR-009 closes. */
+function brokenFetchXmlProblem(source, name) {
+  const query = String(source.query || "").trim();
+  return String(source.type || "") === "FetchXML" && query && !query.startsWith("<")
+    ? [`"${name}" reads via FetchXML but its query does not look like FetchXML — the engine would ignore it and quietly run the generated query instead. Paste a <fetch> document, or switch the type to CRM View.`]
+    : [];
+}
+
+/* Static rows are inline JSON: no table, no generated query, and nothing the engine could filter —
+   ScopeToParent adds a filter the static path never reads, so scoped static rows would run unscoped
+   in silence. */
+function staticSourceProblems(source, name) {
   const problems = [];
+  if (String(source.joinFromKey || "").trim() || String(source.joinToKey || "").trim()) {
+    problems.push(`"${name}" is a static dataset with join keys, but inline rows cannot be filtered to a parent — clear the keys, or read the rows from a table.`);
+  }
+  problems.push(...staticRowsProblem(source, name));
+  return problems;
+}
+
+function staticRowsProblem(source, name) {
+  try {
+    const rows = JSON.parse(String(source.query || "").trim() || "null");
+    return Array.isArray(rows) && rows.length ? [] : [`"${name}" is a static dataset with no rows — paste a JSON array of objects into its query.`];
+  } catch (error) {
+    return [`"${name}" is a static dataset but its query is not valid JSON — ${error.message}.`];
+  }
+}
+
+function standaloneSourceProblems(source, name, returned) {
+  const problems = [...brokenFetchXmlProblem(source, name)];
   const entity = String(source.entity || "").trim();
   const columns = String(source.columns || "").trim();
   const childKey = String(source.joinFromKey || "").trim();
@@ -4600,13 +4640,15 @@ function appendJoinsSection(body, r) {
 
 /* ---- Data Sources ---- */
 function tabDataSources(body, r) {
-  body.appendChild(el(`<div class="info-banner">${ic("info")}<div>The engine combines one or more sources. <b>V1</b> uses CRM-native sources (CRM View, FetchXML, QueryExpression, Web API) + static datasets. External sources (SQL, REST, Core Banking, MIS) arrive in V2/V3 via connectors. The <span class="kbd">IQueryStrategySelector</span> auto-routes each source past FetchXML limits.</div></div>`));
+  body.appendChild(el(`<div class="info-banner">${ic("info")}<div><b>A report can carry several datasets.</b> Add a source and set its Composition to <b>Standalone</b> to run it as its own block under the main result — with its own table and columns, and its own query: an authored <b>FetchXML</b> document, a <b>CRM View</b> of the block's table, or <b>Static Dataset</b> rows pasted as JSON. Join keys scope a block to the main record (master–detail). External sources (SQL, REST, Core Banking, MIS) arrive in V2/V3 via connectors.</div></div>`));
   const card = el(`<div class="section-card"><h3>Data sources</h3><div class="hint">Stored in <span class="kbd">qdb_reportdatasource</span>.</div></div>`);
   const cols = [{t:"Name"},{t:"Source type"},{t:"Composition"},{t:"Entity"},{t:"Columns"},{t:"Connector"},{t:"Query"},{t:"Primary"},{t:"Parent key"},{t:"Child key"},{t:"Row limit"},{t:"On"}];
   /* Entity, Columns and the two keys only mean something for a standalone block, so a joined source
      shows a dash rather than an input that would be stored and never read — the "stored, not applied"
-     shape this designer is trying to stop producing. */
-  const blockCell = (s, i, key, placeholder) => isStandalone(s)
+     shape this designer is trying to stop producing. A STATIC block is standalone but has no table
+     either: its rows are inline JSON and its columns come from the row keys, so the same dashes
+     apply there. */
+  const blockCell = (s, i, key, placeholder) => isStandalone(s) && !isStaticSource(s.type)
     ? `<td><input class="fluent-input" data-i="${i}" data-k="${key}" value="${esc(s[key] || "")}" placeholder="${esc(placeholder)}"></td>`
     : `<td style="text-align:center;color:var(--text-secondary)">—</td>`;
   const rowHtml = (s,i) => `<tr>
@@ -4618,7 +4660,7 @@ function tabDataSources(body, r) {
     ${blockCell(s, i, "columns", "qdb_name, qdb_amount")}
     <td><select class="fluent-select" data-i="${i}" data-k="connectorId">${connectorOptions(s.connectorId)}</select></td>
     <td>${isCrmViewSource(s.type)
-      ? viewPickerHtml(r.mainEntity, s.query, `data-i="${i}" data-k="query"`)
+      ? viewPickerHtml(isStandalone(s) ? s.entity : r.mainEntity, s.query, `data-i="${i}" data-k="query"`)
       : `<input class="fluent-input" data-i="${i}" data-k="query" placeholder="${esc(queryPlaceholder(s.type))}" value="${esc(s.query)}">`}</td>
     <td style="text-align:center"><input type="checkbox" data-i="${i}" data-k="primary" ${s.primary?"checked":""}></td>
     ${blockCell(s, i, "joinToKey", "qdb_termsheetid")}
@@ -4647,6 +4689,10 @@ function tabDataSources(body, r) {
   // Switching to Standalone reveals the entity, columns and keys that only a block uses; switching
   // back hides them again, so the row always shows the fields that will actually be stored.
   card.querySelectorAll('select[data-k="composition"]').forEach(select => select.addEventListener("change", renderTab));
+  // The query cell's control follows the source type (view picker vs free text), and a block's view
+  // list follows the block's own table. "change" fires on blur, so typing is not interrupted.
+  card.querySelectorAll('select[data-k="type"]').forEach(select => select.addEventListener("change", renderTab));
+  card.querySelectorAll('input[data-k="entity"]').forEach(input => input.addEventListener("change", renderTab));
 
   r.joins = r.joins || []; r.externalSources = r.externalSources || [];
   appendJoinsSection(body, r);
@@ -5699,8 +5745,8 @@ function canvasDatasetBlocks(report) {
   if (!blocks.length) return "";
   const rootRows = previewRows(reportPreviewCols(report), report.mainEntity);
   const body = blocks.map(block => {
-    const { rows, notice } = resolvePreviewBlock(block, rootRows);
-    return previewDatasetBlock(block.name, block.cols, rows, notice);
+    const resolved = resolvePreviewBlock(block, rootRows);
+    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice);
   }).join("");
   return `<div class="cv-derived">
     <div class="cv-derived-tag">${ic("table")} Datasets — configured under Data sources, shown as the report will run</div>
@@ -7206,6 +7252,10 @@ function describePreviewBlock(source, index, returned) {
   return {
     name,
     entity,
+    // Each dataset carries its own source type and query (MDS-FR-001) — the engine honours a
+    // block's authored FetchXML, saved view or static rows, so the preview must too.
+    kind: blockSourceKind(source.type),
+    query: String(source.query || "").trim(),
     cols: blockPreviewCols(entity, source.columns),
     childKey: String(source.joinFromKey || "").trim(),
     parentKey: String(source.joinToKey || "").trim(),
@@ -7215,6 +7265,9 @@ function describePreviewBlock(source, index, returned) {
     problem: sourceProblems(source, name, returned)[0] || null
   };
 }
+
+const blockSourceKind = type =>
+  isCrmViewSource(type) ? "view" : isStaticSource(type) ? "static" : "fetch";
 
 /** A block's columns, authored as logical names, resolved against its table for labels and types. */
 function blockPreviewCols(entity, columnList) {
@@ -7242,27 +7295,79 @@ function parentScopeValue(block, rootRows) {
   return raw === undefined ? null : raw;
 }
 
-const blockCacheKey = (block, parentValue) =>
-  previewKey(block.entity, block.cols, parentValue == null ? "" : String(parentValue));
+/* An edited query is a different question: the fingerprint keys the cache to the exact text, so
+   changing a block's FetchXML or view refreshes its rows instead of serving the previous query's. */
+const queryFingerprint = text => {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  return hash.toString(36);
+};
+
+const blockCacheKey = (block, parentValue, base) => previewKey(block.entity, block.cols,
+  (parentValue == null ? "" : String(parentValue)) + (base ? "#q" + queryFingerprint(base) : ""));
+
+/**
+ * The query a block's rows come from, mirroring ReportSourcePlan.OverrideFetchXml: an authored
+ * FetchXML document or a saved view replaces the generated query.
+ *
+ * Returns "" to generate as before, and null while a view's FetchXML has not arrived yet — the two
+ * must stay distinct, because "generate" on a view block would preview the wrong query.
+ */
+function blockQueryBase(block) {
+  if (block.kind === "view") {
+    if (!block.query) return "";
+    const view = viewsOf(block.entity).find(candidate => candidate.name === block.query);
+    return view ? view.fetchXml : null;
+  }
+  if (block.kind === "fetch" && block.query.startsWith("<")) return block.query;
+  return "";
+}
 
 /* Synchronous like previewRows, and for the same reason: the render path cannot await. A miss starts
    the query and returns nothing; the fetch re-renders when it lands. */
-function blockPreviewRows(block, parentValue) {
+function blockPreviewRows(block, parentValue, base) {
   if (!block.entity || !block.cols.length) return [];
-  const key = blockCacheKey(block, parentValue);
+  const key = blockCacheKey(block, parentValue, base);
   if (!previewData.byKey[key]) {
-    loadPreviewRows(key, block.entity, block.cols, blockPreviewFetchXml(block, parentValue));
+    loadPreviewRows(key, block.entity, block.cols, blockPreviewFetchXml(block, parentValue, base));
     return [];
   }
   return previewData.byKey[key];
 }
 
-function blockPreviewFetchXml(block, parentValue) {
+function blockPreviewFetchXml(block, parentValue, base) {
+  if (base) return scopedAuthoredFetchXml(base, block, parentValue);
   const attributes = [...new Set(block.cols.map(c => c.key))]
     .map(name => `<attribute name="${esc(name)}"/>`).join("");
-  const filter = parentValue == null ? ""
-    : `<filter><condition attribute="${esc(block.childKey)}" operator="eq" value="${esc(String(parentValue))}"/></filter>`;
-  return `<fetch top="${block.top}"><entity name="${esc(block.entity)}">${attributes}${filter}</entity></fetch>`;
+  return `<fetch top="${block.top}"><entity name="${esc(block.entity)}">${attributes}${scopeCondition(block, parentValue)}</entity></fetch>`;
+}
+
+const scopeCondition = (block, parentValue) => parentValue == null ? ""
+  : `<filter><condition attribute="${esc(block.childKey)}" operator="eq" value="${esc(String(parentValue))}"/></filter>`;
+
+/* Preview-grade splice, not the engine's XML merge: the preview cap replaces the author's top on the
+   <fetch> tag, and the parent scope lands right after the root <entity> — both legal wherever else
+   the author put theirs. The engine does this properly server-side (FetchXmlFilters.ApplyTo); the
+   preview only needs the same ten rows the runtime's first page would show. */
+function scopedAuthoredFetchXml(base, block, parentValue) {
+  const uncapped = base.replace(/(<fetch\b[^>]*?)\s+top="[^"]*"/, "$1");
+  return uncapped
+    .replace(/<fetch\b/, `<fetch top="${block.top}"`)
+    .replace(/(<entity\b[^>]*>)/, `$1${scopeCondition(block, parentValue)}`);
+}
+
+/* Static rows never touch Dataverse: the engine derives their columns from the row keys
+   (ReportSourcePlan.ReadStaticRows), so the preview does the same rather than demanding authored
+   columns a static block does not have. */
+function resolveStaticBlock(block) {
+  try {
+    const rows = JSON.parse(block.query || "null");
+    if (!Array.isArray(rows)) return { rows: [], notice: esc("Static rows must be a JSON array of objects.") };
+    const keys = [...new Set(rows.flatMap(row => Object.keys(row)))];
+    return { rows: rows.slice(0, block.top), cols: keys.map(key => ({ name: key, key, type: "Text" })), notice: "" };
+  } catch (error) {
+    return { rows: [], notice: esc(`Static rows are not valid JSON — ${error.message}.`) };
+  }
 }
 
 /**
@@ -7273,12 +7378,15 @@ function blockPreviewFetchXml(block, parentValue) {
  */
 function resolvePreviewBlock(block, rootRows) {
   if (block.problem) return { rows: [], notice: esc(block.problem) };
+  if (block.kind === "static") return resolveStaticBlock(block);
   const parentValue = parentScopeValue(block, rootRows);
   if (isScopedBlock(block) && parentValue == null) {
     return { rows: [], notice: esc(`The main record returns no value for "${block.parentKey}", so there is nothing to scope this dataset to.`) };
   }
-  const rows = blockPreviewRows(block, parentValue);
-  if (!rows.length && !previewData.byKey[blockCacheKey(block, parentValue)]) {
+  const base = blockQueryBase(block);
+  if (base === null) return { rows: [], notice: loadingNote(`Reading saved views of ${block.entity}…`) };
+  const rows = blockPreviewRows(block, parentValue, base);
+  if (!rows.length && !previewData.byKey[blockCacheKey(block, parentValue, base)]) {
     return { rows: [], notice: loadingNote(`Reading ${block.entity} from Dataverse…`) };
   }
   return { rows, notice: "" };
@@ -7298,8 +7406,9 @@ function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
     ? previewDatasetHeader(report.name || "Record", rootCols, rootRows[0])
     : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "") + previewMultiRecordNotice(rootRows.length);
   const body = blocks.map(block => {
-    const { rows, notice } = resolvePreviewBlock(block, rootRows);
-    return previewDatasetBlock(block.name, block.cols, rows, notice);
+    const resolved = resolvePreviewBlock(block, rootRows);
+    // A static block derives its columns from its rows, exactly as the engine does.
+    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice);
   }).join("");
   return head + body;
 }

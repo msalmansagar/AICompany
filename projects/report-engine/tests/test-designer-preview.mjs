@@ -15,10 +15,13 @@ const html = readFileSync(DESIGNER, 'utf8');
 
 const NEEDED = [
   'FORMATTED_SUFFIX', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
-  'isStandalone', 'sourceProblems',
+  'isStandalone', 'isCrmViewSource', 'isStaticSource', 'sourceProblems',
+  'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
+  'standaloneSourceProblems',
   'previewKey', 'previewCellValue', 'previewRawValue', 'toPreviewRow', 'previewCellText',
-  'previewBlocksOf', 'describePreviewBlock', 'blockPreviewCols', 'isScopedBlock',
-  'parentScopeValue', 'blockCacheKey', 'blockPreviewRows', 'blockPreviewFetchXml',
+  'previewBlocksOf', 'describePreviewBlock', 'blockSourceKind', 'blockPreviewCols', 'isScopedBlock',
+  'parentScopeValue', 'queryFingerprint', 'blockCacheKey', 'blockQueryBase', 'blockPreviewRows',
+  'blockPreviewFetchXml', 'scopeCondition', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport'
@@ -28,7 +31,8 @@ const EXPORTED = [
   'previewBlocksOf', 'blockPreviewCols', 'parentScopeValue', 'blockCacheKey', 'blockPreviewRows',
   'blockPreviewFetchXml', 'resolvePreviewBlock', 'previewDatasetsHtml', 'previewKey',
   'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
-  'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport'
+  'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
+  'blockQueryBase', 'sourceProblems'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -45,10 +49,18 @@ const previewData = { byKey: {}, pending: {}, errorByKey: {} };
 const issued = [];
 const exported = [];
 const toasts = [];
+/* Saved views by entity, as the designer's metadata store would hold them. */
+const views = {
+  qdb_requestedfacility: [{
+    name: 'Open Facilities',
+    fetchXml: '<fetch top="5000"><entity name="qdb_requestedfacility"><attribute name="qdb_facilitytype"/>'
+      + '<filter><condition attribute="qdb_isopen" operator="eq" value="1"/></filter></entity></fetch>'
+  }]
+};
 
 const api = new Function(
   'esc', 'money', 'loadingNote', 'isBlankCell', 'EMPTY_CELL', 'attributesOf', 'previewData', 'loadPreviewRows',
-  'ic', 'beginBusy', 'endBusy', 'Blob', 'document', 'URL', 'toast',
+  'ic', 'beginBusy', 'endBusy', 'Blob', 'document', 'URL', 'toast', 'viewsOf',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
    return { ${EXPORTED.join(', ')} };`
 )(
@@ -67,7 +79,8 @@ const api = new Function(
   function Blob(parts) { exported.push(parts.join('')); },
   { createElement: () => ({ click() {} }) },
   { createObjectURL: () => 'blob:test' },
-  message => { toasts.push(message); }
+  message => { toasts.push(message); },
+  entity => views[entity] || []
 );
 
 let passed = 0, failed = 0;
@@ -258,6 +271,65 @@ console.log('the canvas says what the engine will do with the root, rather than 
 
   const many = api.canvasRootShapeNote(withBlock, [{}, {}, {}]);
   check('a multi-record root gets the first-row notice instead', /3 records returned/.test(many), many);
+}
+
+/* MDS-FR-001 — a block runs ITS OWN query, and the preview must run the same one. The engine side
+   is pinned by StandaloneDatasetTests; these pin the designer side of the same contract. */
+console.log('a block with its own FetchXML previews that query, scoped and capped');
+{
+  const authored = '<fetch top="5000"><entity name="qdb_requestedfacility">'
+    + '<attribute name="qdb_facilitytype"/><filter><condition attribute="statecode" operator="eq" value="0"/></filter></entity></fetch>';
+  const [block] = api.previewBlocksOf(report([facilities({ type: 'FetchXML', query: authored })]));
+  check('the block knows its kind', block.kind === 'fetch');
+
+  const base = api.blockQueryBase(block);
+  check('the authored query is the base', base === authored);
+
+  const fetchXml = api.blockPreviewFetchXml(block, TERMSHEET_ID, base);
+  check('the authored filter survives', fetchXml.includes('statecode'), fetchXml);
+  check('the parent scope is added to it', fetchXml.includes(`value="${TERMSHEET_ID}"`), fetchXml);
+  check('the author top is replaced by the preview cap', !fetchXml.includes('top="5000"') && fetchXml.includes(`top="${api.PREVIEW_ROW_LIMIT}"`), fetchXml);
+  check('a different query is a different cache key',
+    api.blockCacheKey(block, TERMSHEET_ID, base) !== api.blockCacheKey(block, TERMSHEET_ID, ''), 'keys collided');
+}
+
+console.log('a view block previews the view of its OWN table');
+{
+  const [block] = api.previewBlocksOf(report([facilities({ type: 'CRM View', query: 'Open Facilities' })]));
+  check('the block knows its kind', block.kind === 'view');
+  const base = api.blockQueryBase(block);
+  check('the view fetchxml is the base', /qdb_isopen/.test(base || ''), String(base));
+
+  const missing = api.blockQueryBase({ ...block, query: 'No Such View' });
+  check('an unresolved view is distinct from "generate"', missing === null, String(missing));
+}
+
+console.log('a static block renders its inline rows, columns derived like the engine does');
+{
+  const rows = '[{"metric":"LTV","value":62},{"metric":"DSCR","value":1.8}]';
+  const [block] = api.previewBlocksOf(report([{
+    name: 'Key Ratios', primary: false, composition: 'Standalone', type: 'Static Dataset', query: rows, enabled: true
+  }]));
+  check('a static block needs no table to survive the save', block.problem === null, String(block.problem));
+
+  const resolved = api.resolvePreviewBlock(block, [{ [api.PREVIEW_RAW]: {} }]);
+  check('the rows are the pasted rows', resolved.rows.length === 2 && resolved.rows[0].metric === 'LTV', JSON.stringify(resolved.rows));
+  check('columns come from the row keys', resolved.cols.map(c => c.key).join('|') === 'metric|value', JSON.stringify(resolved.cols));
+
+  const scoped = api.sourceProblems({ name: 'Key Ratios', composition: 'Standalone', type: 'Static Dataset', query: rows, joinFromKey: 'x', joinToKey: 'y' }, 'Key Ratios', []);
+  check('join keys on static rows are refused — the engine cannot scope them', /cannot be filtered to a parent/.test(scoped[0] || ''), JSON.stringify(scoped));
+
+  const invalid = api.resolvePreviewBlock({ ...block, query: 'not json', problem: null }, []);
+  check('broken JSON says so instead of an empty table', /not valid JSON/.test(invalid.notice), invalid.notice);
+}
+
+console.log('a FetchXML payload that is not XML is refused, not silently ignored');
+{
+  const [block] = api.previewBlocksOf(report([facilities({ type: 'FetchXML', query: 'My Active Facilities' })]));
+  check('the save sentence names the fallback', /quietly run the generated query/.test(block.problem || ''), String(block.problem));
+
+  check('a joined non-primary with a query is still refused',
+    /never executed/.test((api.sourceProblems({ name: 'J', composition: 'Joined', query: '<fetch/>' }, 'J', [])[0]) || ''), 'joined query slipped through');
 }
 
 /* A CSV that silently arrives one table short is the same quiet disagreement between the file and

@@ -327,6 +327,72 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         }
 
         /// <summary>
+        /// MDS-FR-001 — each dataset carries its own source type and query. The engine's block path
+        /// re-enters Execute with the block as the only source, so the same override that honours the
+        /// root's authored query has to honour the block's. These pin that: nothing else proves it,
+        /// and the designer's save message has told authors to "make it Standalone" for weeks.
+        /// </summary>
+        [Fact]
+        public void Execute_RunsABlocksOwnFetchXml()
+        {
+            var authored = "<fetch><entity name=\"qdb_requestedfacility\"><attribute name=\"name\"/>"
+                + "<filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/></filter></entity></fetch>";
+            var block = Source("Requested Facilities", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1)
+                with
+            { SourceType = new CodedValue(null, "FetchXML"), QueryPayload = authored };
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(
+                Report(Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), block),
+                new ReportExecutionRequest());
+
+            // The authored filter is the marker: a generated query would not carry it.
+            Assert.Contains("statecode", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_ScopesABlocksOwnQueryToTheParent()
+        {
+            // The authored query and the parent scope must BOTH survive — dropping either is silent
+            // wrong data. The scope arrives through the filter-merge that already serves the root's
+            // saved-view path.
+            var authored = "<fetch><entity name=\"qdb_requestedfacility\"><attribute name=\"name\"/>"
+                + "<filter><condition attribute=\"statecode\" operator=\"eq\" value=\"0\"/></filter></entity></fetch>";
+            var definition = Termsheet();
+            var block = (ReportDataSource)definition.DataSources[1]
+                with
+            { SourceType = new CodedValue(null, "FetchXML"), QueryPayload = authored };
+            var store = new FetchStore(rowValues: new Dictionary<string, object> { ["qdb_termsheetid"] = "TS-184" });
+
+            new SdkReportEngine(store).Execute(
+                Report(definition.DataSources[0], block), new ReportExecutionRequest());
+
+            var childQuery = store.Queried[1];
+            Assert.Contains("statecode", childQuery);
+            Assert.Contains("TS-184", childQuery);
+        }
+
+        [Fact]
+        public void Execute_ResolvesABlocksViewAgainstItsOwnTable()
+        {
+            // View names repeat across tables, so the lookup must be scoped to the BLOCK's entity —
+            // scoping it to the report's would find another table's view or nothing at all.
+            var block = Source("Requested Facilities", DatasetComposition.Standalone, "qdb_requestedfacility", order: 1)
+                with
+            { SourceType = new CodedValue(null, "CRM View"), QueryPayload = "Open Facilities" };
+            var store = new FetchStore(viewFetchXml:
+                "<fetch><entity name=\"qdb_requestedfacility\"><attribute name=\"name\"/>"
+                + "<filter><condition attribute=\"qdb_isopen\" operator=\"eq\" value=\"1\"/></filter></entity></fetch>");
+
+            new SdkReportEngine(store).Execute(
+                Report(Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true), block),
+                new ReportExecutionRequest());
+
+            Assert.Equal("qdb_requestedfacility", store.ViewLookupEntity);
+            Assert.Contains("qdb_isopen", store.Queried[1]);
+        }
+
+        /// <summary>
         /// Answers any FetchXML with a single row, recording what it was asked. It refuses the
         /// entity named in <c>failOn</c>, so a block can be made to fail the way a real misconfigured
         /// query does — by the platform rejecting it, not by the test throwing on its own.
@@ -335,17 +401,40 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
         {
             private readonly string _failOn;
             private readonly IDictionary<string, object> _rowValues;
+            private readonly string _viewFetchXml;
 
-            public FetchStore(string failOn = null, IDictionary<string, object> rowValues = null)
+            public FetchStore(string failOn = null, IDictionary<string, object> rowValues = null, string viewFetchXml = null)
             {
                 _failOn = failOn;
                 _rowValues = rowValues;
+                _viewFetchXml = viewFetchXml;
             }
 
             public List<string> Queried { get; } = new List<string>();
 
+            /// <summary>The entity the saved-view lookup was scoped to, so a test can prove it was the block's.</summary>
+            public string ViewLookupEntity { get; private set; }
+
             public EntityCollection RetrieveMultiple(QueryBase queryBase)
             {
+                // The saved-view lookup arrives as a QueryExpression over savedquery/userquery, not as
+                // FetchXML — answering it here is what lets a CRM View block resolve inside a test.
+                if (queryBase is QueryExpression viewLookup)
+                {
+                    foreach (var condition in viewLookup.Criteria.Conditions)
+                    {
+                        if (condition.AttributeName == "returnedtypecode")
+                        {
+                            ViewLookupEntity = Convert.ToString(condition.Values[0]);
+                        }
+                    }
+
+                    if (_viewFetchXml == null) return new EntityCollection();
+                    var view = new Entity(viewLookup.EntityName);
+                    view["fetchxml"] = _viewFetchXml;
+                    return new EntityCollection(new List<Entity> { view });
+                }
+
                 var fetchXml = ((FetchExpression)queryBase).Query;
                 Queried.Add(fetchXml);
 
