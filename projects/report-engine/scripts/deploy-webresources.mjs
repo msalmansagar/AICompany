@@ -117,15 +117,26 @@ const PUBLISH_RETRY_DELAYS_MS = [30_000, 60_000, 120_000, 120_000];
 
 async function publish(path, body) {
   for (let attempt = 0; ; attempt++) {
-    const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, { method: 'POST', headers: headers(), body });
-    if (res.ok) return;
-    const detail = await res.text();
-    const isBusy = res.status === 429 || detail.includes('because there is another');
-    if (!isBusy || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
-      throw new Error(`publish ${res.status}: ${detail}`);
+    let res = null;
+    let detail;
+    try {
+      res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, { method: 'POST', headers: headers(), body });
+      if (res.ok) return;
+      detail = await res.text();
+    } catch (error) {
+      /* The org drops the socket while a long PublishAll grinds on server-side (ECONNRESET), and
+         the publish usually completes anyway. A retry then lands on "another publish is running"
+         and waits it out — which is the correct outcome, not a failure. */
+      detail = String((error && error.cause && error.cause.code) || error.message || error);
+    }
+    const isRetriable = (res && res.status === 429)
+      || detail.includes('because there is another')
+      || /ECONNRESET|fetch failed|ETIMEDOUT|ECONNABORTED/i.test(detail);
+    if (!isRetriable || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
+      throw new Error(`publish ${res ? res.status : 'network'}: ${detail}`);
     }
     const wait = PUBLISH_RETRY_DELAYS_MS[attempt];
-    console.log(`  · another publish or import is running — retrying in ${wait / 1000}s`);
+    console.log(`  · publish interrupted or busy (${res ? res.status : detail}) — retrying in ${wait / 1000}s`);
     await sleep(wait);
   }
 }
