@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Checks conditional-formatting rules evaluate correctly and reach the right cells.
 import { readFileSync } from 'node:fs';
 
-const html = readFileSync(VIEWER, 'utf8');
+const html = readFileSync(ENGINE, 'utf8');
 // The evaluator lives above, the formatting code below it — take both.
 const source = html.slice(html.indexOf('const FORMULA_FUNCTIONS'), html.indexOf('/* ---------------- layout rendering'));
 const api = new Function(`${source}; return { evaluateFormatting, compileFormatting, FORMATTING_STYLES };`)();

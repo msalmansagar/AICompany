@@ -146,8 +146,17 @@ public static class ReportQueryBuilder
 
     private static void AddFilters(XElement entity, ReportDefinition definition, IReadOnlyDictionary<string, string?> parameters)
     {
-        var conditions = definition.Filters
+        /* A filter belongs to the query it names attributes of: unbound means the report's root,
+           bound means that dataset. This build sees only its OWN filters — an unbound one when the
+           root is being built, or one bound to the source this build is FOR (a block re-enters the
+           engine as its own primary, so "the primary's id" is the right owner test in both). The
+           group type follows the first filter that actually applies, not one another query owns. */
+        var ownerId = OwnDataSourceId(definition);
+        var own = definition.Filters
+            .Where(f => f.DataSourceId is null || f.DataSourceId == ownerId)
             .OrderBy(f => f.Sequence)
+            .ToList();
+        var conditions = own
             .Select(f => BuildCondition(f, definition, parameters))
             .Where(c => c is not null)
             .ToList();
@@ -156,10 +165,27 @@ public static class ReportQueryBuilder
             return;
         }
 
-        var groupType = string.Equals(definition.Filters[0].GroupOperator?.Label, "Or", StringComparison.OrdinalIgnoreCase) ? "or" : "and";
+        var groupType = string.Equals(own[0].GroupOperator?.Label, "Or", StringComparison.OrdinalIgnoreCase) ? "or" : "and";
         var filter = new XElement("filter", new XAttribute("type", groupType));
         filter.Add(conditions);
         entity.Add(filter);
+    }
+
+    /// <summary>The id of the source this query is being built for: the primary, or the first.</summary>
+    private static Guid? OwnDataSourceId(ReportDefinition definition)
+    {
+        ReportDataSource? first = null;
+        foreach (var source in definition.DataSources)
+        {
+            if (source.IsPrimary)
+            {
+                return source.Id;
+            }
+
+            first ??= source;
+        }
+
+        return first?.Id;
     }
 
     private static XElement? BuildCondition(ReportFilter filter, ReportDefinition definition, IReadOnlyDictionary<string, string?> parameters)
@@ -232,8 +258,7 @@ public static class ReportQueryBuilder
     private static IReadOnlyList<ReportColumn> ColumnsFor(
         ReportDefinition definition, string rootEntity, IReadOnlyList<ReportEntityMapping> joined)
     {
-        var forRoot = definition.DataSources
-            .SelectMany(d => d.EntityMappings)
+        var forRoot = RootMappings(definition)
             .Where(m => string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase))
             .SelectMany(m => m.Columns)
             .ToList();
@@ -242,7 +267,7 @@ public static class ReportQueryBuilder
         // sweep up joined columns, which belong inside their own link-entity.
         var columns = forRoot.Count > 0 || joined.Count > 0
             ? forRoot
-            : definition.DataSources.SelectMany(d => d.EntityMappings).SelectMany(m => m.Columns).ToList();
+            : RootMappings(definition).SelectMany(m => m.Columns).ToList();
 
         return VisibleColumns(columns);
     }
@@ -256,8 +281,7 @@ public static class ReportQueryBuilder
     /// return the wrong rows, which is worse than omitting the columns.
     /// </summary>
     private static IReadOnlyList<ReportEntityMapping> JoinedMappings(ReportDefinition definition, string rootEntity) =>
-        definition.DataSources
-            .SelectMany(d => d.EntityMappings)
+        RootMappings(definition)
             .Where(m => !string.IsNullOrEmpty(m.EntityLogicalName)
                 && !string.Equals(m.EntityLogicalName, rootEntity, StringComparison.OrdinalIgnoreCase)
                 && !string.IsNullOrEmpty(ReadJoinKey(m.JoinExpressionJson, "from"))
@@ -328,9 +352,26 @@ public static class ReportQueryBuilder
         !string.IsNullOrEmpty(column.OutputAlias) ? column.OutputAlias : column.ColumnLogicalName!;
 
     private static string? FirstMappingEntity(ReportDefinition definition) =>
-        definition.DataSources.SelectMany(d => d.EntityMappings)
+        RootMappings(definition)
             .Select(m => m.EntityLogicalName)
             .FirstOrDefault(e => !string.IsNullOrEmpty(e));
+
+    /// <summary>
+    /// The mappings that belong in the root query: everything except a standalone source's
+    /// (MDS-FR-004, ADR-RPT-012 §3).
+    ///
+    /// A standalone dataset runs its own query and renders as its own block. Leaving its mappings in
+    /// here as well would link its entity into the root query too, so the same rows would appear in
+    /// the root table and in the block — which reads as a join gone wrong rather than as a
+    /// configuration mistake.
+    ///
+    /// A source with no composition is joined, which is what the engine has always done, so every
+    /// report saved before MDS-FR-002 builds the identical query.
+    /// </summary>
+    private static IEnumerable<ReportEntityMapping> RootMappings(ReportDefinition definition) =>
+        definition.DataSources
+            .Where(d => d.IsEnabled && !DatasetComposition.IsStandalone(d))
+            .SelectMany(d => d.EntityMappings);
 }
 
 /// <summary>The built query: FetchXML, the root entity, the output columns, the row limit, and whether it aggregates.</summary>

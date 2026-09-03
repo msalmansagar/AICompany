@@ -136,7 +136,60 @@ public sealed record ReportDataSource
     /// </summary>
     public string? QueryPayload { get; init; }
 
+    /// <summary>
+    /// Whether this source merges into the root result set or renders as its own block (MDS-FR-002).
+    /// One of <see cref="DatasetComposition"/>.
+    ///
+    /// Absent means <see cref="DatasetComposition.Joined"/>, which is what the engine has always done
+    /// — every source's mappings were flattened into one query. Existing reports therefore behave
+    /// identically without being migrated.
+    /// </summary>
+    public string Composition { get; init; } = DatasetComposition.Joined;
+
+    /// <summary>
+    /// The attribute on THIS dataset that points at the parent — e.g. a Requested Facility's
+    /// <c>qdb_termsheetid</c> (MDS-FR-003).
+    ///
+    /// Empty means the block is independent and runs unscoped. That is legitimate: not every
+    /// standalone dataset belongs to the root.
+    /// </summary>
+    public string? JoinFromKey { get; init; }
+
+    /// <summary>
+    /// The attribute on the ROOT whose value the parent is identified by — e.g. the Termsheet's own
+    /// <c>qdb_termsheetid</c>. The root must actually return this column, or the block cannot be
+    /// scoped and says so rather than showing every row in the table.
+    /// </summary>
+    public string? JoinToKey { get; init; }
+
+    /// <summary>
+    /// A disabled dataset is kept but not executed (MDS-FR-007), so an author can isolate a slow or
+    /// broken source without losing how it was configured.
+    ///
+    /// Absent means enabled: every source stored before the column existed must keep running.
+    /// </summary>
+    public bool IsEnabled { get; init; } = true;
+
+    /// <summary>
+    /// This dataset's own row cap (MDS-FR-008), or null to use the report's. A child block usually
+    /// wants a different bound from the report it hangs off.
+    /// </summary>
+    public int? RowLimit { get; init; }
+
     public IReadOnlyList<ReportEntityMapping> EntityMappings { get; init; } = [];
+}
+
+/// <summary>How a data source composes into its report's output (MDS-FR-002, ADR-RPT-012 §3).</summary>
+public static class DatasetComposition
+{
+    /// <summary>Merged into the root result set on a key. The default, and the historical behaviour.</summary>
+    public const string Joined = "joined";
+
+    /// <summary>Rendered as its own block, with its own columns and rows.</summary>
+    public const string Standalone = "standalone";
+
+    public static bool IsStandalone(ReportDataSource? source) =>
+        string.Equals(source?.Composition, Standalone, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>An entity mapped inside a data source (qdb_reportentitymapping) and its columns.</summary>
@@ -210,6 +263,13 @@ public sealed record ReportFilter
     public string? GroupId { get; init; }
 
     public bool IsRuntimePrompt { get; init; }
+
+    /// <summary>
+    /// The dataset this filter belongs to, or null for the report's root query. A bound filter is
+    /// applied only when that dataset's own query is built — which is how a standalone block gets
+    /// filters that name ITS table's attributes instead of the root's.
+    /// </summary>
+    public Guid? DataSourceId { get; init; }
 }
 
 /// <summary>A runtime parameter (qdb_reportparameter).</summary>

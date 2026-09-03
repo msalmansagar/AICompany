@@ -12,6 +12,14 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const SOLUTION_UNIQUE_NAME = 'qdb_reportengine';
 const PROTOTYPE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../prototype');
@@ -40,31 +48,15 @@ const WEB_RESOURCES = [
   { name: 'qdb_reportengine_arabicfont.js', display: 'Report Engine — Amiri Arabic font (OFL-1.1)', file: 'vendor/amiri-arabic-font.js', type: SCRIPT }
 ];
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default` });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-let baseUrl, token;
 function headers(extra = {}) {
-  return { Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra };
+  return { Accept: 'application/json', 'Content-Type': 'application/json', 'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra };
 }
 /* Content comes back too, so an unchanged file can be left alone entirely. Dataverse exposes no
    hash, so comparing means fetching — a megabyte or so per run, against writes and a publish that
    would otherwise happen for nothing. */
 async function findWebResource(name) {
   const filter = encodeURIComponent(`name eq '${name}'`);
-  const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset?$filter=${filter}&$select=webresourceid,content`, { headers: headers() });
+  const res = await dv.request(`${baseUrl}/${API_PATH}/webresourceset?$filter=${filter}&$select=webresourceid,content`, { headers: headers() });
   if (!res.ok) throw new Error(`lookup ${name} ${res.status}: ${await res.text()}`);
   return (await res.json()).value?.[0] ?? null;
 }
@@ -94,13 +86,13 @@ async function upsertWebResource({ name, display, file, type }) {
     return { id: existing.webresourceid, changed: false, type };
   }
   if (existing) {
-    const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset(${existing.webresourceid})`, { method: 'PATCH', headers: headers(), body });
+    const res = await dv.request(`${baseUrl}/${API_PATH}/webresourceset(${existing.webresourceid})`, { method: 'PATCH', headers: headers(), body });
     if (!res.ok) throw new Error(`update ${name} ${res.status}: ${await res.text()}`);
     console.log(`  ✓ updated ${name} (${(content.length / 1024).toFixed(0)} KB)`);
     return { id: existing.webresourceid, changed: true, type };
   }
   // MSCRM.SolutionUniqueName adds the new component to the target solution.
-  const res = await fetch(`${baseUrl}/api/data/v9.2/webresourceset`, { method: 'POST', headers: headers({ 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME }), body });
+  const res = await dv.request(`${baseUrl}/${API_PATH}/webresourceset`, { method: 'POST', headers: headers({ 'MSCRM.SolutionUniqueName': SOLUTION_UNIQUE_NAME }), body });
   if (!res.ok) throw new Error(`create ${name} ${res.status}: ${await res.text()}`);
   console.log(`  ✓ created ${name} in ${SOLUTION_UNIQUE_NAME} (${(content.length / 1024).toFixed(0)} KB)`);
   const created = (res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/);
@@ -108,9 +100,6 @@ async function upsertWebResource({ name, display, file, type }) {
   return { id, changed: true, type };
 }
 
-const env = loadEnv(process.argv[2]);
-baseUrl = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, '');
-token = await getToken(env.DV_TENANT_ID || env.AZURE_TENANT_ID, env.DV_CLIENT_ID || env.AZURE_CLIENT_ID, env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 console.log(`\n== Deploy Report Engine web resources → ${SOLUTION_UNIQUE_NAME} ==\n`);
 
 const results = [];
@@ -128,15 +117,26 @@ const PUBLISH_RETRY_DELAYS_MS = [30_000, 60_000, 120_000, 120_000];
 
 async function publish(path, body) {
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, { method: 'POST', headers: headers(), body });
-    if (res.ok) return;
-    const detail = await res.text();
-    const isBusy = res.status === 429 || detail.includes('because there is another');
-    if (!isBusy || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
-      throw new Error(`publish ${res.status}: ${detail}`);
+    let res = null;
+    let detail;
+    try {
+      res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, { method: 'POST', headers: headers(), body });
+      if (res.ok) return;
+      detail = await res.text();
+    } catch (error) {
+      /* The org drops the socket while a long PublishAll grinds on server-side (ECONNRESET), and
+         the publish usually completes anyway. A retry then lands on "another publish is running"
+         and waits it out — which is the correct outcome, not a failure. */
+      detail = String((error && error.cause && error.cause.code) || error.message || error);
+    }
+    const isRetriable = (res && res.status === 429)
+      || detail.includes('because there is another')
+      || /ECONNRESET|fetch failed|ETIMEDOUT|ECONNABORTED/i.test(detail);
+    if (!isRetriable || attempt >= PUBLISH_RETRY_DELAYS_MS.length) {
+      throw new Error(`publish ${res ? res.status : 'network'}: ${detail}`);
     }
     const wait = PUBLISH_RETRY_DELAYS_MS[attempt];
-    console.log(`  · another publish or import is running — retrying in ${wait / 1000}s`);
+    console.log(`  · publish interrupted or busy (${res ? res.status : detail}) — retrying in ${wait / 1000}s`);
     await sleep(wait);
   }
 }
@@ -151,8 +151,13 @@ async function publish(path, body) {
 const changed = results.filter(r => r.changed);
 const changedShells = changed.filter(r => r.type === HTML);
 
-if (!changed.length) {
-  console.log('\n· nothing changed — no publish needed\n');
+if (!changed.length && process.argv.includes('--publish')) {
+  // Recovery path: a failed publish leaves the org updated-but-unpublished, and the next run sees
+  // "nothing changed" and skips — serving stale shells forever. --publish forces the full publish.
+  await publish('PublishAllXml', '{}');
+  console.log('\n✓ full publish forced (--publish) — content was already current\n');
+} else if (!changed.length) {
+  console.log('\n· nothing changed — no publish needed (if a previous publish FAILED, re-run with --publish)\n');
 } else if (changedShells.length) {
   await publish('PublishAllXml', '{}');
   console.log(`\n✓ full publish — ${changedShells.length} shell(s) changed, which a scoped publish leaves cached`);

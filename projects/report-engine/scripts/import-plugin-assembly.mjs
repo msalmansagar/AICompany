@@ -9,6 +9,14 @@
 //
 // Usage: node import-plugin-assembly.mjs <path-to-.env>
 import { readFileSync } from 'node:fs';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const SOLUTION = 'qdb_reportengine';
 const ASSEMBLY_NAME = 'Qdb.ReportEngine.CrmPlugin';
@@ -28,34 +36,14 @@ const SANDBOX = 2;
 // sourcetype 0 = Database.
 const DATABASE = 0;
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default`
-  });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-let baseUrl, token;
 function headers(extra = {}) {
-  return {
-    Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json',
+  return { Accept: 'application/json', 'Content-Type': 'application/json',
     'OData-MaxVersion': '4.0', 'OData-Version': '4.0', ...extra
   };
 }
 
 async function api(method, path, body, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method, headers: headers(extraHeaders), body: body ? JSON.stringify(body) : undefined
   });
   if (!res.ok) throw new Error(`${method} ${path} ${res.status}: ${await res.text()}`);
@@ -74,7 +62,7 @@ function newIdFrom(response) {
 }
 
 async function post(path, body, extraHeaders = {}) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method: 'POST', headers: headers(extraHeaders), body: JSON.stringify(body)
   });
   if (!res.ok) throw new Error(`POST ${path} ${res.status}: ${await res.text()}`);
@@ -123,10 +111,6 @@ async function ensurePluginType(assemblyId, PLUGIN_TYPE_NAME) {
 async function main() {
   const envPath = process.argv[2];
   if (!envPath) throw new Error('Usage: node import-plugin-assembly.mjs <path-to-.env>');
-
-  const env = loadEnv(envPath);
-  baseUrl = env.DV_DATAVERSE_URL.replace(/\/$/, '');
-  token = await getToken(env.DV_TENANT_ID, env.DV_CLIENT_ID, env.DV_CLIENT_SECRET, baseUrl);
 
   const content = readFileSync(ASSEMBLY_PATH).toString('base64');
   console.log(`Importing ${ASSEMBLY_NAME} (${content.length} base64 chars) into ${baseUrl}`);

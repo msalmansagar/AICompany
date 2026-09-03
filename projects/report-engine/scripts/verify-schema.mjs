@@ -1,7 +1,15 @@
 // Verifies the QdbReportEngine 18-table schema in the org against phase-3-schema.md.
 // Read-only. Reports missing tables, missing fields, and type mismatches.
-// Usage: node verify-schema.mjs <path-to-.env>   (env supplies tenant/client/secret/url)
+// Usage: node verify-schema.mjs <path-to-.env>   (see scripts/lib/dataverse.mjs for DV_AUTH_MODE)
 import { readFileSync } from 'node:fs';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const S = 'String', M = 'Memo', P = 'Picklist', B = 'Boolean', I = 'Integer', D = 'DateTime', L = 'Lookup';
 
@@ -27,43 +35,20 @@ const EXPECTED = {
   qdb_reportcache: { qdb_name:S, qdb_reportid:L, qdb_versionid:L, qdb_payload:M, qdb_blobreference:S, qdb_createdon2:D, qdb_expireson:D, qdb_sizebytes:I, qdb_hitcount:I, qdb_identityhash:S }
 };
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default` });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-async function fetchTable(url, token, logical) {
-  const q = `${url}/api/data/v9.2/EntityDefinitions(LogicalName='${logical}')?$select=LogicalName&$expand=Attributes($select=LogicalName,AttributeType)`;
-  const res = await fetch(q, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } });
+async function fetchTable(logical) {
+  const q = `${baseUrl}/${API_PATH}/EntityDefinitions(LogicalName='${logical}')?$select=LogicalName&$expand=Attributes($select=LogicalName,AttributeType)`;
+  const res = await dv.request(q, { headers: { Accept: 'application/json' } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`${logical} ${res.status}: ${await res.text()}`);
   return await res.json();
 }
 
-const env = loadEnv(process.argv[2]);
-const tenant = env.DV_TENANT_ID || env.AZURE_TENANT_ID;
-const clientId = env.DV_CLIENT_ID || env.AZURE_CLIENT_ID;
-const secret = env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET;
-const url = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, '');
-
-const token = await getToken(tenant, clientId, secret, url);
-console.log(`Connected: ${url}\n`);
+console.log(`Connected: ${baseUrl}\n`);
 
 let missingTables = 0, missingFields = 0, typeMismatch = 0, okTables = 0;
 const report = [];
 for (const [table, fields] of Object.entries(EXPECTED)) {
-  const meta = await fetchTable(url, token, table);
+  const meta = await fetchTable(table);
   if (!meta) { missingTables++; report.push({ table, status: 'MISSING TABLE' }); continue; }
   okTables++;
   const actual = new Map((meta.Attributes || []).map(a => [a.LogicalName, a.AttributeType]));

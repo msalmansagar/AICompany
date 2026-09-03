@@ -1,14 +1,25 @@
 import { fileURLToPath } from 'node:url';
-const VIEWER = fileURLToPath(new URL('../prototype/report-runtime.html', import.meta.url));
+const ENGINE = fileURLToPath(new URL('../prototype/report-engine-core.js', import.meta.url));
 // Drives the ported layout renderer with a realistic result and checks each type produces markup
 // rather than throwing or returning nothing.
-import { readFileSync } from 'node:fs';
+import { loadEngine } from './engine-harness.mjs';
 
-const html = readFileSync(VIEWER, 'utf8');
-const source = html.slice(html.indexOf('/* ---------------- layout rendering'), html.indexOf('/* ---------------- self-check'));
 // esc is a viewer global the renderer relies on; supply the same implementation.
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const api = new Function('esc', `${source}; return { renderLayout, toRenderModel, inferColumnType, buildPreviewBody };`)(esc);
+// Helpers the renderer needs are lifted REAL rather than stubbed, and discovered rather than
+// listed: a stub answers for code the browser never runs, and a hand-kept list is exactly how this
+// suite rotted. renderLayout catches everything and returns "" so a broken layout falls back to the
+// grid instead of costing the user their data — right in production, blinding in a test — so an
+// empty return is treated here as failure, never as "nothing to draw". It was: buildPreviewBody
+// read a free variable `layout` and every one of the 27 layouts silently became a grid.
+const { api } = loadEngine({
+  enginePath: ENGINE,
+  section: ['/* ---------------- layout rendering', '/* ---------------- self-check'],
+  exports: ['renderLayout', 'toRenderModel', 'inferColumnType', 'buildPreviewBody'],
+  globals: { esc },
+  smoke: built => built.buildPreviewBody('Grouped Report',
+    [{ key: 'k', name: 'K', label: 'K', type: 'Text' }], [{ k: 'a' }], { grandTotal: true })
+});
 
 let passed = 0, failed = 0;
 const check = (name, ok, detail = '') => {

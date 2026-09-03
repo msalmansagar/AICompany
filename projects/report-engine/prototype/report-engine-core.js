@@ -347,6 +347,78 @@ function renderCatalog(){
 }
 
 /* ---------------- run a report ---------------- */
+
+/* The plugin emits one of two result shapes (ADR-RPT-012 §2): a report with a single dataset
+   serialises exactly as it always has, and only a report declaring a second one carries `datasets`.
+   Every consumer reads the result through here, so no renderer or exporter has to know which arrived
+   — which is what lets them migrate to multi-dataset one at a time instead of all on one day.
+
+   A result with neither shape yields one empty root rather than throwing: the caller is mid-render,
+   and taking the page down is worse than drawing a report with no rows. It must not invent rows. */
+function datasetsOf(result){
+  if (!result) return [];
+  if (Array.isArray(result.datasets)) return result.datasets;
+  return [{
+    id: result.reportId,
+    name: result.reportName,
+    role: "root",
+    columns: result.columns,
+    rows: result.rows,
+    rowCount: result.rowCount,
+    truncated: result.truncated,
+    elapsedMs: result.elapsedMs,
+    status: "ok",
+    error: null
+  }];
+}
+
+/* Reports render through the root dataset unless they are explicitly multi-dataset, so the many
+   single-dataset callers keep reading one result rather than indexing into a collection. */
+const rootDatasetOf = result => datasetsOf(result)[0] || null;
+
+const isMultiDataset = result => datasetsOf(result).length > 1;
+
+/* Formulas and transformations run here rather than in the plugin (ADR-RPT-011), and they mutate a
+   table's columns and rows. A multi-dataset result has no columns of its own — its tables live under
+   `datasets` — so running the pipeline over the envelope threw "Cannot read properties of undefined
+   (reading 'push')" on the first formula, before anything rendered.
+
+   They apply to the ROOT dataset only. They are authored against the report's own columns, and a
+   standalone block has its own; evaluating them there would resolve every reference to nothing and
+   then graft the empty results on as new columns. Per-dataset formulas are not in ADD-002's scope.
+
+   A transformation may RETURN A NEW result rather than editing one in place, so the root is replaced
+   by whatever comes back instead of being assumed to have been mutated. */
+function applyReportPipeline(result, def){
+  const run = table => applyTransformations(applyFormulas(table, def.formulas), def.transformations);
+  if (!isMultiDataset(result)) return run(result);
+
+  const datasets = result.datasets.slice();
+  datasets[0] = Object.assign({}, datasets[0], run(datasets[0]));
+
+  /* Masking runs over EVERY dataset, not only the root (MDS-FR-024). It is a confidentiality
+     control rather than a presentation choice, and one that applies to the main table while leaving
+     the same column readable in a block below it would be worse than none at all — the author would
+     have every reason to believe the value was covered.
+
+     The other transformations stay on the root: they are authored against its columns, and grouping
+     or number formatting a block by them would act on columns it does not have. */
+  const masking = (def.transformations || []).filter(step => step.transformType === "Masking");
+  if (masking.length) {
+    for (let index = 1; index < datasets.length; index++) {
+      datasets[index] = Object.assign({}, datasets[index], applyTransformations(datasets[index], masking));
+    }
+  }
+
+  return Object.assign({}, result, { datasets });
+}
+
+/* Datasets an export or chart cannot represent, so the user can be told rather than left to notice
+   a report arriving one table short (MDS-FR-023). */
+const omittedDatasetNames = result =>
+  // Not filter(Boolean): a block named "0" is falsy and would vanish from its own warning.
+  datasetsOf(result).slice(1).map(d => d.name).filter(name => name != null && name !== "");
+
 async function openReport(id){
   state.view="run";
   const c=$("#content");
@@ -511,11 +583,38 @@ const parameterChoices = parameter => String(parameter.defaultValue || "")
    type-ahead instead — the same choice the designer already makes for its own entity pickers. */
 const DROPDOWN_ROW_LIMIT = 200;
 
+/* ---------- Which Web API version this org serves ----------
+   Every raw fetch in this product named v9.2. Dataverse online serves that; the last on-premises
+   release is 9.1 and answers a v9.2 path with 404 — which reads like a permissions problem and is
+   not. The org states its own version, so ask it rather than assume.
+
+   Deliberately duplicated in report-designer.html and report-ribbon.js. The three are separately
+   loaded web resources with no shared scope: the designer carries its own inline script and the
+   ribbon is loaded by the ribbon framework with no engine present. Change one, change all three. */
+const FALLBACK_WEB_API_VERSION = "9.1";   // served by every 9.x org, cloud and on-premises alike
+let webApiVersionCache = "";
+
+/** The major.minor the org reports, e.g. "9.1" from "9.1.0.4967". */
+function webApiVersion(){
+  if (webApiVersionCache) return webApiVersionCache;
+  let reported = "";
+  try { reported = xrm().Utility.getGlobalContext().getVersion() || ""; }
+  catch (error) { reported = ""; }
+  const majorMinor = /^(\d+\.\d+)/.exec(reported);
+  webApiVersionCache = majorMinor ? majorMinor[1] : FALLBACK_WEB_API_VERSION;
+  return webApiVersionCache;
+}
+
+/** An absolute Web API url on this org, at the version this org actually serves. */
+function webApiUrl(path){
+  return `${xrm().Utility.getGlobalContext().getClientUrl()}/api/data/v${webApiVersion()}/${path}`;
+}
+
 /* Metadata does not go through Xrm.WebApi: it resolves a logical name to a record collection, and
    EntityDefinitions is neither, so it answers "the entity cannot be found". Read it off the Web API
    on the signed-in session instead. $top is rejected on these endpoints — never add paging. */
 async function readMetadata(path){
-  const url = `${xrm().Utility.getGlobalContext().getClientUrl()}/api/data/v9.2/${path}`;
+  const url = webApiUrl(path);
   const response = await fetch(url, { headers: { Accept: "application/json", "OData-Version": "4.0" } });
   if (!response.ok) throw new Error(`metadata ${response.status}`);
   return response.json();
@@ -684,11 +783,12 @@ async function runReport(){
     // The plugin returns stored columns; computed ones are derived here, then shaped (ADR-RPT-011).
     // Transformations run last so they can format a formula's output too.
     const executed = await runReportInCrm(def.id, await collectParams());
-    const result = applyTransformations(applyFormulas(executed, def.formulas), def.transformations);
+    const result = applyReportPipeline(executed, def);
     result.elapsedMs = Date.now() - startedAt;
     state.current.result = result;
     renderResult(result);
-    toast(`${result.rowCount} row${result.rowCount===1?"":"s"} returned`, "success");
+    const root = rootDatasetOf(result) || { rowCount: 0 };
+    toast(`${root.rowCount} row${root.rowCount===1?"":"s"} returned`, "success");
   } catch(e){ host.innerHTML = errorState(e.message); toast(e.message,"error"); }
 }
 
@@ -722,8 +822,32 @@ function applyReportDirection(host){
   host.setAttribute("dir", isReportRtl() ? "rtl" : "ltr");
 }
 
+/** "1 row", not "1 rows". Every count in the engine is rendered through this. */
+const plural = (count, word) => count === 1 ? word : word + "s";
+
+/**
+ * Says what the reader actually got, rather than naming a limit.
+ *
+ * "Truncated at row limit" invited the reader to check the report's row limit — which may say
+ * 50,000 while the engine applied 5,000, because it reads a single page and Dataverse rejects a
+ * FetchXML top above that. Stating the number returned is true whatever the configured limit says,
+ * and stays true if paging later raises the ceiling.
+ */
+function truncationChip(result){
+  if (!result.truncated) return "";
+  return `<span class="chip" style="color:var(--warning)">showing the first ${result.rowCount} ${plural(result.rowCount, "row")} — more match</span>`;
+}
+
 function renderResult(result){
   const layout = state.current.def.layout;
+
+  /* A designed layout describes ONE table — it binds to a single set of columns. A multi-dataset
+     result has no single set, so rendering it through the layout would read result.rowCount and
+     result.columns off a shape that has neither, and print "undefined rows" above an empty design.
+     Placing each block within a layout is MDS-FR-021's remaining half and is not built yet, so these
+     reports render as blocks. */
+  if (isMultiDataset(result)) { renderGrid(result); return; }
+
   const laidOut = renderLayout(result, layout);
 
   // Anything other than a plain table renders in its designed layout. The grid stays the fallback:
@@ -731,9 +855,9 @@ function renderResult(result){
   // rather than leaving the user with an empty page.
   if (laidOut) {
     $("#resultHost").innerHTML = `
-      <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>
+      <div class="meta-row"><span><b>${result.rowCount}</b> ${plural(result.rowCount, "row")}</span>
         <span class="chip">${esc(layout.type)}</span>
-        ${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}
+        ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
       <div class="report-paper">${laidOut}</div>`;
@@ -748,9 +872,7 @@ function renderResult(result){
 
 function renderGrid(result){
   const rels = (state.current.def.relationships||[]).filter(r => r.childKey && r.parentKey);
-  const cols = result.columns;
   const drillCol = rels.length ? rels[0] : null;
-  const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
   /* The grid is what most reports actually render through — the designed layouts are the exception —
      so the fonts chosen on the canvas have to be honoured here or they reach almost nobody. A result
      column names itself by alias at run time and by attribute in the design; the lookup carries both
@@ -760,22 +882,211 @@ function renderGrid(result){
     const css = fontCss(gridFont[c.alias] || gridFont[String(c.label || "").toLowerCase()]);
     return css ? ` style="${css}"` : "";
   };
-  const head = cols.map(c=>`<th${gridFontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
-  const rows = result.rows.map(row => {
-    const tds = cols.map(c => { const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text; const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!==""; return `<td class="${num?"num":""}"${gridFontOf(c)}>${esc(t)}</td>`; }).join("");
-    const key = hasKey ? (row.cells[drillCol.parentKey]||{}).text : null;
-    const drill = hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(drillCol))} ↗</button></td>` : "";
-    return `<tr>${tds}${drill}</tr>`;
-  }).join("");
-  $("#resultHost").innerHTML = `
-    <div class="meta-row"><span><b>${result.rowCount}</b> rows</span>${result.truncated?'<span class="chip" style="color:var(--warning)">truncated at row limit</span>':''}<span>${result.elapsedMs||0} ms</span></div>
-    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||`<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`}</tbody></table></div>`;
+  /* A report with one dataset renders exactly the markup it always has (ADR-RPT-012 §2). Only a
+     report that declares a second one gets headed blocks, so nothing already deployed changes.
+
+     Drilldown stays on the root block (MDS-FR-025): a standalone dataset is not related to the
+     report's relationships, and offering the button there would follow a key its rows do not carry. */
+  const datasets = datasetsOf(result);
+  // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
+  const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
+  const bandFor = dataset => bandConfigFor(state.current.def, dataset);
+  $("#resultHost").innerHTML = datasets.length > 1
+    ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor)
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]));
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
-  applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
+     are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
+     the host by cell position — with several blocks on the page it would colour rows of unrelated
+     tables using the root's rules. Scoping it per block is still to build; wrong colours on real
+     data are worse than none. */
+  if (!isMultiDataset(result)) {
+    applyConditionalFormatting($("#resultHost"), result, (state.current.def.layout || {}).conditionalFormatting);
+  }
   // The grid is the path most reports render through, so direction has to be applied here too —
   // putting it only in renderResult would leave it invisible for exactly the common case.
   applyReportDirection($("#resultHost"));
 }
+/* ---------- Authored totals (D3) ----------
+   SSRS's totals row, for ours: the author picks a function PER COLUMN — Sum, Avg, Min, Max, Count —
+   and the row appears under that dataset's table. Nothing is ever guessed: the previews used to
+   invent a "Tax (10%)" on real data, which is exactly the class of lie an AUTHORED row replaces.
+
+   Stored in the layout JSON — layout.totals for the root, layout.datasetTotals[alias] for a block —
+   and computed over the rows the dataset RETURNED: the totals of what the report shows. A truncated
+   dataset's chip already says the table is not the whole story; its totals inherit that caveat. */
+
+const TOTAL_LABELS = { Sum: "Total", Avg: "Average", Min: "Min", Max: "Max", Count: "Count" };
+
+function authoredTotalsFor(def, dataset){
+  const layout = (def && def.layout) || {};
+  if (!dataset) return null;
+  if (dataset.role !== "standalone") return layout.totals || null;
+  return dataset.alias ? ((layout.datasetTotals || {})[dataset.alias] || null) : null;
+}
+
+/** The totals row's cells for one dataset, aligned to its columns — null when nothing is authored. */
+function totalsRowOf(totals, dataset){
+  const cols = (dataset && dataset.columns) || [];
+  if (!totals || !cols.some(c => totals[c.alias] && totals[c.alias] !== "None")) return null;
+  const cells = cols.map(c => totalCellOf(totals[c.alias], c, dataset.rows || []));
+  const labelAt = cells.findIndex(cell => cell === null);
+  // Every column authored leaves no free cell, so the label shares the first one — an unlabelled
+  // run of numbers reads as one more data row, and never says whether it is a sum or an average.
+  if (labelAt >= 0) cells[labelAt] = { text: totalsRowLabel(totals, cols), isLabel: true };
+  else cells[0] = { text: `${totalsRowLabel(totals, cols)}: ${cells[0].text}`, isLabel: true };
+  return cells;
+}
+
+/** "Total" only when every authored function IS a sum — the row must not claim an average is one. */
+function totalsRowLabel(totals, cols){
+  const used = [...new Set(cols.map(c => totals[c.alias]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+function totalCellOf(fn, column, rows){
+  if (!fn || fn === "None") return null;
+  const cells = rows.map(row => (row.cells || {})[column.alias] || {});
+  if (fn === "Count"){
+    return { text: String(cells.filter(cell => cell.value != null || (cell.text != null && String(cell.text) !== "")).length) };
+  }
+  const values = cells.map(numericCellValue).filter(value => value != null);
+  // No numeric value at all is an em dash, never a fabricated zero — the blank-cell rule again.
+  return { text: values.length ? formatTotalNumber(reduceTotal(fn, values)) : "—" };
+}
+
+function reduceTotal(fn, values){
+  if (fn === "Avg") return values.reduce((sum, value) => sum + value, 0) / values.length;
+  if (fn === "Min") return Math.min(...values);
+  if (fn === "Max") return Math.max(...values);
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+/** The typed value wins; formatted text is parsed only as a fallback, and a cell that is not a
+    number contributes nothing rather than a NaN. */
+function numericCellValue(cell){
+  if (typeof cell.value === "number") return cell.value;
+  const text = String(cell.text ?? "").replace(/[,\s ]/g, "").replace(/[^\d.-]/g, "");
+  return text !== "" && !isNaN(+text) ? +text : null;
+}
+
+const formatTotalNumber = value => (+value).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+const totalsRowHtml = (totalsCells, hasKey) => !totalsCells ? "" :
+  `<tr class="totals-row">${totalsCells.map(cell =>
+    `<td class="${cell && !cell.isLabel ? "num" : ""}">${cell ? esc(cell.text) : ""}</td>`).join("")}${hasKey ? "<td></td>" : ""}</tr>`;
+
+/* One dataset's meta row and table. This is the markup a report has always produced, kept in one
+   place now that more than one dataset can ask for it. */
+function datasetBody(dataset, drillCol, fontOf, totalsCells){
+  const cols = dataset.columns || [];
+  const hasKey = drillCol && cols.some(c => c.alias===drillCol.parentKey);
+  const head = cols.map(c=>`<th${fontOf(c)}>${esc(c.label||c.alias)}</th>`).join("") + (hasKey?`<th>Related</th>`:"");
+  const rows = (dataset.rows||[]).map(row => datasetRow(row, { cols, drillCol, hasKey }, fontOf)).join("");
+  const empty = `<tr><td colspan="${cols.length+1}" style="text-align:center;color:var(--text-secondary);padding:24px">No rows.</td></tr>`;
+  return `
+    <div class="meta-row"><span><b>${dataset.rowCount}</b> ${plural(dataset.rowCount, "row")}</span>${dataset.truncated?truncationChip(dataset):''}<span>${dataset.elapsedMs||0} ms</span></div>
+    <div class="grid-wrap"><table class="res"><thead><tr>${head}</tr></thead><tbody>${rows||empty}${totalsRowHtml(totalsCells, hasKey)}</tbody></table></div>`;
+}
+
+function datasetRow(row, shape, fontOf){
+  const tds = shape.cols.map(c => {
+    const cell=row.cells[c.alias]||{}; const t=cell.text==null?"":cell.text;
+    const num=NUMERIC.test(t.replace(/[^\d.,-]/g,""))&&t!=="";
+    return `<td class="${num?"num":""}"${fontOf(c)}>${esc(t)}</td>`;
+  }).join("");
+  const key = shape.hasKey ? (row.cells[shape.drillCol.parentKey]||{}).text : null;
+  const drill = shape.hasKey ? `<td><button class="drillbtn" data-drill="${esc(key)}">${esc(drillLabel(shape.drillCol))} ↗</button></td>` : "";
+  return `<tr>${tds}${drill}</tr>`;
+}
+
+/* A report with blocks: the parent record, then each block beneath it (MDS-FR-021).
+
+   This is the term-sheet shape — one Termsheet, then its Requested Facilities and its Termsheet
+   Conditions. When the root resolves to a single record it is drawn as a HEADER of label/value
+   pairs rather than a one-row table, which is the difference between a document and three stacked
+   grids. */
+function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
+  const [root, ...blocks] = datasets;
+  const cellsFor = dataset => totalsFor ? totalsFor(dataset) : null;
+  const head = isSingleRecord(root)
+    ? datasetHeader(root)
+    : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
+  // Each block presents as its authored band (D5); the root's presentation is the canvas's.
+  return head + blocks.map(block =>
+    datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("");
+}
+
+const isSingleRecord = dataset =>
+  dataset && dataset.status !== "failed" && (dataset.rows || []).length === 1;
+
+/* The engine scopes every block to the root's FIRST row, so a root returning several records is a
+   report shape that is only half supported. Saying so is better than a page that looks complete:
+   the blocks below belong to one of the rows above, and nothing else would tell the reader which. */
+function multiRecordNotice(root){
+  return `<div class="info-banner" style="margin:8px 0">${esc(root.rowCount)} records returned —
+    the datasets below show only the first one's related rows.</div>`;
+}
+
+/* The parent record as fields rather than a row. Only visible columns, in their configured order,
+   so the header shows what the author chose to put on the report. */
+function datasetHeader(dataset){
+  const cells = (dataset.rows[0] || {}).cells || {};
+  const fields = (dataset.columns || [])
+    .filter(c => c.isVisible !== false)
+    .map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.label || c.alias)}</div>
+      <div style="font-weight:600">${esc((cells[c.alias] || {}).text ?? "")}</div></div>`)
+    .join("");
+  return `<section class="dataset-block dataset-header">
+    <div class="meta-row"><b>${esc(dataset.name || "Record")}</b><span>${dataset.elapsedMs||0} ms</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 20px;margin:10px 0 16px">${fields}</div>
+  </section>`;
+}
+
+/* A named block, for reports that declare more than one dataset (MDS-FR-021).
+
+   A FAILED dataset renders its reason instead of a table. Drawing it as an empty table would be
+   indistinguishable from a query that legitimately matched nothing — the same silence this feature
+   exists to remove, reintroduced at the last step. */
+/* ---------- Authored dataset bands (D5) ----------
+   How a block PRESENTS is the author's, stored in layout.datasetLayout keyed by the dataset's
+   alias: Show as Fields (the Applicant-Profile band — every row as a label/value card) or Table,
+   the title hidden or overridden, and the fields-grid width. Exports keep the table regardless:
+   the band is presentation, and a label/value card and its row carry identical data. */
+
+function bandConfigFor(def, dataset){
+  const byAlias = (def && def.layout && def.layout.datasetLayout) || {};
+  return (dataset && dataset.alias && byAlias[dataset.alias]) || null;
+}
+
+const bandTitleOf = (band, dataset) =>
+  band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
+
+/** Every row as a label/value card — one row is exactly the Applicant Profile band. */
+function datasetFieldsHtml(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  const width = band && band.fieldColumns ? `repeat(${band.fieldColumns},minmax(0,1fr))` : "repeat(auto-fill,minmax(210px,1fr))";
+  const card = row => `<div class="band-card" style="display:grid;grid-template-columns:${width};gap:6px 20px">${
+    columns.map(c => `<div><div style="color:var(--text-secondary);font-size:11px">${esc(c.label || c.alias)}</div>
+      <div style="font-weight:600">${esc(((row.cells || {})[c.alias] || {}).text ?? "")}</div></div>`).join("")}</div>`;
+  const rows = (dataset.rows || []).map(card).join("");
+  return rows || `<div class="empty" style="padding:16px">No rows.</div>`;
+}
+
+function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
+  const body = dataset.status === "failed"
+    ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
+    : (band && band.displayAs === "fields")
+      ? datasetFieldsHtml(dataset, band)
+      : datasetBody(dataset, drillCol, fontOf, totalsCells);
+  if (band && band.showTitle === false){
+    return `<section class="dataset-block">${body}</section>`;
+  }
+  return `<section class="dataset-block">
+    <div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>
+    ${body}</section>`;
+}
+
 function drillLabel(rel){ return (rel.openType&&rel.openType.label)==="OpenSubReport" ? "Sub-report" : (rel.childAlias||"Related"); }
 
 // The child query is built and run by the plugin, not here — that is what keeps the drilldown
@@ -873,11 +1184,74 @@ const exportBaseName = () => {
 };
 
 /** Header labels plus each row's display text — what the user sees is what they export. */
-function exportRows(result){
-  return {
-    head: result.columns.map(c => c.label || c.alias),
-    body: result.rows.map(row => result.columns.map(c => (row.cells[c.alias] || {}).text ?? ""))
-  };
+function tableOf(dataset){
+  // An authored matrix report exports the PIVOTED table — the file must be the screen (D4).
+  const pivot = matrixTableFor(dataset, exportDefinition());
+  if (pivot) return pivot;
+  const cols = (dataset && dataset.columns) || [];
+  const body = ((dataset && dataset.rows) || []).map(row => cols.map(c => (row.cells[c.alias] || {}).text ?? ""));
+  // The authored totals row travels with the table (D3), so an export cannot disagree with the
+  // screen about a number as load-bearing as a total.
+  const totalsCells = totalsRowOf(authoredTotalsFor(exportDefinition(), dataset), dataset);
+  if (totalsCells) body.push(totalsCells.map(cell => cell ? cell.text : ""));
+  return { head: cols.map(c => c.label || c.alias), body };
+}
+
+/** The open report's definition, where one is open — guarded so the Node test harness can drive
+    tableOf without a global state. */
+function exportDefinition(){
+  return (typeof state !== "undefined" && state.current && state.current.def) || null;
+}
+
+/**
+ * The pivoted table for an authored-matrix report's ROOT dataset, or null where the flat table is
+ * the truth: a standalone block, a report of another layout type, or no authored matrix at all.
+ */
+function matrixTableFor(dataset, def){
+  const layout = def && def.layout;
+  if (!layout || !layout.matrix || !dataset || dataset.role === "standalone") return null;
+  if (layout.type !== "Matrix (Cross Tab)" && layout.type !== "Pivot Report") return null;
+  const cols = (dataset.columns || []).filter(c => c.isVisible !== false)
+    .map(c => ({ key: c.alias, name: c.label || c.alias }));
+  const rows = (dataset.rows || []).map(row => {
+    const flat = {};
+    for (const c of cols){
+      const cell = (row.cells || {})[c.key] || {};
+      // The same rule the on-screen model uses: numbers stay raw so cells accumulate, everything
+      // else pivots by its display text — a lookup groups by its name, never its GUID.
+      flat[c.key] = typeof cell.value === "number" ? cell.value : (cell.text ?? cell.value);
+    }
+    return flat;
+  });
+  const model = matrixModel(cols, rows, layout.matrix, layout.totals || null);
+  if (!model) return null;
+  const text = value => value == null ? "" : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value));
+  const body = model.body.map(row => row.map(text));
+  if (model.grandRow) body.push(model.grandRow.map(text));
+  return { head: model.head, body };
+}
+
+/** The root dataset's table. CSV is one table by definition, so it is the only caller left. */
+const exportRows = result => tableOf(rootDatasetOf(result) || result);
+
+/**
+ * Every dataset as an exportable table (MDS-FR-022).
+ *
+ * A term sheet is one parent with its child tables; an export carrying only the first hands the
+ * customer an incomplete document. A FAILED dataset is carried too, as its name and its reason —
+ * dropping it would make the export quietly disagree with the screen.
+ */
+function exportTables(result){
+  return datasetsOf(result).map(dataset => Object.assign(
+    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error },
+    tableOf(dataset)
+  ));
+}
+
+/** Tells the user which datasets a single-table export could not carry (MDS-FR-023). */
+function warnAboutOmittedDatasets(result){
+  const omitted = omittedDatasetNames(result);
+  if (omitted.length) toast(`CSV holds one table — not included: ${omitted.join(", ")}`, "error");
 }
 
 function saveBlob(blob, filename){
@@ -896,19 +1270,17 @@ function exportCsv(result, baseName){
     .concat(body.map(row => row.map(quote).join(","))).join("\r\n");
 
   saveBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), baseName + ".csv");
+  // CSV is the only format that cannot carry the other datasets, so it is the only one that warns.
+  warnAboutOmittedDatasets(result);
 }
 
 async function exportExcel(result, baseName){
   await loadLibrary("xlsx");
-  const { head, body } = exportRows(result);
-  const sheet = XLSX.utils.aoa_to_sheet([head].concat(body));
-
-  // Width by longest value, capped — an unbounded column is worse than a truncated one.
-  sheet["!cols"] = head.map((label, i) =>
-    ({ wch: Math.min(60, Math.max(10, ...body.map(r => String(r[i] ?? "").length), String(label).length + 2)) }));
-
   const book = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(book, sheet, "Report");
+  const used = [];
+  for (const table of exportTables(result)) {
+    XLSX.utils.book_append_sheet(book, sheetFor(table), sheetName(table.name, used));
+  }
 
   // Excel reads column A first from whichever edge the sheet starts at, so an Arabic report whose
   // sheet is left-to-right comes out with its columns in the reverse of the order it is read in.
@@ -920,15 +1292,106 @@ async function exportExcel(result, baseName){
     baseName + ".xlsx");
 }
 
+/** One dataset's sheet. A failed dataset becomes its reason rather than an empty grid. */
+function sheetFor(table){
+  if (table.status === "failed") {
+    return XLSX.utils.aoa_to_sheet([[table.name], ["This dataset could not be loaded", table.error || ""]]);
+  }
+
+  const sheet = XLSX.utils.aoa_to_sheet([table.head].concat(table.body));
+  // Width by longest value, capped — an unbounded column is worse than a truncated one.
+  sheet["!cols"] = table.head.map((label, i) =>
+    ({ wch: Math.min(60, Math.max(10, ...table.body.map(r => String(r[i] ?? "").length), String(label).length + 2)) }));
+  return sheet;
+}
+
+/**
+ * A sheet name Excel will accept: at most 31 characters, none of []:*?/\, never blank, and unique
+ * within the book. Excel refuses the whole file rather than renaming, so a dataset an author called
+ * "Facilities (2026/27)" would otherwise fail the export at the last step.
+ */
+function sheetName(name, used){
+  const cleaned = String(name || "Dataset").replace(/[\[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Dataset";
+  let candidate = cleaned;
+  for (let suffix = 2; used.indexOf(candidate) >= 0; suffix++) {
+    candidate = `${cleaned.slice(0, 31 - String(suffix).length - 1)} ${suffix}`;
+  }
+
+  used.push(candidate);
+  return candidate;
+}
+
+/* ---------- The print page (D6) ----------
+   The page the author set up is the page the PDF is: size, orientation and margins from the
+   layout; the report header repeated on EVERY page, not only the first; the page number in the
+   footer; and the watermark on each page. Nothing here invents — every element follows an
+   authored toggle, and the defaults are exactly what the exporter always produced. */
+
+const PDF_MARGINS = { Narrow: 24, Normal: 40, Wide: 64 };
+const PDF_PAGE_FORMATS = { A4: "a4", Letter: "letter", A3: "a3", Legal: "legal" };
+const PDF_HEADER_RESERVE = 18;
+const PDF_TOTAL_PAGES_MARKER = "{totalPages}";
+
+function pdfPageSetup(def){
+  const layout = (def && def.layout) || {};
+  return {
+    format: PDF_PAGE_FORMATS[layout.pageSize] || "a4",
+    // Landscape by default: report tables are wider than tall, and portrait squeezes columns.
+    orientation: String(layout.orientation || "Landscape").toLowerCase() === "portrait" ? "portrait" : "landscape",
+    margin: PDF_MARGINS[layout.margins] || PDF_MARGINS.Normal,
+    showHeader: layout.showHeader !== false,
+    pageNumber: layout.pageNumber !== false,
+    genDate: layout.genDate !== false,
+    watermark: (layout.watermark || "").trim()
+  };
+}
+
+/** The chrome every page carries: header rule with the title and date, footer page number,
+    watermark. Drawn by autoTable's didDrawPage, so a table spilling onto page nine still carries
+    the document around it. */
+function drawPdfPageChrome(doc, page, title, font, rtl){
+  const width = doc.internal.pageSize.getWidth();
+  const height = doc.internal.pageSize.getHeight();
+  doc.setFont(font);
+  if (page.showHeader){
+    doc.setFontSize(9); doc.setTextColor(60);
+    doc.text(String(title), rtl ? width - page.margin : page.margin, page.margin - 8, { align: rtl ? "right" : "left" });
+    if (page.genDate){
+      doc.setFontSize(8); doc.setTextColor(130);
+      doc.text(new Date().toISOString().slice(0, 10), rtl ? page.margin : width - page.margin, page.margin - 8, { align: rtl ? "left" : "right" });
+    }
+    doc.setDrawColor(200);
+    doc.line(page.margin, page.margin - 2, width - page.margin, page.margin - 2);
+  }
+  if (page.pageNumber){
+    doc.setFontSize(8); doc.setTextColor(130);
+    const pageNumber = doc.internal.getCurrentPageInfo
+      ? doc.internal.getCurrentPageInfo().pageNumber : doc.internal.getNumberOfPages();
+    const total = typeof doc.putTotalPages === "function" ? PDF_TOTAL_PAGES_MARKER : "?";
+    doc.text(`Page ${pageNumber} of ${total}`, width / 2, height - Math.max(14, page.margin / 2), { align: "center" });
+  }
+  if (page.watermark && doc.GState){
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({ opacity: 0.08 }));
+    doc.setFontSize(64); doc.setTextColor(30);
+    doc.text(page.watermark, width / 2, height / 2, { align: "center", angle: 30 });
+    doc.restoreGraphicsState();
+  }
+  doc.setTextColor(0);
+}
+
 async function exportPdf(result, baseName){
   await loadLibrary("jspdf");
   await loadLibrary("table");
   const rtl = isReportRtl();
-  const { head, body } = orderedForDirection(exportRows(result), rtl);
+  const tables = exportTables(result);
+  const page = pdfPageSetup(exportDefinition());
 
-  // Landscape: report tables are wider than they are tall, and portrait squeezes columns to nothing.
-  const doc = new window.jspdf.jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const doc = new window.jspdf.jsPDF({ orientation: page.orientation, unit: "pt", format: page.format });
   const font = rtl ? await useArabicFont(doc) : "helvetica";
+  const def = exportDefinition();
+  const title = (def && def.name) || (result && result.reportName) || baseName;
+  const chrome = () => drawPdfPageChrome(doc, page, title, font, rtl);
 
   // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
   // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an
@@ -936,21 +1399,62 @@ async function exportPdf(result, baseName){
   // OFF, so the words joined correctly and then read backwards. Verified by decoding the produced
   // PDF through its own ToUnicode map; do not compare glyph ids between two PDFs, they are
   // per-document and any such comparison is meaningless.
-  drawPdfHeading(doc, result, font, rtl);
-  drawPdfTable(doc, head, body, font, rtl);
+  chrome(); // Page one, before any table — a report of only failed datasets still gets its page.
 
+  /* Each dataset is drawn beneath the last, titled, so a term sheet exports as the document it is on
+     screen rather than as its first table alone. autoTable reports where it finished, which is where
+     the next one starts; a single-dataset report is unchanged because it simply has one. */
+  let top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
+  for (const table of tables) {
+    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top, page, chrome);
+    top = table.status === "failed"
+      ? drawPdfFailure(doc, table, font, rtl, top, page)
+      : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top, page, chrome);
+  }
+
+  if (page.pageNumber && typeof doc.putTotalPages === "function") doc.putTotalPages(PDF_TOTAL_PAGES_MARKER);
   saveBlob(doc.output("blob"), baseName + ".pdf");
 }
 
-function drawPdfTable(doc, head, body, font, rtl){
+function drawPdfSubtitle(doc, name, font, rtl, top, page, chrome){
+  // A subtitle at the very bottom of a page would strand its table's start; break first.
+  if (top > doc.internal.pageSize.getHeight() - page.margin - 60){
+    doc.addPage();
+    chrome();
+    top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
+  }
+  const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
+  doc.setFont(font);
+  doc.setFontSize(11);
+  doc.text(String(name), x, top, { align: rtl ? "right" : "left" });
+  return top + 8;
+}
+
+/** A failed dataset states its reason. An empty table would read as "nothing matched". */
+function drawPdfFailure(doc, table, font, rtl, top, page){
+  const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
+  doc.setFont(font);
+  doc.setFontSize(9);
+  doc.text(`This dataset could not be loaded — ${table.error || "no reason was given"}`,
+    x, top + 12, { align: rtl ? "right" : "left" });
+  return top + 34;
+}
+
+function drawPdfTable(doc, { head, body }, font, rtl, top, page, chrome){
   doc.autoTable({
-    head: [head], body, startY: 70, margin: { left: 40, right: 40 },
+    head: [head], body, startY: top,
+    // margin.top is where CONTINUATION pages resume — below the repeated header, not over it.
+    margin: { left: page.margin, right: page.margin, top: page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0), bottom: Math.max(24, page.margin / 2) + 6 },
+    didDrawPage: chrome,
     styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
     // Amiri is registered in one weight, so asking for bold would send jsPDF looking for a face
     // that is not there. The fill colour carries the header instead.
     headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
     alternateRowStyles: { fillColor: [247, 247, 247] }
   });
+
+  // Where this table ended is where the next one begins.
+  return (doc.lastAutoTable ? doc.lastAutoTable.finalY : top) + 22;
 }
 
 
@@ -978,16 +1482,6 @@ function orderedForDirection({ head, body }, rtl){
   return { head: [...head].reverse(), body: body.map(row => [...row].reverse()) };
 }
 
-function drawPdfHeading(doc, result, font, rtl){
-  const align = rtl ? "right" : "left";
-  const x = rtl ? doc.internal.pageSize.getWidth() - 40 : 40;
-  doc.setFont(font);
-  doc.setFontSize(14);
-  doc.text(String(state.current.def.name || "Report"), x, 40, { align });
-  doc.setFontSize(9);
-  doc.text(`${result.rowCount} row${result.rowCount === 1 ? "" : "s"}`, x, 56, { align });
-}
-
 const PNG_PADDING = 12;
 const PNG_ROW_HEIGHT = 26;
 const PNG_HEADER_HEIGHT = 34;
@@ -1008,19 +1502,65 @@ const PNG_BODY_FONT = "12px Segoe UI, sans-serif";
  * the right, which is what the rtl flag threads through.
  */
 async function exportPng(result, baseName){
-  const { head, body } = exportRows(result);
   const rtl = isReportRtl();
-  const widths = measuredColumnWidths(head, body);
-  const width = widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2;
-  const height = PNG_TABLE_TOP + PNG_HEADER_HEIGHT + body.length * PNG_ROW_HEIGHT + PNG_PADDING;
+  /* Every dataset is measured before anything is drawn: the canvas has to be sized for the widest
+     table and the total height up front, and a canvas cannot be resized without clearing it. */
+  const drawn = exportTables(result).map(table => Object.assign({}, table, {
+    widths: measuredColumnWidths(table.head, table.body)
+  }));
+  const width = drawn.reduce((widest, table) =>
+    Math.max(widest, table.widths.reduce((a, b) => a + b, 0) + PNG_PADDING * 2), PNG_MIN_COLUMN);
+  const height = PNG_TABLE_TOP
+    + drawn.reduce((total, table) => total + pngTableHeight(table, drawn.length), 0)
+    + PNG_PADDING;
 
   const ctx = pngContext(width, height, rtl);
   drawPngTitle(ctx, width, rtl);
-  drawPngHead(ctx, head, widths, width, rtl);
-  drawPngBody(ctx, body, widths, width, rtl);
+
+  let top = PNG_TABLE_TOP;
+  for (const table of drawn) {
+    if (drawn.length > 1) top = drawPngSubtitle(ctx, table.name, width, rtl, top);
+    top = table.status === "failed"
+      ? drawPngFailure(ctx, table, width, rtl, top)
+      : drawPngTable(ctx, table, rtl, top);
+  }
 
   const blob = await new Promise(resolve => ctx.canvas.toBlob(resolve, "image/png"));
   saveBlob(blob, baseName + ".png");
+}
+
+const PNG_SUBTITLE_HEIGHT = 22;
+const PNG_BLOCK_GAP = 18;
+
+function pngTableHeight(table, count){
+  const subtitle = count > 1 ? PNG_SUBTITLE_HEIGHT : 0;
+  const body = table.status === "failed"
+    ? PNG_ROW_HEIGHT
+    : PNG_HEADER_HEIGHT + table.body.length * PNG_ROW_HEIGHT;
+  return subtitle + body + (count > 1 ? PNG_BLOCK_GAP : 0);
+}
+
+function drawPngSubtitle(ctx, name, width, rtl, top){
+  ctx.fillStyle = "#201f1e";
+  ctx.font = PNG_HEAD_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(String(name), rtl ? width - PNG_PADDING : PNG_PADDING, top + 14);
+  return top + PNG_SUBTITLE_HEIGHT;
+}
+
+function drawPngFailure(ctx, table, width, rtl, top){
+  ctx.fillStyle = "#a4262c";
+  ctx.font = PNG_BODY_FONT;
+  ctx.textAlign = rtl ? "right" : "left";
+  ctx.fillText(`This dataset could not be loaded — ${table.error || "no reason was given"}`,
+    rtl ? width - PNG_PADDING : PNG_PADDING, top + 14);
+  return top + PNG_ROW_HEIGHT + PNG_BLOCK_GAP;
+}
+
+function drawPngTable(ctx, table, rtl, top){
+  drawPngHead(ctx, table.head, table.widths, rtl, top);
+  const end = drawPngBody(ctx, table.body, table.widths, rtl, top + PNG_HEADER_HEIGHT);
+  return end + PNG_BLOCK_GAP;
 }
 
 /** Widths from real glyph widths. The old estimate of 7px per character is wrong for any
@@ -1072,24 +1612,32 @@ function drawPngTitle(ctx, width, rtl){
     rtl ? width - PNG_PADDING : PNG_PADDING, PNG_PADDING + 14);
 }
 
-function drawPngHead(ctx, head, widths, width, rtl){
+/* The bar and the stripes are as wide as THIS table's columns, not as the image. The canvas is sized
+   for the widest dataset, so filling to its edge painted a band of colour past the last cell of every
+   narrower one — which reads as a broken export rather than as a narrow table. */
+const tableWidth = widths => widths.reduce((a, b) => a + b, 0);
+
+function drawPngHead(ctx, head, widths, rtl, top){
   ctx.fillStyle = "#0078d4";
-  ctx.fillRect(PNG_PADDING, PNG_TABLE_TOP, width - PNG_PADDING * 2, PNG_HEADER_HEIGHT);
+  ctx.fillRect(PNG_PADDING, top, tableWidth(widths), PNG_HEADER_HEIGHT);
   ctx.fillStyle = "#ffffff";
   ctx.font = PNG_HEAD_FONT;
-  head.forEach((label, i) => drawCellText(ctx, label, widths, i, PNG_TABLE_TOP + 22, rtl));
+  head.forEach((label, i) => drawCellText(ctx, label, widths, i, top + 22, rtl));
 }
 
-function drawPngBody(ctx, body, widths, width, rtl){
+/** Draws the rows from `top` and returns the y it finished at, so the next block knows where to go. */
+function drawPngBody(ctx, body, widths, rtl, top){
   ctx.font = PNG_BODY_FONT;
-  let y = PNG_TABLE_TOP + PNG_HEADER_HEIGHT;
+  let y = top;
   body.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#f7f7f7" : "#ffffff";
-    ctx.fillRect(PNG_PADDING, y, width - PNG_PADDING * 2, PNG_ROW_HEIGHT);
+    ctx.fillRect(PNG_PADDING, y, tableWidth(widths), PNG_ROW_HEIGHT);
     ctx.fillStyle = "#201f1e";
     row.forEach((cell, i) => drawCellText(ctx, cell, widths, i, y + 18, rtl));
     y += PNG_ROW_HEIGHT;
   });
+
+  return y;
 }
 
 /** Trims with an ellipsis so a long value cannot bleed into the next column. */
@@ -1104,9 +1652,12 @@ function clipToWidth(ctx, text, maxWidth){
 function chartReport(type){
   const result = state.current && state.current.result;
   const host = $("#chartHost");
-  if (!result || !result.rows.length) { toast("Run the report first.", "error"); return; }
+  // Charts read the root dataset: a chart plots one series from one table, and a multi-dataset
+  // result has no rows of its own to read.
+  const root = rootDatasetOf(result);
+  if (!root || !(root.rows || []).length) { toast("Run the report first.", "error"); return; }
 
-  const points = chartPoints(result);
+  const points = chartPoints(root);
   if (!points.length) { toast("No numeric column to chart.", "error"); return; }
 
   const body = (type === "pie") ? wDonut(points) : wBars(points);
@@ -1858,6 +2409,10 @@ function renderLayout(result, layout){
   const model = toRenderModel(result);
   try {
     const body = buildPreviewBody(type, model.cols, model.rows, {
+      // Passed explicitly. It used to be read as a free variable inside buildPreviewBody, which
+      // threw on every call — and the catch below turned that into an empty string, so every
+      // designed layout silently fell back to the grid instead of failing.
+      layout,
       groupBy: layout && layout.groupBy,
       grandTotal: !(layout && layout.grandTotal === false),
       chartType: (layout && layout.chartType) || "Column",
@@ -1868,6 +2423,117 @@ function renderLayout(result, layout){
     // A layout that cannot render must not cost the user their data — fall through to the grid.
     return "";
   }
+}
+
+/* ---------- A cell with nothing in it ----------
+   Blank values were dressed up as real ones. An absent amount rendered "QAR 0.00" — a number a
+   reader acts on, and indistinguishable from a genuine zero. An absent date rendered the literal
+   "null" at runtime and "undefined" in the designer preview, because String(null) was split on a
+   hyphen. An absent decimal rendered "0", or "NaN" when the value was missing rather than null.
+
+   The em dash is the product's own convention for this: it is the default placeholder the
+   NullHandling transform offers. A genuine 0 is NOT blank and still formats as 0.
+
+   Deliberately duplicated in report-designer.html, which carries its own copy of these renderers
+   in its own scope. Change one, change both. */
+const EMPTY_CELL = "—";
+const isBlankCell = value => value === null || value === undefined || value === "";
+
+/* ---------- The authored matrix (D4) ----------
+   SSRS's arrange-fields contract, for ours: row groups down the side, column groups across the top,
+   one authored measure per cell. Stored in the layout JSON as layout.matrix = { rowGroups,
+   columnGroups, values } — aliases composed by the designer at save — so the renderer infers
+   NOTHING. The old cross-tab guessed its categories and, when it found no second one, invented
+   "Personal/Corporate/SME"; it remains only as the fallback for reports that never authored a
+   matrix.
+
+   Duplicated in report-designer.html by the same rule as the rest of these renderers: change one,
+   change both — and test-matrix.mjs fails if the two copies drift by a byte. */
+
+// A control character no cell value carries, so "a"+"bc" can never collide with "ab"+"c".
+const MATRIX_KEY_SEPARATOR = "\u0001";
+const MATRIX_LABEL_SEPARATOR = " · ";
+
+function matrixModel(cols, rows, matrix, totals){
+  const byKey = key => cols.find(c => c.key === key);
+  const rowGroups = ((matrix && matrix.rowGroups) || []).map(byKey).filter(Boolean);
+  const columnGroups = ((matrix && matrix.columnGroups) || []).map(byKey).filter(Boolean);
+  const values = ((matrix && matrix.values) || []).map(byKey).filter(Boolean);
+  if (!rowGroups.length || !columnGroups.length || !values.length) return null;
+
+  const groupKey = (row, groups) => groups.map(g => String(row[g.key] ?? "")).join(MATRIX_LABEL_SEPARATOR);
+  const columnKeys = [...new Set(rows.map(row => groupKey(row, columnGroups)))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const rowKeys = [];
+  const firstRowByKey = new Map();
+  for (const row of rows){
+    const key = groupKey(row, rowGroups);
+    if (!firstRowByKey.has(key)){ firstRowByKey.set(key, row); rowKeys.push(key); }
+  }
+
+  /* Numeric values sharing a cell ACCUMULATE — pivoting rows that land together means adding them,
+     which is what every pivot means by it; anything non-numeric keeps the last value rather than
+     inventing a combination. An aggregated query never collides; a raw one folds honestly. */
+  const cells = new Map();
+  for (const row of rows){
+    for (const value of values){
+      const at = groupKey(row, rowGroups) + MATRIX_KEY_SEPARATOR + groupKey(row, columnGroups) + MATRIX_KEY_SEPARATOR + value.key;
+      const incoming = row[value.key];
+      const existing = cells.get(at);
+      cells.set(at, typeof existing === "number" && typeof incoming === "number" ? existing + incoming : (incoming ?? existing));
+    }
+  }
+
+  // A blank group value is a real group and needs a real header — an empty <th> reads as a bug.
+  const columnLabel = ck => ck === "" ? "(blank)" : ck;
+  const head = rowGroups.map(g => g.name)
+    .concat(columnKeys.flatMap(ck => values.map(v => values.length > 1 ? columnLabel(ck) + MATRIX_LABEL_SEPARATOR + v.name : columnLabel(ck))));
+  const body = rowKeys.map(rowKey => {
+    const sample = firstRowByKey.get(rowKey);
+    return rowGroups.map(g => String(sample[g.key] ?? ""))
+      .concat(columnKeys.flatMap(ck => values.map(v => {
+        const found = cells.get(rowKey + MATRIX_KEY_SEPARATOR + ck + MATRIX_KEY_SEPARATOR + v.key);
+        return found == null || found === "" ? null : found;
+      })));
+  });
+
+  return { head, body, rowGroupCount: rowGroups.length,
+    grandRow: matrixGrandRow(rowGroups, columnKeys, values, body, totals) };
+}
+
+/* The D3 rule again: a grand row appears only where a Total was AUTHORED for a value column, and it
+   aggregates the matrix cells with that function. An empty cell contributes nothing. */
+function matrixGrandRow(rowGroups, columnKeys, values, body, totals){
+  const authored = values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None");
+  if (!authored.length) return null;
+  const row = rowGroups.map((g, index) => index === 0 ? matrixGrandLabel(values, totals) : "");
+  columnKeys.forEach((columnKey, c) => values.forEach((value, vi) => {
+    const fn = (totals || {})[value.key];
+    const index = rowGroups.length + c * values.length + vi;
+    if (!fn || fn === "None") { row.push(null); return; }
+    if (fn === "Count") { row.push(body.filter(r => r[index] != null).length); return; }
+    const numbers = body.map(r => r[index]).filter(v => typeof v === "number");
+    row.push(numbers.length ? reduceTotal(fn, numbers) : null);
+  }));
+  return row;
+}
+
+function matrixGrandLabel(values, totals){
+  const used = [...new Set(values.map(v => (totals || {})[v.key]).filter(fn => fn && fn !== "None"))];
+  return used.length === 1 ? (TOTAL_LABELS[used[0]] || used[0]) : "Totals";
+}
+
+const matrixCellText = value => value == null ? EMPTY_CELL
+  : (typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : String(value));
+
+function matrixTableHtml(model){
+  const isValueCol = index => index >= model.rowGroupCount;
+  const head = model.head.map((label, i) => `<th class="${isValueCol(i) ? "num" : ""}">${esc(label)}</th>`).join("");
+  const body = model.body.map(row => `<tr>${row.map((value, i) =>
+    `<td class="${isValueCol(i) ? "num" : ""}">${esc(matrixCellText(value))}</td>`).join("")}</tr>`).join("");
+  const grand = model.grandRow ? `<tr class="totals-row">${model.grandRow.map((value, i) =>
+    `<td class="${isValueCol(i) && value != null ? "num" : ""}">${value == null ? "" : esc(matrixCellText(value))}</td>`).join("")}</tr>` : "";
+  return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${body}${grand}</tbody></table>`;
 }
 
 function buildPreviewBody(type, cols, rows, opts) {
@@ -1881,7 +2547,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   const cat2 = cols.find(c => c.type === "Option set" && c !== catCol) || catCols[1] || null;
   const valCol = cols.find(c => ["Currency","Decimal","Whole number"].includes(c.type));
   const dateCol = cols.find(c => c.type === "Date/Time");
-  const fmt = (c,v) => c.type==="Currency"?money(+v||0):(c.type==="Date/Time"?String(v).split("-").reverse().join("/"):(c.type==="Decimal"?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):v));
+  const fmt = (c,v) => isBlankCell(v) ? EMPTY_CELL : c.type==="Currency"?money(+v||0):(c.type==="Date/Time"?String(v).split("-").reverse().join("/"):(c.type==="Decimal"?(+v).toLocaleString(undefined,{maximumFractionDigits:2}):v));
   const disp = (c,v) => (num(c)||c.type==="Date/Time") ? fmt(c,v) : T(fmt(c,v));
   const sum = list => valCol ? list.reduce((s,r)=>s+(+r[valCol.key]||0),0) : 0;
   const fmtTotal = n => (valCol && valCol.type==="Currency") ? money(n) : (+n).toLocaleString(undefined,{maximumFractionDigits:2});
@@ -1889,7 +2555,7 @@ function buildPreviewBody(type, cols, rows, opts) {
   /* Type chosen on the design canvas reaches the reader here. The canvas design travels inside the
      layout JSON and readLayout already parses it — this is the first thing to read it, so a font set
      in the designer is no longer something only the designer can see. */
-  const columnFont = designFontLookup(layout);
+  const columnFont = designFontLookup(opts.layout);
   const fontOf = c => { const css = fontCss(columnFont[c.key] || columnFont[String(c.name).toLowerCase()]); return css ? `;${css}` : ""; };
   const head = cols.map(c=>`<th class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(T(c.name))}</th>`).join("");
   const trow = r => `<tr>${cols.map(c=>`<td class="${isRight(c)?"num":""}" style="text-align:${isRight(c)?"end":"start"}${fontOf(c)}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`;
@@ -1912,25 +2578,32 @@ function buildPreviewBody(type, cols, rows, opts) {
     if (g == null || g === "") return "";
     const gr = rows.filter(r=>String(r[chartCat.key])===String(g));
     if (!gr.length) return "";
-    return `<div class="drill-panel"><div class="drill-head"><div class="dt">${esc(T(chartCat.name))}: ${esc(T(g))} — ${gr.length} ${T("rows")}${valCol?` · ${fmtTotal(sum(gr))}`:""}</div><button class="drill-clear" data-drillclear="1">${T("Show all")} ✕</button></div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table></div>`;
+    return `<div class="drill-panel"><div class="drill-head"><div class="dt">${esc(T(chartCat.name))}: ${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${fmtTotal(sum(gr))}`:""}</div><button class="drill-clear" data-drillclear="1">${T("Show all")} ✕</button></div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table></div>`;
   };
 
   if (type === "Grouped Report") {
     const gb = (opts.groupBy && cols.find(c=>c.name===opts.groupBy)) || catCol;
     const gs = [...new Set(rows.map(r=>r[gb.key]))]; let b = "";
     gs.forEach(g => { const gr = rows.filter(r=>r[gb.key]===g);
-      b += `<tr class="group-head"><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T("rows")}</td></tr>` + gr.map(trow).join("");
+      b += `<tr class="group-head"><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}</td></tr>` + gr.map(trow).join("");
       if (valCol) b += `<tr class="group-total">${cols.map((c,ci)=>`<td class="${isRight(c)?"num":""}">${ci===0?T("Subtotal"):(c===valCol?fmtTotal(sum(gr)):"")}</td>`).join("")}</tr>`; });
     return `<table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${b}${grandRow()}</tbody></table>`;
   }
   if (type === "Master-Detail Report") {
     const hdrCols = cols.filter(c=>c!==valCol).slice(0,5);
-    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr), tax=Math.round(sub*0.1); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr><td style="padding:2px 14px;color:#605e5c">${T("Subtotal")}</td><td style="text-align:right">${money(sub)}</td></tr><tr><td style="padding:2px 14px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub+tax)}</td></tr></table></div>`; };
+    const totals = (gr) => { if (!valCol) return ""; const sub=sum(gr); return `<div style="display:flex;justify-content:flex-end;margin-top:8px"><table style="font-size:12.5px"><tr style="font-weight:700"><td style="padding:5px 14px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(sub)}</td></tr></table></div>`; };
     return groups.slice(0,2).map(g => { const gr = rows.filter(r=>r[catCol.key]===g); const h = gr[0]||{};
       const headerBlk = `<div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:12.5px;margin-bottom:10px;max-width:420px">${hdrCols.map(c=>`<div style="color:#605e5c">${esc(T(c.name))}</div><div style="font-weight:600">${esc(disp(c,h[c.key]))}</div>`).join("")}</div>`;
       return `<div style="border:1px solid #e1dfdd;border-radius:8px;margin-bottom:16px;padding:14px 16px"><div style="font-weight:700;color:${acd};border-bottom:2px solid ${ac};padding-bottom:6px;margin-bottom:10px">${esc(T(catCol.name))}: ${esc(T(g))} <span style="font-weight:400;color:#605e5c;font-size:12px">(master record)</span></div>${headerBlk}<div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Line items (detail)</div><table class="rp-table"><thead><tr>${head}</tr></thead><tbody>${gr.map(trow).join("")}</tbody></table>${totals(gr)}</div>`; }).join("");
   }
   if (type === "Matrix (Cross Tab)" || type === "Pivot Report") {
+    // The AUTHORED matrix wins (D4): row groups, column groups and values the designer stored.
+    // The heuristic below survives only for reports that never authored one.
+    const authoredMatrix = opts.layout && opts.layout.matrix;
+    if (authoredMatrix) {
+      const model = matrixModel(cols, rows, authoredMatrix, (opts.layout && opts.layout.totals) || null);
+      if (model) return matrixTableHtml(model);
+    }
     const colCats = cat2 ? [...new Set(rows.map(r=>r[cat2.key]))] : ["Personal","Corporate","SME"];
     const cell = (rg,ci) => { const gr = rows.filter(r=>r[catCol.key]===rg); const set = cat2 ? gr.filter(r=>r[cat2.key]===colCats[ci]) : gr.filter((r,j)=>j%colCats.length===ci); return valCol?sum(set):set.length; };
     return `<table class="rp-table"><thead><tr><th>${esc(T(catCol.name))} \\ ${cat2?esc(T(cat2.name)):"Product"}</th>${colCats.map(c=>`<th class="num">${esc(T(c))}</th>`).join("")}<th class="num">${T("Total")}</th></tr></thead><tbody>${groups.map(rg=>`<tr><td><b>${esc(T(rg))}</b></td>${colCats.map((c,ci)=>`<td class="num">${valCol?money(cell(rg,ci)):cell(rg,ci)}</td>`).join("")}<td class="num"><b>${valCol?money(sum(rows.filter(r=>r[catCol.key]===rg))):rows.filter(r=>r[catCol.key]===rg).length}</b></td></tr>`).join("")}</tbody></table>${type==="Pivot Report"?`<div style="font-size:11px;color:#605e5c;margin-top:8px">↕ Drag fields to pivot rows/columns · interactive at run time</div>`:""}`;
@@ -1969,13 +2642,13 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${rows.slice(0,6).map(r=>`<div style="border:1px dashed #a19f9d;border-radius:4px;padding:12px;min-height:82px"><div style="font-weight:700">${esc(T(r[catCol.key]))}</div><div style="font-size:12px;color:#323130;margin-top:4px">P.O. Box ${1000+String(r[catCol.key]).length*7}<br>Doha, Qatar<br>+974 4000 ${1000+(String(r[catCol.key]).length*137)%9000}</div></div>`).join("")}</div>`;
   }
   if (type === "Invoice Layout") {
-    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0); const tax = Math.round(subtotal*0.1);
+    const items = rows.slice(0,4); const line = r => valCol?(+r[valCol.key]||0):1200; const subtotal = items.reduce((s,r)=>s+line(r),0);
     const hdr = [["Invoice No","INV-10025"],["Customer",T(rows[0][catCol.key])],["Date","15-Jul-2026"],["Status","Paid"],["Sales Rep","John Smith"]];
     return `<div style="display:flex;justify-content:space-between;margin-bottom:14px"><div style="font-size:20px;font-weight:800;color:${ac}">INVOICE</div><div style="text-align:right;font-size:12px;color:#605e5c">Doha, Qatar</div></div>
       <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 16px;font-size:13px;margin-bottom:16px;max-width:340px">${hdr.map(x=>`<div style="color:#605e5c">${esc(x[0])}</div><div style="font-weight:600">${esc(x[1])}</div>`).join("")}</div>
       <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#605e5c;font-weight:700;margin-bottom:4px">Invoice line items</div>
       <table class="rp-table"><thead><tr><th class="num">Item</th><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Amount</th></tr></thead><tbody>${items.map((r,i)=>{const amt=line(r);const qty=[2,1,3,2][i%4];const price=Math.round(amt/qty);return `<tr><td class="num">${i+1}</td><td>${esc(T(r[catCol.key]))}</td><td class="num">${qty}</td><td class="num">${money(price)}</td><td class="num">${money(amt)}</td></tr>`;}).join("")}</tbody></table>
-      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr><td style="padding:2px 16px;color:#605e5c">Subtotal</td><td style="text-align:right">${money(subtotal)}</td></tr><tr><td style="padding:2px 16px;color:#605e5c">Tax (10%)</td><td style="text-align:right">${money(tax)}</td></tr><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal+tax)}</td></tr></table></div>`;
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><table style="font-size:13px"><tr style="font-weight:700"><td style="padding:6px 16px;border-top:2px solid ${ac}">${T("Total")}</td><td style="text-align:right;border-top:2px solid ${ac}">${money(subtotal)}</td></tr></table></div>`;
   }
   if (type === "Statement Layout") {
     let bal = 250000; const txns = rows.slice(0,6);
@@ -2015,7 +2688,7 @@ function buildPreviewBody(type, cols, rows, opts) {
     return `<div style="display:flex;gap:12px;overflow-x:auto">${statuses.map((s,si)=>{const items=cat2?rows.filter(r=>r[cat2.key]===s):rows.filter((r,i)=>i%3===si);return `<div style="flex:1;min-width:150px;background:#f3f2f1;border-radius:6px;padding:8px"><div style="font-weight:700;font-size:12px;margin-bottom:8px;color:#323130">${esc(T(s))} <span style="color:#605e5c">(${items.length})</span></div>${items.slice(0,3).map(r=>`<div style="background:#fff;border:1px solid #e1dfdd;border-radius:4px;padding:8px;margin-bottom:6px;font-size:12px;border-top:2px solid ${ac}"><b>${esc(T(r[catCol.key]))}</b>${valCol?`<div style="color:#605e5c">${money(+r[valCol.key]||0)}</div>`:""}</div>`).join("")}</div>`;}).join("")}</div>`;
   }
   if (type === "Drill-down Report") {
-    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T("rows")}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
+    return `<table class="rp-table"><thead><tr><th style="width:20px"></th>${head}</tr></thead><tbody>${groups.map((g,gi)=>{const gr=rows.filter(r=>r[catCol.key]===g);const open=gi===0;return `<tr class="group-head"><td>${open?"▾":"▸"}</td><td colspan="${cols.length}">${esc(T(g))} — ${gr.length} ${T(plural(gr.length, "row"))}${valCol?` · ${money(sum(gr))}`:""}</td></tr>${open?gr.map(r=>`<tr><td></td>${cols.map(c=>`<td class="${isRight(c)?"num":""}">${esc(disp(c,r[c.key]))}</td>`).join("")}</tr>`).join(""):""}`;}).join("")}</tbody></table><div style="font-size:11px;color:#605e5c;margin-top:6px">▸ Click a group to expand · interactive at run time</div>`;
   }
   if (type === "Comparison Report") {
     const a = groups[0], b = groups[1]||groups[0]; const ga = rows.filter(r=>r[catCol.key]===a), gb = rows.filter(r=>r[catCol.key]===b);

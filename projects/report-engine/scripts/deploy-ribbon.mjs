@@ -17,6 +17,14 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join } from 'node:path';
+import { connect } from './lib/dataverse.mjs';
+
+/* One connection for the whole script: it reads the env file, authenticates by DV_AUTH_MODE
+   (entra | adfs | windows) and asks the organisation which Web API version it serves. */
+const dv = await connect(process.argv[2]);
+const baseUrl = dv.baseUrl;
+const API_PATH = `api/data/v${dv.apiVersion}`;
+
 
 const RIBBON_SOLUTION = 'qdb_reportengineribbon';
 const RIBBON_SOLUTION_DISPLAY = 'QDB Report Engine — Ribbon';
@@ -117,32 +125,12 @@ function ribbonDiffXml() {
     + '<LocLabels /></RibbonDiffXml>';
 }
 
-function loadEnv(path) {
-  const env = {};
-  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (match) env[match[1]] = match[2].replace(/^["']|["']$/g, '');
-  }
-  return env;
-}
-
-async function getToken(tenant, clientId, secret, url) {
-  const body = new URLSearchParams({
-    grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope: `${url}/.default`
-  });
-  const res = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, { method: 'POST', body });
-  if (!res.ok) throw new Error(`token ${res.status}: ${await res.text()}`);
-  return (await res.json()).access_token;
-}
-
-let baseUrl, token;
-const headers = () => ({
-  Authorization: `Bearer ${token}`, Accept: 'application/json', 'Content-Type': 'application/json',
+const headers = () => ({ Accept: 'application/json', 'Content-Type': 'application/json',
   'OData-MaxVersion': '4.0', 'OData-Version': '4.0'
 });
 
 async function api(method, path, body) {
-  const res = await fetch(`${baseUrl}/api/data/v9.2/${path}`, {
+  const res = await dv.request(`${baseUrl}/${API_PATH}/${path}`, {
     method, headers: headers(), body: body ? JSON.stringify(body) : undefined
   });
   if (!res.ok) throw new Error(`${method} ${path} ${res.status}: ${(await res.text()).slice(0, 600)}`);
@@ -243,12 +231,6 @@ async function waitForAsyncOperation(asyncOperationId) {
   }
   throw new Error(`solution import did not complete within ${IMPORT_TIMEOUT_MS / 1000}s`);
 }
-
-const env = loadEnv(process.argv[2]);
-baseUrl = (env.DV_DATAVERSE_URL || env.DATAVERSE_URL || 'https://org5869857f.crm4.dynamics.com').replace(/\/$/, '');
-token = await getToken(
-  env.DV_TENANT_ID || env.AZURE_TENANT_ID, env.DV_CLIENT_ID || env.AZURE_CLIENT_ID,
-  env.DV_CLIENT_SECRET || env.AZURE_CLIENT_SECRET, baseUrl);
 
 console.log(`\n== Deploy Report Engine ribbon on "${targetEntity}" → ${baseUrl} ==\n`);
 
