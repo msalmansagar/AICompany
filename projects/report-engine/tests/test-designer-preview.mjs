@@ -25,7 +25,7 @@ const NEEDED = [
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
   'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
-  'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip',
+  'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip', 'wizardDatasetShim',
   'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',
   'reportFilterXml', 'previewFilterCondition', 'previewFilterValue', 'previewWildcards',
   'rootRowsCacheKey', 'reportRootRows', 'isReportRootLoading'
@@ -38,7 +38,7 @@ const EXPORTED = [
   'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'blockQueryBase', 'sourceProblems',
   'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS',
-  'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols'
+  'fieldsFromFetchXml', 'datasetFieldsOf', 'datasetKindChip', 'blockPreviewCols', 'wizardDatasetShim'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -444,6 +444,19 @@ console.log('"Fields from query" reads what the FetchXML actually selects');
     + '<link-entity name="account"><attribute name="fullname"/></link-entity></entity></fetch>';
   check('attributes come back in order, deduplicated', api.fieldsFromFetchXml(fetchXml).join('|') === 'fullname|jobtitle', api.fieldsFromFetchXml(fetchXml).join('|'));
   check('a non-XML payload yields nothing', api.fieldsFromFetchXml('My Active View').length === 0);
+}
+
+console.log('the wizard hands the dialog its draft, in the report shape');
+{
+  const draft = { mainEntity: 'qdb_termsheet', columns: ['qdb_name', 'qdb_termsheetid'], extraDatasets: [facilities()] };
+  const shim = api.wizardDatasetShim(draft);
+  check('draft columns become attribute objects, so the parent-key check works',
+    shim.columns.map(c => c.attribute).join('|') === 'qdb_name|qdb_termsheetid', JSON.stringify(shim.columns));
+  check('the SAME array backs dataSources, so the dialog Remove reaches the draft',
+    shim.dataSources === draft.extraDatasets);
+  check('the parent-key validation sees the wizard columns',
+    api.sourceProblems(facilities(), 'F', shim.columns.map(c => c.attribute)).length === 0,
+    JSON.stringify(api.sourceProblems(facilities(), 'F', shim.columns.map(c => c.attribute))));
 }
 
 console.log('the tree chip tells the truth about how a dataset runs');

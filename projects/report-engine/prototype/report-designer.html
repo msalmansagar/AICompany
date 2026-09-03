@@ -5666,7 +5666,9 @@ function bindDatasetTree(host, r, spec) {
 const DATASET_DIALOG_TABS = [["dsquery", "Query"], ["dsfields", "Fields"]];
 
 function openDatasetProperties(r, source, onClose) {
-  const scrim = el(`<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" style="width:780px;max-width:94vw">
+  // above-wizard: the wizard overlay sits at z-index 60, and this dialog also opens from its Data
+  // step — a default scrim at 50 would be present in the DOM and invisible on screen.
+  const scrim = el(`<div class="scrim above-wizard"><div class="dialog" role="dialog" aria-modal="true" style="width:780px;max-width:94vw">
     <div class="dialog-head"><h3>Dataset properties — <span id="dp_name"></span></h3><button class="close-x">✕</button></div>
     <div class="pivot" id="dp_tabs" role="tablist"></div>
     <div class="dialog-body" style="max-height:62vh;overflow:auto"><div id="dp_body"></div></div>
@@ -5699,8 +5701,10 @@ function openDatasetProperties(r, source, onClose) {
   scrim.querySelector("[data-close]").onclick = close;
   const remove = scrim.querySelector("[data-dpremove]");
   if (remove) remove.onclick = () => {
-    // In-memory until Save, so removing here is as reversible as any other unsaved edit.
-    r.dataSources = r.dataSources.filter(candidate => candidate !== source);
+    // In-memory until Save, so removing here is as reversible as any other unsaved edit. Spliced in
+    // place, because the wizard hands this dialog its draft's own list and must see the removal.
+    const index = r.dataSources.indexOf(source);
+    if (index >= 0) r.dataSources.splice(index, 1);
     close();
   };
 }
@@ -6748,6 +6752,46 @@ function wizBasics(host, d) {
   $("#wz_category").addEventListener("change", () => { d.category = $("#wz_category").value; });
   $("#wz_module").addEventListener("change", () => { d.module = $("#wz_module").value; });
 }
+/* ---------- Wizard: more datasets ----------
+   The wizard could only ever create the primary source; every additional dataset meant finishing
+   the wizard and configuring the rest in the designer. The SAME Dataset properties dialog now
+   serves both surfaces, so a dataset authored either way is the same thing. */
+
+function extraDatasetsCard(d) {
+  d.extraDatasets = d.extraDatasets || [];
+  const rows = d.extraDatasets.map((source, index) => `<div class="ds-row" style="max-width:520px" data-wzds="${index}">
+      <span class="ds-name">${esc(source.name || "Dataset")}</span>${datasetKindChip(source)}
+      <button class="icon-btn ds-gear" style="opacity:1" title="Dataset properties">${ic("edit")}</button>
+    </div>`).join("");
+  return `<div class="section-card" style="max-width:900px"><h3>More datasets <span class="rel-tag">optional</span></h3>
+    <div class="hint">Each extra dataset runs as its <b>own block</b> under the main result — its own table and query, or static rows — scoped to the main record via join keys (master–detail). Remove one inside its properties.</div>
+    ${rows}<button class="btn sm btn-add" id="wz_adddataset" style="margin-top:8px">${ic("add")}Add dataset</button></div>`;
+}
+
+/** The dialog thinks in the report shape; the draft holds columns as logical names. Same array for
+    dataSources, so the dialog's Remove acts on the draft itself. */
+function wizardDatasetShim(d) {
+  return {
+    mainEntity: d.mainEntity,
+    columns: (d.columns || []).map(attribute => ({ attribute })),
+    parameters: d.parameters || [],
+    dataSources: d.extraDatasets
+  };
+}
+
+function bindExtraDatasets(host, d) {
+  const redraw = () => wizDataForm(host, d);
+  host.querySelectorAll("[data-wzds]").forEach(row => row.onclick = () =>
+    openDatasetProperties(wizardDatasetShim(d), d.extraDatasets[+row.dataset.wzds], redraw));
+  const add = host.querySelector("#wz_adddataset");
+  if (add) add.onclick = () => {
+    const created = { name: "New dataset", type: "FetchXML", connector: "", query: "", primary: false,
+      composition: "Standalone", entity: "", columns: "", joinFromKey: "", joinToKey: "", enabled: true, rowLimit: "" };
+    d.extraDatasets.push(created);
+    openDatasetProperties(wizardDatasetShim(d), created, redraw);
+  };
+}
+
 function wizData(host, d) {
   d._dataView = d._dataView || "form";
   host.innerHTML = `<div id="wz_dv"></div>`;
@@ -6978,6 +7022,8 @@ function wizDataForm(host, d) {
 
     ${joinsCard}
 
+    ${extraDatasetsCard(d)}
+
     <div class="section-card" style="max-width:900px"><h3>External data sources</h3>
       <div class="info-banner" style="margin-bottom:14px">${ic("info")}<div>Your <b>administrator configures each system once</b> under <b>External Connectors</b> (Core Banking, MIS, SQL, REST…). Here you just pick a connected system, map the matching key, and choose which way parameters flow — <b>CRM → source</b> (e.g. send customer number to Core Banking) or <b>source → CRM</b> (e.g. bring balances back to match a CRM record).</div></div>
       ${extCards}
@@ -6998,6 +7044,7 @@ function wizDataForm(host, d) {
     wizDataForm(host,d);
   };
   $("#wz_entity").onchange = (e) => { if (e.target.value !== d.mainEntity) { d.mainEntity = e.target.value; d.columns = []; } wizDataForm(host,d); };
+  bindExtraDatasets(host, d);
   host.querySelectorAll("[data-src]").forEach(c => c.onclick = () => {
     if (d.sourceType === c.dataset.src) return;
     d.sourceType = c.dataset.src;
@@ -8854,7 +8901,10 @@ function wizCreate() {
   const cat = draftColumnCatalogue(d);
   Object.assign(def, { name:d.name, description:d.description, category:d.category, module:d.module, owner:d.owner, governed:d.governed, mainEntity:d.mainEntity, status:"Draft", version:1 });
   def.dataSources = [{ name:d.dataSourceName||"Primary", type:d.sourceType, connectorId:d.dataSourceConnectorId||"",
-    query:d.dataSourceQuery||"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"", enabled:true, rowLimit:"" }];
+    query:d.dataSourceQuery||"", primary:true, composition:"Joined", entity:"", columns:"", joinFromKey:"", joinToKey:"", enabled:true, rowLimit:"" }]
+    // The datasets authored in the wizard's Data step, copied so later designer edits and the
+    // abandoned draft cannot share one object.
+    .concat((d.extraDatasets || []).map(source => ({ ...source })));
   def.columns = d.columns.map(a => {
     const m = cat.find(x => x.a === a);
     const source = columnSourceOf(m || { a }, d.mainEntity);
