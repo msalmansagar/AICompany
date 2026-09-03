@@ -99,7 +99,9 @@ public static class ParameterSubstitution
                 + "add the parameter, or correct the token.");
         }
 
-        if (supplied.TryGetValue(name, out var value) && !string.IsNullOrEmpty(value))
+        // The DECLARED name is the lookup key, not the token's own casing: the parameter was just
+        // found case-insensitively, and a supplied value keyed "LoanId" must reach "@loanid" too.
+        if (supplied.TryGetValue(parameter.ParameterName ?? name, out var value) && !string.IsNullOrEmpty(value))
         {
             resolved = value!;
             return true;

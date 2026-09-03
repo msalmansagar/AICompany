@@ -504,6 +504,44 @@ namespace Qdb.ReportEngine.CrmPlugin.Tests
             Assert.DoesNotContain("@LoanId", store.Queried[0]);
         }
 
+        [Fact]
+        public void Execute_MatchesATokenToItsSuppliedValueRegardlessOfCase()
+        {
+            // The token's casing in hand-written FetchXML need not match the declared name's; the
+            // DECLARED name is the contract, and the supplied value is keyed by it.
+            var store = new FetchStore();
+
+            new SdkReportEngine(store).Execute(
+                TokenReport(block: TokenBlock(value: "@loanid")), Supplying("LoanId", "LN-2041"));
+
+            Assert.Contains("LN-2041", store.Queried[1]);
+            Assert.DoesNotContain("@loanid", store.Queried[1]);
+        }
+
+        [Fact]
+        public void Execute_RefusesTheReportWithTheTokensOwnGuidanceWhenTheRootQueryCannotResolve()
+        {
+            // A block turns this throw into a named failure block; the root has no block to carry
+            // it, so it must surface as a message Classify keeps verbatim — not "unexpected_error".
+            var store = new FetchStore();
+            var root = Source("Accounts", DatasetComposition.Joined, "account", isPrimary: true)
+                with
+            {
+                SourceType = new CodedValue(null, "FetchXML"),
+                QueryPayload = "<fetch><entity name=\"account\"><attribute name=\"name\"/>"
+                    + "<filter><condition attribute=\"accountid\" operator=\"eq\" value=\"@LoanId\"/></filter></entity></fetch>"
+            };
+            var definition = Report(root) with
+            {
+                Parameters = [new ReportParameter { Id = Guid.NewGuid(), ParameterName = "LoanId", DefaultValue = null }]
+            };
+
+            var error = Assert.Throws<InvalidPluginExecutionException>(
+                () => new SdkReportEngine(store).Execute(definition, new ReportExecutionRequest()));
+
+            Assert.Contains("LoanId", error.Message);
+        }
+
         /// <summary>
         /// D2 — a filter bound to a dataset belongs to THAT dataset's query. Unbound filters stay
         /// the root's; a bound one names the block table's own attributes, which is exactly why the

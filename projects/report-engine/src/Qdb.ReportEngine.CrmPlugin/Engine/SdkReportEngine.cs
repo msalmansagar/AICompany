@@ -118,7 +118,18 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             // too (a block re-enters Execute as its own primary), so one line serves every dataset.
             if (supplied is not null)
             {
-                supplied = ParameterSubstitution.ApplyTo(supplied, definition, request.ParameterValues);
+                try
+                {
+                    supplied = ParameterSubstitution.ApplyTo(supplied, definition, request.ParameterValues);
+                }
+                catch (InvalidOperationException error)
+                {
+                    // The message carries the fix ("add the parameter…"). Left unwrapped, Classify
+                    // files an InvalidOperationException under unexpected_error and the user reads
+                    // a generic line instead — while the same fault on a block, whose catch keeps
+                    // Message verbatim, would explain itself. Wrapping keeps the two paths agreeing.
+                    throw new InvalidPluginExecutionException(error.Message);
+                }
             }
 
             var fetchXml = supplied is null ? query.FetchXml : Combine(supplied, query);
@@ -220,18 +231,6 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
         }
 
         /// <summary>
-        /// The report as this one source sees it: the source becomes the only source, and its own
-        /// entity becomes the root.
-        ///
-        /// The composition is flipped to joined so the query builder includes the source's mappings —
-        /// it excludes standalone ones precisely so they do not leak into the parent's query.
-        ///
-        /// The report's filters are dropped rather than carried across: they name attributes of the
-        /// root entity, and a standalone block queries a different one, so applying them would fail
-        /// the query outright. Relationships go with them — drilldown belongs to the root
-        /// (MDS-FR-025).
-        /// </summary>
-        /// <summary>
         /// A standalone block scoped to the parent the report is about (MDS-FR-003).
         ///
         /// This is the master-detail case: one Termsheet with its Requested Facilities and its
@@ -274,12 +273,14 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
             return SubReportPlanner.ScopeToParent(scoped, source.JoinFromKey, parentKey);
         }
 
-        /// <summary>Reads the parent's identifying value, preferring the stored value over its display text.</summary>
+        /// <summary>Reads the parent's identifying value, preferring the stored value over its display
+        /// text. Empty — never null — when the root does not carry the column; the caller refuses an
+        /// empty key with its own guidance.</summary>
         private static string ParentKeyOf(ReportResultRow row, string alias)
         {
-            if (!row.Cells.TryGetValue(alias, out var cell)) return null;
+            if (!row.Cells.TryGetValue(alias, out var cell)) return string.Empty;
             if (cell.Value != null) return Convert.ToString(cell.Value, CultureInfo.InvariantCulture);
-            return cell.Text;
+            return cell.Text ?? string.Empty;
         }
 
         /// <summary>
@@ -289,6 +290,16 @@ namespace Qdb.ReportEngine.CrmPlugin.Engine
         private static ReportDefinition ScopeToNothing(ReportDefinition scoped, string childKey) =>
             SubReportPlanner.ScopeToParent(scoped, childKey, Guid.Empty.ToString());
 
+        /// <summary>
+        /// The report as this one source sees it: the source becomes the only source, and its own
+        /// entity becomes the root.
+        ///
+        /// The composition is flipped to joined so the query builder includes the source's mappings —
+        /// it excludes standalone ones precisely so they do not leak into the parent's query.
+        ///
+        /// Relationships are dropped rather than carried across — drilldown belongs to the root
+        /// (MDS-FR-025).
+        /// </summary>
         private static ReportDefinition ScopedToSource(ReportDefinition definition, ReportDataSource source) =>
             definition with
             {
