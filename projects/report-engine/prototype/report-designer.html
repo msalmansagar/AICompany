@@ -8440,9 +8440,14 @@ function previewTotalsRow(cols, rows, totals) {
   const texts = cols.map(c => previewTotalText(totals[c.key], rows.map(row => row[c.key])));
   const labelAt = texts.findIndex(text => text === null);
   const label = previewTotalsLabel(cols, totals);
+  // Every column authored leaves no free cell, so the label shares the first one — mirroring the
+  // runtime's totalsRowOf, which the preview must not disagree with.
+  if (labelAt < 0 && texts.length) texts[0] = `${label}: ${texts[0]}`;
   const cells = cols.map((c, i) => i === labelAt
     ? `<td>${esc(label)}</td>`
-    : `<td class="${texts[i] == null ? "" : "num"}">${texts[i] == null ? "" : esc(texts[i])}</td>`);
+    : (labelAt < 0 && i === 0)
+      ? `<td>${esc(texts[0])}</td>`
+      : `<td class="${texts[i] == null ? "" : "num"}">${texts[i] == null ? "" : esc(texts[i])}</td>`);
   return `<tr class="totals-row">${cells.join("")}</tr>`;
 }
 

@@ -416,7 +416,8 @@ function applyReportPipeline(result, def){
 /* Datasets an export or chart cannot represent, so the user can be told rather than left to notice
    a report arriving one table short (MDS-FR-023). */
 const omittedDatasetNames = result =>
-  datasetsOf(result).slice(1).map(d => d.name).filter(Boolean);
+  // Not filter(Boolean): a block named "0" is falsy and would vanish from its own warning.
+  datasetsOf(result).slice(1).map(d => d.name).filter(name => name != null && name !== "");
 
 async function openReport(id){
   state.view="run";
@@ -930,7 +931,10 @@ function totalsRowOf(totals, dataset){
   if (!totals || !cols.some(c => totals[c.alias] && totals[c.alias] !== "None")) return null;
   const cells = cols.map(c => totalCellOf(totals[c.alias], c, dataset.rows || []));
   const labelAt = cells.findIndex(cell => cell === null);
+  // Every column authored leaves no free cell, so the label shares the first one — an unlabelled
+  // run of numbers reads as one more data row, and never says whether it is a sum or an average.
   if (labelAt >= 0) cells[labelAt] = { text: totalsRowLabel(totals, cols), isLabel: true };
+  else cells[0] = { text: `${totalsRowLabel(totals, cols)}: ${cells[0].text}`, isLabel: true };
   return cells;
 }
 

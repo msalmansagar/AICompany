@@ -66,8 +66,9 @@ function makeCanvas(){
   return canvas;
 }
 
-// Capture what saveBlob would have downloaded.
+// Capture what saveBlob would have downloaded, and what the user would have been told.
 const downloads = [];
+const toasts = [];
 // Direction is injected rather than stubbed away, so the right-to-left paths are exercised too:
 // the sheet direction Excel needs, and the Arabic font a PDF needs. Both were shipped broken once.
 let rightToLeft = false;
@@ -78,7 +79,7 @@ const api = new Function('esc', 'state', 'toast', 'captureBlob', 'isReportRtl', 
   saveBlob = (blob, filename) => captureBlob(blob, filename);
   return { exportCsv, exportExcel, exportPdf, exportPng, exportRows, loadLibrary, EXPORT_FORMATS };
 `)(s => String(s ?? ''), harnessState,
-   () => {}, (blob, filename) => downloads.push({ blob, filename }),
+   message => toasts.push(message), (blob, filename) => downloads.push({ blob, filename }),
    () => rightToLeft, () => rightToLeft ? 'ar' : 'en');
 
 // Load the vendored libraries the way the browser would.
@@ -210,6 +211,18 @@ writeFileSync(join(tmpdir(), 'export-check-multi.pdf'), bytes);
 downloads.length = 0; await api.exportPng(multi, 'termsheet');
 bytes = bytesOf(downloads[0].blob);
 check('the PNG is valid', bytes.slice(0, 4).toString('hex') === '89504e47');
+
+console.log('\nmulti-dataset — CSV names every block it could not carry');
+{
+  // A block named "0" is falsy; filter(Boolean) once dropped it from its own omission warning.
+  const zeroNamed = { ...multi, datasets: [multi.datasets[0],
+    { ...multi.datasets[1], name: '0' }, multi.datasets[2]] };
+  downloads.length = 0; toasts.length = 0;
+  await api.exportCsv(zeroNamed, 'termsheet');
+  const warning = toasts.find(message => String(message).includes('not included')) || '';
+  check('the warning lists the block named "0"', String(warning).includes('0'), String(warning));
+  check('and the other omitted block', String(warning).includes('Termsheet Conditions'), String(warning));
+}
 
 // D6 — the print page. The page the author set up is the page the PDF is, and every page carries
 // the document's chrome: repeated header, page number, watermark. Decoded from the content

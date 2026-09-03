@@ -541,6 +541,10 @@ console.log('the preview totals functions match the runtime semantics');
   check('nothing numeric is an em dash', api.previewTotalText('Sum', ['a', 'b']) === '—');
   check('an Avg row is labelled Average, never Total',
     /Average/.test(api.previewTotalsRow([{ key: 'x' }, { key: 'y' }], [{ y: '2' }, { y: '4' }], { y: 'Avg' })));
+  // Every column authored leaves no free cell — the label shares the first one, as the runtime does.
+  const allAuthored = api.previewTotalsRow(
+    [{ key: 'x' }, { key: 'y' }], [{ x: '1', y: '2' }, { x: '3', y: '4' }], { x: 'Sum', y: 'Avg' });
+  check('every column authored still names the row', /Totals: 4/.test(allAuthored), allAuthored);
 }
 
 console.log('totals round-trip through the layout JSON by the aliases the result will carry');

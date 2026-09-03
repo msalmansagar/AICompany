@@ -52,6 +52,13 @@ console.log('totals come only from what was authored');
   const cells = api.totalsRowOf({ qdb_amount: 'Sum' }, dataset());
   check('a Sum sums the typed values', cells[1].text === '1,250,000', JSON.stringify(cells));
   check('the label lands in the un-totalled column', cells[0].text === 'Total' && cells[0].isLabel === true, JSON.stringify(cells[0]));
+
+  // Every column authored leaves no free cell for the label; it must share the first cell rather
+  // than vanish — an unlabelled run of numbers reads as one more data row.
+  const allAuthored = api.totalsRowOf({ qdb_facilitytype: 'Count', qdb_amount: 'Sum' }, dataset());
+  check('every column authored still names the row in the first cell',
+    allAuthored[0].isLabel === true && allAuthored[0].text === 'Totals: 2', JSON.stringify(allAuthored[0]));
+  check('and the other totals stay where they were', allAuthored[1].text === '1,250,000', JSON.stringify(allAuthored[1]));
 }
 
 console.log('every function answers from the real rows');
