@@ -1797,6 +1797,8 @@ function unreadableViewReason(entity, viewName) {
    matched by prefix rather than compared. */
 const isCrmViewSource = type => String(type || "").startsWith("CRM View");
 const isStaticSource = type => String(type || "").startsWith("Static Dataset");
+/** Whether a source shows the block-only fields: standalone, and not static (inline rows have no table). */
+const isBlockConfigSource = s => isStandalone(s) && !isStaticSource(s.type);
 
 /** What the payload box is actually for, which depends entirely on the read method. */
 function queryPlaceholder(type) {
@@ -4648,7 +4650,7 @@ function tabDataSources(body, r) {
      shape this designer is trying to stop producing. A STATIC block is standalone but has no table
      either: its rows are inline JSON and its columns come from the row keys, so the same dashes
      apply there. */
-  const blockCell = (s, i, key, placeholder) => isStandalone(s) && !isStaticSource(s.type)
+  const blockCell = (s, i, key, placeholder) => isBlockConfigSource(s)
     ? `<td><input class="fluent-input" data-i="${i}" data-k="${key}" value="${esc(s[key] || "")}" placeholder="${esc(placeholder)}"></td>`
     : `<td style="text-align:center;color:var(--text-secondary)">—</td>`;
   const rowHtml = (s,i) => `<tr>
@@ -5247,14 +5249,25 @@ function renderManualDesigner(c) {
 /** One editable list, described rather than hand-written: eleven panels differ only in their fields. */
 const RAIL_PANELS = {
   dataSources: {
-    title: "Data sources", hint: "Where the report reads from.",
+    title: "Data sources", hint: "Where the report reads from. A Standalone source runs as its own dataset block under the main result.",
     list: r => r.dataSources, label: s => s.name || "Source",
     add: () => ({ name: "New source", type: "FetchXML", connector: "", query: "", primary: false, composition: "Joined", entity: "", columns: "", joinFromKey: "", joinToKey: "", enabled: true, rowLimit: "" }),
+    /* The card offered Name/Read via/Query/Primary and nothing else — but a saved report OPENS on
+       the canvas, so the one surface authors actually land on could not make a source Standalone or
+       give a block its table. Same visibility rule as the tabbed grid: block fields only for a
+       standalone non-static source, so nothing renders that would be stored and never read. */
     fields: [
       { k: "name", label: "Name" },
       { k: "type", label: "Read via", options: () => SOURCE_TYPES },
+      { k: "composition", label: "Composition", options: () => COMPOSITION_LABELS, when: s => !s.primary },
+      { k: "entity", label: "Block table", type: "entity", when: isBlockConfigSource },
+      { k: "columns", label: "Block columns (logical names)", when: isBlockConfigSource },
+      { k: "joinToKey", label: "Parent key (a report column)", when: isBlockConfigSource },
+      { k: "joinFromKey", label: "Child key (on the block table)", type: "attr", when: isBlockConfigSource },
+      { k: "rowLimit", label: "Row limit", when: isBlockConfigSource },
       { k: "query", label: "Query" },
-      { k: "primary", label: "Primary source", type: "check" }
+      { k: "primary", label: "Primary source", type: "check" },
+      { k: "enabled", label: "Enabled", type: "check", when: s => !s.primary }
     ]
   },
   externalSources: {
@@ -5454,7 +5467,9 @@ function railCard(r, spec, item, onRemove) {
     <div class="rc-head"><b>${esc(spec.label(item))}</b><button class="del" data-rcdel>${ic("trash")}</button></div>
     <div class="rc-body"></div></div>`);
   const body = card.querySelector(".rc-body");
-  spec.fields.forEach(field => body.appendChild(el(railField(r, field, item))));
+  // A field can declare when it applies; refresh re-renders the card, so revealing follows the edit.
+  spec.fields.filter(field => !field.when || field.when(item))
+    .forEach(field => body.appendChild(el(railField(r, field, item))));
   card.querySelector("[data-rcdel]").onclick = onRemove;
   bindRailCard(card, item, r);
   return card;

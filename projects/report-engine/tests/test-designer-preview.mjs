@@ -15,7 +15,7 @@ const html = readFileSync(DESIGNER, 'utf8');
 
 const NEEDED = [
   'FORMATTED_SUFFIX', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
-  'isStandalone', 'isCrmViewSource', 'isStaticSource', 'sourceProblems',
+  'isStandalone', 'isCrmViewSource', 'isStaticSource', 'isBlockConfigSource', 'RAIL_PANELS', 'sourceProblems',
   'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
   'standaloneSourceProblems',
   'previewKey', 'previewCellValue', 'previewRawValue', 'toPreviewRow', 'previewCellText',
@@ -36,7 +36,7 @@ const EXPORTED = [
   'toPreviewRow', 'previewCellText', 'PREVIEW_ROW_LIMIT', 'PREVIEW_RAW',
   'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'blockQueryBase', 'sourceProblems',
-  'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading'
+  'reportFilterXml', 'previewFilterCondition', 'reportRootRows', 'rootRowsCacheKey', 'isReportRootLoading', 'RAIL_PANELS'
 ];
 
 /* The org the preview reads, and the queries it issued — the fakes stand in for Dataverse so the
@@ -334,6 +334,28 @@ console.log('a FetchXML payload that is not XML is refused, not silently ignored
 
   check('a joined non-primary with a query is still refused',
     /never executed/.test((api.sourceProblems({ name: 'J', composition: 'Joined', query: '<fetch/>' }, 'J', [])[0]) || ''), 'joined query slipped through');
+}
+
+/* A saved report OPENS on the canvas, so its rail card is where an author actually meets the
+   multiple-datasets option. The card offered Name/Read via/Query/Primary and nothing else — the
+   Standalone choice existed only on a screen the canvas never links to. */
+console.log('the canvas rail card can author a dataset block');
+{
+  const fields = api.RAIL_PANELS.dataSources.fields;
+  const visible = source => fields.filter(f => !f.when || f.when(source)).map(f => f.k);
+
+  check('the primary source hides composition and block fields',
+    !visible({ primary: true }).some(k => ['composition', 'entity', 'columns', 'joinFromKey', 'joinToKey', 'rowLimit'].includes(k)),
+    visible({ primary: true }).join(','));
+  check('a joined source offers composition but no block fields',
+    visible({ composition: 'Joined' }).includes('composition') && !visible({ composition: 'Joined' }).includes('entity'),
+    visible({ composition: 'Joined' }).join(','));
+  check('a standalone source offers table, columns, keys and limit',
+    ['entity', 'columns', 'joinFromKey', 'joinToKey', 'rowLimit'].every(k => visible({ composition: 'Standalone' }).includes(k)),
+    visible({ composition: 'Standalone' }).join(','));
+  check('a static standalone source hides them again — inline rows have no table',
+    !visible({ composition: 'Standalone', type: 'Static Dataset' }).includes('entity'),
+    visible({ composition: 'Standalone', type: 'Static Dataset' }).join(','));
 }
 
 /* The preview always sampled the main table UNFILTERED — tolerable until blocks scoped themselves
