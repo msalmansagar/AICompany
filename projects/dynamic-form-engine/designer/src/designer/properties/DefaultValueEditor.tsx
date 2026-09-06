@@ -60,7 +60,10 @@ function SingleOptionDefault({ field }: Props): React.ReactElement {
   const updateField = useDesignerStore(s => s.updateField);
   const options = useSortedOptions(field.options);
   const selected = field.defaultValue ?? '';
-  const selectedLabel = options.find(o => o.value === selected)?.label ?? '';
+  const isUnknown = selected !== '' && !options.some(o => o.value === selected);
+  const selectedLabel = isUnknown
+    ? missingOptionLabel(selected)
+    : options.find(o => o.value === selected)?.label ?? '';
 
   const handleSelect = useCallback(
     (value: string) => {
@@ -80,6 +83,7 @@ function SingleOptionDefault({ field }: Props): React.ReactElement {
         placeholder="No default"
       >
         <Option value={NO_DEFAULT}>No default</Option>
+        {isUnknown && <Option value={selected}>{missingOptionLabel(selected)}</Option>}
         {options.map(option => (
           <Option key={option.value} value={option.value}>
             {option.label}
@@ -104,8 +108,9 @@ function MultiOptionDefault({ field }: Props): React.ReactElement {
 
   if (options.length === 0) return <NoOptionsHint />;
 
+  const unknown = selected.filter(value => !options.some(o => o.value === value));
   const selectedLabels = selected
-    .map(value => options.find(o => o.value === value)?.label ?? value)
+    .map(value => options.find(o => o.value === value)?.label ?? missingOptionLabel(value))
     .join(', ');
 
   return (
@@ -117,6 +122,9 @@ function MultiOptionDefault({ field }: Props): React.ReactElement {
         onOptionSelect={(_, data) => handleSelect(data.selectedOptions)}
         placeholder="No default"
       >
+        {unknown.map(value => (
+          <Option key={value} value={value}>{missingOptionLabel(value)}</Option>
+        ))}
         {options.map(option => (
           <Option key={option.value} value={option.value}>
             {option.label}
@@ -136,6 +144,15 @@ function NoOptionsHint(): React.ReactElement {
       </Text>
     </Field>
   );
+}
+
+/**
+ * A stored default naming no current option is shown as itself rather than as nothing.
+ * Rendering it blank would read as "no default" while the old value stayed stored, and
+ * the maker would have no way to see what the field actually carries.
+ */
+function missingOptionLabel(value: string): string {
+  return `${value} (no longer an option)`;
 }
 
 function useSortedOptions(options: DesignerOptionValue[]): DesignerOptionValue[] {
