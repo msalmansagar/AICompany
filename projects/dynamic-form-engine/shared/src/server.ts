@@ -14,6 +14,16 @@ export {
   MAX_EXPRESSION_OPS,
   MAX_EXPRESSION_DURATION_MS,
 } from './engines/ExpressionEngineServer.js';
+// Field defaults: one codec so the designer, its preview and the runtime read a stored
+// default the same way (a multi-select default is a JSON array in a single text column).
+export {
+  resolveFieldDefaultValue,
+  parseMultiSelectDefault,
+  serialiseMultiSelectDefault,
+  parseBooleanDefault,
+  isMultiValueFieldType,
+  isBooleanFieldType,
+} from './fields/defaultValue.js';
 export { calculateContrastRatio } from './utils/contrastRatio.js';
 export { isRenderableImageUrl, renderableImageUrl } from './utils/imageUrl.js';
 export type { ContrastResult } from './utils/contrastRatio.js';

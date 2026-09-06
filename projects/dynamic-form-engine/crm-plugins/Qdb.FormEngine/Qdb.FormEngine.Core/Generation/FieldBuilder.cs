@@ -365,9 +365,22 @@ namespace Qdb.FormEngine.Core.Generation
                     config.LookupTargetEntity = (string)obj["lookupTargetEntity"];
                     config.LookupDisplayAttribute = (string)obj["lookupDisplayAttribute"];
                     config.LookupValueAttribute = (string)obj["lookupValueAttribute"];
+                    config.LookupSort = ReadLookupSort(obj);
                 }
             }
             catch { /* malformed options JSON — leave defaults (empty options, no filter meta) */ }
+        }
+
+        /// <summary>
+        /// The lookup sort direction under either key. The designer writes "lookupSort";
+        /// "sort" is accepted because column JSON authored by hand uses the shorter name.
+        /// An unrecognised value publishes as null, so the list stays unordered rather than
+        /// carrying a direction the runtime cannot honour.
+        /// </summary>
+        private static string ReadLookupSort(JObject obj)
+        {
+            var raw = (string)(obj["lookupSort"] ?? obj["sort"]);
+            return raw == "asc" || raw == "desc" ? raw : null;
         }
 
         private List<ValidationRule> BuildValidationRules(Guid fieldId)

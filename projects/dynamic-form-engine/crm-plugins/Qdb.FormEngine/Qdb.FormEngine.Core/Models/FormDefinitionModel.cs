@@ -416,6 +416,14 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
         [JsonProperty("lookupValueAttribute")] public string LookupValueAttribute { get; set; }
+
+        /// <summary>
+        /// Orders the lookup's options by the display attribute ("asc"/"desc"). Omitted when
+        /// unset so every grid published before this stays byte-identical.
+        /// </summary>
+        [JsonProperty("lookupSort", NullValueHandling = NullValueHandling.Ignore)]
+        public string LookupSort { get; set; }
+
         [JsonProperty("options")] public List<GridColumnOptionValue> Options { get; set; }
     }
 

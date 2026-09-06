@@ -21,6 +21,7 @@ import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPane
 import type { DesignerFieldModel } from '@/state/models/DesignerFormModel';
 import { ValidationRulesPanel } from './panels/ValidationRulesPanel';
 import { PropertyTabs } from './PropertyTabs';
+import { DefaultValueEditor } from './DefaultValueEditor';
 import { TextFieldPanel } from './panels/TextFieldPanel';
 import { NumberFieldPanel } from './panels/NumberFieldPanel';
 import { DropdownFieldPanel } from './panels/DropdownFieldPanel';
@@ -356,17 +357,7 @@ export function FieldProperties({ fieldId }: FieldPropertiesProps): React.ReactE
             onChange={(_, data) => updateField(fieldId, { isHidden: data.checked })}
           />
         </div>
-        {!isDisplayOnly && (
-          <Field label="Default Value">
-            <Input
-              value={field.defaultValue ?? ''}
-              onChange={(_, data) =>
-                updateField(fieldId, { defaultValue: data.value || null })
-              }
-              placeholder="Optional default value"
-            />
-          </Field>
-        )}
+        {!isDisplayOnly && <DefaultValueEditor field={field} />}
         {(field.fieldType === 'currency') && (
           <Field label="Currency Code" hint="ISO 4217, e.g. QAR, USD">
             <Input

@@ -26,6 +26,7 @@ import type {
   GridColumnConfig,
   GridColumnOptionValue,
   GridColumnFilterType,
+  GridLookupSort,
   GridValidationFormat,
   FileUploadConfig,
   FieldPlacement,
@@ -613,6 +614,7 @@ export class CrmMetadataService extends CrmBaseService {
         lookupTargetEntity: meta.lookupTargetEntity,
         lookupDisplayAttribute: meta.lookupDisplayAttribute,
         lookupValueAttribute: meta.lookupValueAttribute,
+        lookupSort: meta.lookupSort,
       });
       map.set(fieldId, existing);
     }
@@ -1750,6 +1752,14 @@ interface ParsedColumnMeta {
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
   lookupValueAttribute?: string;
+  lookupSort?: GridLookupSort;
+}
+
+// The sort direction under either key: the designer writes `lookupSort`, while column
+// JSON authored by hand uses the shorter `sort`.
+function parseLookupSort(obj: Record<string, unknown>): GridLookupSort | undefined {
+  const raw = obj['lookupSort'] ?? obj['sort'];
+  return raw === 'asc' || raw === 'desc' ? raw : undefined;
 }
 
 function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
@@ -1768,6 +1778,7 @@ function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
         lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : undefined,
+        lookupSort: parseLookupSort(obj),
       };
     }
     return {};

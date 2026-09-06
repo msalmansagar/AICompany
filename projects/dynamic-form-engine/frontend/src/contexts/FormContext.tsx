@@ -15,6 +15,7 @@ import type {
   DraftSubmission,
   ScopedButton,
 } from '@qdb/shared';
+import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
@@ -434,7 +435,9 @@ function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
 
   // DFE-TABZONE-001: include header/footer zone fields, not only section fields.
   for (const field of getAllFormFields(formDefinition)) {
-    values[field.schemaName] = field.defaultValue ?? null;
+    // One text column carries the default for every field type, so it has to be coerced
+    // to the shape the control expects — a multi-select reads a list, a checkbox a boolean.
+    values[field.schemaName] = resolveFieldDefaultValue(field);
   }
 
   return values;

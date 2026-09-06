@@ -3,14 +3,14 @@ import { withSequentialDisplayOrder } from '@/services/gridColumnOrder';
 import { assertGuid } from './assertGuid';
 import { ENTITY_NAMES } from '@/constants/entityNames';
 import { GRID_COLUMN_CONFIG_ATTRS } from '@/constants/attributeNames';
-import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType, GridLookupSort, GridValidationFormat } from '@/state/models/DesignerFormModel';
 import { withRetry } from './crmRetry';
 
 // Encodes filter metadata into the v2 extended options JSON format.
 // Falls back to a plain array if no filter metadata is set and options exist.
 function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   const hasOptions = col.optionsJson != null && col.optionsJson.trim().startsWith('[');
-  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute || col.lookupValueAttribute;
+  const hasFilterMeta = col.filterType !== 'none' || col.lookupTargetEntity || col.lookupDisplayAttribute || col.lookupValueAttribute || col.lookupSort;
 
   if (!hasOptions && !hasFilterMeta) return null;
 
@@ -29,8 +29,16 @@ function encodeOptionsJson(col: DesignerGridColumnConfig): string | null {
   if (col.lookupTargetEntity) v2['lookupTargetEntity'] = col.lookupTargetEntity;
   if (col.lookupDisplayAttribute) v2['lookupDisplayAttribute'] = col.lookupDisplayAttribute;
   if (col.lookupValueAttribute) v2['lookupValueAttribute'] = col.lookupValueAttribute;
+  if (col.lookupSort) v2['lookupSort'] = col.lookupSort;
 
   return JSON.stringify(v2);
+}
+
+// The sort direction, under either key. The designer writes `lookupSort`; `sort` is
+// accepted because column JSON authored by hand uses the shorter name.
+function readLookupSort(obj: Record<string, unknown>): GridLookupSort | null {
+  const raw = obj['lookupSort'] ?? obj['sort'];
+  return raw === 'asc' || raw === 'desc' ? raw : null;
 }
 
 // Decodes the options JSON field into filter metadata + raw options string.
@@ -40,8 +48,9 @@ function decodeOptionsJson(raw: string | null | undefined): {
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
   lookupValueAttribute: string | null;
+  lookupSort: GridLookupSort | null;
 } {
-  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null, lookupValueAttribute: null };
+  const defaults = { optionsJson: null, filterType: 'none' as GridColumnFilterType, lookupTargetEntity: null, lookupDisplayAttribute: null, lookupValueAttribute: null, lookupSort: null };
   if (!raw) return defaults;
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -60,6 +69,7 @@ function decodeOptionsJson(raw: string | null | undefined): {
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : null,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : null,
         lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : null,
+        lookupSort: readLookupSort(obj),
       };
     }
   } catch { /* fall through */ }
@@ -134,7 +144,8 @@ export class GridColumnConfigService {
       || col.filterType !== undefined
       || col.lookupTargetEntity !== undefined
       || col.lookupDisplayAttribute !== undefined
-      || col.lookupValueAttribute !== undefined;
+      || col.lookupValueAttribute !== undefined
+      || col.lookupSort !== undefined;
     if (filterFieldChanged) {
       data[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] = encodeOptionsJson(col as DesignerGridColumnConfig) ?? null;
     }
@@ -232,7 +243,7 @@ export class GridColumnConfigService {
     const rawOptionsJson = record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON] != null
       ? String(record[GRID_COLUMN_CONFIG_ATTRS.OPTIONS_JSON])
       : null;
-    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute, lookupValueAttribute } = decodeOptionsJson(rawOptionsJson);
+    const { optionsJson, filterType, lookupTargetEntity, lookupDisplayAttribute, lookupValueAttribute, lookupSort } = decodeOptionsJson(rawOptionsJson);
     return {
       id: String(record[GRID_COLUMN_CONFIG_ATTRS.ID] ?? ''),
       columnLabel: String(record[GRID_COLUMN_CONFIG_ATTRS.COLUMN_LABEL] ?? ''),
@@ -257,6 +268,7 @@ export class GridColumnConfigService {
       lookupTargetEntity,
       lookupDisplayAttribute,
       lookupValueAttribute,
+      lookupSort,
     };
   }
 }

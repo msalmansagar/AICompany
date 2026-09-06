@@ -223,6 +223,19 @@ export class FormLinter {
     const validSectionIds = new Set(Object.keys(input.sections));
 
     for (const rule of Object.values(input.businessRules)) {
+      // A rule is published on the field that triggers it. With no trigger it is attached
+      // to no field, so it never reaches the runtime and never fires — and nothing else
+      // reports that, because an empty code is not an orphaned one.
+      if (!rule.definition.trigger_field_code.trim()) {
+        findings.push({
+          severity: 'error',
+          code: 'L005',
+          message: `Business rule "${rule.name}" has no trigger field, so it never runs`,
+          nodeType: 'rule',
+          nodeId: rule.id,
+        });
+      }
+
       const orphanedCodes = collectOrphanedBusinessRuleCodes(rule.definition, validFieldCodes);
       for (const orphanedCode of orphanedCodes) {
         findings.push({

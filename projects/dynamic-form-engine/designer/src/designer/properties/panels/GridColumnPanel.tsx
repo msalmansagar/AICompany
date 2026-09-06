@@ -15,7 +15,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import { AttributeCombobox } from '@/components/AttributeCombobox';
 import { withSequentialDisplayOrder, nextDisplayOrder } from '@/services/gridColumnOrder';
-import type { DesignerGridColumnConfig, GridColumnFilterType, GridValidationFormat } from '@/state/models/DesignerFormModel';
+import type { DesignerGridColumnConfig, GridColumnFilterType, GridLookupSort, GridValidationFormat } from '@/state/models/DesignerFormModel';
 
 const COLUMN_FIELD_TYPES = [
   { value: 'text',    label: 'Text' },
@@ -43,6 +43,12 @@ const FILTER_TYPES: { value: GridColumnFilterType | 'auto'; label: string }[] = 
   { value: 'optionset', label: 'Option set' },
   { value: 'lookup',    label: 'Lookup (by name)' },
   { value: 'none',      label: 'No filter' },
+];
+
+const LOOKUP_SORTS: { value: GridLookupSort | 'none'; label: string }[] = [
+  { value: 'none', label: 'Unsorted' },
+  { value: 'asc',  label: 'Ascending (A-Z)' },
+  { value: 'desc', label: 'Descending (Z-A)' },
 ];
 
 function deriveDefaultFilterType(fieldType: string): GridColumnFilterType {
@@ -164,6 +170,7 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
       lookupTargetEntity: null,
       lookupDisplayAttribute: null,
       lookupValueAttribute: null,
+      lookupSort: null,
     };
     updateField(fieldId, { gridColumns: [...columns, newCol] });
   }, [fieldId, columns, updateField]);
@@ -367,6 +374,25 @@ export function GridColumnPanel({ fieldId, showIsEditable = false }: Props): Rea
                   onChange={name => handleUpdate(col.id, { lookupValueAttribute: name || null })}
                   ariaLabel="Value / ID Attribute"
                 />
+              </Field>
+              <Field
+                label="Sort"
+                className={styles.fieldRowItem}
+                hint="Orders the options by the display attribute."
+              >
+                <Select
+                  size="small"
+                  value={col.lookupSort ?? 'none'}
+                  onChange={(_, d) =>
+                    handleUpdate(col.id, {
+                      lookupSort: d.value === 'none' ? null : (d.value as GridLookupSort),
+                    })
+                  }
+                >
+                  {LOOKUP_SORTS.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </Select>
               </Field>
             </div>
           )}

@@ -296,6 +296,13 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
     setDefinition(prev => ({ ...prev, trigger_field_code: code }));
   }, []);
 
+  // A trigger naming a field this form no longer has is kept and shown as missing rather
+  // than quietly replaced, so the maker sees which rule broke and why.
+  const isTriggerFieldMissing =
+    definition.trigger_field_code !== '' && !fieldCodes.includes(definition.trigger_field_code);
+
+  const canSave = name.trim() !== '' && definition.trigger_field_code.trim() !== '';
+
   const updateLogicalOp = useCallback((op: LogicalOperator) => {
     setDefinition(prev => ({
       ...prev,
@@ -366,11 +373,29 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
 
       <div className={styles.editorSection} style={{ marginTop: '16px' }}>
         <Text weight="semibold" size={300} block style={{ marginBottom: '12px' }}>Trigger</Text>
-        <Field label="Trigger Field">
+        <Field
+          label="Trigger Field"
+          required
+          // A rule is published on the field that triggers it. Without one it reaches no
+          // field, so it is never evaluated and silently does nothing.
+          hint="The rule is re-evaluated whenever this field changes."
+          validationState={definition.trigger_field_code ? 'none' : 'error'}
+          validationMessage={
+            definition.trigger_field_code ? undefined : 'Choose a trigger field — a rule without one never runs.'
+          }
+        >
           <Select
             value={definition.trigger_field_code}
             onChange={(_, d) => updateTriggerField(d.value)}
           >
+            {/* An empty value must have an option of its own. Without it the browser shows
+                the first field as though it were chosen while the rule stores no trigger. */}
+            <option value="">— Select a field —</option>
+            {isTriggerFieldMissing && (
+              <option value={definition.trigger_field_code}>
+                {definition.trigger_field_code} (not on this form)
+              </option>
+            )}
             {fieldCodes.map(code => (
               <option key={code} value={code}>{code}</option>
             ))}
@@ -513,7 +538,7 @@ function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDele
         <Button appearance="subtle" icon={<DismissRegular />} onClick={onCancel}>
           Cancel
         </Button>
-        <Button appearance="primary" icon={<CheckmarkRegular />} onClick={handleSave} disabled={!name.trim()}>
+        <Button appearance="primary" icon={<CheckmarkRegular />} onClick={handleSave} disabled={!canSave}>
           Save Rule
         </Button>
       </div>

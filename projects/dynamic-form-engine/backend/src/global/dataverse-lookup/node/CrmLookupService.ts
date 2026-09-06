@@ -146,7 +146,9 @@ export class CrmLookupService implements DataverseLookupService {
       `$select=${[...select].join(',')}`,
       filters.length > 0 ? `$filter=${filters.join(' and ')}` : null,
       `$top=${top}`,
-      `$orderby=${primaryAttribute} asc`,
+      // Ascending stays the default so callers that never asked for an order keep the
+      // alphabetical list they have always had.
+      `$orderby=${primaryAttribute} ${query.sortDirection ?? 'asc'}`,
     ]
       .filter((part): part is string => part !== null)
       .join('&');

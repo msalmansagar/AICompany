@@ -651,6 +651,9 @@ export type GridViewMode = 'both' | 'table' | 'card';
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a grid lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
 /**
  * Shape a grid cell's value must take. 'custom' defers to the column's validationPattern;
  * every other member carries its own pattern (see GRID_FORMAT_PATTERNS) so a maker picks a
@@ -696,6 +699,9 @@ export interface GridColumnConfig {
   // The target-entity attribute used as the stored record ID. Absent ⇒ the
   // entity's primary key ({entity}id) — see CrmLookupService.
   lookupValueAttribute?: string;
+  // Order the lookup's options by its display attribute. Absent ⇒ the query is left
+  // unordered, which is how every grid lookup published before this behaved.
+  lookupSort?: GridLookupSort;
   // Options for dropdown-type columns within a grid.
   options?: GridColumnOptionValue[];
 }

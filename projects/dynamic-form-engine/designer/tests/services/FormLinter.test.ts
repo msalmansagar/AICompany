@@ -468,6 +468,30 @@ describe('FormLinter — L005 orphaned rule targets', () => {
     expect(FormLinter.checkOrphanedBusinessRuleReferences(input)).toHaveLength(0);
   });
 
+  // A rule is published on the field that triggers it. With no trigger it reaches no field,
+  // so it never runs — and an empty code is not an orphaned one, so nothing else reports it.
+  it('reportsAnError_whenTheRuleHasNoTriggerField', () => {
+    const rule = ruleTargeting({ target_section_id: 'section-1' }, 'hide_section');
+    rule.definition.trigger_field_code = '';
+    const input = makeCleanInput({ businessRules: { 'brule-1': rule } });
+
+    const findings = FormLinter.checkOrphanedBusinessRuleReferences(input);
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.severity).toBe('error');
+    expect(findings[0]?.message).toContain('no trigger field');
+  });
+
+  it('reportsNothing_whenTheRuleHasATriggerField', () => {
+    const input = makeCleanInput({
+      businessRules: {
+        'brule-1': ruleTargeting({ target_section_id: 'section-1' }, 'hide_section'),
+      },
+    });
+
+    expect(FormLinter.checkOrphanedBusinessRuleReferences(input)).toHaveLength(0);
+  });
+
   it('reportsAnError_whenTheTargetedTabIsGone', () => {
     const input = makeCleanInput({
       businessRules: { 'brule-1': ruleTargeting({ target_tab_id: 'tab-deleted' }, 'hide_tab') },

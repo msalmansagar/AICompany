@@ -22,8 +22,6 @@ Qdb.FormEngine\
       FormJsonGenerator.cs          # Maps raw entities → FormDefinitionModel
       ITranslationResolver.cs
       TranslationResolver.cs
-      ISecurityStripper.cs
-      SecurityStripper.cs
     Hashing\
       HashService.cs                # SHA-256 hex
     Models\
@@ -49,7 +47,6 @@ Qdb.FormEngine\
   Qdb.FormEngine.Tests\             # xUnit + Moq
     FormJsonGeneratorTests.cs
     TranslationResolverTests.cs
-    SecurityStripperTests.cs
     HashServiceTests.cs
     GzipCompressorTests.cs
 ```

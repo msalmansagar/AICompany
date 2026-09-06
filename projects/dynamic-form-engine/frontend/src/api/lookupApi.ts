@@ -10,6 +10,8 @@ export interface LookupSearchParams {
   // DFE-LKPCOL-001 — display columns as a JSON string + the current form language.
   columns?: string;
   lang?: string;
+  // Orders the results by the display attribute. Absent leaves the query unordered.
+  sort?: 'asc' | 'desc';
 }
 
 // DFE-APILOOKUP-001 — query for the external-API proxy route. The endpointKey resolves

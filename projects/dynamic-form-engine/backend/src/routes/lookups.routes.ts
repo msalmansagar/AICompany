@@ -36,6 +36,8 @@ const querySchema = z.object({
   // DFE-LKPCOL-001 — JSON array of { attribute, arabicAttribute?, header? } + form language.
   columns: z.string().optional(),
   lang: z.string().optional(),
+  // Orders results by the display attribute; omitted leaves the query unordered.
+  sort: z.enum(['asc', 'desc']).optional(),
 });
 
 // DFE-APILOOKUP-001: external-API proxy query. endpointKey resolves server-side;
@@ -97,6 +99,7 @@ export function createLookupsRouter(
       maxResults: query.max,
       displayColumns: parseColumns(query.columns),
       lang: query.lang,
+      sort: query.sort,
     });
 
     const response: ApiResponse<LookupResult[]> = { success: true, data: results };

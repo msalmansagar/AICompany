@@ -72,18 +72,33 @@ namespace Qdb.FormEngine.Tests
         [Fact]
         public void Generate_WithHiddenField_FieldIsStillPresent()
         {
-            // Arrange — stripping is SecurityStripper's responsibility, not the generator's
+            // Arrange — a hidden field means "not drawn", not "not published". Nothing in the
+            // publish pipeline removes it, so a rule can still show it or be triggered by it.
             var formId = Guid.NewGuid();
             var rawData = BuildFormRawDataWithHiddenField(formId);
 
             // Act
             var result = _generator.Generate(rawData, "en");
 
-            // Assert: the generator does not strip; the hidden field must be present
+            // Assert
             Assert.True(result.Tabs.Count > 0);
             Assert.True(result.Tabs[0].Sections.Count > 0);
             var field = result.Tabs[0].Sections[0].Fields[0];
-            Assert.True(field.IsHidden, "Generator must preserve hidden field; stripping is SecurityStripper's job.");
+            Assert.True(field.IsHidden, "The published form must keep the hidden field.");
+        }
+
+        [Fact]
+        public void Generate_WithHiddenField_FieldIsNotVisible()
+        {
+            // Arrange — publishing the field must not make it render.
+            var rawData = BuildFormRawDataWithHiddenField(Guid.NewGuid());
+
+            // Act
+            var result = _generator.Generate(rawData, "en");
+
+            // Assert
+            var field = result.Tabs[0].Sections[0].Fields[0];
+            Assert.False(field.IsVisible, "A hidden field must publish as not visible.");
         }
 
         [Fact]

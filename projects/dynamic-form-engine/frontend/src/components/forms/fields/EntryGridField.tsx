@@ -450,6 +450,7 @@ function EntryGridCell({
           entityName={col.lookupTargetEntity ?? ''}
           displayAttribute={col.lookupDisplayAttribute ?? 'name'}
           valueAttribute={col.lookupValueAttribute}
+          sort={col.lookupSort}
           cellId={cellId}
           headerId={headerId}
           onChange={handleChange}
@@ -488,6 +489,8 @@ interface GridLookupCellProps {
   displayAttribute: string;
   // Target-entity attribute stored as the record ID; undefined ⇒ primary key.
   valueAttribute?: string;
+  // Orders the option list by the display attribute; undefined ⇒ unordered.
+  sort?: 'asc' | 'desc';
   cellId: string;
   headerId: string;
   onChange: (value: unknown) => void;
@@ -507,6 +510,7 @@ function GridLookupCell({
   entityName,
   displayAttribute,
   valueAttribute,
+  sort,
   cellId,
   headerId,
   onChange,
@@ -518,6 +522,7 @@ function GridLookupCell({
     displayAttribute: displayAttribute || 'name',
     valueAttribute,
     maxResults: 10,
+    sort,
   });
 
   const selected = isGridLookupValue(value) ? value : null;

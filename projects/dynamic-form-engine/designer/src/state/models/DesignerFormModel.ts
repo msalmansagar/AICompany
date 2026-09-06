@@ -126,6 +126,9 @@ export interface DesignerLookupDisplayColumn {
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
 export interface DesignerGridColumnConfig {
   /** CRM GUID or 'tmp_col_<timestamp>' for unsaved columns */
   id: string;
@@ -148,6 +151,8 @@ export interface DesignerGridColumnConfig {
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
   lookupValueAttribute: string | null;
+  /** Absent leaves the lookup query unordered, as every grid published before this was. */
+  lookupSort?: GridLookupSort | null;
 }
 
 export interface DesignerFieldModel {

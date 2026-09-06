@@ -9,6 +9,8 @@ export interface LookupSearchParams {
   valueAttribute?: string;
   filter?: string;
   max?: number;
+  // Orders the results by the display attribute. Absent leaves the query unordered.
+  sort?: 'asc' | 'desc';
 }
 
 export const lookupApi = {
@@ -29,6 +31,7 @@ export const lookupApi = {
 
     let query = `?$select=${select}&$top=${top}`;
     if (clauses.length > 0) query += `&$filter=${encodeURIComponent(clauses.join(' and '))}`;
+    if (params.sort) query += `&$orderby=${params.displayAttribute} ${params.sort}`;
 
     const result = await webApi().retrieveMultipleRecords(entityName, query);
     const idAttribute = `${entityName}id`;

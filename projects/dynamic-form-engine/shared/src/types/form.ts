@@ -43,6 +43,9 @@ export type InfoCardSectionType = 'numbered-steps' | 'icon-list' | 'download-lis
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a grid lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
 export interface GridColumnOptionValue {
   value: string;
   label: string;
@@ -61,6 +64,8 @@ export interface GridColumnConfig {
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
   lookupValueAttribute?: string;
+  // Orders the lookup's options by its display attribute — see form.types.ts.
+  lookupSort?: GridLookupSort;
   options?: GridColumnOptionValue[];
 }
 

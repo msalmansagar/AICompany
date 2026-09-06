@@ -12,6 +12,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerSectionModel } from '@/state/models/DesignerFormModel';
 import type { DesignerStyleModel } from '@/state/models/DesignerStyleModel';
 import type { DesignPayload } from '@qdb/shared';
+import { parseBooleanDefault, parseMultiSelectDefault } from '@qdb/shared';
 
 function adaptPayloadToStyle(payload: DesignPayload): DesignerStyleModel {
   const { theme, formDesign } = payload;
@@ -224,12 +225,20 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
             readOnly
             tabIndex={-1}
             aria-label={field.label}
-            defaultChecked={field.defaultValue === 'true'}
+            checked={parseBooleanDefault(field.defaultValue) === true}
           />
         );
       case 'dropdown':
         return (
-          <select style={{ ...inputStyle, width: '100%' }} aria-label={field.label} tabIndex={-1}>
+          // Keyed on the default so editing it re-mounts the select — an uncontrolled
+          // defaultValue is otherwise only read on the first render.
+          <select
+            key={field.defaultValue ?? ''}
+            defaultValue={field.defaultValue ?? ''}
+            style={{ ...inputStyle, width: '100%' }}
+            aria-label={field.label}
+            tabIndex={-1}
+          >
             {field.options.length > 0
               ? field.options.map(opt => <option key={opt.id} value={opt.value}>{opt.label}</option>)
               : <option>-- Select --</option>
@@ -242,7 +251,13 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
             {field.options.length > 0
               ? field.options.map(opt => (
                   <label key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                    <input type="radio" readOnly name={field.id} tabIndex={-1} />
+                    <input
+                      type="radio"
+                      readOnly
+                      name={field.id}
+                      tabIndex={-1}
+                      checked={opt.value === field.defaultValue}
+                    />
                     {opt.label}
                   </label>
                 ))
@@ -278,7 +293,15 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
         );
       case 'multi_select':
         return (
-          <select style={{ ...inputStyle, width: '100%' }} multiple size={Math.min(4, field.options.length || 2)} aria-label={field.label} tabIndex={-1}>
+          <select
+            key={field.defaultValue ?? ''}
+            defaultValue={parseMultiSelectDefault(field.defaultValue)}
+            style={{ ...inputStyle, width: '100%' }}
+            multiple
+            size={Math.min(4, field.options.length || 2)}
+            aria-label={field.label}
+            tabIndex={-1}
+          >
             {field.options.length > 0
               ? field.options.map(opt => <option key={opt.id} value={opt.value}>{opt.label}</option>)
               : <option>-- No options defined --</option>
