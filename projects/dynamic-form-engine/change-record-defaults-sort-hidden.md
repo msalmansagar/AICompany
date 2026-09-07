@@ -145,7 +145,12 @@ render cache is about 9 KB against a guard near 707 KB, so the extra fields cost
 - The trigger picker now carries an explicit empty option, and a trigger that names a field
   the form no longer has is shown as missing rather than silently replaced.
 - Saving a rule without a trigger field is blocked.
-- Lint rule **L005** now reports an existing rule that has no trigger field.
+- Lint rule **L005** was extended to report an existing rule that has no trigger field.
+  **This finding is not reachable by a maker.** `FormLinter` is imported by nothing in
+  `designer/src` except its own test file, so it is tree-shaken out of the bundle and no
+  screen displays its findings. The check is correct and tested, and it will surface the
+  moment the linter is wired into the designer. Until then the two defences that do reach a
+  maker are the picker's empty option and the blocked save. See *Open items*.
 
 ---
 
@@ -201,6 +206,33 @@ republished; a follow-up read confirmed the original values and zero leftover re
 **Deployment.** Plugin assembly, in-CRM runtime web resource and the designer web
 resources were all deployed to org5869857f and published.
 
+**Deployment correction, 2026-09-07.** The first designer and runtime bundles were built
+*before* the last two source edits and were therefore a build behind: the stale-default
+display and the repeating-grid default coercion were not in the deployed code, although
+they were committed. Both bundles were rebuilt from the committed source and redeployed,
+and this time both publishes succeeded rather than failing with `ECONNRESET`.
+
+The deployed designer was then verified by reading the web resource content back with the
+service principal and searching for user-visible strings introduced by this change, which
+survive minification:
+
+```
+FOUND    "No default"                                     CHG-001 default picker
+FOUND    "no longer an option"                            CHG-001 stale default
+FOUND    "Add options first"                              CHG-001 no options yet
+FOUND    "Unsorted" / "Ascending (A-Z)"                   CHG-002 sort control
+FOUND    "Orders the options by the display attribute."   CHG-002 sort hint
+FOUND    "— Select a field —"                             DEF-002 empty trigger option
+FOUND    "a rule without one never runs"                  DEF-002 save guard
+FOUND    "(not on this form)"                             DEF-002 missing trigger field
+MISSING  "has no trigger field, so it never runs"         DEF-002 linter (unreachable, by design of the codebase)
+```
+
+**Not yet done: browser verification.** Driving the designer and runtime through the CRM UI
+was attempted and is blocked. Microsoft now demands interactive password re-verification
+for this tenant and signing in on the user's behalf is out of scope for the assistant, so
+the UI walkthrough is outstanding.
+
 ---
 
 ## 7. Data remediation performed
@@ -238,6 +270,10 @@ These were found during the work, are outside this record's scope, and are not f
 - **Tab header and footer fields never reach the render cache.** The C# `TabDefinition` has
   no `headerFields` or `footerFields`, so any DFE-TABZONE-001 placement is absent from the
   in-CRM path while the Node path and the runtime both support it.
+- **`FormLinter` is dead code repo-wide.** Nothing in `designer/src` imports it; only its
+  test file does. Every rule it implements, L001 through L012, is invisible to a maker.
+  Either wire it into the designer or delete it, but it should not sit there looking like a
+  working safety net.
 - **BR-002 is enforced in the browser, not on the server.** `stripHiddenFieldValues` removes
   hidden values before submit; `CrmSubmissionService.buildPayload` writes whatever arrives
   for a mapped field. Unchanged by this work, but worth an explicit decision.
