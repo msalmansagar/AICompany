@@ -1469,7 +1469,7 @@ This matrix is the authoritative disclosure document for which EDP capabilities 
 
 ---
 
-## Appendix B — EDP Competitive Parity Checklist (C-004 Resolution · verified 2026-07-27, Flowon added 2026-07-28)
+## Appendix B — EDP Competitive Parity Checklist (C-004 Resolution · verified 2026-07-27, Flowon added 2026-07-28, North52 data-reach rows refreshed 2026-08-18)
 
 This table is the authoritative input for sales positioning and go-to-market. "EDP Superior" means EDP delivers meaningfully better capability than North52's current offering. "North52 Superior" means North52 has a capability EDP does not.
 
@@ -1494,10 +1494,10 @@ Evidence quality differs by column and **must not be flattened**. Overstating a 
 | Column | Source | Confidence |
 |---|---|---|
 | **EDP** | Live environment `org5869857f` + committed registration manifest, re-verified each release | **High** — demonstrable |
-| **North52** | Public product documentation and market knowledge as of Phase 3 | **Medium** — not re-verified since 2026-07-03 |
+| **North52** | Public product documentation. Data-reach rows re-verified against North52's own function documentation 2026-08-18 (EDP-GAP-001); all other rows still as of Phase 3 | **Mixed** — data-reach rows **medium-high** (documented functions); everything else **medium**, not re-verified since 2026-07-03 |
 | **Flowon** | Vendor's own product page and its interactive product demos, walked 2026-07-28 (`flowon.com/dataverse/logic-composer`) | **Low-to-medium** — vendor marketing claims and simulated UI, **not hands-on use, not documentation review, not a trial tenant** |
 
-**Flowon rows are what the vendor says it does.** Treat every Flowon "Yes" as an unverified vendor claim. Before any Flowon row is used in a competitive deal, it must be confirmed against their documentation or a trial. The North52 column is also stale and should be re-verified on the same principle.
+**Flowon rows are what the vendor says it does.** Treat every Flowon "Yes" as an unverified vendor claim. Before any Flowon row is used in a competitive deal, it must be confirmed against their documentation or a trial. The North52 column was stale; its **data-reach rows were refreshed 2026-08-18** against North52's published function reference (§B.8). The remainder of the North52 column is still unrefreshed and should be completed on the same standard.
 
 Flowon also ships adjacent products not compared here (Process Orchestrator, API Builder, MCP Server, CLI Tools) and an on-premises D365 CE line. This appendix compares **Logic Composer only**.
 
@@ -1511,7 +1511,10 @@ Flowon also ships adjacent products not compared here (Process Orchestrator, API
 | Decision graph (node-based) | Limited | Yes — drag-drop **decision tree**, path-based | **LIVE** — JDM editor, 6 node types incl. switch | — | Parity |
 | Metadata-driven field selection | Partial | Not stated | **LIVE** — business names, no schema names | — | **EDP Superior** |
 | Cross-entity conditions (N:1) | Yes | Yes — read related records during computation | **LIVE** | — | Parity |
-| Child aggregation in conditions (1:N) | Yes | Not stated | **LIVE** — Count/Sum/Avg/Min/Max + filter | — | Parity |
+| Child aggregation in conditions (1:N) | Yes — `FindSumFD`, `FindECCount` over arbitrary FetchXML | Not stated | **LIVE** — Count/Sum/Avg/Min/Max + filter, **single hop, anchored to the target record, filter value must be a literal** | Widen | **North52 Superior** *(revised 2026-08-18, was Parity)* |
+| **Query an arbitrary record population from inside a rule** | Yes — `FindRecordsFD` / `FindRecordsFetchXml`, parameterised at runtime via `SetParams()` | Yes — read related records during computation | **NONE** — every read is anchored to `target.Id`; there is no population search | Wave 2, guard-railed | **North52 Superior** *(added 2026-08-18)* |
+| **Collection type and iteration over records** | Yes — `ForEachRecord`, `ForEachInline` (nested), `CurrentRecord()`, `RecordIndex()` | Yes — Loop construct in Logic Flow | **NONE** — the value system is scalar-only; the formula engine raises an error on collection aggregates by design | GAP-01, highest-value engine investment | **Both Superior** *(added 2026-08-18)* |
+| Multi-level child traversal (parent → child → grandchild) | Yes — via FetchXML link-entity | Not stated | **NONE** — single hop only | Widen | **North52 Superior** *(added 2026-08-18)* |
 | Reason codes on outcomes | No | Not stated | **LIVE** | — | **EDP Superior** |
 | Reusable validation rules | Partial | Yes — **Validation Sets** applied across entities | **PARTIAL** — validation is per rule, not a reusable set | Consider | **Flowon Superior** |
 | Rule cloning | Yes | Not stated | **LIVE** | — | Parity |
@@ -1533,7 +1536,7 @@ Flowon also ships adjacent products not compared here (Process Orchestrator, API
 | **Write-back of outputs to record fields** | Yes | Yes — Logic Flows have full create/update/delete access | **DESIGN** — ADR-EDS-07, consumer-performed | EDP-BIND-001 | **Both Superior** |
 | Multi-step stateful orchestration | Partial | Yes — **Logic Flow**: loops, switch, error handling, mid-flow block calls | **NONE** — the runtime is deliberately side-effect-free | Separate BRD | **Flowon Superior** |
 | Scheduled / time-based execution | Partial | Yes — **Schedule**, 5 frequencies, native background job, run history | **NONE** | Separate BRD | **Flowon Superior** |
-| Outbound REST integration | Partial | Yes — **Service Connection**: OpenAPI import, OAuth2 / API key / Basic | **NONE** | Separate BRD | **Flowon Superior** |
+| Outbound REST integration | **Yes** — `CallRestAPI` (method, headers, params, auth, typed response variables) plus **WebFusion** *(revised 2026-08-18, was Partial)* | Yes — **Service Connection**: OpenAPI import, OAuth2 / API key / Basic | **NONE** — the runtime has no HTTP client, by design | Separate BRD | **Both Superior** *(was Flowon Superior)* |
 | Publish/subscribe events between artifacts | No | Yes — **Events**: definitions, multiple handlers, sync + async, immutable log | **NONE** | Separate BRD | **Flowon Superior** |
 | Rollup / cross-record aggregate formulas | Yes | Not stated | **NONE** | Separate BRD | **North52 Superior** |
 | Workflow activity entry point | Yes | Yes — can trigger Business Processes from a recipe phase | **NONE** | Separate BRD | **Both Superior** |
@@ -1632,7 +1635,46 @@ Adding a second competitor moved the picture in both directions:
 | **Design validated** | Flowon's Logic Recipe independently confirms EDP-BIND-001's shape — per-entity binding, Validation/Before/After phases, per-step sync/async, blocking validation. Its **one recipe per entity** model is a cleaner answer to step ordering than the multi-binding ordering in FR-B9 and should be considered at architecture. |
 | **Evidence weakened** | The Flowon column is vendor marketing, not verified use. It is explicitly marked as such and must be confirmed before any competitive use. |
 
-**Open action:** the North52 column has not been re-verified since 2026-07-03 and is now the least trustworthy part of this table. It should be refreshed on the same evidence standard before the next competitive cycle.
+### B.8 North52 data-reach rows refreshed 2026-08-18 (EDP-GAP-001)
+
+A candidate customer requirement — duplicate invoice detection with unit-price
+threshold checks — was analysed for feasibility against the built engine
+(`gap-analysis-duplicate-invoice-detection.md`). Establishing whether EDP could
+deliver it required checking what the incumbents actually do, which produced the
+first partial refresh of the stale North52 column.
+
+**Refreshed on documented functions, not hands-on use.** Confidence is
+medium-high for these rows and unchanged elsewhere.
+
+| Row | Was | Now | Direction |
+|---|---|---|---|
+| Child aggregation (1:N) | Parity | North52 Superior — `FindSumFD` / `FindECCount` over arbitrary FetchXML vs our single-hop, target-anchored, literal-filtered fold | **Overstated** |
+| Query an arbitrary record population | *absent from the table* | North52 Superior — `FindRecordsFD`, `SetParams()` | **Omitted** |
+| Collection type and iteration | *absent from the table* | Both Superior — `ForEachRecord` / `ForEachInline` | **Omitted** |
+| Multi-level child traversal | *absent from the table* | North52 Superior — FetchXML link-entity | **Omitted** |
+| Outbound REST integration | Partial | Yes — `CallRestAPI` + WebFusion | **Understated (competitor)** |
+
+**What this changes in the positioning.** The invocation gap recorded in B.6 is
+narrower than the real deficit. North52 does not merely *trigger* where EDP
+cannot — it can **reach data** EDP cannot: other records, other tables, multiple
+relationship levels, and external REST endpoints. On the analysed requirement,
+North52 covers all five checks with no C# at all, where EDP covers two.
+
+The honest counter is unchanged and remains strong: a nested `ForEachRecord`
+over a fetched collection, calling a REST API, is code in everything but name —
+proprietary formula text with no source control, tests, debugger, approval
+workflow or simulation. For a control governing payment release that distinction
+is the argument, and EDP still holds every governance row in B.3.
+
+**GAP-01 — no collection type — is identified as the single highest-value engine
+investment.** It is what separates EDP from the DMN, Drools and IBM ODM tier,
+all of which express set-based logic natively while sharing EDP's "facts are
+supplied to us" data posture.
+
+**Open action (reduced, not closed):** the remaining North52 rows — authoring,
+governance, and the B.4/B.5 groups — have still not been re-verified since
+2026-07-03 and remain the least trustworthy part of this table. They should be
+refreshed on the same standard before the next competitive cycle.
 
 ---
 

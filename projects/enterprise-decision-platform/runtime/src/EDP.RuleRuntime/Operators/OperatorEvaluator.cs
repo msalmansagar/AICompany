@@ -23,13 +23,16 @@ namespace EDP.RuleRuntime.Operators
                 case "lessthan": return Cmp(left, right, c => c < 0);
                 case "lessthanorequal": return Cmp(left, right, c => c <= 0);
 
-                case "contains": return Str(left).IndexOf(Str(right), StringComparison.OrdinalIgnoreCase) >= 0;
-                case "notcontains": return Str(left).IndexOf(Str(right), StringComparison.OrdinalIgnoreCase) < 0;
+                // A collection left operand (multi-select option set, child fan-out) means
+                // membership, not substring: Contains asks "is this element selected",
+                // In asks "does the selection overlap the list".
+                case "contains": return RuntimeValue.IsCollection(left) ? ContainsElement(left, right) : Str(left).IndexOf(Str(right), StringComparison.OrdinalIgnoreCase) >= 0;
+                case "notcontains": return RuntimeValue.IsCollection(left) ? !ContainsElement(left, right) : Str(left).IndexOf(Str(right), StringComparison.OrdinalIgnoreCase) < 0;
                 case "startswith": return Str(left).StartsWith(Str(right), StringComparison.OrdinalIgnoreCase);
                 case "endswith": return Str(left).EndsWith(Str(right), StringComparison.OrdinalIgnoreCase);
 
-                case "in": return InList(left, right);
-                case "notin": return !InList(left, right);
+                case "in": return RuntimeValue.IsCollection(left) ? AnyOverlap(left, right) : InList(left, right);
+                case "notin": return RuntimeValue.IsCollection(left) ? !AnyOverlap(left, right) : !InList(left, right);
 
                 case "between": return Cmp(left, right, c => c >= 0) && Cmp(left, right2, c => c <= 0);
 
@@ -78,12 +81,26 @@ namespace EDP.RuleRuntime.Operators
 
         private static string Str(object? v) => RuntimeValue.AsString(v);
 
+        private static bool ContainsElement(object? collection, object? item)
+            => RuntimeValue.AsCollection(collection).Any(e => Eq(e, item));
+
+        private static bool AnyOverlap(object? collection, object? right)
+            => RuntimeValue.AsCollection(collection).Any(e => InList(e, right));
+
         private static bool InList(object? left, object? right)
         {
             if (right is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Array)
                 return je.EnumerateArray().Any(item => Eq(left, RuntimeValue.FromJson(item)));
-            if (right is IEnumerable<object?> list)
-                return list.Any(item => Eq(left, item));
+            // Non-generic IEnumerable, so value-typed collections are covered. Testing for
+            // IEnumerable<object?> silently missed List<decimal> and List<Guid>: they are
+            // IEnumerable<decimal>/IEnumerable<Guid>, and generic variance does not apply to
+            // value types, so membership fell through to the string fallback below and compared
+            // the operand against the collection's type name — returning false, never an error.
+            // String is excluded deliberately: it is IEnumerable<char>, and a string right
+            // operand means the comma-separated form.
+            if (right is System.Collections.IEnumerable sequence && !(right is string))
+                return sequence.Cast<object?>().Any(item => Eq(left, item));
+
             // comma-separated fallback
             return Str(right).Split(',').Select(s => s.Trim()).Any(s => string.Equals(s, Str(left), StringComparison.OrdinalIgnoreCase));
         }

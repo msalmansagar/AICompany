@@ -1,8 +1,10 @@
 import { MarkerType } from '@xyflow/react';
+import { BRANCH_EDGE_LABEL } from '../styles/surfacePairs';
 import type { Node, Edge } from '@xyflow/react';
 import type { CrmStep, CrmOutcome } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
 import type { StepOutcomeRow } from './WorkflowGraphBuilder';
+import { roleOfStepName } from './stageRoles';
 
 export const SWIM_STEP_W = 240;
 export const SWIM_STEP_H = 80;
@@ -23,11 +25,49 @@ export interface SwimlaneData extends Record<string, unknown> {
 }
 
 const LANE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  'Specific User': { bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
-  'Team':          { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
-  'Round Robin':   { bg: '#faf5ff', border: '#e9d5ff', text: '#7e22ce' },
+  'Specific User': { bg: 'var(--primary-tint-2)', border: 'var(--primary-tint)', text: 'var(--primary-pressed)' },
+  'Team':          { bg: 'var(--success-bg)', border: 'var(--success)', text: 'var(--success)' },
+  'Round Robin':   { bg: 'var(--accent-branch-bg)', border: 'var(--accent-branch)', text: 'var(--accent-branch)' },
 };
-const DEFAULT_LANE_COLOR = { bg: '#f8fafc', border: '#e2e8f0', text: '#475569' };
+const DEFAULT_LANE_COLOR = { bg: 'var(--surface-alt)', border: 'var(--border)', text: 'var(--text-secondary)' };
+
+/**
+ * Which lane a step belongs in: the person or team who actually does it.
+ *
+ * Lanes used to be the assignment MODE, so three differently-named users
+ * collapsed into one "SPECIFIC USER" lane — losing exactly the who-does-what
+ * the swimlane view exists to show. Steps with no assignee yet fall back to
+ * the mode, which is all that is known about them.
+ */
+export function laneNameOf(step: CrmStep): string {
+  const label = getAssignToLabel(step.assignToCode);
+  if (label === 'Team') return step.teamName?.trim() || 'Unassigned team';
+  if (label === 'Round Robin') return step.roundRobinTeamName?.trim() || 'Round robin (no team)';
+  if (label === 'Read From Parent') return 'From parent record';
+  const user = step.assignedUserName?.trim();
+  if (user) return user;
+  // The Loan process ships 28 Specific User steps with nobody chosen — one
+  // flat "Unassigned" lane held 80% of the diagram (CWFD-009 P9). The role
+  // in the step's own name is the only grouping signal left; use it, and
+  // keep "unassigned" in the label so the gap stays visible.
+  const role = roleOfStepName(step.name);
+  return role ? `${role} — unassigned` : 'Unassigned';
+}
+
+/** True for the fallback lanes that exist only because nobody was chosen. */
+export function isUnassignedLane(lane: string): boolean {
+  return lane === 'Unassigned' || lane.endsWith('— unassigned');
+}
+
+/** Lane tint by assignment mode, so the bands still read as kinds of work. */
+function laneColorsOf(step: CrmStep | undefined, lane: string) {
+  // An unassigned lane wears the warning tint — it is a to-do, not a person.
+  if (isUnassignedLane(lane)) {
+    return { bg: 'var(--warning-bg)', border: 'var(--warning)', text: 'var(--warning)' };
+  }
+  if (!step) return DEFAULT_LANE_COLOR;
+  return LANE_COLORS[getAssignToLabel(step.assignToCode)] ?? DEFAULT_LANE_COLOR;
+}
 
 export function buildSwimlaneGraph(
   steps: CrmStep[],
@@ -57,16 +97,35 @@ export function buildSwimlaneGraph(
   const laneOrder: string[] = [];
   const seenLanes = new Set<string>();
   for (const step of sorted) {
-    const lane = getAssignToLabel(step.assignToCode);
+    const lane = laneNameOf(step);
     if (!seenLanes.has(lane)) { laneOrder.push(lane); seenLanes.add(lane); }
   }
   const laneIndex = new Map(laneOrder.map((l, i) => [l, i]));
 
-  const totalWidth = LANE_LABEL_W + sorted.length * X_GAP + 80;
+  // A column is a moment in time. Steps that run at the same time as their
+  // parent share the parent's column (in their own lane), so the parallel
+  // sections stop widening the diagram for work that is not sequential.
+  const columnOf = new Map<string, number>();
+  let columnCount = 0;
+  for (const step of sorted) {
+    const parentColumn = step.parentStepId ? columnOf.get(step.parentStepId) : undefined;
+    const parent = step.parentStepId ? stepById.get(step.parentStepId) : undefined;
+    if (parentColumn !== undefined && parent && laneNameOf(parent) !== laneNameOf(step)) {
+      columnOf.set(step.id, parentColumn);
+    } else {
+      columnOf.set(step.id, columnCount);
+      columnCount += 1;
+    }
+  }
+
+  const totalWidth = LANE_LABEL_W + columnCount * X_GAP + 80;
 
   // Swimlane background nodes (rendered behind steps).
   const laneNodes: Node[] = laneOrder.map((lane, i) => {
-    const colors = LANE_COLORS[lane] ?? DEFAULT_LANE_COLOR;
+    const colors = laneColorsOf(
+      sorted.find((step) => laneNameOf(step) === lane),
+      lane
+    );
     return {
       id: `lane_${i}`,
       type: 'swimlane',
@@ -84,10 +143,11 @@ export function buildSwimlaneGraph(
     };
   });
 
-  // Step nodes positioned in their lane at their sequence x.
-  const stepNodes: Node[] = sorted.map((step, seqIndex) => {
-    const lane = getAssignToLabel(step.assignToCode);
+  // Step nodes positioned in their lane at their time-slot column.
+  const stepNodes: Node[] = sorted.map((step) => {
+    const lane = laneNameOf(step);
     const li = laneIndex.get(lane) ?? 0;
+    const seqIndex = columnOf.get(step.id) ?? 0;
     const stepOutcomes = outcomesByStep.get(step.id) ?? [];
     const outcomeRows: StepOutcomeRow[] = stepOutcomes.map((o) => ({
       id: o.id,
@@ -124,9 +184,9 @@ export function buildSwimlaneGraph(
       id: `e_fwd_${o.stepId}_${o.nextStepId}`,
       source: `step_${o.stepId}`, target: `step_${o.nextStepId}`,
       sourceHandle: 'right', targetHandle: 'left',
-      type: 'smoothstep',
-      style: { stroke: '#64748b', strokeWidth: 2 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
+      type: 'default',
+      style: { stroke: 'var(--text-secondary)', strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--text-secondary)' },
       selectable: false,
     });
   }
@@ -137,13 +197,15 @@ export function buildSwimlaneGraph(
     .map((o) => ({
       id: `e_back_${o.id}`,
       source: `step_${o.stepId}`, target: `step_${o.nextStepId!}`,
-      sourceHandle: 'bottom', targetHandle: 'bottom',
-      type: 'smoothstep',
+      sourceHandle: 'bottom', targetHandle: 'bottom-t',
+      type: 'default',
       label: `↩ ${truncate(o.name, 16)}`,
-      labelStyle: { fontSize: 10, fill: '#7c3aed', fontWeight: 600 },
-      labelBgStyle: { fill: '#f5f3ff', fillOpacity: 0.95, rx: 4 },
-      style: { stroke: '#7c3aed', strokeWidth: 1.5, strokeDasharray: '6 3' },
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#7c3aed' },
+      // Text and fill were both the accent — an invisible label, the same
+      // pairing the contrast guard protects BRANCH_EDGE_LABEL against.
+      labelStyle: { fontSize: 10, fill: BRANCH_EDGE_LABEL.foreground, fontWeight: 600 },
+      labelBgStyle: { fill: BRANCH_EDGE_LABEL.background, fillOpacity: 1, rx: 4 },
+      style: { stroke: 'var(--accent-branch)', strokeWidth: 1.5, strokeDasharray: '6 3' },
+      markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-branch)' },
       selectable: true,
     }));
 

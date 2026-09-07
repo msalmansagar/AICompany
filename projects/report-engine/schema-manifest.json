@@ -1,0 +1,885 @@
+{
+  "qdb_reportdefinition": {
+    "schemaName": "qdb_ReportDefinition",
+    "entitySet": "qdb_reportdefinitions",
+    "primaryId": "qdb_reportdefinitionid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_category",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_currentversionnumber",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_description",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_effectivefrom",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_effectiveto",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_executionmode",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_isgoverned",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_ispublished",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_module",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportcode",
+        "type": "String"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_requestcontractjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_responsecontractjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_retrypolicyjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_rowlimit",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_runtimeprovider",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_status",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_timeoutms",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportversion": {
+    "schemaName": "qdb_ReportVersion",
+    "entitySet": "qdb_reportversions",
+    "primaryId": "qdb_reportversionid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_approvedon",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_checksum",
+        "type": "String"
+      },
+      {
+        "name": "qdb_contractversion",
+        "type": "String"
+      },
+      {
+        "name": "qdb_definitionjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_iscurrent",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_layoutjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_publishstate",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportversionid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_versionlabel",
+        "type": "String"
+      },
+      {
+        "name": "qdb_versionnumber",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportdatasource": {
+    "schemaName": "qdb_ReportDataSource",
+    "entitySet": "qdb_reportdatasources",
+    "primaryId": "qdb_reportdatasourceid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_executionorder",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_externalconnectorid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_externalconnector"
+        ]
+      },
+      {
+        "name": "qdb_isprimary",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_mergekey",
+        "type": "String"
+      },
+      {
+        "name": "qdb_querypayload",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_reportdatasourceid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_sourcealias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_sourcetype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_timeoutseconds",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportentitymapping": {
+    "schemaName": "qdb_ReportEntityMapping",
+    "entitySet": "qdb_reportentitymappings",
+    "primaryId": "qdb_reportentitymappingid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_depth",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_entityalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_joinexpressionjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_jointype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_relationshiptype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdatasourceid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdatasource"
+        ]
+      },
+      {
+        "name": "qdb_reportentitymappingid",
+        "type": "Uniqueidentifier"
+      }
+    ]
+  },
+  "qdb_reportcolumn": {
+    "schemaName": "qdb_ReportColumn",
+    "entitySet": "qdb_reportcolumns",
+    "primaryId": "qdb_reportcolumnid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_aggregatefunction",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_datatype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_formatstring",
+        "type": "String"
+      },
+      {
+        "name": "qdb_grouporder",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_isvisible",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_outputalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_reportcolumnid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_reportentitymappingid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportentitymapping"
+        ]
+      },
+      {
+        "name": "qdb_sortorder",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportfilter": {
+    "schemaName": "qdb_ReportFilter",
+    "entitySet": "qdb_reportfilters",
+    "primaryId": "qdb_reportfilterid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_fieldalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_groupid",
+        "type": "String"
+      },
+      {
+        "name": "qdb_groupoperator",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_isruntimeprompt",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_operator",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportfilterid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_sequence",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_value",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_valuetype",
+        "type": "Picklist"
+      }
+    ]
+  },
+  "qdb_reportparameter": {
+    "schemaName": "qdb_ReportParameter",
+    "entitySet": "qdb_reportparameters",
+    "primaryId": "qdb_reportparameterid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_defaultsource",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_defaultvalue",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_displayorder",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_isrequired",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_label",
+        "type": "String"
+      },
+      {
+        "name": "qdb_lookuptargetentity",
+        "type": "String"
+      },
+      {
+        "name": "qdb_paramtype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportparameterid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_validationregex",
+        "type": "String"
+      }
+    ]
+  },
+  "qdb_reportrelationship": {
+    "schemaName": "qdb_ReportRelationship",
+    "entitySet": "qdb_reportrelationships",
+    "primaryId": "qdb_reportrelationshipid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_childalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_childkey",
+        "type": "String"
+      },
+      {
+        "name": "qdb_depth",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_externaljoinjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_opentype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_parentalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_parentkey",
+        "type": "String"
+      },
+      {
+        "name": "qdb_relationshiptype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportrelationshipid",
+        "type": "Uniqueidentifier"
+      }
+    ]
+  },
+  "qdb_reporttransformation": {
+    "schemaName": "qdb_ReportTransformation",
+    "entitySet": "qdb_reporttransformations",
+    "primaryId": "qdb_reporttransformationid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_configjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_enabled",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reporttransformationid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_steporder",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_transformtype",
+        "type": "Picklist"
+      }
+    ]
+  },
+  "qdb_reportformula": {
+    "schemaName": "qdb_ReportFormula",
+    "entitySet": "qdb_reportformulas",
+    "primaryId": "qdb_reportformulaid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_evaluationorder",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_expression",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_formulaalias",
+        "type": "String"
+      },
+      {
+        "name": "qdb_isconditional",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportformulaid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_resultdatatype",
+        "type": "Picklist"
+      }
+    ]
+  },
+  "qdb_reportlayout": {
+    "schemaName": "qdb_ReportLayout",
+    "entitySet": "qdb_reportlayouts",
+    "primaryId": "qdb_reportlayoutid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_footerjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_headerjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_layoutjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_layouttype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_pagesettingsjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportlayoutid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_themecolor",
+        "type": "String"
+      }
+    ]
+  },
+  "qdb_reportexportsetting": {
+    "schemaName": "qdb_ReportExportSetting",
+    "entitySet": "qdb_reportexportsettings",
+    "primaryId": "qdb_reportexportsettingid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_enabled",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_exportconfigjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_format",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportexportsettingid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_requiresapproval",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_watermarktext",
+        "type": "String"
+      }
+    ]
+  },
+  "qdb_reportribbonplacement": {
+    "schemaName": "qdb_ReportRibbonPlacement",
+    "entitySet": "qdb_reportribbonplacements",
+    "primaryId": "qdb_reportribbonplacementid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_businessunitidtext",
+        "type": "String"
+      },
+      {
+        "name": "qdb_commandid",
+        "type": "String"
+      },
+      {
+        "name": "qdb_formidtext",
+        "type": "String"
+      },
+      {
+        "name": "qdb_isenabled",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_placementtype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportribbonplacementid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_securityroleidtext",
+        "type": "String"
+      }
+    ]
+  },
+  "qdb_reportsecurity": {
+    "schemaName": "qdb_ReportSecurity",
+    "entitySet": "qdb_reportsecurities",
+    "primaryId": "qdb_reportsecurityid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_canapprove",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_canedit",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_canexecute",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_canexport",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_maskingpolicyjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_principalidtext",
+        "type": "String"
+      },
+      {
+        "name": "qdb_principaltype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportsecurityid",
+        "type": "Uniqueidentifier"
+      }
+    ]
+  },
+  "qdb_reportexecutionlog": {
+    "schemaName": "qdb_ReportExecutionLog",
+    "entitySet": "qdb_reportexecutionlogs",
+    "primaryId": "qdb_reportexecutionlogid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_cachehit",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_completedon",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_correlationid",
+        "type": "String"
+      },
+      {
+        "name": "qdb_durationms",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_errorcode",
+        "type": "String"
+      },
+      {
+        "name": "qdb_errordetail",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_executionstage",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_reportexecutionlogid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_requestid",
+        "type": "String"
+      },
+      {
+        "name": "qdb_requestpayload",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_resultsummary",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_rowcount",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_startedon",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_status",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_versionnumber",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportauditlog": {
+    "schemaName": "qdb_ReportAuditLog",
+    "entitySet": "qdb_reportauditlogs",
+    "primaryId": "qdb_reportauditlogid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_actiontype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_afterjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_beforejson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_changedon",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_comment",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_reportauditlogid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      }
+    ]
+  },
+  "qdb_externalconnector": {
+    "schemaName": "qdb_ExternalConnector",
+    "entitySet": "qdb_externalconnectors",
+    "primaryId": "qdb_externalconnectorid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_authmode",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_connectortype",
+        "type": "Picklist"
+      },
+      {
+        "name": "qdb_credentialreference",
+        "type": "String"
+      },
+      {
+        "name": "qdb_endpointurl",
+        "type": "String"
+      },
+      {
+        "name": "qdb_externalconnectorid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_headersjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_isactive",
+        "type": "Boolean"
+      },
+      {
+        "name": "qdb_residencyregion",
+        "type": "String"
+      },
+      {
+        "name": "qdb_retrycount",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_timeoutseconds",
+        "type": "Integer"
+      }
+    ]
+  },
+  "qdb_reportcache": {
+    "schemaName": "qdb_ReportCache",
+    "entitySet": "qdb_reportcaches",
+    "primaryId": "qdb_reportcacheid",
+    "primaryName": "qdb_name",
+    "fields": [
+      {
+        "name": "qdb_cachehash",
+        "type": "String"
+      },
+      {
+        "name": "qdb_cachekey",
+        "type": "String"
+      },
+      {
+        "name": "qdb_createdonutc",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_datasetjson",
+        "type": "Memo"
+      },
+      {
+        "name": "qdb_expiresonutc",
+        "type": "DateTime"
+      },
+      {
+        "name": "qdb_hitcount",
+        "type": "Integer"
+      },
+      {
+        "name": "qdb_reportcacheid",
+        "type": "Uniqueidentifier"
+      },
+      {
+        "name": "qdb_reportdefinitionid",
+        "type": "Lookup",
+        "targets": [
+          "qdb_reportdefinition"
+        ]
+      },
+      {
+        "name": "qdb_rolehash",
+        "type": "String"
+      }
+    ]
+  }
+}

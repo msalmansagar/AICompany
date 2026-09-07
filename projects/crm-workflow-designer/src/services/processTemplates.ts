@@ -11,6 +11,7 @@ import type {
 } from '@/types/WorkflowTypes';
 import { emptyEscalationFields } from '@/services/escalationFields';
 import { emptyBranchFields, emptyOutcomeConcurrency } from '@/services/branchFields';
+import { emptyAssignmentFields } from '@/services/taskAssignment';
 
 export interface TemplateGraph {
   steps: WorkflowStep[];
@@ -45,14 +46,9 @@ function buildStep(processId: string, name: string, sequenceNo: number): Workflo
     regardingFieldName: null,
     parentEntityId: null,
     parentEntityName: null,
-    assignTo: 'user',
-    assignedUserId: null,
-    assignedUserName: null,
-    teamId: null,
-    teamName: null,
-    roundRobinTeamId: null,
-    roundRobinTeamName: null,
+    allowBulkApproval: false,
     processId,
+    ...emptyAssignmentFields(),
     ...emptyEscalationFields(),
     ...emptyBranchFields(),
     workflowHooks: emptyWorkflowHooks(STEP_HOOKS),
@@ -67,7 +63,7 @@ function transition(fromStepId: string, toStepId: string, label: string, seq: nu
 } {
   const outcome: WorkflowOutcome = { crmId: generateTemporaryId(), name: label, sequenceNumber: seq, applyFilter: false, ...emptyOutcomeConcurrency(),
       workflowHooks: emptyWorkflowHooks(OUTCOME_HOOKS), stepId: fromStepId, nextStepId: toStepId };
-  const route: WorkflowRoute = { workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS), crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId };
+  const route: WorkflowRoute = { workflowHooks: emptyWorkflowHooks(ROUTE_HOOKS), crmId: generateTemporaryId(), name: label, subject: label, sequenceNumber: seq, filter: '', outcomeId: outcome.crmId, nextStepId: toStepId, isDefault: false };
   return { outcome, route };
 }
 

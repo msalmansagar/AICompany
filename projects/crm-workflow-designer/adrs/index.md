@@ -9,5 +9,7 @@
 | ADR-005 | FetchXML Builder: Two-Path Design with iframe Primary and react-querybuilder Fallback | Accepted | 2026-06-01 | Architect |
 | ADR-006 | Versioning Engine: CRM Schema Delta and Graceful Degradation | Accepted | 2026-06-01 | Architect |
 | ADR-007 | Bundle Strategy: Chunk Split, Lazy Loading, and 5 MB Constraint | Accepted | 2026-06-01 | Architect |
+| ADR-008 | SLA Schema as Config-Only Dataverse Contract (DP-2) | Accepted | 2026-07-21 | Architect |
+| ADR-009 | Escalation Target: Option-Set + Conditional Lookup Pattern (DP-2) | Accepted | 2026-07-21 | Architect |
 
 Status values: Proposed | Accepted | Deprecated | Superseded

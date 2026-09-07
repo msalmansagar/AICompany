@@ -34,6 +34,29 @@ export interface CallableWorkflowOption {
   primaryEntity: string;
 }
 
+/** A CRM Action a maker can pick for a hook the engine invokes as a message. */
+export interface CallableActionOption {
+  id: string;
+  name: string;
+  /** The message the engine will send: the publisher prefix plus the unique name. */
+  messageName: string;
+}
+
+/**
+ * How the engine invokes each hook. Three of the four go through
+ * `ExecuteWorkflowRequest`, so they need an on-demand classic workflow. The
+ * on-hold hook does not: `TaskOnHoldOperations` retrieves the record's
+ * `uniquename` and sends `"qdb_" + uniquename` as an `OrganizationRequest`,
+ * which is a CRM Action. Offering a workflow there produces a message name of
+ * `"qdb_"` — classic workflows have no unique name — and the engine throws.
+ */
+export const HOOK_INVOCATION: Record<WorkflowHookKind, 'workflow' | 'action'> = {
+  onTaskCreation: 'workflow',
+  onTaskCompletion: 'workflow',
+  onTaskOnHold: 'action',
+  onApplicationCreation: 'workflow',
+};
+
 /** The Dataverse column behind each hook. Identical across all four entities. */
 const HOOK_COLUMN: Record<WorkflowHookKind, string> = {
   onTaskCreation: 'qdb_callworkflowontaskcreation',
@@ -146,3 +169,44 @@ export const CALLABLE_WORKFLOW_QUERY =
   'workflows?$select=workflowid,name,primaryentity' +
   '&$filter=category eq 0 and statecode eq 1 and ondemand eq true' +
   '&$orderby=name asc&$top=250';
+
+/**
+ * The prefix `TaskOnHoldOperations` puts in front of an action's unique name to
+ * build the message it sends. It is hardcoded in the engine, so it is hardcoded
+ * here — deriving it from the solution publisher would not match.
+ */
+const ACTION_MESSAGE_PREFIX = 'qdb_';
+
+/** The task table, which an on-hold action must be bound to — the engine passes the task as Target. */
+const TASK_ENTITY = 'qdb_task';
+
+/**
+ * `$filter` selecting the Actions the engine can send as a message. Bound to the
+ * task table, because `TaskOnHoldOperations` passes the task as `Target`.
+ */
+export const CALLABLE_ACTION_QUERY =
+  'workflows?$select=workflowid,name,uniquename,primaryentity' +
+  `&$filter=category eq 3 and statecode eq 1 and primaryentity eq '${TASK_ENTITY}'` +
+  '&$orderby=name asc&$top=250';
+
+/** Maps an action row to a picker option, naming the message the engine will send. */
+export function mapCallableAction(raw: Record<string, unknown>): CallableActionOption {
+  return {
+    id: (raw['workflowid'] as string) ?? '',
+    name: (raw['name'] as string) ?? '',
+    messageName: `${ACTION_MESSAGE_PREFIX}${(raw['uniquename'] as string) ?? ''}`,
+  };
+}
+
+/**
+ * Drops rows that resolve to the same message. The workflow table can hold more
+ * than one row per action, and offering the same message twice reads as a bug.
+ */
+export function dedupeActionsByMessage(actions: CallableActionOption[]): CallableActionOption[] {
+  const seen = new Set<string>();
+  return actions.filter((action) => {
+    if (seen.has(action.messageName)) return false;
+    seen.add(action.messageName);
+    return true;
+  });
+}

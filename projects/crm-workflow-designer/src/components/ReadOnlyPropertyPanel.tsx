@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { stepAccent } from '@/styles/stepAccents';
 import type { WorkflowData, CrmStep, CrmOutcome, CrmRoute } from '../types/ViewTypes';
 import { getAssignToLabel } from '../types/ViewTypes';
 
@@ -10,6 +11,8 @@ import {
 } from '../services/FetchXmlMetadataResolver';
 
 interface ReadOnlyPropertyPanelProps {
+  /** Pans the canvas to a step and selects it (req 12 navigation). */
+  onNavigateToStep?: (stepId: string) => void;
   data: WorkflowData | null;
   selectedId: string | null;
   adapter: ICrmAdapter;
@@ -65,15 +68,15 @@ function resolveSelected(selectedId: string | null, data: WorkflowData | null): 
   return null;
 }
 
-export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPropertyPanelProps) {
+export function ReadOnlyPropertyPanel({ data, selectedId, adapter, onNavigateToStep }: ReadOnlyPropertyPanelProps) {
   const selected = resolveSelected(selectedId, data);
 
   if (!data) {
     return (
-      <div style={panelStyle}>
-        <div style={emptyState}>
+      <div className="panel">
+        <div className="empty-state">
           <p style={emptyTitle}>No workflow loaded</p>
-          <p style={emptyHint}>Open a workflow to see its details here.</p>
+          <p className="hint-inline">Open a workflow to see its details here.</p>
         </div>
       </div>
     );
@@ -81,23 +84,36 @@ export function ReadOnlyPropertyPanel({ data, selectedId, adapter }: ReadOnlyPro
 
   if (!selected) {
     return (
-      <div style={panelStyle}>
-        <ProcessInfo process={data.process} stepCount={data.steps.length} />
-        <div style={emptyState}>
-          <p style={emptyHint}>Click a step, gateway ◈, or route edge to inspect it.</p>
+      <div className="panel">
+        <div className="panel-body">
+          <ProcessInfo process={data.process} stepCount={data.steps.length} />
+          <div className="empty-state">
+            <p className="hint-inline">Click a step, gateway ◈, or route edge to inspect it.</p>
+          </div>
         </div>
       </div>
     );
   }
 
+  // The same identity colour the card wears — the panel names which step it
+  // is describing without the reader checking the canvas selection.
+  const accent = selected.type === 'step' ? stepAccent(selected.step.id) : undefined;
+
   return (
-    <div style={panelStyle}>
-      <ProcessInfo process={data.process} stepCount={data.steps.length} />
-      {selected.type === 'step' && <StepDetails step={selected.step} />}
-      {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
-      {selected.type === 'gateway' && (
-        <GatewayDetails outcome={selected.outcome} routes={selected.routes} adapter={adapter} />
-      )}
+    <div className="panel" style={accent ? { borderTop: `3px solid ${accent}` } : undefined}>
+      <div className="panel-body">
+        <ProcessInfo process={data.process} stepCount={data.steps.length} />
+        {selected.type === 'step' && <StepDetails step={selected.step} />}
+        {selected.type === 'outcome' && <OutcomeDetails outcome={selected.outcome} />}
+        {selected.type === 'gateway' && (
+          <GatewayDetails
+            outcome={selected.outcome}
+            routes={selected.routes}
+            adapter={adapter}
+            onNavigateToStep={onNavigateToStep}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -173,10 +189,12 @@ function GatewayDetails({
   outcome,
   routes,
   adapter,
+  onNavigateToStep,
 }: {
   outcome: CrmOutcome;
   routes: CrmRoute[];
   adapter: ICrmAdapter;
+  onNavigateToStep?: (stepId: string) => void;
 }) {
   return (
     <Section title="Filter Gateway">
@@ -186,7 +204,13 @@ function GatewayDetails({
       <SectionLabel>Routes ({routes.length})</SectionLabel>
       <div style={routeListStyle}>
         {routes.map((route, index) => (
-          <RouteEntry key={route.id} route={route} index={index} adapter={adapter} />
+          <RouteEntry
+            key={route.id}
+            route={route}
+            index={index}
+            adapter={adapter}
+            onNavigateToStep={onNavigateToStep}
+          />
         ))}
       </div>
     </Section>
@@ -199,12 +223,14 @@ function RouteEntry({
   route,
   index,
   adapter,
+  onNavigateToStep,
 }: {
   route: CrmRoute;
   index: number;
   adapter: ICrmAdapter;
+  onNavigateToStep?: (stepId: string) => void;
 }) {
-  const isFallback = !route.filter?.trim();
+  const isFallback = route.isDefault;
   const [resolveState, setResolveState] = useState<ResolveState>(isFallback ? null : 'loading');
 
   useEffect(() => {
@@ -220,7 +246,19 @@ function RouteEntry({
         <span style={buildIndexBadgeStyle(isFallback)}>{index + 1}</span>
         <div style={routeTextBlock}>
           <span style={routeNameStyle}>{route.name || '(unnamed)'}</span>
-          {isFallback && <span style={buildShortLabelStyle(true)}>else (fallback path)</span>}
+          {isFallback && <span style={buildShortLabelStyle(true)}>Default — used when no other route matches</span>}
+          {route.nextStepId && route.nextStepName ? (
+            <button
+              type="button"
+              style={routeTargetNavStyle}
+              title={`Go to "${route.nextStepName}" on the canvas`}
+              onClick={() => onNavigateToStep?.(route.nextStepId as string)}
+            >
+              → {route.nextStepName}
+            </button>
+          ) : (
+            <span style={routeTargetEndStyle}>→ Ends the process</span>
+          )}
         </div>
       </div>
 
@@ -257,15 +295,15 @@ function ResolvedConditionList({ conditions }: { conditions: ResolvedCondition[]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={sectionStyle}>
-      <div style={sectionTitle}>{title}</div>
-      <div style={sectionBody}>{children}</div>
+    <div className="ro-section">
+      <div className="panel-section">{title}</div>
+      <div className="ro-fields">{children}</div>
     </div>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div style={subLabel}>{children}</div>;
+  return <div className="hint-inline">{children}</div>;
 }
 
 function Divider() {
@@ -287,11 +325,11 @@ function Field({
 }) {
   if (!value) return null;
   return (
-    <div style={fieldRow}>
-      <span style={fieldLabel}>{label}</span>
+    <div className="ro-field">
+      <span className="k">{label}</span>
       <span
+        className="v"
         style={{
-          ...fieldValue,
           fontWeight: bold ? 600 : 400,
           fontFamily: mono ? 'monospace' : 'inherit',
           whiteSpace: multiline ? 'pre-wrap' : 'normal',
@@ -305,86 +343,37 @@ function Field({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const panelStyle: React.CSSProperties = {
-  width: 280,
-  minWidth: 280,
-  maxWidth: 280,
-  background: '#fafafa',
-  borderLeft: '1px solid #e2e8f0',
-  overflowY: 'auto',
-  display: 'flex',
-  flexDirection: 'column',
-  flexShrink: 0,
-};
-
-const sectionStyle: React.CSSProperties = {
-  borderBottom: '1px solid #e2e8f0',
-  padding: '12px 14px',
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 700,
-  letterSpacing: '0.07em',
-  textTransform: 'uppercase',
-  color: '#94a3b8',
-  marginBottom: 8,
-};
-
-const sectionBody: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-};
-
-const subLabel: React.CSSProperties = {
-  fontSize: 10,
-  fontWeight: 600,
-  color: '#475569',
-  marginTop: 2,
-  marginBottom: 2,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
-};
-
-const fieldRow: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 1,
-};
-
-const fieldLabel: React.CSSProperties = {
-  fontSize: 10,
-  color: '#94a3b8',
-  fontWeight: 500,
-};
-
-const fieldValue: React.CSSProperties = {
-  fontSize: 12,
-  color: '#1e293b',
-  wordBreak: 'break-word',
-};
-
 const dividerStyle: React.CSSProperties = {
-  borderTop: '1px solid #f1f5f9',
+  borderTop: '1px solid var(--border)',
   margin: '6px 0',
-};
-
-const emptyState: React.CSSProperties = {
-  padding: '16px 14px',
 };
 
 const emptyTitle: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
-  color: '#374151',
+  color: 'var(--text)',
   margin: '0 0 4px',
 };
 
-const emptyHint: React.CSSProperties = {
-  fontSize: 12,
-  color: '#94a3b8',
-  margin: 0,
+const routeTargetNavStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  fontFamily: 'inherit',
+  fontSize: 11,
+  color: 'var(--primary)',
+  textAlign: 'left',
+  textDecoration: 'underline',
+  textUnderlineOffset: 2,
+  cursor: 'pointer',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+const routeTargetEndStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: 'var(--error)',
 };
 
 const routeListStyle: React.CSSProperties = {
@@ -395,7 +384,7 @@ const routeListStyle: React.CSSProperties = {
 
 const routeEntryStyle: React.CSSProperties = {
   borderRadius: 6,
-  border: '1px solid #e2e8f0',
+  border: '1px solid var(--border)',
   overflow: 'hidden',
 };
 
@@ -406,7 +395,7 @@ function buildRouteHeaderStyle(isFallback: boolean): React.CSSProperties {
     alignItems: 'flex-start',
     gap: 8,
     padding: '7px 8px',
-    background: isFallback ? '#f0fdf4' : '#fffbeb',
+    background: isFallback ? 'var(--success-bg)' : 'var(--warning-bg)',
     border: 'none',
     cursor: isFallback ? 'default' : 'pointer',
     textAlign: 'left',
@@ -419,8 +408,8 @@ function buildIndexBadgeStyle(isFallback: boolean): React.CSSProperties {
     width: 16,
     height: 16,
     borderRadius: '50%',
-    background: isFallback ? '#16a34a' : '#d97706',
-    color: '#fff',
+    background: isFallback ? 'var(--success)' : 'var(--warning)',
+    color: 'var(--text-on-primary)',
     fontSize: 9,
     fontWeight: 700,
     display: 'flex',
@@ -441,14 +430,14 @@ const routeTextBlock: React.CSSProperties = {
 const routeNameStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
   wordBreak: 'break-word',
 };
 
 function buildShortLabelStyle(isFallback: boolean): React.CSSProperties {
   return {
     fontSize: 10,
-    color: isFallback ? '#166534' : '#92400e',
+    color: isFallback ? 'var(--success)' : 'var(--warning)',
     fontFamily: 'monospace',
     wordBreak: 'break-all',
   };
@@ -457,13 +446,13 @@ function buildShortLabelStyle(isFallback: boolean): React.CSSProperties {
 
 const expandedBodyStyle: React.CSSProperties = {
   padding: '8px 10px',
-  background: '#f8fafc',
-  borderTop: '1px solid #e2e8f0',
+  background: 'var(--surface-alt)',
+  borderTop: '1px solid var(--border)',
 };
 
 const resolvingLabelStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#94a3b8',
+  color: 'var(--text-disabled)',
   fontStyle: 'italic',
 };
 
@@ -483,20 +472,20 @@ const condRowStyle: React.CSSProperties = {
 const condFieldStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#1e293b',
+  color: 'var(--text)',
 };
 
 const condOpStyle: React.CSSProperties = {
   fontSize: 11,
-  color: '#64748b',
+  color: 'var(--text-secondary)',
   fontWeight: 500,
 };
 
 const condValStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 600,
-  color: '#2563eb',
-  background: '#eff6ff',
+  color: 'var(--primary)',
+  background: 'var(--primary-tint-2)',
   borderRadius: 3,
   padding: '0 4px',
 };

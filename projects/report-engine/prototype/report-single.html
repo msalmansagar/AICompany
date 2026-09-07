@@ -1,0 +1,35 @@
+<meta charset="utf-8" />
+<title>Report Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!--
+  The single-report runtime. Opened with a report already chosen — from a ribbon command, a form, a
+  dashboard tile — it shows that report's filters and its data, and nothing else.
+
+  Deliberately absent: the catalogue, the dashboards nav, the back-to-catalogue button. Picking a
+  report happened in the menu that launched this; offering the choice again invites the user to
+  wander off, and an earlier attempt that reused the catalogue shell did exactly that — it opened
+  the full catalogue and looked, reasonably, like the command was ignoring its report.
+
+  The rendering is not a copy. report-engine-core.js is the same file the catalogue loads, so a fix
+  to the report view reaches both and the two cannot drift apart.
+-->
+<link rel="stylesheet" href="qdb_reportengine_core.css" />
+
+<div class="app">
+  <!--
+    No header at all. The page is hosted inside CRM, which already supplies a title bar, the app name
+    and the signed-in user; a second bar of our own only competes with it and eats vertical space the
+    report should have. Everything the runtime needs is on the report's own command bar.
+
+    No <nav> either: there is nowhere else to go. body-single drops the layout to one full-width
+    column and reclaims the height the shared grid reserves for a header that is no longer there.
+  -->
+  <div class="body body-single">
+    <main class="content" id="content"></main>
+  </div>
+</div>
+
+<div class="modal-back" id="modalBack"><div class="modal" id="modal"></div></div>
+<div class="toast-wrap" id="toasts"></div>
+<script src="qdb_reportengine_core.js"></script>
+<script>bootSingleReport();</script>

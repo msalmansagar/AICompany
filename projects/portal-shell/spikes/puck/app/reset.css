@@ -1,0 +1,27 @@
+/**
+ * Minimal reset.
+ *
+ * `box-sizing: border-box` is the important line and its absence caused a real
+ * defect: `.rey-btn` declared `inline-size: 100%` and also carried 20px inline
+ * padding plus a 1px border. Under the CSS default (`content-box`) that
+ * resolves to 100% + 42px, so every full-width button rendered wider than the
+ * card containing it.
+ *
+ * Next.js ships no reset of its own, so this must be explicit. Imported before
+ * the Puck stylesheet so Puck's own scoped rules still win for its chrome.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+img,
+svg {
+  max-inline-size: 100%;
+}

@@ -7,6 +7,8 @@ export interface CrmProcess {
   regardingFieldName: string | null;
   parentEntityId: string | null;
   parentEntityName: string | null;
+  /** Filled from the designer-state annotation; absent until it loads. */
+  workflowState?: 'draft' | 'published' | 'archived';
 }
 
 export interface CrmStep {
@@ -58,6 +60,8 @@ export interface CrmRoute {
   nextStepName: string | null;
   filter: string;
   outcomeId: string;
+  /** Whether this is the route taken when nothing else matches. Stored, not inferred. */
+  isDefault: boolean;
 }
 
 export interface WorkflowData {

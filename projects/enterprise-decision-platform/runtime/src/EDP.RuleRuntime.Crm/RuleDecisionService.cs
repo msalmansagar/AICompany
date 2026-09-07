@@ -8,6 +8,7 @@ using EDP.RuleRuntime;
 using EDP.RuleRuntime.Crm.Sinks;
 using EDP.RuleRuntime.Execution;
 using EDP.RuleRuntime.Metadata;
+using EDP.RuleRuntime.Operators;
 using EDP.RuleRuntime.Pcrm;
 
 namespace EDP.RuleRuntime.Crm
@@ -86,6 +87,87 @@ namespace EDP.RuleRuntime.Crm
             return new DecisionOutcome(result, executionLogId);
         }
 
+        /// <summary>
+        /// Evaluate one rule once per element of a collection, in-process (FR-F43, NFR-F1).
+        ///
+        /// The loop is deliberately here rather than in the runtime: OQ-B1 measured the engine at
+        /// ~0 ms and the surrounding sandbox invocation at 329 ms, so N children must cost N
+        /// evaluations and ONE platform invocation. A binding per child grain would multiply the
+        /// only cost that is irreducible.
+        ///
+        /// One trace is written for the whole invocation. Per-child traces are held in each
+        /// child's result but not persisted — durable per-child evidence is what F2 snapshotting
+        /// is for, and N log writes per save would defeat ADR-13's tier-2 posture.
+        /// </summary>
+        public FanOutOutcome EvaluateForEachChild(string pcrmJson, FanOutRequest request)
+        {
+            if (request == null) throw new ArgumentNullException(nameof(request));
+
+            var elements = ResolveChildElements(request);
+            var children = new List<ChildDecision>(elements.Count);
+            long totalElapsed = 0;
+
+            for (var index = 0; index < elements.Count; index++)
+            {
+                var result = _runtime.Execute(pcrmJson, BuildChildInputs(request.Inputs, elements[index]), request.NowUtc);
+                children.Add(new ChildDecision(index, ChildId(elements[index]), result));
+                totalElapsed += result.ElapsedMilliseconds;
+            }
+
+            var outcome = new FanOutOutcome(children, null);
+            var executionLogId = _trace.WriteTrace(new TraceRecord
+            {
+                RuleVersionId = request.RuleVersionId,
+                ResolvedVersion = request.RuleVersionId?.ToString() ?? "adhoc",
+                Outcome = FanOutOutcomeLabel(outcome),
+                DurationMs = totalElapsed,
+                Actor = request.ActorId.ToString(),
+                ExecutedOnUtc = request.NowUtc,
+                TraceJson = JsonSerializer.Serialize(new
+                {
+                    fanOutOver = request.ChildCollectionName,
+                    total = outcome.Total,
+                    matched = outcome.MatchedCount,
+                    unmatched = outcome.UnmatchedCount
+                })
+            });
+
+            return new FanOutOutcome(children, executionLogId);
+        }
+
+        private static string FanOutOutcomeLabel(FanOutOutcome outcome)
+        {
+            if (!outcome.AllSucceeded) return "error";
+            return outcome.MatchedCount > 0 ? "matched" : "no-match";
+        }
+
+        private static List<object?> ResolveChildElements(FanOutRequest request)
+        {
+            request.Inputs.TryGetValue(request.ChildCollectionName, out var source);
+            return new List<object?>(RuntimeValue.AsCollection(source));
+        }
+
+        /// <summary>
+        /// Anchor inputs plus the element's own fields, with the element shadowing — the same
+        /// scoping rule a quantifier body uses, so an author reads one model rather than two.
+        /// </summary>
+        private static IDictionary<string, object?> BuildChildInputs(IDictionary<string, object?> anchorInputs, object? element)
+        {
+            var inputs = new Dictionary<string, object?>(anchorInputs, StringComparer.OrdinalIgnoreCase);
+            if (element is IReadOnlyDictionary<string, object?> record)
+                foreach (var field in record) inputs[field.Key] = field.Value;
+            else
+                inputs["item"] = element;
+            return inputs;
+        }
+
+        /// <summary>An element's id when it carries one. An unsaved row has none (ADR-17).</summary>
+        private static string? ChildId(object? element)
+        {
+            if (!(element is IReadOnlyDictionary<string, object?> record)) return null;
+            return record.TryGetValue("id", out var id) && id != null ? RuntimeValue.AsString(id) : null;
+        }
+
         /// <summary>Parse a Custom API InputsJson string into a runtime input dictionary.</summary>
         public static IDictionary<string, object?> ParseInputsJson(string? inputsJson)
         {
@@ -106,6 +188,17 @@ namespace EDP.RuleRuntime.Crm
                 case JsonValueKind.Number: return e.GetDecimal();
                 case JsonValueKind.True: return true;
                 case JsonValueKind.False: return false;
+
+                // Collections delegate to the core so that a caller's array reaches the engine as
+                // a collection by this route too. Before F1 this returned null here while
+                // RuntimeValue.FromJson returned the array's raw text — the same payload became
+                // two different values depending on which door it came through.
+                case JsonValueKind.Array: return RuntimeValue.ToCollection(e);
+                case JsonValueKind.Object: return RuntimeValue.ToRecord(e);
+
+                // Scalars stay on this path deliberately: RuntimeValue.FromJson also parses
+                // date-like strings into DateTime, and changing that for every InputsJson caller
+                // is a semantic change no requirement asked for.
                 default: return null;
             }
         }

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Structure — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+<style>
+  .nav-node { border:1px solid var(--border-strong); border-radius:8px; background:var(--surface);
+    padding:10px 12px; margin-block-end:8px; }
+  .nav-node .row b { font-size:13.5px; }
+  .nav-kids { margin-inline-start:26px; margin-block-start:8px; border-inline-start:2px solid var(--border);
+    padding-inline-start:14px; }
+  .orphan { border-inline-start:3px solid var(--warning); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <button class="btn" data-v="primary" onclick="toast('Menu item added')">＋ Add item</button>
+        <span class="sp"></span>
+        <button class="btn" onclick="toast('Navigation published — qdb_cmsnavigation v8')">Publish navigation</button>
+      </div>
+      <div class="scroll">
+
+        <section class="screen active" id="nav" data-title="Navigation">
+          <div class="banner" data-tone="info">
+            <span>🗺</span>
+            <div>Navigation is <b>its own versioned record</b>, not a property of any page. Deleting a page
+            therefore cannot silently break the menu — it leaves a broken reference the engine reports,
+            which is what the orphan check below reads.</div>
+          </div>
+
+          <div class="split">
+            <div class="card">
+              <h3>Main navigation</h3>
+              <div class="sub">Drag to reorder · both languages on one node</div>
+              <div id="navTree"></div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h3>Health</h3>
+                <div class="sub">Checked on publish</div>
+                <div id="navHealth"></div>
+              </div>
+
+              <div class="card">
+                <h3>Rendered — English</h3>
+                <div style="border:1px solid var(--border-strong);border-radius:8px;padding:12px;background:#fff">
+                  <div id="navPreviewEn" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#1a2129"></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3>Rendered — العربية</h3>
+                <div style="border:1px solid var(--border-strong);border-radius:8px;padding:12px;background:#fff" dir="rtl">
+                  <div id="navPreviewAr" style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:#1a2129"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:16px">
+            <h3>Site map</h3>
+            <div class="sub">Every page, and whether navigation reaches it</div>
+            <div class="tbl-wrap"><table class="tbl" id="siteTbl"></table></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+const linkedSlugs = new Set();
+(function collect(nodes) {
+  nodes.forEach(n => { linkedSlugs.add(n.page); if (n.children) collect(n.children); });
+})(NAV_TREE);
+
+function nodeHtml(n, depth) {
+  const page = PAGES.find(p => p.slug === n.page);
+  const broken = !page;
+  return `
+    <div class="nav-node ${broken ? "orphan" : ""}">
+      <div class="row">
+        ${icon("drag", 14)}
+        <b>${esc(n.label)}</b>
+        <span class="muted" dir="rtl">${esc(n.ar)}</span>
+        ${broken
+          ? `<span class="pill" data-tone="err" style="margin-inline-start:auto">broken link</span>`
+          : `<code class="right muted">/${esc(n.page)}</code>`}
+      </div>
+      ${n.children && n.children.length
+        ? `<div class="nav-kids">${n.children.map(c => nodeHtml(c, depth+1)).join("")}</div>` : ""}
+    </div>`;
+}
+
+function renderNav() {
+  $("#navTree").innerHTML = NAV_TREE.map(n => nodeHtml(n, 0)).join("");
+
+  const flat = (nodes, out = []) => { nodes.forEach(n => { out.push(n); if (n.children) flat(n.children, out); }); return out; };
+  const all = flat(NAV_TREE);
+  const missingAr = all.filter(n => !n.ar).length;
+  const broken = all.filter(n => !PAGES.find(p => p.slug === n.page)).length;
+  const orphans = PAGES.filter(p => !linkedSlugs.has(p.slug));
+
+  const row = (label, value, tone) => `
+    <div class="row" style="justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)">
+      <span class="muted" style="font-size:12.5px">${label}</span>
+      <span class="pill" ${tone?`data-tone="${tone}"`:""}>${value}</span></div>`;
+
+  $("#navHealth").innerHTML =
+    row("Menu items", all.length, "") +
+    row("Broken links", broken, broken ? "err" : "ok") +
+    row("Missing Arabic", missingAr, missingAr ? "warn" : "ok") +
+    row("Pages not in nav", orphans.length, orphans.length ? "warn" : "ok") +
+    `<div class="hint" style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
+      Unlinked pages are reachable by URL but invisible in the menu — legitimate for legal pages,
+      a mistake for most others.</div>`;
+
+  $("#navPreviewEn").innerHTML = NAV_TREE.map(n =>
+    `<span>${esc(n.label)}${n.children.length ? " ▾" : ""}</span>`).join("");
+  $("#navPreviewAr").innerHTML = NAV_TREE.map(n =>
+    `<span>${esc(n.ar)}${n.children.length ? " ▾" : ""}</span>`).join("");
+}
+
+function renderSiteMap() {
+  $("#siteTbl").innerHTML = `
+    <thead><tr><th>Page</th><th>Slug</th><th>Status</th><th>In navigation</th><th>Depth</th></tr></thead>
+    <tbody>${PAGES.map(p => {
+      const linked = linkedSlugs.has(p.slug);
+      return `<tr>
+        <td><b>${esc(p.en)}</b></td>
+        <td><code>/${esc(p.slug)}</code></td>
+        <td>${statusPill(p.status)}</td>
+        <td>${linked
+          ? `<span class="pill" data-tone="ok">Linked</span>`
+          : `<span class="pill" data-tone="warn">Not linked</span>`}</td>
+        <td class="muted">${linked ? "1–2" : "—"}</td>
+      </tr>`; }).join("")}</tbody>`;
+}
+
+Shell.init("05-structure.html", "nav");
+renderNav(); renderSiteMap();
+</script>
+</body>
+</html>

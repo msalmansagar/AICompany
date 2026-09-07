@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Design system — QDB CMS Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="shared/tokens.css" />
+<link rel="stylesheet" href="shared/components.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar"></div>
+  <div class="shell">
+    <nav class="sitemap"></nav>
+    <div class="work">
+      <div class="cmdbar">
+        <span class="title"></span>
+        <button class="btn" data-v="primary" onclick="toast('Token created — publish to apply')">＋ New token</button>
+        <span class="sp"></span>
+        <button class="btn" onclick="toast('qdb_PublishTokens queued — 12 pages will re-resolve')">Publish tokens</button>
+      </div>
+      <div class="scroll">
+
+        <!-- ==================================================== TOKENS -->
+        <section class="screen" id="tokens" data-title="Theme tokens">
+          <div class="banner" data-tone="info">
+            <span>🎨</span>
+            <div><b>Authors pick token slugs, never hex values.</b> That is the whole governance
+            mechanism: only approved colours can reach a page. Rebranding, or giving a service its own
+            palette, changes token <b>values</b> here — no page is edited and nothing is deployed.</div>
+          </div>
+
+          <div class="split">
+            <div class="stack">
+              <div class="card">
+                <h3>Colour</h3>
+                <div class="sub">Resolved into CSS custom properties at render time</div>
+                <div id="colorTokens"></div>
+              </div>
+
+              <div class="card">
+                <h3>Typography &amp; direction</h3>
+                <div class="sub">Locale is a resolution dimension — Arabic gets its own family</div>
+                <div class="tbl-wrap"><table class="tbl" id="typoTbl"></table></div>
+              </div>
+
+              <div class="card">
+                <h3>Cascade</h3>
+                <div class="sub">Later levels override earlier ones</div>
+                <div id="cascade"></div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h3>Live preview</h3>
+                <div class="sub">A page rendered with the current token set</div>
+                <div id="tokenPreview"></div>
+              </div>
+              <div class="card">
+                <h3>Resolved output</h3>
+                <div class="sub">Injected into <code class="mono">:root</code> by the shell</div>
+                <div class="code" id="tokenCode"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ================================================= COMPONENTS -->
+        <section class="screen" id="registry" data-title="Component registry">
+          <div class="banner" data-tone="info">
+            <span>🧱</span>
+            <div>Each component declares a <b>props schema</b> and the render targets it supports.
+            The designer builds its field panel from this registry, so adding a prop is a registry
+            change — the designer needs no code.</div>
+          </div>
+
+          <div class="filters">
+            <input type="search" id="cSearch" placeholder="Search components…" />
+            <select id="cCat"><option value="">All categories</option>
+              <option>Layout</option><option>Content</option><option>Actions</option>
+              <option>Interactive</option><option>Data</option></select>
+            <span class="muted" id="cCount"></span>
+          </div>
+
+          <div class="card" style="padding:0">
+            <div class="tbl-wrap"><table class="tbl" id="compTbl"></table></div>
+          </div>
+
+          <div class="grid" data-cols="2" style="margin-top:16px">
+            <div class="card">
+              <h3>Props schema — Heading</h3>
+              <div class="sub"><code class="mono">qdb_propsschema</code> on the component version</div>
+              <div class="code" id="schemaCode"></div>
+            </div>
+            <div class="card">
+              <h3>Versioning rule</h3>
+              <div class="sub">Why adding a prop is not free</div>
+              <div style="font-size:13.5px;line-height:1.75;color:var(--text-secondary)">
+                Stored pages carry the props they were saved with. A prop added in a later component
+                version <b>does not back-fill</b> existing pages — those pages simply lack it.
+                <br><br>Every component render must therefore tolerate a missing prop, or publish must run a
+                migration. The registry records which version each page was authored against so the
+                gap is detectable rather than a surprise at render time.
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/icons.js"></script>
+<script src="shared/mock-data.js"></script>
+<script src="shared/shell.js"></script>
+<script>
+function renderColorTokens() {
+  $("#colorTokens").innerHTML = TOKENS.map(t => `
+    <div class="tok-row">
+      <div class="tok-chip" style="background:${t.value}"></div>
+      <div>
+        <div class="tok-slug">--${esc(t.slug)}</div>
+        <div class="muted" style="font-size:11.5px">${esc(t.label)} · ${esc(t.scope)}</div>
+      </div>
+      <div class="tok-val">${esc(t.value)}</div>
+    </div>`).join("");
+}
+
+function renderTypo() {
+  $("#typoTbl").innerHTML = `
+    <thead><tr><th>Slug</th><th>Value</th><th>Type</th><th>Scope</th></tr></thead>
+    <tbody>${TYPO_TOKENS.map(t => `
+      <tr><td><code>--${esc(t.slug)}</code></td>
+        <td class="mono" style="font-size:11.5px">${esc(t.value)}</td>
+        <td>${esc(t.type)}</td>
+        <td><span class="pill" data-tone="${t.scope.includes('AR') ? 'brand' : ''}">${esc(t.scope)}</span></td>
+      </tr>`).join("")}</tbody>`;
+}
+
+function renderCascade() {
+  const levels = [
+    ["1 · Global",        "Platform defaults", "14 tokens"],
+    ["2 · Render target", "Portal / Admin / Mobile", "3 overrides"],
+    ["3 · Category",      "Widget, Form, Nav, Layout", "0 overrides"],
+    ["4 · Component",     "Per component slug", "1 override"],
+    ["5 · Service",       "Per business unit", "2 overrides"],
+  ];
+  $("#cascade").innerHTML = levels.map(([l, d, c], i) => `
+    <div class="row" style="padding:9px 0;border-bottom:1px solid var(--border)">
+      <span class="pill" data-tone="${i === 0 ? 'info' : ''}">${esc(l)}</span>
+      <span class="muted" style="font-size:12.5px">${esc(d)}</span>
+      <b class="right" style="font-size:12.5px">${esc(c)}</b>
+    </div>`).join("") +
+    `<div class="hint" style="margin-top:10px;font-size:12px;color:var(--text-secondary)">
+      Locale is applied at every level, which is how Arabic carries a different font family
+      without a single conditional in component code.</div>`;
+}
+
+function renderTokenPreview() {
+  $("#tokenPreview").innerHTML = `
+    <div style="border:1px solid var(--border-strong);border-radius:8px;overflow:hidden">
+      <div style="background:#f4f6f8;padding:18px">
+        <div style="background:#fff;border:1px solid #e5e8eb;border-radius:9px;padding:16px">
+          <div style="font-size:18px;font-weight:700;color:#1a2129;margin-bottom:6px">Growth Opportunities</div>
+          <div style="font-size:13px;color:#5d6b7a;line-height:1.6;margin-bottom:12px">
+            Discover and register for events designed to elevate your skills.</div>
+          <div style="display:flex;gap:8px">
+            <span style="background:#3d8a72;color:#fff;border-radius:6px;padding:8px 15px;font-size:12.5px;font-weight:600">Primary</span>
+            <span style="background:#1b3a63;color:#fff;border-radius:6px;padding:8px 15px;font-size:12.5px;font-weight:600">Navy</span>
+            <span style="border:1px solid #e5e8eb;border-radius:6px;padding:8px 15px;font-size:12.5px;font-weight:600">Outline</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderTokenCode() {
+  $("#tokenCode").innerHTML =
+`<span class="c">/* GET /api/tokens/resolve?renderTarget=portal&locale=ar */</span>
+<span class="k">:root</span> {
+${TOKENS.slice(0,5).map(t => `  <span class="k">--${t.slug}</span>: <span class="s">${t.value}</span>;`).join("\n")}
+  <span class="k">--font-family-base</span>: <span class="s">'GE Dinar One', 'Noto Sans Arabic', Tahoma</span>;
+  <span class="k">--text-direction</span>: <span class="s">rtl</span>;
+}
+
+<span class="c">/* Values are sanitised at read time: url(), expression()</span>
+<span class="c">   and semicolons are neutralised, so a token cannot inject CSS.</span>
+<span class="c">   That is also why @font-face lives in a stylesheet, not a token. */</span>`;
+}
+
+function renderComponents() {
+  const q = ($("#cSearch").value || "").toLowerCase();
+  const c = $("#cCat").value;
+  const rows = COMPONENTS.filter(x =>
+    (!q || x.name.toLowerCase().includes(q)) && (!c || x.cat === c));
+
+  $("#cCount").textContent = `${rows.length} of ${COMPONENTS.length} components`;
+  $("#compTbl").innerHTML = `
+    <thead><tr><th>Component</th><th>Category</th><th class="num">Props</th>
+      <th class="num">Used on</th><th>Version</th><th>Render targets</th></tr></thead>
+    <tbody>${rows.map(x => `
+      <tr onclick="toast('${esc(x.name)} — schema shown below')">
+        <td><b>${esc(x.name)}</b></td>
+        <td><span class="pill">${esc(x.cat)}</span></td>
+        <td class="num">${x.props}</td>
+        <td class="num">${x.used}</td>
+        <td class="mono">${esc(x.version)}</td>
+        <td class="muted">${esc(x.targets)}</td>
+      </tr>`).join("") || `<tr><td colspan="6" class="empty">Nothing matches.</td></tr>`}</tbody>`;
+}
+
+function renderSchema() {
+  $("#schemaCode").innerHTML =
+`{
+  <span class="k">"type"</span>: <span class="s">"object"</span>,
+  <span class="k">"properties"</span>: {
+    <span class="k">"textEn"</span>: { <span class="k">"type"</span>: <span class="s">"string"</span> },
+    <span class="k">"textAr"</span>: { <span class="k">"type"</span>: <span class="s">"string"</span> },
+    <span class="k">"level"</span>:  { <span class="k">"enum"</span>: [<span class="s">"1"</span>,<span class="s">"2"</span>,<span class="s">"3"</span>] },
+    <span class="k">"color"</span>:  { <span class="k">"enum"</span>: [<span class="s">"rey-green"</span>,<span class="s">"rey-navy"</span>,
+                 <span class="s">"rey-purple"</span>,<span class="s">"rey-ink"</span>,<span class="s">"rey-muted"</span>] },
+    <span class="k">"align"</span>:  { <span class="k">"enum"</span>: [<span class="s">"start"</span>,<span class="s">"center"</span>,<span class="s">"end"</span>] }
+  },
+  <span class="k">"required"</span>: [<span class="s">"textEn"</span>]
+}
+
+<span class="c">// color is an enum of TOKEN SLUGS, not a string.</span>
+<span class="c">// Publish validates props against this schema, so an</span>
+<span class="c">// unapproved colour is rejected before it reaches a citizen.</span>`;
+}
+
+Shell.init("04-design.html", "tokens");
+renderColorTokens(); renderTypo(); renderCascade(); renderTokenPreview(); renderTokenCode();
+renderComponents(); renderSchema();
+["cSearch","cCat"].forEach(id => $("#"+id).addEventListener("input", renderComponents));
+</script>
+</body>
+</html>

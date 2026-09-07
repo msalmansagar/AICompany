@@ -25,6 +25,7 @@ compatibility, and on-premise / browser-only deployment fit. See
 | html-to-image | ^1.x | MIT | https://github.com/bubkoo/html-to-image | ADOPT |
 | jspdf | ^3.x | MIT | https://github.com/parallax/jsPDF | ADOPT |
 | graphlib algorithms | (via @dagrejs/dagre ^1.x) | MIT | https://github.com/dagrejs/graphlib | ADOPT (DP-1) — no new package |
+| agentation | ^3.0.2 (devDependency) | **PolyForm Shield 1.0.0** | https://github.com/benjitaylor/agentation | ADOPT — DEV TOOLING ONLY (CWFD-012) |
 
 ---
 
@@ -309,4 +310,20 @@ quadratic on large processes.
 | Package | License | Action Required |
 |---|---|---|
 | elkjs | EPL-2.0 | Add Eclipse Layout Kernel attribution to project NOTICES.md |
+| agentation | PolyForm Shield 1.0.0 | **Source-available, NOT open source.** Free for internal use; forbids building a competing visual-feedback product from it. Dev-only dependency: excluded from every production build (dynamic import gated on import.meta.env.DEV, verified 0 occurrences in the bundle), so it never ships to a customer and never enters the CRM web resource. |
 | All others | MIT | No special action required beyond standard license file inclusion |
+
+---
+
+## CWFD-012 addendum (2026-08-29) — agentation (dev feedback tool)
+
+- **What:** in-browser annotation toolbar for the local dev server. Click any
+  element in the running designer, add a note, and copy structured markdown
+  (CSS selectors, positions, context) to paste into an AI coding agent.
+- **Why:** UI feedback previously arrived as screenshots and prose; agents had
+  to hunt for the element. Selector-precise feedback removes the guessing.
+- **Health at adoption:** 4 545 stars, 372 forks, TypeScript, zero runtime
+  dependencies, React 18+, last pushed 2026-06.
+- **Constraints honoured:** desktop dev use only; loaded via a DEV-gated
+  dynamic import so production bundles provably exclude it (bundle size
+  unchanged, 0 grep hits); clipboard-only output, no network calls.

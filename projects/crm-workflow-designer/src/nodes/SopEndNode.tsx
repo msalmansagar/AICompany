@@ -14,22 +14,22 @@ export function SopEndNode(_: NodeProps) {
 
 const outerStyle: React.CSSProperties = {
   width: 60, height: 60, borderRadius: '50%',
-  background: '#1e293b', border: '3px solid #1e293b',
+  background: 'var(--surface)', border: '3px solid var(--border-strong)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   boxShadow: '0 2px 10px rgba(30,41,59,0.3)',
 };
 
 const innerStyle: React.CSSProperties = {
   width: 44, height: 44, borderRadius: '50%',
-  background: '#1e293b', border: '2px solid #fff',
+  background: 'var(--surface)', border: '2px solid var(--border)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 700, color: '#fff', userSelect: 'none',
+  fontSize: 11, fontWeight: 700, color: 'var(--text-on-primary)', userSelect: 'none',
 };
 
 const handleStyle: React.CSSProperties = {
-  background: '#1e293b', width: 10, height: 10,
-  border: '2px solid #fff', borderRadius: '50%',
+  background: 'var(--surface)', width: 10, height: 10,
+  border: '2px solid var(--border)', borderRadius: '50%',
 };

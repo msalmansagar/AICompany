@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
+import { parseDesignerState } from '@/services/designerState';
+import type { ICrmAdapter } from '@/services/ICrmAdapter';
 import type { Node, Edge } from '@xyflow/react';
 import type { WorkflowDataService } from '../services/WorkflowDataService';
 import type { CrmProcess, WorkflowData } from '../types/ViewTypes';
@@ -37,7 +39,7 @@ export interface WorkflowViewActions {
 
 export type WorkflowView = WorkflowViewState & WorkflowViewActions;
 
-export function useWorkflowView(service: WorkflowDataService): WorkflowView {
+export function useWorkflowView(service: WorkflowDataService, adapter: ICrmAdapter): WorkflowView {
   const [phase, setPhase] = useState<LoadPhase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [processList, setProcessList] = useState<CrmProcess[]>([]);
@@ -72,10 +74,17 @@ export function useWorkflowView(service: WorkflowDataService): WorkflowView {
     lastProcessId.current = processId;
 
     try {
-      const [process, steps] = await Promise.all([
+      const [process, steps, stateJson] = await Promise.all([
         service.getProcessById(processId),
         service.getStepsByProcess(processId),
+        // Cosmetic: a missing state just means the pill says Draft.
+        adapter.loadDesignerState(processId).catch(() => null),
       ]);
+      const designerState = parseDesignerState(stateJson);
+      const processWithState: CrmProcess = {
+        ...process,
+        workflowState: designerState?.workflowState ?? 'draft',
+      };
 
       const outcomes = await service.getOutcomesByStepIds(steps.map((s) => s.id));
       const conditionalOutcomeIds = outcomes
@@ -85,7 +94,7 @@ export function useWorkflowView(service: WorkflowDataService): WorkflowView {
         ? await service.getRoutesByOutcomeIds(conditionalOutcomeIds)
         : [];
 
-      const workflowData: WorkflowData = { process, steps, outcomes, routes };
+      const workflowData: WorkflowData = { process: processWithState, steps, outcomes, routes };
       setData(workflowData);
       setPhase('ready');
       // Graph building is handled by WorkflowCanvas which watches data + viewMode + layoutDir.

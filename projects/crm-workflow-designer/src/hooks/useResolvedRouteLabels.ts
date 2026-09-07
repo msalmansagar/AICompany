@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { hasRealCondition } from '@/services/routeFilter';
 import type { CrmRoute } from '../types/ViewTypes';
 import type { ICrmAdapter } from '../services/ICrmAdapter';
 import { resolveRouteFilter } from '../services/FetchXmlMetadataResolver';
@@ -18,7 +19,7 @@ export function useResolvedRouteLabels(
   const [resolvedLabels, setResolvedLabels] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    const conditionalRoutes = routes.filter((r) => r.filter?.trim());
+    const conditionalRoutes = routes.filter((r) => hasRealCondition(r.filter));
     if (conditionalRoutes.length === 0) return;
 
     let cancelled = false;

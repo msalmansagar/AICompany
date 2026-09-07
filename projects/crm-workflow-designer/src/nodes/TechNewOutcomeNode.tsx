@@ -1,6 +1,7 @@
 import { Handle, Position } from '@xyflow/react';
 import type { NodeProps } from '@xyflow/react';
 import type { TechNewOutcomeData } from '../services/TechNewGraphBuilder';
+import { techOutcomePillPair } from '../styles/surfacePairs';
 
 export function TechNewOutcomeNode({ data }: NodeProps) {
   const { name, isReturn, isTerminal, nextStepName, layoutDir } = data as unknown as TechNewOutcomeData;
@@ -45,30 +46,13 @@ interface OutcomeVisuals {
 }
 
 function outcomeStyle(isReturn: boolean, isTerminal: boolean): OutcomeVisuals {
-  if (isTerminal) {
-    return {
-      container: pillContainer('#fef2f2', '#fca5a5'),
-      icon: iconStyle('#991b1b'),
-      name: nameStyle('#7f1d1d'),
-      target: targetStyle('#dc2626'),
-      handleColor: '#fca5a5',
-    };
-  }
-  if (isReturn) {
-    return {
-      container: pillContainer('#f5f3ff', '#a78bfa'),
-      icon: iconStyle('#7c3aed'),
-      name: nameStyle('#4c1d95'),
-      target: targetStyle('#7c3aed'),
-      handleColor: '#a78bfa',
-    };
-  }
+  const pair = techOutcomePillPair(isTerminal ? 'terminal' : isReturn ? 'return' : 'forward');
   return {
-    container: pillContainer('#eff6ff', '#93c5fd'),
-    icon: iconStyle('#2563eb'),
-    name: nameStyle('#1e3a8a'),
-    target: targetStyle('#3b82f6'),
-    handleColor: '#93c5fd',
+    container: pillContainer(pair.background, pair.border),
+    icon: iconStyle(pair.foreground),
+    name: nameStyle(pair.foreground),
+    target: targetStyle(pair.foreground),
+    handleColor: pair.border,
   };
 }
 
@@ -107,7 +91,7 @@ function targetStyle(color: string): React.CSSProperties {
 }
 
 function handleStyle(color: string): React.CSSProperties {
-  return { background: color, width: 8, height: 8, border: '2px solid #fff', borderRadius: '50%' };
+  return { background: color, width: 8, height: 8, border: '2px solid var(--border)', borderRadius: '50%' };
 }
 
 const contentStyle: React.CSSProperties = {

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from 'zustand';
 import { useReactFlow } from '@xyflow/react';
-import { useWorkflowStore } from '@/store/workflowStore';
+import { useWorkflowStore, selectCanvasIsReadOnly } from '@/store/workflowStore';
 
 interface KeyboardShortcutsOptions {
   onSave: () => void;
@@ -16,14 +16,25 @@ export function useKeyboardShortcuts({
 }: KeyboardShortcutsOptions): void {
   const { deleteElements, getNodes, setNodes } = useReactFlow();
   const { undo, redo } = useStore(useWorkflowStore.temporal);
-  const { selectedId, isPreviewMode } = useWorkflowStore((s) => ({
+  const { selectedId, isReadOnly } = useWorkflowStore((s) => ({
     selectedId: s.selectedId,
-    isPreviewMode: s.isPreviewMode,
+    isReadOnly: selectCanvasIsReadOnly(s),
   }));
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       const isCtrl = event.ctrlKey || event.metaKey;
+
+      // Everything below changes the process. While a simulation is playing back the
+      // canvas is being watched, not edited, so none of it should be reachable - the
+      // toolbar hides the same actions.
+      const isEditingShortcut =
+        (isCtrl && (event.key === 'z' || event.key === 'y' || event.key === 's')) ||
+        (isCtrl && event.shiftKey && (event.key === 'P' || event.key === 'L'));
+      if (isReadOnly && isEditingShortcut) {
+        event.preventDefault();
+        return;
+      }
 
       if (isCtrl && event.key === 'z' && !event.shiftKey) {
         event.preventDefault();
@@ -45,7 +56,7 @@ export function useKeyboardShortcuts({
 
       if (isCtrl && event.shiftKey && event.key === 'P') {
         event.preventDefault();
-        if (!isPreviewMode) onPublish();
+        onPublish();
         return;
       }
 
@@ -83,6 +94,6 @@ export function useKeyboardShortcuts({
     getNodes,
     setNodes,
     selectedId,
-    isPreviewMode,
+    isReadOnly,
   ]);
 }

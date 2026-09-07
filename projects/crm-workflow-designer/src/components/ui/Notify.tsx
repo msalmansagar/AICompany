@@ -41,7 +41,7 @@ export function NotifyHost() {
   const items = useSyncExternalStore(subscribe, () => notices);
   if (items.length === 0) return null;
   return (
-    <div style={stack}>
+    <div className="toast-wrap">
       {items.map((notice) => (
         <ToastItem key={notice.id} notice={notice} />
       ))}
@@ -55,51 +55,21 @@ function ToastItem({ notice }: { notice: Notice }) {
     return () => clearTimeout(timer);
   }, [notice.id]);
 
-  const tone = TONES[notice.tone];
   return (
-    <div style={{ ...toast, background: tone.bg, border: `1px solid ${tone.border}`, color: tone.fg }}>
-      <span style={{ fontWeight: 700, flexShrink: 0 }}>{tone.icon}</span>
+    <div className={TOAST_CLASS[notice.tone]} role="status">
+      <span className="dot" aria-hidden="true" />
       <span style={{ flex: 1, lineHeight: 1.4 }}>{notice.message}</span>
-      <button type="button" style={closeBtn} onClick={() => dismiss(notice.id)} aria-label="Dismiss">✕</button>
+      <button type="button" className="close" onClick={() => dismiss(notice.id)} aria-label="Dismiss">
+        ✕
+      </button>
     </div>
   );
 }
 
-const TONES: Record<NotifyTone, { bg: string; border: string; fg: string; icon: string }> = {
-  info:    { bg: '#eff6ff', border: '#bfdbfe', fg: '#1e40af', icon: 'ℹ' },
-  success: { bg: '#f0fdf4', border: '#bbf7d0', fg: '#166534', icon: '✓' },
-  error:   { bg: '#fef2f2', border: '#fecaca', fg: '#991b1b', icon: '✕' },
+/** The dot colour carries the tone, so the toast itself stays one surface. */
+const TOAST_CLASS: Record<NotifyTone, string> = {
+  info: 'toast info',
+  success: 'toast',
+  error: 'toast error',
 };
 
-const stack: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 24,
-  left: '50%',
-  transform: 'translateX(-50%)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 8,
-  zIndex: 2500,
-  alignItems: 'center',
-};
-
-const toast: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'flex-start',
-  gap: 10,
-  padding: '10px 16px',
-  borderRadius: 8,
-  boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-  maxWidth: 480,
-  fontSize: 13,
-};
-
-const closeBtn: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: 12,
-  opacity: 0.6,
-  flexShrink: 0,
-  padding: 0,
-};

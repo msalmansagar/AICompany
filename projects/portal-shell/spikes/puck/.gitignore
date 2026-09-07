@@ -1,0 +1,10 @@
+node_modules/
+.next/
+next-env.d.ts
+
+# Bundle measurements are reproducible from bundle-test/README.md — the
+# numbers are the artefact, not the output files.
+bundle-test/*.js
+!bundle-test/*.tsx
+bundle-test/meta.json
+.ci-out/

@@ -70,6 +70,8 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     { uniquename: 'RuleVersionId', displayname: 'Rule Version Id', type: 10, isoptional: true },
     { uniquename: 'InputsJson', displayname: 'Inputs JSON', type: 10, isoptional: true },
     { uniquename: 'TargetRef', displayname: 'Target Reference', type: 5, isoptional: true },
+    // FR-F43 per-child fan-out: names the input holding the collection to evaluate across.
+    { uniquename: 'ChildCollectionName', displayname: 'Child Collection Name', type: 10, isoptional: true },
   ];
   for (const p of reqParams) {
     const ex = await first(t, 'customapirequestparameters', `uniquename eq '${p.uniquename}' and _customapiid_value eq ${capi.customapiid}`, 'customapirequestparameterid');
@@ -88,6 +90,9 @@ async function first(t, set, filter, select) { const r = await raw('GET', `${API
     { uniquename: 'DiagnosticsJson', displayname: 'Diagnostics JSON', type: 10 },
     { uniquename: 'ElapsedMs', displayname: 'Elapsed Ms', type: 7 },
     { uniquename: 'ExecutionId', displayname: 'Execution Log Id', type: 10 },
+    // FR-F43. Empty unless ChildCollectionName was supplied — the anchor outputs above stay
+    // the mandatory half of the contract (ADR-17), this is the additive half.
+    { uniquename: 'ChildResultsJson', displayname: 'Child Results JSON', type: 10 },
   ];
   for (const p of resProps) {
     const ex = await first(t, 'customapiresponseproperties', `uniquename eq '${p.uniquename}' and _customapiid_value eq ${capi.customapiid}`, 'customapiresponsepropertyid');

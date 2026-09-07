@@ -5,6 +5,8 @@ interface FetchXmlIframeBuilderProps {
   objectTypeCode: number;
   initialFetchXml?: string;
   onError: (error: string) => void;
+  /** Raised when the CRM page finishes loading, so a host can gate Save on it. */
+  onLoadedChange?: (isLoaded: boolean) => void;
 }
 
 /** Imperative handle: read the current query out of the builder on demand. */
@@ -28,7 +30,7 @@ const MAX_SEED_ATTEMPTS = 6;
 const SEED_RETRY_MS = 2000;
 
 export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIframeBuilderProps>(
-  function FetchXmlIframeBuilder({ clientUrl, objectTypeCode, initialFetchXml, onError }, ref) {
+  function FetchXmlIframeBuilder({ clientUrl, objectTypeCode, initialFetchXml, onError, onLoadedChange }, ref) {
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const [isLoaded, setIsLoaded] = useState(false);
 
@@ -110,8 +112,12 @@ export const FetchXmlIframeBuilder = forwardRef<FetchXmlIframeHandle, FetchXmlIf
           src={iframeUrl}
           style={iframeStyle(isLoaded)}
           title="CRM Advanced Find Condition Builder"
-          onLoad={() => setIsLoaded(true)}
-          onError={() => onError('Failed to load the CRM condition builder. Falling back to manual builder.')}
+          onLoad={() => { setIsLoaded(true); onLoadedChange?.(true); }}
+          onError={() => {
+            setIsLoaded(false);
+            onLoadedChange?.(false);
+            onError('Failed to load the CRM condition builder. Falling back to manual builder.');
+          }}
         />
       </div>
     );
@@ -137,7 +143,7 @@ const loadingStyle: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   fontSize: 13,
-  color: '#6b7280',
+  color: 'var(--text-secondary)',
 };
 
 function iframeStyle(isLoaded: boolean): React.CSSProperties {
@@ -145,7 +151,7 @@ function iframeStyle(isLoaded: boolean): React.CSSProperties {
     display: 'block',
     width: '100%',
     height: '100%',
-    border: '1px solid #e5e7eb',
+    border: '1px solid var(--border)',
     borderRadius: 4,
     opacity: isLoaded ? 1 : 0,
     transition: 'opacity 0.2s',

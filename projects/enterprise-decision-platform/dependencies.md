@@ -481,3 +481,236 @@ a limitation in `gateway/README.md`.
 ---
 
 *Addendum ends. No new dependency enters the CRM plugin sandbox.*
+
+---
+
+# Addendum — EDP-FACT-001 Phase F1 Dependency Research (2026-08-18)
+
+**Context:** `brd-edp-fact-001-declarative-fact-assembly.md` was ratified 2026-08-18 with
+**Option B**. Phase F1 is the collection type, iteration, bounded traversal and per-child
+fan-out. The standing adopt-over-build rule requires this research before architecture.
+
+**⚠️ This addendum proposed a new sandbox dependency and then, on examining the integration
+seam, withdrew it.** The final position is **adopt the specification, not the package** —
+see the mode resolution at the end and **ADR-16**. Read the whole addendum before quoting any
+part of it: the research below is the evidence that produced that reversal, not a superseded
+draft.
+
+## Constraint checklist applied
+
+| Constraint | Source |
+|---|---|
+| `netstandard2.0` and `net462` | Runtime targets |
+| **No `Reflection.Emit`, no `LambdaCompilation`, no `Compile()`** | ADR-11, sandbox partial-trust posture |
+| **No arbitrary code execution from author input** | ADR-01 |
+| Permissive licence | Phase 2 checklist |
+| 1000+ stars, or a written justification | Company rule |
+
+## Candidates evaluated
+
+| Repo | Stars | Lang | Licence | Last push | Verdict |
+|---|---|---|---|---|---|
+| `json-everything/json-everything` (Json.Logic) | 1,274 | C# | MIT | 2026-08-08 | **ADOPT THE SPECIFICATION, not the package** (ADR-16). Had it been taken as a dependency it would have been 5.4.3, never 6.x |
+| `zzzprojects/System.Linq.Dynamic.Core` | 1,711 | C# | Apache-2.0 | 2026-07-11 | **REJECT — CVE-2023-32571** |
+| `ncalc/ncalc` | 1,152 | C# | MIT | 2026-08-15 | Already adopted — **re-scoped, see below** |
+| `jwadhams/json-logic-js` | 1,478 | JS | MIT | 2024-07-09 | Specification and conformance-test source only |
+| `apache/incubator-kie` (Drools) | 6,297 | Java | Apache-2.0 | 2026-08-18 | Semantics source only — wrong platform |
+| `camunda/feel-scala` | 136 | Scala | Apache-2.0 | 2026-08-18 | Below bar and wrong platform — FEEL semantics reference |
+| `yavuztor/JsonLogic.Net` | 50 | C# | MIT | 2025-01-25 | Below bar; superseded by json-everything |
+
+## ⚠️ CORRECTION 2026-08-18 — the adopt stands, the version does not
+
+**The first pass of this research recommended Json.Logic 6.1.0 on the strength of its
+`TargetFrameworks` including `netstandard2.0`. That check was necessary but not sufficient,
+and the recommendation was wrong.** Target frameworks say nothing about transitive package
+versions, which is where the sandbox constraint actually bites.
+
+Resolved through the full chain against the NuGet registration API:
+
+| Version | Chain | System.Text.Json | Verdict |
+|---|---|---|---|
+| JsonLogic **6.1.0** | → JsonPointer.Net 7.0.x → Json.More.Net 3.0.1 | **10.0.5** | ❌ **BLOCKED** |
+| JsonLogic **5.5.0** | → JsonPointer.Net 6.0.0 → Json.More.Net 2.2.0 | **10.0.0** | ❌ **BLOCKED** |
+| JsonLogic **5.4.3** | → JsonPointer.Net 5.3.1 → Json.More.Net 2.1.1 | **[9.0.0, )** | ✅ **SAFE** |
+
+**System.Text.Json 10.x is the exact wall already documented in `EDP.RuleRuntime.csproj`** —
+the reason NCalc 6.x was rejected and NCalcSync 5.4.2 retained despite an accepted DoS
+advisory (ADR-SEC-NCALC). EDP pins System.Text.Json **9.0.4**, which satisfies the 5.4.3
+chain's `[9.0.0, )` and does not satisfy the 6.x chain's `[10.0.5, )`.
+
+**How it was caught:** by tracing the dependency graph before architecture rather than after,
+which is the whole point of doing this research first. Recorded rather than quietly amended,
+in the same spirit as the C-004 corrections table.
+
+### Last sandbox-safe version of each package
+
+| Package | Last safe | First blocked | What changes |
+|---|---|---|---|
+| `JsonLogic` | **5.4.3** | 5.5.0 | Moves to JsonPointer.Net 6.0.0 |
+| `JsonPointer.Net` | **5.3.1** | 6.0.0 | Moves to Json.More.Net 2.2.0 |
+| `Json.More.Net` | **2.1.3** | 2.2.0 | Jumps System.Text.Json 9 → 10 |
+
+**Every range in this graph is open-ended (`[x, )`).** A restore will happily float to
+System.Text.Json 10 and break the net462 build. **All three transitives must be pinned
+explicitly**, not merely referenced — the same discipline the Phase 2 register applied to
+NJsonSchema.
+
+## ADOPT — `json-everything` / Json.Logic **5.4.3**
+
+**Its operator set is, almost exactly, the F1 primitive set** — and this was verified against
+the **shipped `netstandard2.0` binary of 5.4.3**, not the main branch, after the version
+correction above made that distinction matter.
+
+Types present in `lib/netstandard2.0/JsonLogic.dll` (5.4.3):
+
+`AllRule · CatRule · FilterRule · IfRule · InRule · MapRule · MergeRule · MissingRule ·
+MissingSomeRule · NoneRule · ReduceRule · SomeRule · SubstrRule · VariableRule`
+
+Operator identifiers in the same binary: `all · filter · map · merge · missing_some · none ·
+reduce · some · var`.
+
+`All`, `Some`, `None`, `Filter`, `Map`, `Reduce`, `Merge` and `In` are precisely the
+collection primitives FR-F1, FR-F2 and FR-F43 require — **all present in the sandbox-safe
+version.** Nothing needed for F1 was lost by dropping from 6.1.0 to 5.4.3.
+
+| Fit check | Result |
+|---|---|
+| Target frameworks | `netstandard2.0; net8.0; net9.0` — netstandard2.0 lib present in the 5.4.3 package |
+| Licence | MIT |
+| Stars | 1,274 — above the bar |
+| Shipped dependencies | `JsonPointer.Net 5.3.1` → `Json.More.Net 2.1.1` → `System.Text.Json [9.0.0, )`, plus **`Humanizer.Core 2.14.1`** via JsonPointer — a text-humanisation library with no purpose in a rules runtime, which nonetheless enters the ILRepack. Flagged for architecture |
+| Serialiser | `System.Text.Json` **9.x line — matches EDP's existing 9.0.4 pin exactly** (`PcrmModels`, `RuleDecisionService`) |
+| `Reflection.Emit` | None found |
+| Operator extensibility | `RuleRegistry` catalogs known rules and resolves by identifier — **closed by default, extended by explicit registration** |
+
+**That last row matters more than it looks.** B-6 of the BRD requires a *closed primitive
+set, extended only by ADR*. Json.Logic's registry is structurally that shape already, so the
+governance boundary can be enforced by the library's own design rather than by convention.
+
+## REJECT — `System.Linq.Dynamic.Core`, despite 1,711 stars
+
+It would otherwise be a natural fit: string-expressed `Where`, `OrderBy`, `GroupBy` over
+collections is close to what F1 and F2 need.
+
+**It is disqualified by CVE-2023-32571 — remote code execution.** The library uses
+`Reflection.Emit` to compile lambdas from supplied text without sufficient validation.
+Versions 1.0.7.10 through 1.2.25 are affected; 1.3.0 remediates the disclosed vector.
+
+The version is not the point. **Rule authors are untrusted input by definition** — that is
+what a business-authored rule *is*. Adopting an expression compiler that turns author text
+into emitted IL contradicts ADR-01 directly, and is the same reasoning that rejected
+`microsoft/RulesEngine` in Phase 2 and that led ADR-11 to choose NCalc over DynamicExpresso.
+
+**What is new is the evidence class.** That decision was previously a judgement about risk.
+There is now a CVE against exactly the mechanism, in exactly this category of library. The
+Phase 2 rejection is retrospectively vindicated and should be cited as precedent, not
+re-argued.
+
+## Correction — NCalc is not what limits us
+
+`FormulaEngine`'s class comment states that collection aggregates are Horizon 2 and
+"raise a clear error rather than silently guessing scalar semantics". That reads as an NCalc
+limitation. **It is not.**
+
+NCalc's `IN` operator accepts an `IEnumerable` as its right operand — the adopted expression
+engine already carries collections. The flattening is **ours**: `RuntimeValue.FromJson`
+converts a JSON array to `e.GetRawText()`, a string, before NCalc ever sees it.
+
+**The ceiling is EDP's own normalisation layer, not the library.** F1 may therefore be
+materially cheaper than the BRD assumed, and the architecture phase should test that
+assumption early — it changes the shape of the estimate.
+
+## Mode resolution — RESOLVED 2026-08-18 by **ADR-16**: mode (b)
+
+| Mode | Description | Outcome |
+|---|---|---|
+| **(a) Adopt the library** | PCRM carries Json.Logic fragments; json-everything evaluates them | **Rejected** |
+| **(b) Adopt the semantics** | PCRM gains native collection primitives built to Json.Logic's operator semantics, verified against its published conformance cases | **Adopted** |
+
+This research initially leaned toward (a) on the standing adopt-over-build rule, and
+deliberately deferred the call until the integration seam had been examined. **Examining it
+reversed the answer.** Summarised — the full argument is in ADR-16:
+
+1. **Two coercion models.** EDP compares via `RuntimeValue.Compare`; JsonLogic ships JS-style
+   loose `==`. The same authored comparison would coerce differently inside a collection
+   predicate than outside one — dual-engine drift inside a single evaluation.
+2. **The trace goes black.** Every EDP condition and group writes a `TraceStep`; an embedded
+   fragment writes none, exactly where FR-F33 and ADR-AI-05 require grounded explanation.
+3. **Validation goes blind.** `RuleValidator` and `TableCompletenessAnalyzer` reason over PCRM
+   structure and cannot see inside an opaque fragment.
+4. **Two structural idioms in PCRM**, both of which the designer must generate and round-trip.
+5. **Empty-set semantics inherited by accident.** The reference implementation returns
+   `false` for `all` over an empty collection, departing from vacuous truth. Applied to the
+   specimen's G1, a DR with zero invoices would silently fail the beneficiary check. That may
+   be the right behaviour — the objection is that nobody would have chosen it.
+
+**What adopt-over-build actually buys here.** EDP already owns every hard prerequisite of
+iteration: operator evaluation, type coercion, null handling, trace, validation.
+`ConditionEvaluator` is a composite that a quantifier node slots straight into. So mode (a)
+would adopt the *trivial* part — roughly thirty lines of looping — while inheriting a semantic
+mismatch, an opaque trace and a frozen dependency chain. **The rule is honoured by adopting
+the specification and its conformance suite, which is where the real risk in set semantics
+lives.**
+
+Authors never see either representation — the designer generates PCRM from a visual editor —
+so this was an internal representation choice throughout. ADR-06 constrains channels, not
+internals, so neither mode conflicted with it.
+
+## Practical consequence — this rides W0-1
+
+The runtime ships as a single ILRepacked, signed assembly. Adding Json.Logic and JsonPointer
+changes that assembly, so it cannot deploy until the SNK rotation completes.
+
+**This would be the fifth change queued behind W0-1** — after the pin guard, `ExecutionId`,
+entity binding and actions. W0-1 remains blocked on a vault and staging decision.
+
+## Open for the architecture phase
+
+1. Mode (a) or mode (b).
+2. Whether `JsonPointer`'s transitive surface is acceptable inside the sandbox.
+3. **Transitive pinning is mandatory, not advisory** — JsonLogic 5.4.3, JsonPointer.Net 5.3.1
+   and Json.More.Net 2.1.1 must all be pinned explicitly. Every range is open-ended, so an
+   unpinned restore floats to System.Text.Json 10 and breaks net462.
+4. Whether `Humanizer.Core` can be excluded from the ILRepack, or must ship dead weight.
+5. **The compounding pin problem (below)** — a strategy question, not a package question.
+4. Whether FEEL's `some` / `every` semantics (DMN, via Drools and feel-scala as references)
+   differ from Json.Logic's `Some` / `All` in any way that matters for authoring. Both are
+   free specification prior art; neither is adoptable as code on netstandard2.0.
+
+---
+
+## 🔴 Structural finding — the net462 pin problem is compounding
+
+This is the **second** dependency EDP would pin to an older line for one reason: **System.Text.Json
+10.x is incompatible with the net462 sandbox.**
+
+| Dependency | Pinned at | Current line | Cost of the pin |
+|---|---|---|---|
+| `NCalcSync` | 5.4.2 | 6.x | An accepted DoS advisory (GHSA-3w5p-95mh-gq75), ADR-SEC-NCALC |
+| `JsonLogic` | *would have been 5.4.3* | 6.1.0 | **Avoided — ADR-16 takes the spec, not the package.** The pattern below is why that mattered |
+
+Each pin is individually defensible. **The pattern is the risk.** The net462 sandbox is
+progressively cutting EDP off from current library lines, and every pin is a security surface
+that stops moving while the world keeps moving.
+
+**ADR-16 declines to add the second entry** — not primarily for this reason, but the pin
+problem was a real weight on the scale. The count stays at one.
+
+The strategy question stands regardless, because a third candidate will arrive: accept the
+freeze and monitor advisories, vendor a minimal subset, or source-include. **That belongs in
+an ADR, not in a csproj comment**, and it is now the one open architecture item this research
+did not close.
+
+---
+
+---
+
+*Addendum ends. **Net result: no new sandbox dependency.** The runtime's dependency set is
+unchanged — NCalcSync 5.4.2 and System.Text.Json 9.0.4 — and what EDP adopts from
+`json-everything` is its specification and conformance cases, which carry no supply-chain,
+ILRepack or advisory surface at all.*
+
+*Two errors are recorded above rather than quietly amended, because both are the kind that
+recur: **checking `TargetFrameworks` instead of the transitive dependency graph**, and
+**applying adopt-over-build before examining the integration seam**. The rule is sound; it
+just cannot be applied from the package page alone.*

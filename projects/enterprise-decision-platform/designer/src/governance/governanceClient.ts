@@ -1,17 +1,11 @@
 // Calls the qdb_edp_RuleGovernanceAction Custom API (maker-checker lifecycle).
 // CRM-only: governance runs server-side; in local dev it reports it needs CRM.
 
+import { crmApiBase } from '../dataverse/apiBase';
+
 export type GovernanceAction = 'Submit' | 'Approve' | 'Reject' | 'Publish' | 'Unpublish' | 'Retire';
 
 export interface GovernanceResult { success: boolean; newState: string; message: string; }
-
-function crmApiBase(): string | null {
-  const w = window as any;
-  const ctx = w.Xrm?.Utility?.getGlobalContext?.() ?? w.parent?.Xrm?.Utility?.getGlobalContext?.();
-  if (ctx?.getClientUrl) return ctx.getClientUrl() + '/api/data/v9.2';
-  if (location.hostname.endsWith('.dynamics.com')) return '/api/data/v9.2';
-  return null;
-}
 
 export async function performAction(versionId: string, action: GovernanceAction, comments = ''): Promise<GovernanceResult> {
   const base = crmApiBase();

@@ -1,0 +1,101 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Dynamics 365 / Dataverse plugin assembly. Targets .NET Framework 4.6.2 (the plugin sandbox
+    runtime for both on-prem 9.x and Dataverse cloud). Builds cross-platform via the reference-
+    assemblies package, so no full framework install is required for `dotnet build`.
+
+    Strong-naming is ON because on-prem registration requires a signed assembly, and signing both
+    targets keeps one assembly identity everywhere.
+
+    The key IS committed, against the usual advice, because the previous one was not and was lost.
+    The public key token forms part of the assembly identity Dataverse registers, so a different
+    key produces an assembly the platform treats as a separate one — the existing registration
+    can no longer be updated in place. Recovering from that cost a delete-and-re-register of the
+    assembly, its three plugin types, five steps and two Custom API bindings, plus an outage while
+    no report could run. See the note in .gitignore, and do not regenerate this key.
+
+    The InternalsVisibleTo key below is this key's public half — regenerating one without the
+    other breaks the test project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net462</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <!-- `annotations`, not `enable`: the shared engine sources use nullable syntax, but the net462
+         reference assemblies carry no nullable metadata, so running the analysis here would flag
+         BCL calls that are already verified clean when the same files build for net8.0. Accept the
+         syntax; let Core and Execution own the analysis. -->
+    <Nullable>annotations</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Qdb.ReportEngine.CrmPlugin</AssemblyName>
+    <RootNamespace>Qdb.ReportEngine.CrmPlugin</RootNamespace>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>Qdb.ReportEngine.CrmPlugin.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <!--
+    The on-premise entry point is a Custom Workflow Activity, not a plugin on a message: 9.1 has no
+    Custom API, so the message has to be a Process Action and the work inside it an activity. Same
+    pattern as Qdb.FormEngine.Workflows. It lives in THIS assembly rather than a sibling because a
+    Dataverse plugin assembly cannot resolve sibling assemblies from the sandbox (ADR-RPT-011), and
+    the shared engine sources are already compiled in here.
+  -->
+  <ItemGroup>
+    <Reference Include="System.Activities" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.Workflow" Version="9.0.2.56" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- System.Net.Http ships with the framework but is not auto-referenced by the SDK for net462. -->
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+    <!-- OrganizationServiceFault arrives wrapped in a WCF FaultException. -->
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+
+  <!--
+    Shared engine logic, compiled INTO this assembly rather than referenced (ADR-RPT-011).
+
+    A Dataverse plugin assembly must be self-contained — it cannot resolve sibling custom assemblies
+    from the sandbox, and plugin packages, which would allow it, do not exist on on-premise 9.x.
+    Source-linking keeps one source of truth for logic the middle tier and the plugin both run,
+    without an ILRepack step or a second implementation to drift.
+
+    Deliberately narrow: only pure, dependency-free logic belongs here. Anything needing a NuGet
+    package (formulas via NCalc, exports, charts) stays out and runs in the web resource instead.
+  -->
+  <ItemGroup Label="Shared engine sources">
+    <Compile Include="..\Qdb.ReportEngine.Core\Common\Result.cs" LinkBase="Shared\Common" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Common\DomainError.cs" LinkBase="Shared\Common" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDefinition.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\ReportDataset.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportQueryBuilder.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlFilters.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ParameterSubstitution.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlAggregates.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportRowShaper.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionFetch.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\ReportDefinitionAssembler.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\RowReader.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\DrilldownPlanner.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\SubReportPlanner.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\DashboardDefinition.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Core\Models\WidgetResult.cs" LinkBase="Shared\Models" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\FetchXmlAggregateBuilder.cs" LinkBase="Shared\Engine" />
+    <Compile Include="..\Qdb.ReportEngine.Execution\Dataverse\DashboardDefinitionFetch.cs" LinkBase="Shared\Engine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Qdb.ReportEngine.CrmPlugin.Tests" Key="002400000480000094000000060200000024000052534131000400000100010041f44f8ca8db2db2eca9d9bec9ffb47bb8477e13190171c2be1cba66b52656d1e0d4d83143f61fccf629838e7c0443f210f449e1ce501166090e52e417059fdad5240ecce7db11c2c36c151da7b187bcfeb8dcf3c07281544b2b05107d3a47e646151580ce1f10b0496fa90056b6f3566da7954d2459b10efbf24310f321dbbd" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.56" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
