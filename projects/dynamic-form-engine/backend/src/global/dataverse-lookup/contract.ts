@@ -54,6 +54,8 @@ export interface EntityLookupQuery {
   columns?: LookupColumn[];
   /** Requested language (e.g. 'ar'); selects the localized attribute per column. */
   language?: string;
+  /** Order by the display attribute. Omitted keeps the implementation's default order. */
+  sortDirection?: 'asc' | 'desc';
 }
 
 /**

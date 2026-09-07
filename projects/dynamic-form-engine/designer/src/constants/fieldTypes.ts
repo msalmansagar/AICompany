@@ -116,6 +116,22 @@ export const FIELD_TYPE_DEFINITIONS: Record<FieldType, FieldTypeDefinition> = {
   [FIELD_TYPE.INTERACTIVE_GRID]: { type: FIELD_TYPE.INTERACTIVE_GRID, category: 'advanced', label: 'Interactive Grid', iconName: 'Table', hasOptions: false, hasLookup: false, isLayout: false },
 };
 
+/**
+ * Field types whose configuration includes grid columns.
+ *
+ * Held here rather than repeated at each use: the same set was already written out in
+ * FieldSlot and FormSaveService, and a copy that fell out of step would either skip loading
+ * a field's columns or skip saving them.
+ */
+const GRID_FIELD_TYPES: ReadonlySet<string> = new Set([
+  FIELD_TYPE.REPEATING_GRID,
+  FIELD_TYPE.INTERACTIVE_GRID,
+]);
+
+export function isGridFieldType(fieldType: string): boolean {
+  return GRID_FIELD_TYPES.has(fieldType);
+}
+
 export const BASIC_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'basic');
 export const LAYOUT_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'layout');
 export const ADVANCED_FIELD_TYPES = Object.values(FIELD_TYPE_DEFINITIONS).filter(d => d.category === 'advanced');

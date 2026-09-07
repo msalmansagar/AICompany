@@ -16,8 +16,10 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import { useDesignerStore } from '@/state/designerStore';
+import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 import { ScopedButtonsPanel } from '@/designer/properties/panels/ScopedButtonsPanel';
+import { BranchRegular } from '@fluentui/react-icons';
 
 const useStyles = makeStyles({
   form: { display: 'flex', flexDirection: 'column', gap: '12px' },
@@ -50,6 +52,7 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
   const styles = useStyles();
   const tab = useDesignerStore(state => state.tabs[tabId]);
   const updateTab = useDesignerStore(state => state.updateTab);
+  const requestRuleForTab = useDesignerStore(state => state.requestRuleForTab);
   const sectionIds = useDesignerStore(state => state.sectionOrder[tabId] ?? []);
   const sections = useDesignerStore(state => state.sections);
   const updateSection = useDesignerStore(state => state.updateSection);
@@ -116,6 +119,58 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
         />
       </Field>
 
+      <Field
+        hint="Shows one section at a time instead of all of them. The user advances with a section button set to 'Navigate: Next section', and cannot move on while the visible section has errors. Every section except the last needs such a button, or the form dead-ends."
+      >
+        <Switch
+          label="Reveal sections one at a time"
+          checked={tab.revealsSectionsOneAtATime}
+          onChange={(_, data) => updateTab(tabId, { revealsSectionsOneAtATime: data.checked })}
+        />
+      </Field>
+
+      {/* DFE-SUBMITCONFIRM-002: acknowledgement gate scoped to this tab. */}
+      <Divider />
+      <Text size={100} weight="semibold" className={styles.sectionHeading}>Submit Confirmation</Text>
+
+      <Field
+        hint="Shows a confirmation checkbox at the end of this tab. The user cannot move forward past this tab, and cannot submit the form, until it is ticked."
+      >
+        <Switch
+          label="Require confirmation on this tab"
+          checked={tab.requireSubmitConfirmation === true}
+          onChange={(_, data) => updateTab(tabId, { requireSubmitConfirmation: data.checked })}
+        />
+      </Field>
+
+      {tab.requireSubmitConfirmation && (
+        <>
+          <Field
+            label="Submit Confirmation Label"
+            hint="Text shown beside the checkbox. Leave blank for a default acknowledgement."
+          >
+            <Textarea
+              value={tab.submitConfirmationLabel ?? ''}
+              onChange={(_, data) => updateTab(tabId, { submitConfirmationLabel: data.value || null })}
+              placeholder="I confirm the information on this tab is correct."
+              maxLength={SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH}
+              rows={2}
+            />
+          </Field>
+
+          <Field
+            label="Submit Confirmation Message"
+            hint="Optional. Shown in a dialog when the user ticks the checkbox."
+          >
+            <Textarea
+              value={tab.submitConfirmationMessage ?? ''}
+              onChange={(_, data) => updateTab(tabId, { submitConfirmationMessage: data.value || null })}
+              rows={3}
+            />
+          </Field>
+        </>
+      )}
+
       {sectionIds.length > 0 && (
         <>
           <Divider />
@@ -148,6 +203,20 @@ export function TabProperties({ tabId }: TabPropertiesProps): React.ReactElement
           })}
         </>
       )}
+
+      <Divider />
+      <Field
+        label="Business rules"
+        hint="Show or hide this tab based on what the user has entered"
+      >
+        <Button
+          appearance="secondary"
+          icon={<BranchRegular />}
+          onClick={() => requestRuleForTab(tabId)}
+        >
+          Create business rule
+        </Button>
+      </Field>
 
       <Divider />
       <Accordion collapsible multiple>

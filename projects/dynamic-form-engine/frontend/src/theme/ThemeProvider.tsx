@@ -6,7 +6,14 @@ import {
   type BrandVariants,
   type Theme,
 } from '@fluentui/react-components';
-import type { ThemeDefinition } from '@qdb/shared';
+import {
+  APPEARANCE_PALETTES,
+  fluentTokenOverrides,
+  isAppearanceName,
+  type ThemeDefinition,
+  type AppearancePalette,
+  type AppearanceName,
+} from '@qdb/shared';
 
 // â”€â”€ Hex-to-RGB helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -137,11 +144,27 @@ function loadFont(fontUrl: string | undefined): void {
 
 // â”€â”€ Fluent UI theme builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// An appearance carries more than a ThemeDefinition can express — the exact
+// neutrals, strokes, radii and shadows of the design system. Where the form is
+// being themed BY an appearance rather than by a customer, restate those on
+// Fluent too, or a dialog inside the form sits a shade off the panel behind it:
+// Fluent's stock dark surface is #292929 where the design system's is #292827.
+//
+// A customer's own theme is left with Fluent's neutrals, as before. It states a
+// brand, not a whole design system, and inventing the rest would be guessing.
+function appearancePaletteOf(theme: ThemeDefinition): AppearancePalette | null {
+  const isAppearanceTheme = theme.id.startsWith('appearance-') && isAppearanceName(theme.themeCode);
+  return isAppearanceTheme ? APPEARANCE_PALETTES[theme.themeCode as AppearanceName] : null;
+}
+
 function buildFluentTheme(theme: ThemeDefinition): Theme {
   const brandVariants = buildBrandVariants(theme.primaryColor);
-  return theme.isDarkMode
+  const base = theme.isDarkMode
     ? createDarkTheme(brandVariants)
     : createLightTheme(brandVariants);
+
+  const palette = appearancePaletteOf(theme);
+  return palette ? ({ ...base, ...fluentTokenOverrides(palette) } as Theme) : base;
 }
 
 // â”€â”€ ThemeProvider â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

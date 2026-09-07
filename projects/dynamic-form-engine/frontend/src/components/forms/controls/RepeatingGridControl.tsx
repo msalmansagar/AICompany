@@ -16,6 +16,7 @@ import {
   DeleteRegular,
 } from '@fluentui/react-icons';
 import type { FieldDefinition } from '@qdb/shared';
+import { resolveFieldDefaultValue } from '@qdb/shared';
 import { useFormContext } from '../../../contexts/FormContext';
 import type { ControlProps } from '../FieldRenderer';
 
@@ -83,7 +84,7 @@ export function RepeatingGridControl({
     const emptyRow: GridRow = {};
 
     for (const childField of childFields) {
-      emptyRow[childField.schemaName] = childField.defaultValue ?? null;
+      emptyRow[childField.schemaName] = resolveFieldDefaultValue(childField);
     }
 
     updateRows([...rows, emptyRow]);

@@ -34,11 +34,22 @@ export function NumberBarControl({ field }: ControlProps) {
   const styles = useStyles();
   const { fieldValues } = useFormContext();
 
-  const value = toNumber(
-    fieldValues[field.barValueFieldSchemaName || field.schemaName],
-  );
-  const max = field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0;
-  const pct = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  // DFE-BARSRC-001: the AMOUNT is independent of where the bounds come from — this field's
+  // own value unless barValueFieldSchemaName names another field to read it from.
+  const value = toNumber(fieldValues[field.barValueFieldSchemaName || field.schemaName]);
+
+  // 'static' takes literal bounds straight from the published JSON — no lookup, no read, no
+  // async. Anything else (including unset, which is every bar predating this) reads the
+  // maximum from another field on the form, exactly as before.
+  const isStatic = field.barSource === 'static';
+  const min = isStatic ? toNumber(field.barMin) : 0;
+  const max = isStatic
+    ? toNumber(field.barMax)
+    : (field.barMaxFieldSchemaName ? toNumber(fieldValues[field.barMaxFieldSchemaName]) : 0);
+
+  // A minimum shifts the origin: a 500–1500 band at 750 is a quarter through, not a half.
+  const span = max - min;
+  const pct = span > 0 ? Math.min(100, Math.max(0, ((value - min) / span) * 100)) : 0;
 
   const fmt = new Intl.NumberFormat(undefined, {
     style: field.currencyCode ? 'currency' : 'decimal',

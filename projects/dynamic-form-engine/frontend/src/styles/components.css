@@ -1,0 +1,93 @@
+/* ============================================================================
+   Dynamic Form Engine runtime — component vocabulary
+   ----------------------------------------------------------------------------
+   The page around the form, expressed against the shared tokens. Smaller than
+   the designer's: the runtime has no sitemap and no app bar of its own — inside
+   CRM the host already provides one, and a second would be chrome on chrome.
+   What is here is the page surface, the status vocabulary and the accessibility
+   rules the design system asks for.
+
+   The form itself is themed from the customer's ThemeDefinition, not from these.
+   ========================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+  background-color: var(--bg);
+  background-image: var(--app-bg-image);
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
+button { font-family: inherit; }
+a { color: var(--primary); }
+
+/* ============ Appearance picker ============ */
+
+.theme-menu {
+  position: absolute; top: 40px; right: 0; z-index: 60; width: 244px;
+  background: var(--surface-raised); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-64); padding: 6px;
+  animation: dfe-pop .14s ease;
+}
+[data-theme="glass"] .theme-menu, [data-theme="vibrant"] .theme-menu {
+  -webkit-backdrop-filter: var(--surface-blur);
+  backdrop-filter: var(--surface-blur);
+}
+.theme-menu .tm-h {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--text-secondary); font-weight: 700; padding: 8px 8px 6px;
+}
+.theme-opt {
+  display: flex; align-items: center; gap: 11px; padding: 8px; border-radius: var(--radius);
+  cursor: pointer; border: none; background: transparent; width: 100%; text-align: left;
+  color: var(--text); font-family: inherit; font-size: 13.5px;
+}
+.theme-opt:hover { background: var(--surface-alt); }
+.theme-opt .sw { width: 36px; height: 24px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, .14); flex-shrink: 0; }
+.theme-opt .tm-txt { flex: 1; min-width: 0; }
+.theme-opt .tm-name { font-weight: 600; display: block; }
+.theme-opt .tm-desc { font-size: 11.5px; color: var(--text-secondary); display: block; }
+.theme-opt .chk { flex-shrink: 0; opacity: 0; color: var(--primary); }
+.theme-opt[aria-checked="true"] .chk { opacity: 1; }
+
+.sw-light { background: linear-gradient(135deg, #ffffff 50%, #0078d4 50%); }
+.sw-dark { background: linear-gradient(135deg, #292827 50%, #2899f5 50%); }
+.sw-glass { background: linear-gradient(135deg, #c2e9fb, #e0c3fc 55%, #ffd3e0); }
+.sw-vibrant { background: linear-gradient(135deg, #7c3aed, #ec4899 60%, #f59e0b); }
+
+/* ============ Status pills ============ */
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 9px; border-radius: 11px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+.pill.success { background: var(--success-bg); color: var(--success); }
+.pill.draft { background: var(--neutral-chip); color: var(--text-secondary); }
+.pill.warning { background: var(--warning-bg); color: var(--warning); }
+.pill.error { background: var(--error-bg); color: var(--error); }
+.pill.info { background: var(--info-bg); color: var(--info); }
+
+/* ============ Accessibility and motion ============ */
+
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+@keyframes dfe-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

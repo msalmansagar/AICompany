@@ -14,6 +14,7 @@
 import type { IWebApiAdapter } from '@/services/IWebApiAdapter';
 import type { AuditEntry } from '@/services/AuditPatchMapper';
 import { ENTITY_NAMES } from '@/constants/entityNames';
+import { isGuid } from '@/services/assertGuid';
 import {
   DFE_AUDIT_LOG_ATTRS,
   DFE_AUDIT_ACTION_PICKLIST,
@@ -87,7 +88,12 @@ export class AuditBatchWriter {
       record[`${DFE_AUDIT_LOG_ATTRS.FORM_VERSION_ID}@odata.bind`] =
         `/qdb_form_versions(${entry.formVersionId})`;
     }
-    if (entry.changedBy) {
+    // Bound only when the actor is a real record id. Running the designer standalone there is
+    // no signed-in user, so the context substitutes the placeholder 'rest-mode-user'; bound
+    // into /systemusers(...) Dataverse rejects the entire create — "')' or ',' expected at
+    // position 5" — and every save reported that its change history could not be written.
+    // The entry is more useful without an actor than not written at all.
+    if (entry.changedBy && isGuid(entry.changedBy)) {
       record[`${DFE_AUDIT_LOG_ATTRS.CHANGED_BY}@odata.bind`] =
         `/systemusers(${entry.changedBy})`;
     }

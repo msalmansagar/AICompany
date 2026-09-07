@@ -11,3 +11,5 @@ coverage/
 **/.env.local
 !.env.example
 !**/.env.example
+scripts/node_modules/
+scripts/translations-*.xlsx

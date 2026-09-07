@@ -18,7 +18,9 @@ import {
   tokens,
 } from '@fluentui/react-components';
 import type { SummaryMode } from '@qdb/shared';
+import { isRenderableImageUrl } from '@qdb/shared';
 import { useDesignerStore } from '@/state/designerStore';
+import { SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH } from '@/constants/columnLimits';
 import { EntityCombobox } from '@/components/EntityCombobox';
 import { TranslationsPanel } from '@/designer/properties/panels/TranslationsPanel';
 
@@ -51,6 +53,17 @@ function SectionHeading({ label }: { label: string }): React.ReactElement {
   );
 }
 
+interface ValidationHint {
+  state: 'none' | 'error';
+  message?: string;
+}
+
+function describeImageUrl(url: string | null | undefined): ValidationHint {
+  if (!url) return { state: 'none' };
+  if (isRenderableImageUrl(url)) return { state: 'none' };
+  return { state: 'error', message: 'Must be an absolute http:// or https:// URL — this will not render.' };
+}
+
 export function FormProperties(): React.ReactElement {
   const styles = useStyles();
   const form = useDesignerStore(state => state.form);
@@ -63,6 +76,12 @@ export function FormProperties(): React.ReactElement {
     },
     [updateForm]
   );
+
+  // Only absolute http(s) URLs render — see isRenderableImageUrl. Saying so in the panel
+  // beats a maker discovering it as a missing image in the published form.
+  const imageUrlState = describeImageUrl(form?.imageUrl);
+  const headerImageState = describeImageUrl(form?.headerImageUrl);
+  const footerImageState = describeImageUrl(form?.footerImageUrl);
 
   if (!form) return <></>;
 
@@ -175,6 +194,93 @@ export function FormProperties(): React.ReactElement {
       </Field>
 
       <Divider />
+      <SectionHeading label="Form Mark" />
+
+      <Field
+        label="Icon"
+        hint="Fluent icon shown beside the form title. Ignored while an image URL is set."
+      >
+        <Input
+          value={form.iconName ?? ''}
+          onChange={(_, data) => updateForm({ iconName: data.value || null })}
+          placeholder="e.g. DocumentBulletList"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Field
+        label="Image URL"
+        hint="Absolute https image shown instead of the icon. The portal CSP must allow the host."
+        validationState={imageUrlState.state}
+        validationMessage={imageUrlState.message}
+      >
+        <Input
+          value={form.imageUrl ?? ''}
+          onChange={(_, data) => updateForm({ imageUrl: data.value || null })}
+          placeholder="https://example.com/logo.png"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
+      <SectionHeading label="Header Band" />
+
+      <Field
+        label="Header Text"
+        hint="Plain text shown above the form. Line breaks are kept; HTML is not interpreted."
+      >
+        <Textarea
+          value={form.headerText ?? ''}
+          onChange={(_, data) => updateForm({ headerText: data.value || null })}
+          placeholder="e.g. Applications close on 31 March."
+          rows={3}
+        />
+      </Field>
+
+      <Field
+        label="Header Image URL"
+        hint="Absolute https image shown in the header band."
+        validationState={headerImageState.state}
+        validationMessage={headerImageState.message}
+      >
+        <Input
+          value={form.headerImageUrl ?? ''}
+          onChange={(_, data) => updateForm({ headerImageUrl: data.value || null })}
+          placeholder="https://example.com/banner.png"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
+      <SectionHeading label="Footer Band" />
+
+      <Field
+        label="Footer Text"
+        hint="Plain text shown below the form. Line breaks are kept; HTML is not interpreted."
+      >
+        <Textarea
+          value={form.footerText ?? ''}
+          onChange={(_, data) => updateForm({ footerText: data.value || null })}
+          placeholder="e.g. Need help? Call 800 0000."
+          rows={3}
+        />
+      </Field>
+
+      <Field
+        label="Footer Image URL"
+        hint="Absolute https image shown in the footer band."
+        validationState={footerImageState.state}
+        validationMessage={footerImageState.message}
+      >
+        <Input
+          value={form.footerImageUrl ?? ''}
+          onChange={(_, data) => updateForm({ footerImageUrl: data.value || null })}
+          placeholder="https://example.com/seal.png"
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Field>
+
+      <Divider />
       <SectionHeading label="Confirmation" />
 
       <Field label="Confirmation Message" hint="Shown after successful submission. Use {refNumber} for the reference.">
@@ -207,10 +313,12 @@ export function FormProperties(): React.ReactElement {
         label="Acknowledgement Checkbox Label"
         hint="When set, the final step shows this checkbox and Submit stays disabled until it is ticked. Leave blank to disable the gate."
       >
-        <Input
+        <Textarea
           value={form.submitConfirmationLabel ?? ''}
           onChange={(_, data) => updateForm({ submitConfirmationLabel: data.value || null })}
           placeholder="e.g. I confirm the information is accurate and complete"
+          maxLength={SUBMIT_CONFIRMATION_LABEL_MAX_LENGTH}
+          rows={2}
         />
       </Field>
 

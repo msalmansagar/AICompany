@@ -7,9 +7,31 @@ import type {
   StructuredCondition,
   CrossFieldComparisonOperator,
 } from '@qdb/shared';
-import { ExpressionEngine, type ExpressionContext } from '@qdb/shared';
+import { ExpressionEngine, type ExpressionContext, validateGridRow } from '@qdb/shared';
 
 type ZodShape = Record<string, ZodTypeAny>;
+
+/**
+ * Every per-column failure across an entry grid's rows, worded with its row number.
+ *
+ * Only entry-mode values are checked: a selection grid stores record ids, which the column
+ * rules do not describe. A grid with no column configs yields nothing, which is what makes
+ * this inert for every grid published before column validation existed.
+ */
+function collectGridCellFailures(field: FieldDefinition, value: unknown): string[] {
+  const columns = field.gridConfig?.columnConfigs ?? [];
+  if (columns.length === 0 || !Array.isArray(value)) return [];
+
+  const failures: string[] = [];
+  value.forEach((row, index) => {
+    if (typeof row !== 'object' || row === null) return;
+    const rowErrors = validateGridRow(columns, row as Record<string, unknown>);
+    for (const message of Object.values(rowErrors)) {
+      failures.push(`Row ${index + 1}: ${message}`);
+    }
+  });
+  return failures;
+}
 
 export class ValidationEngine {
   /**
@@ -57,6 +79,10 @@ export class ValidationEngine {
       const error = this.evaluateRule(rule, value, allValues);
       if (error) errors.push(error);
     }
+
+    // Grid columns carry their own rules, which no ValidationRule describes. Without this
+    // the form submitted rows the grid's own cell editor had already marked invalid.
+    errors.push(...collectGridCellFailures(field, value));
 
     return errors;
   }
@@ -174,6 +200,9 @@ export class ValidationEngine {
         const selectionSchema = z.union([z.string(), z.array(z.string())]);
         const entrySchema = z.array(z.record(z.unknown()));
         // Accept either selection or entry format; required check is non-empty.
+        // Per-column rules are NOT applied here. This builder feeds buildZodSchema, which
+        // nothing in the app calls — the live gate is validateField. Adding them here as
+        // well would put the same rule in two places, one of them dead.
         schema = isRequired
           ? z
               .union([selectionSchema, entrySchema])

@@ -75,6 +75,11 @@ namespace Qdb.FormEngine.Core.Generation
                 NumberDisplayStyle = field.GetAttributeValue<OptionSetValue>("qdb_number_display_style")?.Value == 100000002 ? "bar" : null,
                 BarMaxFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_max_field_schema"),
                 BarValueFieldSchemaName = field.GetAttributeValue<string>("qdb_bar_value_field_schema"),
+                BarSource = MapBarSource(field),
+                BarMin = ReadStaticBound(field, "qdb_bar_min_value"),
+                BarMax = ReadStaticBound(field, "qdb_bar_max_value"),
+                BarSourceEntity = ReadDynamicName(field, "qdb_bar_source_entity"),
+                BarMinAttribute = ReadDynamicName(field, "qdb_bar_min_attribute"),
                 TrueLabel = Resolve(fieldId, "qdb_form_field", "qdb_true_label", field.GetAttributeValue<string>("qdb_true_label")),
                 FalseLabel = Resolve(fieldId, "qdb_form_field", "qdb_false_label", field.GetAttributeValue<string>("qdb_false_label")),
                 BoolRenderStyle = PicklistMapper.ToBoolRenderStyle(EntityHelper.GetOptionSetValue(field, "qdb_boolean_render_style")),
@@ -98,6 +103,8 @@ namespace Qdb.FormEngine.Core.Generation
                 // DFE-FBE-001: Label field — translatable static content + optional source binding.
                 StaticContent = Resolve(fieldId, "qdb_form_field", "qdb_static_content", field.GetAttributeValue<string>("qdb_static_content")),
                 SourceFieldSchemaName = field.GetAttributeValue<string>("qdb_source_field_schema_name"),
+                ShowDocumentView = ReadOptionalBool(field, "qdb_show_document_view"),
+                ShowDocumentDownload = ReadOptionalBool(field, "qdb_show_document_download"),
                 Options = BuildOptions(fieldId),
                 LookupConfig = BuildLookupConfig(fieldId),
                 FileUploadConfig = BuildFileUploadConfig(field, fieldTypeStr),
@@ -227,7 +234,11 @@ namespace Qdb.FormEngine.Core.Generation
                 Mode = gridMode,
                 TargetEntity = entityName ?? string.Empty,
                 EntityName = entityName,
-                SavedViewId = field.GetAttributeValue<string>("qdb_grid_saved_view_id"),
+                // The saved view lives in the form's "Grid Config" section
+                // (qdb_grid_saved_view_id), beside the other grid settings.
+                // qdb_saved_view_id is the legacy twin under "Lookup Config", still read so
+                // fields configured before the move keep publishing their view.
+                SavedViewId = ResolveSavedViewId(field),
                 SelectionMode = PicklistMapper.ToSelectionMode(EntityHelper.GetOptionSetValue(field, "qdb_selection_mode")),
                 MinRows = field.Contains("qdb_grid_min_rows") ? field.GetAttributeValue<int>("qdb_grid_min_rows") : 0,
                 MaxRows = field.Contains("qdb_max_rows") ? field.GetAttributeValue<int>("qdb_max_rows") : 200,
@@ -248,9 +259,30 @@ namespace Qdb.FormEngine.Core.Generation
         }
 
         // Only 'table' and 'card' are explicit modes; 'both' (default) is omitted.
+        /// <summary>
+        /// Reads a boolean the record may not carry at all. Absent stays null so the JSON
+        /// omits it and the runtime applies its own default, rather than publishing false.
+        /// </summary>
+        private static bool? ReadOptionalBool(Entity field, string attributeName)
+        {
+            return field.Contains(attributeName) ? field.GetAttributeValue<bool>(attributeName) : (bool?)null;
+        }
+
         private static string NormalizeViewMode(string raw)
         {
             return raw == "table" || raw == "card" ? raw : null;
+        }
+
+        /// <summary>
+        /// Reads the saved view from the Grid Config column, falling back to the legacy
+        /// Lookup Config column for fields configured before the setting moved.
+        /// </summary>
+        private static string ResolveSavedViewId(Entity field)
+        {
+            var gridConfigView = field.GetAttributeValue<string>("qdb_grid_saved_view_id");
+            return string.IsNullOrWhiteSpace(gridConfigView)
+                ? field.GetAttributeValue<string>("qdb_saved_view_id")
+                : gridConfigView;
         }
 
         private List<GridColumnConfig> BuildGridColumns(Guid fieldId)
@@ -263,6 +295,28 @@ namespace Qdb.FormEngine.Core.Generation
                 .ToList();
         }
 
+        /// <summary>A record id from the rule JSON, or null when it is absent or malformed.</summary>
+        private static Guid? ParseGuid(string value)
+        {
+            Guid parsed;
+            return Guid.TryParse(value, out parsed) ? (Guid?)parsed : null;
+        }
+
+        /// <summary>Grid validation formats the runtime knows how to check.</summary>
+        private static readonly string[] GridValidationFormats =
+            { "none", "email", "phone", "url", "numeric", "alphanumeric", "custom" };
+
+        /// <summary>
+        /// Publishes a stored format only when the runtime recognises it. A typo would
+        /// otherwise reach the renderer as a format nothing can check, which reads as
+        /// "validation is configured but never fires".
+        /// </summary>
+        private static string NormalizeValidationFormat(string stored)
+        {
+            if (string.IsNullOrWhiteSpace(stored)) return null;
+            return Array.IndexOf(GridValidationFormats, stored) >= 0 ? stored : null;
+        }
+
         private GridColumnConfig BuildGridColumn(Entity column)
         {
             var config = new GridColumnConfig
@@ -272,6 +326,15 @@ namespace Qdb.FormEngine.Core.Generation
                 ColumnLabel = Resolve(column.Id, "qdb_grid_column_config", "qdb_column_label", column.GetAttributeValue<string>("qdb_column_label")),
                 TargetAttribute = column.GetAttributeValue<string>("qdb_column_attribute"),
                 ColumnFieldType = column.GetAttributeValue<string>("qdb_column_field_type"),
+                IsVisible = EntityHelper.GetBoolOrTrue(column, "qdb_is_visible"),
+                IsRequired = column.GetAttributeValue<bool>("qdb_is_required"),
+                MaxLength = column.Contains("qdb_max_length")
+                    ? column.GetAttributeValue<int>("qdb_max_length")
+                    : (int?)null,
+                ValidationFormat = NormalizeValidationFormat(
+                    column.GetAttributeValue<string>("qdb_validation_format")),
+                ValidationPattern = column.GetAttributeValue<string>("qdb_validation_pattern"),
+                ValidationMessage = column.GetAttributeValue<string>("qdb_validation_message"),
                 Options = new List<GridColumnOptionValue>()
             };
             ApplyColumnOptionsJson(config, column.GetAttributeValue<string>("qdb_column_options_json"));
@@ -302,9 +365,22 @@ namespace Qdb.FormEngine.Core.Generation
                     config.LookupTargetEntity = (string)obj["lookupTargetEntity"];
                     config.LookupDisplayAttribute = (string)obj["lookupDisplayAttribute"];
                     config.LookupValueAttribute = (string)obj["lookupValueAttribute"];
+                    config.LookupSort = ReadLookupSort(obj);
                 }
             }
             catch { /* malformed options JSON — leave defaults (empty options, no filter meta) */ }
+        }
+
+        /// <summary>
+        /// The lookup sort direction under either key. The designer writes "lookupSort";
+        /// "sort" is accepted because column JSON authored by hand uses the shorter name.
+        /// An unrecognised value publishes as null, so the list stays unordered rather than
+        /// carrying a direction the runtime cannot honour.
+        /// </summary>
+        private static string ReadLookupSort(JObject obj)
+        {
+            var raw = (string)(obj["lookupSort"] ?? obj["sort"]);
+            return raw == "asc" || raw == "desc" ? raw : null;
         }
 
         private List<ValidationRule> BuildValidationRules(Guid fieldId)
@@ -341,15 +417,28 @@ namespace Qdb.FormEngine.Core.Generation
         private static readonly Dictionary<string, string> DesignerOperatorMap = new Dictionary<string, string>
         {
             { "equals", "equals" }, { "not_equals", "notEquals" }, { "contains", "contains" },
+            // The designer offers Not Contains; without this the condition was dropped at
+            // publish and the rule quietly did something other than what was configured.
+            { "not_contains", "notContains" },
             { "is_empty", "isEmpty" }, { "is_not_empty", "isNotEmpty" },
             { "greater_than", "greaterThan" }, { "less_than", "lessThan" }
         };
         private static readonly Dictionary<string, string> DesignerActionMap = new Dictionary<string, string>
         {
             { "show_field", "showField" }, { "hide_field", "hideField" },
+            { "show_tab", "showTab" }, { "hide_tab", "hideTab" },
+            { "show_section", "showSection" }, { "hide_section", "hideSection" },
             { "set_required", "makeRequired" }, { "clear_required", "makeOptional" },
             { "set_value", "setValue" }
         };
+
+        /// <summary>Designer action types that name a tab rather than a field.</summary>
+        private static readonly HashSet<string> TabActions =
+            new HashSet<string> { "show_tab", "hide_tab" };
+
+        /// <summary>Designer action types that name a section rather than a field.</summary>
+        private static readonly HashSet<string> SectionActions =
+            new HashSet<string> { "show_section", "hide_section" };
 
         private Dictionary<string, Guid> _schemaToGuid;
         private Dictionary<Guid, string> _guidToSchema;
@@ -397,8 +486,30 @@ namespace Qdb.FormEngine.Core.Generation
             return null;
         }
 
+        /// <summary>The trigger events the runtime understands. Anything else publishes as null.</summary>
+        private static readonly HashSet<string> SupportedTriggerEvents =
+            new HashSet<string>(StringComparer.Ordinal) { "on_change", "on_load", "on_blur", "on_save" };
+
+        /// <summary>
+        /// Reads a designer rule's trigger event, or null when it is absent or unrecognised.
+        /// Publishing an event the runtime cannot honour would give the maker a setting that
+        /// silently does nothing, so an unknown value falls back to the default instead.
+        /// </summary>
+        private static string ReadTriggerEvent(JObject def)
+        {
+            var value = (string)def["trigger_event"];
+            return value != null && SupportedTriggerEvents.Contains(value) ? value : null;
+        }
+
         private void AppendDesignerRules(Entity rule, JObject def, Guid fieldId, List<BusinessRule> result)
         {
+            // Attach to the TRIGGER field, matching the backend — the rule has to re-evaluate
+            // when the watched field changes, not when the field it acts on does.
+            var triggerCode = (string)def["trigger_field_code"];
+            Guid triggerGuid;
+            if (triggerCode == null || !_schemaToGuid.TryGetValue(triggerCode, out triggerGuid)) return;
+            if (triggerGuid != fieldId) return;
+
             var group = def["condition_group"] as JObject;
             var conditions = new List<RuleCondition>();
             var rawConditions = group != null ? group["conditions"] as JArray : null;
@@ -425,20 +536,41 @@ namespace Qdb.FormEngine.Core.Generation
                 var actionType = (string)action["action_type"];
                 string mappedAction;
                 if (actionType == null || !DesignerActionMap.TryGetValue(actionType, out mappedAction)) continue;
-                var targetCode = (string)action["target_field_code"];
-                Guid targetGuid;
-                if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out targetGuid)) continue;
-                if (targetGuid != fieldId) continue;
+
+                // A tab or section action names a record id directly; only a field action
+                // names a schema code that has to be resolved to one. Resolving every action
+                // as a field is what dropped tab-targeted rules on the floor.
+                Guid? targetField = null, targetTab = null, targetSection = null;
+                if (TabActions.Contains(actionType))
+                {
+                    targetTab = ParseGuid((string)action["target_tab_id"]);
+                    if (targetTab == null) continue;
+                }
+                else if (SectionActions.Contains(actionType))
+                {
+                    targetSection = ParseGuid((string)action["target_section_id"]);
+                    if (targetSection == null) continue;
+                }
+                else
+                {
+                    var targetCode = (string)action["target_field_code"];
+                    Guid fieldGuid;
+                    if (targetCode == null || !_schemaToGuid.TryGetValue(targetCode, out fieldGuid)) continue;
+                    targetField = fieldGuid;
+                }
 
                 result.Add(new BusinessRule
                 {
                     Id = rule.Id,
                     Name = rule.GetAttributeValue<string>("qdb_name"),
                     Description = rule.GetAttributeValue<string>("qdb_description"),
+                    TriggerEvent = ReadTriggerEvent(def),
                     Conditions = conditions,
                     ConditionsLogic = logic,
                     Action = mappedAction,
-                    TargetFieldId = targetGuid,
+                    TargetFieldId = targetField,
+                    TargetTabId = targetTab,
+                    TargetSectionId = targetSection,
                     ActionValue = (string)action["value"],
                     Priority = priority,
                     IsActive = true
@@ -446,15 +578,42 @@ namespace Qdb.FormEngine.Core.Generation
             }
         }
 
+        /// <summary>
+        /// Whether any condition watches this field. Conditions may carry either the field's
+        /// record id (legacy/seed rows) or its schema name, so both are accepted.
+        /// </summary>
+        private bool TriggersOnField(List<RuleCondition> conditions, Guid fieldId)
+        {
+            if (conditions == null) return false;
+
+            string schemaName;
+            _guidToSchema.TryGetValue(fieldId, out schemaName);
+
+            foreach (var condition in conditions)
+            {
+                if (condition.FieldId == null) continue;
+
+                Guid conditionFieldId;
+                if (Guid.TryParse(condition.FieldId, out conditionFieldId) && conditionFieldId == fieldId) return true;
+                if (schemaName != null && condition.FieldId == schemaName) return true;
+            }
+            return false;
+        }
+
         private void AppendLegacyRule(Entity rule, Guid fieldId, List<BusinessRule> result)
         {
-            var target = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id");
-            if (target != fieldId) return;
-
             var conditionsJson = rule.GetAttributeValue<string>("qdb_conditions_json") ?? "[]";
             List<RuleCondition> conditions;
             try { conditions = JsonConvert.DeserializeObject<List<RuleCondition>>(conditionsJson) ?? new List<RuleCondition>(); }
             catch { conditions = new List<RuleCondition>(); }
+
+            // A rule belongs to the field that TRIGGERS it, not the one it acts on — it has to
+            // be re-evaluated when the watched field changes. Attaching by target also dropped
+            // every rule aimed at a section or tab, which has no target field at all.
+            if (!TriggersOnField(conditions, fieldId)) return;
+
+            var target = EntityHelper.GetNullableLookupId(rule, "qdb_target_field_id");
+
             // Resolve legacy GUID field references to schema names to match the runtime.
             foreach (var c in conditions)
             {
@@ -479,6 +638,37 @@ namespace Qdb.FormEngine.Core.Generation
                 Priority = rule.GetAttributeValue<int>("qdb_priority"),
                 IsActive = rule.GetAttributeValue<bool>("qdb_is_active")
             });
+        }
+
+        /// <summary>qdb_bar_source option values; unset counts as Form Field.</summary>
+        private const int BarSourceStatic = 100000001;
+        private const int BarSourceDynamic = 100000002;
+
+        /// <summary>
+        /// DFE-BARSRC-001: where the bar's bounds come from, or null for the default
+        /// ("formField") so bars predating this column publish byte-identical JSON.
+        /// </summary>
+        private static string MapBarSource(Entity field)
+        {
+            var code = EntityHelper.GetOptionSetValue(field, "qdb_bar_source");
+            if (code == BarSourceStatic) return "static";
+            if (code == BarSourceDynamic) return "dynamic";
+            return null;
+        }
+
+        /// <summary>A literal bound, emitted only in Static mode so other modes stay clean.</summary>
+        private static decimal? ReadStaticBound(Entity field, string attribute)
+        {
+            if (MapBarSource(field) != "static") return null;
+            return field.Contains(attribute) ? (decimal?)field.GetAttributeValue<decimal>(attribute) : null;
+        }
+
+        /// <summary>An entity/column name, emitted only in Dynamic mode.</summary>
+        private static string ReadDynamicName(Entity field, string attribute)
+        {
+            if (MapBarSource(field) != "dynamic") return null;
+            var value = field.GetAttributeValue<string>(attribute);
+            return string.IsNullOrWhiteSpace(value) ? null : value;
         }
 
         private string Resolve(Guid recordId, string entityName, string fieldName, string fallback)

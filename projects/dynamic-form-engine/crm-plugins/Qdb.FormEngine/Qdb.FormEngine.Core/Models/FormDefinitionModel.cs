@@ -13,6 +13,14 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("description")] public string Description { get; set; }
         [JsonProperty("status")] public string Status { get; set; }
         [JsonProperty("version")] public int Version { get; set; }
+        // Form-level mark shown beside the title. Both omitted when unset so a form with no
+        // mark publishes byte-identical JSON.
+        [JsonProperty("iconName", NullValueHandling = NullValueHandling.Ignore)] public string IconName { get; set; }
+        [JsonProperty("imageUrl", NullValueHandling = NullValueHandling.Ignore)] public string ImageUrl { get; set; }
+        // Maker-authored bands above and below the form. Null unless the maker set a part,
+        // so a form with no bands publishes byte-identical JSON.
+        [JsonProperty("header", NullValueHandling = NullValueHandling.Ignore)] public FormBand Header { get; set; }
+        [JsonProperty("footer", NullValueHandling = NullValueHandling.Ignore)] public FormBand Footer { get; set; }
         [JsonProperty("allowSaveDraft")] public bool AllowSaveDraft { get; set; }
         [JsonProperty("draftExpiryDays")] public int? DraftExpiryDays { get; set; }
         [JsonProperty("powerAutomateFlowId")] public string PowerAutomateFlowId { get; set; }
@@ -29,6 +37,10 @@ namespace Qdb.FormEngine.Core.Models
         // DFE-FBE-001: None/SystemGenerated/Manual. Omitted when unset (legacy forms derive from
         // showSummaryStep at runtime) so unaffected forms stay byte-identical.
         [JsonProperty("summaryMode", NullValueHandling = NullValueHandling.Ignore)] public string SummaryMode { get; set; }
+        // DFE-SUBMITCONFIRM-001: form-level acknowledgement. Previously read only by the
+        // portal's live-metadata path, so a form configured with one behaved differently
+        // in CRM; publishing it here makes both runtimes agree.
+        [JsonProperty("submitConfirmation", NullValueHandling = NullValueHandling.Ignore)] public SubmitConfirmationConfig SubmitConfirmation { get; set; }
         // DFE-FBE-002: form-completion progress bar. Omitted unless true → unaffected forms byte-identical.
         [JsonProperty("showProgressBar", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowProgressBar { get; set; }
         [JsonProperty("infoCards")] public List<InfoCardScreen> InfoCards { get; set; }
@@ -56,9 +68,22 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("isVisible")] public bool IsVisible { get; set; }
         [JsonProperty("requiresPreviousTabComplete")] public bool RequiresPreviousTabComplete { get; set; }
         [JsonProperty("hideTabBar")] public bool HideTabBar { get; set; }
+        // Omitted when false so every form that predates the feature stays byte-identical.
+        [JsonProperty("revealsSectionsOneAtATime", NullValueHandling = NullValueHandling.Ignore)]
+        public bool? RevealsSectionsOneAtATime { get; set; }
         [JsonProperty("sections")] public List<SectionDefinition> Sections { get; set; }
         // DFE-BTN-001: tab-scoped buttons. Omitted when empty so button-less forms are byte-identical.
         [JsonProperty("buttons", NullValueHandling = NullValueHandling.Ignore)] public List<ScopedButton> Buttons { get; set; }
+        // DFE-SUBMITCONFIRM-002: acknowledgement required on this tab. Omitted when the maker
+        // has not enabled it, so unaffected forms stay byte-identical.
+        [JsonProperty("submitConfirmation", NullValueHandling = NullValueHandling.Ignore)] public SubmitConfirmationConfig SubmitConfirmation { get; set; }
+    }
+
+    /// <summary>An acknowledgement the user must tick before the form can be submitted.</summary>
+    public sealed class SubmitConfirmationConfig
+    {
+        [JsonProperty("checkboxLabel")] public string CheckboxLabel { get; set; }
+        [JsonProperty("dialogMessage", NullValueHandling = NullValueHandling.Ignore)] public string DialogMessage { get; set; }
     }
 
     /// <summary>A section within a tab that groups fields.</summary>
@@ -106,12 +131,25 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("decimalPlaces")] public int? DecimalPlaces { get; set; }
         [JsonProperty("numberDisplayStyle", NullValueHandling = NullValueHandling.Ignore)] public string NumberDisplayStyle { get; set; }
         [JsonProperty("barMaxFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarMaxFieldSchemaName { get; set; }
+        // DFE-BARSRC-001: bar numbers read from a CRM record. Omitted when no config row exists.
+        // DFE-BARSRC-001: where the bar's BOUNDS come from. Omitted for the default
+        // ("formField"), so bars predating this stay byte-identical. The AMOUNT is separate —
+        // BarValueFieldSchemaName above, or this field's own value.
+        [JsonProperty("barSource", NullValueHandling = NullValueHandling.Ignore)] public string BarSource { get; set; }
+        [JsonProperty("barMin", NullValueHandling = NullValueHandling.Ignore)] public decimal? BarMin { get; set; }
+        [JsonProperty("barMax", NullValueHandling = NullValueHandling.Ignore)] public decimal? BarMax { get; set; }
+        [JsonProperty("barSourceEntity", NullValueHandling = NullValueHandling.Ignore)] public string BarSourceEntity { get; set; }
+        [JsonProperty("barMinAttribute", NullValueHandling = NullValueHandling.Ignore)] public string BarMinAttribute { get; set; }
         [JsonProperty("barValueFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string BarValueFieldSchemaName { get; set; }
         [JsonProperty("maxRows")] public int? MaxRows { get; set; }
         [JsonProperty("componentKey")] public string ComponentKey { get; set; }
         // DFE-FBE-001: Label field — static content + optional data-bound source field.
         [JsonProperty("staticContent", NullValueHandling = NullValueHandling.Ignore)] public string StaticContent { get; set; }
         [JsonProperty("sourceFieldSchemaName", NullValueHandling = NullValueHandling.Ignore)] public string SourceFieldSchemaName { get; set; }
+        // Actions a read-only file field offers per document. Null is omitted from the JSON
+        // and the runtime treats absent as enabled, so pre-existing fields keep both.
+        [JsonProperty("showDocumentView", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowDocumentView { get; set; }
+        [JsonProperty("showDocumentDownload", NullValueHandling = NullValueHandling.Ignore)] public bool? ShowDocumentDownload { get; set; }
         [JsonProperty("trueLabel")] public string TrueLabel { get; set; }
         [JsonProperty("falseLabel")] public string FalseLabel { get; set; }
         [JsonProperty("boolRenderStyle")] public string BoolRenderStyle { get; set; }
@@ -208,6 +246,12 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("id")] public Guid Id { get; set; }
         [JsonProperty("name")] public string Name { get; set; }
         [JsonProperty("description")] public string Description { get; set; }
+        /// <summary>
+        /// When the rule's conditions are read: on_change, on_load, on_blur or on_save.
+        /// Null on legacy rules, which the runtime reads as on_change.
+        /// </summary>
+        [JsonProperty("triggerEvent", NullValueHandling = NullValueHandling.Ignore)]
+        public string TriggerEvent { get; set; }
         [JsonProperty("conditions")] public List<RuleCondition> Conditions { get; set; }
         [JsonProperty("conditionsLogic")] public string ConditionsLogic { get; set; }
         [JsonProperty("action")] public string Action { get; set; }
@@ -251,9 +295,16 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("fieldId")] public Guid FieldId { get; set; }
         [JsonProperty("targetEntityLogicalName")] public string TargetEntityLogicalName { get; set; }
         [JsonProperty("targetAttributeLogicalName")] public string TargetAttributeLogicalName { get; set; }
+        // Optional binding overrides. Omitted when blank, which is the normal case — the
+        // runtime then resolves the navigation property and entity set from metadata.
+        [JsonProperty("targetNavigationProperty", NullValueHandling = NullValueHandling.Ignore)] public string TargetNavigationProperty { get; set; }
+        [JsonProperty("targetEntitySetName", NullValueHandling = NullValueHandling.Ignore)] public string TargetEntitySetName { get; set; }
         [JsonProperty("isMappedToChildEntity")] public bool IsMappedToChildEntity { get; set; }
         [JsonProperty("childEntityRelationshipName")] public string ChildEntityRelationshipName { get; set; }
         [JsonProperty("transformExpression")] public string TransformExpression { get; set; }
+        // DFE-GRIDCHILD-001: set = the source field is an entry grid and this mapping reads
+        // the named column, one child record per row. Omitted when blank.
+        [JsonProperty("gridColumnAttribute", NullValueHandling = NullValueHandling.Ignore)] public string GridColumnAttribute { get; set; }
         [JsonProperty("isActive")] public bool IsActive { get; set; }
     }
 
@@ -334,11 +385,57 @@ namespace Qdb.FormEngine.Core.Models
         [JsonProperty("columnLabel")] public string ColumnLabel { get; set; }
         [JsonProperty("targetAttribute")] public string TargetAttribute { get; set; }
         [JsonProperty("columnFieldType")] public string ColumnFieldType { get; set; }
+
+        /// <summary>
+        /// Whether the renderer draws this column. Hidden columns are still published so their
+        /// values round-trip; the reader used to filter them out of the query, which removed
+        /// them from the JSON altogether.
+        /// </summary>
+        [JsonProperty("isVisible")] public bool IsVisible { get; set; }
+
+        /// <summary>Whether every row must carry a value in this column.</summary>
+        [JsonProperty("isRequired")] public bool IsRequired { get; set; }
+
+        /// <summary>Character ceiling, or null for no limit.</summary>
+        [JsonProperty("maxLength", NullValueHandling = NullValueHandling.Ignore)]
+        public int? MaxLength { get; set; }
+
+        /// <summary>Named shape the value must take — GridValidationFormat in the shared types.</summary>
+        [JsonProperty("validationFormat", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationFormat { get; set; }
+
+        /// <summary>Regular expression, honoured only when ValidationFormat is 'custom'.</summary>
+        [JsonProperty("validationPattern", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationPattern { get; set; }
+
+        /// <summary>Message shown when this column fails; blank falls back to a generated one.</summary>
+        [JsonProperty("validationMessage", NullValueHandling = NullValueHandling.Ignore)]
+        public string ValidationMessage { get; set; }
+
         [JsonProperty("filterType")] public string FilterType { get; set; }
         [JsonProperty("lookupTargetEntity")] public string LookupTargetEntity { get; set; }
         [JsonProperty("lookupDisplayAttribute")] public string LookupDisplayAttribute { get; set; }
         [JsonProperty("lookupValueAttribute")] public string LookupValueAttribute { get; set; }
+
+        /// <summary>
+        /// Orders the lookup's options by the display attribute ("asc"/"desc"). Omitted when
+        /// unset so every grid published before this stays byte-identical.
+        /// </summary>
+        [JsonProperty("lookupSort", NullValueHandling = NullValueHandling.Ignore)]
+        public string LookupSort { get; set; }
+
         [JsonProperty("options")] public List<GridColumnOptionValue> Options { get; set; }
+    }
+
+    /// <summary>
+    /// A maker-authored band above or below the form. Text is PLAIN, not HTML — the form side
+    /// has no sanitiser, and a banner authored by anyone with designer access reaches every
+    /// user of the form.
+    /// </summary>
+    public sealed class FormBand
+    {
+        [JsonProperty("text", NullValueHandling = NullValueHandling.Ignore)] public string Text { get; set; }
+        [JsonProperty("imageUrl", NullValueHandling = NullValueHandling.Ignore)] public string ImageUrl { get; set; }
     }
 
     /// <summary>A selectable option within a grid column.</summary>

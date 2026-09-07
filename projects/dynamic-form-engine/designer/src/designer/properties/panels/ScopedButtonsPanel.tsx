@@ -54,17 +54,24 @@ interface ButtonType {
 const BUTTON_TYPES: ButtonType[] = [
   { key: 'nextStep',     label: 'Navigate: Next step',     actionType: 'navigate',     config: '{"target":"nextStep"}'     },
   { key: 'previousStep', label: 'Navigate: Previous step', actionType: 'navigate',     config: '{"target":"previousStep"}' },
+  // Only meaningful on a tab that reveals sections one at a time; ignored otherwise.
+  { key: 'nextSection',     label: 'Navigate: Next section',     actionType: 'navigate', config: '{"target":"nextSection"}'     },
+  { key: 'previousSection', label: 'Navigate: Previous section', actionType: 'navigate', config: '{"target":"previousSection"}' },
   { key: 'finalSubmit',  label: 'Final submit',            actionType: 'finalSubmit',  config: '{"extraParams":[]}'        },
   { key: 'saveDraft',    label: 'Save draft',              actionType: 'saveDraft',    config: '{}'                        },
 ];
+
+/** Navigation targets the dropdown can round-trip. Anything else falls back to nextStep. */
+const NAVIGATE_TARGETS = ['nextStep', 'previousStep', 'nextSection', 'previousSection'];
 
 function typeKeyOf(button: ScopedButtonRecord): string {
   if (button.actionType === 'finalSubmit') return 'finalSubmit';
   if (button.actionType === 'saveDraft') return 'saveDraft';
   try {
-    return (JSON.parse(button.actionConfigJson) as { target?: string }).target === 'previousStep'
-      ? 'previousStep'
-      : 'nextStep';
+    const { target } = JSON.parse(button.actionConfigJson) as { target?: string };
+    // Listed explicitly rather than trusted: an unknown target must not silently render as
+    // whichever option happens to be first, which would rewrite the button on the next save.
+    return target && NAVIGATE_TARGETS.includes(target) ? target : 'nextStep';
   } catch {
     return 'nextStep';
   }

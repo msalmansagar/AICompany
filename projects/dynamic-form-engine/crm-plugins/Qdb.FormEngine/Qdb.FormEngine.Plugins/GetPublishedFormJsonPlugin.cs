@@ -41,7 +41,19 @@ namespace Qdb.FormEngine.Plugins
         /// <param name="context">The resolved plugin context.</param>
         protected override void Execute(LocalPluginContext context)
         {
-            var formCode = ReadRequiredStringParameter(context, "FormCode");
+            // A caller may identify the form by its code or by its record id. The id is
+            // resolved to the code up front so everything downstream keeps one path.
+            var formCode = ReadStringParameter(context, "FormCode", null);
+            var formId = ReadStringParameter(context, "FormId", null);
+
+            if (string.IsNullOrWhiteSpace(formCode))
+            {
+                if (string.IsNullOrWhiteSpace(formId))
+                    throw new InvalidPluginExecutionException("Either FormCode or FormId must be supplied.");
+
+                formCode = ResolveFormCodeFromId(context, formId);
+            }
+
             var languageCode = ReadStringParameter(context, "LanguageCode", DefaultLanguageCode);
             var version = ReadIntParameter(context, "Version");
 
@@ -103,6 +115,38 @@ namespace Qdb.FormEngine.Plugins
             throw new InvalidPluginExecutionException(string.Format(
                 "No published form cache found for form code '{0}' version {1}. Please publish the form first.",
                 formCode, version));
+        }
+
+        /// <summary>
+        /// The form code for a form record id. Retrieving only qdb_form_code keeps this to a
+        /// single narrow read, and a bad id fails with a message naming the id rather than
+        /// surfacing as "form not published" further down.
+        /// </summary>
+        private static string ResolveFormCodeFromId(LocalPluginContext context, string formId)
+        {
+            Guid id;
+            if (!Guid.TryParse(formId, out id))
+                throw new InvalidPluginExecutionException(string.Format("FormId '{0}' is not a valid record id.", formId));
+
+            Entity form;
+            try
+            {
+                form = context.OrganizationService.Retrieve(
+                    "qdb_form_definition", id, new Microsoft.Xrm.Sdk.Query.ColumnSet("qdb_form_code"));
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidPluginExecutionException(
+                    string.Format("No form definition found for FormId '{0}'.", formId), ex);
+            }
+
+            var formCode = form.GetAttributeValue<string>("qdb_form_code");
+            if (string.IsNullOrWhiteSpace(formCode))
+                throw new InvalidPluginExecutionException(
+                    string.Format("Form definition '{0}' has no form code.", formId));
+
+            context.TracingService.Trace("Resolved FormId {0} to FormCode {1}.", formId, formCode);
+            return formCode;
         }
 
         private static string ReadRequiredStringParameter(LocalPluginContext context, string parameterName)

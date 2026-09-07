@@ -33,4 +33,10 @@ export const GRID_COLUMN_CONFIG_ATTRS = {
   IS_VISIBLE:     'qdb_is_visible',
   IS_EDITABLE:    'qdb_is_editable',
   OPTIONS_JSON:   'qdb_column_options_json',
+  // Per-column validation.
+  IS_REQUIRED:        'qdb_is_required',
+  MAX_LENGTH:         'qdb_max_length',
+  VALIDATION_FORMAT:  'qdb_validation_format',
+  VALIDATION_PATTERN: 'qdb_validation_pattern',
+  VALIDATION_MESSAGE: 'qdb_validation_message',
 } as const;

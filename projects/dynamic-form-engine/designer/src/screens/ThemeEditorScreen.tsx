@@ -5,7 +5,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import { StyleTabContainer } from './style/StyleTabContainer';
 
 const useStyles = makeStyles({
-  root: { display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: tokens.colorNeutralBackground3 },
+  root: { display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: tokens.colorNeutralBackground3 },
   topBar: {
     display: 'flex', alignItems: 'center', gap: '12px',
     padding: '12px 20px',

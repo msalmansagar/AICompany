@@ -144,8 +144,11 @@ namespace Qdb.FormEngine.Data
             var query = new QueryExpression("qdb_form_tab")
             {
                 ColumnSet = new ColumnSet("qdb_label", "qdb_icon_name", "qdb_display_order", "qdb_is_visible",
-                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar", "qdb_form_definition_id",
-                    "qdb_description", "qdb_is_summary_tab"),
+                    "qdb_requires_previous_tab_complete", "qdb_hide_tab_bar",
+                    "qdb_reveal_sections_one_at_a_time", "qdb_form_definition_id",
+                    "qdb_description", "qdb_is_summary_tab",
+                    "qdb_require_submit_confirmation", "qdb_submit_confirmation_label",
+                    "qdb_submit_confirmation_message"),
                 NoLock = true
             };
             query.Criteria.AddCondition("statecode", ConditionOperator.Equal, 0);
@@ -427,7 +430,9 @@ namespace Qdb.FormEngine.Data
                 ColumnSet = new ColumnSet(true),
                 NoLock = true
             };
-            query.Criteria.AddCondition("qdb_is_visible", ConditionOperator.Equal, true);
+            // Hidden columns are fetched too and published with isVisible: false. Filtering on
+            // qdb_is_visible here removed them from the generated JSON entirely, so a maker who
+            // hid a column lost it rather than stopping it being drawn.
             query.Criteria.AddCondition("qdb_form_field_id", ConditionOperator.In, fieldIds.Cast<object>().ToArray());
             query.AddOrder("qdb_display_order", OrderType.Ascending);
             return RetrieveAll(query);

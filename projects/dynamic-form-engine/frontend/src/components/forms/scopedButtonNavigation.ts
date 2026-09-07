@@ -6,7 +6,14 @@
 // reached while preceding required fields are incomplete). Kept pure (no React/DOM)
 // so the stepping, visibility, and completion logic is unit-tested directly.
 
-import type { NavigateActionConfig, TabDefinition, RuleEvaluationResult, FormFieldValues } from '@qdb/shared';
+import type {
+  NavigateActionConfig,
+  TabDefinition,
+  SectionDefinition,
+  FieldDefinition,
+  RuleEvaluationResult,
+  FormFieldValues,
+} from '@qdb/shared';
 import { getTabZoneFields } from './tabFields';
 
 export interface NavigationInput {
@@ -49,6 +56,79 @@ function nextVisibleIndex(
     if (isTabVisible(tabs[i], i)) return i;
   }
   return null;
+}
+
+export interface SectionNavigationInput {
+  action: NavigateActionConfig;
+  /** Sections of the active tab, in display order. */
+  sections: readonly SectionDefinition[];
+  activeSectionIndex: number;
+  /** Effective visibility (definition flag overridden by business rules). */
+  isSectionVisible: (section: SectionDefinition, index: number) => boolean;
+}
+
+/**
+ * Index of the section to reveal for a nextSection/previousSection action, or null when the
+ * action is not section stepping or there is no visible section in that direction.
+ *
+ * Only meaningful on a tab with revealsSectionsOneAtATime. On any other tab these targets
+ * resolve to null and the button does nothing, which is why the designer warns when one is
+ * placed on a tab that shows all its sections at once.
+ */
+export function resolveNavigationSectionIndex(input: SectionNavigationInput): number | null {
+  const { action, sections, activeSectionIndex, isSectionVisible } = input;
+  switch (action.target) {
+    case 'nextSection':
+      return nextVisibleSectionIndex(sections, activeSectionIndex, 1, isSectionVisible);
+    case 'previousSection':
+      return nextVisibleSectionIndex(sections, activeSectionIndex, -1, isSectionVisible);
+    default:
+      return null;
+  }
+}
+
+// Sections hidden by a business rule are stepped over, in both directions.
+function nextVisibleSectionIndex(
+  sections: readonly SectionDefinition[],
+  from: number,
+  step: 1 | -1,
+  isSectionVisible: (section: SectionDefinition, index: number) => boolean,
+): number | null {
+  for (let i = from + step; i >= 0 && i < sections.length; i += step) {
+    if (isSectionVisible(sections[i], i)) return i;
+  }
+  return null;
+}
+
+export interface SectionCompletionInput {
+  section: SectionDefinition;
+  ruleState: RuleEvaluationResult;
+  fieldValues: FormFieldValues;
+}
+
+/**
+ * The fields stopping this section from being left: effectively visible, effectively required,
+ * and empty. A field hidden by a business rule is never among them, even if marked required —
+ * the user cannot fill in what they cannot see.
+ *
+ * Returned rather than reduced to a boolean so the caller can name them to the user. A step
+ * that silently refuses reads as a broken button.
+ */
+export function incompleteFieldsOf(input: SectionCompletionInput): FieldDefinition[] {
+  const { section, ruleState, fieldValues } = input;
+  return section.fields.filter((field) => {
+    const visible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
+    const required = ruleState.fieldRequired[field.id] ?? field.isRequired;
+    return visible && required && isEmptyValue(fieldValues[field.schemaName]);
+  });
+}
+
+/**
+ * True when nothing in the section blocks leaving it. Gates forward section stepping the way
+ * arePrecedingTabsComplete gates tab stepping.
+ */
+export function isSectionComplete(input: SectionCompletionInput): boolean {
+  return incompleteFieldsOf(input).length === 0;
 }
 
 export interface CompletionInput {

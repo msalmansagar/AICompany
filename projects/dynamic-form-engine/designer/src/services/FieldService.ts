@@ -30,6 +30,16 @@ function mapInfoCardListMarker(v: unknown): DesignerFieldModel['infoCardListMark
   return v === 'circle' || v === 'plain' || v === 'none' ? v : null;
 }
 
+// The saved view moved from the form's Lookup Config section to Grid Config, where the
+// rest of the grid settings live. New saves go to the Grid Config column; the legacy one
+// is still read so fields configured before the move keep their view.
+function resolveSavedViewId(record: Record<string, unknown>): string | null {
+  const current = record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID];
+  if (current != null) return String(current);
+  const legacy = record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID_LEGACY];
+  return legacy != null ? String(legacy) : null;
+}
+
 export interface CreateFieldDto {
   sectionId: string;
   label: string;
@@ -53,6 +63,8 @@ export interface CreateFieldDto {
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
   maxFiles?: number | null;
+  showDocumentView?: boolean | null;
+  showDocumentDownload?: boolean | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -120,6 +132,8 @@ export interface UpdateFieldDto {
   barValueFieldSchemaName?: string | null;
   maxRows?: number | null;
   maxFiles?: number | null;
+  showDocumentView?: boolean | null;
+  showDocumentDownload?: boolean | null;
   // Sprint 3
   componentKey?: string | null;
   // Sprint 4
@@ -197,6 +211,8 @@ export class FieldService {
     if (dto.barValueFieldSchemaName != null) payload[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows != null) payload[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.maxFiles != null) payload[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
+    if (dto.showDocumentView != null) payload[FORM_FIELD_ATTRS.SHOW_DOCUMENT_VIEW] = dto.showDocumentView;
+    if (dto.showDocumentDownload != null) payload[FORM_FIELD_ATTRS.SHOW_DOCUMENT_DOWNLOAD] = dto.showDocumentDownload;
     if (dto.componentKey != null) payload[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey;
     if (dto.boolRenderStyle != null) payload[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle];
     if (dto.trueLabel != null) payload[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel;
@@ -266,6 +282,8 @@ export class FieldService {
     if (dto.barValueFieldSchemaName !== undefined) data[FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA] = dto.barValueFieldSchemaName;
     if (dto.maxRows !== undefined) data[FORM_FIELD_ATTRS.MAX_ROWS] = dto.maxRows;
     if (dto.maxFiles !== undefined) data[FORM_FIELD_ATTRS.MAX_FILES] = dto.maxFiles;
+    if (dto.showDocumentView !== undefined) data[FORM_FIELD_ATTRS.SHOW_DOCUMENT_VIEW] = dto.showDocumentView;
+    if (dto.showDocumentDownload !== undefined) data[FORM_FIELD_ATTRS.SHOW_DOCUMENT_DOWNLOAD] = dto.showDocumentDownload;
     if (dto.componentKey !== undefined) data[FORM_FIELD_ATTRS.COMPONENT_KEY] = dto.componentKey ?? null;
     if (dto.boolRenderStyle !== undefined) data[FORM_FIELD_ATTRS.BOOL_RENDER_STYLE] = dto.boolRenderStyle != null ? BOOL_RENDER_STYLE_TO_PICKLIST[dto.boolRenderStyle] : null;
     if (dto.trueLabel !== undefined) data[FORM_FIELD_ATTRS.TRUE_LABEL] = dto.trueLabel ?? null;
@@ -343,6 +361,8 @@ export class FieldService {
       FORM_FIELD_ATTRS.BAR_VALUE_FIELD_SCHEMA,
       FORM_FIELD_ATTRS.MAX_ROWS,
       FORM_FIELD_ATTRS.MAX_FILES,
+      FORM_FIELD_ATTRS.SHOW_DOCUMENT_VIEW,
+      FORM_FIELD_ATTRS.SHOW_DOCUMENT_DOWNLOAD,
       FORM_FIELD_ATTRS.COMPONENT_KEY,
     ];
 
@@ -375,6 +395,7 @@ export class FieldService {
       FORM_FIELD_ATTRS.GRID_SELECTION_MODE,
       FORM_FIELD_ATTRS.GRID_MIN_ROWS,
       FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID,
+      FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID_LEGACY,
       FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD,
       FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE,
@@ -458,6 +479,9 @@ export class FieldService {
       maxFiles: record[FORM_FIELD_ATTRS.MAX_FILES] != null
         ? Number(record[FORM_FIELD_ATTRS.MAX_FILES])
         : null,
+      // Unset means the action is offered, so an untouched field shows both.
+      showDocumentView: record[FORM_FIELD_ATTRS.SHOW_DOCUMENT_VIEW] !== false,
+      showDocumentDownload: record[FORM_FIELD_ATTRS.SHOW_DOCUMENT_DOWNLOAD] !== false,
       sortOrder: Number(record[FORM_FIELD_ATTRS.SORT_ORDER] ?? 0),
       columnSpan,
       options: [],
@@ -497,7 +521,9 @@ export class FieldService {
         ? (PICKLIST_TO_GRID_SELECTION_MODE[Number(record[FORM_FIELD_ATTRS.GRID_SELECTION_MODE])] ?? null)
         : null,
       gridMinRows: record[FORM_FIELD_ATTRS.GRID_MIN_ROWS] != null ? Number(record[FORM_FIELD_ATTRS.GRID_MIN_ROWS]) : null,
-      gridSavedViewId: record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID] != null ? String(record[FORM_FIELD_ATTRS.GRID_SAVED_VIEW_ID]) : null,
+      // Grid Config first, then the legacy Lookup Config twin, so a field saved before the
+      // move still shows its view when the form is reopened.
+      gridSavedViewId: resolveSavedViewId(record),
       gridFilterExpression: record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION] != null ? String(record[FORM_FIELD_ATTRS.GRID_FILTER_EXPRESSION]) : null,
       gridDependsOnFieldId: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_FIELD]) : null,
       gridDependsOnFilterTemplate: record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE] != null ? String(record[FORM_FIELD_ATTRS.GRID_DEPENDS_ON_TEMPLATE]) : null,

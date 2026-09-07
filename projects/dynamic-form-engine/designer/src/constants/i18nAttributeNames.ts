@@ -19,6 +19,8 @@ export const TRANSLATION_ATTRS = {
   FIELD_NAME: 'qdb_field_name',
   LANGUAGE_CODE: 'qdb_language_code',
   TRANSLATED_VALUE: 'qdb_translated_value',
+  /** English the translation was made from — lets an export flag rows whose source has moved on. */
+  SOURCE_VALUE: 'qdb_source_value',
   IS_ACTIVE: 'qdb_is_active',
 } as const;
 

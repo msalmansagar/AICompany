@@ -3,7 +3,22 @@ import { CrmLookupService } from './CrmLookupService.js';
 
 const mockAuthService = { getAccessToken: vi.fn().mockResolvedValue('mock-token') } as never;
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// The lookup resolves the entity-set name from metadata before querying — the Web API
+// addresses records by set name, which is not the logical name plus "s". Answering that
+// call here keeps every assertion below aimed at the search request itself.
+function metadataResponse(url: string) {
+  const match = /LogicalName='([^']+)'/.exec(url);
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve(''),
+    json: () => Promise.resolve({ EntitySetName: `${match ? match[1] : 'x'}s` }),
+  });
+}
+global.fetch = ((url: unknown, options: unknown) =>
+  String(url).includes('EntityDefinitions')
+    ? metadataResponse(String(url))
+    : mockFetch(url, options)) as never;
 
 function okEmpty() {
   return Promise.resolve({

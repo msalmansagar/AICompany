@@ -8,6 +8,14 @@ export const FORM_DEFINITION_ATTRS = {
   CODE: 'qdb_form_code',
   DESCRIPTION: 'qdb_description',
   ENTITY_LOGICAL_NAME: 'qdb_entity_logical_name',
+  // Form-level mark shown beside the title — same icon convention as tabs and sections.
+  ICON_NAME: 'qdb_icon_name',
+  IMAGE_URL: 'qdb_image_url',
+  // Maker-authored bands above and below the form.
+  HEADER_TEXT: 'qdb_header_text',
+  HEADER_IMAGE_URL: 'qdb_header_image_url',
+  FOOTER_TEXT: 'qdb_footer_text',
+  FOOTER_IMAGE_URL: 'qdb_footer_image_url',
   STATUS: 'qdb_status',
   CURRENT_VERSION: 'qdb_version',
   ALLOW_SAVE_DRAFT: 'qdb_allow_save_draft',
@@ -63,6 +71,12 @@ export const FORM_TAB_ATTRS = {
   IS_VISIBLE: 'qdb_is_visible',
   REQUIRES_PREVIOUS_TAB_COMPLETE: 'qdb_requires_previous_tab_complete',
   HIDE_TAB_BAR: 'qdb_hide_tab_bar',
+  /** One section on screen at a time, advanced by a scoped button, instead of all at once. */
+  REVEAL_SECTIONS_ONE_AT_A_TIME: 'qdb_reveal_sections_one_at_a_time',
+  // DFE-SUBMITCONFIRM-002 — acknowledgement gate scoped to this tab.
+  REQUIRE_SUBMIT_CONFIRMATION: 'qdb_require_submit_confirmation',
+  SUBMIT_CONFIRMATION_LABEL: 'qdb_submit_confirmation_label',
+  SUBMIT_CONFIRMATION_MESSAGE: 'qdb_submit_confirmation_message',
 } as const;
 
 // DFE-FBE-001 — qdb_summary_mode picklist codec.
@@ -126,6 +140,8 @@ export const FORM_FIELD_ATTRS = {
   BAR_VALUE_FIELD_SCHEMA: 'qdb_bar_value_field_schema',  // DFE-NUMBAR
   MAX_ROWS: 'qdb_max_rows',
   MAX_FILES: 'qdb_max_files',
+  SHOW_DOCUMENT_VIEW: 'qdb_show_document_view',
+  SHOW_DOCUMENT_DOWNLOAD: 'qdb_show_document_download',
   GRID_PAGE_SIZE: 'qdb_grid_page_size',
   GRID_PAGING_STYLE: 'qdb_grid_paging_style',
   SORT_ORDER: 'qdb_display_order',
@@ -167,7 +183,11 @@ export const FORM_FIELD_ATTRS = {
   GRID_ENTITY_NAME: 'qdb_grid_entity_name',
   GRID_SELECTION_MODE: 'qdb_selection_mode',
   GRID_MIN_ROWS: 'qdb_grid_min_rows',
-  GRID_SAVED_VIEW_ID: 'qdb_saved_view_id',
+  // Lives in the form's "Grid Config" section, alongside the other grid settings.
+  // qdb_saved_view_id is the legacy twin under "Lookup Config"; readers still fall back
+  // to it so records saved before the move keep working.
+  GRID_SAVED_VIEW_ID: 'qdb_grid_saved_view_id',
+  GRID_SAVED_VIEW_ID_LEGACY: 'qdb_saved_view_id',
   GRID_FILTER_EXPRESSION: 'qdb_grid_filter_expression',
   GRID_DEPENDS_ON_FIELD: 'qdb_grid_depends_on_field_schema',
   GRID_DEPENDS_ON_TEMPLATE: 'qdb_grid_depends_on_filter_template',
@@ -292,7 +312,41 @@ export const FORM_BUSINESS_RULE_ATTRS = {
   RULE_DEFINITION: 'qdb_conditions_json',
   IS_ACTIVE: 'qdb_is_active',
   SORT_ORDER: 'qdb_priority',
+  // Structured mirror of the rule's single action. The runtime reads the JSON, but these
+  // are what a CRM view, a report or an admin opening the record sees — and they are real
+  // lookups, so a deleted tab cannot leave a rule pointing at nothing.
+  ACTION: 'qdb_action',
+  ACTION_VALUE: 'qdb_action_value',
+  CONDITIONS_LOGIC: 'qdb_conditions_logic',
+  TARGET_FIELD_ID: 'qdb_target_field_id',
+  TARGET_TAB_ID: 'qdb_target_tab_id',
+  TARGET_SECTION_ID: 'qdb_target_section_id',
+  // Read forms of the lookups — writes use the bare name with @odata.bind.
+  TARGET_FIELD_ID_VALUE: '_qdb_target_field_id_value',
+  TARGET_TAB_ID_VALUE: '_qdb_target_tab_id_value',
+  TARGET_SECTION_ID_VALUE: '_qdb_target_section_id_value',
 } as const;
+
+/** qdb_action option values. Mirrors PicklistMapper.ToBusinessRuleAction in the plugin. */
+export const BUSINESS_RULE_ACTION_VALUE: Record<string, number> = {
+  show_field: 100000001,
+  hide_field: 100000002,
+  show_section: 100000003,
+  hide_section: 100000004,
+  show_tab: 100000005,
+  hide_tab: 100000006,
+  set_required: 100000007,
+  clear_required: 100000008,
+  set_value: 100000011,
+};
+
+/** qdb_action option value → designer action type, for importing a legacy rule. */
+export const BUSINESS_RULE_ACTION_TYPE: Record<number, string> = Object.fromEntries(
+  Object.entries(BUSINESS_RULE_ACTION_VALUE).map(([type, value]) => [value, type]),
+);
+
+/** qdb_conditions_logic: 100000001 is OR, everything else (including absent) is AND. */
+export const CONDITIONS_LOGIC_OR = 100000001;
 
 export const FORM_OPTION_VALUE_ATTRS = {
   ID: 'qdb_form_option_valueid',

@@ -15,6 +15,8 @@ import type { UploadedFileReference } from '../../api/filesApi';
 import { filesApi } from '../../api/filesApi';
 import type { FieldDefinition, GridColumnConfig } from '@qdb/shared';
 import { getTabZoneFields } from './tabFields';
+import { visibleGridColumns } from './gridColumns';
+import { isFieldVisible } from '../../engine/fieldVisibility';
 
 interface FormSummaryProps {
   onEditTab: (tabIndex: number) => void;
@@ -154,8 +156,8 @@ export function FormSummary({ onEditTab }: FormSummaryProps) {
 
   // DFE-TABZONE-001: count section fields and header/footer zone fields alike.
   const countRequired = (field: FieldDefinition) => {
-    if (!(ruleState.fieldVisibility[field.id] ?? field.isVisible)) return;
-    if (field.isHidden || field.fieldType === 'info-card') return;
+    if (!isFieldVisible(field, ruleState.fieldVisibility)) return;
+    if (field.fieldType === 'info-card') return;
     const isRequired = ruleState.fieldRequired[field.id] ?? field.isRequired;
     if (!isRequired) return;
     requiredTotal++;
@@ -265,8 +267,8 @@ function filterFilledFields(
 ): FieldDefinition[] {
   return fields
     .filter((f) => {
-      if (!(ruleState.fieldVisibility[f.id] ?? f.isVisible)) return false;
-      if (f.isHidden || f.fieldType === 'info-card') return false;
+      if (!isFieldVisible(f, ruleState.fieldVisibility)) return false;
+      if (f.fieldType === 'info-card') return false;
       return isDisplayable(fieldValues[f.schemaName]);
     })
     .sort((a, b) => a.displayOrder - b.displayOrder);
@@ -345,8 +347,7 @@ function GridMiniTable({ field, value, styles }: GridMiniTableProps) {
     );
   }
 
-  const cols: GridColumnConfig[] = [...(field.gridConfig?.columnConfigs ?? [])]
-    .sort((a, b) => a.displayOrder - b.displayOrder)
+  const cols: GridColumnConfig[] = visibleGridColumns(field.gridConfig?.columnConfigs ?? [])
     .slice(0, MAX_GRID_COLS);
 
   if (cols.length === 0) {
@@ -484,7 +485,7 @@ function FileDownloadLink({ fileRef }: { fileRef: UploadedFileReference }) {
   const handleDownload = () => {
     setIsDownloading(true);
     filesApi
-      .downloadFile(fileRef.url, fileRef.fileName)
+      .downloadFile(fileRef)
       .finally(() => setIsDownloading(false));
   };
 

@@ -33,12 +33,15 @@ import type {
   RuleActionType,
   RuleCondition,
 } from '@/types/businessRule';
+import { TAB_ACTION_TYPES, SECTION_ACTION_TYPES } from '@/types/businessRule';
+import { buildDefaultDefinition, TRIGGER_EVENT_OPTIONS, type RuleCreationTarget } from '@/screens/ruleDefaults';
+import type { RuleTriggerEvent } from '@qdb/shared';
 
 const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground3,
   },
   topBar: {
@@ -163,6 +166,10 @@ const OPERATORS: Array<{ value: ConditionOperator; label: string }> = [
 const ACTION_TYPES: Array<{ value: RuleActionType; label: string }> = [
   { value: 'show_field', label: 'Show Field' },
   { value: 'hide_field', label: 'Hide Field' },
+  { value: 'show_tab', label: 'Show Tab' },
+  { value: 'hide_tab', label: 'Hide Tab' },
+  { value: 'show_section', label: 'Show Section' },
+  { value: 'hide_section', label: 'Hide Section' },
   { value: 'set_required', label: 'Set Required' },
   { value: 'clear_required', label: 'Clear Required' },
   { value: 'set_value', label: 'Set Value' },
@@ -179,22 +186,81 @@ function generateRuleId(): string {
   return `tmp_rule_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function buildDefaultDefinition(fieldCodes: string[]): BusinessRuleDefinition {
-  return {
-    version: '1.0',
-    trigger_field_code: fieldCodes[0] ?? '',
-    trigger_event: 'on_change',
-    condition_group: {
-      logical_operator: 'AND',
-      conditions: [{ field_code: fieldCodes[0] ?? '', operator: 'equals', value: '' }],
-    },
-    actions: [{ action_type: 'show_field', target_field_code: fieldCodes[0] ?? '' }],
-  };
+/** A tab or section a rule can target, as the picker needs it. */
+export interface RuleTarget {
+  id: string;
+  label: string;
+}
+
+interface ActionTargetPickerProps {
+  action: RuleAction;
+  fieldCodes: string[];
+  tabs: RuleTarget[];
+  sections: RuleTarget[];
+  onChange: (patch: Partial<RuleAction>) => void;
+}
+
+/**
+ * The target selector for one action, switched on what the action acts upon.
+ *
+ * Tabs and sections are chosen by record id, not by code — neither carries one. Switching
+ * the action type clears the other kinds of target, so a rule cannot carry a stale field
+ * code alongside the tab it now targets.
+ */
+function ActionTargetPicker({
+  action, fieldCodes, tabs, sections, onChange,
+}: ActionTargetPickerProps): React.ReactElement {
+  if (TAB_ACTION_TYPES.has(action.action_type)) {
+    return (
+      <Field label="Target Tab" style={{ flex: 1 }}>
+        <Select
+          value={action.target_tab_id ?? ''}
+          onChange={(_, d) => onChange({ target_tab_id: d.value, target_field_code: undefined, target_section_id: undefined })}
+        >
+          <option value="">Select a tab…</option>
+          {tabs.map(tab => (
+            <option key={tab.id} value={tab.id}>{tab.label}</option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  if (SECTION_ACTION_TYPES.has(action.action_type)) {
+    return (
+      <Field label="Target Section" style={{ flex: 1 }}>
+        <Select
+          value={action.target_section_id ?? ''}
+          onChange={(_, d) => onChange({ target_section_id: d.value, target_field_code: undefined, target_tab_id: undefined })}
+        >
+          <option value="">Select a section…</option>
+          {sections.map(section => (
+            <option key={section.id} value={section.id}>{section.label}</option>
+          ))}
+        </Select>
+      </Field>
+    );
+  }
+
+  return (
+    <Field label="Target Field" style={{ flex: 1 }}>
+      <Select
+        value={action.target_field_code ?? ''}
+        onChange={(_, d) => onChange({ target_field_code: d.value, target_tab_id: undefined, target_section_id: undefined })}
+      >
+        {fieldCodes.map(code => (
+          <option key={code} value={code}>{code}</option>
+        ))}
+      </Select>
+    </Field>
+  );
 }
 
 interface RuleEditorProps {
   rule: DesignerBusinessRule;
   fieldCodes: string[];
+  tabs: RuleTarget[];
+  sections: RuleTarget[];
   onSave: (updated: DesignerBusinessRule) => void;
   onCancel: () => void;
   onDelete: (id: string) => void;
@@ -212,14 +278,30 @@ function normaliseDefinition(raw: BusinessRuleDefinition | null | undefined): Bu
   };
 }
 
-function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
+function RuleEditor({ rule, fieldCodes, tabs, sections, onSave, onCancel, onDelete }: RuleEditorProps): React.ReactElement {
   const styles = useStyles();
   const [name, setName] = useState(rule.name ?? '');
   const [definition, setDefinition] = useState<BusinessRuleDefinition>(() => normaliseDefinition(rule.definition));
 
+  // The chosen event's own description — what distinguishes the options is when they fire,
+  // and the label alone does not say it.
+  const triggerEventHint = TRIGGER_EVENT_OPTIONS
+    .find(option => option.value === definition.trigger_event)?.hint ?? '';
+
+  const updateTriggerEvent = useCallback((triggerEvent: RuleTriggerEvent) => {
+    setDefinition(prev => ({ ...prev, trigger_event: triggerEvent }));
+  }, []);
+
   const updateTriggerField = useCallback((code: string) => {
     setDefinition(prev => ({ ...prev, trigger_field_code: code }));
   }, []);
+
+  // A trigger naming a field this form no longer has is kept and shown as missing rather
+  // than quietly replaced, so the maker sees which rule broke and why.
+  const isTriggerFieldMissing =
+    definition.trigger_field_code !== '' && !fieldCodes.includes(definition.trigger_field_code);
+
+  const canSave = name.trim() !== '' && definition.trigger_field_code.trim() !== '';
 
   const updateLogicalOp = useCallback((op: LogicalOperator) => {
     setDefinition(prev => ({
@@ -291,18 +373,47 @@ function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditor
 
       <div className={styles.editorSection} style={{ marginTop: '16px' }}>
         <Text weight="semibold" size={300} block style={{ marginBottom: '12px' }}>Trigger</Text>
-        <Field label="Trigger Field">
+        <Field
+          label="Trigger Field"
+          required
+          // A rule is published on the field that triggers it. Without one it reaches no
+          // field, so it is never evaluated and silently does nothing.
+          hint="The rule is re-evaluated whenever this field changes."
+          validationState={definition.trigger_field_code ? 'none' : 'error'}
+          validationMessage={
+            definition.trigger_field_code ? undefined : 'Choose a trigger field — a rule without one never runs.'
+          }
+        >
           <Select
             value={definition.trigger_field_code}
             onChange={(_, d) => updateTriggerField(d.value)}
           >
+            {/* An empty value must have an option of its own. Without it the browser shows
+                the first field as though it were chosen while the rule stores no trigger. */}
+            <option value="">— Select a field —</option>
+            {isTriggerFieldMissing && (
+              <option value={definition.trigger_field_code}>
+                {definition.trigger_field_code} (not on this form)
+              </option>
+            )}
             {fieldCodes.map(code => (
               <option key={code} value={code}>{code}</option>
             ))}
           </Select>
         </Field>
-        <Field label="Trigger Event" style={{ marginTop: '8px' }}>
-          <Input value="On Change" readOnly />
+        <Field
+          label="Trigger Event"
+          style={{ marginTop: '8px' }}
+          hint={triggerEventHint}
+        >
+          <Select
+            value={definition.trigger_event}
+            onChange={(_, d) => updateTriggerEvent(d.value as RuleTriggerEvent)}
+          >
+            {TRIGGER_EVENT_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
         </Field>
       </div>
 
@@ -386,16 +497,13 @@ function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditor
                 ))}
               </Select>
             </Field>
-            <Field label="Target Field" style={{ flex: 1 }}>
-              <Select
-                value={action.target_field_code}
-                onChange={(_, d) => updateAction(idx, { target_field_code: d.value })}
-              >
-                {fieldCodes.map(code => (
-                  <option key={code} value={code}>{code}</option>
-                ))}
-              </Select>
-            </Field>
+            <ActionTargetPicker
+              action={action}
+              fieldCodes={fieldCodes}
+              tabs={tabs}
+              sections={sections}
+              onChange={patch => updateAction(idx, patch)}
+            />
             {VALUE_ACTION_TYPES.has(action.action_type) && (
               <Field label="Value" style={{ flex: 1 }}>
                 <Input
@@ -430,7 +538,7 @@ function RuleEditor({ rule, fieldCodes, onSave, onCancel, onDelete }: RuleEditor
         <Button appearance="subtle" icon={<DismissRegular />} onClick={onCancel}>
           Cancel
         </Button>
-        <Button appearance="primary" icon={<CheckmarkRegular />} onClick={handleSave} disabled={!name.trim()}>
+        <Button appearance="primary" icon={<CheckmarkRegular />} onClick={handleSave} disabled={!canSave}>
           Save Rule
         </Button>
       </div>
@@ -443,13 +551,36 @@ export function RuleConfigScreen(): React.ReactElement {
   const crmService = useContext(CrmContext);
 
   const navigateTo = useDesignerStore(s => s.navigateTo);
+  const pendingRuleCreationTarget = useDesignerStore(s => s.pendingRuleCreationTarget);
+  const clearPendingRuleCreationTarget = useDesignerStore(s => s.clearPendingRuleCreationTarget);
   const storeBusinessRules = useDesignerStore(s => s.businessRules);
   const fields = useDesignerStore(s => s.fields);
+  const storeTabs = useDesignerStore(s => s.tabs);
+  const storeSections = useDesignerStore(s => s.sections);
   const form = useDesignerStore(s => s.form);
 
   const fieldCodes = useMemo(
     () => Object.values(fields).map(f => f.code).filter(Boolean),
     [fields],
+  );
+
+  // Tabs and sections are targeted by record id, since neither carries a code. A tab still
+  // waiting to be saved has a tmp_ id that means nothing to the runtime, so it is not
+  // offered — a rule pointing at one would publish as a rule pointing at nothing.
+  const tabTargets = useMemo<RuleTarget[]>(
+    () => Object.values(storeTabs)
+      .filter(tab => !tab.id.startsWith('tmp_'))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(tab => ({ id: tab.id, label: tab.label || '(untitled tab)' })),
+    [storeTabs],
+  );
+
+  const sectionTargets = useMemo<RuleTarget[]>(
+    () => Object.values(storeSections)
+      .filter(section => !section.id.startsWith('tmp_'))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(section => ({ id: section.id, label: section.label || '(untitled section)' })),
+    [storeSections],
   );
 
   const [localRules, setLocalRules] = useState<DesignerBusinessRule[]>(
@@ -473,7 +604,12 @@ export function RuleConfigScreen(): React.ReactElement {
     setLoadError(null);
     try {
       const svc = new BusinessRuleService(crmService.getWebApi());
-      const freshRules = await svc.listRulesForForm(form.id);
+      // A legacy rule names its fields by record id; the map turns those into codes so the
+      // editor shows field names rather than raw GUIDs.
+      const fieldIdToCode = new Map(
+        Object.values(fields).filter(f => f.code).map(f => [f.id, f.code]),
+      );
+      const freshRules = await svc.listRulesForForm(form.id, fieldIdToCode);
       const sorted = freshRules.sort((a, b) => a.sortOrder - b.sortOrder);
       setLocalRules(sorted);
       setSelectedRuleId(prev => {
@@ -493,12 +629,12 @@ export function RuleConfigScreen(): React.ReactElement {
     navigateTo('designer');
   }, [navigateTo]);
 
-  const handleAddRule = useCallback(() => {
+  const addRuleForTarget = useCallback((target: RuleCreationTarget | null) => {
     const newRule: DesignerBusinessRule = {
       id: generateRuleId(),
       formId: form?.id ?? '',
-      name: 'New Rule',
-      definition: buildDefaultDefinition(fieldCodes),
+      name: target ? 'Hide tab when…' : 'New Rule',
+      definition: buildDefaultDefinition(fieldCodes, target),
       isActive: true,
       sortOrder: localRules.length,
     };
@@ -506,6 +642,16 @@ export function RuleConfigScreen(): React.ReactElement {
     setSelectedRuleId(newRule.id);
     setIsAddingNew(true);
   }, [form, fieldCodes, localRules.length]);
+
+  const handleAddRule = useCallback(() => addRuleForTarget(null), [addRuleForTarget]);
+
+  // Arriving from an element's properties rail: open straight into a rule aimed at it, so the
+  // maker does not have to re-pick in the editor what they had already selected on the canvas.
+  useEffect(() => {
+    if (!pendingRuleCreationTarget) return;
+    addRuleForTarget(pendingRuleCreationTarget);
+    clearPendingRuleCreationTarget();
+  }, [pendingRuleCreationTarget, addRuleForTarget, clearPendingRuleCreationTarget]);
 
   const handleSaveRule = useCallback((updated: DesignerBusinessRule) => {
     setLocalRules(prev => prev.map(r => (r.id === updated.id ? updated : r)));
@@ -653,6 +799,8 @@ export function RuleConfigScreen(): React.ReactElement {
               key={selectedRule.id}
               rule={selectedRule}
               fieldCodes={fieldCodes.length > 0 ? fieldCodes : ['(no fields)']}
+              tabs={tabTargets}
+              sections={sectionTargets}
               onSave={handleSaveRule}
               onCancel={handleCancelEdit}
               onDelete={handleDeleteRule}

@@ -31,3 +31,4 @@
 | ADR-BTN-005 | ExtraParams Persistence — JSON Column on Audit Log | Accepted | 2026-06-30 | Architect |
 | ADR-BTN-006 | ScopedButton Discriminated-Union Action Type Schema | Accepted | 2026-06-30 | Architect |
 | ADR-BTN-007 | Shared-Type Dual-File Sync Mechanism (CI check) | Accepted | 2026-06-30 | Architect |
+| ADR-SUBMIT-001 | Submission Mapping gains update (PATCH) support + metadata-resolved lookup binding | Draft — for backend-team discussion | 2026-07-26 | Architect |

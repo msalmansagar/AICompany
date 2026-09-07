@@ -69,7 +69,6 @@ namespace Qdb.FormEngine.Plugins
                 new PublishJobRepository(service),
                 new RenderCacheRepository(service),
                 new Core.Generation.FormJsonGenerator(new TranslationResolver(), context.TracingService),
-                new SecurityStripper(),
                 new NewtonsoftJsonSerializer(),
                 context.TracingService,
                 GeneratorVersion);

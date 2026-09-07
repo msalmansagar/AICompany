@@ -32,6 +32,7 @@ namespace Qdb.FormEngine.Core.Abstractions
         /// <summary>All qdb_form_lookup_config records for lookup fields.</summary>
         public List<Entity> LookupConfigs { get; set; }
 
+
         /// <summary>All active qdb_form_submission_mapping records for this form.</summary>
         public List<Entity> SubmissionMappings { get; set; }
 
@@ -62,7 +63,7 @@ namespace Qdb.FormEngine.Core.Abstractions
         /// <summary>All qdb_layout_grid records for this form's design. DFE-STYLE-001.</summary>
         public List<Entity> LayoutGrids { get; set; }
 
-        /// <summary>All visible qdb_grid_column_config records for grid fields.</summary>
+        /// <summary>All qdb_grid_column_config records for grid fields, hidden ones included.</summary>
         public List<Entity> GridColumnConfigs { get; set; }
 
         /// <summary>All active qdb_info_card_screen records for this form.</summary>

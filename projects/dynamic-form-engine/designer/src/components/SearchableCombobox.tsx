@@ -22,7 +22,12 @@ export interface SearchableComboboxProps {
 }
 
 const useStyles = makeStyles({
-  combobox: { width: '100%' },
+  // minWidth on the component's own class, not on an ancestor: Fluent's Combobox defaults
+  // to min-width 250px, wider than a grid column card's cell, and an ancestor '& *' override
+  // only wins by style insertion order — it held in the dev build and lost in the production
+  // bundle, so the picker painted 87px past the rail edge only when deployed. A class passed
+  // into the component goes through mergeClasses, where the caller's value wins by rule.
+  combobox: { width: '100%', minWidth: 0 },
   optionRow: { display: 'flex', flexDirection: 'column', gap: '1px', minWidth: 0 },
   optionPrimary: { fontFamily: 'monospace', fontSize: '13px' },
   optionSecondary: { fontSize: '11px', color: tokens.colorNeutralForeground3 },

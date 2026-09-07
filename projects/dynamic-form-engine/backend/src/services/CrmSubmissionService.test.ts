@@ -10,7 +10,19 @@ const mockWriteAuditEntry = vi.fn().mockResolvedValue(undefined);
 const mockAuditService = { writeAuditEntry: mockWriteAuditEntry } as never;
 
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// The engine resolves entity-set names from metadata (opportunity -> opportunities, and
+// 290 custom tables in this org). Those calls are answered here rather than from the mock
+// queue, so tests keep asserting on the CRM calls they care about.
+function metadataResponse(url: string) {
+  const match = /LogicalName='([^']+)'/.exec(url);
+  const logicalName = match ? match[1] : 'unknown';
+  return Promise.resolve({
+    ok: true, status: 200, text: () => Promise.resolve(''), headers: { get: () => null },
+    json: () => Promise.resolve({ EntitySetName: `${logicalName}s` }),
+  });
+}
+global.fetch = ((url: unknown, options: unknown) =>
+  String(url).includes('EntityDefinitions') ? metadataResponse(String(url)) : mockFetch(url, options)) as never;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -185,6 +197,76 @@ describe('CrmSubmissionService', () => {
 
       // Assert — mapped field appears in CRM payload
       expect(capturedPayload).toMatchObject({ fullname: 'Fatima Khan' });
+    });
+
+    it('submitForm_withLookupTarget_writesANavigationBindingNotTheRawGuid', async () => {
+      // A lookup column is not writable as a value — Dataverse answers "CRM do not support
+      // direct update of Entity Reference properties". It must be bound instead.
+      const customerId = '22222222-2222-2222-2222-222222222222';
+      let capturedPayload: Record<string, unknown> | null = null;
+
+      mockFetch.mockImplementation((url: string, options: RequestInit) => {
+        if (String(url).includes('RelationshipDefinitions')) {
+          return Promise.resolve({
+            ok: true, status: 200, text: () => Promise.resolve(''), headers: { get: () => null },
+            json: () => Promise.resolve({ value: [{
+              ReferencingAttribute: 'qdb_customerid',
+              ReferencingEntityNavigationPropertyName: 'qdb_CustomerId',
+              ReferencedEntity: 'account',
+            }] }),
+          });
+        }
+        if (String(url).includes('EntityDefinitions')) {
+          return Promise.resolve({
+            ok: true, status: 200, text: () => Promise.resolve(''), headers: { get: () => null },
+            json: () => Promise.resolve({ EntitySetName: 'accounts' }),
+          });
+        }
+        if (options?.method === 'POST') {
+          capturedPayload = JSON.parse(options.body as string) as Record<string, unknown>;
+          return Promise.resolve({
+            ok: true, status: 201, text: () => Promise.resolve(''), headers: { get: () => null },
+            json: () => Promise.resolve({ contactid: 'contact-xyz' }),
+          });
+        }
+        return Promise.resolve({ ok: true, status: 204, json: () => null, text: () => '', headers: { get: () => null } });
+      });
+
+      const form = makeFormDefinition({
+        submissionMappings: [{
+          id: 'sm-lookup',
+          formDefinitionId: 'form-001',
+          fieldId: 'fld-customer',
+          targetEntityLogicalName: 'contact',
+          targetAttributeLogicalName: 'qdb_customerid',
+          isMappedToChildEntity: false,
+          isActive: true,
+        }],
+        tabs: [{
+          id: 'tab-001',
+          sections: [{
+            id: 'sec-001',
+            fields: [{
+              ...makeField('fld-customer', 'qdb_customer'),
+              fieldType: 'lookup',
+              lookupConfig: { entityLogicalName: 'account' },
+            }],
+          }],
+        }],
+      });
+
+      // Act — the renderer stores a selection as { id, displayName }, not a bare GUID
+      await service.submitForm(
+        form,
+        { qdb_customer: { id: customerId, displayName: 'Qatar National Bank' } },
+        'user-001', 'Test User',
+      );
+
+      // Assert
+      expect(capturedPayload).toMatchObject({
+        'qdb_CustomerId@odata.bind': `/accounts(${customerId})`,
+      });
+      expect(capturedPayload).not.toHaveProperty('qdb_customerid');
     });
 
     it('submitForm_withMultiLookupArray_serializesToDelimitedGuids', async () => {

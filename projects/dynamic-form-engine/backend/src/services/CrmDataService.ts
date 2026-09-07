@@ -1,5 +1,6 @@
 ﻿import type { DraftSubmission } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
+import { EntitySetNameResolver } from './EntitySetNameResolver.js';
 import { NotFoundError } from '../utils/errors.js';
 import type { CrmAuthService } from './CrmAuthService.js';
 
@@ -20,8 +21,11 @@ interface RawDraftRecord {
 }
 
 export class CrmDataService extends CrmBaseService {
+  private readonly entitySetNames: EntitySetNameResolver;
+
   constructor(authService: CrmAuthService) {
     super(authService);
+    this.entitySetNames = new EntitySetNameResolver((path) => this.crmFetch(path));
   }
 
   async getRecord(
@@ -31,7 +35,7 @@ export class CrmDataService extends CrmBaseService {
   ): Promise<Record<string, unknown>> {
     const query = select ? `?$select=${select.join(',')}` : '';
     const record = await this.crmFetch<Record<string, unknown>>(
-      `/${entityLogicalName}s(${recordId})${query}`,
+      `/${await this.entitySetNames.resolve(entityLogicalName)}(${recordId})${query}`,
     );
 
     if (!record) {

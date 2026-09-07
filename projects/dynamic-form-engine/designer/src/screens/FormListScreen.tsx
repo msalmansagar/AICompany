@@ -1,12 +1,7 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
+import { isGridFieldType } from '@/constants/fieldTypes';
 import {
   Button,
-  DataGrid,
-  DataGridBody,
-  DataGridCell,
-  DataGridHeader,
-  DataGridHeaderCell,
-  DataGridRow,
   Dialog,
   DialogActions,
   DialogBody,
@@ -16,13 +11,7 @@ import {
   Input,
   Select,
   Spinner,
-  TableCellLayout,
-  TableColumnDefinition,
   Text,
-  Badge,
-  Toolbar,
-  ToolbarButton,
-  createTableColumn,
   makeStyles,
   tokens,
 } from '@fluentui/react-components';
@@ -36,6 +25,7 @@ import { OptionValueService } from '@/services/OptionValueService';
 import { LookupConfigService } from '@/services/LookupConfigService';
 import { ValidationRuleService } from '@/services/ValidationRuleService';
 import { BusinessRuleService } from '@/services/BusinessRuleService';
+import { GridColumnConfigService } from '@/services/GridColumnConfigService';
 import { FormDeleteService } from '@/services/FormDeleteService';
 import { FormCloneService } from '@/services/FormCloneService';
 import { AuditLogService } from '@/services/AuditLogService';
@@ -92,7 +82,7 @@ const useStyles = makeStyles({
   container: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground1,
   },
   header: {
@@ -110,13 +100,16 @@ const useStyles = makeStyles({
     alignItems: 'center',
     flexWrap: 'wrap',
   },
+  // The grid scrolls inside .grid-wrap, which is what the sticky header sticks to.
+  // This must not scroll as well, or there are two scrollbars and the header pins
+  // to the wrong one.
   tableContainer: {
     flex: 1,
-    overflow: 'auto',
+    minHeight: 0,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
     padding: '0 24px 24px',
-  },
-  statusBadge: {
-    textTransform: 'capitalize',
   },
   emptyState: {
     display: 'flex',
@@ -128,17 +121,17 @@ const useStyles = makeStyles({
   },
 });
 
-const STATUS_BADGE_APPEARANCE = {
-  draft: 'outline',
-  published: 'filled',
-  archived: 'ghost',
-} as const;
+const SELECT_A_FORM_FIRST = 'Select a form first';
 
-const STATUS_BADGE_COLOR = {
-  draft: 'warning',
-  published: 'success',
-  archived: 'subtle',
-} as const;
+/** One column of the records grid: how it sorts, and what it puts in a cell. */
+interface GridColumn {
+  key: string;
+  label: string;
+  compare: (a: FormSummary, b: FormSummary) => number;
+  render: (form: FormSummary) => React.ReactNode;
+  /** Extra class on the cell, e.g. 'mono' for a code. */
+  cellClass?: string;
+}
 
 export function FormListScreen(): React.ReactElement {
   const styles = useStyles();
@@ -154,6 +147,13 @@ export function FormListScreen(): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<FormStatus | 'all'>('all');
   const [error, setError] = useState<string | null>(null);
+  // Which row the command bar acts on. Single selection: the commands here operate
+  // on one form, and a multi-select would only raise the question of what Open means.
+  const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; isAscending: boolean }>({
+    key: 'modifiedOn',
+    isAscending: false,
+  });
 
   const loadForms = useCallback(async () => {
     if (!crmService) return;
@@ -197,17 +197,17 @@ export function FormListScreen(): React.ReactElement {
       const lookupService = new LookupConfigService(webApi);
       const validationRuleService = new ValidationRuleService(webApi);
       const businessRuleService = new BusinessRuleService(webApi);
+      const gridColumnService = new GridColumnConfigService(webApi);
 
-      // Use getFormWithEtag so the returned @odata.etag is stored in concurrencyStore
-      // immediately — FormSaveService.save() requires it for the conditional PATCH.
-      const [{ model: form, etag }, tabs, businessRules] = await Promise.all([
+      // Use getFormWithEtag so the returned @odata.etag can be stored in concurrencyStore —
+      // FormSaveService.save() requires it for the conditional PATCH. It is stored AFTER
+      // loadForm below, not here: loadForm resets the concurrency store to clear state from a
+      // previously opened form, which would wipe an etag stored at this point and leave every
+      // save failing with MissingEtagError.
+      const [{ model: form, etag }, tabs] = await Promise.all([
         formService.getFormWithEtag(formId),
         tabService.listTabsForForm(formId),
-        businessRuleService.listRulesForForm(formId),
       ]);
-      if (etag) {
-        useConcurrencyStore.getState().setRecordEtag(formId, etag);
-      }
 
       const sectionsArrays = await Promise.all(tabs.map(tab => sectionService.listSectionsForTab(tab.id)));
       const sections = sectionsArrays.flat();
@@ -215,25 +215,40 @@ export function FormListScreen(): React.ReactElement {
       const fieldsArrays = await Promise.all(sections.map(section => fieldService.listFieldsForSection(section.id)));
       const fields = fieldsArrays.flat();
 
-      // Load options, lookup configs, and validation rules in parallel per field
+      // Load options, lookup configs, grid columns and validation rules in parallel per field.
+      //
+      // Grid columns belong here with the rest. They were absent, so a grid field always
+      // loaded with none regardless of what CRM held: the maker saw an empty column list, and
+      // the next save deleted the real rows, because syncColumns removes any persisted column
+      // the store does not know about.
       await Promise.all(
         fields.map(async field => {
-          const [options, lookupConfig, validationRules] = await Promise.all([
+          const [options, lookupConfig, gridColumns, validationRules] = await Promise.all([
             OPTION_FIELD_TYPES.has(field.fieldType)
               ? optionService.listOptionsForField(field.id)
               : Promise.resolve([]),
             LOOKUP_FIELD_TYPES.has(field.fieldType)
               ? lookupService.getLookupConfigForField(field.id)
               : Promise.resolve(null),
+            isGridFieldType(field.fieldType)
+              ? gridColumnService.listColumnsForField(field.id)
+              : Promise.resolve([]),
             validationRuleService.listRulesForField(field.id),
           ]);
 
           field.options = options;
           field.lookupConfig = lookupConfig;
+          field.gridColumns = gridColumns;
           // validationRules stored separately via loadForm below
           (field as typeof field & { _validationRules: DesignerValidationRule[] })._validationRules = validationRules;
         })
       );
+
+      // Business rules load AFTER the fields, not alongside them: a legacy rule names its
+      // fields by record id, and rebuilding it into the designer format needs the id → code
+      // map to show real field names instead of raw GUIDs.
+      const fieldIdToCode = new Map(fields.filter(f => f.code).map(f => [f.id, f.code]));
+      const businessRules = await businessRuleService.listRulesForForm(formId, fieldIdToCode);
 
       const allValidationRules = fields.flatMap(
         f => (f as typeof f & { _validationRules?: DesignerValidationRule[] })._validationRules ?? []
@@ -252,6 +267,13 @@ export function FormListScreen(): React.ReactElement {
       }
 
       loadForm({ form, tabs, sections, fields, validationRules: allValidationRules, businessRules, designPayload });
+
+      // After loadForm, which resets the concurrency store. Keyed on form.id rather than the
+      // formId argument so it matches the lookup in DesignerScreen, which reads it from the
+      // loaded model.
+      if (etag) {
+        useConcurrencyStore.getState().setRecordEtag(form.id, etag);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open form');
       setIsOpeningForm(false);
@@ -289,6 +311,8 @@ export function FormListScreen(): React.ReactElement {
       await auditService.logAction(formId, 'DELETE_FORM', {});
       const deleteService = new FormDeleteService(webApi);
       await deleteService.deleteForm(formId);
+      // The commands act on the selection, so it must not outlive the row.
+      setSelectedFormId(null);
       await loadForms();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete form');
@@ -297,82 +321,76 @@ export function FormListScreen(): React.ReactElement {
     }
   }, [crmService, deleteTarget, loadForms]);
 
-  const columns: TableColumnDefinition<FormSummary>[] = [
-    createTableColumn<FormSummary>({
-      columnId: 'name',
+  // Which commands apply is a property of the selection, not of a button sitting in
+  // a row, so each one works it out from the selected form and explains itself in a
+  // title when it is off.
+  const selectedForm = forms.find(form => form.id === selectedFormId) ?? null;
+  const isBusy = !!isCloningId || !!isDeletingId;
+  const canDeleteSelected = selectedForm?.status === 'draft';
+  const deleteCommandTitle =
+    !selectedForm ? SELECT_A_FORM_FIRST
+    : canDeleteSelected ? `Delete ${selectedForm.name}`
+    : 'Only a draft can be deleted';
+
+  const columns: GridColumn[] = [
+    {
+      key: 'name',
+      label: 'Form Name',
       compare: (a, b) => a.name.localeCompare(b.name),
-      renderHeaderCell: () => 'Form Name',
-      renderCell: item => <TableCellLayout>{item.name}</TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'code',
+      // The name is the way in, as it is in every model-driven grid. Clicking it
+      // opens rather than selects, which is why the row handler ignores it.
+      render: form => (
+        <button
+          type="button"
+          className="link-cell"
+          onClick={() => void handleOpenForm(form.id)}
+          aria-label={`Open ${form.name}`}
+        >
+          {form.name}
+        </button>
+      ),
+    },
+    {
+      key: 'code',
+      label: 'Code',
       compare: (a, b) => a.code.localeCompare(b.code),
-      renderHeaderCell: () => 'Code',
-      renderCell: item => <TableCellLayout><Text font="monospace">{item.code}</Text></TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'status',
+      cellClass: 'mono',
+      render: form => form.code,
+    },
+    {
+      key: 'status',
+      label: 'Status',
       compare: (a, b) => a.status.localeCompare(b.status),
-      renderHeaderCell: () => 'Status',
-      renderCell: item => (
-        <TableCellLayout>
-          <Badge
-            appearance={STATUS_BADGE_APPEARANCE[item.status]}
-            color={STATUS_BADGE_COLOR[item.status]}
-            className={styles.statusBadge}
-          >
-            {item.status}
-          </Badge>
-        </TableCellLayout>
-      ),
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'version',
+      render: form => <span className={`pill ${form.status}`}>{form.status}</span>,
+    },
+    {
+      key: 'version',
+      label: 'Version',
       compare: (a, b) => a.currentVersion.localeCompare(b.currentVersion),
-      renderHeaderCell: () => 'Version',
-      renderCell: item => <TableCellLayout>v{item.currentVersion}</TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'modifiedOn',
+      render: form => `v${form.currentVersion}`,
+    },
+    {
+      key: 'modifiedOn',
+      label: 'Modified On',
       compare: (a, b) => a.modifiedOn.getTime() - b.modifiedOn.getTime(),
-      renderHeaderCell: () => 'Modified On',
-      renderCell: item => <TableCellLayout>{item.modifiedOn.toLocaleDateString()}</TableCellLayout>,
-    }),
-    createTableColumn<FormSummary>({
-      columnId: 'actions',
-      renderHeaderCell: () => 'Actions',
-      renderCell: item => (
-        <TableCellLayout>
-          <Toolbar size="small">
-            <ToolbarButton
-              icon={<Open24Regular />}
-              onClick={() => void handleOpenForm(item.id)}
-              aria-label={`Open ${item.name}`}
-              disabled={!!isDeletingId || !!isCloningId}
-            />
-            <ToolbarButton
-              icon={isCloningId === item.id ? <Spinner size="tiny" /> : <Copy24Regular />}
-              onClick={() => void handleCloneForm(item.id)}
-              aria-label={`Clone ${item.name}`}
-              disabled={isCloningId === item.id || !!isDeletingId}
-            />
-            {item.status === 'draft' && (
-              <ToolbarButton
-                icon={isDeletingId === item.id ? <Spinner size="tiny" /> : <Delete24Regular />}
-                onClick={() => setDeleteTarget(item)}
-                aria-label={`Delete ${item.name}`}
-                disabled={isDeletingId === item.id || !!isCloningId}
-              />
-            )}
-          </Toolbar>
-        </TableCellLayout>
-      ),
-    }),
+      render: form => form.modifiedOn.toLocaleDateString(),
+    },
   ];
+
+  const sortedForms = [...forms].sort((a, b) => {
+    const column = columns.find(candidate => candidate.key === sort.key);
+    if (!column) return 0;
+    return sort.isAscending ? column.compare(a, b) : column.compare(b, a);
+  });
+
+  const toggleSort = (key: string): void =>
+    setSort(current =>
+      current.key === key ? { key, isAscending: !current.isAscending } : { key, isAscending: true },
+    );
 
   if (isOpeningForm) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
         <Spinner label="Opening form..." />
       </div>
     );
@@ -380,11 +398,46 @@ export function FormListScreen(): React.ReactElement {
 
   return (
     <div className={styles.container}>
+      <div className="cmdbar" role="toolbar" aria-label="Form commands">
+        <button type="button" className="cmd primary" onClick={handleNewForm}>
+          <Add24Regular fontSize={16} /> New Form
+        </button>
+        <span className="cmd-sep" />
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => selectedForm && void handleOpenForm(selectedForm.id)}
+          disabled={!selectedForm || isBusy}
+          title={selectedForm ? `Open ${selectedForm.name}` : SELECT_A_FORM_FIRST}
+        >
+          <Open24Regular fontSize={16} /> Open
+        </button>
+        <button
+          type="button"
+          className="cmd"
+          onClick={() => selectedForm && void handleCloneForm(selectedForm.id)}
+          disabled={!selectedForm || isBusy}
+          title={selectedForm ? `Clone ${selectedForm.name}` : SELECT_A_FORM_FIRST}
+        >
+          {isCloningId ? <Spinner size="tiny" /> : <Copy24Regular fontSize={16} />} Clone
+        </button>
+        <button
+          type="button"
+          className="cmd danger"
+          onClick={() => selectedForm && setDeleteTarget(selectedForm)}
+          disabled={!canDeleteSelected || isBusy}
+          title={deleteCommandTitle}
+        >
+          {isDeletingId ? <Spinner size="tiny" /> : <Delete24Regular fontSize={16} />} Delete
+        </button>
+        <span className="cmd-spacer" />
+        <button type="button" className="cmd" onClick={() => void loadForms()} disabled={isBusy}>
+          Refresh
+        </button>
+      </div>
+
       <div className={styles.header}>
         <Text size={600} weight="semibold">Portal Form Designer</Text>
-        <Button appearance="primary" icon={<Add24Regular />} onClick={handleNewForm}>
-          New Form
-        </Button>
       </div>
 
       <div className={styles.toolbar}>
@@ -405,7 +458,6 @@ export function FormListScreen(): React.ReactElement {
           <option value="published">Published</option>
           <option value="archived">Archived</option>
         </Select>
-        <Button onClick={() => void loadForms()}>Refresh</Button>
       </div>
 
       <div className={styles.tableContainer}>
@@ -422,29 +474,77 @@ export function FormListScreen(): React.ReactElement {
             </Button>
           </div>
         ) : (
-          <DataGrid
-            items={forms}
-            columns={columns}
-            sortable
-            getRowId={item => item.id}
-          >
-            <DataGridHeader>
-              <DataGridRow>
-                {({ renderHeaderCell }) => (
-                  <DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
-                )}
-              </DataGridRow>
-            </DataGridHeader>
-            <DataGridBody<FormSummary>>
-              {({ item, rowId }) => (
-                <DataGridRow<FormSummary> key={rowId}>
-                  {({ renderCell }) => (
-                    <DataGridCell>{renderCell(item)}</DataGridCell>
-                  )}
-                </DataGridRow>
-              )}
-            </DataGridBody>
-          </DataGrid>
+          <>
+            <div className="grid-wrap">
+              <table className="grid" role="grid">
+                <thead>
+                  <tr>
+                    <th className="row-check" />
+                    {columns.map(column => (
+                      <th
+                        key={column.key}
+                        className="sortable"
+                        aria-sort={
+                          sort.key === column.key
+                            ? (sort.isAscending ? 'ascending' : 'descending')
+                            : 'none'
+                        }
+                        onClick={() => toggleSort(column.key)}
+                      >
+                        {column.label}
+                        <span className="sort-arrow" aria-hidden="true">
+                          {sort.key === column.key && !sort.isAscending ? '↓' : '↑'}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedForms.map(form => (
+                    // The whole row selects, as it does in the reference — clicking
+                    // the name is the one exception, because that opens the form.
+                    <tr
+                      key={form.id}
+                      data-id={form.id}
+                      className={form.id === selectedFormId ? 'selected' : undefined}
+                      aria-selected={form.id === selectedFormId}
+                      onClick={event => {
+                        // The name opens the form; without this it would select too.
+                        if ((event.target as HTMLElement).closest('.link-cell')) return;
+                        setSelectedFormId(form.id);
+                      }}
+                    >
+                      <td className="row-check">
+                        <input
+                          type="checkbox"
+                          checked={form.id === selectedFormId}
+                          aria-label={`Select ${form.name}`}
+                          // Without this the click also reaches the row handler, which
+                          // re-selects whatever the box just cleared.
+                          onClick={event => event.stopPropagation()}
+                          onChange={() =>
+                            setSelectedFormId(current => (current === form.id ? null : form.id))
+                          }
+                        />
+                      </td>
+                      {columns.map(column => (
+                        <td key={column.key} data-label={column.label} className={column.cellClass}>
+                          {column.render(form)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="legend">
+              {(['published', 'draft', 'archived'] as const).map(status => (
+                <span key={status}>
+                  <b>{forms.filter(form => form.status === status).length}</b> {status}
+                </span>
+              ))}
+            </div>
+          </>
         )}
       </div>
 

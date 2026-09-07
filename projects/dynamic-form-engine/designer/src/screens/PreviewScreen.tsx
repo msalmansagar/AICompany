@@ -12,6 +12,7 @@ import { useDesignerStore } from '@/state/designerStore';
 import type { DesignerFieldModel, DesignerSectionModel } from '@/state/models/DesignerFormModel';
 import type { DesignerStyleModel } from '@/state/models/DesignerStyleModel';
 import type { DesignPayload } from '@qdb/shared';
+import { parseBooleanDefault, parseMultiSelectDefault } from '@qdb/shared';
 
 function adaptPayloadToStyle(payload: DesignPayload): DesignerStyleModel {
   const { theme, formDesign } = payload;
@@ -52,7 +53,7 @@ const useStyles = makeStyles({
   root: {
     display: 'flex',
     flexDirection: 'column',
-    height: '100vh',
+    height: '100%',
     backgroundColor: tokens.colorNeutralBackground3,
   },
   topBar: {
@@ -101,8 +102,16 @@ const useStyles = makeStyles({
     justifyContent: 'center',
     padding: '24px',
   },
+  // The paper. Everything inside it simulates what an end user will see and so is
+  // deliberately NOT themed by the maker's appearance — the colours below belong to
+  // the form, not to the designer. The sheet itself softens off pure white in dark
+  // so it does not glare against the canvas.
   previewFrame: {
-    backgroundColor: '#ffffff',
+    backgroundColor: 'var(--paper)',
+    // Stated together with the background, never apart. Under a dark appearance
+    // anything in here that inherits Fluent's foreground comes out near-white on
+    // near-white — the labels below did exactly that, at about 1.03:1.
+    color: 'var(--paper-fg)',
     boxShadow: tokens.shadow64,
     overflow: 'auto',
     transition: 'width 0.3s ease',
@@ -216,12 +225,20 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
             readOnly
             tabIndex={-1}
             aria-label={field.label}
-            defaultChecked={field.defaultValue === 'true'}
+            checked={parseBooleanDefault(field.defaultValue) === true}
           />
         );
       case 'dropdown':
         return (
-          <select style={{ ...inputStyle, width: '100%' }} aria-label={field.label} tabIndex={-1}>
+          // Keyed on the default so editing it re-mounts the select — an uncontrolled
+          // defaultValue is otherwise only read on the first render.
+          <select
+            key={field.defaultValue ?? ''}
+            defaultValue={field.defaultValue ?? ''}
+            style={{ ...inputStyle, width: '100%' }}
+            aria-label={field.label}
+            tabIndex={-1}
+          >
             {field.options.length > 0
               ? field.options.map(opt => <option key={opt.id} value={opt.value}>{opt.label}</option>)
               : <option>-- Select --</option>
@@ -234,7 +251,13 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
             {field.options.length > 0
               ? field.options.map(opt => (
                   <label key={opt.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                    <input type="radio" readOnly name={field.id} tabIndex={-1} />
+                    <input
+                      type="radio"
+                      readOnly
+                      name={field.id}
+                      tabIndex={-1}
+                      checked={opt.value === field.defaultValue}
+                    />
                     {opt.label}
                   </label>
                 ))
@@ -270,7 +293,15 @@ function PreviewField({ field, style }: PreviewFieldProps): React.ReactElement {
         );
       case 'multi_select':
         return (
-          <select style={{ ...inputStyle, width: '100%' }} multiple size={Math.min(4, field.options.length || 2)} aria-label={field.label} tabIndex={-1}>
+          <select
+            key={field.defaultValue ?? ''}
+            defaultValue={parseMultiSelectDefault(field.defaultValue)}
+            style={{ ...inputStyle, width: '100%' }}
+            multiple
+            size={Math.min(4, field.options.length || 2)}
+            aria-label={field.label}
+            tabIndex={-1}
+          >
             {field.options.length > 0
               ? field.options.map(opt => <option key={opt.id} value={opt.value}>{opt.label}</option>)
               : <option>-- No options defined --</option>

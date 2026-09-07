@@ -1,5 +1,6 @@
 ﻿import { LRUCache } from 'lru-cache';
 import type {
+  BarSource,
   FormDefinition,
   FormSummary,
   FormButton,
@@ -21,12 +22,17 @@ import type {
   BusinessRuleAction,
   ConditionOperator,
   LogicalOperator,
+  FormBand,
   GridColumnConfig,
   GridColumnOptionValue,
   GridColumnFilterType,
+  GridLookupSort,
+  GridValidationFormat,
   FileUploadConfig,
   FieldPlacement,
+  RuleTriggerEvent,
 } from '@qdb/shared';
+import { isRenderableImageUrl, RULE_TRIGGER_EVENTS } from '@qdb/shared';
 import { CrmBaseService } from './CrmBaseService.js';
 import { ButtonAssembler, SCOPED_BUTTON_ENTITY, type RawScopedButton, type IndexedButtons } from './ButtonAssembler.js';
 import { logger } from '../utils/logger.js';
@@ -42,8 +48,15 @@ const SAFE_FORM_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 
 // DFE-TABZONE-001: qdb_placement optionset values on qdb_form_field.
 // Any other value (incl. absent) is treated as Body — the legacy behavior.
+/** qdb_bar_source option values; unset counts as Form Field. */
+const BAR_SOURCE_STATIC = 100000001;
+const BAR_SOURCE_DYNAMIC = 100000002;
+
 const PLACEMENT_HEADER = 100000000;
 const PLACEMENT_FOOTER = 100000001;
+
+/** Used when a tab requires acknowledgement but the maker left the label blank. */
+const DEFAULT_TAB_CONFIRMATION_LABEL = 'I confirm the information on this tab is correct.';
 
 // Maps the qdb_placement optionset code to a FieldPlacement. Unknown/absent codes
 // safely fall back to 'body' (legacy) so malformed config never breaks a form.
@@ -166,6 +179,11 @@ export class CrmMetadataService extends CrmBaseService {
       description: raw.qdb_description,
       status: this.mapFormStatus(raw.qdb_status),
       version: raw.qdb_version ?? 1,
+      // Emitted only when set, so forms with no mark publish byte-identical JSON.
+      ...(raw.qdb_icon_name ? { iconName: raw.qdb_icon_name } : {}),
+      ...(isRenderableImageUrl(raw.qdb_image_url) ? { imageUrl: raw.qdb_image_url } : {}),
+      ...buildBand('header', raw.qdb_header_text, raw.qdb_header_image_url),
+      ...buildBand('footer', raw.qdb_footer_text, raw.qdb_footer_image_url),
       allowSaveDraft: raw.qdb_allow_save_draft ?? true,
       showSummaryStep: raw.qdb_show_summary_step ?? false,
       // DFE-FBE-001: emitted only when set; consumers derive from showSummaryStep otherwise.
@@ -305,11 +323,26 @@ export class CrmMetadataService extends CrmBaseService {
         isVisible: tab.qdb_is_visible ?? true,
         requiresPreviousTabComplete: tab.qdb_requires_previous_tab_complete ?? false,
         hideTabBar: tab.qdb_hide_tab_bar ?? false,
+        // Null on tabs that predate the column; only a real true is carried through.
+        revealsSectionsOneAtATime: tab.qdb_reveal_sections_one_at_a_time ? true : undefined,
         sections: sectionsByTab.get(tab.qdb_form_tabid) ?? [],
         ...(tabButtons.length > 0 ? { buttons: tabButtons } : {}),
         // DFE-TABZONE-001: header/footer zone fields (omitted when none).
         ...(headerFields.length > 0 ? { headerFields } : {}),
         ...(footerFields.length > 0 ? { footerFields } : {}),
+        // DFE-SUBMITCONFIRM-002: the boolean is what enables the gate — unlike the
+        // form-level one, where a non-empty label is the switch — so a maker can turn the
+        // tab gate on and accept the default wording.
+        ...(tab.qdb_require_submit_confirmation
+          ? {
+            submitConfirmation: {
+              checkboxLabel: tab.qdb_submit_confirmation_label || DEFAULT_TAB_CONFIRMATION_LABEL,
+              ...(tab.qdb_submit_confirmation_message
+                ? { dialogMessage: tab.qdb_submit_confirmation_message }
+                : {}),
+            },
+          }
+          : {}),
       };
     });
   }
@@ -420,6 +453,9 @@ export class CrmMetadataService extends CrmBaseService {
       // DFE-FBE-001: Label field — static content + optional data-bound source.
       staticContent: field.qdb_static_content,
       sourceFieldSchemaName: field.qdb_source_field_schema_name,
+      // Unset counts as enabled — fields predating these columns keep both actions.
+      showDocumentView: field.qdb_show_document_view ?? true,
+      showDocumentDownload: field.qdb_show_document_download ?? true,
       displayOrder: field.qdb_display_order,
       columnSpan: this.mapColumnSpan(field.qdb_column_span),
       isRequired: field.qdb_is_required ?? false,
@@ -436,6 +472,9 @@ export class CrmMetadataService extends CrmBaseService {
       ...(field.qdb_number_display_style === 100000002 ? { numberDisplayStyle: 'bar' as const } : {}),
       ...(field.qdb_bar_max_field_schema ? { barMaxFieldSchemaName: field.qdb_bar_max_field_schema } : {}),
       ...(field.qdb_bar_value_field_schema ? { barValueFieldSchemaName: field.qdb_bar_value_field_schema } : {}),
+      // DFE-BARSRC-001: bounds source. Only the keys the chosen mode needs are emitted, so a
+      // value left behind from a mode the maker switched away from is never misread.
+      ...this.barSourceProps(field),
       maxRows: field.qdb_max_rows,
       componentKey: field.qdb_component_key,
       // DFE-NUMBAR: bar (100000002) vs textbox default (omitted).
@@ -472,7 +511,8 @@ export class CrmMetadataService extends CrmBaseService {
         maxRows: field.qdb_max_rows ?? 200,
         pageSize: field.qdb_grid_page_size ?? undefined,
         pagingStyle: field.qdb_grid_paging_style === 'numbered' ? ('numbered' as const) : undefined,
-        savedViewId: field.qdb_saved_view_id ?? undefined,
+        // Grid Config column first, legacy Lookup Config column as fallback.
+        savedViewId: field.qdb_grid_saved_view_id ?? field.qdb_saved_view_id ?? undefined,
         // Alias names (used by new mapper references)
         mode: this.mapGridMode(field.qdb_grid_mode),
         entityName: field.qdb_grid_entity_name ?? undefined,
@@ -546,7 +586,10 @@ export class CrmMetadataService extends CrmBaseService {
   private async fetchGridColumnConfigs(fieldIds: string[]): Promise<Map<string, GridColumnConfig[]>> {
     const filter = fieldIds.map((id) => `_qdb_form_field_id_value eq '${id}'`).join(' or ');
     const response = await this.crmFetch<ODataCollection<RawGridColumnConfig>>(
-      `/qdb_grid_column_configs?$filter=(${filter}) and qdb_is_visible eq true&$orderby=qdb_display_order asc`,
+      // Hidden columns are published too, carrying isVisible: false. Filtering them out here
+      // dropped them from the JSON entirely, so their values could not round-trip and a maker
+      // who hid a column saw it disappear rather than stop being drawn.
+      `/qdb_grid_column_configs?$filter=(${filter})&$orderby=qdb_display_order asc`,
     );
     const map = new Map<string, GridColumnConfig[]>();
     for (const col of response.value) {
@@ -560,11 +603,18 @@ export class CrmMetadataService extends CrmBaseService {
         columnLabel: col.qdb_column_label,
         targetAttribute: col.qdb_column_attribute,
         columnFieldType,
+        isVisible: col.qdb_is_visible !== false,
+        isRequired: col.qdb_is_required === true,
+        maxLength: col.qdb_max_length ?? undefined,
+        validationFormat: normaliseValidationFormat(col.qdb_validation_format),
+        validationPattern: col.qdb_validation_pattern ?? undefined,
+        validationMessage: col.qdb_validation_message ?? undefined,
         options: meta.options,
         filterType: meta.filterType ?? deriveColumnFilterType(columnFieldType),
         lookupTargetEntity: meta.lookupTargetEntity,
         lookupDisplayAttribute: meta.lookupDisplayAttribute,
         lookupValueAttribute: meta.lookupValueAttribute,
+        lookupSort: meta.lookupSort,
       });
       map.set(fieldId, existing);
     }
@@ -761,6 +811,43 @@ export class CrmMetadataService extends CrmBaseService {
     return map;
   }
 
+  /**
+   * DFE-BARSRC-001: the bar's bounds source, as the minimal set of keys for that mode.
+   *
+   * Unset reads as 'formField', so the bars that predate this column keep their behaviour
+   * with no migration. Emitting only the keys the mode needs means a value left behind from
+   * a mode the maker switched away from can never be misread downstream.
+   */
+  private barSourceProps(field: RawField): Record<string, unknown> {
+    const source = this.mapBarSource(field.qdb_bar_source);
+
+    if (source === 'static') {
+      return {
+        barSource: source,
+        barMin: field.qdb_bar_min_value ?? 0,
+        ...(field.qdb_bar_max_value != null ? { barMax: field.qdb_bar_max_value } : {}),
+      };
+    }
+
+    if (source === 'dynamic') {
+      return {
+        barSource: source,
+        ...(field.qdb_bar_source_entity ? { barSourceEntity: field.qdb_bar_source_entity } : {}),
+        ...(field.qdb_bar_min_attribute ? { barMinAttribute: field.qdb_bar_min_attribute } : {}),
+      };
+    }
+
+    // formField: barMaxFieldSchemaName / barValueFieldSchemaName already carry it, and
+    // omitting the key keeps pre-existing forms byte-identical.
+    return {};
+  }
+
+  private mapBarSource(code: number | undefined): BarSource {
+    if (code === BAR_SOURCE_STATIC) return 'static';
+    if (code === BAR_SOURCE_DYNAMIC) return 'dynamic';
+    return 'formField';
+  }
+
   // Business rules are stored at form-definition level (not field level) in this schema.
   // Conditions live in qdb_conditions_json as a JSON array.
   // Trigger field is identified from the first condition's fieldId (a Dataverse record GUID).
@@ -829,16 +916,17 @@ export class CrmMetadataService extends CrmBaseService {
     for (const action of def.actions) {
       const mappedAction = DESIGNER_ACTION_MAP[action.action_type];
       if (!mappedAction) continue; // e.g. show_message has no runtime equivalent
+      const target = resolveDesignerActionTarget(action, schemaToGuid);
+      if (!target) continue; // an action naming no target cannot be applied to anything
       rules.push({
         id: rule.qdb_form_business_ruleid,
         name: rule.qdb_name,
         description: rule.qdb_description,
+        triggerEvent: readTriggerEvent(def.trigger_event),
         conditions,
         conditionsLogic,
         action: mappedAction,
-        targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
-        targetSectionId: undefined,
-        targetTabId: undefined,
+        ...target,
         actionValue: action.value,
         priority: rule.qdb_priority ?? 100,
         isActive: true,
@@ -957,9 +1045,14 @@ export class CrmMetadataService extends CrmBaseService {
       fieldId: m._qdb_form_field_id_value,
       targetEntityLogicalName: m.qdb_target_entity_logical_name,
       targetAttributeLogicalName: m.qdb_target_attribute_logical_name,
+      // Blank is the normal case — the engine resolves these from metadata.
+      targetNavigationProperty: m.qdb_target_navigation_property || undefined,
+      targetEntitySetName: m.qdb_target_entity_set_name || undefined,
       isMappedToChildEntity: m.qdb_is_child_entity ?? false,
       childEntityRelationshipName: m.qdb_child_entity_relationship_name,
       transformExpression: m.qdb_transform_expression,
+      // DFE-GRIDCHILD-001: set = this mapping reads a grid column, one child record per row.
+      gridColumnAttribute: m.qdb_grid_column_attribute || undefined,
       isActive: true,
     }));
   }
@@ -1218,6 +1311,12 @@ interface RawFormDefinition {
   qdb_description?: string;
   qdb_status: number;
   qdb_version?: number;
+  qdb_icon_name?: string;
+  qdb_image_url?: string;
+  qdb_header_text?: string;
+  qdb_header_image_url?: string;
+  qdb_footer_text?: string;
+  qdb_footer_image_url?: string;
   qdb_allow_save_draft?: boolean;
   qdb_draft_expiry_days?: number;
   qdb_power_automate_flow_id?: string;
@@ -1252,9 +1351,14 @@ interface RawTab {
   qdb_is_visible?: boolean;
   qdb_requires_previous_tab_complete?: boolean;
   qdb_hide_tab_bar?: boolean;
+  qdb_reveal_sections_one_at_a_time?: boolean;
   // DFE-FBE-001
   qdb_description?: string;
   qdb_is_summary_tab?: boolean;
+  // DFE-SUBMITCONFIRM-002
+  qdb_require_submit_confirmation?: boolean;
+  qdb_submit_confirmation_label?: string;
+  qdb_submit_confirmation_message?: string;
 }
 
 interface RawSection {
@@ -1292,6 +1396,12 @@ interface RawField {
   qdb_number_display_style?: number;
   qdb_bar_max_field_schema?: string;
   qdb_bar_value_field_schema?: string;
+  // DFE-BARSRC-001
+  qdb_bar_source?: number;
+  qdb_bar_min_value?: number;
+  qdb_bar_max_value?: number;
+  qdb_bar_source_entity?: string;
+  qdb_bar_min_attribute?: string;
   qdb_max_rows?: number;
   qdb_grid_page_size?: number;
   qdb_grid_paging_style?: string;
@@ -1299,6 +1409,8 @@ interface RawField {
   // DFE-FBE-001 Label field
   qdb_static_content?: string;
   qdb_source_field_schema_name?: string;
+  qdb_show_document_view?: boolean;
+  qdb_show_document_download?: boolean;
   // DFE-ADD-002 boolean field
   qdb_true_label?: string;
   qdb_false_label?: string;
@@ -1321,7 +1433,9 @@ interface RawField {
   // Prefix / suffix decorators
   qdb_prefix?: string;
   qdb_suffix?: string;
-  // DFE-ADD-002 interactive-grid field
+  // DFE-ADD-002 interactive-grid field. The saved view lives in the form's Grid Config
+  // section (qdb_grid_saved_view_id); qdb_saved_view_id is the legacy Lookup Config twin.
+  qdb_grid_saved_view_id?: string;
   qdb_saved_view_id?: string;
   qdb_grid_entity_name?: string;
   qdb_selection_mode?: number;
@@ -1406,14 +1520,18 @@ interface RawLookupConfig {
   qdb_display_columns_json?: string;
 }
 
+
 interface RawSubmissionMapping {
   qdb_form_submission_mappingid: string;
   _qdb_form_field_id_value: string;
   qdb_target_entity_logical_name: string;
   qdb_target_attribute_logical_name: string;
+  qdb_target_navigation_property?: string;
+  qdb_target_entity_set_name?: string;
   qdb_is_child_entity?: boolean;
   qdb_child_entity_relationship_name?: string;
   qdb_transform_expression?: string;
+  qdb_grid_column_attribute?: string;
 }
 
 interface RawVersion {
@@ -1465,16 +1583,35 @@ interface RawBusinessRule {
   qdb_is_active?: boolean;
 }
 
+/**
+ * A designer rule's trigger event, or undefined when absent or unrecognised.
+ *
+ * Publishing an event the runtime cannot honour would hand the maker a setting that silently
+ * does nothing, so anything outside the supported set falls back to the default instead.
+ */
+function readTriggerEvent(value: string | undefined): RuleTriggerEvent | undefined {
+  return RULE_TRIGGER_EVENTS.includes(value as RuleTriggerEvent)
+    ? (value as RuleTriggerEvent)
+    : undefined;
+}
+
 // The designer serialises rules as this shape into qdb_conditions_json (schema codes,
 // nested actions) — distinct from the flat legacy conditions array + structured columns.
 interface RawDesignerRuleDefinition {
   version?: string;
   trigger_field_code: string;
+  trigger_event?: string;
   condition_group?: {
     logical_operator?: 'AND' | 'OR';
     conditions?: Array<{ field_code: string; operator: string; value?: string | null }>;
   };
-  actions: Array<{ action_type: string; target_field_code: string; value?: string }>;
+  actions: Array<{
+    action_type: string;
+    target_field_code?: string;
+    target_tab_id?: string;
+    target_section_id?: string;
+    value?: string;
+  }>;
 }
 
 // Designer snake_case operators/actions → runtime camelCase vocab. Unmapped entries
@@ -1483,6 +1620,9 @@ const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
   equals: 'equals',
   not_equals: 'notEquals',
   contains: 'contains',
+  // The designer offers Not Contains; it was absent here, so the condition was dropped at
+  // publish and the rule quietly did something other than what the maker configured.
+  not_contains: 'notContains',
   is_empty: 'isEmpty',
   is_not_empty: 'isNotEmpty',
   greater_than: 'greaterThan',
@@ -1492,10 +1632,52 @@ const DESIGNER_OPERATOR_MAP: Record<string, ConditionOperator> = {
 const DESIGNER_ACTION_MAP: Record<string, BusinessRuleAction> = {
   show_field: 'showField',
   hide_field: 'hideField',
+  // Tab and section targets. The runtime has honoured these since they existed; the
+  // designer format could not express them, so a rule aimed at a tab published as one
+  // aimed at nothing.
+  show_tab: 'showTab',
+  hide_tab: 'hideTab',
+  show_section: 'showSection',
+  hide_section: 'hideSection',
   set_required: 'makeRequired',
   clear_required: 'makeOptional',
   set_value: 'setValue',
 };
+
+/** Designer action types that name a tab rather than a field. */
+const DESIGNER_TAB_ACTIONS = new Set(['show_tab', 'hide_tab']);
+
+/** Designer action types that name a section rather than a field. */
+const DESIGNER_SECTION_ACTIONS = new Set(['show_section', 'hide_section']);
+
+/**
+ * The record a designer action targets, keyed for spreading onto a BusinessRule.
+ *
+ * A tab or section action names a record id directly; only a field action names a schema
+ * code that has to be resolved to one. Treating every action as a field target is what
+ * dropped tab- and section-targeted rules.
+ */
+function resolveDesignerActionTarget(
+  action: { action_type: string; target_field_code?: string; target_tab_id?: string; target_section_id?: string },
+  schemaToGuid: Map<string, string>,
+): Pick<BusinessRule, 'targetFieldId' | 'targetTabId' | 'targetSectionId'> | null {
+  if (DESIGNER_TAB_ACTIONS.has(action.action_type)) {
+    return action.target_tab_id
+      ? { targetFieldId: undefined, targetTabId: action.target_tab_id, targetSectionId: undefined }
+      : null;
+  }
+  if (DESIGNER_SECTION_ACTIONS.has(action.action_type)) {
+    return action.target_section_id
+      ? { targetFieldId: undefined, targetTabId: undefined, targetSectionId: action.target_section_id }
+      : null;
+  }
+  if (!action.target_field_code) return null;
+  return {
+    targetFieldId: schemaToGuid.get(action.target_field_code) ?? action.target_field_code,
+    targetTabId: undefined,
+    targetSectionId: undefined,
+  };
+}
 
 interface RawFieldLabel {
   qdb_fieldlabelid: string;
@@ -1516,6 +1698,45 @@ interface RawGridColumnConfig {
   qdb_is_visible?: boolean;
   qdb_is_editable?: boolean;
   qdb_column_options_json?: string;
+  qdb_is_required?: boolean;
+  qdb_max_length?: number;
+  qdb_validation_format?: string;
+  qdb_validation_pattern?: string;
+  qdb_validation_message?: string;
+}
+
+/**
+ * A header or footer band, keyed for spreading into the form definition.
+ *
+ * Emitted only when the maker set at least one part, so a form with no bands publishes the
+ * same JSON it always did. An image URL that would not render is dropped rather than carried
+ * — see isRenderableImageUrl for why the runtime must not be handed one.
+ */
+function buildBand(
+  key: 'header' | 'footer',
+  text: string | undefined,
+  imageUrl: string | undefined,
+): Record<string, FormBand> | Record<string, never> {
+  const band: FormBand = {
+    ...(text ? { text } : {}),
+    ...(isRenderableImageUrl(imageUrl) ? { imageUrl } : {}),
+  };
+  return Object.keys(band).length > 0 ? { [key]: band } : {};
+}
+
+const GRID_VALIDATION_FORMATS: readonly GridValidationFormat[] =
+  ['none', 'email', 'phone', 'url', 'numeric', 'alphanumeric', 'custom'];
+
+/**
+ * Maps the stored format string onto the contract. An unrecognised value publishes as
+ * undefined rather than passing through — a typo in the column must not reach the runtime
+ * as a format nothing knows how to check.
+ */
+function normaliseValidationFormat(stored: string | undefined): GridValidationFormat | undefined {
+  if (!stored) return undefined;
+  return GRID_VALIDATION_FORMATS.includes(stored as GridValidationFormat)
+    ? (stored as GridValidationFormat)
+    : undefined;
 }
 
 function deriveColumnFilterType(fieldType: string): GridColumnFilterType {
@@ -1531,6 +1752,14 @@ interface ParsedColumnMeta {
   lookupTargetEntity?: string;
   lookupDisplayAttribute?: string;
   lookupValueAttribute?: string;
+  lookupSort?: GridLookupSort;
+}
+
+// The sort direction under either key: the designer writes `lookupSort`, while column
+// JSON authored by hand uses the shorter `sort`.
+function parseLookupSort(obj: Record<string, unknown>): GridLookupSort | undefined {
+  const raw = obj['lookupSort'] ?? obj['sort'];
+  return raw === 'asc' || raw === 'desc' ? raw : undefined;
 }
 
 function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
@@ -1549,6 +1778,7 @@ function parseColumnMeta(json: string | null | undefined): ParsedColumnMeta {
         lookupTargetEntity: typeof obj['lookupTargetEntity'] === 'string' ? obj['lookupTargetEntity'] : undefined,
         lookupDisplayAttribute: typeof obj['lookupDisplayAttribute'] === 'string' ? obj['lookupDisplayAttribute'] : undefined,
         lookupValueAttribute: typeof obj['lookupValueAttribute'] === 'string' ? obj['lookupValueAttribute'] : undefined,
+        lookupSort: parseLookupSort(obj),
       };
     }
     return {};

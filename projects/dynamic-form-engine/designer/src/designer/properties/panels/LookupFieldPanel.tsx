@@ -3,12 +3,13 @@ import {
   Badge,
   Button,
   Field,
-  Input,
   Textarea,
   makeStyles,
 } from '@fluentui/react-components';
 import { OpenRegular } from '@fluentui/react-icons';
 import { useDesignerStore } from '@/state/designerStore';
+import { EntityCombobox } from '@/components/EntityCombobox';
+import { AttributeCombobox } from '@/components/AttributeCombobox';
 import type { DesignerFieldModel, DesignerLookupConfig } from '@/state/models/DesignerFormModel';
 
 const useStyles = makeStyles({
@@ -63,27 +64,27 @@ export function LookupFieldPanel({ field }: Props): React.ReactElement {
   }, [field.id, selectItem, navigateTo]);
 
   const handleTargetEntityChange = useCallback(
-    (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
+    (value: string) => {
       updateField(field.id, {
-        lookupConfig: buildLookupPatch(field.lookupConfig, { targetEntity: data.value }),
+        lookupConfig: buildLookupPatch(field.lookupConfig, { targetEntity: value }),
       });
     },
     [field.id, field.lookupConfig, updateField]
   );
 
   const handleDisplayFieldChange = useCallback(
-    (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
+    (value: string) => {
       updateField(field.id, {
-        lookupConfig: buildLookupPatch(field.lookupConfig, { displayField: data.value }),
+        lookupConfig: buildLookupPatch(field.lookupConfig, { displayField: value }),
       });
     },
     [field.id, field.lookupConfig, updateField]
   );
 
   const handleValueFieldChange = useCallback(
-    (_: React.ChangeEvent<HTMLInputElement>, data: { value: string }) => {
+    (value: string) => {
       updateField(field.id, {
-        lookupConfig: buildLookupPatch(field.lookupConfig, { valueField: data.value }),
+        lookupConfig: buildLookupPatch(field.lookupConfig, { valueField: value }),
       });
     },
     [field.id, field.lookupConfig, updateField]
@@ -116,26 +117,28 @@ export function LookupFieldPanel({ field }: Props): React.ReactElement {
 
       <div className={styles.fieldGroup}>
         <Field label="Target Entity" required hint="CRM entity logical name">
-          <Input
+          <EntityCombobox
             value={field.lookupConfig?.targetEntity ?? ''}
             onChange={handleTargetEntityChange}
-            placeholder="e.g. contact, account"
+            ariaLabel="Target Entity"
           />
         </Field>
 
         <Field label="Display Field" required hint="Field shown in the lookup results">
-          <Input
+          <AttributeCombobox
+            entityLogicalName={field.lookupConfig?.targetEntity ?? ''}
             value={field.lookupConfig?.displayField ?? ''}
             onChange={handleDisplayFieldChange}
-            placeholder="e.g. fullname"
+            ariaLabel="Display Field"
           />
         </Field>
 
         <Field label="Value Field" required hint="Field stored as the selected value">
-          <Input
+          <AttributeCombobox
+            entityLogicalName={field.lookupConfig?.targetEntity ?? ''}
             value={field.lookupConfig?.valueField ?? ''}
             onChange={handleValueFieldChange}
-            placeholder="e.g. contactid"
+            ariaLabel="Value Field"
           />
         </Field>
 

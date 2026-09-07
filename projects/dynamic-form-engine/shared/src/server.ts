@@ -14,7 +14,48 @@ export {
   MAX_EXPRESSION_OPS,
   MAX_EXPRESSION_DURATION_MS,
 } from './engines/ExpressionEngineServer.js';
+// Field defaults: one codec so the designer, its preview and the runtime read a stored
+// default the same way (a multi-select default is a JSON array in a single text column).
+export {
+  resolveFieldDefaultValue,
+  parseMultiSelectDefault,
+  serialiseMultiSelectDefault,
+  parseBooleanDefault,
+  isMultiValueFieldType,
+  isBooleanFieldType,
+} from './fields/defaultValue.js';
 export { calculateContrastRatio } from './utils/contrastRatio.js';
+export { isRenderableImageUrl, renderableImageUrl } from './utils/imageUrl.js';
 export type { ContrastResult } from './utils/contrastRatio.js';
 export * from './validation/design.schema.js';
+export {
+  validateGridCell,
+  validateGridRow,
+  isGridValid,
+} from './validation/gridCellValidation.js';
+export type { GridRowErrors } from './validation/gridCellValidation.js';
 export { createCssSanitiserPlugin } from './sanitizer/CssSanitiserPlugin.js';
+// Grid depends-on filter template: one parser, one emitter per query dialect, so the
+// portal (FetchXML) and the in-CRM engine (OData) read a maker's template the same way.
+export { buildFetchXmlFilter, buildFetchXmlFilterParts } from './gridFilter/fetchXmlFilter.js';
+export type { FetchXmlFilterParts, LookupJoinTarget } from './gridFilter/fetchXmlFilter.js';
+export { buildODataFilter } from './gridFilter/odataFilter.js';
+export { collectLookupPathAttributes } from './gridFilter/filterTemplate.js';
+export { buildViewFetchXml } from './gridFilter/viewFetchXml.js';
+export type { ViewFetchXmlRequest } from './gridFilter/viewFetchXml.js';
+// Design system: the four appearances, shared so the designer and the runtime
+// cannot drift into two different-looking products.
+export {
+  APPEARANCE_PALETTES,
+  APPEARANCE_NAMES,
+  APPEARANCE_OPTIONS,
+  isAppearanceName,
+} from './theme/appearancePalettes.js';
+export type {
+  AppearancePalette,
+  AppearanceName,
+  AppearanceOption,
+} from './theme/appearancePalettes.js';
+export { buildBrandRamp, fluentTokenOverrides } from './theme/fluentAppearance.js';
+export type { BrandRamp } from './theme/fluentAppearance.js';
+export { appearanceThemeDefinition } from './theme/appearanceThemeDefinition.js';

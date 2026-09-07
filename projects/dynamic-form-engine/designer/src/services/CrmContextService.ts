@@ -21,8 +21,11 @@ export class CrmContextService {
 
   constructor(xrm: typeof Xrm | null, authToken: string | null = null) {
     this.xrm = xrm;
+    // The adapter is handed the client URL rather than reaching for a global Xrm: inside the
+    // web resource iframe that global is undefined (Xrm lives on window.parent), and the
+    // resolution has already happened by the time we get here.
     this.webApiAdapter = xrm
-      ? new CrmWebApiAdapter(xrm.WebApi)
+      ? new CrmWebApiAdapter(xrm.WebApi, xrm.Utility.getGlobalContext().getClientUrl())
       : new RestWebApiAdapter(authToken);
   }
 

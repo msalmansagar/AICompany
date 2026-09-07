@@ -15,9 +15,11 @@ import type {
   DraftSubmission,
   ScopedButton,
 } from '@qdb/shared';
+import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
+import { isFieldVisible } from '../engine/fieldVisibility';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -35,11 +37,28 @@ export interface FormContextValue {
   draftId: string | null;
   activeTabIndex: number;
   setActiveTabIndex: (index: number) => void;
+  /**
+   * Index into the active tab's VISIBLE sections, for a tab that reveals them one at a time.
+   * Meaningless on a tab that shows all sections, where the renderer ignores it. Resets to the
+   * first section whenever the active tab changes, so returning to a tab does not drop the
+   * user into the middle of it.
+   */
+  activeSectionIndex: number;
+  setActiveSectionIndex: (index: number) => void;
+  /**
+   * Shows errors against specific fields without running a full validation pass. Used when a
+   * section step is refused, so the user sees which fields are holding them rather than a
+   * button that appears to do nothing.
+   */
+  reportValidationErrors: (errors: Record<string, string[]>) => void;
   submissionReference: string | null;
   isSubmitted: boolean;
   // DFE-SUBMITCONFIRM-001: user has acknowledged the submit-confirmation gate.
   submitAcknowledged: boolean;
   setSubmitAcknowledged: (acknowledged: boolean) => void;
+  // DFE-SUBMITCONFIRM-002: acknowledgement per tab, for tabs that require one.
+  tabAcknowledgements: Record<string, boolean>;
+  setTabAcknowledged: (tabId: string, acknowledged: boolean) => void;
   updateFieldValue: (fieldId: string, value: unknown) => void;
   saveDraft: () => Promise<void>;
   submitForm: (submitButtonId?: string) => Promise<void>;
@@ -84,11 +103,24 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [submissionReference, setSubmissionReference] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   // DFE-SUBMITCONFIRM-001: acknowledgement gate state (only meaningful when the form
   // has submitConfirmation configured).
   const [submitAcknowledged, setSubmitAcknowledged] = useState(false);
+  // DFE-SUBMITCONFIRM-002: per-tab acknowledgements, keyed by tab id.
+  const [tabAcknowledgements, setTabAcknowledgements] = useState<Record<string, boolean>>({});
+  // The moments a rule's trigger event can read. Each is state rather than a ref so that
+  // capturing one re-runs the evaluation below — a rule that reads a snapshot only takes
+  // effect when that snapshot moves.
+  const [valuesAtLoad, setValuesAtLoad] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtLastBlur, setValuesAtLastBlur] = useState<FormFieldValues | undefined>(undefined);
+  const [valuesAtSave, setValuesAtSave] = useState<FormFieldValues | null>(null);
+
+  const setTabAcknowledged = useCallback((tabId: string, acknowledged: boolean) => {
+    setTabAcknowledgements((current) => ({ ...current, [tabId]: acknowledged }));
+  }, []);
 
   // Debounce timer ref for rule evaluation
   const ruleDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,6 +135,12 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     prevFormCodeRef.current = formCode;
     isFirstLoadRef.current = true;
   }
+
+  // Leaving a tab abandons its section position: coming back should start at the beginning
+  // rather than resuming somewhere the user has no context for.
+  useEffect(() => {
+    setActiveSectionIndex(0);
+  }, [activeTabIndex]);
 
   // â”€â”€ Load form metadata and initial data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
@@ -132,10 +170,13 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
             const existingData = (dataResponse as unknown as { data: FormFieldValues }).data;
 
             if (!cancelled) {
-              setFieldValues({ ...initialValues, ...existingData });
+              const loadedValues = { ...initialValues, ...existingData };
+              setFieldValues(loadedValues);
+              setValuesAtLoad(loadedValues);
             }
           } else {
             setFieldValues(initialValues);
+            setValuesAtLoad(initialValues);
           }
         }
       } catch (loadError) {
@@ -175,7 +216,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       const allButtons = collectAllButtons(formDefinition);
 
       void Promise.all([
-        ruleEngine.evaluate(allRules, fieldValues),
+        ruleEngine.evaluate(allRules, fieldValues, {
+          atLoad: valuesAtLoad,
+          atLastBlur: valuesAtLastBlur,
+          atSave: valuesAtSave,
+        }),
         ruleEngine.evaluateButtons(allButtons, fieldValues),
       ]).then(([fieldResult, buttonResult]) => {
         // DFE-CBTN-001: fold per-button conditional state into the rule state so
@@ -214,7 +259,18 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
         clearTimeout(ruleDebounceTimer.current);
       }
     };
-  }, [fieldValues, formDefinition]);
+  }, [fieldValues, formDefinition, valuesAtLoad, valuesAtLastBlur, valuesAtSave]);
+
+  // on_blur rules read the values as at the last time focus left a control. Listening for
+  // focusout at the document keeps that out of every individual control: blur does not
+  // bubble, focusout does, and any control losing focus is exactly the moment being named.
+  useEffect(() => {
+    function captureBlurSnapshot(): void {
+      setValuesAtLastBlur(fieldValues);
+    }
+    document.addEventListener('focusout', captureBlurSnapshot);
+    return () => document.removeEventListener('focusout', captureBlurSnapshot);
+  }, [fieldValues]);
 
   // â”€â”€ Field value update â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const updateFieldValue = useCallback((fieldId: string, value: unknown) => {
@@ -264,7 +320,11 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // â”€â”€ Reset form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const resetForm = useCallback(() => {
     if (!formDefinition) return;
-    setFieldValues(buildInitialValues(formDefinition));
+    const resetValues = buildInitialValues(formDefinition);
+    setFieldValues(resetValues);
+    setValuesAtLoad(resetValues);
+    setValuesAtLastBlur(undefined);
+    setValuesAtSave(null);
     setValidationErrors({});
     setIsDirty(false);
     setActiveTabIndex(0);
@@ -273,6 +333,10 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
   // â”€â”€ Submit form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const submitForm = useCallback(async (submitButtonId?: string) => {
     if (!formDefinition) return;
+
+    // on_save rules judge what the user actually submitted, so the snapshot is taken before
+    // validation can turn them back.
+    setValuesAtSave(fieldValues);
 
     // Compute visible fields before validation
     const visibleFieldIds = computeVisibleFieldIds(formDefinition, ruleState);
@@ -326,10 +390,15 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
       draftId,
       activeTabIndex,
       setActiveTabIndex,
+      activeSectionIndex,
+      setActiveSectionIndex,
+      reportValidationErrors: setValidationErrors,
       submissionReference,
       isSubmitted,
       submitAcknowledged,
       setSubmitAcknowledged,
+      tabAcknowledgements,
+      setTabAcknowledged,
       updateFieldValue,
       saveDraft,
       submitForm,
@@ -337,8 +406,9 @@ export function FormProvider({ formCode, recordId, lang, children }: FormProvide
     }),
     [
       formCode, lang, formDefinition, isLoading, error, fieldValues, ruleState,
-      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex,
-      submissionReference, isSubmitted, submitAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
+      validationErrors, isDirty, isSubmitting, draftId, activeTabIndex, activeSectionIndex,
+      submissionReference, isSubmitted, submitAcknowledged, tabAcknowledgements,
+      setTabAcknowledged, updateFieldValue, saveDraft, submitForm, resetForm,
     ],
   );
 
@@ -366,7 +436,9 @@ function buildInitialValues(formDefinition: FormDefinition): FormFieldValues {
 
   // DFE-TABZONE-001: include header/footer zone fields, not only section fields.
   for (const field of getAllFormFields(formDefinition)) {
-    values[field.schemaName] = field.defaultValue ?? null;
+    // One text column carries the default for every field type, so it has to be coerced
+    // to the shape the control expects — a multi-select reads a list, a checkbox a boolean.
+    values[field.schemaName] = resolveFieldDefaultValue(field);
   }
 
   return values;
@@ -405,20 +477,14 @@ function computeVisibleFieldIds(
       if (!sectionVisible) continue;
 
       for (const field of section.fields) {
-        const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-        if (fieldVisible && !field.isHidden) {
-          visible.add(field.id);
-        }
+        if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
       }
     }
 
     // DFE-TABZONE-001: header/footer fields are gated by tab visibility only
     // (they belong to no section).
     for (const field of getTabZoneFields(tab)) {
-      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-      if (fieldVisible && !field.isHidden) {
-        visible.add(field.id);
-      }
+      if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
     }
   }
 

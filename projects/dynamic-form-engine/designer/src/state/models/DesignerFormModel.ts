@@ -1,7 +1,9 @@
 // Domain model for a form definition as held in the designer local state.
 // Temp IDs are prefixed with 'tmp_' until the record is persisted to CRM.
 
-import type { SummaryMode } from '@qdb/shared';
+import type { SummaryMode, GridValidationFormat } from '@qdb/shared';
+
+export type { GridValidationFormat };
 
 export type FormStatus = 'draft' | 'published' | 'archived';
 
@@ -12,6 +14,18 @@ export interface DesignerFormModel {
   code: string;
   description: string;
   entityLogicalName: string;
+  // Optional like summaryMode and showProgressBar: absent on a form created before these
+  // existed, and absent from the fixtures that predate them.
+  /** Fluent icon shown beside the form title. Ignored while imageUrl is set. */
+  iconName?: string | null;
+  /** Absolute https image shown beside the title, in place of the icon. */
+  imageUrl?: string | null;
+  // Header and footer bands. Held flat, matching the CRM columns; the published contract
+  // groups them into FormBand objects. Text is plain — no markup is interpreted.
+  headerText?: string | null;
+  headerImageUrl?: string | null;
+  footerText?: string | null;
+  footerImageUrl?: string | null;
   status: FormStatus;
   currentVersion: string;
   themeId: string | null;
@@ -44,11 +58,22 @@ export interface DesignerTabModel {
   // DFE-FBE-001: tab description + manual-summary designation.
   description?: string | null;
   isSummaryTab?: boolean;
+  // DFE-SUBMITCONFIRM-002: acknowledgement gate on this tab. The boolean is the switch;
+  // a blank label falls back to a default at publish time.
+  requireSubmitConfirmation?: boolean;
+  submitConfirmationLabel?: string | null;
+  submitConfirmationMessage?: string | null;
   sortOrder: number;
   isVisible: boolean;
   requiresPreviousTabComplete: boolean;
   /** When true the tab navigation bar is hidden while this tab is active. Sections and fields still render. */
   hideTabBar: boolean;
+  /**
+   * When true this tab shows one section at a time instead of all of them. The user advances
+   * with a section-scoped button targeting nextSection, and cannot advance while the visible
+   * section has validation errors. Absent/false keeps the existing all-at-once rendering.
+   */
+  revealsSectionsOneAtATime: boolean;
 }
 
 export interface DesignerSectionModel {
@@ -101,6 +126,9 @@ export interface DesignerLookupDisplayColumn {
 
 export type GridColumnFilterType = 'text' | 'optionset' | 'lookup' | 'none';
 
+/** Direction a lookup column orders its options by the display attribute. */
+export type GridLookupSort = 'asc' | 'desc';
+
 export interface DesignerGridColumnConfig {
   /** CRM GUID or 'tmp_col_<timestamp>' for unsaved columns */
   id: string;
@@ -108,12 +136,23 @@ export interface DesignerGridColumnConfig {
   targetAttribute: string;
   columnFieldType: string;
   displayOrder: number;
+  /** Whether the runtime draws this column. Hidden columns are still saved and published. */
+  isVisible: boolean;
   isEditable: boolean;
+  /** Per-column validation. All off by default — see validateGridCell in @qdb/shared. */
+  isRequired: boolean;
+  maxLength: number | null;
+  validationFormat: GridValidationFormat;
+  /** Regular expression, used only when validationFormat is 'custom'. */
+  validationPattern: string | null;
+  validationMessage: string | null;
   optionsJson: string | null;
   filterType: GridColumnFilterType;
   lookupTargetEntity: string | null;
   lookupDisplayAttribute: string | null;
   lookupValueAttribute: string | null;
+  /** Absent leaves the lookup query unordered, as every grid published before this was. */
+  lookupSort?: GridLookupSort | null;
 }
 
 export interface DesignerFieldModel {
@@ -141,6 +180,8 @@ export interface DesignerFieldModel {
   barValueFieldSchemaName?: string | null;
   maxRows: number | null;
   maxFiles?: number | null;        // file fields: max documents a user may upload (default 1)
+  showDocumentView?: boolean | null;      // read-only file fields: offer View per document
+  showDocumentDownload?: boolean | null;  // read-only file fields: offer Download per document
   sortOrder: number;
   columnSpan: 1 | 2 | 3;
   /** Present for dropdown, multi_select, radio field types */

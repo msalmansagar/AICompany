@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ImportExportXml version="9.0.0.0" SolutionPackageVersion="9.0" languagecode="1033" generatedBy="packageSolution.js" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <SolutionManifest>
+    <UniqueName>FormDesignerWebResource</UniqueName>
+    <LocalizedNames>
+      <LocalizedName description="Form Designer Web Resource" languagecode="1033" />
+    </LocalizedNames>
+    <Descriptions>
+      <Description description="Drag-and-drop form designer React web resource for Dynamics CRM. Enables no-code form building with tab, section, and field management." languagecode="1033" />
+    </Descriptions>
+    <Version>1.0.0.0</Version>
+    <Managed>0</Managed>
+    <Publisher>
+      <UniqueName>maqsadai</UniqueName>
+      <LocalizedNames>
+        <LocalizedName description="Maqsad AI" languagecode="1033" />
+      </LocalizedNames>
+      <Descriptions>
+        <Description description="Maqsad AI — Enterprise Software Solutions" languagecode="1033" />
+      </Descriptions>
+      <EMailAddress>devops@maqsad.ai</EMailAddress>
+      <SupportingWebsiteUrl>https://maqsad.ai</SupportingWebsiteUrl>
+      <CustomizationPrefix>qdb</CustomizationPrefix>
+      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+      <Addresses>
+        <Address>
+          <AddressNumber>1</AddressNumber>
+          <AddressTypeCode>1</AddressTypeCode>
+          <City xsi:nil="true" />
+          <County xsi:nil="true" />
+          <Country xsi:nil="true" />
+          <Fax xsi:nil="true" />
+          <FreightTermsCode xsi:nil="true" />
+          <ImportSequenceNumber xsi:nil="true" />
+          <Latitude xsi:nil="true" />
+          <Line1 xsi:nil="true" />
+          <Line2 xsi:nil="true" />
+          <Line3 xsi:nil="true" />
+          <Longitude xsi:nil="true" />
+          <Name xsi:nil="true" />
+          <PostalCode xsi:nil="true" />
+          <PostOfficeBox xsi:nil="true" />
+          <PrimaryContactName xsi:nil="true" />
+          <ShippingMethodCode xsi:nil="true" />
+          <StateOrProvince xsi:nil="true" />
+          <Telephone1 xsi:nil="true" />
+          <Telephone2 xsi:nil="true" />
+          <Telephone3 xsi:nil="true" />
+          <TimeZoneRuleVersionNumber xsi:nil="true" />
+          <UPSZone xsi:nil="true" />
+          <UTCOffset xsi:nil="true" />
+          <UTCConversionTimeZoneCode xsi:nil="true" />
+        </Address>
+      </Addresses>
+    </Publisher>
+    <RootComponents>
+      <!-- Rewritten by packageSolution.js from the actual build output. -->
+    </RootComponents>
+    <MissingDependencies />
+  </SolutionManifest>
+</ImportExportXml>

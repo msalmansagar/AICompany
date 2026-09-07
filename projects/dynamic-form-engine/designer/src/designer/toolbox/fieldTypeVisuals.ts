@@ -1,5 +1,8 @@
 // Toolbox field-type visuals — Lucide line icons + a semantic colour group per type.
-// Colours use Fluent palette tokens so they stay theme- and dark-mode aware.
+//
+// Each group resolves through a design-system token rather than naming a colour, so
+// the toolbox follows the appearance. The dark values are lightened: these hues were
+// picked against white and go muddy on a dark surface, slate worst of all.
 import {
   Type, AlignLeft, Hash, DollarSign, Calendar, CalendarClock, Mail, Phone,
   ChevronDown, ListChecks, SquareCheck, CircleDot, ToggleLeft, Search, SearchCheck,
@@ -64,12 +67,19 @@ export const FIELD_TYPE_VISUALS: Record<FieldType, FieldVisual> = {
   [FIELD_TYPE.LABEL]: { Icon: Tag, group: 'layout' },
 };
 
-/** Vibrant icon colour per group — applied directly to the Lucide icon's stroke. */
-export const GROUP_COLORS: Record<ColorGroup, string> = {
-  input: '#2563eb',    // blue
-  choice: '#16a34a',   // green
-  datetime: '#0d9488', // teal
-  media: '#7c3aed',    // purple
-  data: '#ea580c',     // orange
-  layout: '#64748b',   // slate
+/**
+ * Icon colour per group, as a token reference.
+ *
+ * Set as the CSS `color` of the icon's chip, not as Lucide's `color` prop: that prop
+ * becomes an SVG `stroke` presentation attribute, where a var() reference is not
+ * substituted and the icon would render black. Lucide strokes with `currentColor` by
+ * default, so colouring the chip is what carries through.
+ */
+export const GROUP_COLOR_VARS: Record<ColorGroup, string> = {
+  input: 'var(--type-input)',
+  choice: 'var(--type-choice)',
+  datetime: 'var(--type-datetime)',
+  media: 'var(--type-media)',
+  data: 'var(--type-data)',
+  layout: 'var(--type-layout)',
 };
