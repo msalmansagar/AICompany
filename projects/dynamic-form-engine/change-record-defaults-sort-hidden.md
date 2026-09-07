@@ -270,6 +270,17 @@ These were found during the work, are outside this record's scope, and are not f
 - **Tab header and footer fields never reach the render cache.** The C# `TabDefinition` has
   no `headerFields` or `footerFields`, so any DFE-TABZONE-001 placement is absent from the
   in-CRM path while the Node path and the runtime both support it.
+- **A hidden field can never be revealed by a rule.** Found while driving the portal
+  locally. `SectionRenderer` filters with `fieldVisible && !field.isHidden`, and
+  `TabRenderer` and `computeVisibleFieldIds` do the same, so a `showField` rule that sets
+  `fieldVisibility[id] = true` is overruled by the design-time flag. This contradicts the
+  publish pipeline's own stated intent, "hidden by default, shown by a rule is a normal
+  pattern", and it contradicts `rule-visibility-demo`, whose rule "Show the reason field
+  when the applicant is an individual" is described on the record as *"Hidden by default,
+  revealed by the rule"* and demonstrably does not reveal it. DEF-001 now publishes the
+  field, which is the necessary first half; making `isHidden` the initial state rather than
+  an absolute would be the second half, and it changes behaviour for every existing form, so
+  it needs a decision rather than a quiet patch.
 - **`FormLinter` is dead code repo-wide.** Nothing in `designer/src` imports it; only its
   test file does. Every rule it implements, L001 through L012, is invisible to a maker.
   Either wire it into the designer or delete it, but it should not sit there looking like a
