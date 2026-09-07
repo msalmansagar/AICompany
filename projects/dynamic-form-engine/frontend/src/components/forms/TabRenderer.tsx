@@ -7,6 +7,7 @@ import { ScopedButtonBar } from './ScopedButtonBar';
 import { TabConfirmationGate } from './TabConfirmationGate';
 import { FieldRenderer } from './FieldRenderer';
 import { useFormContext } from '../../contexts/FormContext';
+import { isFieldVisible } from '../../engine/fieldVisibility';
 
 const useStyles = makeStyles({
   tabPanel: {
@@ -74,7 +75,7 @@ function TabFieldZone({
   const { ruleState, validationErrors } = useFormContext();
 
   const visibleFields = fields
-    .filter((field) => (ruleState.fieldVisibility[field.id] ?? field.isVisible) && !field.isHidden)
+    .filter((field) => isFieldVisible(field, ruleState.fieldVisibility))
     .sort((a, b) => a.displayOrder - b.displayOrder);
 
   if (visibleFields.length === 0) return null;

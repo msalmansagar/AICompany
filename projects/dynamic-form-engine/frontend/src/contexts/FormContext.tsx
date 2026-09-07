@@ -19,6 +19,7 @@ import { resolveFieldDefaultValue } from '@qdb/shared';
 import { formApi } from '../api/formApi';
 import { ruleEngine } from '../engine/RuleEngine';
 import { validationEngine } from '../engine/ValidationEngine';
+import { isFieldVisible } from '../engine/fieldVisibility';
 import { getAllFormFields, getAllTabFields, getTabZoneFields } from '../components/forms/tabFields';
 
 export interface FormContextValue {
@@ -476,20 +477,14 @@ function computeVisibleFieldIds(
       if (!sectionVisible) continue;
 
       for (const field of section.fields) {
-        const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-        if (fieldVisible && !field.isHidden) {
-          visible.add(field.id);
-        }
+        if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
       }
     }
 
     // DFE-TABZONE-001: header/footer fields are gated by tab visibility only
     // (they belong to no section).
     for (const field of getTabZoneFields(tab)) {
-      const fieldVisible = ruleState.fieldVisibility[field.id] ?? field.isVisible;
-      if (fieldVisible && !field.isHidden) {
-        visible.add(field.id);
-      }
+      if (isFieldVisible(field, ruleState.fieldVisibility)) visible.add(field.id);
     }
   }
 

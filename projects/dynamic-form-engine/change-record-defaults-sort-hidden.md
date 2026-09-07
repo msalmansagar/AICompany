@@ -235,6 +235,35 @@ the UI walkthrough is outstanding.
 
 ---
 
+## 6b. DEF-003 — a hidden field could never be revealed by a rule
+
+| | |
+|---|---|
+| **Symptom** | A `showField` rule targeting a field with Is Hidden = Yes does nothing; the field stays hidden. |
+| **Reproduction** | `rule-visibility-demo`, pick Individual. `rvd_other_reason` is targeted by "Show the reason field when the applicant is an individual" and does not appear. |
+| **Expected** | Is Hidden is the field's starting state; a rule that targets it decides instead. |
+| **Requirement violated** | "Hidden by default, shown by a rule" — stated in the publish pipeline's own comments and in this demo rule's description. |
+
+**Root cause.** Six places each computed visibility as `(rule verdict ?? isVisible) && !isHidden`,
+so a rule could only ever hide a field, never reveal one. The design-time flag always won.
+
+**Fix.** One predicate, `frontend/src/engine/fieldVisibility.ts`, used by all six: a rule's
+verdict decides when there is one, and `isVisible && !isHidden` decides when there is not.
+Behaviour is unchanged for any field no rule targets. The six sites are the section
+renderer, the tab-zone renderer, both tab-completion checks in the navigation, both review
+step filters, and `computeVisibleFieldIds`, which also governs whether the revealed field's
+value is validated and submitted.
+
+**Verified live**, portal against the render cache: picking Individual on
+`rule-visibility-demo` now reveals "Reason for applying as an individual", and picking
+Company hides it again. 8 unit tests cover the predicate; the frontend suite is 560 green.
+
+**Scope note.** This changes behaviour for existing forms: any form with a hidden field
+that a rule targets will now reveal it when that rule fires. That is the intent, and there
+are no other such rules in org5869857f today.
+
+---
+
 ## 7. Data remediation performed
 
 Seven rules in org5869857f had been left with a blank trigger by the historical
@@ -270,17 +299,6 @@ These were found during the work, are outside this record's scope, and are not f
 - **Tab header and footer fields never reach the render cache.** The C# `TabDefinition` has
   no `headerFields` or `footerFields`, so any DFE-TABZONE-001 placement is absent from the
   in-CRM path while the Node path and the runtime both support it.
-- **A hidden field can never be revealed by a rule.** Found while driving the portal
-  locally. `SectionRenderer` filters with `fieldVisible && !field.isHidden`, and
-  `TabRenderer` and `computeVisibleFieldIds` do the same, so a `showField` rule that sets
-  `fieldVisibility[id] = true` is overruled by the design-time flag. This contradicts the
-  publish pipeline's own stated intent, "hidden by default, shown by a rule is a normal
-  pattern", and it contradicts `rule-visibility-demo`, whose rule "Show the reason field
-  when the applicant is an individual" is described on the record as *"Hidden by default,
-  revealed by the rule"* and demonstrably does not reveal it. DEF-001 now publishes the
-  field, which is the necessary first half; making `isHidden` the initial state rather than
-  an absolute would be the second half, and it changes behaviour for every existing form, so
-  it needs a decision rather than a quiet patch.
 - **`FormLinter` is dead code repo-wide.** Nothing in `designer/src` imports it; only its
   test file does. Every rule it implements, L001 through L012, is invisible to a maker.
   Either wire it into the designer or delete it, but it should not sit there looking like a
