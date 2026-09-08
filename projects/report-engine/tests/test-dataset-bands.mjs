@@ -13,12 +13,12 @@ const NEEDED = [
   'NUMERIC', 'plural', 'truncationChip', 'TOTAL_LABELS', 'reduceTotal', 'numericCellValue',
   'formatTotalNumber', 'totalsRowHtml', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'datasetBody', 'datasetRow', 'bandConfigFor', 'bandTitleOf', 'datasetFieldsHtml', 'datasetBlock',
-  'BAND_WIDTH_SPANS', 'bandSpanOf'
+  'BAND_WIDTH_SPANS', 'bandSpanOf', 'BAND_ICONS', 'bandIconSvg'
 ];
 
 const api = new Function('esc',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf };`
+   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf, bandIconSvg };`
 )(value => String(value == null ? '' : value));
 
 let passed = 0, failed = 0;
@@ -77,6 +77,27 @@ console.log('a band declares its width on the 12-column page (L1)');
   check('the block carries its span', third.includes('grid-column:span 4'), third.slice(0, 120));
   const full = api.datasetBlock(dataset, null, () => '', null, null);
   check('no band means a full-width block', full.includes('grid-column:span 12'));
+}
+
+console.log('an authored icon dresses the title as panel chrome (L2)');
+{
+  const chromed = api.datasetBlock(dataset, null, () => '', null, { icon: 'shield' });
+  check('the heading becomes the tinted bar', chromed.includes('band-chrome'), chromed.slice(0, 200));
+  check('and carries the icon', chromed.includes('band-icon'));
+  const plain = api.datasetBlock(dataset, null, () => '', null, { title: 'Group Exposure' });
+  check('no icon keeps the plain heading', !plain.includes('band-chrome'));
+  check('an unknown icon renders nothing rather than a broken image', api.bandIconSvg({ icon: 'banana' }) === '');
+}
+
+console.log('the designer carries a byte-identical icon map');
+{
+  const designer = readFileSync(new URL('../prototype/report-designer.html', import.meta.url), 'utf8');
+  const mapOf = (source, name) => {
+    const at = source.indexOf(`const ${name} = {`);
+    return source.slice(at + `const ${name} = `.length, source.indexOf('};', at) + 1);
+  };
+  check('BAND_ICONS and PREVIEW_BAND_ICONS do not drift',
+    mapOf(html, 'BAND_ICONS') === mapOf(designer, 'PREVIEW_BAND_ICONS'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

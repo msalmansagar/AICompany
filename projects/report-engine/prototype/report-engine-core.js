@@ -860,7 +860,7 @@ function renderResult(result){
         ${result.truncated?truncationChip(result):''}
         <span>${result.elapsedMs||0} ms</span>
         <button class="btn" id="asGrid" style="margin-left:auto">Show as grid</button></div>
-      <div class="report-paper">${laidOut}</div>`;
+      <div class="report-paper">${laidOut}${reportFootnoteHtml(layout)}</div>`;
     $("#asGrid").onclick = () => renderGrid(result);
     applyReportDirection($("#resultHost"));
     applyConditionalFormatting($("#resultHost"), result, layout.conditionalFormatting);
@@ -891,9 +891,10 @@ function renderGrid(result){
   // Authored totals per dataset (D3) — computed here so the screen and the exports read one number.
   const totalsFor = dataset => totalsRowOf(authoredTotalsFor(state.current.def, dataset), dataset);
   const bandFor = dataset => bandConfigFor(state.current.def, dataset);
-  $("#resultHost").innerHTML = datasets.length > 1
+  $("#resultHost").innerHTML = (datasets.length > 1
     ? multiDatasetHtml(datasets, drillCol, gridFontOf, totalsFor, bandFor)
-    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0]));
+    : datasetBody(datasets[0], drillCol, gridFontOf, totalsFor(datasets[0])))
+    + reportFootnoteHtml(state.current.def.layout);
   document.querySelectorAll("[data-drill]").forEach(b => b.onclick = () => drilldown(drillCol, b.dataset.drill));
   /* Conditional formatting is skipped for a multi-dataset report rather than mis-applied. The rules
      are authored against the root's columns, and applyConditionalFormatting styles EVERY table in
@@ -1024,6 +1025,13 @@ function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
 const isSingleRecord = dataset =>
   dataset && dataset.status !== "failed" && (dataset.rows || []).length === 1;
 
+/* L2 — the authored footer line ("Confidential", a branding sentence): under the report on
+   screen, and on every PDF page beside the page number. Absent means absent. */
+const reportFootnoteHtml = layout => {
+  const text = ((layout || {}).footerText || "").trim();
+  return text ? `<div class="report-footnote">${esc(text)}</div>` : "";
+};
+
 /* The engine scopes every block to the root's FIRST row, so a root returning several records is a
    report shape that is only half supported. Saying so is better than a page that looks complete:
    the blocks below belong to one of the rows above, and nothing else would tell the reader which. */
@@ -1069,6 +1077,25 @@ function bandConfigFor(def, dataset){
 const BAND_WIDTH_SPANS = { half: 6, third: 4, twothirds: 8 };
 const bandSpanOf = band => BAND_WIDTH_SPANS[(band && band.width) || ""] || 12;
 
+/* L2 — panel chrome. An authored icon turns a band's plain title into the tinted header bar of a
+   dashboard panel. Opt-in by choosing the icon: no icon, no chrome, and every existing report
+   keeps the heading it has today. The designer carries a byte-identical copy of this map. */
+const BAND_ICONS = {
+  user: '<circle cx="8" cy="5.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 13c.7-2.6 2.4-4 4.5-4s3.8 1.4 4.5 4" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  chart: '<path d="M4 13V8M8 13V4M12 13V6" stroke="currentColor" stroke-width="1.6"/><path d="M3 13.5h10" stroke="currentColor" stroke-width="1.2"/>',
+  donut: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M8 3a5 5 0 015 5" fill="none" stroke="currentColor" stroke-width="2.4" opacity=".35"/>',
+  building: '<rect x="4" y="3" width="8" height="10" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 5.5h1M9 5.5h1M6 8h1M9 8h1M7 13v-2.5h2V13" stroke="currentColor" stroke-width="1.2"/>',
+  shield: '<path d="M8 2l5 2v4c0 3-2 5-5 6-3-1-5-3-5-6V4l5-2z" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 8l1.5 1.5L10.5 6.5" fill="none" stroke="currentColor" stroke-width="1.3"/>',
+  doc: '<path d="M4 2h5l3 3v9H4V2z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M9 2v3h3M6 8h4M6 10.5h4" stroke="currentColor" stroke-width="1.1"/>',
+  coin: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 6.2c-.4-.7-1.1-1-2-1-1.1 0-2 .6-2 1.4 0 1.9 4 .9 4 2.8 0 .8-.9 1.4-2 1.4-.9 0-1.6-.3-2-1M8 4v1.2M8 10.8V12" fill="none" stroke="currentColor" stroke-width="1.2"/>',
+  alert: '<path d="M8 2.5L14 13H2L8 2.5z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 6.5V9.5M8 11v.5" stroke="currentColor" stroke-width="1.4"/>'
+};
+
+const bandIconSvg = band => {
+  const path = band && BAND_ICONS[band.icon];
+  return path ? `<svg class="band-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${path}</svg>` : "";
+};
+
 const bandTitleOf = (band, dataset) =>
   band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
 
@@ -1093,8 +1120,12 @@ function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
   if (band && band.showTitle === false){
     return `<section class="dataset-block"${span}>${body}</section>`;
   }
+  const icon = bandIconSvg(band);
+  const heading = icon
+    ? `<div class="meta-row band-chrome">${icon}<b>${esc(bandTitleOf(band, dataset))}</b></div>`
+    : `<div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>`;
   return `<section class="dataset-block"${span}>
-    <div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>
+    ${heading}
     ${body}</section>`;
 }
 
@@ -1254,12 +1285,16 @@ const exportRows = result => tableOf(rootDatasetOf(result) || result);
  */
 function exportTables(result){
   const def = exportDefinition();
-  return datasetsOf(result).map((dataset, index) => Object.assign(
-    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error,
-      // The authored width rides into print (L1); the root is always the page's.
-      span: index === 0 ? 12 : bandSpanOf(bandConfigFor(def, dataset)) },
-    tableOf(dataset)
-  ));
+  return datasetsOf(result).map((dataset, index) => {
+    const band = index === 0 ? null : bandConfigFor(def, dataset);
+    return Object.assign(
+      { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error,
+        // The authored width and chrome ride into print (L1/L2); the root is always the page's.
+        span: index === 0 ? 12 : bandSpanOf(band),
+        icon: (band && BAND_ICONS[band.icon]) ? band.icon : undefined },
+      tableOf(dataset)
+    );
+  });
 }
 
 /** Tells the user which datasets a single-table export could not carry (MDS-FR-023). */
@@ -1356,7 +1391,8 @@ function pdfPageSetup(def){
     showHeader: layout.showHeader !== false,
     pageNumber: layout.pageNumber !== false,
     genDate: layout.genDate !== false,
-    watermark: (layout.watermark || "").trim()
+    watermark: (layout.watermark || "").trim(),
+    footerText: (layout.footerText || "").trim()
   };
 }
 
@@ -1383,6 +1419,12 @@ function drawPdfPageChrome(doc, page, title, font, rtl){
       ? doc.internal.getCurrentPageInfo().pageNumber : doc.internal.getNumberOfPages();
     const total = typeof doc.putTotalPages === "function" ? PDF_TOTAL_PAGES_MARKER : "?";
     doc.text(`Page ${pageNumber} of ${total}`, width / 2, height - Math.max(14, page.margin / 2), { align: "center" });
+  }
+  if (page.footerText){
+    // Beside the page number, at the reading edge — the "Confidential" line of a bank document.
+    doc.setFontSize(8); doc.setTextColor(130);
+    doc.text(page.footerText, rtl ? width - page.margin : page.margin,
+      height - Math.max(14, page.margin / 2), { align: rtl ? "right" : "left" });
   }
   if (page.watermark && doc.GState){
     doc.saveGraphicsState();
@@ -1430,7 +1472,7 @@ async function exportPdf(result, baseName){
       continue;
     }
     const table = row[0];
-    if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top, page, chrome);
+    if (tables.length > 1) top = drawPdfSubtitle(doc, table, font, rtl, top, page, chrome);
     top = table.status === "failed"
       ? drawPdfFailure(doc, table, font, rtl, top, page)
       : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top, page, chrome);
@@ -1479,9 +1521,7 @@ function drawPdfPanelRow(doc, row, font, rtl, top, page, chrome){
     const width = printable * (table.span || 12) / 12;
     const left = rtl ? pageWidth - x - width : x;
     const textX = rtl ? left + width : left;
-    doc.setFont(font);
-    doc.setFontSize(10);
-    doc.text(String(table.name), textX, top, { align: rtl ? "right" : "left" });
+    drawPdfPanelTitle(doc, table, font, rtl, top, left, width);
     if (table.status === "failed"){
       doc.setFontSize(8);
       doc.text(`Could not be loaded — ${table.error || "no reason was given"}`, textX, top + 16,
@@ -1492,7 +1532,7 @@ function drawPdfPanelRow(doc, row, font, rtl, top, page, chrome){
     }
     const shaped = orderedForDirection(table, rtl);
     doc.autoTable({
-      head: [shaped.head], body: shaped.body, startY: top + 6, tableWidth: width,
+      head: [shaped.head], body: shaped.body, startY: top + (table.icon ? 12 : 6), tableWidth: width,
       margin: { left, right: pageWidth - left - width,
         top: page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0), bottom: Math.max(24, page.margin / 2) + 6 },
       didDrawPage: chrome,
@@ -1510,18 +1550,41 @@ function drawPdfPanelRow(doc, row, font, rtl, top, page, chrome){
   return bottom + 22;
 }
 
-function drawPdfSubtitle(doc, name, font, rtl, top, page, chrome){
+function drawPdfSubtitle(doc, table, font, rtl, top, page, chrome){
   // A subtitle at the very bottom of a page would strand its table's start; break first.
   if (top > doc.internal.pageSize.getHeight() - page.margin - 60){
     doc.addPage();
     chrome();
     top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
   }
+  const width = doc.internal.pageSize.getWidth() - page.margin * 2;
+  if (table.icon) return drawPdfPanelTitle(doc, table, font, rtl, top, page.margin, width) + 2;
   const x = rtl ? doc.internal.pageSize.getWidth() - page.margin : page.margin;
   doc.setFont(font);
   doc.setFontSize(11);
-  doc.text(String(name), x, top, { align: rtl ? "right" : "left" });
+  doc.text(String(table.name), x, top, { align: rtl ? "right" : "left" });
   return top + 8;
+}
+
+/**
+ * L2 — the authored panel chrome, in print: a tinted bar carrying the title, the same light-blue
+ * on dark-blue the screen draws. No icon means no bar, and the caller draws its plain title.
+ */
+function drawPdfPanelTitle(doc, table, font, rtl, top, left, width){
+  if (!table.icon){
+    doc.setFont(font);
+    doc.setFontSize(10);
+    doc.text(String(table.name), rtl ? left + width : left, top, { align: rtl ? "right" : "left" });
+    return top + 6;
+  }
+  doc.setFillColor(222, 236, 249);
+  doc.roundedRect(left, top - 9, width, 15, 2, 2, "F");
+  doc.setFont(font);
+  doc.setFontSize(9);
+  doc.setTextColor(0, 90, 158);
+  doc.text(String(table.name), rtl ? left + width - 6 : left + 6, top + 1, { align: rtl ? "right" : "left" });
+  doc.setTextColor(0);
+  return top + 12;
 }
 
 /** A failed dataset states its reason. An empty table would read as "nothing matched". */

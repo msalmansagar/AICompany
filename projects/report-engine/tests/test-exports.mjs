@@ -16,7 +16,7 @@ const exportsSection = html.slice(html.indexOf('/* ---------------- exports ----
 /* The exporters read the result through the dataset normaliser, which lives outside this section.
    Lifted from the engine rather than stubbed here: a stub would answer for code the browser never
    runs, and the whole point of these suites is that they exercise the shipped path. */
-const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames', 'bandConfigFor', 'BAND_WIDTH_SPANS', 'bandSpanOf',
+const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames', 'bandConfigFor', 'BAND_WIDTH_SPANS', 'bandSpanOf', 'BAND_ICONS', 'bandIconSvg',
   // tableOf carries the authored totals row into every export (D3), so the totals module rides too.
   'TOTAL_LABELS', 'authoredTotalsFor', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'reduceTotal', 'numericCellValue', 'formatTotalNumber']
@@ -232,7 +232,10 @@ console.log('\nPDF — part-width blocks share a row');
   const gridded = { ...multi, datasets: [multi.datasets[0],
     { ...multi.datasets[1], alias: 'fac' }, { ...multi.datasets[2], alias: 'cond' }] };
   harnessState.current.def = { name: 'Gridded', layout: {
-    datasetLayout: { fac: { width: 'half' }, cond: { width: 'half' } }
+    // L2 rides along: an icon per band puts the tinted title bar on the printed panel, and the
+    // footer line lands on every page beside the page number.
+    datasetLayout: { fac: { width: 'half', icon: 'building' }, cond: { width: 'half', icon: 'doc' } },
+    footerText: 'Confidential'
   } };
   downloads.length = 0; await api.exportPdf(gridded, 'termsheet');
   const gridBytes = bytesOf(downloads[0].blob);
@@ -241,6 +244,7 @@ console.log('\nPDF — part-width blocks share a row');
   for (const wanted of ['Requested Facilities', 'Termsheet Conditions', 'Term Loan', 'Overdraft', 'DSR']) {
     check(`a row-sharing PDF still carries "${wanted}"`, gridText.includes(wanted));
   }
+  check('the footer line reaches the page (L2)', gridText.includes('Confidential'), gridText.slice(0, 120));
   harnessState.current.def = defaultDef;
 }
 
