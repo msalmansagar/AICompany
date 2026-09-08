@@ -234,7 +234,8 @@ console.log('\nPDF — part-width blocks share a row');
   harnessState.current.def = { name: 'Gridded', layout: {
     // L2 rides along: an icon per band puts the tinted title bar on the printed panel, and the
     // footer line lands on every page beside the page number.
-    datasetLayout: { fac: { width: 'half', icon: 'building' }, cond: { width: 'half', icon: 'doc' } },
+    // fac is a CHART on screen (L3) — the assertions below prove the PDF still prints its TABLE.
+    datasetLayout: { fac: { width: 'half', icon: 'building', displayAs: 'donut' }, cond: { width: 'half', icon: 'doc' } },
     footerText: 'Confidential'
   } };
   downloads.length = 0; await api.exportPdf(gridded, 'termsheet');

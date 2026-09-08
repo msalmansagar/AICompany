@@ -13,12 +13,13 @@ const NEEDED = [
   'NUMERIC', 'plural', 'truncationChip', 'TOTAL_LABELS', 'reduceTotal', 'numericCellValue',
   'formatTotalNumber', 'totalsRowHtml', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'datasetBody', 'datasetRow', 'bandConfigFor', 'bandTitleOf', 'datasetFieldsHtml', 'datasetBlock',
-  'BAND_WIDTH_SPANS', 'bandSpanOf', 'BAND_ICONS', 'bandIconSvg'
+  'BAND_WIDTH_SPANS', 'bandSpanOf', 'BAND_ICONS', 'bandIconSvg',
+  'CHART_COLORS', 'compactNumber', 'donutChartHtml', 'barChartHtml', 'progressChartHtml', 'CHART_BAND_KINDS', 'chartEntriesOf'
 ];
 
 const api = new Function('esc',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf, bandIconSvg };`
+   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf, bandIconSvg, compactNumber, donutChartHtml, barChartHtml, progressChartHtml, chartEntriesOf };`
 )(value => String(value == null ? '' : value));
 
 let passed = 0, failed = 0;
@@ -98,6 +99,61 @@ console.log('the designer carries a byte-identical icon map');
   };
   check('BAND_ICONS and PREVIEW_BAND_ICONS do not drift',
     mapOf(html, 'BAND_ICONS') === mapOf(designer, 'PREVIEW_BAND_ICONS'));
+}
+
+console.log('a band can chart its rows (L3)');
+{
+  const facilities = {
+    role: 'standalone', alias: 'b9', name: 'Facility Exposure',
+    columns: [{ alias: 'kind', label: 'Kind' }, { alias: 'amount', label: 'Amount' }],
+    rows: [
+      { cells: { kind: { text: 'Available' }, amount: { value: 30100000, text: '30.1M' } } },
+      { cells: { kind: { text: 'Utilized' }, amount: { value: 4900000, text: '4.9M' } } }
+    ],
+    rowCount: 2, truncated: false, elapsedMs: 2
+  };
+
+  check('35 000 000 reads as 35.0M', api.compactNumber(35000000) === '35.0M');
+  check('1 500 reads as 1.5K', api.compactNumber(1500) === '1.5K');
+  check('a small number stays itself', api.compactNumber(86) === '86');
+  check('garbage reads as nothing', api.compactNumber('banana') === '');
+
+  const entries = api.chartEntriesOf(facilities, {});
+  check('entries infer value and label columns', entries.length === 2 && entries[0].label === 'Available' && entries[0].value === 30100000, JSON.stringify(entries));
+
+  const donut = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'donut' });
+  check('a donut band renders segments and the compact total', /chart-donut/.test(donut) && donut.includes('35.0M'), donut.slice(0, 200));
+  check('its legend keeps the authored value text', donut.includes('30.1M') && donut.includes('Utilized'));
+
+  const bars = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'bars' });
+  check('a bar band renders a column per row', (bars.match(/chart-bar-col/g) || []).length === 2, bars.slice(0, 160));
+
+  const progress = api.datasetBlock(facilities, null, () => '', null, { displayAs: 'progress' });
+  check('a progress band renders a track per row', (progress.match(/chart-track/g) || []).length === 2);
+  check('the widest row fills its track', progress.includes('width:100%'), progress);
+
+  // Nothing numeric: the chart falls back to the table rather than drawing an empty ring.
+  const textual = api.datasetBlock(dataset, null, () => '', null, { displayAs: 'donut' });
+  check('a chart with nothing numeric falls back to the table', /table class/.test(textual), textual.slice(0, 160));
+}
+
+console.log('the designer carries byte-identical chart builders');
+{
+  const designer = readFileSync(new URL('../prototype/report-designer.html', import.meta.url), 'utf8');
+  const declarationOf = (source, opener, closer) => {
+    const at = source.indexOf(opener);
+    return at < 0 ? '(missing)' : source.slice(at, source.indexOf(closer, at) + closer.length);
+  };
+  for (const [opener, closer] of [
+    ['const CHART_COLORS', '];'],
+    ['const compactNumber', '};'],
+    ['function donutChartHtml', '\n}'],
+    ['function barChartHtml', '\n}'],
+    ['function progressChartHtml', '\n}']
+  ]) {
+    check(`${opener.replace(/const |function /, '')} does not drift`,
+      declarationOf(html, opener, closer) === declarationOf(designer, opener, closer));
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

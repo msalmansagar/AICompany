@@ -811,6 +811,25 @@
   .dataset-head.band-chrome b { color: inherit; }
   .dataset-head.band-chrome span { margin-left: auto; }
   .band-icon { flex: none; display: block; }
+  /* L3 — block charts, exactly as the runtime draws them. */
+  .chart-band { display: flex; align-items: center; gap: 18px; padding: 8px 4px; }
+  .chart-donut { width: 150px; height: 150px; flex: none; }
+  .chart-center { font-size: 15px; font-weight: 700; fill: var(--text); }
+  .chart-center-sub { font-size: 7px; fill: var(--text-secondary); }
+  .chart-legend { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+  .chart-legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; min-width: 0; }
+  .chart-legend-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); flex: 1; }
+  .chart-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+  .chart-legend-pct { flex: none; color: var(--text-secondary); font-size: 11px; }
+  .chart-bars { display: flex; align-items: flex-end; gap: 14px; height: 150px; padding: 8px 4px 0; }
+  .chart-bar-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; height: 100%; min-width: 0; flex: 1; font-size: 11.5px; }
+  .chart-bar { width: 70%; max-width: 44px; border-radius: 3px 3px 0 0; }
+  .chart-bar-label { color: var(--text-secondary); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-progress { display: flex; flex-direction: column; gap: 10px; padding: 6px 2px; }
+  .chart-progress-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+  .chart-progress-head span { color: var(--text-secondary); }
+  .chart-track { height: 8px; border-radius: 4px; background: var(--surface-alt); border: 1px solid var(--border); overflow: hidden; }
+  .chart-fill { height: 100%; border-radius: 4px; }
   .dataset-header { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); padding: 14px 16px; }
   .dataset-header > .dataset-head { border-bottom: 2px solid var(--primary); padding-bottom: 6px; margin-bottom: 4px; }
   .dataset-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px 20px; margin: 10px 0 16px; }
@@ -2904,7 +2923,9 @@ function datasetLayoutOf(report, mappedSources) {
   (report.dataSources || []).forEach((source, index) => {
     const band = source.band || {};
     const kept = {};
-    if (band.displayAs === "fields") kept.displayAs = "fields";
+    if (["fields", "donut", "bars", "progress"].includes(band.displayAs)) kept.displayAs = band.displayAs;
+    if (band.valueColumn) kept.valueColumn = band.valueColumn;
+    if (band.labelColumn) kept.labelColumn = band.labelColumn;
     if (band.showTitle === false) kept.showTitle = false;
     if (band.title && band.title.trim()) kept.title = band.title.trim();
     if (band.fieldColumns) kept.fieldColumns = +band.fieldColumns || undefined;
@@ -6156,12 +6177,19 @@ function datasetBandTab(body, r, source, redraw) {
   source.band = source.band || {};
   const band = source.band;
   // One root: el() refuses a two-root template, and the grid plus its hint are one tab body.
+  const columnsOf = () => datasetFieldsOf(source, r);
+  const columnOptions = chosen => `<option value=""${chosen ? "" : " selected"}>Automatic</option>` + columnsOf().map(field =>
+    `<option value="${esc(field.logical)}"${chosen === field.logical ? " selected" : ""}>${esc(field.label)}</option>`).join("");
+  const isChart = ["donut", "bars", "progress"].includes(band.displayAs);
   const card = el(`<div><div class="dp-grid">
     <div class="mini-field"><label>Show as</label>
-      <select class="fluent-select" data-bandk="displayAs">
-        <option value="table"${band.displayAs === "fields" ? "" : " selected"}>Table</option>
-        <option value="fields"${band.displayAs === "fields" ? " selected" : ""}>Fields (label / value band)</option>
-      </select></div>
+      <select class="fluent-select" data-bandk="displayAs">${[["table", "Table"], ["fields", "Fields (label / value band)"],
+        ["donut", "Donut chart"], ["bars", "Bar chart"], ["progress", "Progress bars"]].map(([value, label]) =>
+        `<option value="${value}"${(band.displayAs || "table") === value ? " selected" : ""}>${label}</option>`).join("")}</select></div>
+    ${isChart ? `<div class="mini-field"><label>Value column <span class="rel-tag">Chart</span></label>
+      <select class="fluent-select" data-bandk="valueColumn">${columnOptions(band.valueColumn)}</select></div>
+    <div class="mini-field"><label>Label column <span class="rel-tag">Chart</span></label>
+      <select class="fluent-select" data-bandk="labelColumn">${columnOptions(band.labelColumn)}</select></div>` : ""}
     <div class="mini-field"><label>Fields per row <span class="rel-tag">Fields</span></label>
       <select class="fluent-select" data-bandk="fieldColumns">${opts(["auto", "1", "2", "3", "4"], band.fieldColumns ? String(band.fieldColumns) : "auto")}</select></div>
     <div class="mini-field"><label>Panel icon</label>
@@ -6185,8 +6213,10 @@ function datasetBandTab(body, r, source, redraw) {
     const key = input.dataset.bandk;
     if (key === "showTitle") band.showTitle = input.checked ? true : false;
     else if (key === "fieldColumns") band.fieldColumns = input.value === "auto" ? undefined : +input.value;
-    else if (key === "width" || key === "icon") band[key] = input.value || undefined;
+    else if (["width", "icon", "valueColumn", "labelColumn"].includes(key)) band[key] = input.value || undefined;
     else band[key] = input.value;
+    // Choosing a chart reveals its value and label pickers; leaving one hides them.
+    if (key === "displayAs") redraw();
   }));
 }
 
@@ -8703,6 +8733,69 @@ const previewBandIconSvg = band => {
   return path ? `<svg class="band-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${path}</svg>` : "";
 };
 
+/* Byte-identical to the runtime chart builders (L3) — the drift test compares them. */
+const CHART_COLORS = ["var(--chart-1,#2b88d8)", "var(--chart-2,#0b57a4)", "var(--chart-3,#164a7c)",
+  "var(--chart-4,#7fb8e6)", "var(--chart-5,#a9d0f0)", "var(--chart-6,#d6e8f8)"];
+
+/** 35 000 000 reads as 35.0M on a panel; a number under a thousand is left as itself. */
+const compactNumber = value => {
+  const n = +value;
+  if (!isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n * 10) / 10);
+};
+
+function donutChartHtml(entries){
+  const total = entries.reduce((sum, entry) => sum + (entry.value > 0 ? entry.value : 0), 0);
+  if (!(total > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const circumference = 2 * Math.PI * 40;
+  let turned = 0;
+  const segments = entries.map((entry, index) => {
+    const fraction = (entry.value > 0 ? entry.value : 0) / total;
+    const segment = `<circle r="40" cx="50" cy="50" fill="none" stroke="${CHART_COLORS[index % CHART_COLORS.length]}"
+      stroke-width="15" stroke-dasharray="${(fraction * circumference).toFixed(2)} ${circumference.toFixed(2)}"
+      stroke-dashoffset="${(-turned * circumference).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+    turned += fraction;
+    return segment;
+  }).join("");
+  const legend = entries.map((entry, index) => `<div class="chart-legend-row">
+    <span class="chart-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+    <span class="chart-legend-label">${esc(entry.label)}</span>
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <span class="chart-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
+  </div>`).join("");
+  return `<div class="chart-band">
+    <svg viewBox="0 0 100 100" class="chart-donut" role="img">${segments}
+      <text x="50" y="48" text-anchor="middle" class="chart-center">${esc(compactNumber(total))}</text>
+      <text x="50" y="60" text-anchor="middle" class="chart-center-sub">Total</text>
+    </svg>
+    <div class="chart-legend">${legend}</div>
+  </div>`;
+}
+
+function barChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const bars = entries.map((entry, index) => `<div class="chart-bar-col">
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <div class="chart-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
+    <span class="chart-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+  </div>`).join("");
+  return `<div class="chart-bars">${bars}</div>`;
+}
+
+function progressChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  return `<div class="chart-progress">${entries.map((entry, index) => `<div class="chart-progress-row">
+    <div class="chart-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
+    <div class="chart-track"><div class="chart-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
+  </div>`).join("")}</div>`;
+}
+
 /** The icon choices as the Band tab offers them — the value is the map key, the label a person's word. */
 const BAND_ICON_CHOICES = [["", "None (plain title)"], ["user", "Customer"], ["chart", "Chart"],
   ["donut", "Exposure"], ["building", "Facility"], ["shield", "Compliance"], ["doc", "Document"],
@@ -8732,11 +8825,33 @@ function previewDatasetHeader(name, cols, row) {
   </section>`;
 }
 
+/* The preview's rows keyed by column key, as chart entries — the same shape the runtime feeds
+   the shared builders, so a chart previews exactly as it will run (L3). */
+function previewChartEntriesOf(cols, rows, band) {
+  const numericOf = value => {
+    const text = String(value ?? "").replace(/[,\s ]/g, "").replace(/[^\d.-]/g, "");
+    return text !== "" && !isNaN(+text) ? +text : null;
+  };
+  const valueCol = cols.find(c => c.key === (band && band.valueColumn))
+    || cols.find(c => rows.some(row => numericOf(row[c.key]) != null));
+  if (!valueCol) return null;
+  const labelCol = cols.find(c => c.key === (band && band.labelColumn))
+    || cols.find(c => c !== valueCol) || valueCol;
+  return rows.map(row => ({
+    label: String(previewCellText(labelCol, row[labelCol.key]) ?? ""),
+    value: numericOf(row[valueCol.key]) ?? 0,
+    text: previewCellText(valueCol, row[valueCol.key])
+  }));
+}
+
 function previewDatasetBlock(name, cols, rows, notice, totals, band) {
+  const chart = band && { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml }[band.displayAs];
+  const chartEntries = (chart && !notice && rows.length) ? previewChartEntriesOf(cols, rows, band) : null;
   const body = notice
     ? `<div class="page-sub" style="padding:8px 0">${notice}</div>`
     : !rows.length ? `<div class="page-sub" style="padding:8px 0">No rows.</div>`
     : (band && band.displayAs === "fields") ? previewDatasetFieldsHtml(cols, rows, band)
+    : chartEntries ? chart(chartEntries)
     : previewDatasetTable(cols, rows, totals);
   const span = ` style="grid-column:span ${previewBandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false) return `<section class="dataset-block"${span}>${body}</section>`;

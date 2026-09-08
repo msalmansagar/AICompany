@@ -1096,6 +1096,101 @@ const bandIconSvg = band => {
   return path ? `<svg class="band-icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">${path}</svg>` : "";
 };
 
+/* ---------- L3: block charts ----------
+   A band can present its rows as a chart: a donut with the total in its centre, bars, or progress
+   rows. The chart is presentation only — exports keep the table, exactly as a Fields band does —
+   and every builder takes plain {label, value, text} entries, so the designer's preview and the
+   runtime feed one shape. These builders are byte-identical designer-side; the drift test compares
+   them. Colours are CSS-variable hooks with the brand blues as fallback, so a theme can restyle
+   the charts without touching this file. */
+
+const CHART_COLORS = ["var(--chart-1,#2b88d8)", "var(--chart-2,#0b57a4)", "var(--chart-3,#164a7c)",
+  "var(--chart-4,#7fb8e6)", "var(--chart-5,#a9d0f0)", "var(--chart-6,#d6e8f8)"];
+
+/** 35 000 000 reads as 35.0M on a panel; a number under a thousand is left as itself. */
+const compactNumber = value => {
+  const n = +value;
+  if (!isFinite(n)) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return (n / 1e9).toFixed(1) + "B";
+  if (abs >= 1e6) return (n / 1e6).toFixed(1) + "M";
+  if (abs >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  return String(Math.round(n * 10) / 10);
+};
+
+function donutChartHtml(entries){
+  const total = entries.reduce((sum, entry) => sum + (entry.value > 0 ? entry.value : 0), 0);
+  if (!(total > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const circumference = 2 * Math.PI * 40;
+  let turned = 0;
+  const segments = entries.map((entry, index) => {
+    const fraction = (entry.value > 0 ? entry.value : 0) / total;
+    const segment = `<circle r="40" cx="50" cy="50" fill="none" stroke="${CHART_COLORS[index % CHART_COLORS.length]}"
+      stroke-width="15" stroke-dasharray="${(fraction * circumference).toFixed(2)} ${circumference.toFixed(2)}"
+      stroke-dashoffset="${(-turned * circumference).toFixed(2)}" transform="rotate(-90 50 50)"/>`;
+    turned += fraction;
+    return segment;
+  }).join("");
+  const legend = entries.map((entry, index) => `<div class="chart-legend-row">
+    <span class="chart-dot" style="background:${CHART_COLORS[index % CHART_COLORS.length]}"></span>
+    <span class="chart-legend-label">${esc(entry.label)}</span>
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <span class="chart-legend-pct">${Math.round((entry.value > 0 ? entry.value : 0) / total * 100)}%</span>
+  </div>`).join("");
+  return `<div class="chart-band">
+    <svg viewBox="0 0 100 100" class="chart-donut" role="img">${segments}
+      <text x="50" y="48" text-anchor="middle" class="chart-center">${esc(compactNumber(total))}</text>
+      <text x="50" y="60" text-anchor="middle" class="chart-center-sub">Total</text>
+    </svg>
+    <div class="chart-legend">${legend}</div>
+  </div>`;
+}
+
+function barChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  const bars = entries.map((entry, index) => `<div class="chart-bar-col">
+    <b>${esc(entry.text ?? compactNumber(entry.value))}</b>
+    <div class="chart-bar" style="height:${Math.max(2, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div>
+    <span class="chart-bar-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
+  </div>`).join("");
+  return `<div class="chart-bars">${bars}</div>`;
+}
+
+function progressChartHtml(entries){
+  const peak = Math.max(0, ...entries.map(entry => entry.value > 0 ? entry.value : 0));
+  if (!(peak > 0)) return `<div class="empty" style="padding:16px">Nothing to chart.</div>`;
+  return `<div class="chart-progress">${entries.map((entry, index) => `<div class="chart-progress-row">
+    <div class="chart-progress-head"><span>${esc(entry.label)}</span><b>${esc(entry.text ?? compactNumber(entry.value))}</b></div>
+    <div class="chart-track"><div class="chart-fill" style="width:${Math.max(1, Math.round((entry.value > 0 ? entry.value : 0) / peak * 100))}%;background:${CHART_COLORS[index % CHART_COLORS.length]}"></div></div>
+  </div>`).join("")}</div>`;
+}
+
+const CHART_BAND_KINDS = { donut: donutChartHtml, bars: barChartHtml, progress: progressChartHtml };
+
+/**
+ * A dataset's rows as chart entries: the authored value column (or the first numeric one), the
+ * authored label column (or the first other one). Null when nothing numeric exists — the caller
+ * falls back to the table, which is the honest answer for uncharted data.
+ */
+function chartEntriesOf(dataset, band){
+  const columns = (dataset.columns || []).filter(c => c.isVisible !== false);
+  const rows = dataset.rows || [];
+  const valueColumn = columns.find(c => c.alias === (band && band.valueColumn))
+    || columns.find(c => rows.some(row => numericCellValue(((row.cells || {})[c.alias]) || {}) != null));
+  if (!valueColumn) return null;
+  const labelColumn = columns.find(c => c.alias === (band && band.labelColumn))
+    || columns.find(c => c !== valueColumn) || valueColumn;
+  return rows.map(row => {
+    const cells = row.cells || {};
+    return {
+      label: String((cells[labelColumn.alias] || {}).text ?? ""),
+      value: numericCellValue(cells[valueColumn.alias] || {}) ?? 0,
+      text: (cells[valueColumn.alias] || {}).text
+    };
+  });
+}
+
 const bandTitleOf = (band, dataset) =>
   band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
 
@@ -1111,11 +1206,16 @@ function datasetFieldsHtml(dataset, band){
 }
 
 function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
+  const chart = band && CHART_BAND_KINDS[band.displayAs];
+  const chartEntries = chart ? chartEntriesOf(dataset, band) : null;
   const body = dataset.status === "failed"
     ? `<div class="empty" style="color:var(--error)">This dataset could not be loaded — ${esc(dataset.error || "no reason was given")}</div>`
     : (band && band.displayAs === "fields")
       ? datasetFieldsHtml(dataset, band)
-      : datasetBody(dataset, drillCol, fontOf, totalsCells);
+      // A chart band with nothing numeric falls back to its table — uncharted data stays honest.
+      : chartEntries
+        ? chart(chartEntries)
+        : datasetBody(dataset, drillCol, fontOf, totalsCells);
   const span = ` style="grid-column:span ${bandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false){
     return `<section class="dataset-block"${span}>${body}</section>`;
