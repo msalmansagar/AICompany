@@ -32,7 +32,12 @@ async function ensure(entitySet, idAttribute, nameAttribute, payload) {
   }
   const res = await dv.request(`${API}/${entitySet}`, { method: 'POST', headers, body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`create ${entitySet} ${res.status}: ${await res.text()}`);
-  const id = (res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/)[1];
+  // OData-EntityId is where a create's id lives (the body is empty) — but not every deployment
+  // sends it, so a missing header falls back to reading the record it just made, and a create
+  // whose id cannot be found at all fails BY NAME instead of as a null dereference.
+  const header = (res.headers.get('OData-EntityId') || '').match(/\(([0-9a-fA-F-]{36})\)/);
+  const id = header ? header[1] : ((await firstByName(entitySet, nameAttribute, payload[nameAttribute])) || {})[idAttribute];
+  if (!id) throw new Error(`created ${payload[nameAttribute]} in ${entitySet} but could not read its id back`);
   console.log(`  ✓ created ${payload[nameAttribute]}`);
   return id;
 }

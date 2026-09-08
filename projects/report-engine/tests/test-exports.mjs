@@ -246,6 +246,10 @@ console.log('\nPDF — part-width blocks share a row');
     check(`a row-sharing PDF still carries "${wanted}"`, gridText.includes(wanted));
   }
   check('the footer line reaches the page (L2)', gridText.includes('Confidential'), gridText.slice(0, 120));
+  // Chrome is drawn ONCE per page whoever asks: the explicit page-one call and each panel's
+  // didDrawPage hook all fire, and unguarded they drew the footer (and watermark) once per asker.
+  check('a page shared by two panels carries its chrome once',
+    (gridText.match(/Confidential/g) || []).length === 1, 'occurrences: ' + (gridText.match(/Confidential/g) || []).length);
   harnessState.current.def = defaultDef;
 }
 

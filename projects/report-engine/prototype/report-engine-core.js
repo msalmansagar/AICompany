@@ -1178,8 +1178,9 @@ function progressChartHtml(entries){
 
 function cardsChartHtml(entries, iconSvg){
   if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  // No icon, no box — an empty tinted square is not a design choice anyone made.
   return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
-    <span class="stat-icon">${iconSvg || ""}</span>
+    ${iconSvg ? `<span class="stat-icon">${iconSvg}</span>` : ""}
     <div class="stat-body">
       <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
       <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>
@@ -1590,7 +1591,17 @@ async function exportPdf(result, baseName){
   const font = rtl ? await useArabicFont(doc) : "helvetica";
   const def = exportDefinition();
   const title = (def && def.name) || (result && result.reportName) || baseName;
-  const chrome = () => drawPdfPageChrome(doc, page, title, font, rtl);
+  /* Once per page, whoever asks. The explicit page-one call, every table's didDrawPage hook, and
+     each panel of a shared row (L1) all request chrome; unguarded, a page carrying two panels drew
+     its header and page number twice and its watermark twice as dark. */
+  const chromedPages = new Set();
+  const chrome = () => {
+    const pageNumber = doc.internal.getCurrentPageInfo
+      ? doc.internal.getCurrentPageInfo().pageNumber : doc.internal.getNumberOfPages();
+    if (chromedPages.has(pageNumber)) return;
+    chromedPages.add(pageNumber);
+    drawPdfPageChrome(doc, page, title, font, rtl);
+  };
 
   // Ordering needs no help. jsPDF's default text path already runs the bidi pass: Arabic runs come
   // out in visual order and Latin and numbers keep theirs. Passing isInputVisual:false — which an

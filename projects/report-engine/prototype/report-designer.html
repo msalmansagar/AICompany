@@ -1610,6 +1610,8 @@ async function loadEntityMetadata() {
   syncEntityDatalist();
   render();
   refreshOpenWizard();
+  // The related-table picker may be waiting on the primary's own record to wire the join.
+  refreshOpenRelatedPicker();
 }
 
 async function loadAttributeMetadata(entity) {
@@ -6129,9 +6131,15 @@ function openRelatedTablePicker(r, spec) {
   let term = "";
   const draw = () => {
     const primary = entityRecord(r.mainEntity);
-    const choices = relatedTableChoices(relationsOf(r.mainEntity), entityRecord, primary ? primary.primaryId : "")
-      .filter(choice => matchesSearch(term, choice.label, choice.entity, choice.foreignKey));
     const list = scrim.querySelector("#rp_list");
+    // No primary record means no primary-key to wire the join with — a dataset born now would
+    // carry an EMPTY parent key and silently return nothing. Wait for the metadata instead.
+    if (!primary) {
+      list.innerHTML = `<div class="hint">Loading tables…</div>`;
+      return;
+    }
+    const choices = relatedTableChoices(relationsOf(r.mainEntity), entityRecord, primary.primaryId)
+      .filter(choice => matchesSearch(term, choice.label, choice.entity, choice.foreignKey));
     if (metadata.pending["rel:" + r.mainEntity]) {
       list.innerHTML = `<div class="hint">Loading related tables…</div>`;
     } else if (!choices.length) {
@@ -8826,8 +8834,9 @@ function progressChartHtml(entries){
 
 function cardsChartHtml(entries, iconSvg){
   if (!entries.length) return `<div class="empty" style="padding:16px">No rows.</div>`;
+  // No icon, no box — an empty tinted square is not a design choice anyone made.
   return `<div class="stat-cards">${entries.map(entry => `<div class="stat-card">
-    <span class="stat-icon">${iconSvg || ""}</span>
+    ${iconSvg ? `<span class="stat-icon">${iconSvg}</span>` : ""}
     <div class="stat-body">
       <span class="stat-label" title="${esc(entry.label)}">${esc(entry.label)}</span>
       <b class="stat-value">${esc(entry.text ?? compactNumber(entry.value))}</b>

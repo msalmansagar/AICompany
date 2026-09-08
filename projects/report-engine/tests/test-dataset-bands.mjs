@@ -173,6 +173,10 @@ console.log('a band can be a strip of KPI cards (L4)');
   check('the authored value text is the stat', cards.includes('2,290,000.00'));
   check('a non-numeric stat is a perfectly good card', cards.includes('Apr 2026'));
   check('the band icon rides every card', (cards.match(/band-icon/g) || []).length >= 2);
+
+  // No icon chosen: no tinted square pretending to be one.
+  const plainCards = api.datasetBlock(assets, null, () => '', null, { displayAs: 'cards' });
+  check('no icon means no icon box at all', !plainCards.includes('stat-icon'), plainCards.slice(0, 160));
 }
 
 console.log('a badge column wears its value as a pill (L4)');
