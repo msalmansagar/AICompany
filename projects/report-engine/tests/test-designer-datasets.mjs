@@ -17,12 +17,13 @@ const NEEDED = [
   'SOURCES', 'sourceByLabel', 'blockEntityOf', 'blockColumnsOf', 'blockColumnLabelsOf', 'blockMappingsOf', 'dataSourcesOf',
   'externalSourcesOf', 'EXTERNAL_MAPPING_KEY', 'EXTERNAL_SOURCE_LABEL', 'datasetProblems', 'sourceProblems',
   'joinedSourceProblems', 'brokenFetchXmlProblem', 'staticSourceProblems', 'staticRowsProblem',
-  'standaloneSourceProblems', 'isCrmViewSource', 'isStaticSource', 'isStandaloneDefinitionSource'
+  'standaloneSourceProblems', 'isCrmViewSource', 'isStaticSource', 'isStandaloneDefinitionSource',
+  'relatedTableChoices', 'datasetFromRelation'
 ];
 
 const api = new Function('newGuid', 'coded', `
   ${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-  return { dataSourcesOf, blockEntityOf, blockColumnsOf, blockColumnLabelsOf, isStandalone, compositionCoded, datasetProblems, isStandaloneDefinitionSource };
+  return { dataSourcesOf, blockEntityOf, blockColumnsOf, blockColumnLabelsOf, isStandalone, compositionCoded, datasetProblems, isStandaloneDefinitionSource, relatedTableChoices, datasetFromRelation };
 `)(() => '00000000-0000-0000-0000-000000000000', (code, label) => code == null ? null : { code, label });
 
 let passed = 0, failed = 0;
@@ -247,6 +248,41 @@ const storedDefinition = () => ({
   // The primary source of a report saved before this feature carries no composition at all.
   check('nor does a source with no composition',
     api.isStandaloneDefinitionSource({ isPrimary: false, entityMappings: [] }) === false);
+}
+
+console.log('adding a dataset starts from the main table’s related tables');
+{
+  // The relationship list as the metadata loader stores it; entityInfo answers only for tables a
+  // report could be built over, which is what keeps system relationships out of the offer.
+  const relations = [
+    { entity: 'qdb_requestedfacility', foreignKey: 'qdb_termsheetid' },
+    { entity: 'asyncoperation', foreignKey: 'regardingobjectid' },
+    { entity: 'qdb_condition', foreignKey: 'qdb_termsheetid' },
+    { entity: 'qdb_condition', foreignKey: 'qdb_relatedtermsheetid' }
+  ];
+  const reportable = {
+    qdb_requestedfacility: { label: 'Requested Facility' },
+    qdb_condition: { label: 'Condition' }
+  };
+  const choices = api.relatedTableChoices(relations, entity => reportable[entity], 'qdb_termsheetid');
+
+  check('a system relationship is not offered', !choices.some(c => c.entity === 'asyncoperation'), JSON.stringify(choices));
+  check('sorted by label, then by the lookup that scopes it',
+    choices.map(c => `${c.entity}:${c.foreignKey}`).join('|')
+      === 'qdb_condition:qdb_relatedtermsheetid|qdb_condition:qdb_termsheetid|qdb_requestedfacility:qdb_termsheetid',
+    JSON.stringify(choices.map(c => c.foreignKey)));
+  check('every choice carries both sides of the join',
+    choices.every(c => c.foreignKey && c.parentKey === 'qdb_termsheetid'), JSON.stringify(choices[0]));
+
+  const base = { name: 'New source', type: 'FetchXML', primary: false, composition: 'Joined', entity: '', columns: '', joinFromKey: '', joinToKey: '', enabled: true, rowLimit: '' };
+  const born = api.datasetFromRelation(base, choices[2]);
+  check('the dataset is born a block on the chosen table',
+    born.composition === 'Standalone' && born.entity === 'qdb_requestedfacility', JSON.stringify(born));
+  check('named after the table', born.name === 'Requested Facility', born.name);
+  check('with the join wired from the relationship, not typed',
+    born.joinFromKey === 'qdb_termsheetid' && born.joinToKey === 'qdb_termsheetid', JSON.stringify(born));
+  check('and the base defaults kept', born.enabled === true && born.type === 'FetchXML');
+  check('the base object is not mutated', base.entity === '' && base.composition === 'Joined');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

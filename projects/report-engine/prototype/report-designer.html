@@ -838,6 +838,15 @@
   .ds-field > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
 
+  /* Related-table picker — "Add dataset" offers the main table's children first. */
+  .rp-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+    cursor: pointer; margin-bottom: 6px; font: inherit; color: var(--text); min-width: 0; }
+  .rp-row:hover { border-color: var(--primary); background: var(--surface-alt); }
+  .rp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .rp-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
+  .rp-via { flex: none; margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+
   /* Dataset properties dialog. */
   .dp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
   .dp-grid .mini-field:has(textarea), .dp-grid .mini-field:has([data-combo="view"]) { grid-column: 1 / -1; }
@@ -1608,6 +1617,7 @@ async function loadRelationshipMetadata(entity) {
   endBusy(`Loading ${entity} relationships…`);
   render();
   refreshJoinKeySuggestions(entity);
+  refreshOpenRelatedPicker();
 }
 
 /* Choice columns read their options from the org too. The designer used to offer categories and
@@ -5886,6 +5896,92 @@ function datasetKindChip(source) {
   return isStandalone(source) ? `<span class="ds-chip">Block</span>` : `<span class="ds-chip">Joined</span>`;
 }
 
+/* ---------- Related-table picker ----------
+   "Add dataset" starts from what Dataverse already knows: the tables related to the report's main
+   one. The author picks a child table by name instead of hunting the org's whole entity list, and
+   both join keys are written from the relationship rather than retyped from memory — the
+   suggestJoinKeys principle, applied where a dataset is BORN instead of after the damage. The
+   manual path stays one click away: a block on an unrelated table is legitimate, just rarer. */
+
+/**
+ * The offerable children: relationships whose table a report could be built over, labelled and
+ * carrying both sides of the join. System relationships (async jobs, audit shadows, sync errors)
+ * outnumber the real ones several times over and would bury them.
+ */
+function relatedTableChoices(relations, entityInfo, primaryId) {
+  return (relations || [])
+    .map(rel => ({ rel, info: entityInfo(rel.entity) }))
+    .filter(choice => choice.info)
+    .map(({ rel, info }) => ({ entity: rel.entity, label: info.label, foreignKey: rel.foreignKey, parentKey: primaryId }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.foreignKey.localeCompare(b.foreignKey));
+}
+
+/** A new block dataset wired the way the relationship says: child key on its table, parent key on the root. */
+function datasetFromRelation(base, choice) {
+  return { ...base, name: choice.label, composition: "Standalone", entity: choice.entity,
+    joinFromKey: choice.foreignKey, joinToKey: choice.parentKey };
+}
+
+function openRelatedTablePicker(r, spec) {
+  const scrim = el(`<div class="scrim above-wizard"><div class="dialog" role="dialog" aria-modal="true" style="width:560px;max-width:94vw">
+    <div class="dialog-head"><h3>Add dataset — related to ${esc(entityLabel(r.mainEntity))}</h3><button class="close-x">✕</button></div>
+    <div class="dialog-body" style="max-height:56vh;overflow:auto">
+      <input class="inp" id="rp_search" placeholder="Search related tables…" autocomplete="off" style="width:100%">
+      <div id="rp_list" style="margin-top:10px"></div>
+    </div>
+    <div class="dialog-foot" style="display:flex;gap:8px">
+      <button class="btn" data-rpmanual>${ic("table")}Another table…</button>
+      <div style="flex:1"></div>
+      <button class="btn" data-close>Cancel</button>
+    </div>
+  </div></div>`);
+  document.body.appendChild(scrim);
+
+  const close = () => { delete refreshOpenRelatedPicker._draw; scrim.remove(); };
+  const created = source => {
+    close();
+    r.dataSources.push(source);
+    if (renderManualDesigner._refresh) renderManualDesigner._refresh();
+    openDatasetProperties(r, source);
+  };
+
+  let term = "";
+  const draw = () => {
+    const primary = entityRecord(r.mainEntity);
+    const choices = relatedTableChoices(relationsOf(r.mainEntity), entityRecord, primary ? primary.primaryId : "")
+      .filter(choice => matchesSearch(term, choice.label, choice.entity, choice.foreignKey));
+    const list = scrim.querySelector("#rp_list");
+    if (metadata.pending["rel:" + r.mainEntity]) {
+      list.innerHTML = `<div class="hint">Loading related tables…</div>`;
+    } else if (!choices.length) {
+      list.innerHTML = `<div class="hint">${term ? "Nothing related matches the search." : "No related tables found."} Use “Another table…” to pick any table.</div>`;
+    } else {
+      list.innerHTML = choices.map((choice, index) => `<button class="rp-row" data-rp="${index}">
+        <span class="rp-label">${highlight(choice.label, term)}</span>
+        <span class="rp-logical">${highlight(choice.entity, term)}</span>
+        <span class="rp-via" title="The block will be scoped by this lookup">via ${highlight(choice.foreignKey, term)}</span>
+      </button>`).join("");
+      list.querySelectorAll("[data-rp]").forEach(row => row.onclick = () =>
+        created(datasetFromRelation(spec.add(), choices[+row.dataset.rp])));
+    }
+  };
+  refreshOpenRelatedPicker._draw = draw;
+
+  const search = scrim.querySelector("#rp_search");
+  search.oninput = () => { term = search.value; draw(); };
+  search.focus();
+  scrim.querySelector(".close-x").onclick = close;
+  scrim.querySelector("[data-close]").onclick = close;
+  scrim.querySelector("[data-rpmanual]").onclick = () =>
+    created({ ...spec.add(), name: "New dataset", composition: "Standalone" });
+  draw();
+}
+
+/** Repaints an open picker once the relationships it was waiting for arrive. */
+function refreshOpenRelatedPicker() {
+  if (refreshOpenRelatedPicker._draw && document.getElementById("rp_list")) refreshOpenRelatedPicker._draw();
+}
+
 function bindDatasetTree(host, r, spec) {
   const refresh = () => { if (renderManualDesigner._refresh) renderManualDesigner._refresh(); };
   host.querySelectorAll("[data-dstoggle]").forEach(row => row.onclick = event => {
@@ -5900,6 +5996,9 @@ function bindDatasetTree(host, r, spec) {
   if (add) add.onclick = () => {
     // Standalone by default: "add a dataset" to a report that already has its main one means a
     // block; a second joined source is the rarer intent and one click away in the dialog.
+    // With a main table chosen, its related tables are offered first (the picker keeps the
+    // any-table path); without one there is nothing to relate to, so straight to the dialog.
+    if (r.mainEntity) { openRelatedTablePicker(r, spec); return; }
     const created = { ...spec.add(), name: "New dataset", composition: "Standalone" };
     r.dataSources.push(created);
     refresh();
