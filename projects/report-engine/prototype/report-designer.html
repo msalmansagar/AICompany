@@ -837,6 +837,14 @@
   .ds-field { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; min-width: 0; }
   .ds-field > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-logical { flex: none; font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--text-secondary); }
+  .ds-outcol { cursor: pointer; border-radius: var(--radius); padding: 2px 4px; }
+  .ds-outcol:hover { background: var(--surface-alt); }
+  .ds-colbtns { flex: none; display: flex; gap: 2px; opacity: 0; }
+  .ds-field:hover .ds-colbtns { opacity: 1; }
+  .ds-colbtns button { border: none; background: none; cursor: pointer; color: var(--text-secondary);
+    font-size: 10px; padding: 1px 3px; border-radius: 3px; }
+  .ds-colbtns button:hover { background: var(--surface); color: var(--text); }
+  .ds-colbtns button:disabled { opacity: .3; cursor: default; }
 
   /* Related-table picker — "Add dataset" offers the main table's children first. */
   .rp-row { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 10px;
@@ -5743,10 +5751,11 @@ const RAIL_PANELS = {
    group owned it — and the strip had room for twelve buttons while using eight, so the tidiness
    bought nothing. A name someone already knows beats a category someone has to infer. */
 const RAIL_SECTIONS = [
-  // No separate Fields tab: fields belong to the dataset that returns them, so they live in the
-  // Report Data tree — the root's browser under its node, a block's under its dialog (R2).
+  // No separate Fields or Columns tab: fields and chosen columns belong to the dataset that
+  // returns them, so both live in the Report Data tree — the root's under its node, a block's
+  // under its dialog (R2+R3). Editing a chosen column is a selection, so it uses the properties
+  // pane like any canvas control.
   { key: "data", label: "Data", icon: "flow", panels: ["dataSources", "externalSources"] },
-  { key: "columns", label: "Columns", icon: "doc", panels: ["columns"] },
   { key: "filters", label: "Filters", icon: "filter", panels: ["filters"] },
   { key: "params", label: "Params", icon: "param", panels: ["parameters"] },
   { key: "drilldown", label: "Drilldown", icon: "tree", panels: ["relationships"] },
@@ -5884,10 +5893,9 @@ function datasetTreePanel(host, r, spec) {
   const redraw = () => { host.innerHTML = ""; datasetTreePanel(host, r, spec); };
   host.appendChild(el(`<div><h4>Report data</h4>
     <div class="hint" style="margin-bottom:10px">What the report reads. ${ic("edit")} opens a dataset's properties.</div></div>`));
-  host.appendChild(el(`<div>${dataSourceControlsHtml(r)}</div>`));
   host.appendChild(el(datasetTreeHtml(r)));
-  bindDataSourceControls(host, r, redraw);
   bindFieldBrowser(host, r, redraw);
+  bindReportColumns(host, r);
   bindDatasetTree(host, r, spec);
 }
 
@@ -5924,8 +5932,8 @@ function datasetNodeHtml(r, source, index, isExpanded) {
   // tab's content where it always belonged. A block expands to what it returns; its own browser
   // is the dialog's Fields tab.
   const body = !isExpanded ? "" : source.primary
-    ? `<div class="ds-fields">${fieldBrowserHtml(r)}</div>`
-    : `<div class="ds-fields">${datasetChosenFieldsHtml(r, source)}</div>`;
+    ? `<div class="ds-fields">${fieldBrowserHtml(r)}<h4 class="mt">Columns on the report</h4>${reportColumnsHtml(r)}</div>`
+    : `<div class="ds-fields">${datasetChosenFieldsHtml(r, source, index)}</div>`;
   return `<div class="ds-node">
     <div class="ds-row" data-dstoggle="${index}">
       <span class="ds-caret">${isExpanded ? "▾" : "▸"}</span>
@@ -5937,10 +5945,69 @@ function datasetNodeHtml(r, source, index, isExpanded) {
   </div>`;
 }
 
-function datasetChosenFieldsHtml(r, source) {
-  return datasetFieldsOf(source, r).map(field =>
-    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span></div>`).join("")
+function datasetChosenFieldsHtml(r, source, index) {
+  const fields = datasetFieldsOf(source, r);
+  // A block's column order is its comma list's order, so those rows can be moved in place.
+  const movable = !source.primary && !isStaticSource(source.type) && String(source.columns || "").trim();
+  return fields.map((field, at) =>
+    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span>${
+      movable ? `<span class="ds-colbtns">
+        <button data-blockmv="${index}" data-logical="${esc(field.logical)}" data-dir="-1" title="Up" ${at === 0 ? "disabled" : ""}>▲</button>
+        <button data-blockmv="${index}" data-logical="${esc(field.logical)}" data-dir="1" title="Down" ${at === fields.length - 1 ? "disabled" : ""}>▼</button>
+      </span>` : ""}</div>`).join("")
     || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
+}
+
+/* R3: the report's chosen columns, under the node of the dataset that returns them — where the
+   Columns tab used to be a third view of the same thing. A row is a selection: clicking it opens
+   the full editor in the properties pane, exactly as a canvas column would. */
+function reportColumnsHtml(r) {
+  const cols = r.columns || [];
+  if (!cols.length) return `<div class="ds-field" style="color:var(--text-secondary)">None yet — click a field above, or drag it onto the canvas.</div>`;
+  return cols.map((column, index) => `<div class="ds-field ds-outcol" data-outcol="${index}">
+    <span>${esc(column.name || column.attribute || "Column")}${column.visible === false ? ` <span class="pt">hidden</span>` : ""}</span>
+    <span class="ds-logical">${esc(column.attribute || "")}</span>
+    <span class="ds-colbtns">
+      <button data-colmv="${index}" data-dir="-1" title="Up" ${index === 0 ? "disabled" : ""}>▲</button>
+      <button data-colmv="${index}" data-dir="1" title="Down" ${index === cols.length - 1 ? "disabled" : ""}>▼</button>
+      <button data-coldel="${index}" title="Remove">✕</button>
+    </span>
+  </div>`).join("");
+}
+
+function bindReportColumns(host, r) {
+  const refresh = () => { if (renderManualDesigner._refresh) renderManualDesigner._refresh(); };
+  host.querySelectorAll("[data-colmv]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    const from = +button.dataset.colmv, to = from + (+button.dataset.dir);
+    if (to < 0 || to >= r.columns.length) return;
+    const [moved] = r.columns.splice(from, 1);
+    r.columns.splice(to, 0, moved);
+    if (r._sel && r._sel.t === "outcol" && r._sel.i === from) r._sel.i = to;
+    refresh();
+  });
+  host.querySelectorAll("[data-coldel]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    r.columns.splice(+button.dataset.coldel, 1);
+    if (r._sel && r._sel.t === "outcol") { r._sel = null; setPropsOpen(false); }
+    refresh();
+  });
+  host.querySelectorAll("[data-outcol]").forEach(row => row.onclick = event => {
+    if (event.target.closest("button")) return;
+    r._sel = { t: "outcol", i: +row.dataset.outcol };
+    setPropsOpen(true);
+    renderProps(r);
+  });
+  host.querySelectorAll("[data-blockmv]").forEach(button => button.onclick = event => {
+    event.stopPropagation();
+    const source = r.dataSources[+button.dataset.blockmv];
+    const list = String(source.columns || "").split(",").map(s => s.trim()).filter(Boolean);
+    const from = list.indexOf(button.dataset.logical), to = from + (+button.dataset.dir);
+    if (from < 0 || to < 0 || to >= list.length) return;
+    [list[from], list[to]] = [list[to], list[from]];
+    source.columns = list.join(", ");
+    refresh();
+  });
 }
 
 /* The chip says how the engine will treat the dataset — and an external one says PHASE B, because
@@ -6151,6 +6218,13 @@ function openDatasetProperties(r, source, onClose) {
 }
 
 function datasetQueryTab(body, r, source, redraw) {
+  if (source.primary) {
+    // The report's source belongs to the primary dataset (R3). Read via and the query — a saved
+    // view picker under CRM View — are already fields of the card below.
+    const controls = el(`<div class="dp-grid" style="margin-bottom:8px">${primarySourceControlsHtml(r)}</div>`);
+    body.appendChild(controls);
+    bindPrimarySourceControls(controls, r, redraw);
+  }
   const card = el(`<div class="dp-grid"></div>`);
   RAIL_PANELS.dataSources.fields
     .filter(field => !field.when || field.when(source))
@@ -6437,15 +6511,16 @@ function addFieldByClick(r, f) {
    every dataset's data story starts in one tree (R2). Blocks keep their fields in the Dataset
    properties dialog. */
 
-function dataSourceControlsHtml(r) {
+/* R3: these live in the PRIMARY dataset's properties dialog, beside the Read via and query the
+   dialog already carries — the report's source is the primary dataset's business, not a box the
+   whole panel wears. Only the two the dialog lacks: the reusable-source shortcut and the entity. */
+function primarySourceControlsHtml(r) {
   const ds0 = (r.dataSources && r.dataSources[0]) || {};
   return `<div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_dsrc">${datasourceOptions(ds0.name)}</select></div>
-    <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
-    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(r.mainEntity, 'id="md_entity"')}</div>
-    ${isCrmViewSource(ds0.type) ? `<div class="mini-field"><label>Saved view</label>${viewPickerHtml(r.mainEntity, ds0.query, 'id="md_view"')}</div>` : ""}`;
+    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(r.mainEntity, 'id="md_entity"')}</div>`;
 }
 
-function bindDataSourceControls(host, r, redraw) {
+function bindPrimarySourceControls(host, r, redraw) {
   const source = host.querySelector("#md_dsrc");
   if (source) source.onchange = e => {
     const ds = dataSourceCatalog.get().find(x => x.name === e.target.value);
@@ -6456,20 +6531,6 @@ function bindDataSourceControls(host, r, redraw) {
     else r.dataSources[0].name = "";
     redraw();
   };
-  const srcType = host.querySelector("#md_srctype");
-  if (srcType) srcType.onchange = e => {
-    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }];
-    r.dataSources[0].type = e.target.value;
-    // The payload belongs to the read method it was written for, exactly as in the wizard.
-    r.dataSources[0].query = "";
-    redraw();
-  };
-  const viewPicker = host.querySelector("#md_view");
-  if (viewPicker) viewPicker.addEventListener(comboSafeEvent(viewPicker), () => {
-    if (viewPicker.value === r.dataSources[0].query) return;
-    r.dataSources[0].query = viewPicker.value;
-    redraw();
-  });
   const entity = host.querySelector("#md_entity");
   if (entity) entity.onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = { 0: true }; r._fieldSearch = ""; redraw(); };
 }
@@ -6806,6 +6867,20 @@ function renderProps(r) {
     // Only a deliberate open shows the how-to; otherwise no selection means no pane.
     if (!state.propsManual) { setPropsOpen(false); return; }
     host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`;
+    return;
+  }
+  if (sel.t === "outcol") {
+    // A chosen column picked in the Report data tree (R3): the Columns tab's full editor, as the
+    // properties of a selection rather than a card on a third tab.
+    const column = (r.columns || [])[sel.i];
+    if (!column) { r._sel = null; setPropsOpen(false); return; }
+    host.innerHTML = `<h4>Output column</h4>`;
+    host.appendChild(railCard(r, RAIL_PANELS.columns, column, () => {
+      r.columns.splice(sel.i, 1);
+      r._sel = null;
+      setPropsOpen(false);
+      if (renderManualDesigner._refresh) renderManualDesigner._refresh();
+    }));
     return;
   }
   if (sel.t==="header") { const H=D.header;
