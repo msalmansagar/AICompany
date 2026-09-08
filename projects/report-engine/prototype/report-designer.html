@@ -6265,7 +6265,7 @@ function datasetProblemsHtml(r, source) {
 function datasetFieldsTab(body, r, source, redraw) {
   if (source.primary) {
     body.appendChild(el(`<div class="hint">The main dataset returns the report's own columns —
-      manage them under <b>Columns</b>, or drag fields onto the canvas.</div>`));
+      manage them under its node in <b>Report data</b>, or drag fields onto the canvas.</div>`));
     return;
   }
   if (isStaticSource(source.type)) {
@@ -6537,7 +6537,7 @@ function bindPrimarySourceControls(host, r, redraw) {
 
 function fieldBrowserHtml(r) {
   const ent = r.mainEntity;
-  if (!ent) return `<div class="page-sub" style="padding:4px 0">Choose the main CRM entity above to see its fields.</div>`;
+  if (!ent) return `<div class="page-sub" style="padding:4px 0">Choose the main CRM entity in this dataset's properties (${ic("edit")}) to see its fields.</div>`;
   const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" title="${esc(at.n)}" data-fattr="${esc(at.a)}" data-fent="${esc(at.linkedEntity ? ent : entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(columnHeadingFor(at))}"><span>${ic("drag")}</span><span class="ds-colname">${esc(at.n)}</span>${at.linkedEntity?`<span class="rel-tag">${esc(at.linkedEntityLabel)}</span>`:""}<span class="pt">${esc(at.t)}</span></div>`;
   /* The tree is the same problem in a narrower column: a main entity contributes hundreds of
      draggable fields, and each expanded relationship adds hundreds more. */
@@ -6547,6 +6547,9 @@ function fieldBrowserHtml(r) {
   // view's query replaces the generated one and never links to them.
   const source = primarySourceOf(r);
   const viaView = source && isCrmViewSource(source.type);
+  // A hand-written query is treated like a view: the browser offers what the QUERY returns —
+  // its root selection and its joined tables' columns — not the whole entity.
+  const viaQuery = !viaView && !!authoredQuerySelection(source && source.type, source && source.query);
   const groups = attributeGroupsFor(ent, source && source.type, source && source.query, []);
   const groupFor = entity => groups.find(g => g.entity === entity);
   const matches = attrs => attrs.filter(at => matchesSearch(term, at.n, at.a, at.t, at.linkedEntityLabel || ""));
@@ -6562,20 +6565,23 @@ function fieldBrowserHtml(r) {
   const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
   const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
     placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
-  const related = viaView
+  const related = (viaView || viaQuery)
     ? groups.filter(g => g.joinedByView).map(g => {
         const exp = r._dsExpanded[g.entity];
         const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
-        return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} via view</span></div>${cols}`;
+        return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} ${viaView ? "via view" : "via query"}</span></div>${cols}`;
       }).join("")
     : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
-  const relatedHeading = viaView ? "Joined by the view" : "Related entities";
+  const relatedHeading = viaView ? "Joined by the view" : viaQuery ? "Joined by the query" : "Related entities";
   const relatedEmpty = viaView
     ? `<div class="page-sub">This view joins no other table.</div>`
+    : viaQuery ? `<div class="page-sub">This query joins no other table.</div>`
     : `<div class="page-sub">No related entities.</div>`;
   const viewNote = viaView
     ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
-    : "";
+    : viaQuery
+      ? `<div class="page-sub" style="padding:4px 0 8px">Fields the hand-written query returns.</div>`
+      : "";
   // The main entity group collapses too — with hundreds of fields it is a wall, not a list.
   const mainOpen = r._dsExpanded.__main !== false;
   return `<div class="canvas-hint" style="margin:2px 0 8px">Drag a field onto the canvas, or click it to add →</div>
@@ -7105,14 +7111,32 @@ function reportableAttributes(entity) {
  * an author blocked from choosing any column at all is worse than one offered too many.
  */
 function availableAttributes(entity, sourceType, viewName) {
+  if (!isCrmViewSource(sourceType)) return attributesOf(entity);
+  return selectionAttributes(entity, viewSelection(entity, viewName));
+}
+
+/** The fields one parsed query selection offers: the root's chosen attributes plus the linked
+    tables' columns under their aliases — the shape the row actually arrives in. */
+function selectionAttributes(entity, selection) {
   const all = attributesOf(entity);
-  if (!isCrmViewSource(sourceType)) return all;
-
-  const selection = viewSelection(entity, viewName);
   if (!selection || !selection.attributes.length) return all;
-
   const selected = new Set(selection.attributes);
   return all.filter(a => selected.has(a.a)).concat(linkedAttributesOf(selection));
+}
+
+/**
+ * A hand-written FetchXML query's own selection, in the shape a saved view's takes — one grouping
+ * path serves both, because the result row arrives the same way: linked columns keyed
+ * alias.attribute. Without this, an authored query that joins other tables had no way to offer
+ * those tables' columns to the report, and its own field browser showed the whole entity instead
+ * of what the query returns.
+ */
+function authoredQuerySelection(sourceType, queryPayload) {
+  if (isCrmViewSource(sourceType) || !/<fetch[\s>]/i.test(String(queryPayload || ""))) return null;
+  const fetch = parseFetchXml(String(queryPayload));
+  const root = fetch && fetch.querySelector("entity");
+  if (!root) return null;
+  return { attributes: directAttributesOf(root), links: linksUnder(root, root.getAttribute("name")), conditions: [] };
 }
 
 /**
@@ -7175,9 +7199,10 @@ function primarySourceOf(report) {
  * tree — so they cannot disagree about what is selectable. Under a CRM View the groups come from the
  * view: its own table, then each table it joins. Otherwise, from the report's own joins.
  */
-function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
+function attributeGroupsFor(mainEntity, sourceType, queryPayload, joins = []) {
   const named = entity => entityLabel(entity) || entity;
-  if (!isCrmViewSource(sourceType)) {
+  const authored = authoredQuerySelection(sourceType, queryPayload);
+  if (!isCrmViewSource(sourceType) && !authored) {
     return [{ entity: mainEntity, label: named(mainEntity), attrs: attributesOf(mainEntity) }]
       .concat(joins.filter(j => j.entity).map(j => ({
         entity: j.entity, label: named(j.entity), joined: true,
@@ -7188,7 +7213,9 @@ function attributeGroupsFor(mainEntity, sourceType, viewName, joins = []) {
       })));
   }
 
-  const available = availableAttributes(mainEntity, sourceType, viewName);
+  const available = authored
+    ? selectionAttributes(mainEntity, authored)
+    : availableAttributes(mainEntity, sourceType, queryPayload);
   const groups = [{ entity: mainEntity, label: named(mainEntity), attrs: available.filter(a => !a.linkedEntity) }];
   available.filter(a => a.linkedEntity).forEach(attribute => {
     const existing = groups.find(group => group.entity === attribute.linkedEntity);
