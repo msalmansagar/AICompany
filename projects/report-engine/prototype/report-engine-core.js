@@ -1012,9 +1012,13 @@ function multiDatasetHtml(datasets, drillCol, fontOf, totalsFor, bandFor){
   const head = isSingleRecord(root)
     ? datasetHeader(root)
     : datasetBlock(root, drillCol, fontOf, cellsFor(root)) + multiRecordNotice(root);
-  // Each block presents as its authored band (D5); the root's presentation is the canvas's.
-  return head + blocks.map(block =>
-    datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("");
+  // Each block presents as its authored band (D5) at its authored width (L1): the blocks live on
+  // a 12-column grid and part-width ones share a row. minmax(0,1fr) so a wide table scrolls
+  // inside its block instead of blowing the columns apart.
+  return head + `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block =>
+      datasetBlock(block, null, fontOf, cellsFor(block), bandFor ? bandFor(block) : null)).join("")
+    + `</div>`;
 }
 
 const isSingleRecord = dataset =>
@@ -1059,6 +1063,12 @@ function bandConfigFor(def, dataset){
   return (dataset && dataset.alias && byAlias[dataset.alias]) || null;
 }
 
+/* L1 — the grid canvas. A band declares how much of the page it takes; the page is a 12-column
+   grid and part-width blocks flow side by side until a row is full. Absent means full width, so
+   every existing report keeps its stacked layout untouched. */
+const BAND_WIDTH_SPANS = { half: 6, third: 4, twothirds: 8 };
+const bandSpanOf = band => BAND_WIDTH_SPANS[(band && band.width) || ""] || 12;
+
 const bandTitleOf = (band, dataset) =>
   band && band.title ? band.title : ((dataset && dataset.name) || "Dataset");
 
@@ -1079,10 +1089,11 @@ function datasetBlock(dataset, drillCol, fontOf, totalsCells, band){
     : (band && band.displayAs === "fields")
       ? datasetFieldsHtml(dataset, band)
       : datasetBody(dataset, drillCol, fontOf, totalsCells);
+  const span = ` style="grid-column:span ${bandSpanOf(band)};min-width:0"`;
   if (band && band.showTitle === false){
-    return `<section class="dataset-block">${body}</section>`;
+    return `<section class="dataset-block"${span}>${body}</section>`;
   }
-  return `<section class="dataset-block">
+  return `<section class="dataset-block"${span}>
     <div class="meta-row"><b>${esc(bandTitleOf(band, dataset))}</b></div>
     ${body}</section>`;
 }
@@ -1242,8 +1253,11 @@ const exportRows = result => tableOf(rootDatasetOf(result) || result);
  * dropping it would make the export quietly disagree with the screen.
  */
 function exportTables(result){
-  return datasetsOf(result).map(dataset => Object.assign(
-    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error },
+  const def = exportDefinition();
+  return datasetsOf(result).map((dataset, index) => Object.assign(
+    { name: dataset.name || "Dataset", status: dataset.status, error: dataset.error,
+      // The authored width rides into print (L1); the root is always the page's.
+      span: index === 0 ? 12 : bandSpanOf(bandConfigFor(def, dataset)) },
     tableOf(dataset)
   ));
 }
@@ -1405,15 +1419,95 @@ async function exportPdf(result, baseName){
      screen rather than as its first table alone. autoTable reports where it finished, which is where
      the next one starts; a single-dataset report is unchanged because it simply has one. */
   let top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
-  for (const table of tables) {
+  let index = 0;
+  while (index < tables.length) {
+    // Part-width blocks share a row in print exactly as on screen (L1); a full-width table keeps
+    // the path single-dataset exports have always taken, byte for byte.
+    const row = pdfRowOf(tables, index);
+    if (row.length > 1) {
+      top = drawPdfPanelRow(doc, row, font, rtl, top, page, chrome);
+      index += row.length;
+      continue;
+    }
+    const table = row[0];
     if (tables.length > 1) top = drawPdfSubtitle(doc, table.name, font, rtl, top, page, chrome);
     top = table.status === "failed"
       ? drawPdfFailure(doc, table, font, rtl, top, page)
       : drawPdfTable(doc, orderedForDirection(table, rtl), font, rtl, top, page, chrome);
+    index++;
   }
 
   if (page.pageNumber && typeof doc.putTotalPages === "function") doc.putTotalPages(PDF_TOTAL_PAGES_MARKER);
   saveBlob(doc.output("blob"), baseName + ".pdf");
+}
+
+/** Consecutive part-width tables that fit one 12-column row together — the grid, in print. */
+function pdfRowOf(tables, start){
+  const row = [tables[start]];
+  let used = tables[start].span || 12;
+  if (used >= 12) return row;
+  while (start + row.length < tables.length){
+    const span = tables[start + row.length].span || 12;
+    if (span >= 12 || used + span > 12) break;
+    row.push(tables[start + row.length]);
+    used += span;
+  }
+  return row;
+}
+
+const PDF_PANEL_GAP = 12;
+
+/**
+ * One row of side-by-side panels: each drawn in its own column of the printable width, titled at
+ * its own left edge, the row's bottom being the deepest panel's. A row too near the page's foot
+ * starts on a fresh page whole, so a row stays a row.
+ */
+function drawPdfPanelRow(doc, row, font, rtl, top, page, chrome){
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const printable = pageWidth - page.margin * 2 - PDF_PANEL_GAP * (row.length - 1);
+  if (top > doc.internal.pageSize.getHeight() - page.margin - 90){
+    doc.addPage();
+    chrome();
+    top = page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0);
+  }
+  const startPage = doc.internal.getCurrentPageInfo().pageNumber;
+  let x = page.margin;
+  let endPage = startPage;
+  let bottom = top;
+  for (const table of row){
+    doc.setPage(startPage);
+    const width = printable * (table.span || 12) / 12;
+    const left = rtl ? pageWidth - x - width : x;
+    const textX = rtl ? left + width : left;
+    doc.setFont(font);
+    doc.setFontSize(10);
+    doc.text(String(table.name), textX, top, { align: rtl ? "right" : "left" });
+    if (table.status === "failed"){
+      doc.setFontSize(8);
+      doc.text(`Could not be loaded — ${table.error || "no reason was given"}`, textX, top + 16,
+        { align: rtl ? "right" : "left", maxWidth: width });
+      bottom = Math.max(bottom, top + 28);
+      x += width + PDF_PANEL_GAP;
+      continue;
+    }
+    const shaped = orderedForDirection(table, rtl);
+    doc.autoTable({
+      head: [shaped.head], body: shaped.body, startY: top + 6, tableWidth: width,
+      margin: { left, right: pageWidth - left - width,
+        top: page.margin + (page.showHeader ? PDF_HEADER_RESERVE : 0), bottom: Math.max(24, page.margin / 2) + 6 },
+      didDrawPage: chrome,
+      styles: { font, fontSize: 8, cellPadding: 4, overflow: "linebreak", halign: rtl ? "right" : "left" },
+      headStyles: { font, fillColor: [0, 120, 212], textColor: 255, fontStyle: rtl ? "normal" : "bold" },
+      alternateRowStyles: { fillColor: [247, 247, 247] }
+    });
+    const landed = doc.internal.getCurrentPageInfo().pageNumber;
+    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : top;
+    if (landed > endPage){ endPage = landed; bottom = finalY; }
+    else if (landed === endPage) bottom = Math.max(bottom, finalY);
+    x += width + PDF_PANEL_GAP;
+  }
+  doc.setPage(endPage);
+  return bottom + 22;
 }
 
 function drawPdfSubtitle(doc, name, font, rtl, top, page, chrome){

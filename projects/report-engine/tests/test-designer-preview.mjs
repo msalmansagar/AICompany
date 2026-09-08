@@ -23,7 +23,7 @@ const NEEDED = [
   'parentScopeValue', 'queryFingerprint', 'blockCacheKey', 'blockQueryBase', 'blockPreviewRows',
   'blockPreviewFetchXml', 'scopeCondition', 'blockOwnConditions', 'previewFiltersElement', 'previewTokenSubstitution', 'scopedAuthoredFetchXml', 'resolveStaticBlock',
   'resolvePreviewBlock', 'previewDatasetsHtml', 'previewMultiRecordNotice',
-  'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable',
+  'previewDatasetHeader', 'previewDatasetBlock', 'previewDatasetTable', 'PREVIEW_BAND_SPANS', 'previewBandSpanOf',
   'previewRows', 'reportPreviewCols', 'canvasDatasetBlocks', 'canvasRootShapeNote', 'runExport',
   'fieldsFromFetchXml', 'datasetFieldsOf', 'staticFieldsOf', 'datasetKindChip', 'wizardDatasetShim',
   'PREVIEW_FETCH_OPERATORS', 'PREVIEW_VALUELESS_OPERATORS', 'PREVIEW_MULTIVALUE_OPERATORS',

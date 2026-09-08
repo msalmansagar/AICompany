@@ -16,7 +16,7 @@ const exportsSection = html.slice(html.indexOf('/* ---------------- exports ----
 /* The exporters read the result through the dataset normaliser, which lives outside this section.
    Lifted from the engine rather than stubbed here: a stub would answer for code the browser never
    runs, and the whole point of these suites is that they exercise the shipped path. */
-const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames',
+const normaliser = ['datasetsOf', 'rootDatasetOf', 'omittedDatasetNames', 'bandConfigFor', 'BAND_WIDTH_SPANS', 'bandSpanOf',
   // tableOf carries the authored totals row into every export (D3), so the totals module rides too.
   'TOTAL_LABELS', 'authoredTotalsFor', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
   'reduceTotal', 'numericCellValue', 'formatTotalNumber']
@@ -222,6 +222,26 @@ console.log('\nmulti-dataset — CSV names every block it could not carry');
   const warning = toasts.find(message => String(message).includes('not included')) || '';
   check('the warning lists the block named "0"', String(warning).includes('0'), String(warning));
   check('and the other omitted block', String(warning).includes('Termsheet Conditions'), String(warning));
+}
+
+// L1 — part-width bands share a row in print. Two half-width blocks must both reach the page,
+// each in its own column; the packing is exercised end to end because the PDF is real.
+console.log('\nPDF — part-width blocks share a row');
+{
+  const defaultDef = harnessState.current.def;
+  const gridded = { ...multi, datasets: [multi.datasets[0],
+    { ...multi.datasets[1], alias: 'fac' }, { ...multi.datasets[2], alias: 'cond' }] };
+  harnessState.current.def = { name: 'Gridded', layout: {
+    datasetLayout: { fac: { width: 'half' }, cond: { width: 'half' } }
+  } };
+  downloads.length = 0; await api.exportPdf(gridded, 'termsheet');
+  const gridBytes = bytesOf(downloads[0].blob);
+  check('the gridded PDF is valid', gridBytes.slice(0, 4).toString() === '%PDF');
+  const gridText = pdfText(gridBytes);
+  for (const wanted of ['Requested Facilities', 'Termsheet Conditions', 'Term Loan', 'Overdraft', 'DSR']) {
+    check(`a row-sharing PDF still carries "${wanted}"`, gridText.includes(wanted));
+  }
+  harnessState.current.def = defaultDef;
 }
 
 // D6 — the print page. The page the author set up is the page the PDF is, and every page carries

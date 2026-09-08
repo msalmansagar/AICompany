@@ -2902,6 +2902,7 @@ function datasetLayoutOf(report, mappedSources) {
     if (band.showTitle === false) kept.showTitle = false;
     if (band.title && band.title.trim()) kept.title = band.title.trim();
     if (band.fieldColumns) kept.fieldColumns = +band.fieldColumns || undefined;
+    if (["half", "third", "twothirds"].includes(band.width)) kept.width = band.width;
     if (Object.keys(kept).length && mappedSources[index]) all[mappedSources[index].sourceAlias] = kept;
   });
   return Object.keys(all).length ? all : undefined;
@@ -6146,7 +6147,8 @@ function datasetBandTab(body, r, source, redraw) {
   }
   source.band = source.band || {};
   const band = source.band;
-  const card = el(`<div class="dp-grid">
+  // One root: el() refuses a two-root template, and the grid plus its hint are one tab body.
+  const card = el(`<div><div class="dp-grid">
     <div class="mini-field"><label>Show as</label>
       <select class="fluent-select" data-bandk="displayAs">
         <option value="table"${band.displayAs === "fields" ? "" : " selected"}>Table</option>
@@ -6154,17 +6156,25 @@ function datasetBandTab(body, r, source, redraw) {
       </select></div>
     <div class="mini-field"><label>Fields per row <span class="rel-tag">Fields</span></label>
       <select class="fluent-select" data-bandk="fieldColumns">${opts(["auto", "1", "2", "3", "4"], band.fieldColumns ? String(band.fieldColumns) : "auto")}</select></div>
+    <div class="mini-field"><label>Width on the page</label>
+      <select class="fluent-select" data-bandk="width">
+        <option value=""${!band.width ? " selected" : ""}>Full width</option>
+        <option value="twothirds"${band.width === "twothirds" ? " selected" : ""}>Two thirds</option>
+        <option value="half"${band.width === "half" ? " selected" : ""}>Half</option>
+        <option value="third"${band.width === "third" ? " selected" : ""}>Third</option>
+      </select></div>
     <div class="mini-field"><label>Band title</label>
       <input class="fluent-input" data-bandk="title" value="${esc(band.title || "")}" placeholder="${esc(source.name || "Dataset")}"></div>
     <div class="mini-field"><label class="toggle" style="margin-top:20px"><input type="checkbox" data-bandk="showTitle" ${band.showTitle === false ? "" : "checked"}>
       <span class="track"></span><span class="tlabel">Show the title above the band</span></label></div>
   </div>
-  <div class="hint" style="margin-top:10px">Move the band up or down on the canvas — its position IS the run order, so what you arrange is what executes.</div>`);
+  <div class="hint" style="margin-top:10px">Move the band up or down on the canvas — its position IS the run order, so what you arrange is what executes.</div></div>`);
   body.appendChild(card);
   card.querySelectorAll("[data-bandk]").forEach(input => input.addEventListener(comboSafeEvent(input), () => {
     const key = input.dataset.bandk;
     if (key === "showTitle") band.showTitle = input.checked ? true : false;
     else if (key === "fieldColumns") band.fieldColumns = input.value === "auto" ? undefined : +input.value;
+    else if (key === "width") band.width = input.value || undefined;
     else band[key] = input.value;
   }));
 }
@@ -6703,14 +6713,19 @@ function canvasDatasetBlocks(report) {
   if (!rootRows.length && isReportRootLoading(report)) {
     return band(loadingNote(`Reading ${report.mainEntity} from Dataverse…`));
   }
-  const body = blocks.map(block => {
-    const resolved = resolvePreviewBlock(block, rootRows);
-    const controls = `<span class="cv-bandbtns">
+  // The canvas lays the blocks on the same 12-column grid the runtime draws (L1); the span sits
+  // on the wrapper, which is the grid's child — inside it the toolbar would not move the block.
+  const body = `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block => {
+      const resolved = resolvePreviewBlock(block, rootRows);
+      const controls = `<span class="cv-bandbtns">
       <button data-bandmove="${block.sourceIndex}" data-dir="-1" title="Move up — order IS the run order">▲</button>
       <button data-bandmove="${block.sourceIndex}" data-dir="1" title="Move down">▼</button>
       <button data-bandprops="${block.sourceIndex}" title="Dataset properties">${ic("edit")}</button></span>`;
-    return `<div class="cv-bandwrap">${controls}${previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band)}</div>`;
-  }).join("");
+      return `<div class="cv-bandwrap" style="grid-column:span ${previewBandSpanOf(block.band)};min-width:0">${controls}${
+        previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band)}</div>`;
+    }).join("")
+    + `</div>`;
   return band(canvasRootShapeNote(report, rootRows) + body);
 }
 
@@ -8644,13 +8659,21 @@ function previewDatasetsHtml(report, rootCols, rootRows, blocks) {
     ? previewDatasetHeader(report.name || "Record", rootCols, rootRows[0])
     : previewDatasetBlock(report.name || "Main dataset", rootCols, rootRows, "", rootPreviewTotals(report))
       + previewMultiRecordNotice(rootRows.length);
-  const body = blocks.map(block => {
-    const resolved = resolvePreviewBlock(block, rootRows);
-    // A static block derives its columns from its rows, exactly as the engine does.
-    return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band);
-  }).join("");
+  // The preview lays blocks on the same 12-column grid the runtime draws (L1) — a width chosen in
+  // the Band tab reads identically here, on the run screen, and in print.
+  const body = `<div class="dataset-grid" style="display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:0 18px;align-items:start">`
+    + blocks.map(block => {
+      const resolved = resolvePreviewBlock(block, rootRows);
+      // A static block derives its columns from its rows, exactly as the engine does.
+      return previewDatasetBlock(block.name, resolved.cols || block.cols, resolved.rows, resolved.notice, block.totals, block.band);
+    }).join("")
+    + `</div>`;
   return head + body;
 }
+
+/* Mirrors the runtime's bandSpanOf — the preview must not disagree with the page. */
+const PREVIEW_BAND_SPANS = { half: 6, third: 4, twothirds: 8 };
+const previewBandSpanOf = band => PREVIEW_BAND_SPANS[(band && band.width) || ""] || 12;
 
 /** The root's authored totals, keyed the way the PREVIEW keys its columns. */
 function rootPreviewTotals(report) {
@@ -8682,9 +8705,10 @@ function previewDatasetBlock(name, cols, rows, notice, totals, band) {
     : !rows.length ? `<div class="page-sub" style="padding:8px 0">No rows.</div>`
     : (band && band.displayAs === "fields") ? previewDatasetFieldsHtml(cols, rows, band)
     : previewDatasetTable(cols, rows, totals);
-  if (band && band.showTitle === false) return `<section class="dataset-block">${body}</section>`;
+  const span = ` style="grid-column:span ${previewBandSpanOf(band)};min-width:0"`;
+  if (band && band.showTitle === false) return `<section class="dataset-block"${span}>${body}</section>`;
   const count = (!notice && rows.length) ? `<span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>` : "";
-  return `<section class="dataset-block">
+  return `<section class="dataset-block"${span}>
     <div class="dataset-head"><b>${esc((band && band.title) || name)}</b>${count}</div>
     ${body}</section>`;
 }

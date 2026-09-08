@@ -12,12 +12,13 @@ const html = readFileSync(ENGINE, 'utf8');
 const NEEDED = [
   'NUMERIC', 'plural', 'truncationChip', 'TOTAL_LABELS', 'reduceTotal', 'numericCellValue',
   'formatTotalNumber', 'totalsRowHtml', 'totalsRowOf', 'totalsRowLabel', 'totalCellOf',
-  'datasetBody', 'datasetRow', 'bandConfigFor', 'bandTitleOf', 'datasetFieldsHtml', 'datasetBlock'
+  'datasetBody', 'datasetRow', 'bandConfigFor', 'bandTitleOf', 'datasetFieldsHtml', 'datasetBlock',
+  'BAND_WIDTH_SPANS', 'bandSpanOf'
 ];
 
 const api = new Function('esc',
   `${NEEDED.map(name => liftDeclaration(html, name)).join('\n')}
-   return { bandConfigFor, datasetFieldsHtml, datasetBlock };`
+   return { bandConfigFor, datasetFieldsHtml, datasetBlock, bandSpanOf };`
 )(value => String(value == null ? '' : value));
 
 let passed = 0, failed = 0;
@@ -62,6 +63,20 @@ console.log('the title is the author’s to keep, rename or remove');
   const hidden = api.datasetBlock(dataset, null, () => '', null, { showTitle: false });
   check('hiding it removes the heading, not the data',
     !hidden.includes('<b>Applicant Profile</b>') && hidden.includes('Qatar National Bank'), hidden.slice(0, 160));
+}
+
+console.log('a band declares its width on the 12-column page (L1)');
+{
+  check('absent means the full page', api.bandSpanOf(null) === 12);
+  check('half is six columns', api.bandSpanOf({ width: 'half' }) === 6);
+  check('a third is four', api.bandSpanOf({ width: 'third' }) === 4);
+  check('two thirds is eight', api.bandSpanOf({ width: 'twothirds' }) === 8);
+  check('an unknown width falls back to full, never to broken CSS', api.bandSpanOf({ width: 'banana' }) === 12);
+
+  const third = api.datasetBlock(dataset, null, () => '', null, { width: 'third' });
+  check('the block carries its span', third.includes('grid-column:span 4'), third.slice(0, 120));
+  const full = api.datasetBlock(dataset, null, () => '', null, null);
+  check('no band means a full-width block', full.includes('grid-column:span 12'));
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
