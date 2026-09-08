@@ -2191,10 +2191,14 @@ const state = {
   dashPreview: false,
   dashSelection: null,
   fieldFilter: "",
-  // The manual designer's properties pane, hidden to give the canvas the room.
-  propsCollapsed: false,
+  // The manual designer's properties pane: closed until something on the canvas is selected —
+  // an open pane holding only instructions costs canvas width and answers nothing.
+  propsCollapsed: true,
+  // True only while the user has opened the pane by hand with nothing selected; that explicit
+  // ask is the one time it may sit open showing the how-to hint.
+  propsManual: false,
   // Which panel the left rail is showing in the manual designer.
-  railSection: "fields",
+  railSection: "data",
   report: null,
   selectedReportId: null,
   dashboard: null,
@@ -5513,7 +5517,7 @@ function renderManualDesigner(c) {
       <div class="props-bar">
         <button class="props-toggle" id="md_toggleprops"
           title="${state.propsCollapsed ? "Show properties" : "Hide properties"}"
-          aria-expanded="${!state.propsCollapsed}">${state.propsCollapsed ? "◀" : "▶"}</button>
+          aria-expanded="${!state.propsCollapsed}">${state.propsCollapsed ? "◀" : "✕"}</button>
         ${state.propsCollapsed ? "" : `<h4>Properties</h4>`}
       </div>
       <div id="md_props_body"></div>
@@ -5532,7 +5536,41 @@ function renderManualDesigner(c) {
      the author off the canvas. */
   $("#md_settings").onclick = () => { r.name = r.design.header.title || r.name; openReportSettings(r); };
   $("#md_wizard").onclick = () => toast("Switches to the guided wizard (prototype)", "info");
-  $("#md_toggleprops").onclick = () => { state.propsCollapsed = !state.propsCollapsed; render(); };
+  $("#md_toggleprops").onclick = () => {
+    const opening = state.propsCollapsed;
+    setPropsOpen(opening, { manual: true });
+    if (opening) renderProps(r);
+  };
+}
+
+/**
+ * The properties pane earns its column only when it has something to say. Selecting on the canvas
+ * opens it, deselecting closes it; the toggle stays for opening it deliberately, and that explicit
+ * ask is the one time it may sit open with only the how-to hint. Class and bar are updated in
+ * place — a full render would reset canvas scroll for what is a CSS state change.
+ */
+function setPropsOpen(open, { manual = false } = {}) {
+  state.propsManual = !!(open && manual);
+  if (state.propsCollapsed === !open) return;
+  state.propsCollapsed = !open;
+  const grid = document.querySelector(".md-grid4");
+  if (!grid) return;
+  grid.classList.toggle("props-collapsed", state.propsCollapsed);
+  const toggle = $("#md_toggleprops");
+  if (toggle) {
+    toggle.textContent = state.propsCollapsed ? "◀" : "✕";
+    toggle.title = state.propsCollapsed ? "Show properties" : "Hide properties";
+    toggle.setAttribute("aria-expanded", String(!state.propsCollapsed));
+  }
+  const heading = grid.querySelector(".props-bar h4");
+  if (state.propsCollapsed && heading) heading.remove();
+  else if (!state.propsCollapsed && !heading && toggle) toggle.insertAdjacentHTML("afterend", "<h4>Properties</h4>");
+  if (state.propsCollapsed) {
+    // A grid column cannot shrink below its content: stale properties left in the body hold the
+    // "collapsed" pane at full width. Empty means 34px.
+    const body = $("#md_props_body");
+    if (body) body.innerHTML = "";
+  }
 }
 
 /* ---------- left rail ----------
@@ -5705,7 +5743,8 @@ const RAIL_PANELS = {
    group owned it — and the strip had room for twelve buttons while using eight, so the tidiness
    bought nothing. A name someone already knows beats a category someone has to infer. */
 const RAIL_SECTIONS = [
-  { key: "fields", label: "Fields", icon: "tree" },
+  // No separate Fields tab: fields belong to the dataset that returns them, so they live in the
+  // Report Data tree — the root's browser under its node, a block's under its dialog (R2).
   { key: "data", label: "Data", icon: "flow", panels: ["dataSources", "externalSources"] },
   { key: "columns", label: "Columns", icon: "doc", panels: ["columns"] },
   { key: "filters", label: "Filters", icon: "filter", panels: ["filters"] },
@@ -5742,8 +5781,8 @@ function railSectionCount(section, r) {
 function renderRail(r) {
   const host = $("#md_ds");
   if (!host) return;
-  if (state.railSection === "fields") { dsPanel(r); return; }
-  const section = RAIL_SECTIONS.find(s => s.key === state.railSection) || RAIL_SECTIONS[1];
+  // A session restored with the retired "fields" key lands on Data, where the fields now live.
+  const section = RAIL_SECTIONS.find(s => s.key === state.railSection) || RAIL_SECTIONS[0];
   host.innerHTML = "";
   section.panels.forEach(key => railPanel(host, r, key, RAIL_PANELS[key]));
 }
@@ -5837,9 +5876,18 @@ function bindRailCard(card, target, r) {
 
 function datasetTreePanel(host, r, spec) {
   r.dataSources = r.dataSources || [];
+  // The primary node opens by default: it IS the report, and its field browser is the first
+  // thing an author reaches for. Once only — other code pre-seeds the map with {}, and a node
+  // the author closed must stay closed.
+  r._dsExpanded = r._dsExpanded || {};
+  if (!r._dsExpanded.__init) { r._dsExpanded.__init = true; if (r._dsExpanded[0] === undefined) r._dsExpanded[0] = true; }
+  const redraw = () => { host.innerHTML = ""; datasetTreePanel(host, r, spec); };
   host.appendChild(el(`<div><h4>Report data</h4>
     <div class="hint" style="margin-bottom:10px">What the report reads. ${ic("edit")} opens a dataset's properties.</div></div>`));
+  host.appendChild(el(`<div>${dataSourceControlsHtml(r)}</div>`));
   host.appendChild(el(datasetTreeHtml(r)));
+  bindDataSourceControls(host, r, redraw);
+  bindFieldBrowser(host, r, redraw);
   bindDatasetTree(host, r, spec);
 }
 
@@ -5872,10 +5920,12 @@ function parametersFolderHtml(r) {
 }
 
 function datasetNodeHtml(r, source, index, isExpanded) {
-  const fields = datasetFieldsOf(source, r);
-  const fieldRows = fields.map(field =>
-    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span></div>`).join("")
-    || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
+  // The primary expands to its full field browser — searchable, draggable, the retired Fields
+  // tab's content where it always belonged. A block expands to what it returns; its own browser
+  // is the dialog's Fields tab.
+  const body = !isExpanded ? "" : source.primary
+    ? `<div class="ds-fields">${fieldBrowserHtml(r)}</div>`
+    : `<div class="ds-fields">${datasetChosenFieldsHtml(r, source)}</div>`;
   return `<div class="ds-node">
     <div class="ds-row" data-dstoggle="${index}">
       <span class="ds-caret">${isExpanded ? "▾" : "▸"}</span>
@@ -5883,8 +5933,14 @@ function datasetNodeHtml(r, source, index, isExpanded) {
       ${datasetKindChip(source)}
       <button class="icon-btn ds-gear" data-dsprops="${index}" title="Dataset properties">${ic("edit")}</button>
     </div>
-    ${isExpanded ? `<div class="ds-fields">${fieldRows}</div>` : ""}
+    ${body}
   </div>`;
+}
+
+function datasetChosenFieldsHtml(r, source) {
+  return datasetFieldsOf(source, r).map(field =>
+    `<div class="ds-field"><span>${esc(field.label)}</span><span class="ds-logical">${esc(field.logical)}</span></div>`).join("")
+    || `<div class="ds-field" style="color:var(--text-secondary)">No fields yet — open properties</div>`;
 }
 
 /* The chip says how the engine will treat the dataset — and an external one says PHASE B, because
@@ -6375,8 +6431,52 @@ function addFieldByClick(r, f) {
   renderManualDesigner._refresh();
   renderRailStrip(r);
 }
-function dsPanel(r) {
-  const host = $("#md_ds"); const ent = r.mainEntity;
+/* ---------- primary dataset: source controls + field browser ----------
+   Both lived on the retired Fields tab. The controls configure the primary dataset and now sit at
+   the top of Report data; the field browser renders inside the root dataset's expanded node, so
+   every dataset's data story starts in one tree (R2). Blocks keep their fields in the Dataset
+   properties dialog. */
+
+function dataSourceControlsHtml(r) {
+  const ds0 = (r.dataSources && r.dataSources[0]) || {};
+  return `<div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_dsrc">${datasourceOptions(ds0.name)}</select></div>
+    <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
+    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(r.mainEntity, 'id="md_entity"')}</div>
+    ${isCrmViewSource(ds0.type) ? `<div class="mini-field"><label>Saved view</label>${viewPickerHtml(r.mainEntity, ds0.query, 'id="md_view"')}</div>` : ""}`;
+}
+
+function bindDataSourceControls(host, r, redraw) {
+  const source = host.querySelector("#md_dsrc");
+  if (source) source.onchange = e => {
+    const ds = dataSourceCatalog.get().find(x => x.name === e.target.value);
+    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
+    // The stored source carries its name and type; its entity lives on the mapping rows, so the
+    // main entity stays whatever the picker beside this one says.
+    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; }
+    else r.dataSources[0].name = "";
+    redraw();
+  };
+  const srcType = host.querySelector("#md_srctype");
+  if (srcType) srcType.onchange = e => {
+    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }];
+    r.dataSources[0].type = e.target.value;
+    // The payload belongs to the read method it was written for, exactly as in the wizard.
+    r.dataSources[0].query = "";
+    redraw();
+  };
+  const viewPicker = host.querySelector("#md_view");
+  if (viewPicker) viewPicker.addEventListener(comboSafeEvent(viewPicker), () => {
+    if (viewPicker.value === r.dataSources[0].query) return;
+    r.dataSources[0].query = viewPicker.value;
+    redraw();
+  });
+  const entity = host.querySelector("#md_entity");
+  if (entity) entity.onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = { 0: true }; r._fieldSearch = ""; redraw(); };
+}
+
+function fieldBrowserHtml(r) {
+  const ent = r.mainEntity;
+  if (!ent) return `<div class="page-sub" style="padding:4px 0">Choose the main CRM entity above to see its fields.</div>`;
   const fieldItem = (at, entity) => `<div class="ds-col" draggable="true" title="${esc(at.n)}" data-fattr="${esc(at.a)}" data-fent="${esc(at.linkedEntity ? ent : entity)}" data-ftype="${esc(at.t)}" data-fname="${esc(columnHeadingFor(at))}"><span>${ic("drag")}</span><span class="ds-colname">${esc(at.n)}</span>${at.linkedEntity?`<span class="rel-tag">${esc(at.linkedEntityLabel)}</span>`:""}<span class="pt">${esc(at.t)}</span></div>`;
   /* The tree is the same problem in a narrower column: a main entity contributes hundreds of
      draggable fields, and each expanded relationship adds hundreds more. */
@@ -6386,7 +6486,7 @@ function dsPanel(r) {
   // view's query replaces the generated one and never links to them.
   const source = primarySourceOf(r);
   const viaView = source && isCrmViewSource(source.type);
-  const groups = ent ? attributeGroupsFor(ent, source && source.type, source && source.query, []) : [];
+  const groups = attributeGroupsFor(ent, source && source.type, source && source.query, []);
   const groupFor = entity => groups.find(g => g.entity === entity);
   const matches = attrs => attrs.filter(at => matchesSearch(term, at.n, at.a, at.t, at.linkedEntityLabel || ""));
   const visible = (entity) => matches(groupFor(entity) ? groupFor(entity).attrs : attributesOf(entity));
@@ -6397,80 +6497,52 @@ function dsPanel(r) {
       : `<div class="page-sub" style="padding:6px 0">No field matches “${esc(term)}”.</div>`;
   };
 
-  let tree;
-  if (!ent) tree = `<div class="page-sub">Select a main entity to see its fields.</div>`;
-  else {
-    const rootGroup = groupFor(ent);
-    const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
-    const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
-      placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
-    const related = viaView
-      ? groups.filter(g => g.joinedByView).map(g => {
-          const exp = r._dsExpanded[g.entity];
-          const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
-          return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} via view</span></div>${cols}`;
-        }).join("")
-      : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
-    const relatedHeading = viaView ? "Joined by the view" : "Related entities";
-    const relatedEmpty = viaView
-      ? `<div class="page-sub">This view joins no other table.</div>`
-      : `<div class="page-sub">No related entities.</div>`;
-    const viewNote = viaView
-      ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
-      : "";
-    tree = `${search}${viewNote}<div class="ds-ent" data-exp="__main"><span class="caret">▾</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>${fieldsHtml(ent)}<h4 class="mt">${relatedHeading}</h4>${related||relatedEmpty}`;
-  }
-  const extt = (r.externalSources||[]).map((x,i)=>`<div class="ds-ent" style="cursor:default">${ic("flow")}<span>${esc(x.connector)}</span><button class="del" data-xdel="${i}" style="margin-left:auto">${ic("trash")}</button></div>`).join("");
-  const ds0 = (r.dataSources && r.dataSources[0]) || {};
-  host.innerHTML = `<h4>Data source</h4>
-    <div class="mini-field"><label>Reusable data source</label><select class="fluent-select" id="md_ds">${datasourceOptions(ds0.name)}</select></div>
-    <div class="mini-field"><label>Read via</label><select class="fluent-select" id="md_srctype">${opts(SOURCE_TYPES, ds0.type||"FetchXML")}</select></div>
-    <div class="mini-field"><label>Main CRM entity</label>${entityPickerHtml(ent, 'id="md_entity"')}</div>
-    ${isCrmViewSource(ds0.type) ? `<div class="mini-field"><label>Saved view</label>${viewPickerHtml(ent, ds0.query, 'id="md_view"')}</div>` : ""}
-    <div class="canvas-hint" style="margin:8px 0 10px">${ent?"Drag a field onto the canvas, or click it to add →":""}</div>
-    ${tree}
-    <h4 class="mt">External sources</h4>${extt||'<div class="page-sub" style="margin-bottom:8px">None yet.</div>'}
-    <button class="btn sm" id="md_addext">${ic("add")}Add external source</button>`;
-  $("#md_ds").onchange = e => {
-    const ds = dataSourceCatalog.get().find(x=>x.name===e.target.value);
-    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", type:"FetchXML", primary:true }];
-    // The stored source carries its name and type; its entity lives on the mapping rows, so the
-    // main entity stays whatever the picker beside this one says.
-    if (ds) { r.dataSources[0].name = ds.name; r.dataSources[0].type = ds.type; }
-    else r.dataSources[0].name = "";
-    dsPanel(r);
+  const rootGroup = groupFor(ent);
+  const total = rootGroup ? rootGroup.attrs.length : attributesOf(ent).length;
+  const search = `<div class="mini-field"><input class="fluent-input" id="md_fieldsearch" autocomplete="off"
+    placeholder="Search ${total} fields…" value="${esc(term)}"></div>`;
+  const related = viaView
+    ? groups.filter(g => g.joinedByView).map(g => {
+        const exp = r._dsExpanded[g.entity];
+        const cols = exp ? `<div class="ds-rel">${matches(g.attrs).map(at => fieldItem(at, g.entity)).join("") || `<div class="page-sub" style="padding:6px 0">No field matches.</div>`}</div>` : "";
+        return `<div class="ds-ent" data-exp="${esc(g.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(g.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${g.attrs.length} via view</span></div>${cols}`;
+      }).join("")
+    : relationsOf(ent).map(rel => { const exp = r._dsExpanded[rel.entity]; const cols = exp ? `<div class="ds-rel">${fieldsHtml(rel.entity)}</div>` : ""; return `<div class="ds-ent" data-exp="${esc(rel.entity)}"><span class="caret">${exp?"▾":"▸"}</span>${ic("tree")}<span>${esc(rel.label)}</span><span class="pt" style="margin-left:auto;font-size:10px">${esc(rel.entity)}</span></div>${cols}`; }).join("");
+  const relatedHeading = viaView ? "Joined by the view" : "Related entities";
+  const relatedEmpty = viaView
+    ? `<div class="page-sub">This view joins no other table.</div>`
+    : `<div class="page-sub">No related entities.</div>`;
+  const viewNote = viaView
+    ? `<div class="page-sub" style="padding:4px 0 8px">Fields <b>${esc(source.query || "the view")}</b> returns.</div>`
+    : "";
+  // The main entity group collapses too — with hundreds of fields it is a wall, not a list.
+  const mainOpen = r._dsExpanded.__main !== false;
+  return `<div class="canvas-hint" style="margin:2px 0 8px">Drag a field onto the canvas, or click it to add →</div>
+    ${search}${viewNote}
+    <div class="ds-ent" data-exp="__main"><span class="caret">${mainOpen?"▾":"▸"}</span>${ic("tree")}<span>${esc(ent)}</span><span class="pt" style="margin-left:auto;font-size:10px">${visible(ent).length}/${total}</span></div>
+    ${mainOpen ? fieldsHtml(ent) : ""}
+    <h4 class="mt">${relatedHeading}</h4>${related||relatedEmpty}`;
+}
+
+function bindFieldBrowser(host, r, redraw) {
+  const fieldSearch = host.querySelector("#md_fieldsearch");
+  if (fieldSearch) fieldSearch.oninput = () => {
+    r._fieldSearch = fieldSearch.value;
+    redraw();
+    const again = host.querySelector("#md_fieldsearch");
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
   };
-  $("#md_srctype").onchange = e => {
-    r.dataSources = r.dataSources && r.dataSources.length ? r.dataSources : [{ name:"", primary:true }];
-    r.dataSources[0].type = e.target.value;
-    // The payload belongs to the read method it was written for, exactly as in the wizard.
-    r.dataSources[0].query = "";
-    dsPanel(r);
-  };
-  const viewPicker = $("#md_view");
-  if (viewPicker) viewPicker.addEventListener(comboSafeEvent(viewPicker), () => {
-    if (viewPicker.value === r.dataSources[0].query) return;
-    r.dataSources[0].query = viewPicker.value;
-    dsPanel(r);
+  host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => {
+    const key = n.dataset.exp;
+    if (key === "__main") r._dsExpanded.__main = r._dsExpanded.__main === false;
+    else r._dsExpanded[key] = !r._dsExpanded[key];
+    redraw();
   });
-  $("#md_entity").onchange = e => { r.mainEntity = e.target.value; r._dsExpanded = {}; r._fieldSearch = ""; dsPanel(r); };
-  const fieldSearch = $("#md_fieldsearch");
-  if (fieldSearch) {
-    fieldSearch.oninput = () => {
-      r._fieldSearch = fieldSearch.value;
-      dsPanel(r);
-      const again = $("#md_fieldsearch");
-      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-    };
-  }
-  host.querySelectorAll("[data-exp]").forEach(n => n.onclick = () => { const k = n.dataset.exp; if (k==="__main") return; r._dsExpanded[k] = !r._dsExpanded[k]; dsPanel(r); });
   host.querySelectorAll("[data-fattr]").forEach(it => {
     const fdata = () => ({ attr:it.dataset.fattr, entity:it.dataset.fent, type:it.dataset.ftype, name:it.dataset.fname });
     it.addEventListener("dragstart", e => e.dataTransfer.setData("text/field", JSON.stringify(fdata())));
     it.addEventListener("click", () => addFieldByClick(r, fdata()));
   });
-  host.querySelectorAll("[data-xdel]").forEach(b => b.onclick = () => { r.externalSources.splice(+b.dataset.xdel,1); dsPanel(r); });
-  $("#md_addext").onclick = () => { r.externalSources = r.externalSources || []; r.externalSources.push({connectorId:"",connector:"",operation:"",crmKey:"",extKey:"",direction:"CRM → Source",pass:""}); dsPanel(r); };
 }
 function renderCanvas(r) {
   const host = $("#md_canvas"); const D = r.design; const H = D.header, F = D.footer; const sel = r._sel || {};
@@ -6615,7 +6687,7 @@ function bindCanvas(r) {
     event.stopPropagation();
     openDatasetProperties(r, r.dataSources[+button.dataset.bandprops]);
   });
-  const pick = (obj) => { r._sel = obj; renderCanvas(r); renderProps(r); };
+  const pick = (obj) => { r._sel = obj; setPropsOpen(!!obj); renderCanvas(r); renderProps(r); };
   host.querySelectorAll("[data-rmode]").forEach(b => b.onclick = () => { r._renderMode = b.dataset.rmode; renderCanvas(r); });
   host.querySelectorAll("[data-sel]").forEach(n => n.onclick = () => pick({t:n.dataset.sel}));
   host.querySelectorAll("[data-selsec]").forEach(n => n.onclick = e => { if (e.target.closest("button")) return; e.stopPropagation(); pick({t:"section", tid:n.dataset.selsec}); });
@@ -6730,7 +6802,12 @@ function renderProps(r) {
   const posBtns = (val) => `<div class="seg" data-seg="labelPos">${[["top","Top"],["left","Left"],["right","Right"]].map(([v,l])=>`<button class="${(val||"left")===v?"on":""}" data-val="${v}">${l}</button>`).join("")}</div>`;
   const alignBtns = (val) => `<div class="seg" data-seg="align">${["Left","Center","Right"].map(a=>`<button class="${(val||"Left")===a?"on":""}" data-val="${a}">${a}</button>`).join("")}</div>`;
   // No heading here: the pane's bar already says Properties, and repeating it read as two titles.
-  if (!sel) { host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`; return; }
+  if (!sel) {
+    // Only a deliberate open shows the how-to; otherwise no selection means no pane.
+    if (!state.propsManual) { setPropsOpen(false); return; }
+    host.innerHTML = `<div class="page-sub">Click the header, a section title, a header field, or a table column on the canvas to edit it — including its label and alignment.</div>`;
+    return;
+  }
   if (sel.t==="header") { const H=D.header;
     host.innerHTML = `<h4>Report header</h4>
       <div class="mini-field"><label>Title</label><input class="fluent-input" id="p_title" value="${esc(H.title)}"></div>
